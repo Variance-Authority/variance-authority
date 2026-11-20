@@ -31,17 +31,19 @@ pub struct RustEntered {
     pub ordinals: Uint32Array,
 }
 
-/// For each profile, in order, the files under `root` its run entered.
+/// For each test, in order, the files under `root` its run entered.
 ///
-/// `binaries` are the instrumented executables the profiles were written by. A
+/// A test's profiles are its own process's first, then those of the processes
+/// it started, whose counts add to its own. `binaries` are the instrumented
+/// executables the profiles were written by. A
 /// file outside `root` is left out, since it is not the checkout's; one the cut
 /// cannot parse is entered at its root alone, as a module the reader cannot parse
-/// is, so an edit to it selects every test that entered it. A profile that is
-/// missing, empty or cut short answers `None`: its test left before it was
-/// written, so what it entered is not known.
+/// is, so an edit to it selects every test that entered it. A test whose own
+/// profile is missing, empty or cut short answers `None`: it left before the
+/// profile was written, so what it entered is not known.
 #[napi(js_name = "rustCoverage", catch_unwind)]
-pub fn rust_coverage(binaries: Vec<String>, profiles: Vec<String>, root: String) -> napi::Result<Vec<Option<Vec<RustEntered>>>> {
-    let counted: Vec<Option<Counts>> = profiles.par_iter().map(|profile| Counts::read(profile)).collect();
+pub fn rust_coverage(binaries: Vec<String>, profiles: Vec<Vec<String>>, root: String) -> napi::Result<Vec<Option<Vec<RustEntered>>>> {
+    let counted: Vec<Option<Counts>> = profiles.par_iter().map(|profiles| Counts::read_all(profiles)).collect();
     let Some(version) = counted.iter().flatten().map(|counts| counts.version).next() else {
         return Ok(counted.iter().map(|counts| counts.as_ref().map(|_| Vec::new())).collect());
     };
@@ -56,24 +58,40 @@ struct Counts {
 }
 
 impl Counts {
+    /// A test's counts: its own profile's, with those of the processes it started added.
+    fn read_all(profiles: &[String]) -> Option<Counts> {
+        let (own, started) = profiles.split_first()?;
+        let mut counts = Counts::read(own)?;
+        for other in started.iter().filter_map(|profile| Counts::read(profile)) {
+            for (key, values) in other.functions {
+                counts.add(key, &values);
+            }
+        }
+        Some(counts)
+    }
+
+    fn add(&mut self, key: (u64, u64), counts: &[u64]) {
+        // A function counted twice, as a merge would, counts once with both.
+        let summed = self.functions.entry(key).or_insert_with(|| vec![0; counts.len()]);
+        if summed.len() == counts.len() {
+            summed.iter_mut().zip(counts).for_each(|(sum, count)| *sum = sum.saturating_add(*count));
+        }
+    }
+
     /// None for a profile that was not written whole: one that carries no header has no version.
     fn read(profile: &str) -> Option<Counts> {
         let parsed = parse(profile).ok()?;
         let version = parsed.version()?;
-        let mut functions: HashMap<(u64, u64), Vec<u64>> = HashMap::new();
+        let mut read = Counts { version, functions: HashMap::new() };
         for record in parsed.records() {
             let (Some(name), Some(hash)) = (record.name_hash, record.hash) else { continue };
             let counts = record.counts();
             if counts.iter().all(|count| *count == 0) {
                 continue;
             }
-            // A function the profile names twice, as a merge would, counts once with both.
-            let summed = functions.entry((name, hash)).or_insert_with(|| vec![0; counts.len()]);
-            if summed.len() == counts.len() {
-                summed.iter_mut().zip(counts).for_each(|(sum, count)| *sum = sum.saturating_add(*count));
-            }
+            read.add((name, hash), counts);
         }
-        Some(Counts { version, functions })
+        Some(read)
     }
 }
 
@@ -239,7 +257,7 @@ mod tests {
     fn a_profile_missing_or_empty_is_not_known() {
         let empty = std::env::temp_dir().join(format!("variance-empty-{}.profraw", std::process::id()));
         std::fs::write(&empty, b"").expect("the file is written");
-        let profiles = vec!["/nonexistent/aborted.profraw".into(), empty.to_string_lossy().into_owned()];
+        let profiles = vec![vec!["/nonexistent/aborted.profraw".into()], vec![empty.to_string_lossy().into_owned()]];
         let entered = rust_coverage(Vec::new(), profiles, "/".into());
         std::fs::remove_file(&empty).ok();
         let entered = entered.expect("an unreadable profile is no error");

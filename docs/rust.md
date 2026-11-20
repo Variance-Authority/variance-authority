@@ -61,15 +61,21 @@ does. An incomplete row is selected by every change.
 
 No test reads `Cargo.toml`, `Cargo.lock` or a build script, yet each changes
 what every test runs, so the record holds them under every row: a change to one
-selects every target.
+selects every target. So does a change to a file a build script names with
+`cargo::rerun-if-changed`, such as a schema it generates code from.
 
-It differs from `cargo test` in three ways:
+A test that starts one of the workspace's binaries, as an integration test does
+through `CARGO_BIN_EXE_<name>`, is charged with what that process ran too.
+
+It differs from `cargo test` in four ways:
 
 - doctests are not run, so run `cargo test --doc` beside it;
 - each test is its own process, so tests that take turns through a `static`
   lock, or through `serial_test`, now run at the same time;
 - a test process gets `CARGO_MANIFEST_DIR`, but not the rest of the
-  environment Cargo gives it, such as `CARGO` or the library search path.
+  environment Cargo gives it, such as `CARGO` or the library search path;
+- a test binary runs on the machine itself, never through a `runner` set in
+  Cargo's configuration, so a suite built for another target cannot be recorded.
 
 ## Select from the record
 

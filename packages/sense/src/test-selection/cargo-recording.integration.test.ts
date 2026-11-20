@@ -16,6 +16,9 @@ const lib = `${relative(repository, fixture)}/src/lib.rs`;
 const negates = `${relative(repository, fixture)}/tests/negates.rs`;
 const custom = `${relative(repository, fixture)}/tests/custom.rs`;
 const exits = `${relative(repository, fixture)}/tests/exits.rs`;
+const launches = `${relative(repository, fixture)}/tests/launches.rs`;
+// The binary's own unit tests: none, so the row holds no case.
+const main = `${relative(repository, fixture)}/src/main.rs`;
 
 /** A diff that changes one line of `src/lib.rs`. */
 const editing = (source: string, line: string, edited: string): string => {
@@ -47,7 +50,7 @@ describe('a Cargo suite recorded one test per process', () => {
 
   it('writes each file tests are declared in as a row, every test passing', async () => {
     expect(failed).toBe(0);
-    expect(decodeTestCoverage(await readFile(coverageFile)).tests.map((test) => test.file).sort()).toEqual([lib, custom, exits, negates].sort());
+    expect(decodeTestCoverage(await readFile(coverageFile)).tests.map((test) => test.file).sort()).toEqual([lib, main, custom, exits, launches, negates].sort());
   });
 
   // What ran there is not known, so an edit anywhere selects them.
@@ -61,16 +64,16 @@ describe('a Cargo suite recorded one test per process', () => {
     expect(left.filter((path) => path.endsWith('.profraw'))).toEqual([]);
   });
 
-  it('names a case by its libtest path, and charges `add` to the cases that ran it alone', async () => {
+  it('names a case by its libtest path, and charges `add` to the cases that ran it, in their process or one they started', async () => {
     const cases = await caseIndexOf(coverageFile);
     if (cases === undefined) throw new Error('the run wrote no execution index');
     const index = decodeExecutionIndex(cases);
-    expect(index.tests.map((test) => test.id).sort()).toEqual([`${lib} > tests::adds`, `${lib} > tests::muls`, `${lib} > tests::negs`, `${exits} > exits`, `${negates} > negates`].sort());
+    expect(index.tests.map((test) => test.id).sort()).toEqual([`${lib} > tests::adds`, `${lib} > tests::muls`, `${lib} > tests::negs`, `${exits} > exits`, `${launches} > launches`, `${negates} > negates`].sort());
     const source = await readFile(resolve(fixture, 'src/lib.rs'), 'utf8');
     const line = source.split('\n').findIndex((text) => text.startsWith('pub fn add')) + 1;
     const module = index.modules.find((entry) => entry.file === lib);
     const add = module?.blocks.findLast((block) => block.startLine <= line && line <= block.endLine);
-    expect(add?.crossings.map((crossing) => index.tests[crossing.test]!.id).sort()).toEqual([`${lib} > tests::adds`, `${lib} > tests::muls`]);
+    expect(add?.crossings.map((crossing) => index.tests[crossing.test]!.id).sort()).toEqual([`${lib} > tests::adds`, `${lib} > tests::muls`, `${launches} > launches`].sort());
   });
 
   // A line inside a function's body: one that opens it, as a one-line `fn` does, is the root's text too.
@@ -83,18 +86,26 @@ describe('a Cargo suite recorded one test per process', () => {
   });
 
   // What Cargo builds from is read by no test, yet changes what every test runs.
-  it('selects every file when a manifest or a build script changes', async () => {
+  it('selects every file when a manifest, a build script or a file it names changes', async () => {
     const crate = relative(repository, fixture);
-    for (const file of ['Cargo.toml', 'Cargo.lock', 'build.rs']) {
+    for (const file of ['Cargo.toml', 'Cargo.lock', 'build.rs', 'schema.txt']) {
       const diff = `--- a/${crate}/${file}\n+++ b/${crate}/${file}\n@@ -1,1 +1,1 @@\n-a\n+b`;
-      await expect(selectTestFiles(coverageFile, diff)).resolves.toEqual([lib, custom, exits, negates].sort());
+      await expect(selectTestFiles(coverageFile, diff)).resolves.toEqual([lib, main, custom, exits, launches, negates].sort());
     }
+  });
+
+  // `src/main.rs` runs only in the process `tests/launches.rs` starts.
+  it('selects the file whose test launched the binary an edited function is in', async () => {
+    const source = await readFile(resolve(fixture, 'src/main.rs'), 'utf8');
+    const at = source.split('\n').indexOf('    calc::add(a, a)') + 1;
+    const diff = `--- a/${main}\n+++ b/${main}\n@@ -${at},1 +${at},1 @@\n-    calc::add(a, a)\n+    calc::add(a, a) + 0`;
+    await expect(selectTestFiles(coverageFile, diff)).resolves.toEqual([launches, main].sort());
   });
 
   it('records the workspace `--manifest-path` names, from outside it', async () => {
     const elsewhere = resolve(directory, 'elsewhere.bin');
     await expect(recordCargo({ cwd: directory, coverageFile: elsewhere, args: ['--manifest-path', resolve(fixture, 'Cargo.toml')] })).resolves.toBe(0);
-    expect(decodeTestCoverage(await readFile(elsewhere)).tests.map((test) => test.file).sort()).toEqual([lib, custom, exits, negates].sort());
+    expect(decodeTestCoverage(await readFile(elsewhere)).tests.map((test) => test.file).sort()).toEqual([lib, main, custom, exits, launches, negates].sort());
   }, 240_000);
 
   it('answers a build that failed, naming what rustc said', async () => {
@@ -111,6 +122,6 @@ describe('a Cargo suite recorded one test per process', () => {
   it('selects every file whose tests ran a file when the edit is outside every function', async () => {
     const source = await readFile(resolve(fixture, 'src/lib.rs'), 'utf8');
     await expect(selectTestFiles(coverageFile, editing(source, '    use super::*;', '    use super::{add, mul, neg};')))
-      .resolves.toEqual([lib, negates]);
+      .resolves.toEqual([lib, launches, negates].sort());
   });
 });

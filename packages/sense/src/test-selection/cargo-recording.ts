@@ -5,7 +5,8 @@
  * rustc counts the regions (`-C instrument-coverage`), so nothing is placed:
  * the test binaries are built once with the counters in, every test runs alone
  * with its own `LLVM_PROFILE_FILE`, and the addon's `rustCoverage` reads each
- * profile against the binaries' coverage map onto the Rust reader's regions. A
+ * test's profiles, its own and those of the workspace binaries it started,
+ * against the binaries' coverage map onto the Rust reader's regions. A
  * process per test is how libtest's threads are told apart; the journals land
  * through the fold, which cuts each `.rs` file again from the checkout as it
  * cuts a module.
@@ -13,9 +14,9 @@
 
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { availableParallelism } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { native } from '../addon.js';
 import caseOwner from './case-owner.cjs';
 import { finishedCase } from './case-durations.js';
@@ -50,7 +51,17 @@ interface Ran {
   readonly name: string;
   readonly passed: boolean;
   readonly duration: number;
-  readonly profile: string;
+  /** Its own process's profile first, then those of the processes it started. */
+  readonly profiles: readonly string[];
+}
+
+/** What the recording build answers. */
+interface Build {
+  readonly binaries: readonly Binary[];
+  /** The workspace's own executables, which a test may start, as `CARGO_BIN_EXE_*` names them. */
+  readonly launchable: readonly string[];
+  /** What a build script said it reads, by `rerun-if-changed`. */
+  readonly read: readonly string[];
 }
 
 /**
@@ -77,16 +88,17 @@ export async function recordCargo(run: CargoRun): Promise<number | undefined> {
   try {
     // Every test is built from these and reads none of them, so a change to one selects every row.
     for (const input of workspace.inputs) selection.preconditions.add(input);
-    const binaries = await built(run, workspace.target, join(profiles, 'build-%p.profraw'));
-    if (binaries === undefined) return undefined;
+    const build = await built(run, workspace, join(profiles, 'build-%p.profraw'));
+    if (build === undefined) return undefined;
+    for (const input of build.read) if (!relative(root, input).startsWith('..')) selection.preconditions.add(input);
     const finished = [];
     let failed = 0;
-    for (const [testFile, sharing] of byTestFile(binaries)) {
+    for (const [testFile, sharing] of byTestFile(build.binaries)) {
       const ran: Ran[] = [];
       let unlisted = false;
       for (const binary of sharing) {
         const names = await listed(binary, join(profiles, 'listing-%p.profraw'));
-        if (names.length === 0) {
+        if (names === undefined) {
           // A target with its own `main` answers no listing: it runs once as `cargo test` runs it, and what it entered is not known.
           unlisted = true;
           if (!(await whole(binary, join(profiles, 'whole-%p.profraw')))) failed += 1;
@@ -94,11 +106,12 @@ export async function recordCargo(run: CargoRun): Promise<number | undefined> {
         }
         const tests: Ran[] = [];
         await pool(availableParallelism(), names, async (name, at) => {
-          tests[at] = await alone(binary, name, join(profiles, `${randomUUID()}.profraw`));
+          tests[at] = await alone(binary, name, join(profiles, randomUUID()));
         });
         ran.push(...tests);
       }
-      const entered = rustCoverage(sharing.map((binary) => binary.executable), ran.map((test) => test.profile), root);
+      const executables = [...sharing.map((binary) => binary.executable), ...build.launchable];
+      const entered = rustCoverage(executables, ran.map((test) => [...test.profiles]), root);
       writeJournals(selection, testFile, ran, entered);
       failed += ran.filter((test) => !test.passed).length;
       finished.push({
@@ -123,8 +136,8 @@ export async function recordCargo(run: CargoRun): Promise<number | undefined> {
  * instrumented too and run during the build, so their counters go to `profile`,
  * which nothing reads.
  */
-async function built(run: CargoRun, targetDirectory: string, profile: string): Promise<Binary[] | undefined> {
-  const target = join(targetDirectory, 'variance');
+async function built(run: CargoRun, workspace: Workspace, profile: string): Promise<Build | undefined> {
+  const target = join(workspace.target, 'variance');
   const own = process.env['RUSTC_WORKSPACE_WRAPPER'];
   if (own !== undefined && own !== '') process.stderr.write(`variance cargo: the recording build replaces RUSTC_WORKSPACE_WRAPPER (${own}) with its own, which adds -C instrument-coverage.\n`);
   const { code, stdout } = await output('cargo', ['test', '--no-run', '--message-format=json', ...(run.args ?? [])], run.cwd, {
@@ -134,6 +147,8 @@ async function built(run: CargoRun, targetDirectory: string, profile: string): P
     CARGO_TARGET_DIR: target,
   });
   const binaries: Binary[] = [];
+  const launchable: string[] = [];
+  const read: string[] = [];
   for (const line of stdout.split('\n')) {
     if (!line.startsWith('{')) continue;
     const message = JSON.parse(line) as {
@@ -142,15 +157,48 @@ async function built(run: CargoRun, targetDirectory: string, profile: string): P
       executable?: string | null;
       manifest_path?: string;
       profile?: { test?: boolean };
-      target?: { src_path?: string };
+      target?: { kind?: string[]; src_path?: string };
+      package_id?: string;
+      out_dir?: string;
     };
     // Cargo writes rustc's diagnostics into the JSON it answers, so a failed build would otherwise say only that it failed.
     if (message.reason === 'compiler-message' && code !== 0) process.stderr.write(message.message?.rendered ?? '');
-    if (message.reason !== 'compiler-artifact' || message.profile?.test !== true) continue;
-    if (typeof message.executable !== 'string' || message.target?.src_path === undefined || message.manifest_path === undefined) continue;
+    if (message.reason === 'build-script-executed' && message.out_dir !== undefined) {
+      const crate = workspace.packages.get(message.package_id ?? '');
+      if (crate !== undefined) read.push(...rerunIfChanged(message.out_dir, crate));
+    }
+    if (message.reason !== 'compiler-artifact' || typeof message.executable !== 'string') continue;
+    if (message.profile?.test !== true) {
+      if (message.target?.kind?.includes('bin') === true) launchable.push(message.executable);
+      continue;
+    }
+    if (message.target?.src_path === undefined || message.manifest_path === undefined) continue;
     binaries.push({ executable: message.executable, testFile: message.target.src_path, cwd: dirname(message.manifest_path) });
   }
-  return code === 0 ? binaries : undefined;
+  return code === 0 ? { binaries, launchable, read } : undefined;
+}
+
+/**
+ * The files a build script said it reads, from what it printed, which Cargo
+ * keeps beside its `OUT_DIR`: `output` in the long-standing layout, and
+ * `run/stdout` in the one that groups a package's builds. A path is the
+ * package's, unless absolute, and a directory stands for every file under it,
+ * as Cargo watches it.
+ */
+function rerunIfChanged(outDir: string, crate: string): string[] {
+  const at = dirname(outDir);
+  const said = [join(at, 'output'), join(at, 'run', 'stdout')].find((path) => existsSync(path));
+  if (said === undefined) return [];
+  const files: string[] = [];
+  for (const line of readFileSync(said, 'utf8').split('\n')) {
+    const named = /^cargo::?rerun-if-changed=(.+)$/.exec(line.trim())?.[1];
+    if (named === undefined) continue;
+    const path = isAbsolute(named) ? named : resolve(crate, named);
+    if (!existsSync(path)) continue;
+    if (!statSync(path).isDirectory()) files.push(path);
+    else for (const entry of readdirSync(path, { recursive: true, withFileTypes: true })) if (entry.isFile()) files.push(join(entry.parentPath, entry.name));
+  }
+  return files;
 }
 
 /**
@@ -175,21 +223,31 @@ function instrumenting(target: string): string {
  * manifests, the lockfile and the build scripts. Asked of the manifest the
  * recorded `cargo test` is given, when it is given one.
  */
-async function metadata(run: CargoRun): Promise<{ root: string; target: string; inputs: string[] }> {
+async function metadata(run: CargoRun): Promise<Workspace> {
   const { code, stdout } = await output('cargo', ['metadata', '--format-version', '1', '--no-deps', ...manifestOf(run.args ?? [])], run.cwd);
   if (code !== 0) throw new Error(`\`cargo metadata\` failed in ${run.cwd}`);
   const answer = JSON.parse(stdout) as {
     target_directory: string;
     workspace_root: string;
-    packages: { manifest_path: string; targets: { kind: string[]; src_path: string }[] }[];
+    packages: { id: string; manifest_path: string; targets: { kind: string[]; src_path: string }[] }[];
   };
+  const packages = new Map(answer.packages.map((crate) => [crate.id, dirname(crate.manifest_path)]));
   const inputs = new Set([join(answer.workspace_root, 'Cargo.toml'), join(answer.workspace_root, 'Cargo.lock')]);
   for (const crate of answer.packages) {
     inputs.add(crate.manifest_path);
     for (const target of crate.targets) if (target.kind.includes('custom-build')) inputs.add(target.src_path);
   }
   // A workspace that has not been resolved yet has no lockfile.
-  return { root: answer.workspace_root, target: answer.target_directory, inputs: [...inputs].filter((input) => existsSync(input)) };
+  return { root: answer.workspace_root, target: answer.target_directory, inputs: [...inputs].filter((input) => existsSync(input)), packages };
+}
+
+/** The workspace as `cargo metadata` answers it. */
+interface Workspace {
+  readonly root: string;
+  readonly target: string;
+  readonly inputs: readonly string[];
+  /** Each package's directory, by the id Cargo's messages name it by. */
+  readonly packages: ReadonlyMap<string, string>;
 }
 
 /** `--manifest-path` as `cargo test` was given it, for `cargo metadata` to read the same workspace. */
@@ -209,19 +267,20 @@ function byTestFile(binaries: readonly Binary[]): Map<string, Binary[]> {
 
 /**
  * The tests a binary declares and `cargo test` runs, as libtest names them:
- * benchmarks are not tests, and an `#[ignore]`d test does not run. None for a
- * binary that lists no test, or refuses the listing, as a harness of its own may.
+ * benchmarks are not tests, and an `#[ignore]`d test does not run. Undefined
+ * for a binary that is not libtest's, as a harness of its own is: it closes no
+ * listing with libtest's count, or refuses the listing.
  * Listing runs the instrumented binary too, so its counters go to `profile`,
  * which nothing reads.
  */
-async function listed(binary: Binary, profile: string): Promise<string[]> {
-  const names = async (only: readonly string[]): Promise<string[]> => {
-    const { code, stdout } = await output(binary.executable, ['--list', '--format', 'terse', ...only], binary.cwd, running(binary, profile));
-    if (code !== 0) return [];
+async function listed(binary: Binary, profile: string): Promise<string[] | undefined> {
+  const names = async (only: readonly string[]): Promise<string[] | undefined> => {
+    const { code, stdout } = await output(binary.executable, ['--list', ...only], binary.cwd, running(binary, profile));
+    if (code !== 0 || !/^\d+ tests?, \d+ benchmarks?$/m.test(stdout)) return undefined;
     return stdout.split('\n').flatMap((line) => (line.endsWith(': test') ? [line.slice(0, -': test'.length)] : []));
   };
   const all = await names([]);
-  if (all.length === 0) return all;
+  if (all === undefined || all.length === 0) return all;
   const skipped = new Set(await names(['--ignored']));
   return all.filter((name) => !skipped.has(name));
 }
@@ -233,13 +292,20 @@ async function whole(binary: Binary, profile: string): Promise<boolean> {
   return code === 0;
 }
 
-/** One test, alone in its process, its counters written to `profile`. */
-async function alone(binary: Binary, name: string, profile: string): Promise<Ran> {
+/**
+ * One test, alone in its process, its counters written to `directory` by
+ * process id, so a process it starts, which inherits where to write them,
+ * writes its own beside them.
+ */
+async function alone(binary: Binary, name: string, directory: string): Promise<Ran> {
+  mkdirSync(directory);
   const began = performance.now();
-  const { code, stdout } = await output(binary.executable, ['--exact', name, '--test-threads', '1'], binary.cwd, running(binary, profile));
+  const { code, stdout, pid } = await output(binary.executable, ['--exact', name, '--test-threads', '1'], binary.cwd, running(binary, join(directory, '%p.profraw')));
   const passed = code === 0;
   if (!passed) process.stderr.write(stdout);
-  return { name, passed, duration: performance.now() - began, profile };
+  const own = join(directory, `${pid}.profraw`);
+  const started = readdirSync(directory).map((file) => join(directory, file)).filter((file) => file !== own);
+  return { name, passed, duration: performance.now() - began, profiles: [own, ...started] };
 }
 
 /** What a test process starts with: what `cargo test` gives it, and where its counters go. */
@@ -285,12 +351,12 @@ function counters(modules: ReadonlyMap<string, ReadonlySet<number>>): Map<string
 }
 
 /** A process's exit and its standard output; its standard error goes to ours. */
-function output(program: string, args: readonly string[], cwd: string, env?: NodeJS.ProcessEnv): Promise<{ code: number; stdout: string }> {
+function output(program: string, args: readonly string[], cwd: string, env?: NodeJS.ProcessEnv): Promise<{ code: number; stdout: string; pid: number | undefined }> {
   return new Promise((resolve, reject) => {
     const child = spawn(program, args, { cwd, stdio: ['ignore', 'pipe', 'inherit'], ...(env === undefined ? {} : { env }) });
     const chunks: Buffer[] = [];
     child.stdout.on('data', (chunk: Buffer) => chunks.push(chunk));
     child.on('error', reject);
-    child.on('close', (code) => resolve({ code: code ?? 1, stdout: Buffer.concat(chunks).toString('utf8') }));
+    child.on('close', (code) => resolve({ code: code ?? 1, stdout: Buffer.concat(chunks).toString('utf8'), pid: child.pid }));
   });
 }
