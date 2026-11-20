@@ -1,5 +1,17 @@
 # @variance-authority/raster
 
+## 0.34.0
+
+### Minor Changes
+
+- 4d81728: Content that moves beside a column that stays put, such as a page that grew under a fixed sidebar, is aligned in vertical strips. Each strip that moved is paired on its own, and every span of the alignment carries `columns`, the strip it covers. A page under a fixed sidebar no longer marks everything below the edit as changed. The reason counts the rows a column gained rather than adding up every strip's rows. Rows inserted in one strip join a region only when the region lies inside that strip.
+- d175ab8: A faint region is drawn apart from a strong one. The diff image paints a changed
+  pixel short of `STRONG_GRADE` pale red rather than red, the HTML report draws a
+  faint region's box dashed and lighter, and the run's JSON carries each region's `grade`.
+  `raster` exports `isFaint(grade)`, the one test of faint that the picture, the
+  report and the verdict sentence share.
+- 5d71e42: A changed region is graded by how much its pixels changed in colour: the mask byte is the grade, from 1 for a pixel past the policy's threshold to `SEVERITY_LEVELS.length` for one past 0.2 or a row with no partner, and each `DiffRegion` carries its highest `grade`. The verdict names regions at `STRONG_GRADE` first and counts the rest as faint, so a repaint by a few levels no longer reads like the change beside it. A mask byte is no longer always `1`: test it for non-zero. Regions the 32-region cap leaves out are counted as more regions, not smaller ones, since the faintest go first.
+
 ## 0.33.0
 
 Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
