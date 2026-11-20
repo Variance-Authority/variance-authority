@@ -1,5 +1,5 @@
-import type { FileSet, Tool, ToolInvocation, Tree } from '@variance-authority/mcp/tools';
-import { START_POINT_SCHEMA, startPointArg, stringArg } from '@variance-authority/mcp/tools';
+import type { FileSet, Spelling, Tool, ToolInvocation, Tree } from '@variance-authority/mcp/tools';
+import { limitOf, notShownPast, START_POINT_SCHEMA, spellingOf, startPointArg, stringArg } from '@variance-authority/mcp/tools';
 import type { Help } from '@variance-authority/package/help';
 import type { SearchIndex } from '../search-index.js';
 import { searchIndexOf } from '../snapshot.js';
@@ -9,7 +9,7 @@ import type { PublishedMatch } from './published-match.js';
 import type { DeclaredMatch, DescribedMatch, ExportedMatch, FileMatch, Matches, RecordedTests, Searched, SearchQuestion, TestMatch } from './search-matches.js';
 import { aliasLine, declaredLine, heldLine, unreadLine } from './declared.js';
 import { unreadStop } from './members.js';
-import { searched, searchedFiles } from './search-answer.js';
+import { CAP, ELSEWHERE_CAP, LOOSE_CAP, searched, searchedFiles } from './search-answer.js';
 import { type ImportingOf, importingOf } from './published-match.js';
 import { byPublishedPath, plural } from './format.js';
 
@@ -167,24 +167,41 @@ const describedRow = (match: DescribedMatch): string =>
  * `search-answer.ts` builds.
  */
 
-/** The question `search` is asked by `input`, as its schema accepted it. */
-export function searchQuestionOf(input: Readonly<Record<string, unknown>>): SearchQuestion {
-  return { query: stringArg(input, 'query'), from: startPointArg(input, 'from'), to: startPointArg(input, 'to') };
+/**
+ * The question `search` is asked by `input`, as its schema accepted it; a
+ * `limit` that is no whole number of rows is refused as `spell` names it.
+ */
+export function searchQuestionOf(input: Readonly<Record<string, unknown>>, spell: Spelling = spellingOf(undefined)): SearchQuestion {
+  const question = { query: stringArg(input, 'query'), from: startPointArg(input, 'from'), to: startPointArg(input, 'to') };
+  // Absent rather than a default, so a question that says none asks, caches and answers as it did before `limit`.
+  return input['limit'] === undefined ? question : { ...question, limit: limitOf(input, 0, spell) };
 }
 
-/** The search over an opened index — what `docs_search` answers, without the Help value. */
-export function answerSearch(index: SearchIndex, input: Readonly<Record<string, unknown>>, tree?: Tree, root?: string, importing?: ImportingOf): string {
-  return spoken(searched(index, searchQuestionOf(input), tree, root, importing), root);
+/** The search over an opened index — what `docs_search` answers, without the Help value; `spell` names `limit` in its cuts. */
+export function answerSearch(
+  index: SearchIndex,
+  input: Readonly<Record<string, unknown>>,
+  tree?: Tree,
+  root?: string,
+  importing?: ImportingOf,
+  spell: Spelling = spellingOf(undefined),
+): string {
+  return spoken(searched(index, searchQuestionOf(input, spell), tree, root, importing), root, spell);
+}
+
+/** The line a list cut at what it shows ends with, set apart from its rows; nothing when it shows all `total`. */
+function cut(total: number, shown: number, spell: Spelling): readonly string[] {
+  return notShownPast(total, shown, spell).map((line) => `\n${line}`);
 }
 
 /** A list under its head, cut at what `found` shows and saying so; nothing when it holds none. */
-function section<Row>(head: string, found: Matches<Row>, line: (row: Row) => string): readonly string[] {
+function section<Row>(head: string, found: Matches<Row>, line: (row: Row) => string, spell: Spelling): readonly string[] {
   if (found.total === 0) return [];
-  return ['', head, '', ...found.shown.map(line), ...(found.total > found.shown.length ? [`\n${found.total - found.shown.length} more not shown.`] : [])];
+  return ['', head, '', ...found.shown.map(line), ...cut(found.total, found.shown.length, spell)];
 }
 
 /** What a search says of what it found. */
-function spoken({ answer, area }: Searched, root: string | undefined): string {
+function spoken({ answer, area }: Searched, root: string | undefined, spell: Spelling): string {
   const { query } = answer;
   if (area?.refused !== undefined) return areaLine(area);
 
@@ -202,7 +219,7 @@ function spoken({ answer, area }: Searched, root: string | undefined): string {
       (area === undefined ? 'offered by some manifest in this workspace:' : 'usable from that start point, under the manifest that owns it:'),
     '',
     ...third.shown.map(thirdLine),
-    ...(third.total > third.shown.length ? [`\n${third.total - third.shown.length} more not shown.`] : []),
+    ...cut(third.total, third.shown.length, spell),
   ];
   const described = third?.described ?? [];
   const describedSection =
@@ -216,7 +233,7 @@ function spoken({ answer, area }: Searched, root: string | undefined): string {
             'their own words or the words of their names, best first:',
           '',
           ...described.map(describedLine),
-          ...((third?.describedTotal ?? 0) > described.length ? [`\n${(third?.describedTotal ?? 0) - described.length} more not shown.`] : []),
+          ...cut(third?.describedTotal ?? 0, described.length, spell),
         ];
   const seenLoosely = (answer.loose?.shown ?? []).map(matchLine);
   const looseSection =
@@ -227,7 +244,7 @@ function spoken({ answer, area }: Searched, root: string | undefined): string {
           `${looser} more ${looser === 1 ? 'name matches' : 'names match'} loosely — your words apart, or within a character of the ones written. Nothing above was reordered by this.`,
           '',
           ...seenLoosely,
-          ...(looser > seenLoosely.length ? [`\n${looser - seenLoosely.length} more not shown.`] : []),
+          ...cut(looser, seenLoosely.length, spell),
         ];
   const held = answer.described ?? { total: 0, shown: [] };
   const heldSection =
@@ -239,7 +256,7 @@ function spoken({ answer, area }: Searched, root: string | undefined): string {
             'the rarer words counting for more, read by stem as the packages are, best first: the words held, each counted by how few rows hold it and more in the name than in a doc, more in a doc than in a signature, then the words in the name, then the phrase its doc writes; a row for each word these rows hold is shown however it sorts.',
           '',
           ...held.shown.map(describedRow),
-          ...(held.total > held.shown.length ? [`\n${held.total - held.shown.length} more not shown.`] : []),
+          ...cut(held.total, held.shown.length, spell),
         ];
   // This repository's own names before any installed package's: the question
   // was asked of this checkout, and a dependency is the answer only when none
@@ -256,12 +273,12 @@ function spoken({ answer, area }: Searched, root: string | undefined): string {
   const declared = answer.declared ?? { total: 0, shown: [], unread: [] };
   const unread = unreadLine(declared.unread).map((line) => `\n${line}`);
   const inside = answer.held ?? { total: 0, shown: [] };
-  const insideSection = section(`${inside.total} ${inside.total === 1 ? 'name is' : 'names are'} held by a container or a function ${place}:`, inside, heldLine);
+  const insideSection = section(`${inside.total} ${inside.total === 1 ? 'name is' : 'names are'} held by a container or a function ${place}:`, inside, heldLine, spell);
   const aliases = answer.aliases ?? { total: 0, shown: [] };
-  const aliasSection = section(`${aliases.total} ${aliases.total === 1 ? 'import binds' : 'imports bind'} it as a local name:`, aliases, aliasLine);
-  const namesSection = [...section(`${declared.total} more ${declared.total === 1 ? 'name is' : 'names are'} declared ${place} without being exported:`, declared, declaredLine), ...unread];
+  const aliasSection = section(`${aliases.total} ${aliases.total === 1 ? 'import binds' : 'imports bind'} it as a local name:`, aliases, aliasLine, spell);
+  const namesSection = [...section(`${declared.total} more ${declared.total === 1 ? 'name is' : 'names are'} declared ${place} without being exported:`, declared, declaredLine, spell), ...unread];
   const tests = answer.tests ?? { total: 0, shown: [] };
-  const testSection = section(`${tests.total} recorded test ${tests.total === 1 ? 'case holds' : 'cases hold'} every word, as the last run wrote it:`, tests, testLine);
+  const testSection = section(`${tests.total} recorded test ${tests.total === 1 ? 'case holds' : 'cases hold'} every word, as the last run wrote it:`, tests, testLine, spell);
   const declaredSection = [...namesSection, ...insideSection, ...testSection, ...casesUnder(answer.tests), ...aliasSection];
 
   if (found.total === 0 && rest.total === 0 && declared.total === 0 && inside.total === 0 && tests.total === 0 && aliases.total === 0 && (third?.total ?? 0) === 0) {
@@ -290,7 +307,7 @@ function spoken({ answer, area }: Searched, root: string | undefined): string {
   // A capped list that does not say it was capped reads as the whole answer,
   // and the reader's next move — narrow, or ask the entrypoint — depends on
   // knowing which of the two it got.
-  const more = found.total > found.shown.length ? [`\n${found.total - found.shown.length} more matches not shown.`] : [];
+  const more = cut(found.total, found.shown.length, spell);
 
   const heads =
     found.total === 0
@@ -304,7 +321,7 @@ function spoken({ answer, area }: Searched, root: string | undefined): string {
 
   if (rest.total === 0) return [...where, ...(found.total === 0 ? [] : heads), ...declaredSection, ...own, ...thirdSection, ...describedSection, ...missing].join('\n');
 
-  const hidden = rest.total > rest.shown.length ? [`\n${rest.total - rest.shown.length} more not shown.`] : [];
+  const hidden = cut(rest.total, rest.shown.length, spell);
 
   return [
     ...where,
@@ -391,6 +408,10 @@ export const search: Tool<Help> = {
           `${START_POINT_SCHEMA.to.description} This is the direction that finds dependent files ` +
           'when the dependency is what you have: `to` the helper, `query` the word you expect around it.',
       },
+      limit: {
+        type: 'integer',
+        description: `Rows to show in each list of the answer. Each list's own cap when not said: ${CAP} published, 20 installed, ${ELSEWHERE_CAP} of each other kind, ${LOOSE_CAP} loose or described; the rest are counted.`,
+      },
     },
     required: ['query'],
     additionalProperties: false,
@@ -400,10 +421,10 @@ export const search: Tool<Help> = {
   // path and never on the way past.
   wants: (input) => startPointArg(input, 'from') !== undefined || startPointArg(input, 'to') !== undefined,
 
-  run: (help, input, invocation) => spoken(searchedOnce(help, input, invocation), invocation?.root),
+  run: (help, input, invocation) => spoken(searchedOnce(help, input, invocation), invocation?.root, spellingOf(invocation)),
 
   files: (help, input, invocation): FileSet => ({
-    files: searchedFiles(searchIndexOf(help), searchQuestionOf(input), invocation?.tree, invocation?.root),
+    files: searchedFiles(searchIndexOf(help), searchQuestionOf(input, spellingOf(invocation)), invocation?.tree, invocation?.root),
   }),
 };
 
@@ -412,7 +433,7 @@ const lastSearched = new WeakMap<Help, { readonly asked: string; readonly tree: 
 
 /** One search for an answer and the look at its files, which asks the same of the same generation just after it. */
 function searchedOnce(help: Help, input: Readonly<Record<string, unknown>>, invocation: ToolInvocation<Help> | undefined): Searched {
-  const question = searchQuestionOf(input);
+  const question = searchQuestionOf(input, spellingOf(invocation));
   const asked = JSON.stringify([question, invocation?.root]);
   const last = lastSearched.get(help);
   if (last?.asked === asked && last.tree === invocation?.tree) return last.found;

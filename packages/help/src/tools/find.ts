@@ -2,9 +2,9 @@ import type { Documented, Entry, Help, Opening } from '@variance-authority/packa
 import { everyEntry } from '@variance-authority/package/help';
 import { SLOT } from './declaration-key.js';
 import { exportedNamed, pathsWritten } from './rows.js';
-import { DECLARED_CAP, declarations, declaredAt, isNested, notShown, unreadLine } from './declared.js';
+import { declarations, declaredAt, isNested, unreadLine } from './declared.js';
 import { CHECKER, checkerOf, type Members, membersStop } from './members.js';
-import type { Spelling } from '@variance-authority/mcp/tools';
+import { notShownPast, type Spelling } from '@variance-authority/mcp/tools';
 import { search } from './search.js';
 import { exportsNamed } from './unpublished.js';
 
@@ -169,6 +169,7 @@ export function nowhere(
   members: Members | undefined,
   dependencies: string | undefined,
   spell: Spelling,
+  limit: number,
 ): string {
   const where = wanted === undefined ? 'this workspace' : `\`${wanted}\``;
   const read = declarations(root, name);
@@ -196,8 +197,8 @@ export function nowhere(
           // A namespace `import * as` binds is no declaration the index holds, so a container nothing declares is never proven absent.
           containers.length === 0
             ? `No file read here declares \`${head}\` at its top level; a namespace an import or an \`export * as\` binds is not read as one.`
-            : `\`${head}\` is declared at ${containers.slice(0, DECLARED_CAP).map((one) => `${one.at}:${one.line}`).join(', ')}, and no interface, type alias or class body read here declares \`${members.member}\` on \`${on}\`.`,
-          ...notShown(containers.length, 'declaration', head),
+            : `\`${head}\` is declared at ${containers.slice(0, limit).map((one) => `${one.at}:${one.line}`).join(', ')}, and no interface, type alias or class body read here declares \`${members.member}\` on \`${on}\`.`,
+          ...notShownPast(containers.length, limit, spell, { one: `declaration of \`${head}\``, many: `declarations of \`${head}\`` }),
           `An inherited member is a type checker's answer, and none runs here; the source index reads no enum, namespace or object literal body: ` +
             `${CHECKER[checkerOf(containers.map((one) => one.at))]} go-to-definition on \`${name}\` where a line writes it names the declaration.`,
         ].join(' ')

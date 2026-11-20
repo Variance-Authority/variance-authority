@@ -436,6 +436,6 @@ describe('variance ask about a name declared and not exported', () => {
     expect(out.match(/^tally \[function\]$/gm)).toHaveLength(5);
     expect(out).toContain('declared, not exported, at packages/kit/src/money/a.ts:3 by @acme/kit');
     expect(out).not.toContain('packages/kit/src/money/f.ts');
-    expect(out).toContain('1 more declaration of `tally` not shown.');
+    expect(out).toContain('1 more declaration of `tally` not shown; a higher `--limit` shows them.');
   });
 });

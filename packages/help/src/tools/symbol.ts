@@ -1,14 +1,14 @@
 import type { FileSet, Spelling, Tool, ToolInvocation } from '@variance-authority/mcp/tools';
-import { START_POINT_SCHEMA, spellingOf, startPointArg, stringArg } from '@variance-authority/mcp/tools';
+import { limitOf, notShownPast, START_POINT_SCHEMA, spellingOf, startPointArg, stringArg } from '@variance-authority/mcp/tools';
 import type { Help, Named } from '@variance-authority/package/help';
 import { how, sitesByPath, type PathSite } from './by-path.js';
 import { FoundNothing, nowhere, specifierOf } from './find.js';
 import { memberRows } from './container.js';
 import { block, plural } from './format.js';
-import { queryDependencyLexicon, type LexiconMatches, type SilentPackage } from '../dependency-lexicon.js';
+import { queryDependencyLexicon, type LexiconMatches } from '../dependency-lexicon.js';
 import { silentBlocks } from './silent.js';
 import { thirdBlock } from './third-party.js';
-import { DECLARED_CAP, declarationsNamed, declaredAt, declaredBlocks, isNested, notShown, textRows, unreadLine } from './declared.js';
+import { DECLARED_CAP, declarationsNamed, declaredAt, declaredBlocks, isNested, textRows, unreadLine } from './declared.js';
 import { uses } from './uses.js';
 import { type Members, containerOf, isUnnamedContainer, membersOf, membersStop } from './members.js';
 import { exportedRows } from './passed-on.js';
@@ -19,6 +19,9 @@ import { type PublishedDeclaration, publishedDeclarations, publishingFiles, uses
 import { localNames, renamedSites } from './renamed.js';
 import { exportedIn, exportedNamed } from './rows.js';
 import { symbolAtLine } from './symbol-line.js';
+
+/** Installed declarations shown when the question says no `limit`. */
+const INSTALLED_CAP = 100;
 
 /**
  * `docs_symbol` — what a name is and where it is declared, in full.
@@ -63,14 +66,21 @@ export const symbol: Tool<Help> = {
           'Optional. `<file>:<line>`, a line that uses the name: its declarations are ordered by how closely the tests ' +
           'that entered each match the recorded tests that ran the line. Overlap of tests, not proof of which one the line called.',
       },
+      limit: {
+        type: 'integer',
+        description: `Rows to show in each list of the answer. ${DECLARED_CAP} declarations of each kind and ${INSTALLED_CAP} installed ones when not said; the rest are counted.`,
+      },
     },
     required: ['name'],
     additionalProperties: false,
   },
 
   run(help, input, invocation) {
-    if (input['line'] !== undefined) return symbolAtLine(help, input, invocation, symbol, declaredInCheckout);
     const spell = spellingOf(invocation);
+    // Refused before `line` is read, which orders the declarations whole and hands `limit` on to the answer without it.
+    const limit = limitOf(input, DECLARED_CAP, spell);
+    if (input['line'] !== undefined) return symbolAtLine(help, input, invocation, symbol, declaredInCheckout);
+    const installed = limitOf(input, INSTALLED_CAP, spell);
     const name = stringArg(input, 'name');
     const from = input['package'];
     const wanted = typeof from === 'string' && from !== '' ? from : undefined;
@@ -85,7 +95,7 @@ export const symbol: Tool<Help> = {
     // export of the same name is another thing, so it never stands for this one.
     const at = startPointArg(input, 'from');
     const paths = at === undefined ? undefined : typeof at === 'string' ? [at] : [...at];
-    const { blocks: declared } = declaredBlocks(help, invocation?.root, name, wanted, spell, paths);
+    const { blocks: declared } = declaredBlocks(help, invocation?.root, name, wanted, spell, limit, paths);
 
     // A name no entry publishes, that another package imports by the path of
     // the file exporting it, is used here — and that import is what says so.
@@ -106,7 +116,7 @@ export const symbol: Tool<Help> = {
     // own declaration too, which no import names and the scan records. It
     // stands beside what a file's top level declares, never under it.
     const members = membersOf(help, invocation?.root, name, wanted);
-    const beside = memberBlocks(name, members, spell);
+    const beside = memberBlocks(name, members, spell, limit);
     if (byPath.length > 0) {
       const imported = new Set(byPath.flatMap((site) => [site.held.to ?? site.held.specifier, declaration(help, name, site)?.at ?? '']));
       const rest = exported.filter((held) => !imported.has(held.at));
@@ -128,24 +138,22 @@ export const symbol: Tool<Help> = {
     const unread = asked === undefined || 'refused' in asked ? [] : unreadLine(asked.unread);
 
     if (found.length === 0 && invocation?.root !== undefined) {
-      const everywhere = queryDependencyLexicon(invocation.root, name, undefined, true, wanted, 100);
+      const everywhere = queryDependencyLexicon(invocation.root, name, undefined, true, wanted, installed);
       // No lexicon of installed names says nothing against the workspace's own export.
       if (everywhere === undefined && own.length > 0) return own.join('\n\n');
       // Without it, what the workspace holds is still an answer: the
       // dependencies are the part of it not checked.
       if (everywhere === undefined) {
-        throw new FoundNothing(nowhere(help, name, wanted, invocation.root, members, 'Whether an installed dependency publishes it is not known: the dependency lexicon is not published, and the `variance index` command publishes it.', spell));
+        throw new FoundNothing(nowhere(help, name, wanted, invocation.root, members, 'Whether an installed dependency publishes it is not known: the dependency lexicon is not published, and the `variance index` command publishes it.', spell, limit));
       }
-      const here = paths === undefined ? everywhere : queryDependencyLexicon(invocation.root, name, paths, true, wanted, 100);
+      const here = paths === undefined ? everywhere : queryDependencyLexicon(invocation.root, name, paths, true, wanted, installed);
       const shown = here ?? everywhere;
       // A door that declares nothing is a fallback for a package silent about
-      // the name; one whose installed copy declares the name elsewhere has
-      // answered it. Another copy of the same version answers nothing for it.
-      const answered = (one: SilentPackage): boolean =>
-        one.installed !== undefined && shown.shown.some((match) => match.installed === one.installed);
-      const silent = silentBlocks(invocation.root, name, (shown.silent ?? []).filter((one) => !answered(one)), wanted !== undefined);
+      // the name; the lexicon leaves out one whose installed copy declares it
+      // elsewhere. Another copy of the same version answers nothing for it.
+      const silent = silentBlocks(invocation.root, name, shown.silent ?? [], wanted !== undefined);
       const cut = (matches: LexiconMatches): readonly string[] =>
-        matches.total > matches.shown.length ? [`${matches.total - matches.shown.length} more matches not shown.`] : [];
+        notShownPast(matches.total, matches.shown.length, spell, { one: 'match', many: 'matches' });
       if (paths !== undefined && here !== undefined && here.total === 0 && everywhere.total > 0) {
         // Not usable at the path is a fact with an answer: the workspaces that do offer it, each with its own version.
         const owner = here.scope.location?.join(', ') ?? 'the manifest that owns it';
@@ -166,7 +174,7 @@ export const symbol: Tool<Help> = {
       const checked = invocation?.root === undefined
         ? undefined
         : `No installed dependency${wanted === undefined ? '' : ` named \`${wanted}\``} publishes it either.`;
-      throw new FoundNothing(nowhere(help, name, wanted, invocation?.root, members, checked, spell));
+      throw new FoundNothing(nowhere(help, name, wanted, invocation?.root, members, checked, spell, limit));
     }
 
     return [
@@ -251,7 +259,10 @@ function declaredIn(help: Help, input: Readonly<Record<string, unknown>>, invoca
   at.push(...declared.filter(isNested).map((one) => [one.at, one.line, one.name] as const));
   // The recording names a method under its class, as `Store/useSessionId`.
   at.push(...members.declared.map((one) => [one.at, one.line, isUnnamedContainer(one.by) ? members.member : `${one.by}/${members.member}`] as const));
-  if (at.length === 0) throw new FoundNothing(nowhere(help, name, wanted, invocation?.root, members, undefined, spellingOf(invocation)));
+  if (at.length === 0) {
+    const spell = spellingOf(invocation);
+    throw new FoundNothing(nowhere(help, name, wanted, invocation?.root, members, undefined, spell, limitOf(input, DECLARED_CAP, spell)));
+  }
   const files = new Map<string, number[]>();
   const spelled = new Map<string, string[]>();
   for (const [file, line, ...names] of at) {
@@ -267,21 +278,21 @@ function declaredIn(help: Help, input: Readonly<Record<string, unknown>>, invoca
 
 /**
  * The member declarations of a name: one block for each of the first
- * `DECLARED_CAP`, on the container that holds it, a count of the rest, then
+ * `limit`, on the container that holds it, a count of the rest, then
  * the languages whose members were not read; none when no container declares it.
  */
-function memberBlocks(name: string, members: Members, spell: Spelling): readonly string[] {
+function memberBlocks(name: string, members: Members, spell: Spelling, limit: number): readonly string[] {
   if (members.declared.length === 0) return [];
   const stop = membersStop(members);
   return [
-    ...members.declared.slice(0, DECLARED_CAP).map((site) =>
+    ...members.declared.slice(0, limit).map((site) =>
       [
         name,
         `a member of ${containerOf(site.by)}, declared at ${site.at}:${site.line}`,
         `\`${spell.tool(uses)}\` names the lines that use it through a value written as its container, and the declaration to ask its language's find-references about for the rest.`,
       ].join('\n'),
     ),
-    ...notShown(members.declared.length, 'member declaration', name),
+    ...notShownPast(members.declared.length, limit, spell, { one: `member declaration of \`${name}\``, many: `member declarations of \`${name}\`` }),
     ...(stop === undefined ? [] : [stop]),
   ];
 }

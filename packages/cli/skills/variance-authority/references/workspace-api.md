@@ -197,7 +197,7 @@ has, if any: asked by a package, the first row's specifier and `uses` on the
 name the most files take through it; asked by a specifier, `uses` on its first
 name, which lists that name's import sites.
 
-### `symbol --name <name> [--package <name>] [--from <path>] [--line <file>:<line>]`
+### `symbol --name <name> [--package <name>] [--from <path>] [--line <file>:<line>] [--limit <n>]`
 
 The name is matched **exactly**. `--package` takes a package name or a
 specifier, and only narrows: it answers from that package instead of from every
@@ -302,6 +302,14 @@ from`, then its stars, and no star passes `default`. Files that only pass the
 name to each other name no declaration, and neither do two stars that reach
 different declarations, a namespace (`export * as`, `import * as`), or a file
 the source index holds no export list of and that does not declare the name.
+
+`--limit <n>` sets how many rows of each list are shown: 5 declarations a file
+keeps to itself, 5 member declarations, 5 containers named when a member is
+not found, and 100 installed declarations when not said. The rest are counted,
+and the line that counts them names `--limit`. The files that import the name
+under another name are a list in one sentence, cut at 12, which `--limit` does
+not reach. Under `--line` the ranked list is
+never cut; `--limit` reaches the answer given without the line.
 
 `symbol` prints what a name is and how to call it. For why it exists and what it
 connects to, read [what is written about a name](written-about-a-name.md).
@@ -499,7 +507,9 @@ file as it is now.
 ### `search`
 
 **A list contains candidates, not every match.** Each list is capped and prints
-how many rows it did not show. Once any name matches, looser matches and members
+how many rows it did not show: 40 published names, 20 installed ones, 25 of each
+other kind, and 15 loose or described ones, unless `--limit <n>` sets one cap for every list; the
+JSON caps its lists the same way. Once any name matches, looser matches and members
 and functions inside a function that only contain your words are left out without
 a count. `git grep -i <word>` prints every tracked line that writes the word, and
 `discover --declares <regex> --limit <n>` lists every top-level name past a cap,
@@ -688,6 +698,6 @@ one name.
   evidence that anything ran.
 - Nothing here reads `dist`. A `types` target under an output directory is
   mapped back to the source it was compiled from.
-- `grep`, `discover` and `intersection` cap each list and print how many rows they did not show. A
+- `grep`, `discover`, `intersection`, `uses` and `symbol` cap each list and print how many rows they did not show. A
   list with no such line is the whole list. `search` caps and counts the same way, but a list with no
   such line can still leave out matches, as [`search`](#search) says.

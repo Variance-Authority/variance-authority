@@ -120,7 +120,7 @@ describe('variance ask search about the name a test ran under', () => {
 
     expect(answer.split('\n').filter((line) => line.includes('[test]'))).toHaveLength(25);
     expect(answer).toContain('30 recorded test cases hold every word');
-    expect(answer).toContain('5 more not shown.');
+    expect(answer).toContain('5 more not shown; a higher `--limit` shows them.');
   });
 
   it('keeps to the area a start point names', async () => {
