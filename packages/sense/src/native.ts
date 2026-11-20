@@ -19,7 +19,6 @@ import type { NativeInstrumented, NativePlaced } from './instrument/spliced.js';
 import { keyFor, parseWay } from './files.js';
 import type { ResolveOptions } from './resolve.js';
 import { builtFromBatch, recordOptions } from './native-built.js';
-import type { Aliases, AliasTable } from './witness.js';
 import type { NativeIndexGraph, NativeIndexGraphOptions } from './native-index-graph.js';
 import type {
   NativeJourneyGraph, NativeJourneySelection, NativeJourneyChange,
@@ -115,8 +114,6 @@ export interface NativeReadBatch {
 /** `RecordOptions` in `native/src/record.rs`: what a batch's records are settled against. */
 export interface NativeRecordOptions {
   readonly remembering: boolean;
-  /** `Aliases.table` as JSON. */
-  readonly aliases?: string;
   readonly builtins: string[];
   readonly codeExtensions: string[];
   readonly directories: string[];
@@ -159,12 +156,6 @@ export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon
    */
   cadence(source: string, file: string, awaited?: boolean): { code: string; mappings: string; shifts: number[] } | null;
   gitTree(root: string): NativeGitTree | null;
-  /**
-   * The alias table the `tsconfig` and `jsconfig` files among `paths` declare,
-   * read from `root`: `native/src/witness_aliases.rs`. One that cannot be read
-   * declares nothing.
-   */
-  aliasesIn(root: string, paths: string[]): AliasTable;
   gitTreeFor(root: string, dirs: string[]): NativeGitTree | null;
   /** The tree an update of the index at `index` is made against (`native/src/change_tree.rs`). */
   changeTree(root: string, index: string, dirs: string[]): NativeGitTree | null;
@@ -315,7 +306,6 @@ export interface NativeFrontierOptions extends ResolveOptions {
   readonly files: readonly string[];
   readonly largestFile: number;
   readonly digests: readonly (Digest | undefined)[];
-  readonly aliases: Aliases | undefined;
   readonly directories: ReadonlyMap<string, Digest>;
   readonly remembering: boolean;
 }

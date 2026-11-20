@@ -23,7 +23,6 @@ import type { FileRecord } from '@variance-authority/core/relate';
 import type { Digest } from '@variance-authority/core/format';
 import { CODE_EXTENSIONS } from './language.js';
 import type { NativeGitTree } from './native.js';
-import type { Aliases } from './witness.js';
 
 /** `IndexGraphOptions` in `native/src/graph_index.rs`. */
 export interface NativeIndexGraphOptions {
@@ -34,8 +33,6 @@ export interface NativeIndexGraphOptions {
   readonly tsconfig?: string | false;
   readonly conditionNames?: string[];
   readonly remembering: boolean;
-  /** `Aliases.table` as JSON. */
-  readonly aliases?: string;
   readonly builtins: string[];
   readonly codeExtensions: string[];
   readonly directories: string[];
@@ -77,7 +74,6 @@ export interface IndexGraphRequest {
   readonly tsconfig?: string | false;
   readonly conditionNames?: readonly string[];
   readonly remembering: boolean;
-  readonly aliases: Aliases | undefined;
   readonly directories: ReadonlyMap<string, Digest>;
   readonly stores?: readonly string[];
   readonly held?: Uint8Array;
@@ -102,7 +98,6 @@ export function nativeIndexGraph(tree: NativeGitTree, request: IndexGraphRequest
     ...(request.tsconfig === undefined ? {} : { tsconfig: request.tsconfig }),
     ...(request.conditionNames === undefined ? {} : { conditionNames: [...request.conditionNames] }),
     remembering: request.remembering,
-    ...(request.aliases === undefined ? {} : { aliases: JSON.stringify(request.aliases.table) }),
     builtins: BUILTINS,
     codeExtensions: CODE_EXTENSIONS,
     directories: [...request.directories.keys()],

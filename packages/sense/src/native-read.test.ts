@@ -63,7 +63,6 @@ describe('the native scanner over this repository', () => {
       files,
       largestFile: LARGEST_FILE,
       digests: files.map(() => undefined),
-      aliases: undefined,
       directories: new Map(),
       remembering: false,
     });
@@ -113,7 +112,6 @@ describe('the native scanner over this repository', () => {
         files: [record.file],
         largestFile: LARGEST_FILE,
         digests: [undefined],
-        aliases: undefined,
         directories: new Map(),
         remembering: true,
       });

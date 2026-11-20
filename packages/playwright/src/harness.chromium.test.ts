@@ -258,6 +258,121 @@ describe.skipIf(!BROWSER_AVAILABLE)('createHarness — a document the harness di
   });
 });
 
+/** Where a story recorded in this realm listens; mirrors `NOTE` in sense's `story-listen.cts`. */
+const NOTE = Symbol.for('variance-authority.story.note');
+
+const RELOADING = 'http://reloading.test/';
+const RELOADING_PAGE = `<script>console.log('document loaded')</script>
+<button id="choose" onclick="console.log('chose tea')">Choose</button>
+<button id="restart" onclick="console.warn('server connection lost'); location.reload()">Restart</button>
+<button id="overlap" onclick="location.reload(); location.hash = 'later'">Overlap</button>
+<button id="fail" onclick="setTimeout(() => { throw new Error('checkout broke\\nat line 2'); })">Fail</button>
+<iframe src="${RELOADING}frame"></iframe>`;
+
+describe.skipIf(!BROWSER_AVAILABLE)('createHarness — a story recorded in this realm', () => {
+  const realm = globalThis as { [NOTE]?: (text: string) => void };
+  const reloading: HarnessOptions = {
+    ...OPTIONS,
+    url: RELOADING,
+    prepare: (page) =>
+      page.route(`${RELOADING}**`, (route) =>
+        route.fulfill({ contentType: 'text/html', body: route.request().url().endsWith('/frame') ? '<p>a frame</p>' : RELOADING_PAGE }),
+      ),
+  };
+
+  afterAll(() => {
+    delete realm[NOTE];
+  });
+
+  it("is told what the page printed, where it went and what it threw, in the order Node heard it", async () => {
+    const notes: string[] = [];
+    realm[NOTE] = (text) => notes.push(text);
+    const harness = await createHarness(reloading);
+    try {
+      await harness.page.click('#choose');
+      await harness.page.click('#restart');
+      await expect.poll(() => notes.filter((note) => note === 'page console.log document loaded').length).toBe(2);
+      await harness.page.click('#fail');
+      await expect.poll(() => notes.some((note) => note.startsWith('page error'))).toBe(true);
+    } finally {
+      await harness.close();
+    }
+
+    expect(notes).toEqual([
+      `page navigated ${RELOADING}`,
+      'page console.log document loaded',
+      'page console.log chose tea',
+      'page console.warn server connection lost',
+      `page reloaded ${RELOADING}`,
+      'page console.log document loaded',
+      'page error Error: checkout broke',
+    ]);
+  });
+
+  it('names a reload that a same-document move started under', async () => {
+    const notes: string[] = [];
+    realm[NOTE] = (text) => notes.push(text);
+    const harness = await createHarness(reloading);
+    try {
+      await harness.page.click('#overlap');
+      await expect.poll(() => notes.filter((note) => note === 'page console.log document loaded').length).toBe(2);
+    } finally {
+      await harness.close();
+    }
+
+    expect(notes.filter((note) => note.startsWith('page navigated') || note.startsWith('page reloaded'))).toEqual([
+      `page navigated ${RELOADING}`,
+      `page reloaded ${RELOADING}`,
+    ]);
+  });
+
+  it('is told only the console lines a story prints anywhere else', async () => {
+    const notes: string[] = [];
+    realm[NOTE] = (text) => notes.push(text);
+    const harness = await createHarness(reloading);
+    try {
+      await harness.page.evaluate(() => {
+        console.table([1]);
+        console.count();
+        console.info('kept');
+      });
+      await expect.poll(() => notes.includes('page console.info kept')).toBe(true);
+    } finally {
+      await harness.close();
+    }
+
+    expect(notes.filter((note) => note.startsWith('page console.') && note !== 'page console.log document loaded')).toEqual([
+      'page console.info kept',
+    ]);
+  });
+
+  it('is told the page crashed', async () => {
+    const notes: string[] = [];
+    realm[NOTE] = (text) => notes.push(text);
+    const harness = await createHarness(reloading);
+    try {
+      // A crash is the subject, and Chromium kills the renderer only for this address; the navigation is aborted.
+      await harness.page.goto('chrome://crash').catch(() => undefined);
+      await expect.poll(() => notes.includes('page crashed')).toBe(true);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it('listens to nothing more when no story records', async () => {
+    delete realm[NOTE];
+    const harness = await createHarness(reloading);
+    try {
+      // The harness's own error listeners and Playwright's own crash one, and no story's beside them.
+      expect(harness.page.listenerCount('console')).toBe(1);
+      expect(harness.page.listenerCount('pageerror')).toBe(1);
+      expect(harness.page.listenerCount('crash')).toBe(1);
+    } finally {
+      await harness.close();
+    }
+  });
+});
+
 describe.skipIf(!BROWSER_AVAILABLE)('createHarness — failures', () => {
   it('says which global was missing rather than timing out', async () => {
     await expect(

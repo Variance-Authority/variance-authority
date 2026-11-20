@@ -21,7 +21,7 @@ use crate::read::Read;
 use crate::batch::Reached;
 use crate::read_any::{language_of, Language};
 use crate::specifier::{is_relative_in, kind_for, package_of, request_of};
-use crate::witness::{witnesses_of, AliasTable};
+use crate::witness::witnesses_of;
 
 /// `FileEdge` and `PackageEdge` in `core/relate`: one target and how it is reached.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -61,13 +61,12 @@ pub struct Indexed {
 
 /// What a record is settled against that is not in the file: the runtime's
 /// builtins, which extensions are code, and — when the caller keeps records
-/// for reuse — the directories and aliases a witness is checked against.
+/// for reuse — the directories a witness is checked against.
 pub struct Settling<'a> {
     pub builtins: &'a HashSet<String>,
     pub code: &'a HashSet<String>,
     pub remembering: bool,
     pub directories: &'a HashSet<String>,
-    pub aliases: Option<&'a AliasTable>,
 }
 
 /// What JavaScript says a batch's records are settled against: `Settling`, as
@@ -76,8 +75,6 @@ pub struct Settling<'a> {
 #[napi(object)]
 pub struct RecordOptions {
     pub remembering: bool,
-    /// `Aliases.table` as JSON, when a configuration maps specifiers.
-    pub aliases: Option<String>,
     /// `builtinModules` that `isBuiltin` accepts: never a package edge.
     pub builtins: Vec<String>,
     /// Extensions whose target keeps its request's kind.
@@ -93,23 +90,17 @@ pub struct Settled {
     code: HashSet<String>,
     remembering: bool,
     directories: HashSet<String>,
-    aliases: Option<AliasTable>,
 }
 
 impl Settled {
-    /// The lists as sets; an alias table that does not parse is a defect of the caller's.
-    pub fn of(remembering: bool, aliases: Option<&str>, builtins: Vec<String>, code: Vec<String>, directories: Vec<String>) -> napi::Result<Self> {
-        let aliases = aliases
-            .map(serde_json::from_str::<AliasTable>)
-            .transpose()
-            .map_err(|error| napi::Error::from_reason(format!("the alias table did not parse: {error}")))?;
-        Ok(Self {
+    /// The lists as sets.
+    pub fn of(remembering: bool, builtins: Vec<String>, code: Vec<String>, directories: Vec<String>) -> Self {
+        Self {
             builtins: builtins.into_iter().collect(),
             code: code.into_iter().collect(),
             remembering,
             directories: directories.into_iter().collect(),
-            aliases,
-        })
+        }
     }
 
     pub fn settling(&self) -> Settling<'_> {
@@ -118,7 +109,6 @@ impl Settled {
             code: &self.code,
             remembering: self.remembering,
             directories: &self.directories,
-            aliases: self.aliases.as_ref(),
         }
     }
 }
@@ -205,7 +195,7 @@ pub fn built(file: &str, identity: &str, read: &Read, outcome: Outcome, reached:
             read.requests.iter().map(|request| request.value.as_str()),
             settled.iter().map(|edge| edge.to.as_str()),
             settling.directories,
-            settling.aliases,
+            reached.candidates.iter().map(String::as_str),
         )
     } else {
         Vec::new()
