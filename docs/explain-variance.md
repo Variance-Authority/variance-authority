@@ -20,7 +20,7 @@ page and its source line. In the
 name pushes the price below it down, and the price's region says so:
 
 ```text
-  collateral 524px at 17,223 87×32 — Price
+  collateral 524px at 17,221 87×30 — Price
       in main → region "Plans" → list item 2 of 3
       examples/visual-review-case/src/plans.js:45
 ```

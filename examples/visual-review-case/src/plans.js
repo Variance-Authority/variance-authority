@@ -35,7 +35,7 @@ export function PlanName({ name }) {
     width: '200px',
     margin: '0',
     font: `600 ${FONT}`,
-    lineHeight: '20px',
+    lineHeight: '18px',
     color: '#24282a',
   });
   heading.textContent = name;

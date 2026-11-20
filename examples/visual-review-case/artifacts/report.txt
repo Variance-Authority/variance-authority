@@ -19,11 +19,11 @@ components:
       in main → region "Plans" → list item 3 of 3 → button "Choose"
       examples/visual-review-case/src/plans.js:56
       shape v1:f0ceae0539be67e3c965076afb3829ee
-  cause      733px at 17,163 166×35 — PlanName
+  cause      733px at 17,162 166×33 — PlanName
       in main → region "Plans" → list item 2 of 3 → heading "Team, billed yearly for every seat"
       examples/visual-review-case/src/plans.js:33
-      shape v1:7aad695648c27135a2385d1af21f4b76
-  collateral 524px at 17,223 87×32 — Price
+      shape v1:78196283bb6fa564632b1bb5f336022a
+  collateral 524px at 17,221 87×30 — Price
       in main → region "Plans" → list item 2 of 3
       examples/visual-review-case/src/plans.js:45
-      shape v1:dcf78d63305c64e488747e46bad7df98
+      shape v1:68d8c76e1da56463c2003912876801d0

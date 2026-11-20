@@ -1,6 +1,6 @@
 {
   "runVersion": 1,
-  "at": "2026-11-20T08:57:51.531Z",
+  "at": "2026-11-20T09:36:37.749Z",
   "identity": {
     "renderer": "playwright-chromium",
     "engine": "chromium@156.0.8078.4",
@@ -105,9 +105,9 @@
         },
         {
           "x": 17,
-          "y": 163,
+          "y": 162,
           "width": 166,
-          "height": 35,
+          "height": 33,
           "pixels": 733,
           "grade": 4,
           "cause": true,
@@ -115,13 +115,13 @@
           "path": "0/0/0/1/0",
           "where": "main → region \"Plans\" → list item 2 of 3 → heading \"Team, billed yearly for every seat\"",
           "file": "examples/visual-review-case/src/plans.js:33",
-          "fingerprint": "v1:7aad695648c27135a2385d1af21f4b76"
+          "fingerprint": "v1:78196283bb6fa564632b1bb5f336022a"
         },
         {
           "x": 17,
-          "y": 223,
+          "y": 221,
           "width": 87,
-          "height": 32,
+          "height": 30,
           "pixels": 524,
           "grade": 4,
           "cause": false,
@@ -129,7 +129,7 @@
           "path": "0/0/0/1/1",
           "where": "main → region \"Plans\" → list item 2 of 3",
           "file": "examples/visual-review-case/src/plans.js:45",
-          "fingerprint": "v1:dcf78d63305c64e488747e46bad7df98"
+          "fingerprint": "v1:68d8c76e1da56463c2003912876801d0"
         }
       ]
     }
