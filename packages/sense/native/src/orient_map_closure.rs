@@ -15,6 +15,8 @@
 
 // compass: variance-authority.reach.relations
 
+use std::collections::VecDeque;
+
 use rayon::prelude::*;
 
 /// The graph a closure is walked over. Nodes below `lines.len()` are counted
@@ -45,197 +47,86 @@ pub(crate) struct Closure {
     pub unsized_files: u32,
 }
 
-/// Packages one fold carries at once, a bit each in this many words per node.
-const WORDS: usize = 4;
-const BLOCK: usize = WORDS * 64;
+/// Packages one walk carries at once, a bit each in a word per node.
+const BLOCK: usize = 64;
 
 /// Every package's closure, by package index.
 ///
 /// A walk per package costs the packages times what each reaches, which grows
-/// with the square of the checkout. Instead the files are folded into their
-/// strongly connected components once, every component reaching the same
-/// files, and each block of packages is carried down that acyclic graph as a
-/// bitset: a component is reached by every package whose bit any component
-/// above it carries. That is one pass over the edges per block, a word per 64
-/// packages, and a component's sizes are summed once and added to each
-/// package that reaches it.
+/// with the square of the checkout. Instead each block of 64 packages walks
+/// the graph once as a bitset: a node holds the bits of every package that
+/// reached it, and is visited again only while it carries bits it has not yet
+/// passed on, so a file reached by many packages, or along many paths, is
+/// walked once per block rather than once per package and path. A node's
+/// size is then added to each package whose bit it holds. The blocks run in
+/// parallel.
 pub(crate) fn closures(nodes: &Nodes, packages: usize) -> Vec<Closure> {
     let counted = nodes.lines.len();
+    let total = counted + nodes.leaves as usize;
     let mut seeds: Vec<Vec<u32>> = vec![Vec::new(); packages];
     for at in 0..counted {
         if nodes.roots[at] {
             seeds[nodes.owner[at] as usize].push(at as u32);
         }
     }
-    let seeded: Vec<usize> = (0..packages).filter(|&package| !seeds[package].is_empty()).collect();
-    let mut found = vec![Closure::default(); packages];
-    if seeded.is_empty() {
-        return found;
-    }
-    // Each package's place among the seeded, which names its block and its bit.
-    let mut rank = vec![u32::MAX; packages];
-    for (at, &package) in seeded.iter().enumerate() {
-        rank[package] = at as u32;
-    }
-    let graph = Condensed::new(nodes);
-    let blocks: Vec<Vec<Closure>> =
-        seeded.par_chunks(BLOCK).enumerate().map(|(first, block)| graph.fold(nodes, &seeds, &rank, first * BLOCK, block)).collect();
-    for (block, closures) in seeded.chunks(BLOCK).zip(blocks) {
-        for (&package, closure) in block.iter().zip(closures) {
-            found[package] = closure;
-        }
-    }
-    found
-}
-
-/// The graph's strongly connected components, numbered so that every edge
-/// between two of them runs from a higher number to a lower one, with what
-/// each holds summed.
-struct Condensed {
-    component: Vec<u32>,
-    /// The nodes of component `c` are `members[start[c]..start[c + 1]]`.
-    start: Vec<u32>,
-    members: Vec<u32>,
-    lines: Vec<u64>,
-    files: Vec<u32>,
-    unsized_files: Vec<u32>,
-}
-
-impl Condensed {
-    fn new(nodes: &Nodes) -> Condensed {
-        let counted = nodes.lines.len();
-        let total = nodes.lines.len() + nodes.leaves as usize;
-        let (component, count) = components(total, |at| nodes.outgoing.get(at).map_or(&[][..], Vec::as_slice));
-        let count = count as usize;
-        let mut start = vec![0u32; count + 1];
-        for &c in &component {
-            start[c as usize + 1] += 1;
-        }
-        for c in 0..count {
-            start[c + 1] += start[c];
-        }
-        let mut members = vec![0u32; component.len()];
-        let mut filled = start.clone();
-        let (mut lines, mut files, mut unsized_files) = (vec![0u64; count], vec![0u32; count], vec![0u32; count]);
-        for (at, &c) in component.iter().enumerate() {
-            let c = c as usize;
-            members[filled[c] as usize] = at as u32;
-            filled[c] += 1;
-            match nodes.lines.get(at).copied().flatten() {
-                Some(sized) if at < counted => {
-                    lines[c] += u64::from(sized);
-                    files[c] += 1;
-                }
-                _ => unsized_files[c] += 1,
-            }
-        }
-        Condensed { component, start, members, lines, files, unsized_files }
-    }
-
-    /// The closures of `block`, at most [`BLOCK`] packages, in its order:
-    /// the seeded packages ranked from `first`.
-    fn fold(&self, nodes: &Nodes, seeds: &[Vec<u32>], rank: &[u32], first: usize, block: &[usize]) -> Vec<Closure> {
-        let count = self.start.len() - 1;
-        let mut reached = vec![[0u64; WORDS]; count];
-        for (at, &package) in block.iter().enumerate() {
-            for &start in &seeds[package] {
-                reached[self.component[start as usize] as usize][at / 64] |= 1 << (at % 64);
-            }
-        }
-        let mut found = vec![Closure::default(); block.len()];
-        // Highest first is every component before any it reaches.
-        for c in (0..count).rev() {
-            let carried = reached[c];
-            if carried == [0; WORDS] {
-                continue;
-            }
-            for &at in &self.members[self.start[c] as usize..self.start[c + 1] as usize] {
-                let at = at as usize;
-                if let Some(Some(sized)) = nodes.lines.get(at) {
-                    let own = (rank[nodes.owner[at] as usize] as usize).wrapping_sub(first);
-                    if own < block.len() && carried[own / 64] & (1 << (own % 64)) != 0 {
-                        found[own].own += u64::from(*sized);
+    let outgoing = |at: usize| nodes.outgoing.get(at).map_or(&[][..], Vec::as_slice);
+    (0..packages.div_ceil(BLOCK))
+        .into_par_iter()
+        .flat_map_iter(|block| {
+            let first = block * BLOCK;
+            let width = BLOCK.min(packages - first);
+            let mut reached = vec![0u64; total];
+            let mut pending = vec![0u64; total];
+            let mut queue: VecDeque<u32> = VecDeque::new();
+            for bit in 0..width {
+                for &start in &seeds[first + bit] {
+                    if pending[start as usize] == 0 {
+                        queue.push_back(start);
                     }
+                    reached[start as usize] |= 1 << bit;
+                    pending[start as usize] |= 1 << bit;
                 }
-                for &to in nodes.outgoing.get(at).map_or(&[][..], Vec::as_slice) {
-                    let below = self.component[to as usize] as usize;
-                    if below != c {
-                        for (word, bits) in reached[below].iter_mut().zip(carried) {
-                            *word |= bits;
+            }
+            while let Some(at) = queue.pop_front() {
+                let carried = std::mem::take(&mut pending[at as usize]);
+                for &to in outgoing(at as usize) {
+                    let to = to as usize;
+                    let new = carried & !reached[to];
+                    if new != 0 {
+                        reached[to] |= new;
+                        if pending[to] == 0 {
+                            queue.push_back(to as u32);
                         }
+                        pending[to] |= new;
                     }
                 }
             }
-            for (word, mut bits) in carried.into_iter().enumerate() {
+            let mut found = vec![Closure::default(); width];
+            for (at, &mask) in reached.iter().enumerate() {
+                let sized = nodes.lines.get(at).copied().flatten();
+                // A file's own lines count only for the package that owns it.
+                if let Some(lines) = sized {
+                    let own = (nodes.owner[at] as usize).wrapping_sub(first);
+                    if own < width && mask & (1 << own) != 0 {
+                        found[own].own += u64::from(lines);
+                    }
+                }
+                let mut bits = mask;
                 while bits != 0 {
-                    let closure = &mut found[word * 64 + bits.trailing_zeros() as usize];
-                    closure.lines += self.lines[c];
-                    closure.files += self.files[c];
-                    closure.unsized_files += self.unsized_files[c];
+                    let closure = &mut found[bits.trailing_zeros() as usize];
+                    match sized {
+                        Some(lines) => {
+                            closure.lines += u64::from(lines);
+                            closure.files += 1;
+                        }
+                        None => closure.unsized_files += 1,
+                    }
                     bits &= bits - 1;
                 }
             }
-        }
-        found
-    }
-}
-
-/// Each of `total` nodes' strongly connected component, by Tarjan's algorithm
-/// without recursion, and how many there are, where `outgoing` gives a node's
-/// successors. A component is numbered once every one it reaches is, so an
-/// edge never runs to a higher number. The code map's package layers read the
-/// same order.
-pub(crate) fn components<'a>(total: usize, outgoing: impl Fn(usize) -> &'a [u32]) -> (Vec<u32>, u32) {
-    const UNSEEN: u32 = u32::MAX;
-    let (mut index, mut low, mut held) = (vec![UNSEEN; total], vec![0u32; total], vec![false; total]);
-    let mut component = vec![UNSEEN; total];
-    let (mut stack, mut calls): (Vec<u32>, Vec<(u32, u32)>) = (Vec::new(), Vec::new());
-    let (mut next, mut count) = (0u32, 0u32);
-    for root in 0..total {
-        if index[root] != UNSEEN {
-            continue;
-        }
-        index[root] = next;
-        low[root] = next;
-        next += 1;
-        stack.push(root as u32);
-        held[root] = true;
-        calls.push((root as u32, 0));
-        while let Some(&(at, edge)) = calls.last() {
-            let at = at as usize;
-            if let Some(&to) = outgoing(at).get(edge as usize) {
-                calls.last_mut().expect("a call is open").1 += 1;
-                let to = to as usize;
-                if index[to] == UNSEEN {
-                    index[to] = next;
-                    low[to] = next;
-                    next += 1;
-                    stack.push(to as u32);
-                    held[to] = true;
-                    calls.push((to as u32, 0));
-                } else if held[to] {
-                    low[at] = low[at].min(index[to]);
-                }
-                continue;
-            }
-            calls.pop();
-            if let Some(&(caller, _)) = calls.last() {
-                low[caller as usize] = low[caller as usize].min(low[at]);
-            }
-            if low[at] == index[at] {
-                loop {
-                    let member = stack.pop().expect("the component's root is on the stack") as usize;
-                    held[member] = false;
-                    component[member] = count;
-                    if member == at {
-                        break;
-                    }
-                }
-                count += 1;
-            }
-        }
-    }
-    (component, count)
+            found
+        })
+        .collect()
 }
 
 #[cfg(test)]
@@ -311,6 +202,39 @@ mod tests {
             leaves,
         };
         assert_eq!(closures(&nodes, packages + 1), walked(&nodes, packages + 1));
+    }
+
+    #[test]
+    fn converging_paths_and_a_cycle_through_many_packages_count_each_file_once() {
+        // A lattice where every file of a rank loads every file of the next,
+        // so each bottom file is reached along thousands of paths, and one
+        // cycle that runs through a file of each of 300 packages, more than a
+        // block holds, owned by packages on both sides of the lattice.
+        let (width, ranks, ring) = (12usize, 10usize, 300usize);
+        let lattice = width * ranks;
+        let files = lattice + ring;
+        let mut outgoing: Vec<Vec<u32>> = vec![Vec::new(); files];
+        for rank in 0..ranks - 1 {
+            for at in 0..width {
+                outgoing[rank * width + at] = (0..width).map(|to| ((rank + 1) * width + to) as u32).collect();
+            }
+        }
+        for at in 0..ring {
+            outgoing[lattice + at].push((lattice + (at + 1) % ring) as u32);
+        }
+        // The lattice's bottom enters the ring, and the ring re-enters the lattice's top.
+        outgoing[lattice - 1].push(lattice as u32);
+        outgoing[lattice + ring / 2].push(0);
+        let packages = ring + width;
+        let owner: Vec<u32> = (0..files).map(|at| if at < lattice { (ring + at % width) as u32 } else { (at - lattice) as u32 }).collect();
+        let nodes = Nodes {
+            lines: (0..files).map(|at| if at % 17 == 0 { None } else { Some((at % 23) as u32 + 1) }).collect(),
+            roots: (0..files).map(|at| at < width || (at >= lattice && at % 5 == 0)).collect(),
+            outgoing,
+            owner,
+            leaves: 0,
+        };
+        assert_eq!(closures(&nodes, packages), walked(&nodes, packages));
     }
 
     #[test]

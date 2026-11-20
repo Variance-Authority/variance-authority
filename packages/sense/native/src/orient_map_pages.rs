@@ -16,7 +16,6 @@ use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use crate::order::code_unit;
-use crate::orient_map_closure::components;
 use crate::orient_map_read::Read;
 use crate::orient_map_signals::Signals;
 use crate::orient_map_tree::Node;
@@ -69,21 +68,42 @@ pub(crate) fn layers(read: &Read) -> (Vec<u32>, u32) {
     // A component is numbered after every one it takes, so the lowest first
     // has each layer below it settled.
     let (component, count) = components(n, |at| next[at].as_slice());
-    let mut order: Vec<usize> = (0..n).collect();
-    order.sort_by_key(|&at| component[at]);
+    let mut below: Vec<Vec<u32>> = vec![Vec::new(); count as usize];
+    for (at, &c) in component.iter().enumerate() {
+        below[c as usize].extend(next[at].iter().map(|&to| component[to as usize]).filter(|&to| to != c));
+    }
     let mut layer_of = vec![1u32; count as usize];
-    for at in order {
-        let c = component[at] as usize;
-        for &to in &next[at] {
-            let below = component[to as usize] as usize;
-            if below != c {
-                layer_of[c] = layer_of[c].max(layer_of[below] + 1);
-            }
-        }
+    for c in 0..count as usize {
+        layer_of[c] = below[c].iter().map(|&to| layer_of[to as usize] + 1).max().unwrap_or(1);
     }
     let layers: Vec<u32> = component.iter().map(|&c| layer_of[c as usize]).collect();
     let count = layers.iter().copied().max().unwrap_or(0);
     (layers, count)
+}
+
+/// Each area's edges, by position in `edges`, in order: those with an end
+/// the area holds.
+///
+/// An edge counts on a page only when the page's area holds one of its ends,
+/// and the areas holding a package are its deepest one and that one's
+/// ancestors, since an area's members hold its parts'. So each page reads only
+/// its own edges, and the cost is the edges times the depth rather than the
+/// edges times the areas. The second end's chain runs right after the first's,
+/// so an area both chains share already ends with the edge.
+fn held(edges: &[(u32, u32, u32)], deepest: &[Option<usize>], parent: &[Option<usize>]) -> Vec<Vec<usize>> {
+    let mut held: Vec<Vec<usize>> = vec![Vec::new(); parent.len()];
+    for (at, &(a, b, _)) in edges.iter().enumerate() {
+        for end in [a, b] {
+            let mut chain = deepest[end as usize];
+            while let Some(x) = chain {
+                if held[x].last() != Some(&at) {
+                    held[x].push(at);
+                }
+                chain = parent[x];
+            }
+        }
+    }
+    held
 }
 
 /// The scope-less name a row shows: `@kbn/core` is `core`.
@@ -250,29 +270,9 @@ pub(crate) fn pages(read: &Read, signals: &Signals, areas: &[Area], layer: &[u32
         ls.sort_unstable();
         (ls[0], ls[ls.len() - 1], ls[ls.len() >> 1])
     };
-    // An edge counts on a page only when the page's area holds one of its
-    // ends, and the areas holding a package are its deepest one and that
-    // one's ancestors, since an area's members hold its parts'. So each page
-    // reads only its own edges, in the order they are kept, and the fold
-    // costs the edges times the depth rather than the edges times the areas.
-    let mut held: Vec<Vec<usize>> = vec![Vec::new(); areas.len()];
-    for (at, &(a, b, _)) in read.edges.iter().enumerate() {
-        let mut chain = deepest[a as usize];
-        while let Some(x) = chain {
-            held[x].push(at);
-            chain = parent[x];
-        }
-        let mut chain = deepest[b as usize];
-        while let Some(x) = chain {
-            if held[x].last() != Some(&at) {
-                held[x].push(at);
-            }
-            chain = parent[x];
-        }
-    }
     areas
         .par_iter()
-        .zip(held)
+        .zip(held(&read.edges, &deepest, &parent))
         .enumerate()
         .map(|(here, (focus, held))| {
             // The other end of a connection as this page sees it: one of the
@@ -368,4 +368,103 @@ pub(crate) fn pages(read: &Read, signals: &Signals, areas: &[Area], layer: &[u32
             }
         })
         .collect()
+}
+
+/// Each of `total` nodes' strongly connected component, by Tarjan's algorithm
+/// without recursion, and how many there are, where `outgoing` gives a node's
+/// successors. A component is numbered once every one it reaches is, so an
+/// edge never runs to a higher number, and `layers` folds them in that order.
+fn components<'a>(total: usize, outgoing: impl Fn(usize) -> &'a [u32]) -> (Vec<u32>, u32) {
+    const UNSEEN: u32 = u32::MAX;
+    let (mut index, mut low, mut held) = (vec![UNSEEN; total], vec![0u32; total], vec![false; total]);
+    let mut component = vec![UNSEEN; total];
+    let (mut stack, mut calls): (Vec<u32>, Vec<(u32, u32)>) = (Vec::new(), Vec::new());
+    let (mut next, mut count) = (0u32, 0u32);
+    for root in 0..total {
+        if index[root] != UNSEEN {
+            continue;
+        }
+        index[root] = next;
+        low[root] = next;
+        next += 1;
+        stack.push(root as u32);
+        held[root] = true;
+        calls.push((root as u32, 0));
+        while let Some(&(at, edge)) = calls.last() {
+            let at = at as usize;
+            if let Some(&to) = outgoing(at).get(edge as usize) {
+                calls.last_mut().expect("a call is open").1 += 1;
+                let to = to as usize;
+                if index[to] == UNSEEN {
+                    index[to] = next;
+                    low[to] = next;
+                    next += 1;
+                    stack.push(to as u32);
+                    held[to] = true;
+                    calls.push((to as u32, 0));
+                } else if held[to] {
+                    low[at] = low[at].min(index[to]);
+                }
+                continue;
+            }
+            calls.pop();
+            if let Some(&(caller, _)) = calls.last() {
+                low[caller as usize] = low[caller as usize].min(low[at]);
+            }
+            if low[at] == index[at] {
+                loop {
+                    let member = stack.pop().expect("the component's root is on the stack") as usize;
+                    held[member] = false;
+                    component[member] = count;
+                    if member == at {
+                        break;
+                    }
+                }
+                count += 1;
+            }
+        }
+    }
+    (component, count)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::held;
+
+    /// Whether `area` is `inner` or one of its ancestors.
+    fn holds(parent: &[Option<usize>], area: usize, inner: Option<usize>) -> bool {
+        let mut at = inner;
+        while let Some(x) = at {
+            if x == area {
+                return true;
+            }
+            at = parent[x];
+        }
+        false
+    }
+
+    #[test]
+    fn each_area_holds_every_edge_with_an_end_inside_it_once_even_where_the_two_chains_meet() {
+        // 0 ⊃ 1 ⊃ 2 ⊃ 3 ⊃ 4, 3 ⊃ 5, 1 ⊃ 6 and 7 at the top: the ends of an edge
+        // between areas 4 and 5 share three ancestors, and one between 4 and 6
+        // shares two.
+        let parent = vec![None, Some(0), Some(1), Some(2), Some(3), Some(3), Some(1), Some(0)];
+        // Packages 0..7 sit deepest in the area of their number; package 8 in none.
+        let deepest: Vec<Option<usize>> = (0..8).map(Some).chain([None]).collect();
+        let edges = vec![(4, 5, 1), (4, 6, 1), (4, 4, 1), (5, 7, 1), (8, 4, 1), (8, 8, 1), (2, 3, 1)];
+        let found = held(&edges, &deepest, &parent);
+        let expected: Vec<Vec<usize>> = (0..parent.len())
+            .map(|area| {
+                (0..edges.len())
+                    .filter(|&at| {
+                        let (a, b, _) = edges[at];
+                        holds(&parent, area, deepest[a as usize]) || holds(&parent, area, deepest[b as usize])
+                    })
+                    .collect()
+            })
+            .collect();
+        assert_eq!(found, expected);
+        assert_eq!(found[3], vec![0, 1, 2, 3, 4, 6]);
+        assert_eq!(found[7], vec![3]);
+    }
 }

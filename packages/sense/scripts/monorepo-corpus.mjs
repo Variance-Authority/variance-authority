@@ -5,9 +5,12 @@
 // importing the packages of lower layers by name and exporting many names.
 //
 //   node packages/sense/scripts/monorepo-corpus.mjs <dir> [--packages 2000] [--layers 60]
-//     [--files 10] [--exports 8] [--deps 6]
+//     [--files 10] [--exports 8] [--deps 6] [--back 0]
 //
 // Every dimension is a flag, so one can be scaled while the rest are held.
+// `--back share` gives that share of packages one dependency on a package up
+// to three layers above, which closes cycles among nearby layers; with none,
+// the graph is acyclic.
 // The output is deterministic and committed as one git commit, since the
 // index lists files from git; node_modules holds the workspace links an
 // install would make, so a package's name resolves to its directory.
@@ -24,17 +27,19 @@ const { positionals, values } = parseArgs({
     files: { type: "string", default: "10" },
     exports: { type: "string", default: "8" },
     deps: { type: "string", default: "6" },
+    back: { type: "string", default: "0" },
   },
 });
 const [root] = positionals;
 if (root === undefined) {
-  throw new Error("usage: monorepo-corpus.mjs <dir> [--packages n] [--layers n] [--files n] [--exports n] [--deps n]");
+  throw new Error("usage: monorepo-corpus.mjs <dir> [--packages n] [--layers n] [--files n] [--exports n] [--deps n] [--back share]");
 }
 const packages = Number(values.packages);
 const layers = Math.min(Number(values.layers), packages);
 const files = Number(values.files);
 const exportsPer = Number(values.exports);
 const depsPer = Number(values.deps);
+const backShare = Number(values.back);
 
 // A small linear congruential generator keeps the corpus the same on every run.
 let seed = 1;
@@ -73,6 +78,11 @@ for (let index = 0; index < packages; index += 1) {
       const target = below - 1 - Math.floor(random() * span);
       if (target >= 0) deps.add(target);
     }
+  }
+  if (backShare > 0 && random() < backShare && layer + 1 < layers) {
+    const above = firstOfLayer(layer + 1);
+    const span = Math.min(firstOfLayer(Math.min(layer + 4, layers)), packages) - above;
+    deps.add(above + Math.floor(random() * span));
   }
   const dependencies = [...deps].sort((a, b) => a - b);
   const dir = join(root, dirOf(index));
