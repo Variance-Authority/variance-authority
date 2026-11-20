@@ -598,6 +598,7 @@
         "parseSourceMap": "function",
         "parseStackFrames": "function",
         "piecesOf": "function",
+        "pixelBox": "function",
         "rankRegions": "function",
         "resolveSource": "function",
         "sharedClosures": "function",

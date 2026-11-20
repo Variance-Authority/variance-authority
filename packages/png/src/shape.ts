@@ -108,7 +108,9 @@ function edges(data: Uint8Array, offsets: Int32Array, columns: number): Int8Arra
     const below = index + columns < offsets.length ? offsets[index + columns]! : -1;
     const value = Math.max(towards(at, right), towards(at, below));
     if (value < 0) continue;
-    marks[index] = value <= FLAT ? 0 : value >= EDGE ? 1 : -1;
+    if (value <= FLAT) marks[index] = 0;
+    else if (value >= EDGE) marks[index] = 1;
+    else marks[index] = -1;
   }
   return marks;
 }
