@@ -1,3 +1,4 @@
+import { STRONG_GRADE } from '@variance-authority/raster';
 import {
   AGE_WHY,
   AGE_WORDS,
@@ -14,6 +15,7 @@ import type {
   ObservationRecord,
   PresentationEffectEvidence,
   PresentationEffectRecord,
+  RegionRecord,
 } from '@variance-authority/report';
 import type { CliObservationRecord } from './run-report.js';
 import { cmd, copy, markers, opening, px, section, slug, text } from './report-html-elements.js';
@@ -234,6 +236,15 @@ function modesFor(
   return modes;
 }
 
+/** A region graded short of the strongest level; a record written before grades has none. */
+const faint = (region: RegionRecord): boolean => region.grade !== undefined && region.grade < STRONG_GRADE;
+
+/** A region row's classes: `cause` leads the table, `faint` draws its box dashed. */
+function classes(region: RegionRecord): string {
+  const names = [...(region.cause ? ['cause'] : []), ...(faint(region) ? ['faint'] : [])];
+  return names.length === 0 ? '' : ` class="${names.join(' ')}"`;
+}
+
 /**
  * Every region, with its own fingerprint reachable.
  *
@@ -250,8 +261,9 @@ function regions(entry: ObservationRecord): string {
     .map(
       (region, index) =>
         `<tr data-region="${index}" data-box="${region.x},${region.y},${region.width},${region.height}"` +
-        `${region.cause ? ' class="cause"' : ''}>` +
+        `${classes(region)}>` +
         `<td>${region.cause ? '<span class="mark cause">cause</span>' : '<span class="mark quiet">collateral</span>'}` +
+        (faint(region) ? `<span class="mark quiet" title="Short of the strongest severity level.">faint</span>` : '') +
         (region.unattributed === true
           ? '<span class="mark warn" title="No box contained this region — a wrong scale or origin.">unattributed</span>'
           : '') +

@@ -121,7 +121,10 @@ counts the faint ones after them:
 ```
 
 When every region is faint, the reason names their components and calls them
-faint. The grade decides only which regions that sentence names. The region
+faint. The grade decides only which regions that sentence names, and how they
+are drawn: the diff image paints a faint pixel pale red and a strong one red, and
+the HTML report draws a faint region's box dashed and lighter, with a `faint`
+mark in its row. The run's JSON carries each region's `grade`. The region
 list keeps its own order, largest first, and the semantic ranking below
 reorders it by cause without changing which regions the sentence names.
 

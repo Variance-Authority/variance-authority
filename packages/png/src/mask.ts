@@ -52,7 +52,8 @@ export interface PixelDifference {
  *
  * `diffMask` is the difference between the two things this is asked for. Off,
  * it renders `pixelmatch`'s familiar picture — the before image dimmed with the
- * changed pixels in red — which is what a human opens. On, it writes *only* the
+ * changed pixels in red, pale where a pixel is short of `STRONG_GRADE` — which
+ * is what a human opens. On, it writes *only* the
  * differing pixels and leaves the rest transparent, so the alpha channel is the
  * mask and nothing has to be recovered from red-on-grey.
  *
@@ -71,7 +72,7 @@ export function differencePixels(
     alignment: given,
   }: { readonly diffMask?: boolean; readonly alignment?: AlignedRows | null } = {},
 ): PixelDifference {
-  const judged = judgeImages(before, after, [policy], given, { picture: { policy: 0, diffMask } });
+  const judged = judgeImages(before, after, [policy], given, { picture: { policy: 0, diffMask, graded: true } });
   const { width, height, changed, picture, alignment } = judged;
   return { width, height, data: picture!, changed: changed[0]!, ...(alignment === undefined ? {} : { alignment }) };
 }
