@@ -562,10 +562,9 @@ scope, and says nothing of layers. The field has three ways to group results:
   Review, 1999) names that choice: a reader picks a patch by its scent, then
   reads inside it.
 
-Why a codebase has groups to find is Conway's observation (*How do committees
-invent?*, Datamation, 1968): a system's structure follows the organisation that
-built it. Lakos's levelization ([`boundaries.md`](../boundaries.md)) gives each
-part its layer. None of the three ways groups by the import graph. Here, the
+Conway (*How do committees invent?*, Datamation, 1968) is why a codebase has
+such groups at all: a system's structure follows the organisation that built it.
+None of the three ways groups by the import graph. Here, the
 code map already computes an area, its dependency layer and its foundation or
 application role (ADR-0082). Placing a search hit on that map gives groups that
 are the same on every run and that no model drew, and an agent can enter a
