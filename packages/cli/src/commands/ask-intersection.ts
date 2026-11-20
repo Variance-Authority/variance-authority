@@ -13,14 +13,14 @@ import { QUESTIONS, inputFor, questionFor, refuseWords } from './asking.js';
  * question asked inside an intersection is never spelled differently from one
  * asked outside it.
  *
- * What reads the checkout — `--changed-file`, `--taint-file`, `--just-answer` —
+ * What asks for a new generation — `--changed-file`, `--taint-file` —
  * is said once, for the intersection, because every question is answered over
  * one reading. A question carrying one is refused rather than read as though
  * it narrowed that question alone.
  */
 
 /** Flags that mean something about the reading or the answer, never about one question. */
-const OUTSIDE = ['--changed-file', '--taint-file', '--just-answer', '--format', '--at', '--claims', '--config'];
+const OUTSIDE = ['--changed-file', '--taint-file', '--format', '--at', '--claims', '--config'];
 
 /** The questions whose answer is a set of files, as they are typed. */
 const crossable = (): string =>

@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import { countingShown, outlived, readNamedTree, readSearchForAnswer, readWorkspaceForAnswer, workspaceGeneration, type Unopened } from '@variance-authority/help';
+import { countingShown, readNamedTree, readSearchForAnswer, readWorkspaceForAnswer, workspaceGeneration, type Unopened } from '@variance-authority/help';
 import { answerSearch, containmentOf, discover, formatContainment, importingOf, intersection, journeyMapTool, namesWanted, orient, retriedTests, slowestTests, testCompositionTool, type Containment, type Help, type SearchAnswer, searchIndexOf, searchNames, searchQuestionOf } from '@variance-authority/help/tools';
 import type { Tool, Tree } from '@variance-authority/mcp/tools';
 import { sourceIndexPath } from '@variance-authority/sense';
@@ -10,7 +10,7 @@ import { invocationOf } from './asking.js';
 import type { AskRequest, SourceReadOptions, Sourced } from './ask.js';
 
 /**
- * How `variance ask` reads the checkout for a question about the code.
+ * How `variance ask` reads the generation `variance index` published for a question about the code.
  *
  * Every source question reads the published workspace value, except `search`:
  * it reads only names, docs and sites, and opens the file published for that
@@ -28,10 +28,6 @@ export interface Answering {
   readonly unseen?: boolean;
   /** The published files that were there and did not open; absent when none failed. */
   readonly unopened?: readonly Unopened[];
-  /** The workspace value the answer comes from, when it is one. */
-  readonly help?: Help;
-  /** Whether the files the answer names changed since its generation, as `outlived` from the help package says, for the request that began at `started`, a refusal resting on what it rested on in `before`; absent for a reading that cannot say. */
-  readonly outlived?: (started: number, before?: Help) => Promise<boolean>;
 }
 
 export async function wholeSource(
@@ -47,8 +43,6 @@ export async function wholeSource(
     answer: () => tool.run(sourced.help, input, invocationOf({ ...(tree === undefined ? {} : { tree }), root })),
     data: () => searchNames(searchIndexOf(sourced.help), searchQuestionOf(input), tree, root, importingOf(sourced.help, root)),
     at: workspaceGeneration(sourced.help),
-    help: sourced.help,
-    outlived: (started, before) => outlived(tool.name, sourced.help, input, { ...(tree === undefined ? {} : { tree }), root }, started, before),
   };
 }
 
@@ -139,7 +133,6 @@ export async function readSource(root: string, options: SourceReadOptions = {}):
     ...(options.changed === undefined ? {} : { changed: options.changed }),
     ...(options.taints === undefined ? {} : { taints: options.taints }),
     ...(options.justAnswer === true ? { justAnswer: true } : {}),
-    ...(options.current === true ? { refreshAfterMs: 0 } : {}),
     ...(options.tree === true ? { tree: (drawn: Tree) => { tree = drawn; } } : {}),
   });
   return { help, tree: () => tree };

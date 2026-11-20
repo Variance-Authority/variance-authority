@@ -6,7 +6,7 @@ import type { Crossing } from '../ask-args.js';
 import { OperatorError } from '../exit.js';
 import { readClaims } from './adjudicate.js';
 import { inputFor, invocationOf, questionFor, refuseWords, type Question } from './asking.js';
-import { caughtUp, foundNothingAnswer, madeBefore, refusalFooter, snapshotLine, unopenedLine } from '@variance-authority/help';
+import { foundNothingAnswer, refusalFooter, snapshotLine, unopenedLine } from '@variance-authority/help';
 import { containment, discover, intersection, journeyMapTool, orient, retriedTests, search, slowestTests, testCompositionTool, type Help } from '@variance-authority/help/tools';
 import { asOneQuestion, sourceIndexPath } from '@variance-authority/sense';
 import type { Taint } from '@variance-authority/sense/taint';
@@ -122,8 +122,6 @@ export interface AskRequest extends Crossing {
   readonly changedFile?: string;
   /** An addition-only Sense taint table for declarative module edges. */
   readonly taintFile?: string;
-  /** Use the last published source generation without inspecting the checkout. */
-  readonly justAnswer?: boolean;
   /** `--story`: what each execution's functions were handed, for `ran`. */
   readonly story?: boolean;
   /** `--over <time>`: only the cases that ran at least that long. */
@@ -167,20 +165,14 @@ export interface AskRequest extends Crossing {
  */
 export type SourceRequest = Flagged & Pick<AskRequest, 'source' | 'changedFile' | 'taintFile' | 'format' | 'reports'> & {
   readonly question: string;
-  readonly justAnswer?: boolean;
 };
 
 export interface SourceReadOptions {
   readonly changed?: readonly string[];
   readonly taints?: readonly Taint[];
+  /** Read only the published generation: never the checkout, at any age. Every question that names no changed file or taint. */
   readonly justAnswer?: boolean;
   readonly tree?: boolean;
-  /**
-   * Read a generation made now rather than reuse a recent one. Set when a
-   * question was refused from a generation older than it, so the refusal is
-   * given only once the checkout as it is has been read.
-   */
-  readonly current?: boolean;
 }
 
 /** A workspace, read once, and the tree its scan drew — folded only if a question names a path. */
@@ -257,27 +249,19 @@ export async function askSource(request: SourceRequest): Promise<string> {
   const input = crossing ? intersectionInput(request.reports ?? [], request.limit) : inputFor(tool, flagged(request));
   const changed = request.changedFile === undefined ? undefined : await readChanged(request.changedFile);
   const taints = request.taintFile === undefined ? undefined : [await readTaint(request.taintFile)];
-  if (request.justAnswer === true && (changed !== undefined || taints !== undefined)) {
-    throw new OperatorError('`--just-answer` reads the published source generation and cannot be combined with `--changed-file` or `--taint-file`, which request a new generation');
-  }
+  // A question answers from the generation `variance index` published, at any
+  // age and whatever was edited since: the one who edited knows it, and runs
+  // `variance index`. Only a changed-file list or a taint, which ask for a new
+  // generation by name, has one made; every other answer says it was not compared.
+  const named = changed !== undefined || taints !== undefined;
   const reading: SourceReadOptions = {
     ...(changed === undefined ? {} : { changed }),
     ...(taints === undefined ? {} : { taints }),
-    ...(request.justAnswer === true ? { justAnswer: true } : {}),
+    ...(named ? {} : { justAnswer: true }),
     ...(tool.wants?.(input) === true ? { tree: true } : {}),
   };
-  const started = Date.now();
-  const read = await sourceAnswering(request, tool, input, reading);
-  // A reading `--just-answer` asked for, or a published search opened at its
-  // age, is not compared with the checkout, and every answer from it says so.
-  const unseen = request.justAnswer === true || read.unseen === true;
-  // An answer whose named files changed since its generation is asked again
-  // before it is given; one that could not be, or whose files moved again, says
-  // so in the line that dates it.
-  const looked = !unseen && (await read.outlived?.(started)) === true
-    ? await caughtUp(read.at, started, () => sourceAnswering(request, tool, input, { ...reading, current: true }), async (subject = read) => (await subject.outlived?.(started, read.help)) === true)
-    : undefined;
-  const answering = looked?.subject ?? read;
+  const answering = await sourceAnswering(request, tool, input, reading);
+  const unseen = !named || answering.unseen === true;
   // A refusal is the answer here, not a crash. Every one of them names what is
   // there instead — the packages, the doors, the name one letter away — and it
   // is thrown because that is the contract the tool shares with the wire, where
@@ -285,14 +269,10 @@ export async function askSource(request: SourceRequest): Promise<string> {
   // under it, the one useful line is the one a reader cannot find. A name not
   // found is thrown the same way, and is printed as the answer it is.
   try {
-    return rendered(request, answering, looked?.unseen ?? unseen);
+    return rendered(request, answering, unseen);
   } catch (refusal) {
-    // A refusal answers from the generation it was refused from: keeping that
-    // fresh is `variance index`'s job, not a question's. One made before the
-    // question was not compared with the checkout, and its date line says so.
-    const stale = unseen || madeBefore(answering.at, started);
-    const footer = [refusalFooter(looked, answering.at, stale), unopenedLine(answering.unopened, !unseen)].filter((line) => line !== undefined).join('\n');
-    const found = foundNothingAnswer(refusal, looked, answering.at, stale);
+    const footer = [refusalFooter(undefined, answering.at, unseen), unopenedLine(answering.unopened, !unseen)].filter((line) => line !== undefined).join('\n');
+    const found = foundNothingAnswer(refusal, undefined, answering.at, unseen);
     if (found !== undefined) return foundNothing(found, unopenedLine(answering.unopened, !unseen));
     throw refused(refusal, footer === '' ? '' : `\n\n${footer}`);
   }
@@ -326,7 +306,7 @@ async function sourceAnswering(request: SourceRequest, tool: Tool<Help>, input: 
 }
 
 /** The answer as it is printed, read as one question: the source index is opened once however many readers it asks. */
-function rendered(request: SourceRequest, answering: Answering, unseen: boolean | string): string {
+function rendered(request: SourceRequest, answering: Answering, unseen: boolean): string {
   const at = answering.at;
   if (request.format === 'json') {
     // The generation is carried as a field rather than a footer line, and is

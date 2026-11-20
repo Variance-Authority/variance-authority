@@ -21,7 +21,7 @@ same questions are the `docs_*` tools in [MCP](mcp.md).
 ```bash
 variance ask search --query viewport
 variance-authority-help search viewport
-variance-authority-help search viewport --from packages/app/ --just-answer
+variance-authority-help search viewport --from packages/app/
 ```
 
 On `variance ask` every argument is a flag, and `variance ask` with no question
@@ -33,31 +33,31 @@ the first argument is positional.
 - **Node.** The version the installed package declares in `engines`.
 - **One of the two binaries.** `@variance-authority/cli` provides `variance ask`;
   `@variance-authority/help` provides `variance-authority-help`.
-- **No run, no config, no revision requirement.** Ordinary questions reuse a
-  published generation for up to one hour. A question that generation refuses,
-  a name not found among them, is answered from it, and says the checkout was not
-  compared with it: run `variance index`, which also builds the dependency
-  lexicon, when a name was written since; a server's next call, on the same
-  connection, reads the generation it published. A `symbol` or `uses`
-  whose files, the ones that declare the name or pass it on, the entry that publishes it and each
-  row `uses` lists, or a server's `docs_search` whose printed files or the entry and barrels publishing them, changed
-  after that generation is asked again of one made now, so it does not answer from old lines. One that could not be
-  read again or saved, or whose file was saved during the read that answers it, says the checkout
-  was not compared, and why, and gives a file written since as the generation read it:
-  its names and the text of them it kept. `--just-answer` uses the
-  last generation without inspecting the checkout and refuses when none exists;
-  its answers and refusals say the checkout was not compared, and JSON carries
-  `compared: false`. When no changed files are named, `search` reads a
-  published search that way, with or without the flag, and says so too. When
-  none is published it reads the checkout and publishes one; only
-  `--just-answer` refuses, and the refusal names that flag.
+- **A published generation.** `variance index` publishes one. Run it once
+  before the first question, and again after you edit files: edit, run
+  `variance index`, then ask. A question answers from the generation that is
+  published, at any age, and never reads the checkout to bring it up to date. It
+  does not check which files changed, and it writes no index. Every answer and
+  refusal says when that generation was made and that the checkout was not
+  compared with it; as JSON, `search` gives `compared: false`. With no
+  generation, a question refuses in one line that names `variance index`.
+  `--changed-file` and `--taint-file` are the one exception: they name the paths
+  a watcher already has, and the question updates the generation from them
+  before it answers.
+- **No run, no config, no revision requirement.**
 - **Working directory.** `variance ask` reads the checkout under the working
   directory, so run it from the workspace root; it refuses `--root`.
   `variance-authority-help` takes `--root <dir>`.
 
-Use `--just-answer` when CI, an editor or a watcher owns generation, or when an
-answer must include no freshness work. The timestamp is part of the answer;
-decide from it whether the producer needs to publish again.
+The timestamp is part of the answer. If you edited a file the answer names
+after that time, run `variance index` and ask again.
+
+The MCP server is different, because it stays up across your edits. It reuses
+a generation for up to one hour, reads one `variance index` published since,
+and asks a `symbol`, `uses` or `docs_search` again of a generation made now when
+a file that answer names changed after its generation. Start it with
+`--just-answer` when CI, an editor or a watcher publishes generations, so a
+call reads only the last one; [MCP](mcp.md) has the details.
 
 ## Two argument shapes on `variance-authority-help`
 
@@ -65,7 +65,7 @@ decide from it whether the producer needs to publish again.
 positional**:
 
 ```
-variance-authority-help <verb> [argument] [--root <dir>] [--just-answer]
+variance-authority-help <verb> [argument] [--root <dir>]
 variance-authority-help [root] [--just-answer]            # serve over MCP on stdio
 variance-authority-help write [root] [--out <dir>] [--base <url>]
 ```
@@ -227,9 +227,8 @@ src/legacy.ts:1  none of the 1 test that entered it ran the line
 A name nothing declares is answered on stdout, exit `0`: what was read and
 declares nothing, and where else the name may be written. Over MCP it is the
 same text, as a result rather than an error. It is answered from the generation
-the question read, which `variance index` keeps current, and its last line says
-when that generation was made before the question and so not compared with the
-checkout:
+the question read, which `variance index` publishes, and its last line says
+when that generation was made and that it was not compared with the checkout:
 
 ```
 `NotAThing` is not published by this workspace, and no published name contains it; ask `search` with a word from its documentation. No file in this workspace declares `NotAThing`, at its top level or as a member. No installed dependency publishes it either. A name written only as text, in a string or a comment, declares nothing: a text search such as `rg` finds it.
@@ -652,9 +651,9 @@ fifty, and the file two questions agree on can sit past the cap of either. The
 answer counts each question's files first, then lists the files in all of
 them, each with the lines that put it in each question, or `the file` when a
 question answers a file without a line. It shows 50; `--limit` shows more, and
-the count is always of all of them. `--changed-file`, `--taint-file` and
-`--just-answer` are said once, after `intersection`, outside the quotes: every
-question is answered over one reading.
+the count is always of all of them. `--changed-file` and `--taint-file` are
+said once, after `intersection`, outside the quotes: every question is answered
+over one reading.
 
 A question about a name nothing declares answers no file: the answer says so
 beside that question, with what was read, and that no file is in all of them,

@@ -52,20 +52,14 @@ in a repository with none they answer out of what the files themselves export.
 The repository itself does not have to be built and no API site is required.
 Point it at any checkout with `--root`.
 
-Producing a generation scans the checkout; answering one does not. Ordinary
-commands reuse a generation for one hour before refreshing it. A name a reused
-generation does not hold is answered from it, and the answer says the checkout
-was not compared with it: a function written since is reported missing until
-`variance index` runs. A `symbol` or `uses` whose files, the ones that declare the name, the entry
-that publishes it and each row `uses` lists, or a server's `docs_search` whose
-printed files or the entry and barrels publishing them, changed after the generation is asked again of one made now, so a renamed export or a moved
-declaration is not answered from its old lines.
-`--just-answer` uses the last published generation regardless of age, and every
-answer and refusal says when it was produced and that the checkout was not
-compared with it. It performs no Git status or refresh, and refuses if there is
-no generation to read. `search` opens a published search at any age, with or
-without the flag. When none is published it reads the checkout and publishes
-one, unless you passed `--just-answer`: then it refuses and names that flag. The detailed cost model, including why Git's packed objects
+Producing a generation scans the checkout; answering one does not. A question
+on the command line answers from the generation `variance index` last
+published, at any age, and does nothing else: no Git status, no look at the
+files an answer rests on, no index written. So after you edit, run `variance
+index`, then ask. Every answer and refusal says when its generation was produced
+and that the checkout was not compared with it, and with no generation the
+question refuses in one line that names `variance index`. The server keeps its
+own expiry, below. The detailed cost model, including why Git's packed objects
 beat opening hundreds of thousands of small files, is in [find code through the workspace
 index](https://variance-authority.dev/agents/workspace-api#choose-the-cheapest-entrance).
 
@@ -95,7 +89,7 @@ through your package manager:
 ```bash
 npm install --save-dev @variance-authority/help
 variance-authority-help search viewport
-variance-authority-help search viewport --from packages/app/ --just-answer
+variance-authority-help search viewport --from packages/app/
 ```
 
 The verbs each take the same arguments as the tool of the same name below:
@@ -212,15 +206,15 @@ Every answer ends with the UTC time of the generation it used. A generation is
 manifests and module records, not a compilation, and the module records come
 from the source index
 [`@variance-authority/sense`](https://variance-authority.dev/reference/packages/sense)
-keeps. In ordinary mode a generation less than one hour old is reused; after
-that the next question refreshes it. Run the binary or server with
-`--just-answer` when a watcher or CI step owns production and a question must do
-no freshness work. On `variance ask`, `--changed-file` belongs to the producer
-side: it supplies an authoritative newline-delimited file of scan-root-relative
-changed paths and cannot be combined with `--just-answer`. An empty file states
-that nothing changed. A listed file gives its names at the lines it holds now. A file left off is unchanged for that request, and the
-next question without a list looks. With no generation to refresh, the read is
-whole and the list is not used.
+keeps. A question on the command line reads that generation at any age. The
+server reuses a generation less than one hour old, and after that the next call
+refreshes it; start it with `--just-answer` when a watcher or CI step owns
+production and a call must do no freshness work. On `variance ask`,
+`--changed-file` belongs to the producer side: it supplies an authoritative
+newline-delimited file of scan-root-relative changed paths, and is the one way a
+question has the index updated. An empty file states that nothing changed. A
+listed file gives its names at the lines it holds now. With no generation to
+refresh, the read is whole and the list is not used.
 
 ### Say where you are standing
 

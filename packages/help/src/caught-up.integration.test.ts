@@ -8,9 +8,9 @@ import { publishing, UNCOMPARED } from './__fixtures__/published-then-written.js
 
 /**
  * A question about a name written after the last published generation, asked
- * of `variance-authority-help`. A generation is reused for an hour, and a name
- * it does not hold is answered from it, as `variance ask` answers it: the
- * answer says the checkout was not compared with it.
+ * of `variance-authority-help`. A question answers from the published
+ * generation at any age, as `variance ask` answers it: the answer says the
+ * checkout was not compared with it, and `variance index` publishes a new one.
  */
 
 const BIN = fileURLToPath(new URL('../dist/bin.js', import.meta.url));
@@ -37,22 +37,15 @@ describe('variance-authority-help about a name written after the published gener
     expect(out).toMatch(UNCOMPARED);
   });
 
-  it('reads the checkout again before answering `symbol` for a name renamed since the generation', async () => {
+  it('answers `symbol` from the published generation for a name renamed since, and says the checkout was not compared', async () => {
     const root = await fixture.published();
     const tax = join(root, 'packages/kit/src/tax.ts');
     writeFileSync(tax, readFileSync(tax, 'utf8').replace('taxOf', 'dutyOf'));
 
     const { code, out } = await bin(root, ['symbol', '--name', 'taxOf']);
     expect(code).toBe(0);
-    expect(out).toContain('`taxOf` is not');
-    expect(out).not.toContain('tax.ts:1');
-  });
-
-  it('answers a name it does not find under `--just-answer` with when the generation was published and that the checkout was not compared with it', async () => {
-    const { code, out, err } = await bin(await fixture.published(), ['symbol', '--name', 'keptOf', '--just-answer']);
-    expect(err).toBe('');
-    expect(code).toBe(0);
-    expect(out).toContain('`keptOf` is not published by this workspace');
+    expect(out).toContain('tax.ts');
+    expect(out).not.toContain('`taxOf` is not');
     expect(out).toMatch(UNCOMPARED);
   });
 

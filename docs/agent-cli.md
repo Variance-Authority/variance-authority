@@ -28,9 +28,10 @@ variance ask packages
 
 Every other question about the code needs something to ask about: a word, a
 name or a specifier. `packages` is the one that needs nothing, so ask it first
-when you have none of those. It reads the checkout under the working directory
-and nothing else: no report has to exist and `variance.config.json` is not
-opened. For each specifier, it counts the names that at least one other package
+when you have none of those. It reads the index `variance index` published for
+the checkout under the working directory and nothing else: no report has to
+exist and `variance.config.json` is not opened. After you edit, run `variance
+index`, then ask again. For each specifier, it counts the names that at least one other package
 imports. It does not list where those imports are written: `uses` gives the file
 and line of each. An answer looks like this, abridged:
 

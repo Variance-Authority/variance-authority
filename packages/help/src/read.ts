@@ -110,7 +110,7 @@ export async function readWorkspaceForAnswer(
     if (justAnswer) {
       throw operatorError(
         `${error instanceof Error ? error.message : String(error)}. ` +
-          'Run `variance index`, or ask again without `--just-answer`, to read the checkout and publish one.',
+          'Run `variance index` to publish one.',
         { cause: error },
       );
     }
