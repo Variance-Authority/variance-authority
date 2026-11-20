@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-import { spawn } from 'node:child_process';
-import { closeSync, openSync, realpathSync } from 'node:fs';
+import { spawn, type ChildProcess, type SpawnOptions } from 'node:child_process';
+import { closeSync, openSync, realpathSync, writeSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { isCI } from 'ci-info';
 import { messageOf } from './config-values.js';
@@ -13,6 +13,7 @@ import { readerOf } from './reader.js';
 import { skillLine } from './skill.js';
 import { unbuiltOf } from './unbuilt.js';
 import type { Streams } from './commands/configless.js';
+import type { Handed, Running } from './commands/index-follow-ups.js';
 
 /**
  * The program: one command in, one exit code out.
@@ -152,12 +153,25 @@ if (entry !== undefined && isProgram(entry)) {
     ...readerOf(process.stdout),
     err: (text) => process.stderr.write(text),
     // A CI job ends with its last step and saves its cache after it, so there
-    // nothing is left running: the step is the log, and the log is whole.
+    // nothing is left running: the step is the log, and the log is whole. It
+    // waits on the process apart, as `--wait` does.
     ...(isCI ? {} : { detach: relaunch }),
+    apart: rejoin,
+    // Only a run that waits on this process opened a channel to it.
+    ...(process.send === undefined ? {} : { handBack }),
   });
+  // A channel left open keeps this process alive after its answer.
+  if (process.connected) process.disconnect?.();
   // After the answer and on stderr, so neither the answer nor the exit code changes;
   // not in CI, where nobody reads it and nobody would call the program another way.
   if (!isCI) process.stderr.write(directCallLine(process.argv.slice(2), process.env, process.cwd(), fileURLToPath(import.meta.url)));
+}
+
+/** This program again, as a process of its own, without the launcher's mark: nobody typed its command, so its log names no faster call. */
+function again(argv: readonly string[], options: SpawnOptions): ChildProcess {
+  const env = { ...process.env };
+  delete env['npm_config_user_agent'];
+  return spawn(process.execPath, [...process.execArgv, fileURLToPath(import.meta.url), ...argv], { ...options, env });
 }
 
 /**
@@ -168,14 +182,7 @@ if (entry !== undefined && isProgram(entry)) {
 function relaunch(argv: readonly string[], log: string): number | undefined {
   const out = openSync(log, 'w');
   try {
-    // Without the launcher's mark: nobody typed the child's command, so its log names no faster call.
-    const env = { ...process.env };
-    delete env['npm_config_user_agent'];
-    const child = spawn(process.execPath, [...process.execArgv, fileURLToPath(import.meta.url), ...argv], {
-      detached: true,
-      env,
-      stdio: ['ignore', out, out],
-    });
+    const child = again(argv, { detached: true, stdio: ['ignore', out, out] });
     // A refused spawn has no id and reports it as an event: unheard, that event
     // ends this process before `index` makes the follow-ups itself.
     child.once('error', () => undefined);
@@ -184,4 +191,49 @@ function relaunch(argv: readonly string[], log: string): number | undefined {
   } finally {
     closeSync(out);
   }
+}
+
+/**
+ * This program again, as a process of its own that this one waits for. What it
+ * makes comes back over a channel only this process reads; both its streams
+ * are written to `log`, as a detached one's are, for a command that waits on it
+ * meanwhile, and its stderr is passed on as it comes, for the person watching
+ * this one. A signal that stops this process stops that one first, and this
+ * one ends by the same signal once that one has ended.
+ */
+function rejoin(argv: readonly string[], log: string): Running | undefined {
+  const written = openSync(log, 'w');
+  const child = again(argv, { stdio: ['ignore', 'pipe', 'pipe', 'ipc'] });
+  const { pid } = child;
+  if (pid === undefined) {
+    child.once('error', () => undefined);
+    closeSync(written);
+    return undefined;
+  }
+  // The signals that stop a run; declared here, because the program runs above any module constant.
+  const stops: readonly NodeJS.Signals[] = ['SIGINT', 'SIGTERM'];
+  let handed: Handed | undefined;
+  let stopped: NodeJS.Signals | undefined;
+  const stop = (signal: NodeJS.Signals): void => { stopped = signal; child.kill(signal); };
+  for (const signal of stops) process.on(signal, stop);
+  child.on('message', (message) => { handed = message as Handed; });
+  child.stdout?.on('data', (chunk: Buffer) => { writeSync(written, chunk); });
+  child.stderr?.on('data', (chunk: Buffer) => { process.stderr.write(chunk); writeSync(written, chunk); });
+  const ended = new Promise<Awaited<Running['ended']>>((resolve, reject) => {
+    child.once('error', (error) => { closeSync(written); reject(error); });
+    child.once('close', (code, signal) => {
+      closeSync(written);
+      for (const each of stops) process.off(each, stop);
+      if (stopped !== undefined) process.kill(process.pid, stopped);
+      resolve({ ...(handed === undefined ? {} : { handed }), code, signal });
+    });
+  });
+  return { pid, ended };
+}
+
+/** Hand the follow-ups back to the run waiting on this process, over the channel it opened. */
+function handBack(handed: Handed): Promise<void> {
+  return new Promise((resolve, reject) => {
+    process.send?.(handed, (error: Error | null) => (error === null ? resolve() : reject(error)));
+  });
 }

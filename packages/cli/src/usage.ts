@@ -272,7 +272,7 @@ export function helpFor(command: (typeof COMMANDS)[number]): string {
       ? ['--no-git: read file contents from the working tree, not Git\'s object store; the index is the same.']
       : []),
     ...(flags.includes('--wait')
-      ? ['--wait: make the code map, journeys, lexicon and questions before returning, rather than in a process of their own.']
+      ? ['--wait: return once the process making the code map, journeys, lexicon and questions has finished, with its lines and its exit.']
       : []),
     ...(flags.includes('--follow-ups')
       ? ['--follow-ups: what that process runs; lets go of the lock the other commands wait on when it is done.']

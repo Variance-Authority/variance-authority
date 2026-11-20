@@ -23,7 +23,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { EXIT_CLEAN, EXIT_OPERATOR, EXIT_REVIEW, OperatorError, type ExitCode } from '../exit.js';
 import type { Parsed } from '../parse.js';
-import type { Detach } from './index-follow-ups.js';
+import type { Apart, Detach, HandBack } from './index-follow-ups.js';
 import { writePieces } from '../json-pieces.js';
 
 /** The thirteen commands that read no project configuration at all. */
@@ -112,6 +112,9 @@ export interface Streams {
   err(text: string): void;
   drained?(): Promise<boolean>;
   detach?: Detach;
+  apart?: Apart;
+  /** Set in a process a run waits on: where its follow-ups go back to that run. */
+  handBack?: HandBack;
 }
 
 /** Run one of them, each of which is about a suite rather than a project. */
@@ -282,8 +285,12 @@ export async function answerConfigless(
       const request = { cwd: process.cwd(), ...(parsed.noGit ? { noGit: true } : {}), progress: ticker.progress, failed: () => { failed = true; } };
       const waiting = (text: string): void => streams.err(text);
       try {
-        if (parsed.followUps) streams.out(await followUpsOutput({ ...request, waiting }));
-        else streams.out(await indexOutput({ ...request, waiting, ...(parsed.wait || streams.detach === undefined ? {} : { detach: streams.detach }) }));
+        if (parsed.followUps) streams.out(await followUpsOutput({ ...request, waiting, ...(streams.handBack === undefined ? {} : { handBack: streams.handBack }) }));
+        else {
+          // Waited on, under `--wait` and in CI, the follow-ups still run apart, so their memory never joins the walk's.
+          const handed = parsed.wait || streams.detach === undefined ? (streams.apart === undefined ? {} : { apart: streams.apart }) : { detach: streams.detach };
+          streams.out(await indexOutput({ ...request, waiting, ...handed }));
+        }
       } finally {
         ticker.done();
       }
