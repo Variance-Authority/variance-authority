@@ -34,7 +34,7 @@ pull request, with the new reason.
 - **Distance selects and cost ranks.** The two never merge into one number,
   which would hide depth inside a factor. No ranking reads a cost today: the
   half-hop constants measured against co-change were removed unread, and
-  their measurement stays in the history of `packages/mcp/src/tools/hops.ts`.
+  their measurement stays in commit 66417b44e.
 - **Text finds the file and the record finds the case.** An orientation answer
   prints the text search's list first, with the record's leads beside it, not a
   fused ranking. No routing rule has beaten always searching text out of sample.
