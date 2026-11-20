@@ -51,6 +51,18 @@ export interface FollowUpsLock {
 /** Relaunch this program with `argv`, its output written to `log`; the process id. */
 export type Detach = (argv: readonly string[], log: string) => number | undefined;
 
+/**
+ * Relaunch this program with `argv` as a process this one waits for, its lines
+ * written to `log` as a detached one's are; undefined when it could not start.
+ */
+export type Apart = (argv: readonly string[], log: string) => Running | undefined;
+
+/** A process `Apart` started, and how it ended: its stdout, then its exit code or the signal that ended it. */
+export interface Running {
+  readonly pid: number;
+  readonly ended: Promise<{ readonly out: string; readonly code: number | null; readonly signal: NodeJS.Signals | null }>;
+}
+
 export const followUpsLockPath = (index: string): string => `${index}.follow-ups`;
 export const followUpsLogPath = (index: string): string => `${index}.follow-ups.log`;
 

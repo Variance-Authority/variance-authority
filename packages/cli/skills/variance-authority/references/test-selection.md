@@ -195,8 +195,10 @@ variance reach --since origin/main              # files a diff reaches over impo
   from each changed file whole, the answer `jest --changedSince` gives, which is
   how you check what the reading saved. It takes `--format plain|json` and
   `--no-git`.
-- **`index --wait`** builds the code map, journeys, lexicon and questions before
-  it returns, rather than in a process of their own.
+- **`index --wait`** returns once the process that builds the code map,
+  journeys, lexicon and questions has finished, and prints its lines and exits
+  as it did. They are built in a process of their own either way, so their
+  memory never adds to the index's.
 
 Which cases ran one line, and what a change did to the cases, is `variance
 covering`, in [covering](covering.md).

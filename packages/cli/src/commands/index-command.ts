@@ -24,8 +24,10 @@
  * Only the index is made before the prompt comes back on a workstation: the
  * map, the journeys, the lexicon and the value are handed to a process of their
  * own (`index-follow-ups.ts`), which every later command that reads them waits
- * on. In CI, under
- * `--wait`, or when `main` is called as a library, they are made in this process.
+ * on. In CI and under `--wait` they go to the same process, and this one waits
+ * for it to end, so what they hold is never added to what the walk still holds.
+ * Only when `main` is called as a library, which has no program to relaunch,
+ * are they made in this process.
  *
  * One line per artifact on stdout, for the person reading a pipeline log: the
  * index, the code map, each suite's walk, the lexicon and the value, each with
@@ -48,7 +50,7 @@ import {
 } from '@variance-authority/sense';
 import { OperatorError } from '../exit.js';
 import { fetchFromMainline } from './source-index-share.js';
-import { followUpsLogPath, heldBy, holdFollowUps, readiedFollowUps, releaseFollowUps, reserveFollowUps, waitingLine, type Detach } from './index-follow-ups.js';
+import { followUpsLogPath, heldBy, holdFollowUps, readiedFollowUps, releaseFollowUps, reserveFollowUps, waitingLine, type Apart, type Detach, type Running } from './index-follow-ups.js';
 
 export interface IndexRequest {
   readonly cwd: string;
@@ -56,10 +58,15 @@ export interface IndexRequest {
   readonly noGit?: boolean;
   /**
    * Hand the follow-ups to a process of their own and return once the index is
-   * written. Absent, they are made before this returns: a library caller, and
-   * `--wait`.
+   * written. Absent, they are made before this returns.
    */
   readonly detach?: Detach;
+  /**
+   * Without `detach`: make the follow-ups in a process of their own and return
+   * once it has ended, with its lines and its failed walks; `--wait`, and CI.
+   * Absent too, they are made in this process: a library caller.
+   */
+  readonly apart?: Apart;
   /** Told when another `index` holds the follow-ups or another checkout the repository's index turn, once for each wait. */
   readonly waiting?: (text: string) => void;
   /** Told each step as it starts and ends: the update's own, then each follow-up's, which run at once. */
@@ -74,19 +81,49 @@ export interface IndexRequest {
 export async function indexOutput(request: IndexRequest): Promise<string> {
   const index = sourceIndexPath(request.cwd);
   const log = followUpsLogPath(index);
-  if (request.detach === undefined) return inline(request);
+  const { detach, apart } = request;
+  if (detach === undefined && apart === undefined) return inline(request);
   if (!(await reserveFollowUps(index, log, (lock) => request.waiting?.(waitingLine(lock))))) return inline(request);
   try {
     const alone: Alone = new Set();
     const update = await written(request, alone);
-    const pid = request.detach(['index', '--follow-ups', ...(request.noGit ? ['--no-git'] : [])], log);
-    if (pid === undefined) return report(update, alone, await followUps(request, update, alone));
-    holdFollowUps(index, { pid, log });
-    return report(update, alone, [`follow-ups: nothing has failed; process ${pid} is still making the code map, the journeys, the dependency lexicon and the questions. The next variance command that reads them waits for it, and exits 2 with the reason if git could not read a walk. Its lines are written to ${log}`]);
+    const argv = ['index', '--follow-ups', ...(request.noGit ? ['--no-git'] : [])];
+    if (detach !== undefined) {
+      const pid = detach(argv, log);
+      if (pid === undefined) return report(update, alone, await followUps(request, update, alone));
+      holdFollowUps(index, { pid, log });
+      return report(update, alone, [`follow-ups: nothing has failed; process ${pid} is still making the code map, the journeys, the dependency lexicon and the questions. The next variance command that reads them waits for it, and exits 2 with the reason if git could not read a walk. Its lines are written to ${log}`]);
+    }
+    const running = apart?.(argv, log);
+    if (running === undefined) return report(update, alone, await followUps(request, update, alone));
+    holdFollowUps(index, { pid: running.pid, log });
+    return report(update, alone, await waitedOn(request, running, alone));
   } finally {
     // A no-op once the lock is handed on: it is then the process's to let go.
     releaseFollowUps(index, process.pid);
   }
+}
+
+/**
+ * The lines of the follow-ups' process once it has ended, after the index's own:
+ * its first line is its own update finding the index this run wrote, and a turn
+ * it went without is told once, with this run's. A walk it could not make is
+ * told to `failed` and its lock let go, because this run's exit carries it; a
+ * process that ended any other way before it finished is a refusal, and its
+ * lock is let go for the next reader to make them.
+ */
+async function waitedOn(request: IndexRequest, { pid, ended }: Running, alone: Alone): Promise<readonly string[]> {
+  const index = sourceIndexPath(request.cwd);
+  const { out, code, signal } = await ended;
+  const held = heldBy(index);
+  const failed = held?.pid === pid ? held.failed : undefined;
+  releaseFollowUps(index, pid);
+  for (const why of failed ?? []) request.failed?.(why);
+  if (code !== 0 && failed === undefined) {
+    const how = signal === null ? `exit code ${String(code)}` : `signal ${signal}`;
+    throw new Error(`process ${pid}, making the follow-ups \`variance index\` waited on, ended with ${how} before it finished; what it wrote is in ${followUpsLogPath(index)}`);
+  }
+  return out.split('\n').slice(1).filter((line) => line !== '' && !alone.has(line));
 }
 
 async function inline(request: IndexRequest, readied?: () => void): Promise<string> {
