@@ -60,6 +60,10 @@ import {
 
 export interface ReadingOptions extends HelpOptions, IndexedUsageOptions {}
 
+/**
+ * How a question opens a generation: the published one as it stands, or, with
+ * `changed` or `taints` named, one written from those files first.
+ */
 export interface AnsweringOptions extends ReadingOptions {
   /** Read the published generation regardless of age and perform no refresh. */
   readonly justAnswer?: boolean;
