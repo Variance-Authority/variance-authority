@@ -617,7 +617,9 @@ variance ask discover --to src/store/selectors.ts#selectBalance
 
 The answer counts each set first, then lists the files in all of them, nearest
 the `--from` or `--to` paths first, each with the line that put it in each
-set; `--path` puts it in by its name, with no line. A file two or more imports
+set; `--path` puts it in by its name, with no line. Each file is a heading;
+its evidence below starts with the source line number when known, followed by
+the evidence text. A file two or more imports
 away from a `--to` path carries one shortest chain of imports to it, a step
 that is not a plain import marked — `src/Page.ts → src/Model.ts (type import) →
 src/store/selectors.ts` — and for `file#name` the chain ends at the line that

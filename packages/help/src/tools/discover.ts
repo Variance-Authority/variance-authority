@@ -365,13 +365,13 @@ export const discover: Tool<unknown> = {
     const { kept, header, answer, matched, reaches } = answered(input, invocation);
     if (answer.length === 0) return [...header, '', 'No file is in all of them.'].join('\n');
 
-    const shown = (file: string, evidence: Evidence): string => `  ${evidence.line === undefined ? '' : `${file}:${evidence.line}  `}${evidence.text}`;
+    const shown = (evidence: Evidence): string => `  ${evidence.line === undefined ? '' : `${evidence.line}  `}${evidence.text}`;
     const order = reaches === 0 ? '.' : ', nearest first.';
     const lines = [...header, '', `${counted(answer.length)} in all of them${order}`];
     for (const file of answer.slice(0, limit)) {
       lines.push('', file);
-      for (const operand of kept) for (const evidence of operand.evidence(file)) lines.push(shown(file, evidence));
-      for (const evidence of matched.get(file) ?? []) lines.push(shown(file, evidence));
+      for (const operand of kept) for (const evidence of operand.evidence(file)) lines.push(shown(evidence));
+      for (const evidence of matched.get(file) ?? []) lines.push(shown(evidence));
     }
     if (answer.length > limit) lines.push('', notShown(answer.length - limit, spell));
     return lines.join('\n');

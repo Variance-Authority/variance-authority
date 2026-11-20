@@ -150,8 +150,7 @@ describe('discover crosses whole sets', () => {
 
   it('says why each file is in every set, at the line that says so', () => {
     const text = ask(CONTEXTS);
-    expect(text).toContain('src/state/user.ts:1  imports createContext from react');
-    expect(text).toContain('src/state/user.ts:2  declares UserContext');
+    expect(text).toContain('src/state/user.ts\n  2 imports from src/TopNav.tsx\n  1  imports createContext from react\n  2  declares UserContext');
     expect(text).toContain('2 imports from src/TopNav.tsx');
   });
 
@@ -159,7 +158,7 @@ describe('discover crosses whole sets', () => {
     const text = ask({ declares: '^selectBalance$', from: 'src/Wallet.tsx' });
     expect(text).toContain('2 files declaring a name matching /^selectBalance$/i');
     expect(text).toContain('1 file in all of them');
-    expect(text).toContain('src/store/selectors.ts:3  declares selectBalance');
+    expect(text).toContain('src/store/selectors.ts\n  1 import from src/Wallet.tsx\n  3  declares selectBalance');
     expect(text).not.toContain('src/old/selectors.ts');
   });
 
@@ -173,7 +172,7 @@ describe('discover crosses whole sets', () => {
 
   it('matches an import by the file it resolved to, as well as by what was written', () => {
     const text = ask({ imports: 'src/store/selectors.ts' });
-    expect(text).toContain('src/Wallet.tsx:1  imports selectBalance from ./store/selectors as balance');
+    expect(text).toContain('src/Wallet.tsx\n  1  imports selectBalance from ./store/selectors as balance');
   });
 
   it('counts the files the tree holds and whose names were not read, so a missing one is not a file declaring nothing', () => {
@@ -299,7 +298,8 @@ describe('discover says how a file reaches what it was asked of', () => {
 describe('text, inside the files the other operands kept', () => {
   it('answers only files with a matching line', () => {
     const text = ask({ ...CONTEXTS, text: 'dark' });
-    expect(text).toContain("src/state/theme.ts:2  export const ThemeContext = createContext('dark');");
+    expect(text).toContain("  2  export const ThemeContext = createContext('dark');");
+    expect(text).toContain('\nsrc/state/theme.ts\n');
     expect(text).toContain('1 file in all of them');
     expect(text).not.toContain('src/state/user.ts');
   });
