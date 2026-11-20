@@ -12,9 +12,11 @@
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 
+use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use crate::order::code_unit;
+use crate::orient_map_closure::components;
 use crate::orient_map_read::Read;
 use crate::orient_map_signals::Signals;
 use crate::orient_map_tree::Node;
@@ -60,69 +62,26 @@ pub(crate) struct Page {
 /// Each package's dependency layer, and how many layers there are.
 pub(crate) fn layers(read: &Read) -> (Vec<u32>, u32) {
     let n = read.packages.len();
-    let mut next: Vec<Vec<usize>> = vec![Vec::new(); n];
+    let mut next: Vec<Vec<u32>> = vec![Vec::new(); n];
     for &(a, b, _) in &read.edges {
-        next[a as usize].push(b as usize);
+        next[a as usize].push(b);
     }
-    // Tarjan, without recursion; a component closes after everything it takes.
-    let (mut index, mut low) = (vec![usize::MAX; n], vec![0usize; n]);
-    let (mut on, mut stack, mut counter) = (vec![false; n], Vec::new(), 0usize);
-    let mut component = vec![usize::MAX; n];
-    let mut layer_of: Vec<u32> = Vec::new();
-    for start in 0..n {
-        if index[start] != usize::MAX {
-            continue;
-        }
-        let mut work: Vec<(usize, usize)> = vec![(start, 0)];
-        index[start] = counter;
-        low[start] = counter;
-        counter += 1;
-        stack.push(start);
-        on[start] = true;
-        while let Some(&mut (v, ref mut edge)) = work.last_mut() {
-            if *edge < next[v].len() {
-                let w = next[v][*edge];
-                *edge += 1;
-                if index[w] == usize::MAX {
-                    index[w] = counter;
-                    low[w] = counter;
-                    counter += 1;
-                    stack.push(w);
-                    on[w] = true;
-                    work.push((w, 0));
-                } else if on[w] {
-                    low[v] = low[v].min(index[w]);
-                }
-                continue;
-            }
-            work.pop();
-            if let Some(&(u, _)) = work.last() {
-                low[u] = low[u].min(low[v]);
-            }
-            if low[v] == index[v] {
-                let c = layer_of.len();
-                let mut members = Vec::new();
-                loop {
-                    let w = stack.pop().expect("the component's root is on the stack");
-                    on[w] = false;
-                    component[w] = c;
-                    members.push(w);
-                    if w == v {
-                        break;
-                    }
-                }
-                let layer = members
-                    .iter()
-                    .flat_map(|&i| next[i].iter())
-                    .filter(|&&j| component[j] != c)
-                    .map(|&j| layer_of[component[j]] + 1)
-                    .max()
-                    .unwrap_or(1);
-                layer_of.push(layer);
+    // A component is numbered after every one it takes, so the lowest first
+    // has each layer below it settled.
+    let (component, count) = components(n, |at| next[at].as_slice());
+    let mut order: Vec<usize> = (0..n).collect();
+    order.sort_by_key(|&at| component[at]);
+    let mut layer_of = vec![1u32; count as usize];
+    for at in order {
+        let c = component[at] as usize;
+        for &to in &next[at] {
+            let below = component[to as usize] as usize;
+            if below != c {
+                layer_of[c] = layer_of[c].max(layer_of[below] + 1);
             }
         }
     }
-    let layers: Vec<u32> = component.iter().map(|&c| layer_of[c]).collect();
+    let layers: Vec<u32> = component.iter().map(|&c| layer_of[c as usize]).collect();
     let count = layers.iter().copied().max().unwrap_or(0);
     (layers, count)
 }
@@ -291,10 +250,31 @@ pub(crate) fn pages(read: &Read, signals: &Signals, areas: &[Area], layer: &[u32
         ls.sort_unstable();
         (ls[0], ls[ls.len() - 1], ls[ls.len() >> 1])
     };
+    // An edge counts on a page only when the page's area holds one of its
+    // ends, and the areas holding a package are its deepest one and that
+    // one's ancestors, since an area's members hold its parts'. So each page
+    // reads only its own edges, in the order they are kept, and the fold
+    // costs the edges times the depth rather than the edges times the areas.
+    let mut held: Vec<Vec<usize>> = vec![Vec::new(); areas.len()];
+    for (at, &(a, b, _)) in read.edges.iter().enumerate() {
+        let mut chain = deepest[a as usize];
+        while let Some(x) = chain {
+            held[x].push(at);
+            chain = parent[x];
+        }
+        let mut chain = deepest[b as usize];
+        while let Some(x) = chain {
+            if held[x].last() != Some(&at) {
+                held[x].push(at);
+            }
+            chain = parent[x];
+        }
+    }
     areas
-        .iter()
+        .par_iter()
+        .zip(held)
         .enumerate()
-        .map(|(here, focus)| {
+        .map(|(here, (focus, held))| {
             // The other end of a connection as this page sees it: one of the
             // focus's areas, the focus itself for a package no area of it
             // took, else the top-level area holding it.
@@ -309,17 +289,13 @@ pub(crate) fn pages(read: &Read, signals: &Signals, areas: &[Area], layer: &[u32
                 }
                 None
             };
-            let inner: HashSet<usize> = focus.node.members.iter().map(|&p| package(p)).collect();
             let kid: HashMap<usize, usize> = focus.kids.iter().enumerate().map(|(i, &x)| (x, i)).collect();
             let mut incoming = vec![0u32; focus.kids.len()];
             let mut outgoing = vec![0u32; focus.kids.len()];
             let mut landed: Vec<HashMap<usize, u32>> = vec![HashMap::new(); focus.kids.len()];
             let mut roads: Vec<HashMap<usize, u32>> = vec![HashMap::new(); focus.kids.len()];
-            for &(a, b, count) in &read.edges {
+            for &(a, b, count) in held.iter().map(|&at| &read.edges[at]) {
                 let (a, b) = (a as usize, b as usize);
-                if !inner.contains(&a) && !inner.contains(&b) {
-                    continue;
-                }
                 let (sa, sb) = (area_at(a), area_at(b));
                 if sa == sb {
                     continue;

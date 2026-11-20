@@ -45,64 +45,197 @@ pub(crate) struct Closure {
     pub unsized_files: u32,
 }
 
+/// Packages one fold carries at once, a bit each in this many words per node.
+const WORDS: usize = 4;
+const BLOCK: usize = WORDS * 64;
+
 /// Every package's closure, by package index.
+///
+/// A walk per package costs the packages times what each reaches, which grows
+/// with the square of the checkout. Instead the files are folded into their
+/// strongly connected components once, every component reaching the same
+/// files, and each block of packages is carried down that acyclic graph as a
+/// bitset: a component is reached by every package whose bit any component
+/// above it carries. That is one pass over the edges per block, a word per 64
+/// packages, and a component's sizes are summed once and added to each
+/// package that reaches it.
 pub(crate) fn closures(nodes: &Nodes, packages: usize) -> Vec<Closure> {
     let counted = nodes.lines.len();
-    let total = counted + nodes.leaves as usize;
     let mut seeds: Vec<Vec<u32>> = vec![Vec::new(); packages];
     for at in 0..counted {
         if nodes.roots[at] {
             seeds[nodes.owner[at] as usize].push(at as u32);
         }
     }
-    seeds
-        .par_iter()
-        .enumerate()
-        .map_init(
-            || (vec![u32::MAX; total], Vec::<u32>::new()),
-            |(stamp, queue), (package, starts)| walk(nodes, package as u32, starts, stamp, queue),
-        )
-        .collect()
+    let seeded: Vec<usize> = (0..packages).filter(|&package| !seeds[package].is_empty()).collect();
+    let mut found = vec![Closure::default(); packages];
+    if seeded.is_empty() {
+        return found;
+    }
+    // Each package's place among the seeded, which names its block and its bit.
+    let mut rank = vec![u32::MAX; packages];
+    for (at, &package) in seeded.iter().enumerate() {
+        rank[package] = at as u32;
+    }
+    let graph = Condensed::new(nodes);
+    let blocks: Vec<Vec<Closure>> =
+        seeded.par_chunks(BLOCK).enumerate().map(|(first, block)| graph.fold(nodes, &seeds, &rank, first * BLOCK, block)).collect();
+    for (block, closures) in seeded.chunks(BLOCK).zip(blocks) {
+        for (&package, closure) in block.iter().zip(closures) {
+            found[package] = closure;
+        }
+    }
+    found
 }
 
-/// One breadth-first walk from `package`'s entries, `starts`. `stamp` marks a
-/// node visited by the first seed of the walk that marked it, so one buffer
-/// serves every walk a worker makes without being cleared.
-fn walk(nodes: &Nodes, package: u32, starts: &[u32], stamp: &mut [u32], queue: &mut Vec<u32>) -> Closure {
-    let mut closure = Closure::default();
-    let Some(&mark) = starts.first() else { return closure };
-    let counted = nodes.lines.len() as u32;
-    queue.clear();
-    for &start in starts {
-        stamp[start as usize] = mark;
-        queue.push(start);
+/// The graph's strongly connected components, numbered so that every edge
+/// between two of them runs from a higher number to a lower one, with what
+/// each holds summed.
+struct Condensed {
+    component: Vec<u32>,
+    /// The nodes of component `c` are `members[start[c]..start[c + 1]]`.
+    start: Vec<u32>,
+    members: Vec<u32>,
+    lines: Vec<u64>,
+    files: Vec<u32>,
+    unsized_files: Vec<u32>,
+}
+
+impl Condensed {
+    fn new(nodes: &Nodes) -> Condensed {
+        let counted = nodes.lines.len();
+        let total = nodes.lines.len() + nodes.leaves as usize;
+        let (component, count) = components(total, |at| nodes.outgoing.get(at).map_or(&[][..], Vec::as_slice));
+        let count = count as usize;
+        let mut start = vec![0u32; count + 1];
+        for &c in &component {
+            start[c as usize + 1] += 1;
+        }
+        for c in 0..count {
+            start[c + 1] += start[c];
+        }
+        let mut members = vec![0u32; component.len()];
+        let mut filled = start.clone();
+        let (mut lines, mut files, mut unsized_files) = (vec![0u64; count], vec![0u32; count], vec![0u32; count]);
+        for (at, &c) in component.iter().enumerate() {
+            let c = c as usize;
+            members[filled[c] as usize] = at as u32;
+            filled[c] += 1;
+            match nodes.lines.get(at).copied().flatten() {
+                Some(sized) if at < counted => {
+                    lines[c] += u64::from(sized);
+                    files[c] += 1;
+                }
+                _ => unsized_files[c] += 1,
+            }
+        }
+        Condensed { component, start, members, lines, files, unsized_files }
     }
-    let mut head = 0;
-    while head < queue.len() {
-        let at = queue[head];
-        head += 1;
-        if at >= counted {
-            closure.unsized_files += 1;
+
+    /// The closures of `block`, at most [`BLOCK`] packages, in its order:
+    /// the seeded packages ranked from `first`.
+    fn fold(&self, nodes: &Nodes, seeds: &[Vec<u32>], rank: &[u32], first: usize, block: &[usize]) -> Vec<Closure> {
+        let count = self.start.len() - 1;
+        let mut reached = vec![[0u64; WORDS]; count];
+        for (at, &package) in block.iter().enumerate() {
+            for &start in &seeds[package] {
+                reached[self.component[start as usize] as usize][at / 64] |= 1 << (at % 64);
+            }
+        }
+        let mut found = vec![Closure::default(); block.len()];
+        // Highest first is every component before any it reaches.
+        for c in (0..count).rev() {
+            let carried = reached[c];
+            if carried == [0; WORDS] {
+                continue;
+            }
+            for &at in &self.members[self.start[c] as usize..self.start[c + 1] as usize] {
+                let at = at as usize;
+                if let Some(Some(sized)) = nodes.lines.get(at) {
+                    let own = (rank[nodes.owner[at] as usize] as usize).wrapping_sub(first);
+                    if own < block.len() && carried[own / 64] & (1 << (own % 64)) != 0 {
+                        found[own].own += u64::from(*sized);
+                    }
+                }
+                for &to in nodes.outgoing.get(at).map_or(&[][..], Vec::as_slice) {
+                    let below = self.component[to as usize] as usize;
+                    if below != c {
+                        for (word, bits) in reached[below].iter_mut().zip(carried) {
+                            *word |= bits;
+                        }
+                    }
+                }
+            }
+            for (word, mut bits) in carried.into_iter().enumerate() {
+                while bits != 0 {
+                    let closure = &mut found[word * 64 + bits.trailing_zeros() as usize];
+                    closure.lines += self.lines[c];
+                    closure.files += self.files[c];
+                    closure.unsized_files += self.unsized_files[c];
+                    bits &= bits - 1;
+                }
+            }
+        }
+        found
+    }
+}
+
+/// Each of `total` nodes' strongly connected component, by Tarjan's algorithm
+/// without recursion, and how many there are, where `outgoing` gives a node's
+/// successors. A component is numbered once every one it reaches is, so an
+/// edge never runs to a higher number. The code map's package layers read the
+/// same order.
+pub(crate) fn components<'a>(total: usize, outgoing: impl Fn(usize) -> &'a [u32]) -> (Vec<u32>, u32) {
+    const UNSEEN: u32 = u32::MAX;
+    let (mut index, mut low, mut held) = (vec![UNSEEN; total], vec![0u32; total], vec![false; total]);
+    let mut component = vec![UNSEEN; total];
+    let (mut stack, mut calls): (Vec<u32>, Vec<(u32, u32)>) = (Vec::new(), Vec::new());
+    let (mut next, mut count) = (0u32, 0u32);
+    for root in 0..total {
+        if index[root] != UNSEEN {
             continue;
         }
-        match nodes.lines[at as usize] {
-            Some(lines) => {
-                if nodes.owner[at as usize] == package {
-                    closure.own += u64::from(lines);
+        index[root] = next;
+        low[root] = next;
+        next += 1;
+        stack.push(root as u32);
+        held[root] = true;
+        calls.push((root as u32, 0));
+        while let Some(&(at, edge)) = calls.last() {
+            let at = at as usize;
+            if let Some(&to) = outgoing(at).get(edge as usize) {
+                calls.last_mut().expect("a call is open").1 += 1;
+                let to = to as usize;
+                if index[to] == UNSEEN {
+                    index[to] = next;
+                    low[to] = next;
+                    next += 1;
+                    stack.push(to as u32);
+                    held[to] = true;
+                    calls.push((to as u32, 0));
+                } else if held[to] {
+                    low[at] = low[at].min(index[to]);
                 }
-                closure.lines += u64::from(lines);
-                closure.files += 1;
+                continue;
             }
-            None => closure.unsized_files += 1,
-        }
-        for &to in &nodes.outgoing[at as usize] {
-            if stamp[to as usize] != mark {
-                stamp[to as usize] = mark;
-                queue.push(to);
+            calls.pop();
+            if let Some(&(caller, _)) = calls.last() {
+                low[caller as usize] = low[caller as usize].min(low[at]);
+            }
+            if low[at] == index[at] {
+                loop {
+                    let member = stack.pop().expect("the component's root is on the stack") as usize;
+                    held[member] = false;
+                    component[member] = count;
+                    if member == at {
+                        break;
+                    }
+                }
+                count += 1;
             }
         }
     }
-    closure
+    (component, count)
 }
 
 #[cfg(test)]
@@ -128,6 +261,56 @@ mod tests {
         assert_eq!(found[1], Closure { lines: 115, own: 100, files: 3, unsized_files: 1 });
         // A package with no shipped file pulls in nothing.
         assert_eq!(found[2], Closure::default());
+    }
+
+    /// Each package walked on its own, breadth first: what a closure means.
+    fn walked(nodes: &Nodes, packages: usize) -> Vec<Closure> {
+        let counted = nodes.lines.len();
+        (0..packages)
+            .map(|package| {
+                let mut seen = vec![false; counted + nodes.leaves as usize];
+                let mut queue: Vec<usize> = (0..counted).filter(|&at| nodes.roots[at] && nodes.owner[at] as usize == package).collect();
+                queue.iter().for_each(|&at| seen[at] = true);
+                let mut closure = Closure::default();
+                while let Some(at) = queue.pop() {
+                    match nodes.lines.get(at).copied().flatten() {
+                        Some(lines) => {
+                            closure.lines += u64::from(lines);
+                            closure.own += if nodes.owner[at] as usize == package { u64::from(lines) } else { 0 };
+                            closure.files += 1;
+                        }
+                        None => closure.unsized_files += 1,
+                    }
+                    for &to in nodes.outgoing.get(at).map_or(&[][..], Vec::as_slice) {
+                        if !std::mem::replace(&mut seen[to as usize], true) {
+                            queue.push(to as usize);
+                        }
+                    }
+                }
+                closure
+            })
+            .collect()
+    }
+
+    #[test]
+    fn every_closure_is_what_its_own_walk_reaches_through_cycles_and_across_blocks() {
+        // More packages than one block of the fold holds, files in cycles, and
+        // packages with no entry, from a fixed seed.
+        let mut seed = 7u64;
+        let mut next = |below: usize| {
+            seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            ((seed >> 33) as usize) % below
+        };
+        let (files, packages, leaves) = (3000, 700, 40);
+        let owner: Vec<u32> = (0..files).map(|_| next(packages) as u32).collect();
+        let nodes = Nodes {
+            lines: (0..files).map(|_| if next(10) == 0 { None } else { Some(next(200) as u32) }).collect(),
+            roots: (0..files).map(|_| next(3) == 0).collect(),
+            outgoing: (0..files).map(|_| (0..next(4)).map(|_| next(files + leaves as usize) as u32).collect()).collect(),
+            owner,
+            leaves,
+        };
+        assert_eq!(closures(&nodes, packages + 1), walked(&nodes, packages + 1));
     }
 
     #[test]
