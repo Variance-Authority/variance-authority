@@ -1,7 +1,7 @@
 # What a workspace publishes, and where a name is used
 
-Nine questions read a workspace's manifests and source: `packages`,
-`entrypoint`, `symbol`, `uses`, `search`, `grep`, `discover`, `intersection`
+Ten questions read a workspace's manifests and source: `packages`,
+`classify`, `entrypoint`, `symbol`, `uses`, `search`, `grep`, `discover`, `intersection`
 and `gaps`. Each answer
 read from a workspace generation names its UTC time; `variance ask discover`
 reads the checkout as it is, and names none. They describe source, not a
@@ -106,6 +106,7 @@ Ask by what you hold:
 
 | You hold | Ask |
 |---|---|
+| A request, in the asker's words | `classify`, for which of its words are names |
 | A name | `symbol`, then `uses` |
 | A meaning, in words | `search`, with each likely spelling |
 | A local name, a string or a pattern in code | `grep --from <path>`, from where you are working |
@@ -179,6 +180,23 @@ place of the names of a main entry.
 `packages` and `entrypoint` answer for the JavaScript half of a mixed
 repository. The other verbs read the source and answer for every language: ask
 `search` or `symbol` for a Python, Rust, Java, Kotlin or Swift name.
+
+### `classify --query <words>`
+
+Ask it first when you hold a request and no name. It says which of the
+request's words are, whole, a package's name or that name without its scope, an
+entrypoint's specifier (both matched without case), or a published exported
+name (matched as spelled). A word that is only part of a name is not one:
+`check` names nothing beside `checkoutPath`, and `Check` does not match `check`.
+Each entity is listed with what it names, a package first, then its
+entrypoints, then the specifiers that export it, and each with its package's
+area and dependency layer as `orient` numbers them. The words that name
+nothing follow on one line, and the answer ends with an `entrypoint` question
+per package or entrypoint and a `symbol` question per exported name. A word the
+request spells another way — a plural, two words for a hyphenated name, a
+domain word no name carries — is not recognised: ask `search` for it. It reads
+the code map `variance index` folds, and without one it says so and classifies
+nothing.
 
 ### `entrypoint`
 
