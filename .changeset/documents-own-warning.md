@@ -2,4 +2,4 @@
 '@variance-authority/playwright-test': patch
 ---
 
-A Playwright client without context instrumentation still warns once, but the warning is no longer said as a console line of the first test's story.
+On a Playwright client without context instrumentation, the first test in each worker no longer has variance-authority's own warning in its story as a line the test printed.
