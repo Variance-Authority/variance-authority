@@ -5,8 +5,8 @@
  * Parity with `pixelmatch` is the contract, held by `judge.test.ts`; the one
  * departure is a seam, where a before pixel's anti-aliasing is read from the
  * rows around the one it came from, not the rows the alignment set beside it.
- * A picture asked `graded` departs too: a changed pixel short of
- * {@link STRONG_GRADE} is drawn {@link FAINT}, not red.
+ * The picture departs too: a changed pixel short of {@link STRONG_GRADE} is
+ * drawn {@link FAINT}, not red.
  */
 
 import { type DiffPolicy, SEVERITY_LEVELS, STRONG_GRADE } from '@variance-authority/raster';
@@ -16,14 +16,11 @@ import type { DecodedImage } from './mask.js';
 export interface JudgeOutput {
   /** One byte per pixel where this policy (by index) counted a difference: its grade ({@link SEVERITY_LEVELS}). */
   readonly mask?: number;
-  /**
-   * `pixelmatch`'s own picture, for this policy (by index); `graded` draws a
-   * changed pixel short of {@link STRONG_GRADE} in {@link FAINT}.
-   */
-  readonly picture?: { readonly policy: number; readonly diffMask: boolean; readonly graded?: boolean };
+  /** `pixelmatch`'s own picture, for this policy (by index), a faint changed pixel drawn {@link FAINT}. */
+  readonly picture?: { readonly policy: number; readonly diffMask: boolean };
 }
 
-/** The colour a graded picture draws a faint changed pixel in: red, paler than an inserted row's tint, so the two read apart. */
+/** The colour the picture draws a faint changed pixel in: red, paler than an inserted row's tint, so the two read apart. */
 export const FAINT = [255, 190, 190] as const;
 
 export interface Judged {
@@ -88,7 +85,6 @@ export function judgeRows(
   const picture = output.picture === undefined ? undefined : new Uint8Array(height * row);
   const drawn = output.picture?.policy ?? -1;
   const greyed = output.picture !== undefined && !output.picture.diffMask;
-  const graded = output.picture?.graded === true;
 
   for (const { from: x0, to: x1, source } of strips ?? [{ from: 0, to: width, source: undefined }]) {
     // Each canvas row of the first image, as a view: the before row it pairs
@@ -153,15 +149,12 @@ export function judgeRows(
             }
           }
           changed[index]! += 1;
-          const shaded = index === drawn && graded;
-          let grade = STRONG_GRADE;
-          if (index === output.mask || shaded) {
-            grade = 1;
-            while (grade < grades.length && size > grades[grade]!) grade += 1;
-            if (index === output.mask) mask![y * width + x] = grade;
-          }
+          if (index !== output.mask && index !== drawn) continue;
+          let grade = 1;
+          while (grade < grades.length && size > grades[grade]!) grade += 1;
+          if (index === output.mask) mask![y * width + x] = grade;
           if (index !== drawn) continue;
-          if (shaded && grade < STRONG_GRADE) paint(picture!, pos, ...FAINT);
+          if (grade < STRONG_GRADE) paint(picture!, pos, ...FAINT);
           else paint(picture!, pos, 255, 0, 0);
         }
       }

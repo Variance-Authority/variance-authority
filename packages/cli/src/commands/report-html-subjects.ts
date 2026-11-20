@@ -263,7 +263,6 @@ function regions(entry: ObservationRecord): string {
         `<tr data-region="${index}" data-box="${region.x},${region.y},${region.width},${region.height}"` +
         `${classes(region)}>` +
         `<td>${region.cause ? '<span class="mark cause">cause</span>' : '<span class="mark quiet">collateral</span>'}` +
-        (faint(region) ? `<span class="mark quiet" title="Short of the strongest severity level.">faint</span>` : '') +
         (region.unattributed === true
           ? '<span class="mark warn" title="No box contained this region — a wrong scale or origin.">unattributed</span>'
           : '') +

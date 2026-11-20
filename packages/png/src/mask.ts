@@ -48,13 +48,19 @@ export interface PixelDifference {
 }
 
 /**
- * Two images onto one mask, at a policy. `diffMask` off renders the picture a
- * human opens, changed pixels on the dimmed before image (see `FAINT`); on, only
- * the changed pixels, so the alpha channel is the mask.
+ * Two images onto one mask, at a policy.
  *
- * Aligned rows (`alignRows`) are compared by content on the after canvas, and an
- * after row with no partner is marked in full; otherwise by position on the
- * union box. `alignment` is the caller's, or `null` when it found none.
+ * `diffMask` is the difference between the two things this is asked for. Off,
+ * it renders `pixelmatch`'s familiar picture — the before image dimmed with the
+ * changed pixels in red — which is what a human opens. On, it writes *only* the
+ * differing pixels and leaves the rest transparent, so the alpha channel is the
+ * mask and nothing has to be recovered from red-on-grey.
+ *
+ * When the rows align (`alignRows`), each after row is compared with the
+ * before row that shows the same content, on the after image's canvas, and an
+ * after row with no partner is marked in full. Otherwise the two are compared
+ * position by position on the union box. `alignment` is the caller's, when it
+ * computed one already, and `null` when it asked and there was none.
  */
 export function differencePixels(
   before: DecodedImage,
@@ -65,7 +71,7 @@ export function differencePixels(
     alignment: given,
   }: { readonly diffMask?: boolean; readonly alignment?: AlignedRows | null } = {},
 ): PixelDifference {
-  const judged = judgeImages(before, after, [policy], given, { picture: { policy: 0, diffMask, graded: true } });
+  const judged = judgeImages(before, after, [policy], given, { picture: { policy: 0, diffMask } });
   const { width, height, changed, picture, alignment } = judged;
   return { width, height, data: picture!, changed: changed[0]!, ...(alignment === undefined ? {} : { alignment }) };
 }
