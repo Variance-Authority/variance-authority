@@ -18,7 +18,7 @@ geometry alone changed, and each region with its component, its place in the
 page and its source line. In the
 [visual-review example](../examples/visual-review-case/README.md), a notice
 inserted above three cards pushes the plan names and prices down, and the
-report lists them after the causes:
+report labels them collateral beside the causes (an excerpt):
 
 ```text
   cause      Notice — added
@@ -26,7 +26,7 @@ report lists them after the causes:
   collateral Price — geometry
 ```
 
-For a collateral component, start from the causes listed above it, as
+For a collateral component, start from the causes the report names, as
 [Review a visual change](path-visual-review.md#a-shift-is-told-from-a-change)
 does for the whole report. The label says only that the component's own
 geometry is all that changed, not which cause moved it; when no cause accounts

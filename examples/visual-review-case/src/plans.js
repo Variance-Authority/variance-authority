@@ -7,7 +7,7 @@ import { digestValue } from '@variance-authority/core/format';
  *   without changing;
  * - the Team plan's Choose button, the one the page recommends, moves from
  *   charcoal to orange;
- * - the line between two plans gets one shade darker.
+ * - the rule under every plan is drawn a few shades darker.
  *
  * Nothing else in the file differs between the two.
  */

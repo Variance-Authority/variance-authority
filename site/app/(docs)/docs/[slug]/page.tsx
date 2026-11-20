@@ -100,8 +100,8 @@ const SECTION_FIGURES: Readonly<
         />
         <figcaption>
           The example&apos;s diff.png. The button&apos;s strong pixels are
-          red, the three faint rules pale red, and the inserted notice is
-          tinted so its text stays legible.
+          red, its smoothed text edges yellow, the three faint rules pale red,
+          and the inserted notice is tinted so its text stays legible.
         </figcaption>
       </figure>
     ),

@@ -16,8 +16,8 @@ The [visual-review example](../examples/visual-review-case/README.md) renders
 three pricing cards and makes three edits: a notice is added above them, the
 recommended plan's `Choose` button turns from charcoal to orange, and the rule
 under every card is drawn a few shades darker. The notice pushes all three
-cards 44 pixels down. Compared position by position, every row under the
-notice differs, because each sits against the row that used to be there.
+cards 44 pixels down. Compared position by position, almost every row under
+the notice differs, because each sits against the row that used to be there.
 `variance ask describe --subject pricing/plans` answers with this headline:
 
 ```text
@@ -41,8 +41,9 @@ differs is what the edits drew.
 The run's `change.png` draws the alignment. Each row sits level with the row it
 became, striped filler stands opposite the rows only the after side has, and a
 blue arrow in the gutter runs beside the rows that only moved. The rows a change
-spans are washed red on the before and green on the after, and rows where
-nothing changed are folded away, which is why the sheet has gaps.
+spans are washed red on the before and green on the after, the inserted notice
+is marked on the after side alone, and rows where nothing changed are folded
+away, which is why the sheet has gaps.
 
 The report then says which components changed by their own inputs and which
 only moved. A component is a **cause** when its structure, text, accessible
@@ -61,8 +62,9 @@ components:
   collateral Price — geometry
 ```
 
-Every card sat 44 pixels lower, so `geometry` is on every line; what makes the
-button and the card causes is the `token` beside it, their own declared colour.
+Every card sat 44 pixels lower and the list holding them grew by 44, so
+`geometry` is on every line but the new notice's; what makes the button and the
+card causes is the `token` beside it, their own declared colour.
 The plan names and prices are collateral: their text and styles are the same,
 and they sit lower. Collateral is where to look last, not proof that a cause
 moved it, since a size declared on the component itself is geometry too.
@@ -73,7 +75,8 @@ Each region is graded by how far its pixels moved. The notice and the button
 are **strong**: the headline names their components. The three darker rules
 are **faint**, a colour moved a few shades: the headline counts them after the
 strong ones. The run's `diff.png` draws them apart: the button's changed pixels
-red, the three rules as thin pale red lines, and the inserted notice tinted so its text stays
+red with its anti-aliased edges yellow, excused as text smoothing, the three
+rules as thin pale red lines, and the inserted notice tinted so its text stays
 legible. The HTML report draws a faint region's box dashed. [From a pixel to a line](attribution.md#how-strongly-it-changed)
 owns the threshold.
 
@@ -122,9 +125,10 @@ You open `plans.js` at line 64, not the image. The landmark path tells this
 button from the two that did not change without a selector.
 [From a pixel to a line](attribution.md) owns how each hop is made.
 
-The pull request hears the same answer first. `variance comment` writes a
-comment that leads with the cause and its line, and shows the change image
-under it:
+The pull request hears the largest cause first. `variance comment` writes a
+comment that leads with it and its line, and shows the change image under it;
+the comment counts every other region, the button and the rules included, in
+one collateral line under its causes:
 
 ```text
 Cause: **`Notice`** at `examples/visual-review-case/src/plans.js:78`

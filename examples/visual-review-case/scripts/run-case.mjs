@@ -8,7 +8,7 @@ import { normalize } from '@variance-authority/core/rules';
 import { observeRasters, packSnapshot } from '@variance-authority/observe';
 import { acquireFromAgent, createHarness } from '@variance-authority/playwright';
 import { createPlaywrightRenderer } from '@variance-authority/playwright/renderer';
-import { changeImages, pngjsDecoder } from '@variance-authority/png';
+import { changeImages } from '@variance-authority/png';
 import { toolByName } from '@variance-authority/mcp/tools';
 import { indexDeclarations } from '@variance-authority/sense';
 
@@ -80,6 +80,9 @@ export async function runVisualReviewCase() {
     const sourcePath = relative(REPOSITORY_ROOT, SOURCE_FILE);
     const source = indexDeclarations(sourcePath, await readFile(SOURCE_FILE, 'utf8'));
 
+    // The pair the comparison decoded and the row pairing it settled, which
+    // `variance run` draws its pictures from rather than aligning again.
+    let compared;
     // The evidence a run attaches to the rasters it compares: on the before
     // side, what `variance run` writes beside a candidate it may promote to a
     // baseline; on the after side, the component hashes of this run's snapshot.
@@ -87,16 +90,25 @@ export async function runVisualReviewCase() {
       SUBJECT,
       { ...before.raster, components: hashComponents(before.snapshot), snapshot: packSnapshot(before.snapshot) },
       { ...after.raster, components: hashComponents(after.snapshot) },
-      { snapshot: after.snapshot, source },
+      {
+        snapshot: after.snapshot,
+        source,
+        keep: (pixels) => {
+          compared = pixels;
+        },
+      },
     );
     // The pictures `variance run` writes beside a changed subject: the whole
     // difference, and the sheet that cuts it at the regions, before beside after.
-    const [was, now] = await Promise.all([pngjsDecoder.decode(before.png), pngjsDecoder.decode(after.png)]);
-    const { diff, change } = changeImages(was, now, observation.isolation?.regions ?? [], undefined, {
-      subject: SUBJECT,
-      before: 'baseline',
-      after: 'this run',
-    });
+    if (compared === undefined) throw new Error('the comparison kept no pixels to draw from');
+    const { diff, change } = changeImages(
+      compared.before,
+      compared.after,
+      observation.isolation?.regions ?? [],
+      undefined,
+      { subject: SUBJECT, before: 'baseline', after: 'this run' },
+      compared.aligned,
+    );
     const record = {
       ...recordOf(observation, { source }),
       images: { before: 'before.png', after: 'after.png', diff: 'diff.png', change: 'change.png' },

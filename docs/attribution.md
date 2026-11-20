@@ -418,8 +418,8 @@ A region whose component is not one of the causes is **collateral**: only its
 geometry changed, which usually means a cause moved it, though a size declared
 on the component itself counts as geometry too. The [visual-review
 example](../examples/visual-review-case/README.md) inserts a notice above three
-cards, and the plan names and prices under it are reported collateral, after
-the causes. The label comes from their inputs, which did not change, not from
+cards, and the plan names and prices under it are reported collateral. The
+label comes from their inputs, which did not change, not from
 their pixels: the row alignment pairs each moved row with the row it was, so
 they leave no differing region at all.
 
