@@ -8,7 +8,7 @@ import {
   type DiffPolicy,
   type RasterComparison,
 } from '@variance-authority/raster';
-import { alignRows, type AlignedRows } from './align.js';
+import { ALIGNMENT_LIMIT, alignRows, type AlignedRows } from './align.js';
 import { changeImages } from './change.js';
 import { decodePortable } from './format.js';
 import { judgeImages } from './images.js';
@@ -102,11 +102,18 @@ export async function compareRasters(
   );
 
   return timeOn(options.steps, 'compare', () => {
-    const aligned = alignRows(left, right) ?? null;
+    // The mask is drawn under the listed policy with the isolating id, as `judged` reads it;
+    // one missing is the judge's to refuse.
+    const isolateWith = options.isolateWith ?? DEFAULT_POLICY;
+    const drawn = (options.policies ?? DEFAULT_POLICIES).find((policy) => policy.id === isolateWith.id) ?? isolateWith;
+    const aligned = alignRows(left, right, ALIGNMENT_LIMIT, drawn.threshold) ?? null;
     options.keep?.({ before: left, after: right, aligned });
     return judged(left, right, options, aligned);
   });
 }
+
+/** The policies a comparison judges with when its caller names none. */
+const DEFAULT_POLICIES = [DEFAULT_POLICY, STRICT_POLICY];
 
 export function comparePngs(
   before: Buffer,
@@ -143,7 +150,7 @@ function judged(
 ): RasterComparison {
   const dimensionsChanged = left.width !== right.width || left.height !== right.height;
 
-  const policies = options.policies ?? [DEFAULT_POLICY, STRICT_POLICY];
+  const policies = options.policies ?? DEFAULT_POLICIES;
   const isolateWith = options.isolateWith ?? DEFAULT_POLICY;
   const isolated = policies.findIndex((policy) => policy.id === isolateWith.id);
   if (isolated < 0) {
