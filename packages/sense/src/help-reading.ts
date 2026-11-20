@@ -246,6 +246,7 @@ export interface NativeHelp {
   joinWalkedHelp?(walked: WalkedHelp): Uint8Array;
   readmeMention?(root: string, at: string, name: string): Mention | null;
   importersOf?(root: string, index: OpenedIndex, asked: NativeAsked[][]): NativeImporters | null;
+  namesFilterOf?(index: OpenedIndex, imports: ImportAsked[], declares: string[], readable: string[]): NamesFound | null;
   memberDeclarationsOf?(root: string, index: OpenedIndex, name: string): MemberDeclarations | null;
   membersOnOf?(index: OpenedIndex, file: string, on: string): ContainerMember[] | null;
   declarationExportedOf?(index: OpenedIndex, file: string, name: string): { readonly declaration?: ExportedDeclaration | null } | null;
@@ -379,6 +380,45 @@ export function importersOf(
   index: string = sourceIndexPath(root),
 ): NativeImporters | undefined {
   return onIndex(index, (opened) => entry('importersOf')(root, opened, asked.map((group) => [...group]))) ?? undefined;
+}
+
+/** One `imports` set `discover` asks of the names: a module, and the name imported from it when one is asked. */
+export interface ImportAsked {
+  readonly spec: string;
+  readonly name?: string;
+}
+
+/** One line that puts a file in a name set: an import says what and from where, a declaration its name. */
+export interface NameHit {
+  readonly file: string;
+  readonly line: number;
+  readonly name?: string;
+  readonly from?: string;
+  readonly local?: string;
+  readonly through?: string;
+}
+
+/** Each asked set's lines, in the order asked, and the readable files whose names the index does not hold. */
+export interface NamesFound {
+  readonly imports: readonly (readonly NameHit[])[];
+  readonly declares: readonly { readonly hits: readonly NameHit[]; readonly refused?: string }[];
+  readonly unread: readonly string[];
+}
+
+/**
+ * The files of the index at `index` that answer each of `discover`'s name sets
+ * — `imports`, then `declares`, each a case-insensitive pattern — read in one
+ * pass on the addon's side, so no file's names are built here; and the files
+ * with an extension in `readable` whose names it does not hold. `undefined`
+ * when there is no index.
+ */
+export function namesFilterOf(
+  index: string,
+  imports: readonly ImportAsked[],
+  declares: readonly string[],
+  readable: readonly string[],
+): NamesFound | undefined {
+  return onIndex(index, (opened) => entry('namesFilterOf')(opened, [...imports], [...declares], [...readable])) ?? undefined;
 }
 
 /**
