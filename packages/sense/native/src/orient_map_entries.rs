@@ -12,11 +12,9 @@
 //! (`emitted.rs`), by the same resolver the scan resolves an import with, so
 //! `./dist/index.js` is `src/index.ts` whether or not the build ran.
 //!
-//! A subpath pattern names no file: its `*` stands for whatever a consumer
-//! writes after the key. So each file the package holds is asked which
-//! substitutions could reach it, and the same resolver answers each one;
-//! `./dist/*.js` reaches `src/a/b.ts` through `a/b` exactly as a consumer's
-//! `pkg/a/b` would.
+//! A subpath pattern is matched against counted source files and the output
+//! paths their declared layouts write. The resolver verifies each matching
+//! request, preserving extension precedence and symlink behavior.
 //!
 //! The root config's `entrypoints` is not read here. It says where a directory
 //! starts so that `variance coverage --from` can scope a closure, it may name a
@@ -36,28 +34,30 @@ use std::path::PathBuf;
 use rayon::prelude::*;
 
 use crate::package_owners::Package;
-use crate::resolve::{Resolvers, Tsconfig};
+use crate::resolve::{Resolvers, EXTENSION_ALIASES, MODULE_EXTENSIONS, STYLE_EXTENSIONS};
 
 /// Each package's declared entries, as indices into the counted files, by the
 /// package's index in `packages`: the files its manifest offers that resolve to
 /// a counted file it owns. Empty when it offers nothing that does, which is the
 /// caller's to fall back from and to say so. `owner` is each counted file's
-/// package. `tsconfig` is the config the scan that built the index resolved
-/// under.
-pub(crate) fn declared(root: &str, packages: &[&Package], counted: &HashMap<&str, usize>, owner: &[u32], tsconfig: Tsconfig) -> Vec<Vec<usize>> {
+/// package. `resolvers` carries the listing and layouts the scan resolved under.
+pub(crate) fn declared(root: &str, packages: &[&Package], counted: &HashMap<&str, usize>, owner: &[u32], resolvers: &Resolvers) -> Vec<Vec<usize>> {
     if packages.iter().all(|package| package.offers.is_empty()) {
         return vec![Vec::new(); packages.len()];
     }
     // The resolver answers with the path a symlink leads to, and a repository
     // path is cut from the root that path lies under.
     let root = std::fs::canonicalize(root).unwrap_or_else(|_| PathBuf::from(root));
-    let resolvers = Resolvers::new(tsconfig, None);
     // A counted file under a directory the disk alone declines, such as a
     // tracked `build/`, is one git listed, and that is the word `resolve` takes.
     let known: HashMap<String, u32> = counted.keys().map(|&path| (path.to_owned(), 0)).collect();
     let mut path_of = vec![""; counted.len()];
     for (&path, &at) in counted {
         path_of[at] = path;
+    }
+    let mut owned = vec![Vec::new(); packages.len()];
+    for (file, &package) in owner.iter().enumerate() {
+        owned[package as usize].push(file);
     }
     packages
         .par_iter()
@@ -74,12 +74,33 @@ pub(crate) fn declared(root: &str, packages: &[&Package], counted: &HashMap<&str
                 .map(|target| if target.starts_with("./") || target.starts_with("../") { target.clone() } else { format!("./{target}") })
                 .partition(|target| target.contains('*'));
             let mut entries: Vec<usize> = targets.iter().filter_map(|target| reaches(target)).filter(|&file| owner[file] as usize == at).collect();
-            let prefix = if package.directory.is_empty() { String::new() } else { format!("{}/", package.directory) };
-            for pattern in patterns.iter().filter_map(|pattern| pattern.split_once('*')).filter(|(_, tail)| !tail.contains('*')) {
-                entries.extend((0..path_of.len()).filter(|&file| owner[file] as usize == at).filter(|&file| {
-                    let Some(inside) = path_of[file].strip_prefix(&prefix) else { return false };
-                    substitutions(inside, pattern.1).any(|x| reaches(&format!("{}{x}{}", pattern.0, pattern.1)) == Some(file))
-                }));
+            let directory = root.join(&package.directory);
+            let patterns: Vec<_> = patterns.iter().filter_map(|pattern| {
+                let (prefix, suffix) = pattern.split_once('*')?;
+                if suffix.contains('*') { return None; }
+                let absolute = crate::conditions::normalize(&directory.join(prefix));
+                // A fixed directory prefix may be a workspace symlink. Match
+                // its destination, but resolve the original request below.
+                let matched = if prefix.ends_with('/') {
+                    format!("{}/", std::fs::canonicalize(&absolute).unwrap_or(absolute).to_string_lossy())
+                } else {
+                    let parent = absolute.parent()?;
+                    std::fs::canonicalize(parent).unwrap_or_else(|_| parent.to_owned()).join(absolute.file_name()?).to_string_lossy().into_owned()
+                }.replace('\\', "/");
+                Some((prefix, suffix, matched))
+            }).collect();
+            if !patterns.is_empty() {
+                for &file in &owned[at] {
+                    let path = root.join(path_of[file]);
+                    let matched = resolvers.spellings(&directory, &path).into_iter().any(|spelled| {
+                        let absolute = crate::conditions::normalize(&directory.join(spelled)).to_string_lossy().replace('\\', "/");
+                        candidates(&absolute).into_iter().any(|candidate| patterns.iter().any(|(prefix, suffix, matched)| {
+                            candidate.strip_prefix(matched).and_then(|rest| rest.strip_suffix(suffix))
+                                .filter(|star| !star.is_empty()).is_some_and(|star| reaches(&format!("{prefix}{star}{suffix}")) == Some(file))
+                        }))
+                    });
+                    if matched { entries.push(file); }
+                }
             }
             entries.sort_unstable();
             entries.dedup();
@@ -88,22 +109,26 @@ pub(crate) fn declared(root: &str, packages: &[&Package], counted: &HashMap<&str
         .collect()
 }
 
-/// `path` with its last segment's extension cut off.
-fn stem(path: &str) -> &str {
-    let name = path.rfind('/').map_or(0, |at| at + 1);
-    path[name..].rfind('.').map_or(path, |dot| &path[..name + dot])
-}
-
-/// The strings a pattern's `*` could stand for to reach the file at `inside`,
-/// its path within the package, given what follows the `*`: every trailing run
-/// of whole segments left once that tail is cut off, with and without both
-/// extensions, since a build's output names the file its source is emitted to.
-fn substitutions<'a>(inside: &'a str, tail: &'a str) -> impl Iterator<Item = &'a str> {
-    [(inside, tail), (inside, stem(tail)), (stem(inside), tail), (stem(inside), stem(tail))]
-        .into_iter()
-        .filter_map(|(path, tail)| path.strip_suffix(tail))
-        .flat_map(|rest| std::iter::once(0).chain(rest.match_indices('/').map(|(at, _)| at + 1)).map(move |start| &rest[start..]))
-        .filter(|x| !x.is_empty())
+/// Spellings the existing resolver can extend or alias to this path. Each
+/// match is still resolved, so another file earlier in its order wins.
+fn candidates(path: &str) -> Vec<String> {
+    let mut requests = vec![path.to_owned()];
+    for extension in MODULE_EXTENSIONS.iter().chain(STYLE_EXTENSIONS).copied().chain(std::iter::once(".json")) {
+        if let Some(stem) = path.strip_suffix(extension) {
+            requests.push(stem.to_owned());
+            if let Some(directory) = stem.strip_suffix("/index") {
+                requests.extend([directory.to_owned(), format!("{directory}/")]);
+            }
+        }
+    }
+    for (written, aliases) in EXTENSION_ALIASES {
+        for alias in *aliases {
+            if let Some(stem) = path.strip_suffix(alias) { requests.push(format!("{stem}{written}")); }
+        }
+    }
+    requests.sort_unstable();
+    requests.dedup();
+    requests
 }
 
 #[cfg(all(test, unix))]

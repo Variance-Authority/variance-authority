@@ -22,7 +22,7 @@ use crate::compact::Layer;
 use crate::orient_map_closure::{closures, Closure, Nodes};
 use crate::package_graph::{join_parses, Crossing};
 use crate::package_owners::{owner_of, owners, parent, shown, NO_OWNER};
-use crate::resolve::Tsconfig;
+use crate::resolve::Resolvers;
 
 /// One package: a manifest with a name. A second manifest declaring a name
 /// already taken keeps its place, not its name: `name (directory)`.
@@ -124,7 +124,7 @@ pub(crate) fn read(
     root: &str,
     layers: &[Layer],
     listed: Option<&[String]>,
-    tsconfig: Tsconfig,
+    resolvers: &Resolvers,
     made: impl FnOnce() -> HashSet<String>,
 ) -> Read {
     let by_path = Regex::new(TEST_BY_PATH).expect("the pattern is fixed");
@@ -192,7 +192,7 @@ pub(crate) fn read(
         .collect();
     let offering: Vec<&crate::package_owners::Package> = by_name.iter().map(|&owner| &owners.packages[owner as usize]).collect();
     let owner_of_file: Vec<u32> = files.iter().map(|file| file.owner).collect();
-    let mut entries = crate::orient_map_entries::declared(root, &offering, &counted, &owner_of_file, tsconfig);
+    let mut entries = crate::orient_map_entries::declared(root, &offering, &counted, &owner_of_file, resolvers);
     // A package whose own directory is the tests' by its path is a fixture: its
     // manifest says what it offers the test that loads it, not what ships.
     for (package, entries) in packages.iter().zip(entries.iter_mut()) {

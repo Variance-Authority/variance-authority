@@ -148,6 +148,27 @@ impl Emitted {
         Self { listed, ..Self::default() }
     }
 
+    /// A source's package-relative path and every output its declared layouts
+    /// write. Declaration outputs are included only when the caller asks for them.
+    pub(crate) fn spellings(&self, directory: &Path, path: &Path, declarations: bool) -> Vec<String> {
+        let relative = |path: &Path| path.strip_prefix(directory).unwrap_or(path).to_string_lossy().replace('\\', "/");
+        let mut spelled = vec![relative(path)];
+        let name = path.file_name().and_then(OsStr::to_str).unwrap_or_default();
+        for layout in self.declared(directory).iter() {
+            for mirror in &layout.sources {
+                let Ok(rest) = path.strip_prefix(&mirror.root) else { continue };
+                for (output, sources) in EMITTED.iter().filter(|(output, _)| if output.starts_with(".d.") { declarations } else { mirror.code }) {
+                    let from = sources.iter().find(|extension| name.len() > extension.len() && name.ends_with(*extension));
+                    if let Some(extension) = from {
+                        let out = layout.out.join(rest).with_file_name(format!("{}{output}", &name[..name.len() - extension.len()]));
+                        spelled.push(relative(&out));
+                    }
+                }
+            }
+        }
+        spelled
+    }
+
     pub fn origin(&self, path: &Path) -> Origin {
         let (Some(parent), Some(name)) = (path.parent(), path.file_name()) else {
             return Origin::Disk;

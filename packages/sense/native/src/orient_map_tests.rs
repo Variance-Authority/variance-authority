@@ -93,7 +93,7 @@ fn stored(name: &str) -> (Fixture, String, super::Stored) {
     publish(&index);
     let chain = read_chain(&index).unwrap().expect("a published chain");
     let layers: Vec<Layer> = chain.segments.iter().map(|bytes| Layer::open(bytes).unwrap()).collect();
-    let read = read(&root.0.to_string_lossy(), &layers, Some(&paths), crate::resolve::Tsconfig::Auto, HashSet::new);
+    let read = read(&root.0.to_string_lossy(), &layers, Some(&paths), &crate::resolve::Resolvers::new(crate::resolve::Tsconfig::Auto, None), HashSet::new);
     let (made, pages, placed) = fold(&read, false).ok().expect("named packages to fold");
     let digest = super::manifest_digest(&index).unwrap();
     let stored = super::Stored { format: super::FORMAT, index: digest, listed: None, workspaces: false, unmarked: false, made: Some(made), unmade: None, pages, placed };
@@ -322,7 +322,7 @@ fn a_package_is_taken_for_what_its_importers_take_and_not_what_an_export_type_pa
     let layers = [Layer::open(&segment).unwrap()];
     let paths: Vec<String> = ["package.json", "packages/a/package.json", a, "packages/b/package.json", b].iter().map(|path| (*path).to_owned()).collect();
 
-    let read = read(&root.to_string_lossy(), &layers, Some(&paths), crate::resolve::Tsconfig::Auto, HashSet::new);
+    let read = read(&root.to_string_lossy(), &layers, Some(&paths), &crate::resolve::Resolvers::new(crate::resolve::Tsconfig::Auto, None), HashSet::new);
 
     let at = read.packages.iter().position(|package| package.name == "@t/a").unwrap();
     assert_eq!(read.head[at], ["make"]);
@@ -350,7 +350,7 @@ fn a_package_held_whole_is_taken_for_the_names_read_off_it_and_not_off_its_defau
     let layers = [Layer::open(&segment).unwrap()];
     let paths: Vec<String> = ["package.json", "packages/a/package.json", a, "packages/b/package.json", b].iter().map(|path| (*path).to_owned()).collect();
 
-    let read = read(&root.to_string_lossy(), &layers, Some(&paths), crate::resolve::Tsconfig::Auto, HashSet::new);
+    let read = read(&root.to_string_lossy(), &layers, Some(&paths), &crate::resolve::Resolvers::new(crate::resolve::Tsconfig::Auto, None), HashSet::new);
 
     let at = read.packages.iter().position(|package| package.name == "@t/a").unwrap();
     assert_eq!(read.head[at], ["default", "make"]);
