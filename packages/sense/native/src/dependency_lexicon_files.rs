@@ -5,10 +5,11 @@
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, OnceLock};
+use std::cell::{OnceCell, RefCell};
+use std::rc::Rc;
+use std::sync::Arc;
 use std::{fs, io};
 
-use dashmap::DashMap;
 use oxc_allocator::Allocator;
 use sha2::{Digest, Sha256};
 
@@ -49,51 +50,64 @@ impl Module {
     }
 }
 
+/// A file as one install's pairs read it. The digest is taken from the bytes as read; the bytes are
+/// let go once they are parsed as a module, whose UTF-16 text still answers what the file says.
 pub(super) struct File {
-    bytes: Vec<u8>,
-    digest: OnceLock<String>,
-    manifest: OnceLock<Option<Arc<serde_json::Value>>>,
-    module: OnceLock<Option<Arc<Module>>>,
+    digest: String,
+    bytes: RefCell<Option<Vec<u8>>>,
+    manifest: OnceCell<Option<Arc<serde_json::Value>>>,
+    module: OnceCell<Option<Arc<Module>>>,
+}
+
+fn not_utf8() -> io::Error {
+    io::Error::new(io::ErrorKind::InvalidData, "stream did not contain valid UTF-8")
 }
 
 impl File {
-    pub fn text(&self) -> io::Result<&str> {
-        std::str::from_utf8(&self.bytes).map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "stream did not contain valid UTF-8"))
-    }
-
-    fn digest(&self) -> String {
-        self.digest.get_or_init(|| crate::journeys::hex(&Sha256::digest(&self.bytes))).clone()
+    pub fn text(&self) -> io::Result<String> {
+        if let Some(bytes) = self.bytes.borrow().as_ref() {
+            return std::str::from_utf8(bytes).map(str::to_owned).map_err(|_| not_utf8());
+        }
+        let module = self.module.get().and_then(Option::as_ref).ok_or_else(not_utf8)?;
+        String::from_utf16(&module.utf16).map_err(|_| not_utf8())
     }
 
     fn module(&self, path: &Path) -> Option<Arc<Module>> {
         self.module.get_or_init(|| {
-            Some(Arc::new(Module::of(path, self.text().ok()?)))
+            let bytes = self.bytes.borrow_mut().take()?;
+            let module = std::str::from_utf8(&bytes).ok().map(|text| Module::of(path, text));
+            if module.as_ref().is_none_or(|module| module.unknown) { *self.bytes.borrow_mut() = Some(bytes); }
+            module.map(Arc::new)
         }).clone()
     }
 }
 
-type Reading = Result<Arc<File>, Arc<io::Error>>;
+type Reading = Result<Rc<File>, Rc<io::Error>>;
 
+/// One install's readings, held by the one thread that reads that install's pairs.
 #[derive(Default)]
 pub(super) struct Files {
-    readings: DashMap<PathBuf, Arc<OnceLock<Reading>>>,
+    readings: RefCell<HashMap<PathBuf, Reading>>,
 }
 
 impl Files {
     pub fn read(&self, path: &Path) -> Reading {
-        let cell = self.readings.entry(path.to_owned()).or_default().clone();
-        cell.get_or_init(|| fs::read(path).map(|bytes| Arc::new(File {
-            bytes, digest: OnceLock::new(), manifest: OnceLock::new(), module: OnceLock::new(),
-        })).map_err(Arc::new)).clone()
+        if let Some(reading) = self.readings.borrow().get(path) { return reading.clone(); }
+        let reading = fs::read(path).map(|bytes| Rc::new(File {
+            digest: crate::journeys::hex(&Sha256::digest(&bytes)),
+            bytes: RefCell::new(Some(bytes)), manifest: OnceCell::new(), module: OnceCell::new(),
+        })).map_err(Rc::new);
+        self.readings.borrow_mut().insert(path.to_owned(), reading.clone());
+        reading
     }
 
     pub fn digest(&self, path: &Path) -> Option<String> {
-        Some(self.read(path).ok()?.digest())
+        Some(self.read(path).ok()?.digest.clone())
     }
 
     pub fn manifest(&self, path: &Path) -> Option<Arc<serde_json::Value>> {
         let file = self.read(path).ok()?;
-        file.manifest.get_or_init(|| serde_json::from_slice(&file.bytes).ok().map(Arc::new)).clone()
+        file.manifest.get_or_init(|| serde_json::from_str(&file.text().ok()?).ok().map(Arc::new)).clone()
     }
 
     pub fn module(&self, path: &Path) -> Option<Arc<Module>> {
@@ -119,5 +133,19 @@ mod tests {
         assert_eq!(next.module(&path).unwrap().symbols[0].name, "edited");
         assert_ne!(refresh.digest(&path), next.digest(&path));
         std::fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn a_parsed_declaration_lets_its_bytes_go_and_still_answers_its_text() {
+        let path = std::env::temp_dir().join(format!("sense-lexicon-bytes-{}.d.ts", std::process::id()));
+        let source = "/** é */\nexport declare const kept: true;\n";
+        std::fs::write(&path, source).unwrap();
+        let refresh = Files::default();
+        refresh.module(&path).unwrap();
+        let file = refresh.read(&path).unwrap();
+        let (held, text) = (file.bytes.borrow().is_some(), file.text().unwrap());
+        std::fs::remove_file(&path).unwrap();
+        assert!(!held);
+        assert_eq!(text, source);
     }
 }

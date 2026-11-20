@@ -42,7 +42,8 @@ use crate::resolve::Resolvers;
 /// package's index in `packages`: the files its manifest offers that resolve to
 /// a counted file it owns. Empty when it offers nothing that does, which is the
 /// caller's to fall back from and to say so. `owner` is each counted file's
-/// package. `resolvers` carries the listing and configuration the scan used.
+/// package. `resolvers` carries the listing the scan used, under the default
+/// conditions.
 pub(crate) fn declared(root: &str, packages: &[&Package], counted: &HashMap<&str, usize>, owner: &[u32], resolvers: &Resolvers) -> Vec<Vec<usize>> {
     if packages.iter().all(|package| package.offers.is_empty()) {
         return vec![Vec::new(); packages.len()];

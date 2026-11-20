@@ -235,7 +235,7 @@ pub(super) fn purpose(root: &Path, runtime: &Option<Identity>, declarations: &Op
     let keywords = value.get("keywords").and_then(|list| list.as_array()).map(|list|
         list.iter().filter_map(|word| word.as_str()).map(str::to_owned).collect()).unwrap_or_default();
     let headings = manifest.parent().map(|directory| directory.join("README.md"))
-        .and_then(|path| files.read(&path).ok()).and_then(|file| file.text().ok().map(headings)).unwrap_or_default();
+        .and_then(|path| files.read(&path).ok()).and_then(|file| file.text().ok().map(|text| headings(&text))).unwrap_or_default();
     let mut said = stems(&identity.name);
     for text in description.iter().chain(&keywords).chain(&headings) { said.extend(stems(text)); }
     let mut named = Vec::new();

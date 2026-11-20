@@ -355,3 +355,25 @@ fn a_package_held_whole_is_taken_for_the_names_read_off_it_and_not_off_its_defau
     let at = read.packages.iter().position(|package| package.name == "@t/a").unwrap();
     assert_eq!(read.head[at], ["default", "make"]);
 }
+
+#[test]
+fn in_git_a_config_git_ignores_in_a_listed_directory_declares_no_output_for_the_map() {
+    // `@t/ui-0` offers its build output, which only its `tsconfig.json` maps back to the source.
+    let declares = |name: &str, ignored: bool| {
+        let (fixture, root, index) = indexed(name);
+        let package = fixture.0.join("packages/ui/ui0");
+        std::fs::write(package.join("package.json"), r#"{"name": "@t/ui-0", "exports": {"./*": "./dist/*.js"}}"#).unwrap();
+        std::fs::write(package.join("tsconfig.json"), r#"{"compilerOptions": {"rootDir": "src", "outDir": "dist"}}"#).unwrap();
+        if ignored {
+            std::fs::write(package.join(".gitignore"), "tsconfig.json\n").unwrap();
+        }
+        git(&root, &["init", "-q"]);
+        git(&root, &["add", "-A"]);
+        carried(&crate::git_tree(root.clone()).unwrap(), &root, &index).unwrap().unwrap();
+        let packages = crate::orient_map_layers::orient_layers(index).unwrap().unwrap().packages.unwrap();
+        !packages.iter().find(|package| package.package == "@t/ui-0").unwrap().undeclared
+    };
+    assert!(declares("config-listed", false));
+    // The scan reads the same directory from the listing, so the map agrees with it.
+    assert!(!declares("config-ignored", true));
+}
