@@ -567,7 +567,7 @@ it. The layer is Lakos's levelization ([`on-dependencies.md`](../on-dependencies
 None of the three ways groups by the import graph, and here the code map
 already computes each area, its dependency layer and its foundation or
 application role (ADR-0082). Placing a search hit on that map would give groups
-that are the same on every run and that no model drew, each one a scope a
+that are the same on every run and that no model drew, each area a scope a
 follow-up search can enter; that is what
 [#1652](https://github.com/Variance-Authority/variance-authority/issues/1652)
 proposes. Whether it saves the calls CodeScaleBench counted is measured the
