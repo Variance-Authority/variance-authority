@@ -29,7 +29,7 @@ import {
   type IndexTurnHolder,
   type SourceUpdate,
 } from '@variance-authority/sense';
-import { OperatorError } from '../exit.js';
+import { EXIT_CLEAN, EXIT_OPERATOR, OperatorError } from '../exit.js';
 import { fetchFromMainline } from './source-index-share.js';
 import { followUpsLogPath, heldBy, holdFollowUps, readiedFollowUps, releaseFollowUps, reserveFollowUps, waitingLine, type Apart, type Detach, type HandBack, type Running } from './index-follow-ups.js';
 
@@ -98,16 +98,22 @@ export async function indexOutput(request: IndexRequest): Promise<string> {
  * The follow-ups' lines once their process has ended, as it handed them back
  * over its own channel: a turn it went without is told once, with this run's,
  * and a walk it could not make is told to `failed`, because this run's exit
- * carries it. A process that ended before it handed them back is a refusal,
- * and its lock is let go for the next reader to make them.
+ * carries it. A process that ended before it handed them back, or ended other
+ * than its failed walks say after it did, is a refusal, and its lock is let go
+ * for the next reader to make them.
  */
 async function waitedOn(request: IndexRequest, { pid, ended }: Running, alone: Alone): Promise<readonly string[]> {
   const index = sourceIndexPath(request.cwd);
   const { handed, code, signal } = await ended;
   releaseFollowUps(index, pid);
+  const how = signal === null ? `exit code ${String(code)}` : `signal ${signal}`;
   if (handed === undefined) {
-    const how = signal === null ? `exit code ${String(code)}` : `signal ${signal}`;
     throw new OperatorError(`process ${pid}, making the follow-ups \`variance index\` waited on, ended with ${how} before it finished; what it wrote is in ${followUpsLogPath(index)}`);
+  }
+  // What it handed back is not how it ended: its lock and its last lines come
+  // after, and its exit is the one its failed walks give, or it failed past them.
+  if (signal !== null || code !== (handed.failed.length > 0 ? EXIT_OPERATOR : EXIT_CLEAN)) {
+    throw new OperatorError(`process ${pid}, making the follow-ups \`variance index\` waited on, handed them back, then ended with ${how}; what it wrote is in ${followUpsLogPath(index)}`);
   }
   for (const line of handed.alone) alone.add(line);
   for (const why of handed.failed) request.failed?.(why);

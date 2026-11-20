@@ -125,6 +125,25 @@ describe('variance index --wait', () => {
     expect(told).toEqual(['commit 0123456789ab is not here']);
   });
 
+  it.each([
+    ['exit code 1', { code: 1, signal: null }, []],
+    ['exit code 2', { code: EXIT_OPERATOR, signal: null }, []],
+    ['signal SIGKILL', { code: null, signal: 'SIGKILL' as const }, ['commit 0123456789ab is not here']],
+  ])('refuses as the operator\'s when that process handed its lines back, then ended with %s its walks do not account for', async (how, ending, failed) => {
+    const root = await checkout();
+    const index = sourceIndexPath(root);
+    const pid = gone();
+
+    const run = indexOutput({
+      cwd: root,
+      apart: () => ({ pid, ended: Promise.resolve({ handed: { lines: ['code map: written'], alone: [], failed }, ...ending }) }),
+    });
+
+    await expect(run).rejects.toBeInstanceOf(OperatorError);
+    await expect(run).rejects.toThrow(`process ${pid}, making the follow-ups \`variance index\` waited on, handed them back, then ended with ${how}; what it wrote is in ${followUpsLogPath(index)}`);
+    expect(existsSync(followUpsLockPath(index))).toBe(false);
+  });
+
   it('stops that process when it is stopped itself, and ends once it has', async () => {
     const root = await checkout();
     const index = sourceIndexPath(root);
