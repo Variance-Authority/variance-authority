@@ -360,11 +360,17 @@ function operandsOf(input: Readonly<Record<string, unknown>>, tree: Tree, names:
 /**
  * Whether a call names an operand read off the names. A question about paths
  * alone reads the tree and nothing else: on a large checkout the names cost a
- * second read of every file for its declarations.
+ * second read of every file for its declarations. An import of a name out of
+ * one of `files`, the tree's, is answered off the source index as `importsOf`
+ * routes it, so it reads no names; without the tree, every import is taken to.
  */
-export function readsNames(input: Readonly<Record<string, unknown>>): boolean {
+export function readsNames(input: Readonly<Record<string, unknown>>, files?: ReadonlySet<string>): boolean {
   // Read as `operandsOf` reads them, so a set said empty costs no names.
-  return ['imports', 'exceptImports'].some((key) => listArg(input, key).length > 0) ||
+  const offIndex = (written: string): boolean => {
+    const at = written.lastIndexOf('#');
+    return files !== undefined && at > 0 && at < written.length - 1 && files.has(written.slice(0, at));
+  };
+  return ['imports', 'exceptImports'].some((key) => listArg(input, key).some((written) => !offIndex(written))) ||
     ['declares', 'exceptDeclares'].some((key) => textArg(input, key) !== undefined);
 }
 

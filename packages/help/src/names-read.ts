@@ -31,7 +31,7 @@ export async function readNamedTree(
   let tree: Tree | undefined;
   const help = await readWorkspaceForAnswer(root, { ...reading, tree: (drawn) => { tree = drawn; } });
   const read = { ...(tree === undefined ? {} : { tree }), at: workspaceGeneration(help) };
-  if (!readsNames(input) && !namesWanted(input)) return read;
+  if (!readsNames(input, tree?.files) && !namesWanted(input, tree?.files)) return read;
   return { ...read, names: await readGenerationNames(help, root, reading.index) };
 }
 
