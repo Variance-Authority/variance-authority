@@ -19,8 +19,7 @@
  * existing for them.
  *
  * `--target <triple>` cross-compiles, which is how the release matrix fills one
- * package per runner. A host build on a glibc Linux builds its package's target
- * the same way, at the same floor, so the binary CI loads is the one we publish.
+ * package per runner.
  *
  * One binary per platform, built for the floor of it: `rustc` builds
  * `aarch64-apple-darwin` for `apple-m1`, which every Apple Silicon Mac runs.
@@ -144,7 +143,8 @@ if (cargo === undefined) {
 }
 
 /**
- * The subcommand and triple a named target is built with.
+ * The subcommand and triple a target is built with: the one named, or on a
+ * glibc Linux the host's own, so the binary CI loads is the one we publish.
  *
  * A target with a glibc floor is linked against that glibc's symbol versions
  * rather than the runner's, which `cargo zigbuild` does from the triple's
