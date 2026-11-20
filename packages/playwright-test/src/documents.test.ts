@@ -165,4 +165,23 @@ describe('the `context` fixture', () => {
 
     expect(said).toEqual(['line 10', 'sent GET /api/price', 'still out GET /api/price', 'line 11', 'still out GET /api/price']);
   });
+
+  it('warns of a client without context instrumentation on the console, not as a line the first test printed', async () => {
+    // A fresh module: the warning is printed once per process, to whichever test sets up first.
+    vi.resetModules();
+    const { varianceDocumentFixtures: fresh } = await import('./documents.js');
+    const [documents] = fresh.varianceDocuments as unknown as [DocumentsFixture];
+    const said: string[] = [];
+    const recorder = { ...recorderCarrying(1), say: (_owner: string, _subject: unknown, note: string) => said.push(note) } as unknown as ExecutionRecorder;
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    let warned: number;
+    try {
+      await documents({ playwright: {}, varianceRecorder: recorder }, async () => {}, testInfo);
+      warned = warn.mock.calls.length;
+    } finally {
+      warn.mockRestore();
+    }
+
+    expect({ said, warned }).toEqual({ said: [], warned: 1 });
+  });
 });
