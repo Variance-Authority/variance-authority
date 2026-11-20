@@ -21,10 +21,13 @@ import { colorDeltaAt, limitOf } from './judge.js';
 export const REGION_MARGIN = 2;
 
 /**
- * Below this squared distance, as `limitOf` measures a policy's threshold, a
- * side's strongest edge is no edge: a fill repainted by a little reads as flat.
+ * How far a pixel's colour is from its neighbour's for an edge, as the judge
+ * measures a threshold of 0.05, and at most how far for flat: a quarter of it.
+ * Fixed, not each side's own scale, so a stronger edge nearby changes nothing.
+ * A pixel between them, as an anti-aliased edge often is, says nothing.
  */
-const FLAT = limitOf(0.1);
+const EDGE = Math.sqrt(limitOf(0.05));
+const FLAT = EDGE / 4;
 
 /**
  * What changed in `region`, from the pixels the comparison decoded and its row
@@ -72,8 +75,8 @@ export function regionChange(
     }
   }
 
-  const first = edges(before.data, was, columns, now);
-  const second = edges(after.data, now, columns, now);
+  const first = edges(before.data, was, columns);
+  const second = edges(after.data, now, columns);
   for (let index = 0; index < first.length; index += 1) {
     if (first[index]! >= 0 && second[index]! >= 0 && first[index] !== second[index]) return 'shape';
   }
@@ -82,35 +85,25 @@ export function regionChange(
 
 /**
  * Each read pixel marked by its edge in one image, its larger distance to its
- * right and lower neighbours: 1 an edge, 0 flat, -1 between them or unread. An
- * anti-aliased edge says nothing either way, and how strong an edge is counts
- * against the side's strongest, so a repaint that softens every edge keeps them.
+ * right and lower neighbours: 1 an edge, 0 flat, -1 between them or unread.
  */
-function edges(data: Uint8Array, offsets: Int32Array, columns: number, canvas: Int32Array): Int8Array {
+function edges(data: Uint8Array, offsets: Int32Array, columns: number): Int8Array {
   const words = new Uint32Array(data.buffer, data.byteOffset, data.byteLength >> 2);
-  const strength = new Float32Array(offsets.length).fill(-1);
-  let far = 0;
-  const towards = (at: number, to: number, pos: number): number => {
+  const towards = (at: number, to: number): number => {
     if (to < 0) return -1;
     if (words[at >> 2] === words[to >> 2]) return 0;
-    return Math.sqrt(Math.abs(colorDeltaAt(data, at, data, to, pos)));
+    return Math.sqrt(Math.abs(colorDeltaAt(data, at, data, to, at)));
   };
+  const marks = new Int8Array(offsets.length).fill(-1);
   for (let index = 0; index < offsets.length; index += 1) {
     const at = offsets[index]!;
     if (at < 0) continue;
     const right = (index + 1) % columns === 0 ? -1 : offsets[index + 1]!;
     const below = index + columns < offsets.length ? offsets[index + columns]! : -1;
-    const value = Math.max(towards(at, right, canvas[index]!), towards(at, below, canvas[index]!));
-    strength[index] = value;
-    far = Math.max(far, value);
-  }
-  const marks = new Int8Array(offsets.length).fill(-1);
-  const flat = far * far < FLAT;
-  for (let index = 0; index < offsets.length; index += 1) {
-    const value = strength[index]!;
+    const value = Math.max(towards(at, right), towards(at, below));
     if (value < 0) continue;
-    if (flat || value <= far / 8) marks[index] = 0;
-    else if (value >= far / 2) marks[index] = 1;
+    if (value <= FLAT) marks[index] = 0;
+    else if (value >= EDGE) marks[index] = 1;
   }
   return marks;
 }

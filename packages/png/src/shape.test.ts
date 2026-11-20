@@ -70,6 +70,26 @@ describe('what changed in a region', () => {
     expect(regions.map((region) => regionChange(pixels, region))).toEqual(['colour']);
   });
 
+  it('reads a recolour as colour beside an unchanged faint line', async () => {
+    // A divider two rows under the block, inside the margin, stays as it was.
+    const paint =
+      (colour: readonly [number, number, number]): Paint =>
+      (x, y) =>
+        y === 41 ? [0xe0, 0xe0, 0xe0] : block(40, colour)(x, y);
+    const { pixels, regions } = await read(raster(120, 60, paint([0, 0, 0])), raster(120, 60, paint([0xd0, 0xd0, 0xd0])));
+    expect(regions.map((region) => regionChange(pixels, region))).toEqual(regions.map(() => 'colour'));
+  });
+
+  it('reads a faint line moved by one pixel as shape beside a dark one', async () => {
+    const lines =
+      (faint: number): Paint =>
+      (x, y) =>
+        y < 20 || y >= 40 ? [255, 255, 255] : x === 40 ? [0, 0, 0] : x === faint ? [0xd0, 0xd0, 0xd0] : [255, 255, 255];
+    const { pixels, regions } = await read(raster(120, 60, lines(42)), raster(120, 60, lines(43)));
+    expect(regions.length).toBeGreaterThan(0);
+    expect(regions.map((region) => regionChange(pixels, region))).toEqual(regions.map(() => 'shape'));
+  });
+
   it('reads a block moved by one pixel as shape, at both edges', async () => {
     const { pixels, regions } = await read(raster(120, 60, block(40, [0x33, 0x33, 0x33])), raster(120, 60, block(41, [0x33, 0x33, 0x33])));
     expect(regions).toHaveLength(2);

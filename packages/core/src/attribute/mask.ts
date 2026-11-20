@@ -42,9 +42,9 @@ export interface DiffRegion extends Rect {
 }
 
 /**
- * What changed in a region: `shape` where ink moved, appeared or went, read in
- * black and white against each side's own ground; `colour` where the ink stands
- * where it stood, in another colour.
+ * What changed in a region: `shape` where an edge moved, appeared or went, each
+ * side's edges read in its own image; `colour` where every edge stands where it
+ * stood, in another colour.
  */
 export type RegionChange = 'shape' | 'colour';
 

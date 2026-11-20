@@ -61,9 +61,10 @@ The pixels inside the box, and 2 more on each side, are read on both images,
 each paired with the before pixel it was compared against, so a page whose rows
 moved is read at the move. Pixels in an excluded subtree are not read. On each
 side, every pixel is an edge or flat by its colour distance to its right and
-lower neighbours in the same image, against the strongest edge on that side: at
-least half of it is an edge, an eighth or less is flat, and a pixel between
-them abstains. A side whose strongest edge is faint is all flat. A pixel that
+lower neighbours in the same image, by the distance the judge measures: as far
+as a 0.05 threshold is an edge, a quarter of that or less is flat, and a pixel
+between them, as an anti-aliased edge often is, abstains. The scale is fixed,
+so a strong edge beside the region changes nothing in it. A pixel that
 is an edge on one side and flat on the other is drawing that moved, appeared or
 went, and makes the region `shape`; a row the after image gained has no
 partner and does the same. Where the edges stand where they stood, only the
