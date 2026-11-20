@@ -135,6 +135,21 @@ describe('ask discover over a checkout', () => {
     }
     expect(readFileSync(sourceIndexPath(root)).equals(published)).toBe(true);
   });
+
+  it('dates its answer with the generation it read, as every other source answer is', async () => {
+    const { code, out } = await run(['ask', 'discover', '--declares', '^selectBalance$']);
+    expect(code).toBe(0);
+    expect(out).toMatch(/^Snapshot \d{4}-\d\d-\d\dT[\d:.]+Z, not compared with the checkout: run `variance index` if files changed since\.$/mu);
+  });
+
+  // Last in the block: it publishes a generation the cases above do not read.
+  it('reads the names of a file `--changed-file` names into a new generation before it answers', async () => {
+    write('src/store/selectors.ts', 'export const selectBalance = (state: { balance: number }) => state.balance;\nexport const selectDebt = () => 0;\n');
+    write('changed.txt', 'src/store/selectors.ts\n');
+    const { code, out } = await run(['ask', 'discover', '--declares', '^selectDebt$', '--changed-file', join(root, 'changed.txt')]);
+    expect(code).toBe(0);
+    expect(out).toContain('src/store/selectors.ts:2  declares selectDebt');
+  });
 });
 
 describe('ask discover with nothing published', () => {

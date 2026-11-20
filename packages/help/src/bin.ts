@@ -170,8 +170,8 @@ if (asking(verb) && verb !== undefined) {
         return { answer: () => (format === 'json' ? askSearchJson : askSearch)(index, ownArgs, () => tree, true, unopened, importing), at: index.generation?.generatedAt };
       }
       if (tool === discover) {
-        const named = await readNamedTree(root, inputFrom(tool, ownArgs));
-        return { answer: () => discover.run(undefined, inputFrom(tool, ownArgs), invocationOf({ ...named, root })), at: undefined };
+        const { at, ...named } = await readNamedTree(root, inputFrom(tool, ownArgs));
+        return { answer: () => discover.run(undefined, inputFrom(tool, ownArgs), invocationOf({ ...named, root })), at };
       }
       const recorded = RECORDED.find((one) => one.name === tool.name);
       if (recorded !== undefined) return { answer: () => recorded.run(undefined, inputFrom(tool, ownArgs), invocationOf({ root })), at: undefined };

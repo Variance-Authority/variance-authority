@@ -294,7 +294,7 @@ async function sourceAnswering(request: SourceRequest, tool: Tool<Help>, input: 
   // answer is the tool's, over the same generation.
   return request.source !== undefined ? await wholeSource(request.source, tool, input, reading)
     : tool.name === search.name ? await searchSource(process.cwd(), input, reading)
-    : tool.name === discover.name ? await discoverSource(process.cwd(), input)
+    : tool.name === discover.name ? await discoverSource(process.cwd(), input, reading)
     : tool.name === intersection.name ? await intersectionSource(process.cwd(), input, reading)
     : tool.name === orient.name ? orientSource(process.cwd(), input)
     : tool.name === slowestTests.name ? slowestSource(process.cwd(), input)

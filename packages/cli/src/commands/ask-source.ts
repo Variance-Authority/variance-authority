@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import { countingShown, readNamedTree, readSearchForAnswer, readWorkspaceForAnswer, workspaceGeneration, type Unopened } from '@variance-authority/help';
+import { countingShown, readNamedTree, readSearchForAnswer, readWorkspaceForAnswer, workspaceGeneration, type AnsweringOptions, type Unopened } from '@variance-authority/help';
 import { answerSearch, containmentOf, discover, formatContainment, importingOf, intersection, journeyMapTool, namesWanted, orient, retriedTests, slowestTests, testCompositionTool, type Containment, type Help, type SearchAnswer, searchIndexOf, searchNames, searchQuestionOf } from '@variance-authority/help/tools';
 import { readIndexedNames, type Tool, type Tree } from '@variance-authority/mcp/tools';
 import { sourceIndexPath } from '@variance-authority/sense';
@@ -71,13 +71,14 @@ export async function searchSource(
 }
 
 /**
- * `discover` reads no workspace value either, but every one of its sets
- * needs the tree, and `declares` and most `imports` need each file's names,
- * which the published source index holds beside it.
+ * `discover` answers from no workspace value, but every one of its sets needs
+ * the tree, and `declares` and most `imports` need each file's names, which
+ * the source index holds beside it; both come from the generation `reading`
+ * opens, which dates the answer.
  */
-export async function discoverSource(root: string, input: Readonly<Record<string, unknown>>): Promise<Answering> {
-  const read = await readNamedTree(root, input);
-  return { answer: () => discover.run(undefined, input, invocationOf({ ...read, root })), at: undefined };
+export async function discoverSource(root: string, input: Readonly<Record<string, unknown>>, reading: SourceReadOptions): Promise<Answering> {
+  const { at, ...read } = await readNamedTree(root, input, answeringOf(root, reading));
+  return { answer: () => discover.run(undefined, input, invocationOf({ ...read, root })), at };
 }
 
 /**
@@ -128,13 +129,20 @@ export function retriedSource(root: string, input: Readonly<Record<string, unkno
 export async function readSource(root: string, options: SourceReadOptions = {}): Promise<Sourced> {
   let tree: Tree | undefined;
   const help = await readWorkspaceForAnswer(root, {
+    ...answeringOf(root, options),
+    ...(options.tree === true ? { tree: (drawn: Tree) => { tree = drawn; } } : {}),
+  });
+  return { help, tree: () => tree };
+}
+
+/** What the reader is asked for: the generation the question's flags name, without the tree. */
+function answeringOf(root: string, options: SourceReadOptions): AnsweringOptions {
+  return {
     index: sourceIndexPath(root),
     ...(options.changed === undefined ? {} : { changed: options.changed }),
     ...(options.taints === undefined ? {} : { taints: options.taints }),
     ...(options.justAnswer === true ? { justAnswer: true } : {}),
-    ...(options.tree === true ? { tree: (drawn: Tree) => { tree = drawn; } } : {}),
-  });
-  return { help, tree: () => tree };
+  };
 }
 
 export async function readTaint(path: string): Promise<Taint> {
