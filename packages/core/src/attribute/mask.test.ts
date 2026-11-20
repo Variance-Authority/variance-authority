@@ -64,7 +64,7 @@ describe('isolating a change', () => {
     );
 
     expect(isolation.regions).toEqual([
-      { x: 2, y: 1, width: 2, height: 2, pixels: 4, density: 1 },
+      { x: 2, y: 1, width: 2, height: 2, pixels: 4, density: 1, grade: 1 },
     ]);
   });
 
@@ -89,6 +89,19 @@ describe('isolating a change', () => {
     expect(isolation.regions).toHaveLength(3);
     expect(isolation.truncated).toBe(5);
     expect(isolation.truncatedPixels).toBe(5);
+  });
+
+  it('drops a faint region before a strong one when it caps the list', () => {
+    // Three faint pairs and one strong pixel, smaller than any of them.
+    const graded = mask([
+      '##.##.##.#',
+    ]);
+    graded.data[9] = 4;
+
+    const isolation = isolateRegions(graded, { cell: 1, limit: 3 });
+
+    expect(isolation.regions.map((region) => region.grade)).toEqual([1, 1, 4]);
+    expect(isolation.truncatedPixels).toBe(2);
   });
 
   it('survives a mask that changed everywhere', () => {

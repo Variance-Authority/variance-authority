@@ -138,7 +138,8 @@ colour change of up to 1%, `strict` forgives nothing. Both are reported so that
 forgiveness". `total` is the pixels on the compared canvas — the union of the
 two boxes, so a size change is a difference in the padded rows rather than a
 refusal to compare. `mask.data` (omitted above, it is 1,024,000 bytes) is one
-byte per pixel, `1` where the pixel differs.
+byte per pixel, `0` where the pixel is the same and otherwise its grade, 1 to 4,
+by how far its colour moved.
 
 Drop `{ decoder: sharpDecoder }` and the same call decodes with `pngjs` and
 prints the same numbers. `sharpDecoder.decode(bytes)` is the lower seam, when

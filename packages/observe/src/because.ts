@@ -2,6 +2,7 @@ import type { AttributedRegion, Isolation } from '@variance-authority/core/attri
 import {
   DEFAULT_POLICY,
   STRICT_POLICY,
+  STRONG_GRADE,
   type DiffPolicy,
   type RasterComparison,
   type RowSpan,
@@ -137,7 +138,20 @@ export function describeChange(
       `to ${comparison.after.width}×${comparison.after.height}`
     : '';
 
-  const named = [...new Set(regions.map((region) => region.component).filter(Boolean))];
+  // A faint region is a repaint a reader triages after the rest: beside a
+  // strong one it is counted, not named.
+  const total = isolation.regions.length;
+  const faint = isolation.regions.filter((region) => region.grade < STRONG_GRADE).length;
+  const shown = faint === 0 || faint === total ? regions : regions.filter(({ region }) => region.grade >= STRONG_GRADE);
+  const across =
+    faint === 0
+      ? count(total, 'region')
+      : faint === total
+        ? count(faint, 'faint region')
+        : count(total - faint, 'strong region');
+  const apart = faint > 0 && faint < total ? `, and ${count(faint, 'faint region')}` : '';
+
+  const named = [...new Set(shown.map((region) => region.component).filter(Boolean))];
   const where =
     named.length > 0
       ? ` in ${named.slice(0, 3).join(', ')}${named.length > 3 ? ` (+${named.length - 3} more)` : ''}`
@@ -145,13 +159,13 @@ export function describeChange(
 
   const capped =
     isolation.truncated > 0
-      ? ` (+${count(isolation.truncated, 'smaller region')} not listed, ` +
+      ? ` (+${count(isolation.truncated, 'more region')} not listed, ` +
         `${isolation.truncatedPixels.toLocaleString('en-US')}px)`
       : '';
 
   return (
     `${count(changed, 'pixel')} differ across ` +
-    `${count(isolation.regions.length, 'region')}${where}${capped}${movement(comparison)}${size}`
+    `${across}${where}${apart}${capped}${movement(comparison)}${size}`
   );
 }
 

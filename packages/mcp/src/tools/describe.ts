@@ -161,7 +161,7 @@ export const describe: Tool = {
       // Never a silent cap: a truncated list that does not say so reads as
       // complete coverage, and the reader has no way to tell the difference.
       lines.push(
-        `+${observation.truncated.regions} smaller region(s) not listed ` +
+        `+${observation.truncated.regions} more region(s) not listed ` +
           `(${observation.truncated.pixels}px)`,
       );
     }
