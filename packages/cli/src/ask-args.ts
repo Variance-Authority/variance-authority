@@ -1,5 +1,5 @@
 import { resolve } from 'node:path';
-import { countOf, type Flags } from './args.js';
+import { countOf, type Flags, type Unknown } from './args.js';
 import { OperatorError } from './exit.js';
 
 /**
@@ -82,8 +82,8 @@ export interface ParsedAsk extends Crossing {
    * that reads like the sentence somebody meant.
    */
   readonly question?: string;
-  /** A line for each flag `ask` takes for no question, said on stderr beside the answer. */
-  readonly ignored?: readonly string[];
+  /** Each flag no question takes, named beside the answer by the question it was typed at. */
+  readonly unknown?: readonly Unknown[];
   readonly subject?: string;
   /** `--subjects <id>[,...]`: the plural argument `changelog` takes, not `--subject`. */
   readonly subjects?: readonly string[];
@@ -216,7 +216,7 @@ export function parseAskArgs(flags: Flags, config: string): ParsedAsk {
     command: 'ask',
     config,
     ...(question !== undefined ? { question } : {}),
-    ...(flags.ignored.length > 0 ? { ignored: flags.ignored } : {}),
+    ...(flags.unknown.length > 0 ? { unknown: flags.unknown } : {}),
     ...(subject !== undefined ? { subject } : {}),
     ...(subjects.length > 0 ? { subjects } : {}),
     ...(component !== undefined ? { component } : {}),

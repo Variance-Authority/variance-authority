@@ -2,10 +2,11 @@ import { dirname, join, resolve } from 'node:path';
 import type { RunReport } from '@variance-authority/report';
 import { VANTAGE_VARIABLE } from '@variance-authority/vantage';
 import type { VantageReading } from '@variance-authority/vantage/attach';
+import type { Unknown } from '../args.js';
 import type { Crossing } from '../ask-args.js';
 import { OperatorError } from '../exit.js';
 import { readClaims } from './adjudicate.js';
-import { inputFor, invocationOf, questionFor, refuseWords, type Question } from './asking.js';
+import { ignored, inputFor, invocationOf, questionFor, refuseWords, type Question } from './asking.js';
 import { foundNothingAnswer, readWorkspaceForAnswer, refusalFooter, snapshotLine, unopenedLine } from '@variance-authority/help';
 import { containment, discover, intersection, journeyMapTool, orient, retriedTests, search, slowestTests, testCompositionTool, type Help } from '@variance-authority/help/tools';
 import { asOneQuestion } from '@variance-authority/sense';
@@ -83,8 +84,8 @@ import { readVantage } from './watch.js';
 export interface AskRequest extends Crossing {
   /** The question. Absent asks for the list of them, which is the MCP handshake. */
   readonly question?: string;
-  /** What the flag parser said of each flag no question takes, which it ignored. */
-  readonly ignored?: readonly string[];
+  /** The flags no question takes, each answered past and named beside the answer. */
+  readonly unknown?: readonly Unknown[];
   /** Where a line about an ignored flag is said, beside the answer. Standard error when absent. */
   readonly warn?: (line: string) => void;
   readonly subject?: string;
@@ -168,7 +169,7 @@ export interface AskRequest extends Crossing {
  * instead of being dropped on the way in without a word.
  */
 export type SourceRequest = Flagged &
-  Pick<AskRequest, 'source' | 'changedFile' | 'taintFile' | 'format' | 'reports' | 'ignored' | 'warn'> & {
+  Pick<AskRequest, 'source' | 'changedFile' | 'taintFile' | 'format' | 'reports' | 'unknown' | 'warn'> & {
   readonly question: string;
 };
 
@@ -194,12 +195,12 @@ export async function ask(request: AskRequest): Promise<string> {
   if (question.source !== undefined) return askSource({ ...request, question: request.question });
   const ignore = ignoring(request);
   if (question.costs !== undefined) {
-    const input = inputFor(question.costs, flagged(request), ignore);
+    const input = inputFor(question.costs, flagged(request), ignore, request.unknown);
     if (request.costs === undefined) throw new OperatorError('`costs` needs a config: the times are kept under its project');
     return `${question.costs.run(await request.costs(), input, invocationOf())}\n`;
   }
   if (question.review !== undefined) {
-    const input = inputFor(question.review, flagged(request), ignore);
+    const input = inputFor(question.review, flagged(request), ignore, request.unknown);
     refuseWords(question.tool, request.reports);
     if (request.review === undefined) {
       throw new OperatorError(
@@ -253,7 +254,10 @@ export async function askSource(request: SourceRequest): Promise<string> {
   if (request.format === 'json' && tool.name !== search.name && tool.name !== containment.name) {
     throw new OperatorError(`\`${request.question}\` answers in text only; \`--format json\` is taken by \`search\` and \`containment\``);
   }
-  const input = crossing ? intersectionInput(request.reports ?? [], request.limit, ignore) : inputFor(tool, flagged(request), ignore);
+  if (crossing) for (const { flag, typed } of request.unknown ?? []) ignored(tool, flag, typed, ignore);
+  const input = crossing
+    ? intersectionInput(request.reports ?? [], request.limit, ignore)
+    : inputFor(tool, flagged(request), ignore, request.unknown);
   const changed = request.changedFile === undefined ? undefined : await readChanged(request.changedFile);
   const taints = request.taintFile === undefined ? undefined : [await readTaint(request.taintFile)];
   // A question answers from the generation `variance index` published, at any
@@ -449,17 +453,15 @@ async function inputFrom(
       claims: request.claims === undefined ? undefined : await readClaims(request.claims),
     },
     ignore,
+    request.unknown,
   );
 }
 
 /**
- * Says what the flag parser ignored, and returns where a question says what it
- * ignored: each line beside the answer, never in it, so the answer stays what
- * a caller parses.
+ * Where a question says what it answered without: each line beside the
+ * answer, never in it, so the answer stays what a caller parses.
  */
-function ignoring(request: Pick<AskRequest, 'ignored' | 'warn'>): (message: string) => void {
+function ignoring(request: Pick<AskRequest, 'warn'>): (message: string) => void {
   const warn = request.warn ?? ((line: string) => process.stderr.write(`${line}\n`));
-  const ignore = (message: string): void => warn(`variance: ${message}`);
-  for (const message of request.ignored ?? []) ignore(message);
-  return ignore;
+  return (message) => warn(`variance: ${message}`);
 }

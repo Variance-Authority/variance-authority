@@ -52,8 +52,7 @@ function parsedQuestion(
     if (tool.files === undefined) throw new OperatorError(`\`${parsed.question}\` answers no set of files; the questions that do: ${crossable()}`);
     refuseWords(tool, parsed.reports);
     const told = (message: string): void => ignore(`question ${at}, \`${text}\`: ${message}`);
-    for (const message of parsed.ignored ?? []) told(message);
-    return { question: parsed.question, input: inputFor(tool, flagged(parsed), told) };
+    return { question: parsed.question, input: inputFor(tool, flagged(parsed), told, parsed.unknown) };
   } catch (error) {
     throw new OperatorError(`question ${at}, \`${text}\`: ${messageOf(error)}`, { cause: error });
   }

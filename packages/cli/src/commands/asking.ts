@@ -12,6 +12,7 @@ import {
   type Tool,
   type ToolInvocation,
 } from '@variance-authority/mcp/tools';
+import type { Unknown } from '../args.js';
 import { OperatorError } from '../exit.js';
 
 /**
@@ -252,16 +253,18 @@ export function inputFor(
   tool: Asked,
   given: Readonly<Record<string, unknown>>,
   ignore: (message: string) => void,
+  /** The flags no question takes, typed at this one. */
+  unknown: readonly Unknown[] = [],
 ): Readonly<Record<string, unknown>> {
   const accepted = argumentsOf(tool);
   const input: Record<string, unknown> = {};
 
+  for (const { flag, typed } of unknown) ignored(tool, flag, typed, ignore);
   for (const [property, value] of Object.entries(given)) {
     if (value === undefined) continue;
     const argument = accepted.find((entry) => entry.property === property);
     if (argument === undefined) {
-      const flags = accepted.map((entry) => entry.flag);
-      ignore(`${notTaken(tool, `--${property}`, 'so the answer is what it is without it; it')}.${didYouMean(`--${property}`, flags)}`);
+      ignored(tool, `--${property}`, `--${property}`, ignore);
       continue;
     }
     // A list a tool declares is typed once, comma-separated, like `--files`.
@@ -307,16 +310,28 @@ export function refuseWords(tool: Asked, words: readonly string[] | undefined): 
   const quoted = argumentsOf(tool).some((argument) => argument.kind === 'text')
     ? ' A value of more than one word is one argument, in quotes.'
     : '';
-  throw new OperatorError(`${notTaken(tool, word)}.${quoted}`);
+  throw new OperatorError(`${notTaken(tool, word)}; ${takesNow(tool)}.${quoted}`);
 }
 
-/** That a question does not take what was typed, what came of it, and what it takes instead. */
-function notTaken(tool: Asked, typed: string, so = '; it'): string {
+/**
+ * Tells `ignore` that a question answered without a flag it does not take, and
+ * the nearest of the ones it does. The one sentence for a flag the question
+ * lacks and for one no question has, its value included, so either reads alike.
+ */
+export function ignored(tool: Asked, flag: string, typed: string, ignore: (message: string) => void): void {
+  const flags = argumentsOf(tool).map((argument) => argument.flag);
+  ignore(`${notTaken(tool, typed)}, so the answer is what it is without it; ${takesNow(tool)}.${didYouMean(flag, flags)}`);
+}
+
+/** That a question does not take what was typed. */
+function notTaken(tool: Asked, typed: string): string {
+  return `\`${typed}\` is not an argument \`variance ask ${verbOf(tool)}\` takes`;
+}
+
+/** What a question takes instead, as the second half of a sentence. */
+function takesNow(tool: Asked): string {
   const flags = argumentsOf(tool).map(spelling);
-  return (
-    `\`${typed}\` is not an argument \`variance ask ${verbOf(tool)}\` takes${so === '; it' ? '' : ', '}${so} ` +
-    `takes ${flags.length === 0 ? 'none' : flags.join(', ')}`
-  );
+  return `it takes ${flags.length === 0 ? 'none' : flags.join(', ')}`;
 }
 
 /** Greedy, on spaces, and nothing else. The descriptions are prose, not layout. */

@@ -25,19 +25,15 @@ export interface Flags {
   readonly positionals: readonly string[];
   /** Every value of a flag its command lists in {@link REPEATABLE}, in the order given; `values` holds the last. */
   readonly repeated: Map<string, readonly string[]>;
-  /** What a {@link TOLERANT} command says of each flag it ignored, said beside its answer. */
-  readonly ignored: readonly string[];
+  /** The flags `accepted` lacks, kept rather than refused when the caller asked {@link readFlags} to. */
+  readonly unknown: readonly Unknown[];
 }
 
-/**
- * Commands that answer past a flag they do not take, naming it on stderr.
- *
- * Every other command refuses one, for the reason `parse.ts` gives: `run
- * --subject` runs the whole suite and reports success. A question reads and
- * writes nothing, and the line that names the flag is printed beside the answer
- * to whoever typed it, so a refusal only costs them a second round trip.
- */
-const TOLERANT = new Set(['ask']);
+/** A flag the command does not take, and the words it was typed as, its value among them. */
+export interface Unknown {
+  readonly flag: string;
+  readonly typed: string;
+}
 
 /**
  * Flags a command takes more than once, each time adding one more of a kind.
@@ -139,12 +135,18 @@ export function readFlags(
    * one this tool is mostly read by.
    */
   usage: string,
+  /**
+   * `'keep'` returns a flag `accepted` lacks in {@link Flags.unknown}, with the
+   * value that followed it, for a caller that answers past one; `'refuse'`
+   * throws. The caller decides, because only it knows what ignoring costs.
+   */
+  unknownFlags: 'refuse' | 'keep' = 'refuse',
 ): Flags {
   const values = new Map<string, string>();
   const present = new Set<string>();
   const positionals: string[] = [];
   const repeated = new Map<string, string[]>();
-  const ignored: string[] = [];
+  const unknown: Unknown[] = [];
 
   let index = 0;
   let flagsEnded = false;
@@ -166,13 +168,13 @@ export function readFlags(
     const equals = argument.indexOf('=');
     const name = equals === -1 ? argument : argument.slice(0, equals);
 
-    if (!accepted.includes(name) && TOLERANT.has(command)) {
-      // Its value goes with it, unless what follows is the next flag.
+    if (!accepted.includes(name) && unknownFlags === 'keep') {
+      // Its value goes with it, unless what follows is the next flag, and is
+      // kept in `typed` so whoever is told of the flag is told of the word too.
       const next = argv[index];
-      if (equals === -1 && next !== undefined && !next.startsWith('-')) index += 1;
-      ignored.push(
-        `\`${name}\` is not a \`variance ${command}\` flag, so the answer ignores it.${didYouMean(name, accepted)}`,
-      );
+      const valued = equals === -1 && next !== undefined && !next.startsWith('-');
+      if (valued) index += 1;
+      unknown.push({ flag: name, typed: valued ? `${argument} ${next}` : argument });
       continue;
     }
     if (!accepted.includes(name)) {
@@ -211,7 +213,7 @@ export function readFlags(
     if (repeatable) repeated.set(name, [...repeated.get(name) ?? [], value]);
   }
 
-  return { values, present, positionals, repeated, ignored };
+  return { values, present, positionals, repeated, unknown };
 }
 
 export function noPositionals(positionals: readonly string[], command: string): void {

@@ -201,7 +201,7 @@ describe('variance ask about a name whose file changed since the source index', 
     const { code, out, err } = await run(['ask', 'symbol', '--name', 'taxOf', '--just-answer']);
     expect(code).toBe(EXIT_CLEAN);
     expect(out).toBe(plain.out);
-    expect(err).toContain('variance: `--just-answer` is not a `variance ask` flag, so the answer ignores it.');
+    expect(err).toContain('variance: `--just-answer` is not an argument `variance ask symbol` takes, so the answer is what it is without it;');
   });
 
   it('refuses an empty name as the tool does', async () => {

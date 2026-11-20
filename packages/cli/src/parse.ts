@@ -212,7 +212,10 @@ export function parseArgs(argv: readonly string[]): Parsed {
   // complaint — and then an exit code that said the command had succeeded.
   if (asksForHelp(argv.slice(1))) return { command: 'help', topic: first };
 
-  const flags = readFlags(argv.slice(1), first, flagsFor(first), synopsisFor(first));
+  // `ask` keeps an unknown flag and names it beside the answer: a question reads
+  // and writes nothing, so refusing costs a round trip and buys nothing, where
+  // `run --subject` would run the whole suite and report success.
+  const flags = readFlags(argv.slice(1), first, flagsFor(first), synopsisFor(first), first === 'ask' ? 'keep' : 'refuse');
   const config = resolve(flags.values.get('--config') ?? DEFAULT_CONFIG);
 
   switch (first) {
