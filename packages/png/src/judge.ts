@@ -5,11 +5,11 @@
  * Parity with `pixelmatch` is the contract, held by `judge.test.ts`; the one
  * departure is a seam, where a before pixel's anti-aliasing is read from the
  * rows around the one it came from, not the rows the alignment set beside it.
- * The picture departs too: a changed pixel short of {@link STRONG_GRADE} is
+ * The picture departs too: a changed pixel short of the strong grade ({@link isFaint}) is
  * drawn {@link FAINT}, not red.
  */
 
-import { type DiffPolicy, SEVERITY_LEVELS, STRONG_GRADE } from '@variance-authority/raster';
+import { type DiffPolicy, isFaint, SEVERITY_LEVELS } from '@variance-authority/raster';
 import type { DecodedImage } from './mask.js';
 
 /** What a scan writes besides the counts. */
@@ -154,7 +154,7 @@ export function judgeRows(
           while (grade < grades.length && size > grades[grade]!) grade += 1;
           if (index === output.mask) mask![y * width + x] = grade;
           if (index !== drawn) continue;
-          if (grade < STRONG_GRADE) paint(picture!, pos, ...FAINT);
+          if (isFaint(grade)) paint(picture!, pos, ...FAINT);
           else paint(picture!, pos, 255, 0, 0);
         }
       }

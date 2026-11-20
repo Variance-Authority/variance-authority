@@ -38,7 +38,7 @@ export type { AssembleOptions } from './assemble.js';
 export { describeIdentity, familiesOf, identityAtScale, identityCause, recipeOnly } from './renderer.js';
 export type { ComparedSides, IdentityCause, Renderer } from './renderer.js';
 
-export { DEFAULT_POLICY, SEVERITY_LEVELS, STRICT_POLICY, STRONG_GRADE } from './policy.js';
+export { DEFAULT_POLICY, isFaint, SEVERITY_LEVELS, STRICT_POLICY, STRONG_GRADE } from './policy.js';
 export type { DiffPolicy, RasterComparison, CompareOptions, RowAlignment, RowSpan } from './policy.js';
 
 export {
