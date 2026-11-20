@@ -194,31 +194,17 @@ export function withTestSelection(
   // Ahead of the project's reporters, so the banner the first of them prints
   // names the seed of a shuffled run, as Vitest's own does.
   const reporters = [{ onInit: seedInBanner }, ...(config.test?.reporters === undefined ? ['default'] : array(config.test.reporters))];
-  if (options.record === false) {
-    // What the probes plugin and the recording reporter do that a run landing
-    // nothing still needs: the command line read for the sequencer, and the
-    // record its selection read taken when the run ends, as a landing takes it.
-    const forget = () => { takeReadFor(coverageFile); };
-    // Vitest 2 ends a run with `onFinished` alone, and Vitest 4 with `onTestRunEnd` alone.
-    const forgetting = { onFinished: forget, onTestRunEnd: forget } as Reporter;
-    return {
-      ...config,
-      plugins: [...array(config.plugins), {
-        name: 'variance-authority:test-selection-command-line',
-        config: (resolved: UserConfig) => readCommandLine(resolved.test?.sequence?.sequencer),
-      }],
-      test: {
-        ...config.test,
-        ...selecting(config, root, configRoot, options, coverageFile, selection, run),
-        reporters: [...reporters, forgetting],
-      },
-    };
-  }
-  const settle = foldRun(run, { coverageFile, shims: [setupId, runnerId] });
+  // A run that records nothing lands nothing, so nothing is folded, probed or written.
+  const recording = options.record !== false;
+  const settle = recording ? foldRun(run, { coverageFile, shims: [setupId, runnerId] }) : undefined;
   // Asked of the mode, not of `run.cases`: a page clears that on the run, and
   // Vitest loads the configuration again for its browser server, in this process.
-  const story = probesRegions(mode) ? askedForStories(coverageFile) : undefined;
-  const reporter = selectionReporter(run, settle, story);
+  const story = recording && probesRegions(mode) ? askedForStories(coverageFile) : undefined;
+  // A landing takes the record the run's selection read; a run that lands
+  // nothing takes it when it ends. Vitest 2 ends a run with `onFinished` alone,
+  // and Vitest 4 with `onTestRunEnd` alone.
+  const forget = () => { takeReadFor(coverageFile); };
+  const ending = settle === undefined ? { onFinished: forget, onTestRunEnd: forget } as Reporter : selectionReporter(run, settle, story);
 
   // A configuration that names projects describes the run rather than a suite:
   // nothing is transformed under it, it is the only place a reporter is read
@@ -226,67 +212,70 @@ export function withTestSelection(
   // `projects` is Vitest 3 and 4's name; Vitest 2 called it `workspace`. Read
   // structurally: the seam runs against whichever the project installed.
   const describesProjects = (config.test as { projects?: unknown } | undefined)?.projects !== undefined;
-  if (describesProjects) {
-    return {
-      ...config,
-      plugins: [...array(config.plugins), {
-        name: 'variance-authority:test-selection-config',
-        configResolved: declareConfig(run, declared, [setupId, runnerId]),
-      } satisfies ConfigPlugin],
-      // Any test file of the run answers for this config, and a reporter refuses
-      // for it: Vitest 4 calls no `configureVitest` of a config that lists projects.
-      test: { ...config.test, ...selecting(config, root, configRoot, options, coverageFile, selection, run), reporters: [...reporters, refusal(() => true, () => declared), reporter] },
-    };
-  }
-
-  // Under `loads` no region is probed, so no line of a test can be said to
-  // have reached one first: the cut would cost a call per statement for nothing.
-  const cut = options.cadence === false || (!run.cases && story === undefined) ? undefined : testFiles(config, configRoot);
-  const plugins = selectionPlugin(root, setupId, runnerId, globalSetup, run, { include, unprobed }, { capture, after }, mode, declared, settle, cut, options.placement ?? 'after-transforms', story);
   // The realm's engine is decided once, by whichever of the two shims installs
   // it first, so both are handed the same answers.
   const continuations = run.cases && options.continuations === true;
+  const plugins = settle === undefined
+    // The probes plugin reads the command line for the sequencer; a run that probes nothing still needs it read.
+    ? [{
+      name: 'variance-authority:test-selection-command-line',
+      config: (resolved: UserConfig) => readCommandLine(resolved.test?.sequence?.sequencer),
+    }]
+    : describesProjects
+      ? [{
+        name: 'variance-authority:test-selection-config',
+        configResolved: declareConfig(run, declared, [setupId, runnerId]),
+      } satisfies ConfigPlugin]
+      // Under `loads` no region is probed, so no line of a test can be said to
+      // have reached one first: the cut would cost a call per statement for nothing.
+      : selectionPlugin(root, setupId, runnerId, globalSetup, run, { include, unprobed }, { capture, after }, mode, declared, settle,
+        options.cadence === false || (!run.cases && story === undefined) ? undefined : testFiles(config, configRoot),
+        options.placement ?? 'after-transforms', story);
   return {
     ...config,
     plugins: [...array(config.plugins), ...plugins],
     test: {
       ...config.test,
       ...selecting(config, root, configRoot, options, coverageFile, selection, run),
-      // First, so what a setup file of the project's loads is logged into the
-      // file's own bucket: before the shim opens it, a probe in a realm that
-      // already ran a file writes into the idle one, and under a runner of the
-      // project's own finds no root at all.
-      // On disk rather than virtual — see {@link writeSeamModule}.
-      setupFiles: [
-        writeSeamModule(
-          run,
-          setupId,
-          setupSource(run.runDirectory, run.caseDirectory, { continuations, story, root, cases: run.cases }),
-        ),
-        ...setupFiles,
-      ],
-      // Kept for a single-configuration project, where this config is the root
-      // one as well and its reporters are the ones that run.
-      reporters: [...reporters, reporter],
-      // A runner of the project's own is left alone rather than replaced: a case
-      // scope is worth less than a suite that runs. Per-case recording then has
-      // no bracket and records the file as one ambient bucket, which is the
-      // file-level answer it already had.
-      // FIXME: a project with its own runner gets file-level answers without
-      // being told, and a `snapshotSerializers` or `diff` file of its that
-      // imports product source throws at its first probe, because this seam's
-      // runner is what installs the probe root before Vitest loads them; the
-      // case runner could extend the configured class instead.
-      ...(config.test?.runner === undefined
-        ? {
-          runner: writeSeamModule(run, runnerId, caseRunnerSource({
-            ...runnerImports(configRoot, runnerId),
-            finished: run.finishedDirectory,
-            cut: run.cutFile,
-            recording: { continuations, story: story !== undefined },
-          })),
-        }
-        : {}),
+      // Any test file of the run answers for a config that lists projects, and a
+      // reporter refuses for it: Vitest 4 calls no `configureVitest` of such a config.
+      // For a single-configuration project, this config is the root one as well
+      // and its reporters are the ones that run.
+      reporters: [...reporters, ...(settle !== undefined && describesProjects ? [refusal(() => true, () => declared)] : []), ending],
+      ...(settle === undefined || describesProjects ? {} : {
+        // First, so what a setup file of the project's loads is logged into the
+        // file's own bucket: before the shim opens it, a probe in a realm that
+        // already ran a file writes into the idle one, and under a runner of the
+        // project's own finds no root at all.
+        // On disk rather than virtual — see {@link writeSeamModule}.
+        setupFiles: [
+          writeSeamModule(
+            run,
+            setupId,
+            setupSource(run.runDirectory, run.caseDirectory, { continuations, story, root, cases: run.cases }),
+          ),
+          ...setupFiles,
+        ],
+        // A runner of the project's own is left alone rather than replaced: a case
+        // scope is worth less than a suite that runs. Per-case recording then has
+        // no bracket and records the file as one ambient bucket, which is the
+        // file-level answer it already had.
+        // FIXME: a project with its own runner gets file-level answers without
+        // being told, and a `snapshotSerializers` or `diff` file of its that
+        // imports product source throws at its first probe, because this seam's
+        // runner is what installs the probe root before Vitest loads them; the
+        // case runner could extend the configured class instead.
+        ...(config.test?.runner === undefined
+          ? {
+            runner: writeSeamModule(run, runnerId, caseRunnerSource({
+              ...runnerImports(configRoot, runnerId),
+              finished: run.finishedDirectory,
+              cut: run.cutFile,
+              recording: { continuations, story: story !== undefined },
+            })),
+          }
+          : {}),
+      }),
     },
   };
 }
