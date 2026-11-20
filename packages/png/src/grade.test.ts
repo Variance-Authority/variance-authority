@@ -7,9 +7,10 @@ import { comparePngs } from './compare.js';
 
 /**
  * The site's own page, from a review whose sentence read its faint marks like
- * its real change: 137 rows that gain a 53-row insertion, the call to action's
- * two marks, read against rows the pairing moved by a fraction of a row, and
- * the footer's one, repainted by 7 levels. Both come from one run's images.
+ * its real change: 137 rows that gain a 53-row insertion, and the footer's one
+ * mark, repainted by 7 colour levels. The call to action's two marks, read
+ * against rows paired a fraction of a row off, are gone now the pairing keeps
+ * them in place. Both images come from one run.
  */
 const file = (side: string): Buffer => readFileSync(new URL(`./fixtures/site-grade-${side}.png`, import.meta.url));
 
@@ -20,8 +21,6 @@ describe('a region graded by how strongly it differs', () => {
 
     expect(regions.map(({ x, y, width, height, grade }) => ({ x, y, width, height, grade }))).toEqual([
       { x: 0, y: 0, width: 1280, height: 53, grade: SEVERITY_LEVELS.length },
-      { x: 456, y: 139, width: 3, height: 1, grade: 3 },
-      { x: 650, y: 139, width: 3, height: 1, grade: 3 },
       { x: 100, y: 173, width: 1, height: 1, grade: 1 },
     ]);
     expect(regions.filter((region) => region.grade >= STRONG_GRADE)).toHaveLength(1);
