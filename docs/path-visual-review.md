@@ -40,8 +40,9 @@ differs is what the edits drew.
 
 The run's `change.png` draws the alignment. Each row sits level with the row it
 became, striped filler stands opposite the rows only the after side has, and a
-blue arrow in the gutter runs beside the rows that only moved. What changed is
-washed red on the before and green on the after.
+blue arrow in the gutter runs beside the rows that only moved. The rows a change
+spans are washed red on the before and green on the after, and rows where
+nothing changed are folded away, which is why the sheet has gaps.
 
 The report then says which components changed by their own inputs and which
 only moved. A component is a **cause** when its structure, text, accessible
@@ -60,6 +61,8 @@ components:
   collateral Price — geometry
 ```
 
+Every card sat 44 pixels lower, so `geometry` is on every line; what makes the
+button and the card causes is the `token` beside it, their own declared colour.
 The plan names and prices are collateral: their text and styles are the same,
 and they sit lower. Collateral is where to look last, not proof that a cause
 moved it, since a size declared on the component itself is geometry too.
@@ -70,11 +73,12 @@ Each region is graded by how far its pixels moved. The notice and the button
 are **strong**: the headline names their components. The three darker rules
 are **faint**, a colour moved a few shades: the headline counts them after the
 strong ones. The run's `diff.png` draws them apart: the button's changed pixels
-red, the three rules pale red, and the inserted notice tinted so its text stays
+red, the three rules as thin pale red lines, and the inserted notice tinted so its text stays
 legible. The HTML report draws a faint region's box dashed. [From a pixel to a line](attribution.md#how-strongly-it-changed)
 owns the threshold.
 
-Each region also says whether its drawing changed or only its colour. The
+Of the five regions, each also says whether its drawing changed or only its
+colour. The
 notice is new drawing, `1 changed in shape`; the button and the three rules kept
 their edges and moved colour, `4 only in colour`.
 
@@ -93,9 +97,10 @@ A fifth band, `texture`, is raster residue with no document counterpart, so no
 component changes in it: it is counted on the region and the observation, as
 [Sensitivity](sensitivity.md) says. Under a component, a declared style value
 that changed is printed as `property from → to`. Layout values such as `width`
-belong to `geometry` and get no such line, and the values are compared across
-every instance of the component, so a change to one instance whose siblings
-keep the old value can print none. So a new notice, a recolour and a darker
+belong to `geometry` and get no such line. The values are compared as sets
+across every instance of the component, so when one button of three turns
+orange, the other two still declare charcoal: no value left the set, one joined
+it, and the left side reads `(not declared)`. So a new notice, a recolour and a darker
 rule are three kinds, not three pixel counts, and a
 [sensitivity](sensitivity.md) can let a route test pass on `token` while it
 still fails on `geometry`.
@@ -103,8 +108,9 @@ still fails on `geometry`.
 ### Each region is connected to its component and the page
 
 Below the components, the report lists the regions whose pixels differ. Each
-names the component that rendered it, its landmark path in the page — the
-route a screen reader takes to it — and the line the component is declared at:
+carries its component's label, cause or collateral, and names the component
+that rendered it, its landmark path in the page — the route a screen reader
+takes to it — and the line the component is declared at:
 
 ```text
   cause      3670px at 360,156 104×40 — ChooseButton
