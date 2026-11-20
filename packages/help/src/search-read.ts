@@ -76,13 +76,13 @@ const reasonOf = (error: unknown): string => (error instanceof Error ? error.mes
  * question after them expects to find their output. So the published store is
  * opened in place at any age — not the checkout, and the graph only when a
  * start point was said. With none, there is nothing to look up: the checkout is
- * read and the store published, as any source question reads it, unless
- * `--just-answer` was asked, which forbids the read — and only then is the
- * question refused, naming the flag that refused it.
+ * read and the store published, unless `justAnswer` forbids the read — as
+ * every `variance ask` question does — and then the question is refused,
+ * naming `variance index`, the command that publishes one.
  *
  * Changed paths or taints are the one exception, because they ask for a new
  * generation by name: that reading is {@link readWorkspaceForAnswer}'s, and it
- * publishes the search it answers from; under `--just-answer` it reads nothing
+ * publishes the search it answers from; under `justAnswer` it reads nothing
  * new, so that search is not compared with the checkout either.
  */
 export async function readSearchForAnswer(root: string, options: AnsweringOptions = {}): Promise<SearchReading> {
@@ -118,8 +118,7 @@ export async function readSearchForAnswer(root: string, options: AnsweringOption
         ? `none is published at ${at}`
         : unopened.map(({ published, at: where, reason }) => `the published ${published} at ${where} did not open (${reason})`).join(', and ');
       throw operatorError(
-        `search reads the published source generation, and ${tried}; ` +
-          'it was asked with `--just-answer`, so the checkout was not read. Run `variance index` to publish one.',
+        `search reads the published source generation, and ${tried}. Run \`variance index\` to publish one.`,
         { cause },
       );
     }

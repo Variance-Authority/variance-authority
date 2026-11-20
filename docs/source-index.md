@@ -129,6 +129,7 @@ These commands read what `variance index` published, and do not scan:
 variance select --since <ref>
 variance reach --since <ref>
 variance covering --since <ref>
+variance ask symbol --name <name>
 # With `source: { dirs: ["src"], relations: true }` in variance.config.json.
 variance run --since <ref>
 variance run --against <ref>

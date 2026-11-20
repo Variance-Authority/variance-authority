@@ -79,8 +79,8 @@ declarations, imports, the module graph and the recording, and the language's
 type checker for anything that needs a value's type.
 
 `variance ask` with no question lists every report, watcher and source question
-and its arguments. The source questions read the checkout under the working
-directory and need no `variance.config.json`; the same nine are on the
+and its arguments. The source questions read the index `variance index`
+published for the working directory and need no `variance.config.json`; the same nine are on the
 `variance-authority-help` binary for a workspace that installs nothing else. `variance_observability` inventories the domains supplied to a
 combined MCP connection before an agent asks from one of them. For every
 unavailable domain it also names the producer and integration guide.

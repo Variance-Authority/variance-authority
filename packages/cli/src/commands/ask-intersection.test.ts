@@ -25,7 +25,7 @@ function write(file: string, text: string): void {
   writeFileSync(join(root, file), text);
 }
 
-beforeAll(() => {
+beforeAll(async () => {
   root = mkdtempSync(join(tmpdir(), 'ask-intersection-'));
   write('package.json', '{"name":"ask-intersection-fixture","private":true}\n');
   write('src/Wallet.ts', "import { selectBalance } from './store';\nexport const balance = selectBalance;\n");
@@ -37,6 +37,8 @@ beforeAll(() => {
   commit('add', '.');
   commit('-c', 'user.name=fixture', '-c', 'user.email=fixture@example.com', 'commit', '--quiet', '-m', 'fixture');
   process.chdir(root);
+  // A question reads the generation `variance index` published, and never the checkout.
+  expect(await main(['index'], { out: () => {}, err: () => {} })).toBe(EXIT_CLEAN);
 });
 
 afterAll(() => {
@@ -147,7 +149,7 @@ describe('ask intersection refuses what it cannot cross', () => {
     await expect(ask("intersection 'symbol --name a' 'symbol --name b'", 'symbol --name selectBalance')).rejects.toThrow(/question 1, .*`intersection` answers no set of files/);
   });
 
-  it.each(['--changed-file', '--taint-file', '--just-answer', '--format', '--at', '--claims', '--config'])(
+  it.each(['--changed-file', '--taint-file', '--format', '--at', '--claims', '--config'])(
     'refuses `%s` inside a question, which is said once for the reading',
     async (flag) => {
       await expect(ask(`symbol --name selectBalance ${flag} x`, 'discover --from src/Wallet.ts')).rejects.toThrow(

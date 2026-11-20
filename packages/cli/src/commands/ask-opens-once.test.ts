@@ -83,19 +83,15 @@ describe('one question about a name declared in several files', () => {
   });
 
   it('opens the source index once for `ask symbol`', async () => {
-    expect(await opensAsking(['ask', 'symbol', '--name', 'levyOf', '--just-answer'])).toBe(1);
-  });
-
-  it('opens the source index once to see what `ask symbol` rests on, and once to answer it', async () => {
-    expect(await opensAsking(['ask', 'symbol', '--name', 'levyOf'])).toBe(2);
+    expect(await opensAsking(['ask', 'symbol', '--name', 'levyOf'])).toBe(1);
   });
 
   it('opens the source index once for `ask search`', async () => {
-    expect(await opensAsking(['ask', 'search', '--query', 'levyOf', '--just-answer'])).toBe(1);
+    expect(await opensAsking(['ask', 'search', '--query', 'levyOf'])).toBe(1);
   });
 
   it('opens the source index once for `ask search` as data', async () => {
-    expect(await opensAsking(['ask', 'search', '--query', 'levyOf', '--just-answer', '--format', 'json'])).toBe(1);
+    expect(await opensAsking(['ask', 'search', '--query', 'levyOf', '--format', 'json'])).toBe(1);
   });
 
   it('opens the source index once for the served `docs_symbol`', async () => {

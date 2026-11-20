@@ -134,8 +134,6 @@ export interface ParsedAsk extends Crossing {
   readonly changedFile?: string;
   /** `--taint-file <path>`: addition-only declarative module edges. */
   readonly taintFile?: string;
-  /** Use the last published source generation without inspecting the checkout. */
-  readonly justAnswer?: boolean;
   /** `--story`: what each execution's functions were handed, for `ran`. */
   readonly story?: boolean;
   readonly limit?: number;
@@ -199,7 +197,6 @@ export function parseAskArgs(flags: Flags, config: string): ParsedAsk {
   const to = flags.values.get('--to');
   const changedFile = flags.values.get('--changed-file');
   const taintFile = flags.values.get('--taint-file');
-  const justAnswer = flags.present.has('--just-answer');
   const story = flags.present.has('--story');
   const limit = countOf(flags.values.get('--limit'), 'rows to show');
   const said = flags.values.get('--offset');
@@ -242,7 +239,6 @@ export function parseAskArgs(flags: Flags, config: string): ParsedAsk {
     ...carried(flags, CROSSING),
     ...(changedFile !== undefined ? { changedFile: resolve(changedFile) } : {}),
     ...(taintFile !== undefined ? { taintFile: resolve(taintFile) } : {}),
-    ...(justAnswer ? { justAnswer: true as const } : {}),
     ...(story ? { story: true as const } : {}),
     ...(limit !== undefined ? { limit } : {}),
     ...(offset !== undefined ? { offset } : {}),

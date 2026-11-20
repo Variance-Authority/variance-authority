@@ -179,6 +179,7 @@ describe('variance ask grep --test', () => {
     const bare = realpathSync(mkdtempSync(join(tmpdir(), 'va-grep-ran-bare-')));
     execFileSync('git', ['init', '--quiet'], { cwd: bare, stdio: 'pipe' });
     process.chdir(bare);
+    expect(await main(['index'], { out: () => {}, err: () => {} })).toBe(EXIT_CLEAN);
     const unrecorded = await run(['ask', 'grep', '--query', 'give up', '--test', 'test/order.test.ts']);
     await recorded();
     const outside = await run(['ask', 'grep', '--query', 'give up', '--test', '../elsewhere.test.ts']);
@@ -242,6 +243,8 @@ async function recorded(): Promise<string> {
   const git = (...args: string[]): string => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
   git('add', '.');
   git('-c', 'user.name=fixture', '-c', 'user.email=fixture@example.com', 'commit', '--quiet', '-m', 'recorded');
+  // A question reads the generation `variance index` published.
+  expect(await main(['index'], { out: () => {}, err: () => {} })).toBe(EXIT_CLEAN);
   const at = testCoverageFile(root);
   const files = ['test/order.test.ts', 'test/refund.test.ts', 'test/ship.test.ts'];
   const region = (kind: string, name: string, startLine: number, endLine: number, entered: readonly number[]) => ({

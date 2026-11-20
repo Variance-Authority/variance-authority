@@ -11,7 +11,8 @@ import { readSourceIndexChain, readSourceIndexSegment } from './source-index-rea
 import { native } from './addon.js';
 import { readPublishedSources } from './published.js';
 import { readySourceIndex } from './ready-index.js';
-import { adoptNativeParses, openSourceIndex, readSourceRecords } from './source-index.js';
+import { keyFor, parseWay } from './files.js';
+import { adoptNativeParses, openSourceIndex, readSourceParses, readSourceRecords } from './source-index.js';
 import type { EncodedParseLayer } from './source-index-file.js';
 import type { TreeShape } from './reuse.js';
 import { directoriesOf } from './witness.js';
@@ -393,6 +394,32 @@ describe('the binary source index', () => {
     expect([...layer.directories.keys()]).toEqual([]);
     expect([...layer.records.keys()]).toEqual(['src/button.tsx']);
     expect((await readPublishedSources(file)).records.map((record) => record.file)).toEqual(['src/button.tsx', RECORD.file]);
+  });
+
+  it('reads each parse beside its targets, and leaves out a record with no digest, targets or parse', async () => {
+    const parsed = (file: string) => keyFor(DIGEST, parseWay(file));
+    const records = new Map([
+      [RECORD.file, { record: RECORD, witnesses: WITNESSES, targets: ['src/button.tsx', undefined] }],
+      // Each lacks one of the three a name is read from, so dropping its guard reads it or throws.
+      ['src/bare.tsx', { record: { file: 'src/bare.tsx', digest: DIGEST }, witnesses: [] }],
+      ['src/blank.tsx', { record: { file: 'src/blank.tsx' }, witnesses: [], targets: [] }],
+      ['src/lost.tsx', { record: { file: 'src/lost.tsx', digest: OTHER }, witnesses: [], targets: [] }],
+    ]);
+    const file = await path();
+    const bytes = encodeSourceIndex({
+      config: CONFIG,
+      parses: new Map([
+        [parsed(RECORD.file), PARSED],
+        [parsed('src/bare.tsx'), PARSED],
+      ]),
+      directories: new Map([['src', CONFIG]]),
+      records,
+    });
+    expect(native()!.appendSourceIndex(file, [], false, [bytes])).toBeNull();
+
+    expect(await readSourceParses(file)).toEqual([
+      { file: RECORD.file, parsed: PARSED, targets: ['src/button.tsx', undefined] },
+    ]);
   });
 });
 

@@ -169,7 +169,7 @@ variance layers  [--against <index>] [--package <name>]... [--root <path>] [--fo
 variance restrictions [--root <path>] [--format text|json]
 variance review  [--since <ref>] [--against <record>] [--suite <name>] [--coverage] [--fail-on-uncovered] [--fail-on-lost] [--out <dir>] | --from-run <run id or URL> [--artifact <name>] [--root <path>] [--format text|markdown|json|handover]
 variance report  [--config <path>] [--format text|json|html [--embed-images]] [--subject <id>] [--exit-zero-on-changes] [<report>...]
-variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--build <id>] [--file <path>] [--files <path>[,...]] [--area <id>] [--name <name>] [--line <file>:<line>] [--package <name>] [--subpath <subpath>] [--query <words>] [--under|--above|--inside|--beside|--left-of|--right-of <words>] [--on <words>] [--from <path>] [--to <path>] [--imports <import>] [--declares <regex>] [--path <regex>] [--text <pattern>] [--except-from|--except-to|--except-imports|--except-declares|--except-path <value>] [--changed-file <path>] [--taint-file <path>] [--just-answer] [--story] [--over <time>] [--after <date>] [--limit <n>] [--offset <n>] [--at <address>] [--format text|json] [<report>...]
+variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--build <id>] [--file <path>] [--files <path>[,...]] [--area <id>] [--name <name>] [--line <file>:<line>] [--package <name>] [--subpath <subpath>] [--query <words>] [--under|--above|--inside|--beside|--left-of|--right-of <words>] [--on <words>] [--from <path>] [--to <path>] [--imports <import>] [--declares <regex>] [--path <regex>] [--text <pattern>] [--except-from|--except-to|--except-imports|--except-declares|--except-path <value>] [--changed-file <path>] [--taint-file <path>] [--story] [--over <time>] [--after <date>] [--limit <n>] [--offset <n>] [--at <address>] [--format text|json] [<report>...]
 variance distill [--test <name>] [--file <path> | --from <dir>] [--execution <path> | --suite <name>] [--root <path>] [--format text|json|jsonl]
 variance story   [--file <path>] [--name <name>]... [--project <name>] [--label <label>] [--in <file> | --package <name> | --around <step> | --whole | --page <text> | --compare last|outcome|<a>,<b>,…] [--root <path>] [--format text|json]
 variance watch
@@ -229,43 +229,30 @@ is kept. It is for a caller that knows; the action passes the person who ticked.
 component and which file, and what that file's package publishes, without
 re-running anything and without a second server.
 
-For source questions, `justAnswer` and its `--just-answer` spelling read the
-last published workspace generation regardless of age. They perform no Git
-status or refresh, refuse when no generation exists, and print when the value
-was produced, saying under an answer or a refusal that the checkout was not
-compared with it; `search --format json` carries `compared: false` instead.
-Without the flag a generation is reused for one hour before the next source
-question refreshes it. A question refused from a reused generation, a name not
-found among them, is answered from it, and says the checkout was not compared
-with it: `variance index` refreshes the generation and builds the dependency
-lexicon. A `symbol` or `uses` whose files changed or went away after the generation, the ones that declare the
-name or pass it on, the entry that publishes it and each row `uses` lists, and `serve`'s
-`docs_search` whose printed files, or the entry and barrels publishing them, did, which a stat of each decides, is asked again of a generation made now: an answer whose files
-are unchanged reads nothing more. When the checkout cannot be read again, or the read cannot be saved, or a file the answer rests on
-is saved during the read that answers it, the answer or the refusal says it was not compared with the generation,
-and why, and gives a file written since as the generation read it: its names, and the text of them
-it kept. An injected
-`AskRequest.source` is read again with `current` set when its answer outlived its generation. When no changed files are
-named, `search` is the exception: it reads the published generation, whatever
-its age, and says so on the same line. When nothing is published it reads the
-checkout and publishes the search, unless you passed `--just-answer`, which
-refuses and names that flag. `--changed-file` and `--taint-file` still ask it
-for a new generation by name.
+A source question answers from the workspace generation `variance index` last
+published, whatever its age, and does nothing else: no Git status, no look at
+the files the answer rests on, no index written. So after you edit, run
+`variance index`, then ask. Every answer and refusal prints when the generation
+was produced and says the checkout was not compared with it; `search --format
+json` carries `compared: false` instead. With no generation published, the
+question refuses in one line that names `variance index`. Of a file written
+after the generation's read, an answer gives what the generation recorded: its
+names, and none of its text.
 
-A library host that injects `AskRequest.source` receives `SourceReadOptions`.
-Its `current` field is true when a question was refused from a generation
-older than the question, and asks for one made from the checkout now. Its
-`tree` field is true only when the selected source tool names a `from` or `to`
-path, so the injected reader can avoid loading the graph for every other
-question and return it through `Sourced.tree` only then.
-
+`--changed-file` and `--taint-file` are the exception: they ask for a new
+generation by name, and are the one way a question has the index updated.
 `--changed-file` takes a newline-delimited file of scan-root-relative paths an
 editor, watcher, or CI step already detected as changed. It is producer input:
-an empty file states that nothing changed, it replaces Git status discovery, and
-it cannot be combined with `--just-answer`. A file you listed gives its names at
-the lines it holds now. A file you left off is unchanged for
-that request; the next question without a list looks. With no generation to
-refresh, the read is whole and the list is not used.
+an empty file states that nothing changed, and it replaces Git status discovery.
+A file you listed gives its names at the lines it holds now. With no generation
+to refresh, the read is whole and the list is not used.
+
+A library host that injects `AskRequest.source` receives `SourceReadOptions`.
+Its `justAnswer` field is true unless the question names a changed file or a
+taint, and asks for the published generation alone. Its `tree` field is true
+only when the selected source tool names a `from` or `to` path, so the injected
+reader can avoid loading the graph for every other question and return it
+through `Sourced.tree` only then.
 
 `--format json` prints `search` as data: the query, the area, and the
 `published`, `exported` and `loose` sections, each with its `total` and the rows

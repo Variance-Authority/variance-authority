@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
-import { countingShown, outlived, readNamedTree, readSearchForAnswer, readWorkspaceForAnswer, workspaceGeneration, type Unopened } from '@variance-authority/help';
+import { countingShown, readGenerationNames, readNamedTree, readSearchForAnswer, readWorkspaceForAnswer, workspaceGeneration, type AnsweringOptions, type Unopened } from '@variance-authority/help';
 import { answerSearch, containmentOf, discover, formatContainment, importingOf, intersection, journeyMapTool, namesWanted, orient, retriedTests, slowestTests, testCompositionTool, type Containment, type Help, type SearchAnswer, searchIndexOf, searchNames, searchQuestionOf } from '@variance-authority/help/tools';
-import type { Tool, Tree } from '@variance-authority/mcp/tools';
+import { type Tool, type Tree } from '@variance-authority/mcp/tools';
 import { sourceIndexPath } from '@variance-authority/sense';
 import { taintFile as readTaintFile, type Taint } from '@variance-authority/sense/taint';
 import { messageOf } from '../config-values.js';
@@ -10,7 +10,7 @@ import { invocationOf } from './asking.js';
 import type { AskRequest, SourceReadOptions, Sourced } from './ask.js';
 
 /**
- * How `variance ask` reads the checkout for a question about the code.
+ * How `variance ask` reads the generation `variance index` published for a question about the code.
  *
  * Every source question reads the published workspace value, except `search`:
  * it reads only names, docs and sites, and opens the file published for that
@@ -28,10 +28,6 @@ export interface Answering {
   readonly unseen?: boolean;
   /** The published files that were there and did not open; absent when none failed. */
   readonly unopened?: readonly Unopened[];
-  /** The workspace value the answer comes from, when it is one. */
-  readonly help?: Help;
-  /** Whether the files the answer names changed since its generation, as `outlived` from the help package says, for the request that began at `started`, a refusal resting on what it rested on in `before`; absent for a reading that cannot say. */
-  readonly outlived?: (started: number, before?: Help) => Promise<boolean>;
 }
 
 export async function wholeSource(
@@ -47,8 +43,6 @@ export async function wholeSource(
     answer: () => tool.run(sourced.help, input, invocationOf({ ...(tree === undefined ? {} : { tree }), root })),
     data: () => searchNames(searchIndexOf(sourced.help), searchQuestionOf(input), tree, root, importingOf(sourced.help, root)),
     at: workspaceGeneration(sourced.help),
-    help: sourced.help,
-    outlived: (started, before) => outlived(tool.name, sourced.help, input, { ...(tree === undefined ? {} : { tree }), root }, started, before),
   };
 }
 
@@ -77,21 +71,21 @@ export async function searchSource(
 }
 
 /**
- * `discover` reads no workspace value either, but every one of its sets
- * needs the tree, and `declares` and most `imports` need each file's names,
- * which only the scan that draws the tree holds.
+ * `discover` answers from no workspace value, but every one of its sets needs
+ * the tree, and `declares` and most `imports` need each file's names, which
+ * the source index holds beside it; both come from the generation `reading`
+ * opens, which dates the answer.
  */
-export async function discoverSource(root: string, input: Readonly<Record<string, unknown>>): Promise<Answering> {
-  const read = await readNamedTree(root, input);
-  return { answer: () => discover.run(undefined, input, invocationOf({ ...read, root })), at: undefined };
+export async function discoverSource(root: string, input: Readonly<Record<string, unknown>>, reading: SourceReadOptions): Promise<Answering> {
+  const { at, ...read } = await readNamedTree(root, input, answeringOf(root, reading));
+  return { answer: () => discover.run(undefined, input, invocationOf({ ...read, root })), at };
 }
 
 /**
  * `intersection` asks each of its questions over one reading: the workspace
  * value the name questions read, the tree when any question names a path, and
- * each file's names when a `discover` among them reads names — which only the
- * scan that draws a tree holds. The tree the questions reach along is still
- * the workspace's, because only that one joins a taint table's edges.
+ * each file's names when a `discover` among them reads names, off the parses
+ * the published source index holds.
  */
 export async function intersectionSource(
   root: string,
@@ -100,7 +94,7 @@ export async function intersectionSource(
 ): Promise<Answering> {
   const sourced = await readSource(root, reading);
   const tree = sourced.tree?.();
-  const names = namesWanted(input) ? (await readNamedTree(root, input)).names : undefined;
+  const names = namesWanted(input) ? await readGenerationNames(sourced.help, root, sourceIndexPath(root)) : undefined;
   const drawn = { ...(tree === undefined ? {} : { tree }), ...(names === undefined ? {} : { names }) };
   return {
     answer: () => intersection.run(sourced.help, input, invocationOf({ ...drawn, root })),
@@ -135,14 +129,20 @@ export function retriedSource(root: string, input: Readonly<Record<string, unkno
 export async function readSource(root: string, options: SourceReadOptions = {}): Promise<Sourced> {
   let tree: Tree | undefined;
   const help = await readWorkspaceForAnswer(root, {
+    ...answeringOf(root, options),
+    ...(options.tree === true ? { tree: (drawn: Tree) => { tree = drawn; } } : {}),
+  });
+  return { help, tree: () => tree };
+}
+
+/** What the reader is asked for: the generation the question's flags name, without the tree. */
+function answeringOf(root: string, options: SourceReadOptions): AnsweringOptions {
+  return {
     index: sourceIndexPath(root),
     ...(options.changed === undefined ? {} : { changed: options.changed }),
     ...(options.taints === undefined ? {} : { taints: options.taints }),
     ...(options.justAnswer === true ? { justAnswer: true } : {}),
-    ...(options.current === true ? { refreshAfterMs: 0 } : {}),
-    ...(options.tree === true ? { tree: (drawn: Tree) => { tree = drawn; } } : {}),
-  });
-  return { help, tree: () => tree };
+  };
 }
 
 export async function readTaint(path: string): Promise<Taint> {

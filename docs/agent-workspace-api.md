@@ -54,19 +54,12 @@ symbol` just did.
 The source index at …/source-index.bin was folded into no code map, because the root's is the only named manifest. With files in hand, `files` reads the graph around them.
 ```
 
-A name the index does not hold is answered from the index as it is: a function
-written since `variance index` ran is reported missing, and the answer's last
-line says the checkout was not compared with that index. Run `variance index`, or
-name the file with `--changed-file`, and ask again. A name the index does hold
-is answered from the index, which a question reuses for an hour, and read again
-when a file the answer rests on changed since. An edit anywhere else can leave
-that answer behind. Run `variance index` when the next answer has to match it:
-who imports a name, and which names exist, are then current. What `ask symbol`
-prints from the declaration of a name that stays exported — its kind, line,
-signature and comment — can stay old. A question reads them again once the index
-is over an hour old, and a `variance index` that read a changed file restarts
-that hour, so read the file itself for those. `ask search` answers from the last
-index at any age, and its last line says so.
+A question answers from the index `variance index` last published, at any age,
+and does nothing else: it does not read the checkout, look at what changed, or
+write the index. So after you edit, run `variance index`, then ask. Until you
+do, a function written since is reported missing, and a name you moved is given
+at the line it held. Every answer's last line names when the index was made and
+says the checkout was not compared with it.
 
 Your agent can now run any `variance ask` question, and one step is left:
 [point it at them](#point-an-agent-at-it). A client that reaches tools only
@@ -189,7 +182,7 @@ candidate belongs to the code in question.
 Carry a path into the first search whenever you have one:
 
 ```bash
-variance ask search --query createStore --from src/fulfilment/ --just-answer
+variance ask search --query createStore --from src/fulfilment/
 ```
 
 `--from` walks along imports and keeps names used inside that closure. Use
@@ -364,88 +357,63 @@ with a few files edited. The index adds the facts
 that neither read supplies — declarations and resolved relations — and keeps
 them for the next question.
 
-Ordinary source questions reuse a generation for one hour, then refresh it.
-A name the generation does not hold is answered from that generation as it is,
-whichever command or server you ask through: the checkout is not read again. When
-the generation was made before the question, the answer's last line says the
-checkout was not compared with it. A function you wrote since, or a package you
-installed since, is reported missing until you run `variance index`, or name the
-file you changed with `--changed-file`. A server holding a generation reads the
-one `variance index` published on its next call, on the same connection, and with
-`--just-answer` too: each call reads the head of the published generation to see
-whether it is newer than the one held.
+A question on `variance ask` answers from the generation `variance index` last
+published, whatever its age, and does nothing else: it reads no Git status,
+looks at no file the answer rests on, and writes no index. The one who edited a
+file knows it did, so the workflow is: edit, run `variance index`, then ask.
+Every answer names the time its generation was made and says the checkout was
+not compared with it; as JSON, `search` carries `compared: false` beside
+`generatedAt`. A function you wrote since, or a package you installed since, is
+reported missing until you run `variance index`. Of a file written after the
+generation's read, the answer gives what the generation recorded, a declaration
+and its members by name, and none of the file's text: its lines are no longer
+the ones that were read. With no generation published, the question refuses in
+one line that names `variance index`.
 
-A found `symbol` or `uses`, a `grep`, and a `docs_search` over either server, is asked again
-of a generation made from the checkout as it is when a file it rests on changed or went away after the generation: the
-rows `docs_search` prints with the entry and each barrel that publish them, for
-`grep` every file of the area it searched, and
-for the other two the files that declare the name or pass it on and the entry
-that publishes it, with each row `uses` lists. So an export you renamed is not
-given under its old name, a name a barrel stopped passing on is not called
-published, a declaration you moved is given at the line it holds today, and a use
-is given at its line. An edit anywhere
-else waits for the hour: `uses` does not see an import you just added to a file
-it does not list, and `grep` does not see a file that just began importing into
-its area, or one written under a folder it starts from. The look is a stat of
-each file.
-
-When the checkout cannot be read again, or the new read cannot be saved, or a
-file the answer rests on is saved during the read that answers it, the answer or
-the refusal names the generation time,
-says the checkout was not compared with it, and says why. Of a file written
-after the generation's read the answer gives what the generation recorded, a
-declaration and its members by name, and none of the file's text: its lines are
-no longer the ones that were read. A read that cannot be saved is dropped whole,
-because its names would meet the last read's lines. The next question reads
-again.
-
-Pass `--just-answer` when the caller owns freshness: no Git status, generation,
-or regeneration is performed, and every answer and refusal names the generation
-time and says the checkout was not compared with it; as JSON, `search` carries
-`compared: false` beside `generatedAt`. Text comes from a file only while that
-file is as old as the generation's read, so a newer one gives its recorded names.
-If no generation has been published,
-the command refuses instead of silently turning the question into production
-work.
-
-When no changed files are named and a search is published, `search` opens it
-at any age, because in CI the step before it already brought the index up to
-date and is the one that owns freshness. The answer says, as one under
-`--just-answer` does, that the checkout was not compared. With no published
-generation, `search` reads the checkout and publishes the search, the way any
-other question does, and that answer is the checkout's. Under `--just-answer`
-it refuses instead, says the flag is why, and names the command to run.
+A server holds a generation across calls, so it keeps an expiry of its own. It
+reuses a generation for one hour, then refreshes it, and reads the one
+`variance index` published on its next call, on the same connection: each call
+reads the head of the published generation to see whether it is newer than the
+one held. A found `symbol` or `uses`, a `grep`, and a `docs_search`, is asked
+again of a generation made from the checkout as it is when a file it rests on
+changed or went away after the generation: the rows `docs_search` prints with
+the entry and each barrel that publish them, for `grep` every file of the area
+it searched, and for the other two the files that declare the name or pass it
+on and the entry that publishes it, with each row `uses` lists. An edit anywhere
+else waits for the hour. The look is a stat of each file. When the checkout
+cannot be read again, or the new read cannot be saved, or a file the answer
+rests on is saved during the read that answers it, the answer or the refusal
+names the generation time, says the checkout was not compared with it, and says
+why. Start the server with `--just-answer` when the caller owns freshness: it
+then answers from the last published generation and nothing else, as `variance
+ask` does.
 
 When an editor, watcher, or orchestrator produces a generation and already has
 the changed paths, write their scan-root-relative paths to a newline-delimited
 file and pass that file through `--changed-file`. An empty file declares that
-nothing changed. This is producer input: it replaces Git's changed-file
-discovery and cannot be combined with `--just-answer`. Such a refresh reads the
+nothing changed. This is producer input, and the one way `variance ask` writes
+the index: it replaces Git's changed-file discovery, and the refresh reads the
 files you listed and no others, so the generation keeps the time of the read it
-refreshed: an answer given with the list gives a listed file's names at the lines
-the file holds now, with their text as the refresh read it, and the next question without one that
-rests on that file reads the checkout. A
-file you left off is unchanged for that request, and that next question is where
-it is looked at. With no generation to refresh, the read is whole and the list
-is not used.
+refreshed. An answer given with the list gives a listed file's names at the
+lines the file holds now, with their text as the refresh read it. With no
+generation to refresh, the read is whole and the list is not used.
 [Naming what changed](source-index.md#naming-what-changed) gives the file
 contract.
 
 ## Ask from the shell
 
 A workspace with `@variance-authority/cli` installed asks these questions on
-`variance ask`, beside the questions about a run, reading the checkout under the
-working directory:
+`variance ask`, beside the questions about a run, reading the generation
+`variance index` published for the checkout under the working directory:
 
 ```bash
 variance ask search --query viewport
 variance ask symbol --name Viewport
-variance ask search --query viewport --from packages/app/ --just-answer
+variance ask search --query viewport --from packages/app/
 ```
 
 The flags are the tool arguments, spelled `--name`, `--package`, `--subpath`,
-`--query`, `--from`, `--to` and `--limit`; `--just-answer` selects the last published
-generation. An answer names a flag or a next question the same way —
+`--query`, `--from`, `--to` and `--limit`. An answer names a flag or a next question the same way —
 `--from`, `variance ask symbol` — where the tool over MCP says `from` and
 `docs_symbol`. [Ask about the code and its runs from the
 command line](agent-cli.md#find-a-name-in-the-source) shows each one.

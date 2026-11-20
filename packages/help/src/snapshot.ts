@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { closeSync, fstatSync, openSync, readSync, realpathSync } from 'node:fs';
 import { mkdir, readFile, rename, stat, writeFile } from 'node:fs/promises';
-import { dirname, resolve } from 'node:path';
+import { dirname, relative, resolve } from 'node:path';
 import {
   decodeSourceTree,
   treeAtWorkspace,
@@ -12,6 +12,7 @@ import {
 import { SegmentCutShort } from '@variance-authority/core/segment';
 import type { Help } from '@variance-authority/package/help';
 import { readSourceRecords, restampHelpStore, sourceIndexPath } from '@variance-authority/sense';
+import { scopeSourceIndexPath } from './scan-scope.js';
 import { openHelpStore, openSearchIndex, type SearchIndex } from './search-index.js';
 import { encodeStore } from './store-encode.js';
 import { storeHeadOf, type StoreHead } from './store-layout.js';
@@ -29,6 +30,19 @@ const generated = new WeakMap<Help, string>();
 const snapshots = new WeakMap<Help, StoreHead>();
 const searches = new WeakMap<Help, SearchIndex>();
 const stores = new WeakMap<Help, Uint8Array>();
+
+/**
+ * The source index a published value was read off, and the directory of the
+ * workspace under that index's root. A workspace whose members reach beside
+ * its directory is read from the repository's root into an index of its own
+ * beside `index`, as `scopeSourceIndexPath` names it, and its files are
+ * spelled from there; any other is read into `index` from its own directory.
+ */
+export function publishedSourceIndex(help: Help, index: string): { readonly index: string; readonly within: string } {
+  const held = snapshots.get(help);
+  const within = held === undefined ? '' : relative(held.graphRoot, held.root).replaceAll('\\', '/');
+  return { index: within === '' ? index : scopeSourceIndexPath(index, [within]), within };
+}
 
 /** When the workspace value was published, absent on an unrecorded reading. */
 export function workspaceGeneration(help: Help): string | undefined {

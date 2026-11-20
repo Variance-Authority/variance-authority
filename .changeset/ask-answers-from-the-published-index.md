@@ -1,0 +1,10 @@
+---
+'@variance-authority/cli': minor
+'@variance-authority/help': minor
+---
+
+`variance ask` and `variance-authority-help` answer a source question from the generation `variance index` last published, at any age, and do nothing else: they no longer look at the files an answer rests on, refresh a generation over an hour old, or build one when none is published. After an edit, run `variance index`, then ask. With no generation, a question refuses in one line that names `variance index`. `ask discover` and a report question's start point read the file tree and its names from that generation too, instead of scanning the checkout. On Kibana, `ask symbol --name HttpServer` after a one-line edit to the file that declares it went from about 6.6 s to the unedited time. `--just-answer` leaves both commands, since it is what they now always do; `variance serve` and the help server keep it and their one-hour reuse. `--changed-file` and `--taint-file` still ask for a new generation by name.
+
+`refusalFooter` in `@variance-authority/help` takes `(at, unseen)`: its `caught` argument was always undefined once `ask` stopped looking again.
+
+`readGenerationNames(help, root, index?)` in `@variance-authority/help` reads every file's names off the source index a published value was read from, spelled as its tree spells them, including a workspace whose members sit beside its directory.
