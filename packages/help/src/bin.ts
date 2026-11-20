@@ -1,12 +1,11 @@
 #!/usr/bin/env node
 import { relative } from 'node:path';
-import { readIndexedNames, type Tree } from '@variance-authority/mcp/tools';
-import { sourceIndexPath } from '@variance-authority/sense';
+import type { Tree } from '@variance-authority/mcp/tools';
 import { ask, askSearch, askSearchJson, countingShown, inputFrom, invocationOf, toolNamed, verbs } from './ask.js';
 import { foundNothingAnswer, refusalFooter, snapshotLine } from './caught-up.js';
 import { readWorkspaceForAnswer } from './read.js';
 import { workspaceGeneration } from './snapshot.js';
-import { readNamedTree } from './names-read.js';
+import { readGenerationNames, readNamedTree } from './names-read.js';
 import { readSearchForAnswer } from './search-read.js';
 import { containment, containmentOf, formatContainment } from './tools/containment.js';
 import { discover } from './tools/discover.js';
@@ -41,7 +40,7 @@ async function crossNamed(root: string, reading: Reading, args: readonly string[
   const input = inputFrom(intersection, args);
   let tree: Tree | undefined;
   const help = await readWorkspaceForAnswer(root, { ...reading, tree: (drawn) => { tree = drawn; } });
-  const names = { ...(tree === undefined ? {} : { tree }), names: await readIndexedNames(sourceIndexPath(root)) };
+  const names = { ...(tree === undefined ? {} : { tree }), names: await readGenerationNames(help, root) };
   const at = workspaceGeneration(help);
   return {
     answer: () => {

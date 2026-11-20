@@ -168,3 +168,31 @@ describe('ask discover with nothing published', () => {
     }
   });
 });
+
+describe('ask discover in a workspace whose member sits beside it', () => {
+  it('reads the names of the index that workspace was published from, spelled as its tree spells them', async () => {
+    const repository = mkdtempSync(join(tmpdir(), 'ask-discover-beside-'));
+    const put = (file: string, text: string): void => {
+      mkdirSync(dirname(join(repository, file)), { recursive: true });
+      writeFileSync(join(repository, file), text);
+    };
+    try {
+      put('app/package.json', '{"name":"app","private":true,"workspaces":["../lib"]}\n');
+      put('app/src/a.ts', 'export const appThing = 1;\n');
+      put('lib/package.json', '{"name":"lib","version":"1.0.0","exports":"./b.ts"}\n');
+      put('lib/b.ts', 'export const libThing = 2;\n');
+      const commit = (...args: string[]): void => void execFileSync('git', ['-C', repository, ...args]);
+      commit('init', '--quiet');
+      commit('add', '.');
+      commit('-c', 'user.name=fixture', '-c', 'user.email=fixture@example.com', 'commit', '--quiet', '-m', 'fixture');
+      process.chdir(join(repository, 'app'));
+      expect((await run(['index'])).code).toBe(0);
+      const text = await ask({ declares: 'Thing$' });
+      expect(text).toContain('src/a.ts:1  declares appThing');
+      expect(text).toContain('lib/b.ts:1  declares libThing');
+    } finally {
+      process.chdir(root);
+      rmSync(repository, { recursive: true, force: true });
+    }
+  });
+});

@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
-import { countingShown, readNamedTree, readSearchForAnswer, readWorkspaceForAnswer, workspaceGeneration, type AnsweringOptions, type Unopened } from '@variance-authority/help';
+import { countingShown, readGenerationNames, readNamedTree, readSearchForAnswer, readWorkspaceForAnswer, workspaceGeneration, type AnsweringOptions, type Unopened } from '@variance-authority/help';
 import { answerSearch, containmentOf, discover, formatContainment, importingOf, intersection, journeyMapTool, namesWanted, orient, retriedTests, slowestTests, testCompositionTool, type Containment, type Help, type SearchAnswer, searchIndexOf, searchNames, searchQuestionOf } from '@variance-authority/help/tools';
-import { readIndexedNames, type Tool, type Tree } from '@variance-authority/mcp/tools';
+import { type Tool, type Tree } from '@variance-authority/mcp/tools';
 import { sourceIndexPath } from '@variance-authority/sense';
 import { taintFile as readTaintFile, type Taint } from '@variance-authority/sense/taint';
 import { messageOf } from '../config-values.js';
@@ -94,7 +94,7 @@ export async function intersectionSource(
 ): Promise<Answering> {
   const sourced = await readSource(root, reading);
   const tree = sourced.tree?.();
-  const names = namesWanted(input) ? await readIndexedNames(sourceIndexPath(root)) : undefined;
+  const names = namesWanted(input) ? await readGenerationNames(sourced.help, root, sourceIndexPath(root)) : undefined;
   const drawn = { ...(tree === undefined ? {} : { tree }), ...(names === undefined ? {} : { names }) };
   return {
     answer: () => intersection.run(sourced.help, input, invocationOf({ ...drawn, root })),
