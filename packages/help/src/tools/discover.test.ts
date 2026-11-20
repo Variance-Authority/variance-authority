@@ -182,6 +182,13 @@ describe('discover crosses whole sets', () => {
     for (const key of ['declares', 'exceptDeclares']) expect(readsNames({ [key]: 'x' })).toBe(true);
   });
 
+  it('reads no names for an import of a name out of a file the tree holds, or one it will refuse', () => {
+    const files = new Set(['src/a.ts']);
+    expect(readsNames({ imports: ['src/a.ts#x'], exceptImports: ['src/a.ts#'] }, files)).toBe(false);
+    expect(readsNames({ imports: ['src/a.ts#x', 'src/b.ts#x'] }, files)).toBe(true);
+    expect(readsNames({ imports: ['src/a.ts#x'] })).toBe(true);
+  });
+
   it('reads no names for a name set said empty, which names no set', () => {
     expect(readsNames({ from: ['src/TopNav.tsx'], imports: [], exceptImports: [''], declares: '', exceptDeclares: '  ' })).toBe(false);
   });

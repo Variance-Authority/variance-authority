@@ -236,8 +236,9 @@ function reachingName(term: string, file: string, name: string, tree: Tree, root
  * specifier as written, a file with no name — is matched in the names.
  */
 function importsOf(written: string, tree: Tree, names: () => SourceNames, root: string | undefined): Operand {
+  const named = fileNamed(written, tree.files);
+  if (named !== undefined) return importersOfFile(named.file, named.name, root);
   const { spec, name } = nameOf(written);
-  if (name !== undefined && tree.files.has(spec)) return importersOfFile(spec, name, root);
   const held = names();
   const files = new Set<string>();
   const lines = new Map<string, Evidence[]>();
@@ -261,6 +262,16 @@ function importsOf(written: string, tree: Tree, names: () => SourceNames, root: 
     evidence: (file) => lines.get(file) ?? [],
     ...(unread === undefined ? {} : { unread }),
   };
+}
+
+/**
+ * The file and name of an import operand naming a name out of one of `files`,
+ * which the source index answers without the names; anything else is
+ * undefined. A `#` with nothing after it is refused, as `nameOf` refuses it.
+ */
+function fileNamed(written: string, files: ReadonlySet<string>): { readonly file: string; readonly name: string } | undefined {
+  const { spec, name } = nameOf(written);
+  return name !== undefined && files.has(spec) ? { file: spec, name } : undefined;
 }
 
 /** Every import of `name` out of `file`, followed through the files that pass it on. */
@@ -367,8 +378,13 @@ function operandsOf(input: Readonly<Record<string, unknown>>, tree: Tree, names:
 export function readsNames(input: Readonly<Record<string, unknown>>, files?: ReadonlySet<string>): boolean {
   // Read as `operandsOf` reads them, so a set said empty costs no names.
   const offIndex = (written: string): boolean => {
-    const at = written.lastIndexOf('#');
-    return files !== undefined && at > 0 && at < written.length - 1 && files.has(written.slice(0, at));
+    if (files === undefined) return false;
+    try {
+      return fileNamed(written, files) !== undefined;
+    } catch {
+      // Refused when `discover` runs, so nothing is read for it here.
+      return true;
+    }
   };
   return ['imports', 'exceptImports'].some((key) => listArg(input, key).some((written) => !offIndex(written))) ||
     ['declares', 'exceptDeclares'].some((key) => textArg(input, key) !== undefined);
