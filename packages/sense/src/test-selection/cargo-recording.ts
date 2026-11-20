@@ -79,11 +79,15 @@ export async function recordCargo(run: CargoRun): Promise<number | undefined> {
     let failed = 0;
     for (const [testFile, sharing] of byTestFile(binaries)) {
       const ran: Ran[] = [];
-      // A target with its own `main` answers no listing, so what its run entered is not known.
       let unlisted = false;
       for (const binary of sharing) {
         const names = await listed(binary, join(profiles, 'listing-%p.profraw'));
-        unlisted ||= names.length === 0;
+        if (names.length === 0) {
+          // A target with its own `main` answers no listing: it runs once as `cargo test` runs it, and what it entered is not known.
+          unlisted = true;
+          if (!(await whole(binary, join(profiles, 'whole-%p.profraw')))) failed += 1;
+          continue;
+        }
         const tests: Ran[] = [];
         await pool(availableParallelism(), names, async (name, at) => {
           tests[at] = await alone(binary, name, join(profiles, `${randomUUID()}.profraw`));
@@ -174,17 +178,28 @@ function byTestFile(binaries: readonly Binary[]): Map<string, Binary[]> {
 
 /**
  * The tests a binary declares and `cargo test` runs, as libtest names them:
- * benchmarks are not tests, and an `#[ignore]`d test does not run. Listing runs
- * the instrumented binary too, so its counters go to `profile`, which nothing reads.
+ * benchmarks are not tests, and an `#[ignore]`d test does not run. None for a
+ * binary that lists no test, or refuses the listing, as a harness of its own may.
+ * Listing runs the instrumented binary too, so its counters go to `profile`,
+ * which nothing reads.
  */
 async function listed(binary: Binary, profile: string): Promise<string[]> {
-  const [all, ignored] = await Promise.all([[], ['--ignored']].map(async (only) => {
+  const names = async (only: readonly string[]): Promise<string[]> => {
     const { code, stdout } = await output(binary.executable, ['--list', '--format', 'terse', ...only], binary.cwd, running(binary, profile));
-    if (code !== 0) throw new Error(`${binary.executable} --list failed`);
+    if (code !== 0) return [];
     return stdout.split('\n').flatMap((line) => (line.endsWith(': test') ? [line.slice(0, -': test'.length)] : []));
-  }));
-  const skipped = new Set(ignored);
-  return all!.filter((name) => !skipped.has(name));
+  };
+  const all = await names([]);
+  if (all.length === 0) return all;
+  const skipped = new Set(await names(['--ignored']));
+  return all.filter((name) => !skipped.has(name));
+}
+
+/** A binary run once with no arguments, as `cargo test` runs it: whether it passed. */
+async function whole(binary: Binary, profile: string): Promise<boolean> {
+  const { code, stdout } = await output(binary.executable, [], binary.cwd, running(binary, profile));
+  if (code !== 0) process.stderr.write(stdout);
+  return code === 0;
 }
 
 /** One test, alone in its process, its counters written to `profile`. */

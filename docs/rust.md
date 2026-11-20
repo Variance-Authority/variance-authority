@@ -54,7 +54,8 @@ It exits `0` when every test passed and `101`, Cargo's own code, when a test or
 the build failed. A failing test's output is printed and its row is still
 written, marked incomplete. Two rows are marked incomplete though nothing failed,
 because what their tests ran is not known: a target with its own `main`
-(`harness = false`), which lists no tests to run alone, and a target with a test
+(`harness = false`), which lists no tests to run alone and so runs once as
+`cargo test` runs it, and a target with a test
 that left its process before writing its counters, as one that calls `_exit`
 does. An incomplete row is selected by every change.
 
