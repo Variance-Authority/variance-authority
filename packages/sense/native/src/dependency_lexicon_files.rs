@@ -51,7 +51,7 @@ impl Module {
 }
 
 /// A file as one install's pairs read it. The digest is taken from the bytes as read; the bytes are
-/// let go once they are parsed as a module, whose UTF-16 text still answers what the file says.
+/// let go once they are parsed as a module.
 pub(super) struct File {
     digest: String,
     bytes: RefCell<Option<Vec<u8>>>,
@@ -64,20 +64,18 @@ fn not_utf8() -> io::Error {
 }
 
 impl File {
+    /// The file's text, from its bytes. A file parsed as a module has let its bytes go, and nothing
+    /// asks the text of one: a manifest and a README are read, never parsed.
     pub fn text(&self) -> io::Result<String> {
-        if let Some(bytes) = self.bytes.borrow().as_ref() {
-            return std::str::from_utf8(bytes).map(str::to_owned).map_err(|_| not_utf8());
-        }
-        let module = self.module.get().and_then(Option::as_ref).ok_or_else(not_utf8)?;
-        String::from_utf16(&module.utf16).map_err(|_| not_utf8())
+        let bytes = self.bytes.borrow();
+        let bytes = bytes.as_ref().ok_or_else(not_utf8)?;
+        std::str::from_utf8(bytes).map(str::to_owned).map_err(|_| not_utf8())
     }
 
     fn module(&self, path: &Path) -> Option<Arc<Module>> {
         self.module.get_or_init(|| {
             let bytes = self.bytes.borrow_mut().take()?;
-            let module = std::str::from_utf8(&bytes).ok().map(|text| Module::of(path, text));
-            if module.as_ref().is_none_or(|module| module.unknown) { *self.bytes.borrow_mut() = Some(bytes); }
-            module.map(Arc::new)
+            std::str::from_utf8(&bytes).ok().map(|text| Arc::new(Module::of(path, text)))
         }).clone()
     }
 }
@@ -136,16 +134,17 @@ mod tests {
     }
 
     #[test]
-    fn a_parsed_declaration_lets_its_bytes_go_and_still_answers_its_text() {
+    fn a_parsed_declaration_lets_its_bytes_go_and_keeps_the_digest_of_what_was_parsed() {
         let path = std::env::temp_dir().join(format!("sense-lexicon-bytes-{}.d.ts", std::process::id()));
         let source = "/** é */\nexport declare const kept: true;\n";
         std::fs::write(&path, source).unwrap();
         let refresh = Files::default();
-        refresh.module(&path).unwrap();
+        let module = refresh.module(&path).unwrap();
         let file = refresh.read(&path).unwrap();
-        let (held, text) = (file.bytes.borrow().is_some(), file.text().unwrap());
+        let held = file.bytes.borrow().is_some();
         std::fs::remove_file(&path).unwrap();
         assert!(!held);
-        assert_eq!(text, source);
+        assert_eq!(String::from_utf16(&module.utf16).unwrap(), source);
+        assert_eq!(refresh.digest(&path), Some(crate::journeys::hex(&Sha256::digest(source.as_bytes()))));
     }
 }

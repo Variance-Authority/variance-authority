@@ -61,4 +61,4 @@ when an entry is added.
    past its verdict?** The index resolves every import; a question that reads
    configuration again, or guesses which unresolved specifier might be an
    importer, is a second resolver. The `alignment` reviewer asks it of every
-   diff. #1387, #1586.
+   diff. #1387.
