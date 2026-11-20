@@ -8,6 +8,6 @@
 
 `--limit <n>` sets how many rows each list of the answer shows, so a cut list can be read whole. MCP clients pass it as `limit` to `docs_search` and `docs_symbol`. Without it, each list keeps its own cap. For `search`, that is 40 published names, 20 installed ones, 25 of each other kind, and 15 loose or described ones. For `symbol`, it is 5 declarations or members of each kind, and 100 installed declarations. `--format json` applies the same caps.
 
-Every line that counts the rows left out now says that a higher `--limit` shows them. In `symbol` it keeps what it counts: "2 more declarations of `keyOf` not shown." now reads "2 more declarations of `keyOf` not shown; a higher `--limit` shows them.". In `search`, whose lists are headed, "24 more matches not shown." now reads "24 more not shown; a higher `--limit` shows them.". Without `--limit`, the rows and the counts are unchanged.
+Every line that counts the rows left out now says that a higher `--limit` shows them. In `symbol` it keeps what it counts: "2 more declarations of `keyOf` not shown." now reads "2 more declarations of `keyOf` not shown; a higher `--limit` shows them.". In `search`, whose lists are headed, "24 more matches not shown." now reads "24 more not shown; a higher `--limit` shows them.". Without `--limit`, the rows and the counts are unchanged. When `ask uses` finds no declaration of a member, its list of the containers that lack it takes `--limit` the same way.
 
 `@variance-authority/mcp/tools` exports `notShownPast` and the `Rows` a cut line names, and `notShown` takes `rows`.

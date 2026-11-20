@@ -2,7 +2,7 @@ import type { Documented, Entry, Help, Opening } from '@variance-authority/packa
 import { everyEntry } from '@variance-authority/package/help';
 import { SLOT } from './declaration-key.js';
 import { exportedNamed, pathsWritten } from './rows.js';
-import { DECLARED_CAP, declarations, declaredAt, isNested, unreadLine } from './declared.js';
+import { declarations, declaredAt, isNested, unreadLine } from './declared.js';
 import { CHECKER, checkerOf, type Members, membersStop } from './members.js';
 import { notShownPast, type Spelling } from '@variance-authority/mcp/tools';
 import { search } from './search.js';
@@ -169,7 +169,7 @@ export function nowhere(
   members: Members | undefined,
   dependencies: string | undefined,
   spell: Spelling,
-  limit: number = DECLARED_CAP,
+  limit: number,
 ): string {
   const where = wanted === undefined ? 'this workspace' : `\`${wanted}\``;
   const read = declarations(root, name);
