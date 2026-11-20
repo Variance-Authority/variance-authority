@@ -49,6 +49,13 @@ describe('variance-authority-help about a name written after the published gener
     expect(out).toMatch(UNCOMPARED);
   });
 
+  it('dates a `discover` answer with the generation it read, as every other answer is', async () => {
+    const { code, out } = await bin(await fixture.published(), ['discover', '--declares', '^taxOf$']);
+    expect(code).toBe(0);
+    expect(out).toContain('tax.ts');
+    expect(out).toMatch(UNCOMPARED);
+  });
+
   it('says `search --format json` was not compared with the checkout', async () => {
     const { code, out } = await bin(await fixture.published(), ['search', '--query', 'tax', '--format', 'json']);
     expect(code).toBe(0);

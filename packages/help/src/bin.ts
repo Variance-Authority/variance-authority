@@ -170,7 +170,13 @@ if (asking(verb) && verb !== undefined) {
       }
       if (tool === discover) {
         const { at, ...named } = await readNamedTree(root, inputFrom(tool, ownArgs));
-        return { answer: () => discover.run(undefined, inputFrom(tool, ownArgs), invocationOf({ ...named, root })), at };
+        return {
+          answer: () => {
+            const answer = discover.run(undefined, inputFrom(tool, ownArgs), invocationOf({ ...named, root }));
+            return at === undefined ? answer : `${answer}\n${snapshotLine(at, true)}`;
+          },
+          at,
+        };
       }
       const recorded = RECORDED.find((one) => one.name === tool.name);
       if (recorded !== undefined) return { answer: () => recorded.run(undefined, inputFrom(tool, ownArgs), invocationOf({ root })), at: undefined };
