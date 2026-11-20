@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 // The example writes these on every run; the page shows the files, not a redrawing.
-import changeSheet from "../../../../../examples/visual-review-case/artifacts/change.png";
-import diffImage from "../../../../../examples/visual-review-case/artifacts/diff.png";
+import changeSheet from "../../../../../examples/visual-review-case/artifacts/images/pricing-plans.change.png";
+import diffImage from "../../../../../examples/visual-review-case/artifacts/images/pricing-plans.diff.png";
 import type { ReactNode } from "react";
 import { ChangePath, EvidencePath } from "../../../components/ChangePaths";
 import ConditionsOnTheWay from "../../../components/ConditionsOnTheWay";

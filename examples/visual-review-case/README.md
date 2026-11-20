@@ -19,32 +19,32 @@ declared at, and the pull-request comment leads with the cause.
 
 ## What it produces
 
-Running it regenerates the eight files in [`artifacts/`](artifacts), all of
-which are committed:
+[`variance.config.json`](variance.config.json) and the collector in
+[`collector/index.mjs`](collector/index.mjs) make this a project `variance`
+runs as it runs any other. `generate` runs `variance run` on the old revision,
+`variance accept pricing-plans` to keep it as the baseline, and `variance run`
+on the new one; then `variance ask describe` and `variance comment` over that
+run. It copies the run's files into [`artifacts/`](artifacts), all committed:
+[`run.json`](artifacts/run.json), the run report, and
+[`images/`](artifacts/images), the pictures and the record beside it, under the
+names `variance run` gave them.
 
-| before.png | after.png | diff.png |
+| Kept baseline | This run | Diff image |
 | --- | --- | --- |
-| ![Three pricing cards, Starter, Team and Scale, each with a charcoal Choose button.](artifacts/before.png) | ![The same cards under a yellow notice; Team's Choose button is orange.](artifacts/after.png) | ![The generated image diff: the inserted notice tinted red, Team's button red, the three rules pale red.](artifacts/diff.png) |
+| ![Three pricing cards, Starter, Team and Scale, each with a charcoal Choose button.](artifacts/images/pricing-plans.before.webp) | ![The same cards under a yellow notice; Team's Choose button is orange.](artifacts/images/pricing-plans.after.png) | ![The generated image diff: the inserted notice tinted, Team's button red, the three rules pale red.](artifacts/images/pricing-plans.diff.png) |
 
-[`artifacts/change.png`](artifacts/change.png) is the change sheet: before
-beside after, each row level with the row it became, striped filler opposite
-the inserted notice, and a blue arrow beside every row that only moved.
+The change sheet is before beside after, each row level with the row it became,
+striped filler opposite the inserted notice, and a blue arrow beside every row
+that only moved:
 
-![Before beside after, with striped filler opposite the notice and blue arrows beside the moved rows.](artifacts/change.png)
+![Before beside after, with striped filler opposite the notice and blue arrows beside the moved rows.](artifacts/images/pricing-plans.change.png)
 
-[`artifacts/report.json`](artifacts/report.json) is a run report in the shape
-`variance run` writes, holding the one observation's record. No shipped command
-runs this case end to end, so the script calls the pieces `variance run` calls:
-the page's agent through `acquireFromAgent`, the shipped Playwright renderer for
-each PNG, `observeRasters` from `@variance-authority/observe`, `changeImages`
-from `@variance-authority/png` for the diff and the change sheet, and
-`recordOf` from the CLI. It assembles only the run report itself, taking the
-engine from that renderer.
 [`artifacts/report.txt`](artifacts/report.txt) is what
-`variance ask describe --subject pricing/plans` answers over it, word for word:
+`variance ask describe --subject pricing-plans` answers over the run, word for
+word:
 
 ```text
-[changed] pricing/plans
+[changed] pricing-plans
 26,230 pixels differ across 2 strong regions in Notice, ChooseButton, and 3 faint regions, 1 changed in shape and 4 only in colour; 44 pixel rows inserted in 1 place, moving the content under them by up to 44 rows, and the subject resized from 480×288 to 480×332
 
 components:
@@ -87,15 +87,9 @@ that changed, from → to. Each region after it gives its differing pixels, its
 box, its component, its landmark path, the line its component is declared at,
 and a fingerprint of its shape.
 
-[`artifacts/comment.md`](artifacts/comment.md) is the pull-request comment
-`renderComment` writes over the same report, the body `variance comment`
-prints, with its pictures under this repository's `main`.
-
-[`artifacts/provenance.json`](artifacts/provenance.json) records the engine that
-painted the two PNGs, the platform it ran on, the components the run named as
-causes, and the changed-pixel count the comparison finds between the two
-committed PNGs. The counts are checked against those PNGs, not against a fresh
-paint: the same engine rasterizes text differently on macOS and Linux.
+[`artifacts/comment.md`](artifacts/comment.md) is the body
+`variance comment` prints for the same run, its pictures under this
+repository's `main`.
 
 ## What it does not show
 
@@ -117,17 +111,19 @@ From the repository root:
 yarn workspace @variance-authority/example-visual-review-case generate
 ```
 
-It prints the report and rewrites the eight files in `artifacts/`. The package
-is private and is not published; `generate` is its only script.
+It prints the report and rewrites `artifacts/`. The package is private and is
+not published; `generate` is its only script.
 
-The Vitest file re-runs the same comparison and checks it — the inserted rows,
-the causes and the collateral, the grades, each region's landmark path and
-line — and that the committed report, apart from its pixel counts, boxes and
-shape fingerprints, is the one the run prints. Without a browser it checks that
-the committed `report.txt` is what `variance ask describe` answers over the
-committed `report.json`, that the pixel counts match the committed PNGs, and
-that every documentation page quoting the report still matches it. From the
-repository root:
+The Vitest file runs the same commands and checks the run — the inserted rows,
+the causes and the collateral, the grades, each region's landmark path and line
+— and that the committed report and comment, apart from pixel counts, boxes,
+shape fingerprints and the comment's footer, are the ones the run prints. The
+same engine rasterizes text differently on macOS and Linux, so those
+measurements are checked against the committed pictures instead. Without a
+browser it checks that the committed `report.txt` is what `variance ask
+describe` answers over the committed `run.json`, that the pixel count matches
+the committed pictures, and that every documentation page quoting the report
+still matches it. From the repository root:
 
 ```bash
 yarn vitest run --config vitest.chromium.config.mts examples/visual-review-case/src/visual-review.chromium.test.ts
@@ -143,8 +139,10 @@ checks the committed artifacts.
 | [`src/plans.js`](src/plans.js) | The components and the two variants. Lines 64, 78 and 91 are the lines the report names. |
 | [`src/page-agent.js`](src/page-agent.js) | The bundle that runs in the page and mounts each variant. |
 | [`page/harness.html`](page/harness.html) | The page the cards are mounted into. |
-| [`scripts/run-case.mjs`](scripts/run-case.mjs) | The comparison itself: acquire, render, observe, then the record, the run report, the pictures, the `describe` answer and the comment. |
-| [`scripts/generate.mjs`](scripts/generate.mjs) | Writes the result to `artifacts/`. |
+| [`variance.config.json`](variance.config.json) | The project: one Chromium profile, durable retention, baselines in `.variance/baselines`. |
+| [`collector/index.mjs`](collector/index.mjs) | The collector `variance run` loads: mounts the revision `VISUAL_REVIEW_VARIANT` names and returns its document, snapshot and source index. |
+| [`scripts/run-case.mjs`](scripts/run-case.mjs) | Builds the page agent and runs the five `variance` commands. |
+| [`scripts/generate.mjs`](scripts/generate.mjs) | Copies the run's files to `artifacts/`. |
 | [`src/visual-review.chromium.test.ts`](src/visual-review.chromium.test.ts) | The Vitest file above. |
 
 ## Scope

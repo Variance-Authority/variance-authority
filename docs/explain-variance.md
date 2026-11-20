@@ -14,7 +14,7 @@ asked about one.
 
 Some of the explanation is already on the report. `variance ask describe`
 lists each component as a cause, whose own inputs changed, or collateral, whose
-geometry alone changed, and each region with its component, its place in the
+box alone moved, and each region with its component, its place in the
 page and its source line. In the
 [visual-review example](../examples/visual-review-case/README.md), a notice
 inserted above three cards pushes the plan names and prices down, and the
@@ -29,7 +29,7 @@ report labels them collateral beside the causes (an excerpt):
 For a collateral component, start from the causes the report names, as
 [Review a visual change](path-visual-review.md#a-shift-is-told-from-a-change)
 does for the whole report. The label says only that the component's own
-geometry is all that changed, not which cause moved it; when no cause accounts
+box is all that moved, not which cause moved it; when no cause accounts
 for the move, the table below is for it, as for any region the report leaves
 unexplained.
 

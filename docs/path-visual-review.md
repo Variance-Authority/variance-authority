@@ -18,7 +18,7 @@ recommended plan's `Choose` button turns from charcoal to orange, and the rule
 under every card is drawn a few shades darker. The notice pushes all three
 cards 44 pixels down. Compared position by position, almost every row under
 the notice differs, because each sits against the row that used to be there.
-`variance ask describe --subject pricing/plans` answers with this headline:
+`variance ask describe --subject pricing-plans` answers with this headline:
 
 ```text
 26,230 pixels differ across 2 strong regions in Notice, ChooseButton, and 3 faint regions, 1 changed in shape and 4 only in colour; 44 pixel rows inserted in 1 place, moving the content under them by up to 44 rows, and the subject resized from 480×288 to 480×332
@@ -38,7 +38,7 @@ they were, 44 rows higher, and match, so their move costs no region: the
 headline counts it as one insertion that moved the content under it. What still
 differs is what the edits drew.
 
-The run's `change.png` draws the alignment. Each row sits level with the row it
+The run's [change sheet](../examples/visual-review-case/artifacts/images/pricing-plans.change.png) draws the alignment. Each row sits level with the row it
 became, striped filler stands opposite the rows only the after side has, and a
 blue arrow in the gutter runs beside the rows that only moved. The rows a change
 spans are washed red on the before and green on the after, the inserted notice
@@ -47,7 +47,7 @@ away, which is why the sheet has gaps.
 
 The report then says which components changed by their own inputs and which
 only moved. A component is a **cause** when its structure, text, accessible
-name or declared styles changed, and **collateral** when only its geometry did,
+name or declared styles changed, and **collateral** when only its box moved,
 decided from the page, never from the pixels:
 
 ```text
@@ -64,7 +64,9 @@ components:
 
 Every card sat 44 pixels lower and the list holding them grew by 44, so
 `geometry` is on every line but the new notice's; what makes the button and the
-card causes is the `token` beside it, their own declared colour.
+card causes is the `token` beside it, their own declared colour. `Plans` shows
+`geometry` alone and is a cause all the same: it gained the notice as a child,
+and a change of structure is reported in the `geometry` band.
 The plan names and prices are collateral: their text and styles are the same,
 and they sit lower. Collateral is where to look last, not proof that a cause
 moved it, since a size declared on the component itself is geometry too.
@@ -74,7 +76,7 @@ moved it, since a size declared on the component itself is geometry too.
 Each region is graded by how far its pixels moved. The notice and the button
 are **strong**: the headline names their components. The three darker rules
 are **faint**, a colour moved a few shades: the headline counts them after the
-strong ones. The run's `diff.png` draws them apart: the button's changed pixels
+strong ones. The run's [diff image](../examples/visual-review-case/artifacts/images/pricing-plans.diff.png) draws them apart: the button's changed pixels
 red with its anti-aliased edges yellow, excused as text smoothing, the three
 rules as thin pale red lines, and the inserted notice tinted so its text stays
 legible. The HTML report draws a faint region's box dashed. [From a pixel to a line](attribution.md#how-strongly-it-changed)

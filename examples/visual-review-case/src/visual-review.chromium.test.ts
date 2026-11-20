@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { chromium } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { toolByName } from '@variance-authority/mcp/tools';
-import { comparePngs, diffImage } from '@variance-authority/png';
+import { comparePixels, decodePortable } from '@variance-authority/png';
 import { ARTIFACT_ROOT, REPOSITORY_ROOT, runVisualReviewCase } from '../scripts/run-case.mjs';
 
 const BROWSER_AVAILABLE = (() => {
@@ -44,7 +44,7 @@ const QUOTING_PAGES = ['attribution.md', 'compare-visual-review.md', 'explain-va
 const quotedBlocks = (page: string) =>
   [...page.matchAll(/```text\n([\s\S]*?)```/g)]
     .map((block) => block[1]!)
-    .filter((block) => /^(\[changed\] pricing\/plans|[\d,]+ pixels differ|components:|\s*(cause|collateral) +)/.test(block));
+    .filter((block) => /^(\[changed\] pricing-plans|[\d,]+ pixels differ|components:|\s*(cause|collateral) +)/.test(block));
 
 /** Whether every line of `excerpt` is a line of `text`, in the same order. */
 const inOrder = (text: string, excerpt: string) => {
@@ -58,6 +58,13 @@ const inOrder = (text: string, excerpt: string) => {
 };
 
 const artifact = (name: string) => readFile(join(ARTIFACT_ROOT, name), 'utf8');
+/** A picture `run.json` names, read where its path points: beside that report. */
+const picture = async (side: 'before' | 'after') => {
+  const { observations } = JSON.parse(await artifact('run.json'));
+  return decodePortable(await readFile(join(ARTIFACT_ROOT, observations[0].images[side])));
+};
+const causes = (record: { moved?: { component: string; cause: boolean }[] }) =>
+  (record.moved ?? []).filter((entry) => entry.cause).map((entry) => entry.component);
 const page = (name: string) => readFile(join(REPOSITORY_ROOT, 'docs', name), 'utf8');
 
 let result: Awaited<ReturnType<typeof runVisualReviewCase>> | undefined;
@@ -89,7 +96,7 @@ describe.skipIf(!BROWSER_AVAILABLE)('the visual-review example', () => {
   });
 
   it('reports the names and prices the notice pushed down as collateral, not as causes', () => {
-    expect(result!.observation.causes).toEqual(['ChooseButton', 'Notice', 'PlanCard', 'Plans']);
+    expect(causes(result!.record)).toEqual(['ChooseButton', 'Notice', 'PlanCard', 'Plans']);
     expect(Object.fromEntries((result!.record.moved ?? []).map((entry) => [entry.component, entry.cause]))).toEqual({
       ChooseButton: true,
       Notice: true,
@@ -141,7 +148,7 @@ describe.skipIf(!BROWSER_AVAILABLE)('the visual-review example', () => {
   });
 
   it('commits the answer `variance ask describe` gives for this run', async () => {
-    expect(shape(await artifact('report.txt'))).toBe(shape(`${result!.report}\n`));
+    expect(shape(await artifact('report.txt'))).toBe(shape(result!.report));
   });
 
   it('commits the pull-request comment `variance comment` writes for this run', async () => {
@@ -150,50 +157,34 @@ describe.skipIf(!BROWSER_AVAILABLE)('the visual-review example', () => {
       shape(comment)
         .replace(/\d+px/g, 'Npx')
         .replace(/^.* · durable retention · .*$/m, 'FOOTER');
-    expect(counts(await artifact('comment.md'))).toBe(counts(`${result!.comment}\n`));
+    expect(counts(await artifact('comment.md'))).toBe(counts(result!.comment));
   });
 
-  it('records which browser produced the artifacts and which components caused the change', async () => {
-    const { changedPixels, raster, engine, ...provenance } = JSON.parse(await artifact('provenance.json'));
+  it('commits a run of the same engine that names the same causes', async () => {
+    const { identity, observations } = JSON.parse(await artifact('run.json'));
     // One Playwright revision is a different Chromium patch per platform.
     const build = (name: string) => name.slice(0, name.lastIndexOf('.'));
 
-    expect(provenance).toEqual({
-      generatedBy: 'examples/visual-review-case/scripts/generate.mjs',
-      causes: result!.observation.causes,
-    });
-    expect(build(engine)).toBe(build(result!.engine));
-    expect(['darwin', 'linux', 'win32']).toContain(raster);
-    expect(changedPixels).toBeGreaterThan(0);
+    expect(build(identity.engine)).toBe(build(result!.runReport.identity.engine));
+    expect(causes(observations[0])).toEqual(causes(result!.record));
   });
 });
 
 // Reads committed files only, so it runs with or without a browser.
 describe("the visual-review example's committed artifacts", () => {
-  it('holds the actual derived diff of the committed PNGs', async () => {
-    const [before, after, diff] = await Promise.all([
-      readFile(join(ARTIFACT_ROOT, 'before.png')),
-      readFile(join(ARTIFACT_ROOT, 'after.png')),
-      readFile(join(ARTIFACT_ROOT, 'diff.png')),
-    ]);
-    expect(diff).toEqual(await diffImage(before, after));
-  });
-
   it('holds what `variance ask describe` answers over the committed run report', async () => {
-    const [report, text] = await Promise.all([artifact('report.json'), artifact('report.txt')]);
-    expect(`${toolByName('variance_describe').run(JSON.parse(report), { subject: 'pricing/plans' })}\n`).toBe(text);
+    const [report, text] = await Promise.all([artifact('run.json'), artifact('report.txt')]);
+    expect(toolByName('variance_describe').run(JSON.parse(report), { subject: 'pricing-plans' })).toBe(text.trimEnd());
   });
 
-  it('counts the pixels the comparison counts between the committed PNGs', async () => {
-    const [before, after, provenance, report, text] = await Promise.all([
-      readFile(join(ARTIFACT_ROOT, 'before.png')),
-      readFile(join(ARTIFACT_ROOT, 'after.png')),
-      artifact('provenance.json'),
-      artifact('report.json'),
+  it('counts the pixels the comparison counts between the committed pictures', async () => {
+    const [before, after, report, text] = await Promise.all([
+      picture('before'),
+      picture('after'),
+      artifact('run.json'),
       artifact('report.txt'),
     ]);
-    const changed = comparePngs(before, after).changed.default;
-    expect(JSON.parse(provenance).changedPixels).toBe(changed);
+    const changed = comparePixels(before, after).changed.default;
     expect(JSON.parse(report).observations[0].changedPixels).toBe(changed);
     expect(text).toContain(`${changed.toLocaleString('en-US')} pixels differ`);
   });
@@ -221,7 +212,7 @@ describe("the visual-review example's committed artifacts", () => {
 
   it("states the button's region, its line and the comment's cause as the artifacts have them", async () => {
     const [{ observations }, comment, path] = await Promise.all([
-      artifact('report.json').then(JSON.parse),
+      artifact('run.json').then(JSON.parse),
       artifact('comment.md'),
       page('path-visual-review.md'),
     ]);

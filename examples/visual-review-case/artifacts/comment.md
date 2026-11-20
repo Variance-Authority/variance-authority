@@ -4,7 +4,7 @@
 
 Cause: **`Notice`** at `examples/visual-review-case/src/plans.js:78`
 
-<img src="https://raw.githubusercontent.com/Variance-Authority/variance-authority/main/examples/visual-review-case/artifacts/change.png" alt="pricing/plans: before beside after, the change marked">
+<img src="https://raw.githubusercontent.com/Variance-Authority/variance-authority/main/examples/visual-review-case/artifacts/images/pricing-plans.change.png" alt="pricing-plans: before beside after, the change marked">
 
 Per subject: `variance report --subject <id>`
 
@@ -15,10 +15,10 @@ Per subject: `variance report --subject <id>`
 1. **`Notice`** — the cause in 1 subject, 21120px
     `examples/visual-review-case/src/plans.js:78`
     in `main → region "Plans"`
-    seen in `pricing/plans`
+    seen in `pricing-plans`
 
 Collateral: 4 further region(s) (5110px) in 2 component(s) across 1 subject moved with the changes above.
 
-playwright-chromium (chromium@156.0.8078.4, darwin/arm64, 1x) · durable retention · 2026-11-20T10:12:17.311Z
+playwright-chromium (chromium@156.0.8078.4, darwin/arm64, 1x) · durable retention · 2026-11-20T10:45:49.960Z
 
 </details>

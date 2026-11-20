@@ -232,9 +232,10 @@ The same report says what was edited and what was only pushed aside. The two
 images are aligned row by row before they are compared, so content inserted
 near the top is counted once, and the rows under it are compared with the rows
 they were rather than turning red. A component is a **cause** when its own
-inputs changed, and **collateral** when only its geometry changed; the decision
+inputs changed, and **collateral** when only its box moved; the decision
 is made from the components' inputs, not from pixels. Each component lists the
-bands it changed in, and each declared value that changed, from → to. In the
+bands it changed in, and a declared value that changed, from → to, where both
+sides recorded one. In the
 [visual-review example](../examples/visual-review-case/README.md), a notice
 inserted above three cards pushes them 44 pixels down, one button is
 recoloured, and `variance ask describe` answers:
