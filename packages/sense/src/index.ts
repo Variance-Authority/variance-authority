@@ -56,12 +56,10 @@ export {
 } from './reuse.js';
 
 export {
-  openSourceIndex,
   readSourceParses,
   readSourceRecords,
   sourceIndexPath,
   type IndexedParse,
-  type PersistentSourceIndex,
 } from './source-index.js';
 
 export {
