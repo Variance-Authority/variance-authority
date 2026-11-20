@@ -84,6 +84,22 @@ describe('docs_classify', () => {
     expect(entities.map((found) => found.word)).toEqual(['sense']);
   });
 
+  it('names an export that shares a package\'s letters in another case, whichever is written first', () => {
+    const help = { packages: [...HELP.packages, published('@acme/kernel', ['Sense'])] } as unknown as Help;
+    const listed = (text: string) => classifyWords(text, help, MAPPED).entities
+      .flatMap(({ names }) => names.map((named) => `${named.kind} ${named.specifier}`)).sort();
+
+    expect(listed('sense Sense')).toEqual(['export @acme/kernel', 'package @acme/sense']);
+    expect(listed('Sense sense')).toEqual(['export @acme/kernel', 'package @acme/sense']);
+  });
+
+  it('asks the next question of everything a word names, not only the first', () => {
+    const text = formatClassified(classifyWords('eyes', HELP, MAPPED), PLACED);
+
+    expect(text).toContain('variance ask entrypoint --package @acme/eyes');
+    expect(text).toContain('variance ask symbol --name eyes');
+  });
+
   it('takes an entrypoint, a scoped name and an exported identifier whole, in the asker\'s punctuation', () => {
     const { entities } = classifyWords('does sense/test-selection call attachVantage, from @acme/vantage?', HELP, MAPPED);
 

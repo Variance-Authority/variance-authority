@@ -39,7 +39,7 @@ export interface Entity {
 }
 
 export interface Classified {
-  /** In the order the asker first wrote each one. */
+  /** In the order the asker first wrote each one, each naming only what no earlier word named. */
   readonly entities: readonly Entity[];
   /** The words that name nothing, in the asker's order, each once. */
   readonly plain: readonly string[];
@@ -99,20 +99,23 @@ function dictionaryOf(help: Help, packages: Iterable<string>): { readonly folded
 /** The words of `text` that are, whole, one of `packages` or a name `help` publishes, and the words that are not. */
 export function classifyWords(text: string, help: Help, packages: Iterable<string>): Classified {
   const { folded, exact } = dictionaryOf(help, packages);
-  const entities = new Map<string, Entity>();
+  const entities: Entity[] = [];
   const plain = new Set<string>();
+  const listed = new Set<string>();
   for (const word of wordsOf(text)) {
-    // A package or an entrypoint is matched without case, so its word is
-    // listed once however it is written; an export only as spelled.
-    const caseless = folded.get(word.toLowerCase());
-    const key = caseless === undefined ? word : word.toLowerCase();
-    if (entities.has(key) || plain.has(word)) continue;
-    const names = [...(caseless ?? []), ...(exact.get(word) ?? [])]
-      .sort((one, other) => ORDER.indexOf(one.kind) - ORDER.indexOf(other.kind));
-    if (names.length === 0) plain.add(word);
-    else entities.set(key, { word, names });
+    // A package or an entrypoint is matched without case and an export only as
+    // spelled, so a word lists only what no earlier word did: `Sense` after
+    // `sense` still names an export `Sense`, and names nothing new otherwise.
+    const names = [...(folded.get(word.toLowerCase()) ?? []), ...(exact.get(word) ?? [])];
+    if (names.length === 0) {
+      plain.add(word);
+      continue;
+    }
+    const fresh = names.filter((named) => !listed.has(`${named.kind} ${named.specifier}`));
+    for (const named of fresh) listed.add(`${named.kind} ${named.specifier}`);
+    if (fresh.length > 0) entities.push({ word, names: fresh.sort((one, other) => ORDER.indexOf(one.kind) - ORDER.indexOf(other.kind)) });
   }
-  return { entities: [...entities.values()], plain: [...plain] };
+  return { entities, plain: [...plain] };
 }
 
 function where(placed: Placed | undefined): string {
@@ -136,13 +139,12 @@ export function formatClassified({ entities, plain }: Classified, { current, pac
   // What each entity is asked next: an exported name is read by `symbol`, a
   // published package or entrypoint counted by `entrypoint`, and a package that
   // publishes nothing placed by `orient` on its area, if one took it.
-  const asks = entities.flatMap(({ word, names: [first] }) => {
-    if (first === undefined) return [];
-    if (first.kind === 'export') return [`variance ask symbol --name ${shell(word)}`];
-    if (first.published) return [`variance ask entrypoint --package ${shell(first.specifier)}`];
-    const area = packages.get(first.package)?.area;
+  const asks = entities.flatMap(({ word, names }) => names.flatMap((named) => {
+    if (named.kind === 'export') return [`variance ask symbol --name ${shell(word)}`];
+    if (named.published) return [`variance ask entrypoint --package ${shell(named.specifier)}`];
+    const area = packages.get(named.package)?.area;
     return area === undefined ? [] : [`variance ask orient --area ${shell(area.id)}`];
-  });
+  }));
   lines.push(...narrower([...new Set(asks)]));
   if (!current) lines.push('', STALE_MAP);
   return lines.join('\n');
