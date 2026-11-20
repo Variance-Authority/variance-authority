@@ -1575,9 +1575,6 @@
   "packages/mcp/src/tools/findings.ts docblock": [
     22
   ],
-  "packages/mcp/src/tools/hops.ts overview": [
-    67
-  ],
   "packages/mcp/src/tools/locate.test.ts block": [
     6
   ],
@@ -1637,9 +1634,6 @@
     14,
     14,
     11
-  ],
-  "packages/mcp/src/tools/tree.ts overview": [
-    28
   ],
   "packages/mcp/src/tools/variations.ts overview": [
     18

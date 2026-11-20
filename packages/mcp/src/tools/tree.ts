@@ -5,44 +5,12 @@ import { namesOf, type FileNames, type SourceNames } from './names.js';
 import { encodeSourceTree } from './source-tree-format.js';
 
 /**
- * The source tree, as the one thing allowed to say whether a path exists.
- *
- * A start point is a coordinate, and a coordinate is a fact about a tree. The
- * run's notes are not a tree: they say which files were *seen rendering*, which
- * is a similar-looking different question and answers wrongly in both
- * directions — every real file the run never rendered reads as *not found*, and
- * a path the run happened to write down reads as *found* whether or not
- * anything is there.
- *
- * So the authority is the source index, and nothing else. It is a machine and
- * works one way: it reads the tree, it holds what it found, and it holds the
- * arrows between them. It cannot invent a file, it cannot invent an import, and it
- * cannot answer *maybe*.
- *
- * ## Two questions, and only two
- *
- * **Does this path exist?** — answered by {@link Tree.has}, against every
- * coordinate the index holds, compared whole.
- *
- * **What is reachable from it?** — answered by walking the import graph one
- * way, from the files the path selected along their arrows, at any depth. What
- * those files rest on is reachable from them. What rests on *them* is not: an
- * import is a one-way arrow, and a file does not become part of a start point's
- * neighbourhood by naming it. No depth bound, because a bound would make the
- * answer a lower bound and a lower bound loses files that genuinely are
- * reachable.
- *
- * The other direction is not missing, it is somewhere else. A subject is in
- * scope when a file in scope produced it, and the run's own record of what each
- * subject rendered carries the answer upward — a leaf in scope brings in every
- * subject recorded as having rendered it, which no import arrow could say.
- *
- * Every edge kind is walked, `type` included: a reader asking where something
- * lives is asking about source, and a type a component imports is a file in its
- * neighbourhood by any reading a person would recognise.
- *
- * The tree is the addon's, read where it was written: a question hands it the
- * seeds and gets the answer, and nothing the size of the tree is built here.
+ * The source tree, the one authority on whether a path exists and what it
+ * reaches. A run's notes say which files were seen rendering, which is wrong
+ * both ways about what is on disk; the index holds the files and the arrows
+ * between them, and cannot answer *maybe*. A walk runs one way, along or
+ * against the arrows, at any depth, over every edge kind, `type` included. The
+ * tree is the addon's, read where it was written: nothing its size is built here.
  */
 
 /** The scanned tree, and the questions a start point asks of it. */
