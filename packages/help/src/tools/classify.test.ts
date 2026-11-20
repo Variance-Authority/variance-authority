@@ -102,6 +102,14 @@ describe('docs_classify', () => {
     ]);
   });
 
+  it('sends a package that publishes nothing to its area on the map, not to `entrypoint`', () => {
+    const places = { current: true, packages: new Map([...PLACED.packages, ['case-runner', { area: { id: '7', name: 'cases' }, layer: 2 }]]) };
+    const text = formatClassified(classifyWords('is case-runner in a layer', HELP, [...places.packages.keys()]), places);
+
+    expect(text).toContain('variance ask orient --area 7');
+    expect(text).not.toContain('entrypoint --package case-runner');
+  });
+
   it('says the map is older than the source index when it was folded from an earlier one', () => {
     const text = formatClassified(classifyWords(ASKED, HELP, MAPPED), { ...PLACED, current: false });
 

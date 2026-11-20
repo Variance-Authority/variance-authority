@@ -4,6 +4,7 @@ import type { Tool } from '@variance-authority/mcp/tools';
 import type { Help } from '@variance-authority/package/help';
 import { packageLayers, sourceIndexPath } from '@variance-authority/sense';
 import { classifyWords, formatClassified, type CodeMapPlaces } from './classify-words.js';
+import { noCodeMap, unfoldedCodeMap } from './code-map-format.js';
 
 /**
  * Every package on the code map beside the source index, with its innermost
@@ -12,10 +13,8 @@ import { classifyWords, formatClassified, type CodeMapPlaces } from './classify-
  */
 function placesOf(root: string): CodeMapPlaces | string {
   const layers = packageLayers(root);
-  if (layers === undefined) return `No code map is kept beside the source index at ${sourceIndexPath(root)}; \`variance index\` folds one.`;
-  if (layers.packages === undefined || layers.packages === null) {
-    return `The source index at ${sourceIndexPath(root)} was folded into no code map, because ${layers.unmade ?? 'there is no package to fold'}.`;
-  }
+  if (layers === undefined) return noCodeMap(sourceIndexPath(root));
+  if (layers.packages === undefined || layers.packages === null) return unfoldedCodeMap(sourceIndexPath(root), layers.unmade ?? undefined);
   return {
     current: layers.current,
     packages: new Map(layers.packages.map(({ package: name, area, layer }) => [name, area == null ? { layer } : { area, layer }] as const)),
@@ -35,7 +34,7 @@ function placesOf(root: string): CodeMapPlaces | string {
 export const classify: Tool<Help> = {
   name: 'docs_classify',
   description:
-    'Which words of a request, as written, are names this workspace publishes. A word is an entity when it is, ' +
+    'Which words of a request, as written, name a package on the code map or what this workspace publishes. A word is an entity when it is, ' +
     'whole, the name of a package on the code map or that name without its scope, an entrypoint\'s specifier (both without case), or a ' +
     'published exported name (as spelled); a word that is only part of a name is not one. Each entity is listed with ' +
     'what it names, its package\'s area and dependency layer on the code map as docs_orient numbers them, then the ' +

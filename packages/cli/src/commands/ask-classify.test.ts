@@ -94,5 +94,6 @@ describe('variance ask classify', () => {
 
     expect(asked.code).toBe(EXIT_CLEAN);
     expect(asked.out).toMatch(/^case-runner — package @t\/case-runner · (area \S+ .+|in no area) · layer 2$/m);
+    expect(asked.out).not.toContain('variance ask entrypoint --package @t/case-runner');
   });
 });

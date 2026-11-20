@@ -17,7 +17,7 @@
 
 // compass: variance-authority.report.agent-surface
 
-import type { Help } from '@variance-authority/package/help';
+import { everyEntry, type Help } from '@variance-authority/package/help';
 import { STALE_MAP, unscoped } from './code-map-format.js';
 import { specifierOf } from './find.js';
 import { narrower, plural, shell } from './format.js';
@@ -28,6 +28,8 @@ export interface Named {
   /** The package, the entrypoint, or the specifier the name is imported from. */
   readonly specifier: string;
   readonly package: string;
+  /** Whether the reading publishes it; a package the map holds may publish nothing. */
+  readonly published: boolean;
 }
 
 /** A word that names something, with everything it names: packages first, then entrypoints, then exports. */
@@ -74,20 +76,22 @@ function dictionaryOf(help: Help, packages: Iterable<string>): { readonly folded
     if (!held.some((one) => one.kind === named.kind && one.specifier === named.specifier)) held.push(named);
     into.set(key, held);
   };
+  const publishing = new Set(help.packages.map((published) => published.name));
   for (const owner of packages) {
-    for (const spelled of new Set([owner, unscoped(owner)])) add(folded, spelled.toLowerCase(), { kind: 'package', specifier: owner, package: owner });
+    const named: Named = { kind: 'package', specifier: owner, package: owner, published: publishing.has(owner) };
+    for (const spelled of new Set([owner, unscoped(owner)])) add(folded, spelled.toLowerCase(), named);
   }
   for (const published of help.packages) {
-    const owner = published.name;
     for (const opening of published.openings) {
+      if (opening.subpath === '.') continue;
       const specifier = specifierOf(published, opening);
-      if (opening.subpath !== '.') {
-        for (const spelled of new Set([specifier, unscoped(specifier)])) {
-          add(folded, spelled.toLowerCase(), { kind: 'entrypoint', specifier, package: owner });
-        }
+      for (const spelled of new Set([specifier, unscoped(specifier)])) {
+        add(folded, spelled.toLowerCase(), { kind: 'entrypoint', specifier, package: published.name, published: true });
       }
-      for (const entry of opening.entries) add(exact, entry.name, { kind: 'export', specifier, package: owner });
     }
+  }
+  for (const [published, opening, entry] of everyEntry(help)) {
+    add(exact, entry.name, { kind: 'export', specifier: specifierOf(published, opening), package: published.name, published: true });
   }
   return { folded, exact };
 }
@@ -122,18 +126,22 @@ function where(placed: Placed | undefined): string {
 export function formatClassified({ entities, plain }: Classified, { current, packages }: CodeMapPlaces): string {
   const lines = [
     entities.length === 0
-      ? 'No word names a package, an entrypoint or an exported name this workspace publishes.'
-      : `${plural(entities.length, 'word names', 'words name')} what this workspace publishes:`,
+      ? 'No word names a package on the code map, an entrypoint or an exported name.'
+      : `${plural(entities.length, 'word names', 'words name')} a package on the code map, an entrypoint or an exported name:`,
     ...entities.flatMap(({ word, names }) =>
       names.map((named, at) => `${at === 0 ? word : ' '.repeat(word.length)} — ${named.kind} ${named.specifier}${where(packages.get(named.package))}`),
     ),
   ];
   if (plain.length > 0) lines.push(`Not entities: ${plain.join(' ')}`);
-  // What each entity is asked next: a package or an entrypoint is counted by
-  // `entrypoint`, an exported name is read by `symbol`.
+  // What each entity is asked next: an exported name is read by `symbol`, a
+  // published package or entrypoint counted by `entrypoint`, and a package that
+  // publishes nothing placed by `orient` on its area, if one took it.
   const asks = entities.flatMap(({ word, names: [first] }) => {
     if (first === undefined) return [];
-    return [first.kind === 'export' ? `variance ask symbol --name ${shell(word)}` : `variance ask entrypoint --package ${shell(first.specifier)}`];
+    if (first.kind === 'export') return [`variance ask symbol --name ${shell(word)}`];
+    if (first.published) return [`variance ask entrypoint --package ${shell(first.specifier)}`];
+    const area = packages.get(first.package)?.area;
+    return area === undefined ? [] : [`variance ask orient --area ${shell(area.id)}`];
   });
   lines.push(...narrower([...new Set(asks)]));
   if (!current) lines.push('', STALE_MAP);
