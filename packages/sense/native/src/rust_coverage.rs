@@ -38,9 +38,10 @@ pub struct RustEntered {
 /// executables the profiles were written by. A
 /// file outside `root` is left out, since it is not the checkout's; one the cut
 /// cannot parse is entered at its root alone, as a module the reader cannot parse
-/// is, so an edit to it selects every test that entered it. A test whose own
-/// profile is missing, empty or cut short answers `None`: it left before the
-/// profile was written, so what it entered is not known.
+/// is, so an edit to it selects every test that entered it. A test with a
+/// profile missing, empty or cut short, its own or a started process's, answers
+/// `None`: that process left before its profile was written, so what the test
+/// entered is not known.
 #[napi(js_name = "rustCoverage", catch_unwind)]
 pub fn rust_coverage(binaries: Vec<String>, profiles: Vec<Vec<String>>, root: String) -> napi::Result<Vec<Option<Vec<RustEntered>>>> {
     let counted: Vec<Option<Counts>> = profiles.par_iter().map(|profiles| Counts::read_all(profiles)).collect();
@@ -58,12 +59,13 @@ struct Counts {
 }
 
 impl Counts {
-    /// A test's counts: its own profile's, with those of the processes it started added.
+    /// A test's counts: its own profile's, with those of the processes it started
+    /// added. None when any of them was not written whole.
     fn read_all(profiles: &[String]) -> Option<Counts> {
         let (own, started) = profiles.split_first()?;
         let mut counts = Counts::read(own)?;
-        for other in started.iter().filter_map(|profile| Counts::read(profile)) {
-            for (key, values) in other.functions {
+        for other in started {
+            for (key, values) in Counts::read(other)?.functions {
                 counts.add(key, &values);
             }
         }

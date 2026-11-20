@@ -16,7 +16,7 @@ import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { availableParallelism } from 'node:os';
-import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
+import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { native } from '../addon.js';
 import caseOwner from './case-owner.cjs';
 import { finishedCase } from './case-durations.js';
@@ -60,7 +60,7 @@ interface Build {
   readonly binaries: readonly Binary[];
   /** The workspace's own executables, which a test may start, as `CARGO_BIN_EXE_*` names them. */
   readonly launchable: readonly string[];
-  /** What a build script said it reads, by `rerun-if-changed`. */
+  /** What a build script said it reads, by `rerun-if-changed`, and what a crate's source includes. */
   readonly read: readonly string[];
 }
 
@@ -155,6 +155,7 @@ async function built(run: CargoRun, workspace: Workspace, profile: string): Prom
       reason?: string;
       message?: { rendered?: string };
       executable?: string | null;
+      filenames?: string[];
       manifest_path?: string;
       profile?: { test?: boolean };
       target?: { kind?: string[]; src_path?: string };
@@ -167,13 +168,14 @@ async function built(run: CargoRun, workspace: Workspace, profile: string): Prom
       const crate = workspace.packages.get(message.package_id ?? '');
       if (crate !== undefined) read.push(...rerunIfChanged(message.out_dir, crate));
     }
-    if (message.reason !== 'compiler-artifact' || typeof message.executable !== 'string') continue;
+    if (message.reason !== 'compiler-artifact') continue;
+    if (workspace.packages.has(message.package_id ?? '')) read.push(...included(message.filenames ?? [], workspace.root));
+    if (typeof message.executable !== 'string') continue;
     if (message.profile?.test !== true) {
       if (message.target?.kind?.includes('bin') === true) launchable.push(message.executable);
       continue;
     }
-    if (message.target?.src_path === undefined || message.manifest_path === undefined) continue;
-    binaries.push({ executable: message.executable, testFile: message.target.src_path, cwd: dirname(message.manifest_path) });
+    binaries.push({ executable: message.executable, testFile: message.target!.src_path!, cwd: dirname(message.manifest_path!) });
   }
   return code === 0 ? { binaries, launchable, read } : undefined;
 }
@@ -197,6 +199,32 @@ function rerunIfChanged(outDir: string, crate: string): string[] {
     if (!existsSync(path)) continue;
     if (!statSync(path).isDirectory()) files.push(path);
     else for (const entry of readdirSync(path, { recursive: true, withFileTypes: true })) if (entry.isFile()) files.push(join(entry.parentPath, entry.name));
+  }
+  return files;
+}
+
+/**
+ * The files a crate's source reads as it compiles, by `include_str!`,
+ * `include_bytes!` or a `#[path]` outside its tree, from the dep-info rustc
+ * writes beside each artifact: every dependency but a `.rs` file, which the
+ * record holds as a module when a test runs it. A relative path is the
+ * workspace root's, where Cargo runs rustc.
+ */
+function included(artifacts: readonly string[], root: string): string[] {
+  const files: string[] = [];
+  for (const artifact of artifacts) {
+    // `libcalc-<hash>.rlib` is described by `calc-<hash>.d`, an executable by its own name and `.d`.
+    const stem = basename(artifact).replace(/\.(rlib|rmeta|so|dylib|dll|a|lib|exe)$/, '');
+    const info = [stem, stem.replace(/^lib/, '')].map((name) => join(dirname(artifact), `${name}.d`)).find((path) => existsSync(path));
+    if (info === undefined) continue;
+    const rule = readFileSync(info, 'utf8').split('\n')[0] ?? '';
+    // The rule is `<artifact>: <dependency> ...`, a space in a path escaped as `\ `.
+    const dependencies = rule.slice(rule.indexOf(': ') + 2).split(/(?<!\\) /).map((path) => path.replaceAll('\\ ', ' '));
+    for (const dependency of dependencies) {
+      if (dependency === '' || dependency.endsWith('.rs')) continue;
+      const path = resolve(root, dependency);
+      if (existsSync(path)) files.push(path);
+    }
   }
   return files;
 }

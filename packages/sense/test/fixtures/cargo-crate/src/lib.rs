@@ -10,6 +10,9 @@ pub fn neg(a: i32) -> i32 {
     if a > 0 { -a } else { a.abs() * -1 * -1 * -1 }
 }
 
+// Read at compile time, so no test reads it, yet a change to it changes the crate.
+pub fn greeting() -> &'static str { include_str!("greeting.txt") }
+
 #[cfg(test)]
 mod tests {
     use super::*;

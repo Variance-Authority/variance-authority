@@ -57,15 +57,24 @@ because what their tests ran is not known: a target with its own `main`
 (`harness = false`), which lists no tests to run alone and so runs once as
 `cargo test` runs it, and a target with a test
 that left its process before writing its counters, as one that calls `_exit`
-does. An incomplete row is selected by every change.
+does, or whose started process left its counters cut short. An incomplete row is
+selected by every change.
 
 No test reads `Cargo.toml`, `Cargo.lock` or a build script, yet each changes
 what every test runs, so the record holds them under every row: a change to one
 selects every target. So does a change to a file a build script names with
-`cargo::rerun-if-changed`, such as a schema it generates code from.
+`cargo::rerun-if-changed`, such as a schema it generates code from, and to a file
+a crate reads as it compiles, through `include_str!` or `include_bytes!`.
 
 A test that starts one of the workspace's binaries, as an integration test does
-through `CARGO_BIN_EXE_<name>`, is charged with what that process ran too.
+through `CARGO_BIN_EXE_<name>`, is charged with what that process ran too. A
+started process that leaves without writing its counters, as one that aborts
+does, leaves nothing to read, so what it ran is not charged and the test's row
+stays complete.
+
+What runs as the crate compiles is charged to no test: a `const fn` evaluated
+in a `const`, and a `macro_rules!` macro. An edit to one selects only the tests
+that ran it at run time, so run every target after such an edit.
 
 It differs from `cargo test` in four ways:
 

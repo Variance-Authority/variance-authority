@@ -11,12 +11,14 @@ import { recordCargo, selectTestFiles } from './index.js';
 const repository = resolve(fileURLToPath(new URL('.', import.meta.url)), '../../../..');
 const fixture = resolve(repository, 'packages/sense/test/fixtures/cargo-crate');
 const broken = resolve(repository, 'packages/sense/test/fixtures/cargo-broken');
+const failing = resolve(repository, 'packages/sense/test/fixtures/cargo-failing');
 // Recorded names are relative to the checkout, and the fixture sits inside it.
 const lib = `${relative(repository, fixture)}/src/lib.rs`;
 const negates = `${relative(repository, fixture)}/tests/negates.rs`;
 const custom = `${relative(repository, fixture)}/tests/custom.rs`;
 const exits = `${relative(repository, fixture)}/tests/exits.rs`;
 const launches = `${relative(repository, fixture)}/tests/launches.rs`;
+const aborts = `${relative(repository, fixture)}/tests/aborts.rs`;
 // The binary's own unit tests: none, so the row holds no case.
 const main = `${relative(repository, fixture)}/src/main.rs`;
 
@@ -50,13 +52,13 @@ describe('a Cargo suite recorded one test per process', () => {
 
   it('writes each file tests are declared in as a row, every test passing', async () => {
     expect(failed).toBe(0);
-    expect(decodeTestCoverage(await readFile(coverageFile)).tests.map((test) => test.file).sort()).toEqual([lib, main, custom, exits, launches, negates].sort());
+    expect(decodeTestCoverage(await readFile(coverageFile)).tests.map((test) => test.file).sort()).toEqual([lib, main, aborts, custom, exits, launches, negates].sort());
   });
 
   // What ran there is not known, so an edit anywhere selects them.
-  it('records a target that lists no test, and one whose test left no profile, as incomplete', async () => {
+  it('records a target that lists no test, one whose test left no profile, and one whose test started a process that left none, as incomplete', async () => {
     const rows = decodeTestCoverage(await readFile(coverageFile)).tests;
-    expect(rows.filter((test) => !test.complete).map((test) => test.file).sort()).toEqual([custom, exits]);
+    expect(rows.filter((test) => !test.complete).map((test) => test.file).sort()).toEqual([aborts, custom, exits]);
   });
 
   it('leaves no profile behind in the crate, from building, listing or running the tests', async () => {
@@ -68,7 +70,7 @@ describe('a Cargo suite recorded one test per process', () => {
     const cases = await caseIndexOf(coverageFile);
     if (cases === undefined) throw new Error('the run wrote no execution index');
     const index = decodeExecutionIndex(cases);
-    expect(index.tests.map((test) => test.id).sort()).toEqual([`${lib} > tests::adds`, `${lib} > tests::muls`, `${lib} > tests::negs`, `${exits} > exits`, `${launches} > launches`, `${negates} > negates`].sort());
+    expect(index.tests.map((test) => test.id).sort()).toEqual([`${lib} > tests::adds`, `${lib} > tests::muls`, `${lib} > tests::negs`, `${aborts} > aborts`, `${exits} > exits`, `${launches} > launches`, `${negates} > negates`].sort());
     const source = await readFile(resolve(fixture, 'src/lib.rs'), 'utf8');
     const line = source.split('\n').findIndex((text) => text.startsWith('pub fn add')) + 1;
     const module = index.modules.find((entry) => entry.file === lib);
@@ -86,11 +88,11 @@ describe('a Cargo suite recorded one test per process', () => {
   });
 
   // What Cargo builds from is read by no test, yet changes what every test runs.
-  it('selects every file when a manifest, a build script or a file it names changes', async () => {
+  it('selects every file when a manifest, a build script, a file it names or a file the source includes changes', async () => {
     const crate = relative(repository, fixture);
-    for (const file of ['Cargo.toml', 'Cargo.lock', 'build.rs', 'schema.txt']) {
+    for (const file of ['Cargo.toml', 'Cargo.lock', 'build.rs', 'schema.txt', 'src/greeting.txt']) {
       const diff = `--- a/${crate}/${file}\n+++ b/${crate}/${file}\n@@ -1,1 +1,1 @@\n-a\n+b`;
-      await expect(selectTestFiles(coverageFile, diff)).resolves.toEqual([lib, main, custom, exits, launches, negates].sort());
+      await expect(selectTestFiles(coverageFile, diff)).resolves.toEqual([lib, main, aborts, custom, exits, launches, negates].sort());
     }
   });
 
@@ -105,7 +107,7 @@ describe('a Cargo suite recorded one test per process', () => {
   it('records the workspace `--manifest-path` names, from outside it', async () => {
     const elsewhere = resolve(directory, 'elsewhere.bin');
     await expect(recordCargo({ cwd: directory, coverageFile: elsewhere, args: ['--manifest-path', resolve(fixture, 'Cargo.toml')] })).resolves.toBe(0);
-    expect(decodeTestCoverage(await readFile(elsewhere)).tests.map((test) => test.file).sort()).toEqual([lib, main, custom, exits, launches, negates].sort());
+    expect(decodeTestCoverage(await readFile(elsewhere)).tests.map((test) => test.file).sort()).toEqual([lib, main, aborts, custom, exits, launches, negates].sort());
   }, 240_000);
 
   it('answers a build that failed, naming what rustc said', async () => {
@@ -118,6 +120,37 @@ describe('a Cargo suite recorded one test per process', () => {
     }
     expect(written.join('')).toContain('mismatched types');
   }, 240_000);
+
+  // Its library has a failing test, and its `harness = false` target fails when run whole.
+  it('answers how many tests failed, prints their output, and records their rows as incomplete', async () => {
+    const written: string[] = [];
+    const spy = vi.spyOn(process.stderr, 'write').mockImplementation((chunk) => written.push(String(chunk)) > 0);
+    const record = resolve(directory, 'failing.bin');
+    const wrapper = process.env['RUSTC_WORKSPACE_WRAPPER'];
+    process.env['RUSTC_WORKSPACE_WRAPPER'] = 'theirs';
+    try {
+      await expect(recordCargo({ cwd: directory, coverageFile: record, args: [`--manifest-path=${resolve(failing, 'Cargo.toml')}`] })).resolves.toBe(2);
+    } finally {
+      spy.mockRestore();
+      if (wrapper === undefined) delete process.env['RUSTC_WORKSPACE_WRAPPER'];
+      else process.env['RUSTC_WORKSPACE_WRAPPER'] = wrapper;
+    }
+    expect(written.join('')).toContain('replaces RUSTC_WORKSPACE_WRAPPER (theirs)');
+    expect(written.join('')).toContain('half rounds down');
+    expect(written.join('')).toContain('custom harness');
+    const crate = relative(repository, failing);
+    const rows = decodeTestCoverage(await readFile(record)).tests;
+    expect(rows.filter((test) => !test.complete).map((test) => test.file).sort()).toEqual([`${crate}/src/lib.rs`, `${crate}/tests/custom.rs`]);
+  }, 240_000);
+
+  it('refuses a directory that holds no Cargo workspace, naming `cargo metadata`', async () => {
+    const empty = await mkdtemp(resolve(tmpdir(), 'variance-authority-no-cargo-'));
+    try {
+      await expect(recordCargo({ cwd: empty, coverageFile: resolve(empty, 'none.bin') })).rejects.toThrow(/cargo metadata/);
+    } finally {
+      await rm(empty, { recursive: true, force: true });
+    }
+  });
 
   it('selects every file whose tests ran a file when the edit is outside every function', async () => {
     const source = await readFile(resolve(fixture, 'src/lib.rs'), 'utf8');
