@@ -1,9 +1,10 @@
 import { extname } from 'node:path';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { FileSet, Link, SourceNames, Tool, ToolInvocation, Tree } from '@variance-authority/mcp/tools';
-import { entryPoints, limitOf, notShown, pathsOf, refusalFor, spellingOf, startPointArg } from '@variance-authority/mcp/tools';
+import { entryPoints, limitOf, notShown, refusalFor, spellingOf } from '@variance-authority/mcp/tools';
 import { READABLE } from '@variance-authority/sense';
 import { startPointNeeded } from './area.js';
+import { fileNamed, listArg, nameOf, textArg } from './discover-operands.js';
 import { ripgrep } from './ripgrep.js';
 import { importsOf as importersOf, type IndexedUse } from './unpublished.js';
 
@@ -94,16 +95,6 @@ function unreadOf(tree: Tree, names: SourceNames): string | undefined {
 
 /** `react/jsx-runtime` is `react`; `./store/selectors` is not `./store`. */
 const isBare = (spec: string): boolean => !spec.startsWith('.') && !spec.startsWith('/');
-
-/** One or several values, said as a string or an array. */
-function listArg(input: Readonly<Record<string, unknown>>, name: string): readonly string[] {
-  return pathsOf(startPointArg(input, name));
-}
-
-function textArg(input: Readonly<Record<string, unknown>>, name: string): string | undefined {
-  const said = input[name];
-  return typeof said === 'string' && said.trim() !== '' ? said : undefined;
-}
 
 function regexOf(name: string, pattern: string, flags: string): RegExp {
   try {
@@ -236,8 +227,9 @@ function reachingName(term: string, file: string, name: string, tree: Tree, root
  * specifier as written, a file with no name — is matched in the names.
  */
 function importsOf(written: string, tree: Tree, names: () => SourceNames, root: string | undefined): Operand {
+  const named = fileNamed(written, tree.files);
+  if (named !== undefined) return importersOfFile(named.file, named.name, root);
   const { spec, name } = nameOf(written);
-  if (name !== undefined && tree.files.has(spec)) return importersOfFile(spec, name, root);
   const held = names();
   const files = new Set<string>();
   const lines = new Map<string, Evidence[]>();
@@ -275,17 +267,6 @@ function importersOfFile(file: string, name: string, root: string | undefined): 
     files: new Set(lines.keys()),
     evidence: (at) => lines.get(at) ?? [],
   };
-}
-
-/** `spec#name`, split at the last `#` past the first character; a `#` with nothing after it is refused. */
-function nameOf(written: string): { readonly spec: string; readonly name: string | undefined } {
-  const at = written.lastIndexOf('#');
-  const spec = at > 0 ? written.slice(0, at) : written;
-  const name = at > 0 ? written.slice(at + 1) : undefined;
-  if (name === '') {
-    throw new Error(`\`${written}\` has nothing after \`#\`. Say \`${spec}#name\`, or \`${spec}\` for every import of it.`);
-  }
-  return { spec, name };
 }
 
 /** Each importing file, and the lines on which it imports the name, in the order the index holds them. */
@@ -355,17 +336,6 @@ function operandsOf(input: Readonly<Record<string, unknown>>, tree: Tree, names:
     return operands;
   };
   return { kept: read(''), out: read('except') };
-}
-
-/**
- * Whether a call names an operand read off the names. A question about paths
- * alone reads the tree and nothing else: on a large checkout the names cost a
- * second read of every file for its declarations.
- */
-export function readsNames(input: Readonly<Record<string, unknown>>): boolean {
-  // Read as `operandsOf` reads them, so a set said empty costs no names.
-  return ['imports', 'exceptImports'].some((key) => listArg(input, key).length > 0) ||
-    ['declares', 'exceptDeclares'].some((key) => textArg(input, key) !== undefined);
 }
 
 /**

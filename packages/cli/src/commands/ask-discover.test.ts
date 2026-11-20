@@ -118,6 +118,13 @@ describe('ask discover over a checkout', () => {
     expect((await readNamedTree(root, { declares: '^selectBalance$' })).names?.get('src/old/selectors.ts')?.declared).toEqual([{ name: 'selectBalance', line: 1 }]);
   });
 
+  it('reads no names when every import set names a name out of a repository file, which the source index answers', async () => {
+    const asked = { imports: ['src/store/selectors.ts#selectBalance'], exceptImports: ['src/lib/greet.ts#wave'] };
+    expect((await readNamedTree(root, asked)).names).toBeUndefined();
+    expect((await readNamedTree(root, { ...asked, imports: [...asked.imports, './store'] })).names).toBeDefined();
+    expect((await readNamedTree(root, { ...asked, exceptImports: ['react'] })).names).toBeDefined();
+  });
+
   it('finds a declaration the file does not export, which is where a context is made', async () => {
     const text = await ask({ declares: '^ThemeContext$', from: 'src/Nav.ts' });
     expect(text).toContain('src/theme.ts:1  declares ThemeContext');

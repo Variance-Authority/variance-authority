@@ -5,7 +5,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { EdgeKind } from '@variance-authority/core/relate';
 import type { FileNames, FileRecord, SourceNames, Tree } from '@variance-authority/mcp/tools';
 import { treeOf } from '@variance-authority/mcp/tools';
-import { discover, readsNames } from './discover.js';
+import { readsNames } from './discover-operands.js';
+import { discover } from './discover.js';
 
 /**
  * Each operand is a set of files, read whole, and the answer is the files in
@@ -180,6 +181,13 @@ describe('discover crosses whole sets', () => {
     expect(readsNames({ from: ['src/TopNav.tsx'], path: 'theme', text: 'x', exceptFrom: ['src/a.ts'], exceptPath: 'old' })).toBe(false);
     for (const key of ['imports', 'exceptImports']) expect(readsNames({ [key]: ['react'] })).toBe(true);
     for (const key of ['declares', 'exceptDeclares']) expect(readsNames({ [key]: 'x' })).toBe(true);
+  });
+
+  it('reads no names for an import of a name out of a file the tree holds, or one it will refuse', () => {
+    const files = new Set(['src/a.ts']);
+    expect(readsNames({ imports: ['src/a.ts#x'], exceptImports: ['src/a.ts#'] }, files)).toBe(false);
+    expect(readsNames({ imports: ['src/a.ts#x', 'src/b.ts#x'] }, files)).toBe(true);
+    expect(readsNames({ imports: ['src/a.ts#x'] })).toBe(true);
   });
 
   it('reads no names for a name set said empty, which names no set', () => {

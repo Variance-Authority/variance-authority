@@ -5,7 +5,7 @@ import type { Help } from '@variance-authority/package/help';
 import { sourceIndexPath } from '@variance-authority/sense';
 import { readWorkspaceForAnswer, type AnsweringOptions } from './read.js';
 import { publishedSourceIndex, workspaceGeneration } from './snapshot.js';
-import { readsNames } from './tools/discover.js';
+import { readsNames } from './tools/discover-operands.js';
 import { namesWanted } from './tools/intersection.js';
 
 /** The tree, every file's names when the question reads them, and the generation both came from. */
@@ -31,7 +31,7 @@ export async function readNamedTree(
   let tree: Tree | undefined;
   const help = await readWorkspaceForAnswer(root, { ...reading, tree: (drawn) => { tree = drawn; } });
   const read = { ...(tree === undefined ? {} : { tree }), at: workspaceGeneration(help) };
-  if (!readsNames(input) && !namesWanted(input)) return read;
+  if (!readsNames(input, tree?.files) && !namesWanted(input, tree?.files)) return read;
   return { ...read, names: await readGenerationNames(help, root, reading.index) };
 }
 

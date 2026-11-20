@@ -1,6 +1,6 @@
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { FileSet, Tool, ToolInvocation } from '@variance-authority/mcp/tools';
-import { readsNames } from './discover.js';
+import { readsNames } from './discover-operands.js';
 import { FoundNothing } from './find.js';
 import { limitOf, notShown, spellingOf, verbOf } from '@variance-authority/mcp/tools';
 
@@ -73,9 +73,12 @@ function saidQuestions(input: Readonly<Record<string, unknown>>): readonly Quest
   });
 }
 
-/** Whether a question among those crossed reads every file's names, which a host reads with the tree. */
-export function namesWanted(input: Readonly<Record<string, unknown>>): boolean {
-  return saidQuestions(input).some(({ question, input: given }) => question === 'discover' && readsNames(given));
+/**
+ * Whether a question among those crossed reads every file's names, which a host
+ * reads with the tree; `files`, the tree's, as `readsNames` takes them.
+ */
+export function namesWanted(input: Readonly<Record<string, unknown>>, files?: ReadonlySet<string>): boolean {
+  return saidQuestions(input).some(({ question, input: given }) => question === 'discover' && readsNames(given, files));
 }
 
 /**
