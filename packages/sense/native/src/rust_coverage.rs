@@ -42,14 +42,32 @@ pub struct RustEntered {
 /// profile missing, empty or cut short, its own or a started process's, answers
 /// `None`: that process left before its profile was written, so what the test
 /// entered is not known.
+///
+/// `compiled` are the Rust files the tests' target was compiled from, its own
+/// crate's and those of the workspace crates it links, and `launched` those the
+/// binaries a test may start were. What runs as a crate compiles, a `const` or
+/// a macro, counts nothing, so each test is charged the root of every file it
+/// was compiled from, and of every file a binary it started was, and each
+/// region of such a file the coverage map holds no function of, as a file a
+/// crate includes as text: an edit there selects every test it was compiled for.
 #[napi(js_name = "rustCoverage", catch_unwind)]
-pub fn rust_coverage(binaries: Vec<String>, profiles: Vec<Vec<String>>, root: String) -> napi::Result<Vec<Option<Vec<RustEntered>>>> {
+pub fn rust_coverage(
+    binaries: Vec<String>,
+    profiles: Vec<Vec<String>>,
+    root: String,
+    compiled: Vec<String>,
+    launched: Vec<String>,
+) -> napi::Result<Vec<Option<Vec<RustEntered>>>> {
     let counted: Vec<Option<Counts>> = profiles.par_iter().map(|profiles| Counts::read_all(profiles)).collect();
     let Some(version) = counted.iter().flatten().map(|counts| counts.version).next() else {
-        return Ok(counted.iter().map(|counts| counts.as_ref().map(|_| Vec::new())).collect());
+        return Ok(counted.iter().map(|_| None).collect());
     };
-    let map = Map::read(&binaries, version, Path::new(&root))?;
-    Ok(counted.par_iter().map(|counts| counts.as_ref().map(|counts| map.entered(counts))).collect())
+    let map = Map::read(&binaries, version, Path::new(&root), &compiled, &launched)?;
+    Ok(counted
+        .par_iter()
+        .zip(&profiles)
+        .map(|(counts, profiles)| counts.as_ref().map(|counts| map.entered(counts, profiles.len() > 1)))
+        .collect())
 }
 
 /// One profile's counters, by the function they count: its name hash and its hash.
@@ -80,7 +98,10 @@ impl Counts {
         }
     }
 
-    /// None for a profile that was not written whole: one that carries no header has no version.
+    /// None for a profile that was not written whole: one that carries no header
+    /// has no version, and one whose runtime could not write its counters as
+    /// they counted holds none, though every process of the workspace runs its
+    /// entry.
     fn read(profile: &str) -> Option<Counts> {
         let parsed = parse(profile).ok()?;
         let version = parsed.version()?;
@@ -93,7 +114,7 @@ impl Counts {
             }
             read.add((name, hash), counts);
         }
-        Some(read)
+        (!read.functions.is_empty()).then_some(read)
     }
 }
 
@@ -101,6 +122,10 @@ impl Counts {
 struct Map {
     files: Vec<File>,
     functions: Vec<Function>,
+    /// What every test is charged for the files its target was compiled from: a file and its ordinals.
+    compiled: Vec<(usize, Vec<u32>)>,
+    /// What a test that started a process is charged for the files the binaries were compiled from.
+    launched: Vec<(usize, Vec<u32>)>,
 }
 
 /// One function of the checkout, by the hashes a profile counts it under.
@@ -112,7 +137,7 @@ struct Function {
 }
 
 impl Map {
-    fn read(binaries: &[String], version: u64, root: &Path) -> napi::Result<Map> {
+    fn read(binaries: &[String], version: u64, root: &Path, compiled: &[String], launched: &[String]) -> napi::Result<Map> {
         let mut files: Vec<File> = Vec::new();
         let mut at: HashMap<PathBuf, Option<usize>> = HashMap::new();
         let mut functions = Vec::new();
@@ -152,11 +177,46 @@ impl Map {
                 });
             }
         }
-        Ok(Map { files, functions })
+        Ok(Map::charged(&mut files, &mut at, functions, root, compiled, launched))
     }
 
-    fn entered(&self, counts: &Counts) -> Vec<RustEntered> {
+    /// The map, with what each test is charged for the files its target and the binaries were compiled from.
+    fn charged(
+        files: &mut Vec<File>,
+        at: &mut HashMap<PathBuf, Option<usize>>,
+        functions: Vec<Function>,
+        root: &Path,
+        compiled: &[String],
+        launched: &[String],
+    ) -> Map {
+        let mapped: std::collections::HashSet<usize> =
+            functions.iter().flat_map(|function| function.regions.iter().map(|region| region.1)).collect();
+        let mut charge = |paths: &[String]| -> Vec<(usize, Vec<u32>)> {
+            paths
+                .iter()
+                .filter_map(|path| {
+                    let file = (*at.entry(PathBuf::from(path)).or_insert_with_key(|path| {
+                        File::read(path, root).map(|file| {
+                            files.push(file);
+                            files.len() - 1
+                        })
+                    }))?;
+                    // A file no counted function lies in runs only as a crate compiles: all of it is charged.
+                    let ordinals = if mapped.contains(&file) { vec![0] } else { (0..files[file].blocks()).collect() };
+                    Some((file, ordinals))
+                })
+                .collect()
+        };
+        let compiled = charge(compiled);
+        let launched = charge(launched);
+        Map { files: std::mem::take(files), functions, compiled, launched }
+    }
+
+    fn entered(&self, counts: &Counts, started: bool) -> Vec<RustEntered> {
         let mut ordinals: Vec<Vec<u32>> = vec![Vec::new(); self.files.len()];
+        for (file, charged) in self.compiled.iter().chain(if started { &self.launched[..] } else { &[] }) {
+            ordinals[*file].extend(charged);
+        }
         for function in &self.functions {
             let Some(counters) = counts.functions.get(&function.key) else { continue };
             let mut values = vec![None; function.expressions.len()];
@@ -241,6 +301,11 @@ impl File {
         Some(File { id, cut, lines, utf16 })
     }
 
+    /// How many blocks the cut declares, the root among them.
+    fn blocks(&self) -> u32 {
+        self.cut.as_ref().map_or(1, |cut| cut.blocks.len().max(1) as u32)
+    }
+
     /// The innermost block around a region that starts at a 1-based line and byte column.
     fn charged(&self, line: usize, column: usize) -> Option<u32> {
         let byte = *self.lines.get(line.checked_sub(1)?)? + column.saturating_sub(1);
@@ -260,11 +325,45 @@ mod tests {
         let empty = std::env::temp_dir().join(format!("variance-empty-{}.profraw", std::process::id()));
         std::fs::write(&empty, b"").expect("the file is written");
         let profiles = vec![vec!["/nonexistent/aborted.profraw".into()], vec![empty.to_string_lossy().into_owned()]];
-        let entered = rust_coverage(Vec::new(), profiles, "/".into());
+        let entered = rust_coverage(Vec::new(), profiles, "/".into(), Vec::new(), Vec::new());
         std::fs::remove_file(&empty).ok();
         let entered = entered.expect("an unreadable profile is no error");
         assert_eq!(entered.len(), 2);
         assert!(entered.iter().all(Option::is_none));
+    }
+
+    // A process of the workspace runs its entry at least, so a profile that counted nothing was not counted:
+    // its runtime could not write its counters as they counted.
+    #[test]
+    fn a_profile_that_counted_nothing_is_not_known() {
+        assert!(Counts::read(concat!(env!("CARGO_MANIFEST_DIR"), "/src/counted-nothing.profraw")).is_none());
+    }
+
+    // A `const` runs as the crate compiles and counts nothing, so a test is charged the files its target was compiled from:
+    // a counted file at its root, one no counted function lies in whole, and a started binary's only when a process started.
+    #[test]
+    fn a_compiled_file_is_charged_though_no_counter_entered_it() {
+        let root = std::env::temp_dir().join(format!("variance-rust-compiled-{}", std::process::id()));
+        std::fs::create_dir_all(&root).expect("a scratch directory");
+        let counted = "const fn limit() -> u32 { 3 }\nconst LIMIT: u32 = limit();\nfn runs() -> u32 { LIMIT }\n";
+        let uncounted = "fn never() {}\nfn either() {}\n";
+        let binary = "fn main() {}\n";
+        for (name, source) in [("counted.rs", counted), ("uncounted.rs", uncounted), ("main.rs", binary)] {
+            std::fs::write(root.join(name), source).expect("the file is written");
+        }
+        let path = |name: &str| root.join(name).to_string_lossy().into_owned();
+        let mut files = vec![File::read(&root.join("counted.rs"), &root).expect("a file under the root")];
+        let mut at = HashMap::from([(root.join("counted.rs"), Some(0))]);
+        let functions = vec![Function { key: (1, 2), expressions: Vec::new(), regions: vec![(Counter::instrumentation(0), 0, 3, 1)] }];
+        let map = Map::charged(&mut files, &mut at, functions, &root, &[path("counted.rs"), path("uncounted.rs")], &[path("main.rs")]);
+        std::fs::remove_dir_all(&root).ok();
+        let none = Counts { version: 0, functions: HashMap::new() };
+        let entered = |started| -> Vec<(String, Vec<u32>)> {
+            map.entered(&none, started).into_iter().map(|file| (file.id, file.ordinals.to_vec())).collect()
+        };
+        let id = |name: &str, source: &str| variance_sense_instrument::module_id(name, source);
+        assert_eq!(entered(false), vec![(id("counted.rs", counted), vec![0]), (id("uncounted.rs", uncounted), vec![0, 1, 2])]);
+        assert!(entered(true).contains(&(id("main.rs", binary), vec![0, 1])));
     }
 
     // As a JavaScript module the reader cannot parse: an edit to it selects every test that entered it.
@@ -280,9 +379,11 @@ mod tests {
         let map = Map {
             files: vec![file],
             functions: vec![Function { key: (1, 2), expressions: Vec::new(), regions: vec![(Counter::instrumentation(0), 0, 1, 1)] }],
+            compiled: Vec::new(),
+            launched: Vec::new(),
         };
         let counts = Counts { version: 0, functions: HashMap::from([((1, 2), vec![1])]) };
-        let entered = map.entered(&counts);
+        let entered = map.entered(&counts, false);
         assert_eq!(entered.len(), 1);
         assert_eq!(entered[0].id, variance_sense_instrument::module_id("broken.rs", source));
         assert_eq!(entered[0].ordinals.to_vec(), vec![0]);

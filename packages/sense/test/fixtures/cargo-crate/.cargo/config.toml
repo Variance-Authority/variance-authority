@@ -1,0 +1,3 @@
+# Read by `env!` as the crate compiles, so no test reads it, yet a change to it changes the crate.
+[env]
+CALC_UNIT = "one"

@@ -45,10 +45,16 @@ pub fn cut(source: &str) -> Option<Cut> {
 }
 
 /// Every function under `node`, each owned by the innermost function around
-/// it, named by the `mod`, `impl`, `trait` and function scopes it is in.
+/// it, named by the `mod`, `impl`, `trait` and function scopes it is in. A
+/// `const fn` is no block of its own: a `const` runs it as the crate compiles,
+/// where no counter sees it, so it is code of its owner, whose consumers are
+/// every test the file was compiled for.
 fn items(node: Node, source: &str, owner: u32, scope: &str, blocks: &mut Vec<Block>) {
     let mut cursor = node.walk();
     for child in node.named_children(&mut cursor) {
+        if child.kind() == "function_item" && is_const(child, source) {
+            continue;
+        }
         let own = match child.kind() {
             "function_item" | "mod_item" | "trait_item" => {
                 child.child_by_field_name("name").map(|name| text_of(name, source).to_owned())
@@ -76,6 +82,14 @@ fn items(node: Node, source: &str, owner: u32, scope: &str, blocks: &mut Vec<Blo
         });
         items(child, source, ordinal, &name, blocks);
     }
+}
+
+fn is_const(function: Node, source: &str) -> bool {
+    let mut cursor = function.walk();
+    let constant = function
+        .children(&mut cursor)
+        .any(|child| child.kind() == "function_modifiers" && text_of(child, source).split_whitespace().any(|word| word == "const"));
+    constant
 }
 
 /// `Type` for an inherent `impl`, `<Type as Trait>` for a trait's, as Rust

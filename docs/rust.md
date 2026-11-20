@@ -55,31 +55,32 @@ the build failed. A failing test's output is printed and its row is still
 written, marked incomplete. Two rows are marked incomplete though nothing failed,
 because what their tests ran is not known: a target with its own `main`
 (`harness = false`), which lists no tests to run alone and so runs once as
-`cargo test` runs it, and a target with a test
-that left its process before writing its counters, as one that calls `_exit`
-does, or whose started process left its counters cut short. An incomplete row is
+`cargo test` runs it, and a target with a test whose process, or one it started,
+left no counters to read. The counters are written as they count, so a process
+that aborts or calls `_exit` still leaves what it ran. An incomplete row is
 selected by every change.
 
-No test reads `Cargo.toml`, `Cargo.lock` or a build script, yet each changes
-what every test runs, so the record holds them under every row: a change to one
-selects every target. So does a change to a file a build script names with
+No test reads `Cargo.toml`, `Cargo.lock`, a build script, Cargo's configuration
+in `.cargo/config.toml` or the toolchain file, yet each changes what every test
+runs, so the record holds them under every row: a change to one selects every
+target. Cargo reads its configuration from the directory it runs in and those
+above it, so a configuration file added later is held by no row until you record
+again. So does a change to a file a build script names with
 `cargo::rerun-if-changed`, such as a schema it generates code from, and to a file
 a crate reads as it compiles, through `include_str!` or `include_bytes!`. A
 build script that names nothing is run again by Cargo on a change to any file of
-its package, so every file of that package but its `.rs` files is held the same
-way. A file added later, in a directory a build script names or a package it
+its package, so every file of that package is held the same way. A file added later, in a directory a build script names or a package it
 watches whole, is held by no row until you record again, so its addition alone
 selects nothing.
 
 A test that starts one of the workspace's binaries, as an integration test does
-through `CARGO_BIN_EXE_<name>`, is charged with what that process ran too. A
-started process that leaves without writing its counters, as one that aborts
-does, leaves nothing to read, so what it ran is not charged and the test's row
-stays complete.
+through `CARGO_BIN_EXE_<name>`, is charged with what that process ran too, even
+when it aborts. A process started with a cleared environment does not know where
+to write its counters, so what it ran is not charged.
 
-What runs as the crate compiles is charged to no test: a `const fn` evaluated
-in a `const`, and a `macro_rules!` macro. An edit to one selects only the tests
-that ran it at run time, so run every target after such an edit.
+What runs as the crate compiles, such as a `const fn` evaluated in a `const` or
+a `macro_rules!` macro, is charged to every test of each target that compiled
+its file, so an edit to it selects them all.
 
 It differs from `cargo test` in four ways:
 
@@ -129,7 +130,8 @@ its signature to its closing brace. A function is named by the `mod` and `impl`
 around it: `Calc/twice` for a method, `<Calc as Default>/default` for a trait
 method, and `tests/adds/helper` for a `fn` declared inside a test. Code outside
 every function, such as a `static` or a `use`, belongs to the file's root region.
-A change there selects every test that ran the file.
+A change there selects every target that compiled the file, since what it
+declares is read as the crate compiles.
 
 A row is the file the tests are declared in: `src/lib.rs` for a crate's unit
 tests, `tests/negates.rs` for an integration test target. A case in the row is a

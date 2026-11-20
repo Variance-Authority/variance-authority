@@ -4,10 +4,8 @@ fn doubled(a: i32) -> i32 {
 }
 
 fn main() {
-    // Leaves its profile cut short, as a process killed while writing it does.
+    // Leaves before the profile runtime would write its counters at exit.
     if std::env::args().nth(1).as_deref() == Some("abort") {
-        let profile = std::env::var("LLVM_PROFILE_FILE").expect("a profile path").replace("%p", &std::process::id().to_string());
-        std::fs::write(profile, b"").expect("the profile is written");
         std::process::abort();
     }
     println!("{}", doubled(21));

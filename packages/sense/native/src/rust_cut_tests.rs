@@ -74,3 +74,12 @@ fn offsets_are_utf16_code_units() {
 fn a_file_that_does_not_parse_has_no_cut() {
     assert!(cut("fn a( {").is_none());
 }
+
+// A `const` evaluates it as the crate compiles, so its consumers never run its counters: it is code of its owner's.
+#[test]
+fn a_const_fn_is_its_owners_code() {
+    let source = "const fn limit() -> u32 { 3 }\nconst LIMIT: u32 = limit();\nfn runs() -> u32 { LIMIT }\n";
+    let out = cut(source).expect("parses");
+    let names: Vec<_> = out.blocks.iter().map(|b| b.name.as_str()).collect();
+    assert_eq!(names, vec!["", "runs"]);
+}

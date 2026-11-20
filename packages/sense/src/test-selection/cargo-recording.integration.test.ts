@@ -19,6 +19,7 @@ const custom = `${relative(repository, fixture)}/tests/custom.rs`;
 const exits = `${relative(repository, fixture)}/tests/exits.rs`;
 const launches = `${relative(repository, fixture)}/tests/launches.rs`;
 const aborts = `${relative(repository, fixture)}/tests/aborts.rs`;
+const constant = `${relative(repository, fixture)}/tests/constant.rs`;
 // The binary's own unit tests: none, so the row holds no case.
 const main = `${relative(repository, fixture)}/src/main.rs`;
 
@@ -52,13 +53,13 @@ describe('a Cargo suite recorded one test per process', () => {
 
   it('writes each file tests are declared in as a row, every test passing', async () => {
     expect(failed).toBe(0);
-    expect(decodeTestCoverage(await readFile(coverageFile)).tests.map((test) => test.file).sort()).toEqual([lib, main, aborts, custom, exits, launches, negates].sort());
+    expect(decodeTestCoverage(await readFile(coverageFile)).tests.map((test) => test.file).sort()).toEqual([lib, main, aborts, constant, custom, exits, launches, negates].sort());
   });
 
-  // What ran there is not known, so an edit anywhere selects them.
-  it('records a target that lists no test, one whose test left no profile, and one whose test started a process that left none, as incomplete', async () => {
+  // What ran there is not known, so an edit anywhere selects it. A process that left early wrote its counters as it counted.
+  it('records a target that lists no test as incomplete, and one whose test or the process it started left early as complete', async () => {
     const rows = decodeTestCoverage(await readFile(coverageFile)).tests;
-    expect(rows.filter((test) => !test.complete).map((test) => test.file).sort()).toEqual([aborts, custom, exits]);
+    expect(rows.filter((test) => !test.complete).map((test) => test.file).sort()).toEqual([custom]);
   });
 
   it('leaves no profile behind in the crate, from building, listing or running the tests', async () => {
@@ -70,12 +71,12 @@ describe('a Cargo suite recorded one test per process', () => {
     const cases = await caseIndexOf(coverageFile);
     if (cases === undefined) throw new Error('the run wrote no execution index');
     const index = decodeExecutionIndex(cases);
-    expect(index.tests.map((test) => test.id).sort()).toEqual([`${lib} > tests::adds`, `${lib} > tests::muls`, `${lib} > tests::negs`, `${aborts} > aborts`, `${exits} > exits`, `${launches} > launches`, `${negates} > negates`].sort());
+    expect(index.tests.map((test) => test.id).sort()).toEqual([`${lib} > tests::adds`, `${lib} > tests::muls`, `${lib} > tests::negs`, `${aborts} > aborts`, `${constant} > constant`, `${exits} > exits`, `${launches} > launches`, `${negates} > negates`].sort());
     const source = await readFile(resolve(fixture, 'src/lib.rs'), 'utf8');
     const line = source.split('\n').findIndex((text) => text.startsWith('pub fn add')) + 1;
     const module = index.modules.find((entry) => entry.file === lib);
     const add = module?.blocks.findLast((block) => block.startLine <= line && line <= block.endLine);
-    expect(add?.crossings.map((crossing) => index.tests[crossing.test]!.id).sort()).toEqual([`${lib} > tests::adds`, `${lib} > tests::muls`, `${launches} > launches`].sort());
+    expect(add?.crossings.map((crossing) => index.tests[crossing.test]!.id).sort()).toEqual([`${lib} > tests::adds`, `${lib} > tests::muls`, `${exits} > exits`, `${launches} > launches`].sort());
   });
 
   // A line inside a function's body: one that opens it, as a one-line `fn` does, is the root's text too.
@@ -88,11 +89,11 @@ describe('a Cargo suite recorded one test per process', () => {
   });
 
   // What Cargo builds from is read by no test, yet changes what every test runs.
-  it('selects every file when a manifest, a build script, a file it names or a file the source includes changes', async () => {
+  it('selects every file when a manifest, Cargo\'s configuration, a build script, a file it names or a file the source includes changes', async () => {
     const crate = relative(repository, fixture);
-    for (const file of ['Cargo.toml', 'Cargo.lock', 'build.rs', 'schema.txt', 'src/greeting.txt']) {
+    for (const file of ['Cargo.toml', 'Cargo.lock', '.cargo/config.toml', 'build.rs', 'schema.txt', 'src/greeting.txt']) {
       const diff = `--- a/${crate}/${file}\n+++ b/${crate}/${file}\n@@ -1,1 +1,1 @@\n-a\n+b`;
-      await expect(selectTestFiles(coverageFile, diff)).resolves.toEqual([lib, main, aborts, custom, exits, launches, negates].sort());
+      await expect(selectTestFiles(coverageFile, diff)).resolves.toEqual([lib, main, aborts, constant, custom, exits, launches, negates].sort());
     }
   });
 
@@ -104,10 +105,18 @@ describe('a Cargo suite recorded one test per process', () => {
     await expect(selectTestFiles(coverageFile, diff)).resolves.toEqual([launches, main].sort());
   });
 
+  // `tests/aborts.rs` starts the binary, which aborts before its profile runtime would write at exit.
+  it('selects the file whose test started a process that aborted, when what that process ran is edited', async () => {
+    const source = await readFile(resolve(fixture, 'src/main.rs'), 'utf8');
+    const at = source.split('\n').indexOf('        std::process::abort();') + 1;
+    const diff = `--- a/${main}\n+++ b/${main}\n@@ -${at},1 +${at},1 @@\n-        std::process::abort();\n+        std::process::exit(134);`;
+    await expect(selectTestFiles(coverageFile, diff)).resolves.toEqual([aborts, launches, main].sort());
+  });
+
   it('records the workspace `--manifest-path` names, from outside it', async () => {
     const elsewhere = resolve(directory, 'elsewhere.bin');
     await expect(recordCargo({ cwd: directory, coverageFile: elsewhere, args: ['--manifest-path', resolve(fixture, 'Cargo.toml')] })).resolves.toBe(0);
-    expect(decodeTestCoverage(await readFile(elsewhere)).tests.map((test) => test.file).sort()).toEqual([lib, main, aborts, custom, exits, launches, negates].sort());
+    expect(decodeTestCoverage(await readFile(elsewhere)).tests.map((test) => test.file).sort()).toEqual([lib, main, aborts, constant, custom, exits, launches, negates].sort());
   }, 240_000);
 
   it('answers a build that failed, naming what rustc said', async () => {
@@ -141,10 +150,10 @@ describe('a Cargo suite recorded one test per process', () => {
     const crate = relative(repository, failing);
     const rows = decodeTestCoverage(await readFile(record)).tests;
     expect(rows.filter((test) => !test.complete).map((test) => test.file).sort()).toEqual([`${crate}/src/lib.rs`, `${crate}/tests/custom.rs`]);
-    // Its build script names nothing it reads, so Cargo watches every file of the package, and so does the record; a Rust file is a module.
+    // Its build script names nothing it reads, so Cargo watches every file of the package, its Rust files too, and so does the record.
     const held = rows.find((test) => test.file === `${crate}/tests/custom.rs`)!.preconditions.map((input) => input.name);
-    expect(held).toContain(`${crate}/limits.txt`);
-    expect(held).not.toContain(`${crate}/src/lib.rs`);
+    expect(held).toEqual(expect.arrayContaining([`${crate}/limits.txt`, `${crate}/schema.rs`, `${crate}/src/lib.rs`]));
+    expect(held).not.toContain(`${crate}/nested/notes.txt`);
   }, 240_000);
 
   it('refuses a directory that holds no Cargo workspace, naming `cargo metadata`', async () => {
@@ -156,9 +165,17 @@ describe('a Cargo suite recorded one test per process', () => {
     }
   });
 
-  it('selects every file whose tests ran a file when the edit is outside every function', async () => {
+  // The root is what runs as the crate compiles too, so every target compiled from the file is charged it.
+  it('selects every file whose target was compiled from a file when the edit is outside every function', async () => {
     const source = await readFile(resolve(fixture, 'src/lib.rs'), 'utf8');
     await expect(selectTestFiles(coverageFile, editing(source, '    use super::*;', '    use super::{add, mul, neg};')))
-      .resolves.toEqual([lib, launches, negates].sort());
+      .resolves.toEqual([lib, aborts, constant, exits, launches, negates].sort());
+  });
+
+  // A `const` evaluates it as the crate compiles, so the test that reads the constant entered none of its counters.
+  it('selects the files compiled from an edited `const fn`, though no test ran it', async () => {
+    const source = await readFile(resolve(fixture, 'src/lib.rs'), 'utf8');
+    await expect(selectTestFiles(coverageFile, editing(source, 'const fn limit() -> i32 { 3 }', 'const fn limit() -> i32 { 4 }')))
+      .resolves.toContain(constant);
   });
 });
