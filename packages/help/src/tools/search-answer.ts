@@ -205,7 +205,7 @@ function matched(index: SearchIndex, question: SearchQuestion, tree: Tree | unde
   // area only through a row whose file is in it.
   const through = docRows(index, saying.exported.rows, within, byName);
   const rest = exported(index, ascending(named, [...through.keys()]), answered, within, said, through, saying.exported.openings, exact);
-  return { query, said, area, within, named, hits, answered, rest } as const;
+  return { query, said, area, within, named, hits, answered, rest, byDoc: [...through.keys()] } as const;
 }
 
 /**
@@ -246,7 +246,7 @@ export function searched(index: SearchIndex, question: SearchQuestion, tree?: Tr
 function searchedBy(index: SearchIndex, question: SearchQuestion, tree: Tree | undefined, root: string | undefined, importingOf: ImportingOf | undefined, file?: (at: string, line?: number) => void): Searched {
   const found = matched(index, question, tree);
   if ('refused' in found) return { answer: { query: found.query, refused: found.refused }, area: found.area };
-  const { query, said, area, within, named, hits, answered, rest } = found;
+  const { query, said, area, within, named, hits, answered, rest, byDoc } = found;
   if (file !== undefined) indexedFiles(index, hits.map((hit) => hit.row), rest.rows(), file);
 
   const counted: SearchArea | undefined =
@@ -296,7 +296,8 @@ function searchedBy(index: SearchIndex, question: SearchQuestion, tree: Tree | u
   // matches, the repository's own wording; on an empty one they lead.
   // A name its file keeps to itself is in no row: the source index answers for it.
   const declarations = describedDeclarations(root, query, area?.files) ?? [];
-  const already = new Set([...named, ...answered]);
+  // A name the direct sections reached, by its name or its doc, is not offered again.
+  const already = new Set([...named, ...answered, ...byDoc]);
   const reached = describedNames(index, query, within, already, shownRowOrder(index, area, within), declarations);
   const described = reached === undefined ? undefined : [...reached, ...declarations];
   // Only what carries most of the question answers it, and the loose pass offers
