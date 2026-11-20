@@ -1,10 +1,11 @@
-import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import type { RenderIdentity } from '@variance-authority/core/format';
 import type { VantageState } from '@variance-authority/vantage';
 import type { VantageReading } from '@variance-authority/vantage/attach';
+import { readHelp } from '@variance-authority/help';
 import { HELP_TOOLS, type Help } from '@variance-authority/help/tools';
 import { TOOLS, VANTAGE_TOOLS, toolByName, vantageToolByName, verbOf } from '@variance-authority/mcp/tools';
 import { ask, askSource, type Sourced } from './ask.js';
@@ -95,46 +96,31 @@ describe('the questions', () => {
   });
 });
 
-/** A workspace with one published name, read by nothing on disk. */
-const WORKSPACE: Help = {
-  packages: [
-    {
-      name: '@example/alpha',
-      declared: {},
-      entry: true,
-      openings: [
-        {
-          subpath: '.',
-          source: 'packages/alpha/src/index.ts',
-          entries: [
-            {
-              name: 'viewport',
-              declared: 'viewport',
-              kind: 'function',
-              at: 'packages/alpha/src/viewport.ts',
-              line: 7,
-              signature: 'function viewport(width: number): Viewport',
-              doc: 'The box a subject is rendered in.',
-              usedBy: ['@example/beta'],
-              uses: 1,
-              sites: [],
-              throughDefault: [],
-            },
-          ],
-          whole: [],
-        },
-      ],
-    },
-  ],
-  deep: [],
-  unfollowed: [],
-  byPath: [],
-  exported: [],
-  unreadable: [],
-};
+/**
+ * A workspace with one published name, read the way every answer is: its
+ * files written to a checkout and read into a store, which holds the search.
+ */
+async function workspace(): Promise<Help> {
+  const root = await directory();
+  const files: Record<string, string> = {
+    'package.json': JSON.stringify({ name: 'fixture', private: true, workspaces: ['packages/*'] }),
+    'packages/alpha/package.json': JSON.stringify({ name: '@example/alpha', version: '1.0.0', main: 'src/index.ts' }),
+    'packages/alpha/src/index.ts': "export { viewport } from './viewport.js';\n",
+    'packages/alpha/src/viewport.ts':
+      'export interface Viewport { readonly width: number }\n\n/** The box a subject is rendered in. */\nexport function viewport(width: number): Viewport {\n  return { width };\n}\n',
+    'packages/beta/package.json': JSON.stringify({ name: '@example/beta', version: '1.0.0', main: 'src/index.ts', dependencies: { '@example/alpha': '1.0.0' } }),
+    'packages/beta/src/index.ts': "import { viewport } from '@example/alpha';\n\nexport const wide = viewport(1280);\n",
+  };
+  for (const [path, text] of Object.entries(files)) {
+    await mkdir(dirname(join(root, path)), { recursive: true });
+    await writeFile(join(root, path), text);
+  }
+  return readHelp(root);
+}
 
 describe('a question about the code', () => {
-  const sourced = (): Promise<Sourced> => Promise.resolve({ help: WORKSPACE });
+  let held: Promise<Help> | undefined;
+  const sourced = async (): Promise<Sourced> => ({ help: await (held ??= workspace()) });
 
   it('is answered from the checkout, with no report read at all', async () => {
     // The report reader is a trap here: a source question that touched it would

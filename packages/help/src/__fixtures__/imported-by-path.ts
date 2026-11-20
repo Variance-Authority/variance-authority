@@ -7,7 +7,10 @@
 
 // compass: variance-authority.report.agent-surface
 
-import type { Deep, Help } from '@variance-authority/package/help';
+import type { Deep, Help, Taken, Use } from '@variance-authority/package/help';
+import { encodeHelpStore, type StoreUse } from '@variance-authority/sense';
+import { heldStore } from '../snapshot.js';
+import { specifierOf } from '../tools/find.js';
 
 /** An import of `specifier` by `by`, at `at`, taking `names`. */
 export function importOf(specifier: string, by: string, at: string, names: readonly string[]): Deep {
@@ -113,3 +116,43 @@ export const SUBPATHS_ONLY: Help = {
     importOf('@acme/srv/src/wire', '@acme/app', 'apps/app/src/wire.ts', ['connect']),
   ],
 };
+
+/**
+ * The value `help` describes, as every answer holds it: laid out as the
+ * addon's encoder takes a store, encoded by the addon, and opened, so a
+ * question that reads the store's rows can ask it.
+ */
+export function stored(help: Help): Help {
+  const use = (held: Use | Taken): StoreUse => ({
+    by: held.by,
+    at: held.at,
+    line: held.line,
+    type: held.type,
+    kind: held.kind,
+    ...(held.local === undefined ? {} : { local: held.local }),
+    ...(held.through === undefined ? {} : { through: held.through.kind }),
+    throughLine: held.through?.line ?? 0,
+    throughDefault: held.through?.throughDefault === true,
+    whole: held.through?.whole === true,
+    ...('name' in held ? { name: held.name } : {}),
+  });
+  const deep = (held: Deep) => ({ specifier: held.specifier, by: held.by, at: held.at, line: held.line, ...(held.to === undefined ? {} : { to: held.to }), names: held.names.map(use) });
+  const store = {
+    packages: help.packages.map((owner) => ({
+      name: owner.name,
+      entry: owner.entry,
+      openings: owner.openings.map((opening) => ({
+        subpath: opening.subpath,
+        source: opening.source,
+        spec: specifierOf(owner, opening),
+        entries: opening.entries.map(({ sites, throughDefault, ...entry }) => ({ ...entry, sites: sites.map(use), throughDefault: throughDefault.map(use) })),
+        whole: opening.whole.map(use),
+      })),
+    })),
+    deep: help.deep.map(deep),
+    byPath: help.byPath.map(deep),
+    unfollowed: help.unfollowed.map(deep),
+    unreadable: help.unreadable,
+  };
+  return heldStore(encodeHelpStore(store, help.exported).bytes);
+}
