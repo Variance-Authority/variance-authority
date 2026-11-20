@@ -26,12 +26,17 @@ export function nameOf(written: string): { readonly spec: string; readonly name:
   return { spec, name };
 }
 
+/** Whether a file is in the tree: the tree itself, or a set of its paths. */
+export interface Holds {
+  has(file: string): boolean;
+}
+
 /**
  * The file and name of an import operand naming a name out of one of `files`,
  * which the source index answers without the names; anything else is
  * undefined. A `#` with nothing after it is refused, as `nameOf` refuses it.
  */
-export function fileNamed(written: string, files: ReadonlySet<string>): { readonly file: string; readonly name: string } | undefined {
+export function fileNamed(written: string, files: Holds): { readonly file: string; readonly name: string } | undefined {
   const { spec, name } = nameOf(written);
   return name !== undefined && files.has(spec) ? { file: spec, name } : undefined;
 }
@@ -43,7 +48,7 @@ export function fileNamed(written: string, files: ReadonlySet<string>): { readon
  * one of `files`, the tree's, is answered off the source index as `importsOf`
  * routes it, so it reads no names; without the tree, every import is taken to.
  */
-export function readsNames(input: Readonly<Record<string, unknown>>, files?: ReadonlySet<string>): boolean {
+export function readsNames(input: Readonly<Record<string, unknown>>, files?: Holds): boolean {
   // Read as `discover`'s `operandsOf` reads them, so a set said empty costs no names.
   const offIndex = (written: string): boolean => {
     if (files === undefined) return false;

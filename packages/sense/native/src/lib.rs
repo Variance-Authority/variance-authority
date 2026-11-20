@@ -177,6 +177,7 @@ mod seed;
 mod segment;
 mod side_effects;
 mod source_size;
+mod source_query;
 mod source_tree;
 mod source_update;
 mod stages;

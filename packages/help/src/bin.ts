@@ -42,7 +42,7 @@ async function crossNamed(root: string, reading: Reading, args: readonly string[
   const help = await readWorkspaceForAnswer(root, { ...reading, tree: (drawn) => { tree = drawn; } });
   const names = {
     ...(tree === undefined ? {} : { tree }),
-    ...(namesWanted(input, tree?.files) ? { names: await readGenerationNames(help, root) } : {}),
+    ...(namesWanted(input, tree) ? { names: await readGenerationNames(help, root) } : {}),
   };
   const at = workspaceGeneration(help);
   return {

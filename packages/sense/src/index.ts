@@ -280,6 +280,14 @@ export {
   type StoreUse,
 } from './help-reading.js';
 export {
+  openSourceTree,
+  sourceTreeOf,
+  type SourceEdge,
+  type SourceLink,
+  type SourceTree,
+  type SourceWalk,
+} from './source-tree.js';
+export {
   joinWalkedHelp,
   readmeMention,
   type Mention,

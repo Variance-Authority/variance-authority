@@ -89,7 +89,7 @@ const said = (unread: string | undefined): string => (unread === undefined ? '' 
  */
 function unreadOf(tree: Tree, names: SourceNames): string | undefined {
   let unread = 0;
-  for (const file of tree.files) if (READABLE.has(extname(file)) && !names.has(file)) unread += 1;
+  for (const file of tree.files()) if (READABLE.has(extname(file)) && !names.has(file)) unread += 1;
   return unread === 0 ? undefined : `the names of ${counted(unread)} were not read`;
 }
 
@@ -133,7 +133,7 @@ function holesOf(tree: Tree, files: ReadonlySet<string>, along: boolean): string
     const unresolved = tree.unknownAmong(files).length;
     return unresolved === 0 ? undefined : `${unresolved} of them import something the scan could not resolve`;
   }
-  const unseen = tree.unknownAmong(tree.files).filter((file) => !files.has(file));
+  const unseen = tree.unknownFiles().filter((file) => !files.has(file));
   if (unseen.length === 0) return undefined;
   const rest = unseen.length > NAMED ? ` and ${unseen.length - NAMED} more` : '';
   return (
@@ -150,7 +150,7 @@ function holesOf(tree: Tree, files: ReadonlySet<string>, along: boolean): string
 function reach(term: string, tree: Tree, along: boolean, root: string | undefined): Operand {
   if (!along) {
     const named = nameOf(term);
-    if (named.name !== undefined && tree.files.has(named.spec)) return reachingName(term, named.spec, named.name, tree, root);
+    if (named.name !== undefined && tree.has(named.spec)) return reachingName(term, named.spec, named.name, tree, root);
   }
   const seeds = entryPoints([term], tree);
   const refused = refusalFor(seeds.unmatched, tree.root);
@@ -227,7 +227,7 @@ function reachingName(term: string, file: string, name: string, tree: Tree, root
  * specifier as written, a file with no name — is matched in the names.
  */
 function importsOf(written: string, tree: Tree, names: () => SourceNames, root: string | undefined): Operand {
-  const named = fileNamed(written, tree.files);
+  const named = fileNamed(written, tree);
   if (named !== undefined) return importersOfFile(named.file, named.name, root);
   const { spec, name } = nameOf(written);
   const held = names();
@@ -309,7 +309,7 @@ function declaresOf(pattern: string, tree: Tree, names: SourceNames): Operand {
 
 function pathOf(pattern: string, tree: Tree): Operand {
   const matches = regexOf('path', pattern, '');
-  const files = new Set([...tree.files].filter((file) => matches.test(file)));
+  const files = new Set([...tree.files()].filter((file) => matches.test(file)));
   return { header: `${counted(files.size)} with a path matching /${pattern}/`, files, evidence: none };
 }
 

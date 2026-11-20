@@ -87,7 +87,7 @@ describe('readTree draws the names with the tree when asked', () => {
   it('hands every file its names, keyed as the tree keys it', async () => {
     let drawn: SourceNames | undefined;
     const tree = await readTree({ root, names: (names) => { drawn = names; } });
-    expect(tree.files).toContain('src/theme.ts');
+    expect(tree.has('src/theme.ts')).toBe(true);
     expect(drawn?.get('src/theme.ts')?.declared).toEqual([{ name: 'ThemeContext', line: 2 }]);
     expect(drawn?.get('src/theme.ts')?.imported).toContainEqual(expect.objectContaining({ from: 'react', name: 'createContext', line: 1 }));
     expect(drawn?.get('src/entry.ts')?.imported).toContainEqual(expect.objectContaining({ from: './theme', to: 'src/theme.ts', name: 'ThemeContext' }));
