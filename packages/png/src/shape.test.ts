@@ -113,6 +113,16 @@ describe('what changed in a region', () => {
     expect(regions.map((region) => regionChange(pixels, comparison, region, []))).toEqual(regions.map(() => undefined));
   });
 
+  it('reads a recolour as colour where its margin reaches a row inserted above it', async () => {
+    // A dark rule inserted at row 8 pushes the block down a row; the block's margin reaches the rule, which has no row opposite it.
+    const before: Paint = (x, y) => (x >= 20 && x < 60 && y >= 9 && y < 29 ? [0x33, 0x33, 0x33] : [255, 255, 255]);
+    const after: Paint = (x, y) =>
+      y === 8 ? [0, 0, 0] : x >= 20 && x < 60 && y >= 10 && y < 30 ? [0xcc, 0x00, 0x33] : [255, 255, 255];
+    const { pixels, comparison } = await read(raster(120, 50, before), raster(120, 51, after));
+    // The comparison joins the rule and the block into one region; a caller may read the block's box alone.
+    expect(regionChange(pixels, comparison, { x: 20, y: 10, width: 40, height: 20 }, [])).toBe('colour');
+  });
+
   it('reads a flat fill recoloured as colour, with no edge on either side', async () => {
     const { pixels, comparison, regions } = await read(raster(40, 30, () => [0x2f, 0x34, 0x37]), raster(40, 30, () => [0x3a, 0x40, 0x43]));
     expect(regions.map((region) => regionChange(pixels, comparison, region, []))).toEqual(['colour']);

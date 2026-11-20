@@ -108,6 +108,18 @@ describe('what changed in each region', () => {
     expect(result.because).toBe('80 pixels differ across 2 regions, 1 changed in shape');
   });
 
+  it('says nothing of shape or colour when no region could be told apart', async () => {
+    const FAINT: Colour = [0xf8, 0xf8, 0xf8];
+    const result = await observeRasters(
+      'button',
+      raster('v1:before', [{ left: 10, top: 10, size: 10, colour: FAINT }]),
+      raster('v1:after', [{ left: 11, top: 10, size: 10, colour: FAINT }]),
+    );
+
+    expect(result.isolation!.regions.every((region) => region.change === undefined)).toBe(true);
+    expect(result.because).toMatch(/^\d+ pixels differ across \d+ regions?$/);
+  });
+
   it('says which regions it read when the cap left some out', async () => {
     const result = await observeRasters(
       'button',
