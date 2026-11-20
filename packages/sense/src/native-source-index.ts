@@ -6,6 +6,8 @@
 
 // compass: variance-authority.reach.source-index
 
+import type { SourceTree } from './source-tree.js';
+
 export interface NativeSourceIndexes {
   /**
    * A source-index generation as bytes, from the JSON documents
@@ -31,6 +33,10 @@ export interface NativeSourceIndexes {
   pruneParseStore(store: string, chains: string[], graceMs: number): number;
   /** The index turn at `path`, `holder` written beside it; `null` while another process holds it (`native/src/index_turn.rs`). */
   takeIndexTurn(path: string, holder: string): { release(): void } | null;
+  /** The source tree in `bytes`, as the workspace `workspace` below its root sees it (`native/src/source_query.rs`). */
+  openSourceTree(bytes: Uint8Array, workspace: string): SourceTree;
+  /** The source tree drawn from the source index at `index`; `null` when none was published (`native/src/source_query.rs`). */
+  sourceTreeOf(root: string, index: string, tsconfig: string | boolean | null, code: string[]): Promise<SourceTree | null>;
 }
 
 

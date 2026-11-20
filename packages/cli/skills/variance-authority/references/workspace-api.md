@@ -649,8 +649,13 @@ variance ask intersection 'symbol --name selectBalance' 'discover --from src/Wal
 variance ask intersection "uses --name useTheme" "grep --query 'dark mode' --from src/App.tsx"
 ```
 
-Each question is read whole, never capped: asked alone, each prints its first
-fifty, and the file two questions agree on can sit past the cap of either. The
+Each question is read whole, before display caps: the file two questions agree
+on can sit past the cap of either. A `search` operand includes the same
+workspace candidates as the standalone search: declarations, import aliases,
+recorded test names, and described or loose candidates when those sections
+run. Every matching file of a grouped name participates. Loose matches remain
+candidates; composition does not make them exact. Installed dependency names
+identify no workspace file. The query's area and fallback rules still apply. The
 answer counts each question's files first, then lists the files in all of
 them, each with the lines that put it in each question, or `the file` when a
 question answers a file without a line. It shows 50; `--limit` shows more, and

@@ -5443,6 +5443,23 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@variance-authority/example-visual-review-case@workspace:examples/visual-review-case":
+  version: 0.0.0-use.local
+  resolution: "@variance-authority/example-visual-review-case@workspace:examples/visual-review-case"
+  dependencies:
+    "@variance-authority/cli": "workspace:^"
+    "@variance-authority/core": "workspace:^"
+    "@variance-authority/dom": "workspace:^"
+    "@variance-authority/mcp": "workspace:^"
+    "@variance-authority/playwright": "workspace:^"
+    "@variance-authority/png": "workspace:^"
+    "@variance-authority/sense": "workspace:^"
+    esbuild: "npm:^0.28.2"
+    playwright: "npm:^1.64.1"
+    vitest: "npm:^5.1.0"
+  languageName: unknown
+  linkType: soft
+
 "@variance-authority/eyes@workspace:^, @variance-authority/eyes@workspace:packages/eyes":
   version: 0.0.0-use.local
   resolution: "@variance-authority/eyes@workspace:packages/eyes"

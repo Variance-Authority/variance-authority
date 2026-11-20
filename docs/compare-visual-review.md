@@ -5,9 +5,10 @@ Argos, Applitools and [Variance Authority](README.md) against each other, and
 their own pages do not agree on which axes decide it. This page sets the six
 side by side on what each captures for a subject, where its pixels are painted,
 who approves a diff, and what that costs in privacy, browser coverage and
-money. [§6](#6-start-beside-the-tool-you-have) is where you install beside the
-tool you already have. For test selection and coverage reporting, [compare
-with the tool you already have](comparison.md).
+money. [§3.1](#31-a-diff-that-names-a-component-and-a-file) is what a failing
+screenshot tells you beyond a red image, and [§6](#6-start-beside-the-tool-you-have)
+is where you install beside the tool you already have. For test selection and
+coverage reporting, [compare with the tool you already have](comparison.md).
 
 **Decide first whether you want to operate it.** There is no hosted service, no
 account, and no per-screenshot bill, and the price of that absent meter is that
@@ -40,10 +41,10 @@ a diff mattered. Both bills are driven by one quantity — how many comparisons
 are shown to a person — and an architecture fixes that quantity long before a
 report does.
 
+## 1. Compare the responsibilities that matter
+
 Vendor documentation is authoritative for vendor behaviour. Verify pricing and
 hosted-service features there before buying; both change independently.
-
-## 1. Compare the responsibilities that matter
 
 | Dimension | `toHaveScreenshot` | Percy | Chromatic | Argos | Applitools | Variance Authority |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -226,6 +227,25 @@ snapshot of the same subject, and source attribution requires provenance
 recorded during acquisition. With both present, a region can resolve to a
 component and then to `file:line`. Without them, the observation remains a pixel
 result and the missing fields stay absent.
+
+The same report says what was edited and what was only pushed aside. The two
+images are aligned row by row before they are compared, so content inserted
+near the top is counted once, and the rows under it are compared with the rows
+they were rather than turning red. A component is a **cause** when its own
+inputs changed, and **collateral** when only its box moved; the decision
+is made from the components' inputs, not from pixels. Each component lists the
+bands it changed in, and a declared value that changed, from → to, where both
+sides recorded one. In the
+[visual-review example](../examples/visual-review-case/README.md), a notice
+inserted above three cards pushes them 44 pixels down, one button is
+recoloured, and `variance ask describe` answers:
+
+```text
+26,230 pixels differ across 2 strong regions in Notice, ChooseButton, and 3 faint regions, 1 changed in shape and 4 only in colour; 44 pixel rows inserted in 1 place, moving the content under them by up to 44 rows, and the subject resized from 480×288 to 480×332
+```
+
+[Review a visual change](path-visual-review.md#what-a-change-report-gives-you)
+walks through the rest of that report.
 
 React acquisition reads owner information; another framework can emit the same
 public provenance shape through `data-*` metadata. This is an acquisition

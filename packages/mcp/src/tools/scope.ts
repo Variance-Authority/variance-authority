@@ -82,20 +82,6 @@ export interface Scope {
    */
   readonly recorded: number;
   readonly strangers: number;
-  /**
-   * Subject → the cheapest way in to any file it was recorded in, in half-hops.
-   *
-   * Recorded, and read by nothing: the order an answer comes back in is decided
-   * by the words, and this is here so a ranking can be *measured* against
-   * position before it is changed by it. Cheapest of the subject's files rather
-   * than a mean, because reachability is already "any one of its files" and
-   * this is that predicate sharpened, not a different one.
-   *
-   * Empty for a refused start point, and empty for the `to` direction's own
-   * arithmetic in the sense that the two directions are unioned here the way
-   * the closure is: a subject in both keeps the cheaper.
-   */
-  readonly hops: ReadonlyMap<string, number>;
   /** Why the start point was not found. Absent when it resolved. */
   readonly refused?: string;
 }
@@ -139,7 +125,6 @@ export function scopeOf(
     unresolved: [] as readonly string[],
     recorded: 0,
     strangers: 0,
-    hops: new Map<string, number>() as ReadonlyMap<string, number>,
   };
 
   if (terms.length === 0) return { ...nowhere, refused: 'no start point was said' };
@@ -173,13 +158,7 @@ export function scopeOf(
   // each file produced. The other place-shaped fields — the id, the component a
   // subject is an example of, the components it holds, who mounted them, the
   // regions it entered — are names, and a name is not a location.
-  const cost = new Map<string, number>(tree.hopsFrom(down.files));
-  for (const [file, paid] of tree.hopsTo(up.files)) {
-    if (paid < (cost.get(file) ?? Infinity)) cost.set(file, paid);
-  }
-
   const subjects = new Set<string>();
-  const hops = new Map<string, number>();
   const recorded = new Set<string>();
   const strangers = new Set<string>();
   for (const entry of indexOf(report).entries) {
@@ -189,14 +168,10 @@ export function scopeOf(
     // in scope is the question being answered; whether it is on disk at all is
     // the question of whether the answer means anything.
     recorded.add(entry.value);
-    if (!tree.files.has(entry.value)) strangers.add(entry.value);
+    if (!tree.has(entry.value)) strangers.add(entry.value);
 
     if (!reachable.has(entry.value)) continue;
     subjects.add(entry.subject);
-    const paid = cost.get(entry.value);
-    if (paid !== undefined && paid < (hops.get(entry.subject) ?? Infinity)) {
-      hops.set(entry.subject, paid);
-    }
   }
 
   return {
@@ -210,7 +185,6 @@ export function scopeOf(
     unresolved: tree.unknownAmong(reachable),
     recorded: recorded.size,
     strangers: strangers.size,
-    hops,
   };
 }
 

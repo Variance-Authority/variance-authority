@@ -1,0 +1,77 @@
+/**
+ * The source tree a path question opens, held by the addon.
+ *
+ * The addon writes the tree; it is the one that reads it. A question hands it
+ * the start point and the direction, the walk runs there over every file and
+ * import, and what comes back is the answer: the files reached, their
+ * distances, the chain of a file asked. Nothing the size of the tree is built
+ * on this side, which on a workspace of hundreds of thousands of files is what
+ * a path question could not afford.
+ */
+
+// compass: variance-authority.reach.source-index
+
+import { native, nativeRefusal } from './addon.js';
+import { CODE_EXTENSIONS } from './language.js';
+import type { NativeScanner } from './native.js';
+import type { ResolveOptions } from './resolve.js';
+import { sourceIndexPath } from './source-index.js';
+import { withDeclaredTsconfig } from './typescript.js';
+
+/** One file on a chain, and the kind of import it takes towards the seed; absent on the seed. */
+export interface SourceLink {
+  readonly file: string;
+  readonly kind?: string | null;
+}
+
+/** A walk over a {@link SourceTree}; every path it takes and gives is below the graph root. */
+export interface SourceWalk {
+  /** Every file reached, in code-unit order. */
+  files(): string[];
+  /** The distance of each of {@link SourceWalk.files}, in its order. */
+  depths(): number[];
+  /** One shortest chain from `file` back to a seed: `file` first, the seed last. */
+  chain(file: string): SourceLink[];
+}
+
+/**
+ * The tree as one workspace sees it. Its own files are said from it; a seed
+ * is its file when it holds one at that path, else the graph's.
+ */
+export interface SourceTree {
+  /** How many files the workspace holds. */
+  readonly size: number;
+  has(file: string): boolean;
+  /** The workspace's files from the `from`th, at most `limit` of them. */
+  paths(from: number, limit: number): string[];
+  /** The workspace's files a start point names: `width` is `file`, `under` or `own`. */
+  entries(said: string, width: string): string[];
+  /** Those of `files`, below the graph root, whose imports could not all be read, sorted. */
+  unknownAmong(files: string[]): string[];
+  /** Every workspace file whose imports could not all be read, below the graph root. */
+  unknownFiles(): string[];
+  /** Every file reachable from `seeds` along the imports, or against them. */
+  walk(seeds: string[], against: boolean): SourceWalk;
+}
+
+/** The tree in `bytes`, as a workspace `workspace` below its root sees it; `''` for the root. */
+export function openSourceTree(bytes: Uint8Array, workspace = ''): SourceTree {
+  return addon().openSourceTree(bytes, workspace);
+}
+
+/** The tree drawn from the source index at `index`, the graph `variance covering --since` cuts by; `null` when none was published. */
+export function sourceTreeOf(root: string, index: string = sourceIndexPath(root)): Promise<SourceTree | null> {
+  return addon().sourceTreeOf(root, index, ...mocking(root));
+}
+
+/** How a test's loads beside its mocks resolve: the `tsconfig` the repository declares, and the extensions read as code. */
+export function mocking(root: string): [string | boolean | null, string[]] {
+  const { tsconfig } = withDeclaredTsconfig<ResolveOptions>(root, {});
+  return [tsconfig ?? null, [...CODE_EXTENSIONS]];
+}
+
+function addon(): NativeScanner {
+  const loaded = native();
+  if (loaded === undefined) throw new Error(`the source tree is read by the native addon, which did not load: ${nativeRefusal()}`);
+  return loaded;
+}
