@@ -83,11 +83,7 @@ import { byPublishedPath, plural } from './format.js';
  * first, then the one whose doc writes more of the question's adjacent word
  * pairs adjacent. Every word one of them holds is held by a row shown, so a name
  * holding the one rare word is shown however many holding a common one sort
- * before it. It is headed as near matches, not exact ones, and it is read after
- * a direct answer too, when the question has two words or more: at most
- * {@link NEAR_CAP} of its rows follow the answer, minus what the answer shows,
- * so an asker whose words are not the repository's learns its wording. On an
- * empty answer it prints first, so a name holding at least half the stems
+ * before it. It prints first, so a name holding at least half the stems
  * is not offered again by the loose pass. A name holding fewer is the loose
  * pass's when that pass reaches it, by every word, so on three words or more a
  * long list of names holding one stem cannot sort it past the rows shown.

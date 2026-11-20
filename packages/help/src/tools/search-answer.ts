@@ -30,7 +30,10 @@ export const LOOSE_CAP = 15;
 /** Described matches shown: as many as the loose pass, the same kind of guess. */
 export const DESCRIBED_CAP = LOOSE_CAP;
 
-/** Near matches shown after a direct answer when no `limit` is said: a few of the repository's own wordings, not a second answer. */
+/**
+ * Near matches shown after a question of two words or more answered as written, when no `limit` is said:
+ * the described rows the answer does not show, a few of the repository's own wordings and not a second answer.
+ */
 export const NEAR_CAP = 5;
 
 /** How wrong a word may be and still be looked up: one character, capped in `loose.ts`. */
@@ -296,12 +299,9 @@ function searchedBy(index: SearchIndex, question: SearchQuestion, tree: Tree | u
   const already = new Set([...named, ...answered]);
   const reached = describedNames(index, query, within, already, shownRowOrder(index, area, within), declarations);
   const described = reached === undefined ? undefined : [...reached, ...declarations];
-  // Only what carries most of the question answers it, and a name carrying it is
-  // the described section's, which prints first: the loose pass offers none of
-  // them a second time. What holds less is the loose section's when every word
-  // reaches it there, and otherwise nobody's.
-  // An area narrows what is shown, not what a word weighs: a row carrying the
-  // question everywhere carries it here.
+  // Only what carries most of the question answers it, and the loose pass offers
+  // none of that again; what holds less is loose when every word reaches it. An
+  // area narrows what is shown, not what a word weighs.
   const everyDeclaration = area === undefined ? declarations : describedDeclarations(root, query, undefined) ?? [];
   const everywhere = area === undefined
     ? described
