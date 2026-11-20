@@ -164,11 +164,14 @@ function drawing(isolation: Isolation): string {
   const shape = listed.filter((region) => region.change === 'shape').length;
   const colour = listed.filter((region) => region.change === 'colour').length;
   if (shape + colour === 0) return '';
+  if (shape > 0 && colour > 0) return `, ${shape} changed in shape and ${colour} only in colour`;
+  // A region whose pixels told neither apart is counted under neither, so "each" would claim it.
   // Regions the cap left out were not read, so "each" names only those listed.
-  const each = isolation.truncated > 0 ? 'each listed' : listed.length === 1 ? undefined : 'each';
+  let each: string | undefined = isolation.truncated > 0 ? 'each listed' : 'each';
+  if (shape + colour < listed.length) each = `${shape + colour}`;
+  else if (listed.length === 1) each = undefined;
   if (colour === 0) return each === undefined ? ', its shape changed' : `, ${each} changed in shape`;
-  if (shape === 0) return each === undefined ? ', only its colour changed' : `, ${each} changed only in colour`;
-  return `, ${shape} changed in shape and ${colour} only in colour`;
+  return each === undefined ? ', only its colour changed' : `, ${each} changed only in colour`;
 }
 
 /**

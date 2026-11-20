@@ -71,7 +71,8 @@ partner and does the same. Where the edges stand where they stood, only the
 colour changed: `colour`. A bordered button repainted from dark to light, and
 an anti-aliased edge recoloured, stay `colour`. A region with no edge on either
 side and a pixel too faint to call flat, as a pale tint moved by a pixel,
-carries no `change`: nothing in it tells the two apart.
+carries no `change`: nothing in it tells the two apart, and the sentence counts
+only the regions that carry one: `1 changed in shape`.
 
 The 2-pixel margin is there because a block shifted by a pixel leaves two
 regions a pixel wide, with no edge of their own; the margin brings in the edge
