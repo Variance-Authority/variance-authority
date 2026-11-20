@@ -45,9 +45,11 @@ describe('content that moved', () => {
     const result = await observeRasters('page', before, after);
 
     expect(result.verdict).toBe('changed');
-    expect(result.isolation?.regions).toEqual([{ x: 0, y: 1, width: WIDTH, height: 3, pixels: 3 * WIDTH, density: 1 }]);
+    expect(result.isolation?.regions).toEqual([
+      { x: 0, y: 1, width: WIDTH, height: 3, pixels: 3 * WIDTH, density: 1, change: 'shape' },
+    ]);
     expect(result.because).toBe(
-      `${3 * WIDTH} pixels differ across 1 region; 3 pixel rows inserted in 1 place, ` +
+      `${3 * WIDTH} pixels differ across 1 region, its shape changed; 3 pixel rows inserted in 1 place, ` +
         'moving the content under them by up to 3 rows, ' +
         `and the subject resized from ${WIDTH}×5 to ${WIDTH}×8`,
     );

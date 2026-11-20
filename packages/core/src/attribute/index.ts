@@ -24,6 +24,7 @@ export type {
   ExcludedBox,
   Isolation,
   IsolationOptions,
+  RegionChange,
   Subtraction,
 } from './mask.js';
 

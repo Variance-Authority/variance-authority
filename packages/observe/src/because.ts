@@ -151,8 +151,22 @@ export function describeChange(
 
   return (
     `${count(changed, 'pixel')} differ across ` +
-    `${count(isolation.regions.length, 'region')}${where}${capped}${movement(comparison)}${size}`
+    `${count(isolation.regions.length, 'region')}${where}${capped}${drawing(isolation)}${movement(comparison)}${size}`
   );
+}
+
+/**
+ * Whether the listed regions' drawing changed or only their colour, so the
+ * marks a reader has to open are told from the repaints before any is opened.
+ */
+function drawing(isolation: Isolation): string {
+  const listed = isolation.regions;
+  const shape = listed.filter((region) => region.change === 'shape').length;
+  const colour = listed.filter((region) => region.change === 'colour').length;
+  if (shape + colour === 0) return '';
+  if (colour === 0) return listed.length === 1 ? ', its shape changed' : ', each changed in shape';
+  if (shape === 0) return listed.length === 1 ? ', only its colour changed' : ', each changed only in colour';
+  return `, ${shape} changed in shape and ${colour} only in colour`;
 }
 
 /**

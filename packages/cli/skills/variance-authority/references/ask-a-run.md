@@ -42,9 +42,9 @@ rendered by playwright-chromium (chromium@151.0.7922.34, darwin/arm64, 1x)
 3 changed
 observed everything — the execution index stands at 30783c2f…, 7 file(s) differ from it; `variance run --since 30783c2f…` observes only what those reach
 
-[changed] card/summary — Button: 3,402 pixels differ across 2 regions in Button, Avatar
-[changed] card/compact — Button: 2,825 pixels differ across 1 region in Button
-[changed] badge/standalone — Badge: 1,017 pixels differ across 1 region in Badge
+[changed] card/summary — Button: 3,402 pixels differ across 2 regions in Button, Avatar, 1 changed in shape and 1 only in colour
+[changed] card/compact — Button: 2,825 pixels differ across 1 region in Button, its shape changed
+[changed] badge/standalone — Badge: 1,017 pixels differ across 1 region in Badge, only its colour changed
 
 coverage: every planned subject was observed.
 findings: none in 3 inspected subject(s).

@@ -10,7 +10,7 @@ import {
 import { mergeDiagnostics, type Pictured, type Raster } from '@variance-authority/core/format';
 import { absorbsEntirely, relaxes, fingerprintOfMask } from '@variance-authority/core/judge';
 import type { SemanticSnapshot } from '@variance-authority/core/format';
-import { compareRasters } from '@variance-authority/png';
+import { compareRasters, regionChange, type ComparedPixels } from '@variance-authority/png';
 import { attributionOf } from './attribution.js';
 import { count, describeChange, forgiveness, reshaped, unjoined, unrecorded, type BeforeSide } from './because.js';
 import { unpackSnapshot } from './packed.js';
@@ -52,10 +52,16 @@ export async function decide(
   options: CompareInputs,
   beforeIs: BeforeSide,
 ): Promise<Observation> {
+  // The decoded pixels, which `compareRasters` always hands over, kept to read
+  // whether each region's drawing changed or only its colour.
+  const held: { pixels?: ComparedPixels } = {};
   const comparison = await compareRasters(before, after, {
     ...options.compare,
     ...(options.decoder !== undefined ? { decoder: options.decoder } : {}),
-    ...(options.keep !== undefined ? { keep: options.keep } : {}),
+    keep: (kept) => {
+      held.pixels = kept;
+      options.keep?.(kept);
+    },
     ...(options.steps !== undefined ? { steps: options.steps } : {}),
   });
   const missingFonts = [...new Set([...before.missingFonts, ...after.missingFonts])];
@@ -248,8 +254,9 @@ export async function decide(
     const fingerprint = fingerprintOfMask(subtraction.mask, region);
     const rule = shapes[fingerprint];
     if (rule === undefined) {
-      prints.set(region, fingerprint);
-      kept.push(region);
+      const read: DiffRegion = { ...region, change: regionChange(held.pixels!, region) };
+      prints.set(read, fingerprint);
+      kept.push(read);
       continue;
     }
     byShape += region.pixels;

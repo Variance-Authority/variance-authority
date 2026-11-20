@@ -37,7 +37,16 @@ export interface DiffRegion extends Rect {
   readonly pixels: number;
   /** `pixels / (width * height)`. Low means scattered; high means a solid block. */
   readonly density: number;
+  /** Whether the drawing in the box changed or only its colour, where the pixels were read. */
+  readonly change?: RegionChange;
 }
+
+/**
+ * What changed in a region: `shape` where ink moved, appeared or went, read in
+ * black and white against each side's own ground; `colour` where the ink stands
+ * where it stood, in another colour.
+ */
+export type RegionChange = 'shape' | 'colour';
 
 export interface IsolationOptions {
   /**
