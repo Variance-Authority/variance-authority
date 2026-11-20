@@ -1,4 +1,4 @@
-import type { RowAlignment, RowSpan } from '@variance-authority/raster';
+import { type RowAlignment, type RowSpan } from '@variance-authority/raster';
 import type { DecodedImage } from './mask.js';
 import { explains, pairWords, wordsOf } from './rows.js';
 import { spansOf, stripped } from './strips.js';
@@ -46,22 +46,24 @@ export const ALIGNMENT_LIMIT = 2000;
 /**
  * The pairing, or `undefined` when there is none to make: the widths differ, so
  * no row of one is a row of the other, or no pairing, whole or in strips, leaves
- * fewer pixels differing than position does.
+ * fewer pixels differing than position does. `threshold` is that of the policy
+ * whose verdict the pairing serves: a band repainted within it stays in place.
  */
 export function alignRows(
   before: DecodedImage,
   after: DecodedImage,
-  limit = ALIGNMENT_LIMIT,
+  limit: number,
+  threshold: number,
 ): AlignedRows | undefined {
   if (before.width !== after.width) return undefined;
 
   const width = after.width;
   const was = wordsOf(before);
   const now = wordsOf(after);
-  const whole = pairWords(was, now, before.height, after.height, width, limit);
+  const whole = pairWords(was, now, before.height, after.height, width, limit, threshold);
   const kept = explains(whole) ? whole.rows : undefined;
   const left = kept === undefined ? whole.positional : whole.paired;
-  const strips = left > 0 ? stripped(was, now, before.height, after.height, width, limit, kept, left) : undefined;
+  const strips = left > 0 ? stripped(was, now, before.height, after.height, width, limit, kept, left, threshold) : undefined;
   if (strips !== undefined) return { ...spansOf(strips), strips };
   return kept && { inserted: kept.inserted, removed: kept.removed, shifted: kept.shifted, strips: [{ ...kept, from: 0, to: width }] };
 }

@@ -6,6 +6,7 @@
 import type { RowSpan } from '@variance-authority/raster';
 import type { PairedRows } from './align.js';
 import { edits, type Edit } from './edit-script.js';
+import { inPlace } from './in-place.js';
 import type { DecodedImage } from './mask.js';
 import { straddled } from './straddle.js';
 
@@ -34,6 +35,7 @@ export function pairWords(
   afterHeight: number,
   width: number,
   limit: number,
+  threshold: number,
 ): Weighed {
   // The rows the two share at the top and at the bottom, read by comparing
   // them, which costs less than hashing them: two captures of one page are
@@ -81,7 +83,7 @@ export function pairWords(
     const copied = (y < head && from === y) || (y >= afterHeight - tail && from === y - lift);
     costs[y] = from < 0 ? width : copied ? 0 : cost(from, y);
   }
-  const rows = straddled(initial, was, now, beforeHeight, width, cost, costs);
+  const rows = inPlace(straddled(initial, was, now, beforeHeight, width, cost, costs), was, now, width, threshold, cost, costs);
 
   let paired = 0;
   for (let y = head; y < afterHeight; y += 1) paired += costs[y]!;

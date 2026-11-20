@@ -73,8 +73,8 @@ export function judgeRows(
     return second;
   };
 
-  const limits = policies.map((policy) => 35215 * policy.threshold * policy.threshold);
-  const grades = SEVERITY_LEVELS.map((level) => 35215 * level * level);
+  const limits = policies.map((policy) => limitOf(policy.threshold));
+  const grades = SEVERITY_LEVELS.map(limitOf);
   const changed = policies.map(() => 0);
   const mask = output.mask === undefined ? undefined : new Uint8Array(width * height);
   const picture = output.picture === undefined ? undefined : new Uint8Array(height * row);
@@ -239,12 +239,17 @@ function manySiblings(rows: readonly (Uint32Array | undefined)[], x1: number, y1
   return false;
 }
 
+/** The squared YIQ distance past which a pixel differs under `threshold`: `pixelmatch`'s `35215 · threshold²`. */
+export function limitOf(threshold: number): number {
+  return 35215 * threshold * threshold;
+}
+
 /**
  * The squared YIQ distance (Kotsarenko and Ramos), negative where the second
  * pixel is darker. `pos` is the pixel's offset on the canvas, which is where
  * `pixelmatch`'s checkerboard is read, whichever row the first pixel came from.
  */
-function colorDelta(first: Uint8Array, second: Uint8Array, at: number, pos: number): number {
+export function colorDelta(first: Uint8Array, second: Uint8Array, at: number, pos: number): number {
   rgbDelta(first[at]!, first[at + 1]!, first[at + 2]!, first[at + 3]!, second, at, pos);
   const dr = DELTA[0]!;
   const dg = DELTA[1]!;
