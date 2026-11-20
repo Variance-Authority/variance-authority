@@ -22,6 +22,8 @@ import { askSource, type SourceRequest } from './ask.js';
 
 const cwd = process.cwd();
 let root: string;
+const firstLine = `export const marker = 'needle: ${'source evidence '.repeat(10)}';`;
+const secondLine = "export const marker = 'needle: second file';";
 
 function write(file: string, text: string): void {
   mkdirSync(dirname(join(root, file)), { recursive: true });
@@ -37,6 +39,8 @@ beforeAll(async () => {
   write('src/old/selectors.ts', 'export const selectBalance = () => 0;\n');
   write('src/Nav.ts', "import { useTheme } from './theme';\nexport const nav = useTheme;\n");
   write('src/theme.ts', "const ThemeContext = { theme: 'light' };\nexport const useTheme = () => ThemeContext;\n");
+  write('src/deep/feature/first.ts', `${firstLine}\n// needle: keep this line too\n`);
+  write('src/deep/feature/second.ts', `${secondLine}\n// needle: the same line number belongs to this file\n`);
   // `greet` reaches its users through two barrels; `wave` passes through the same ones.
   write('src/lib/greet.ts', "export const greet = () => 'hi';\nexport const wave = () => 'o/';\n");
   write('src/lib/index.ts', "export { greet, wave } from './greet';\n");
@@ -69,32 +73,41 @@ const ask = (flags: Omit<SourceRequest, 'question'>): Promise<string> => askSour
 const declaresBalance = (): Promise<string> => ask({ declares: '^selectBalance$', from: 'src/Wallet.ts' });
 
 describe('ask discover over a checkout', () => {
+  it('prints each file once above every matching evidence line', async () => {
+    const text = await ask({ path: '^src/deep/feature/', text: 'needle' });
+    expect(text).toContain('2 files in all of them.');
+    expect(text).toContain(`\nsrc/deep/feature/first.ts\n  1  ${firstLine}\n  2  // needle: keep this line too`);
+    expect(text).toContain(`\nsrc/deep/feature/second.ts\n  1  ${secondLine}\n  2  // needle: the same line number belongs to this file`);
+    expect(text).not.toContain('  src/deep/feature/');
+    expect(text.indexOf('\nsrc/deep/feature/first.ts\n')).toBeLessThan(text.indexOf('\nsrc/deep/feature/second.ts\n'));
+  });
+
   it('finds the declaration a file can reach, among every file declaring the name, past the barrel that re-exports it', async () => {
     const text = await declaresBalance();
     expect(text).toContain('2 files declaring a name matching /^selectBalance$/i');
-    expect(text).toContain('src/store/selectors.ts:1  declares selectBalance');
+    expect(text).toContain('src/store/selectors.ts\n  2 imports from src/Wallet.ts\n  1  declares selectBalance');
     expect(text).not.toContain('src/old/selectors.ts');
     expect(text).not.toContain('src/store/index.ts');
   });
 
   it('takes out the files an `--except-` set names', async () => {
     const text = await ask({ declares: '^selectBalance$', exceptPath: '/store/' });
-    expect(text).toContain('src/old/selectors.ts:1  declares selectBalance');
+    expect(text).toContain('src/old/selectors.ts\n  1  declares selectBalance');
     expect(text).not.toContain('src/store/selectors.ts');
   });
 
   it('finds who imports a name out of a file through the barrel that passes it on, as `uses` does', async () => {
     const text = await ask({ imports: 'src/store/selectors.ts#selectBalance' });
     expect(text).toContain('2 files importing `selectBalance` from `src/store/selectors.ts`, through 1 file that passes it on');
-    expect(text).toContain('src/Wallet.ts:1  imports selectBalance from ./store');
-    expect(text).toContain('src/store/index.ts:1  imports selectBalance from ./selectors');
+    expect(text).toContain('src/Wallet.ts\n  1  imports selectBalance from ./store');
+    expect(text).toContain('src/store/index.ts\n  1  imports selectBalance from ./selectors');
   });
 
   it('finds what rests on a name out of a file, through the barrels that pass it on, and not what imports another name through them', async () => {
     const text = await ask({ to: 'src/lib/greet.ts#greet' });
     expect(text).toContain('4 files reaching `greet` from `src/lib/greet.ts`, through 2 files that pass it on');
-    expect(text).toContain('src/Hello.ts:1  imports greet from ./lib');
-    expect(text).toContain('src/Deep.ts:1  imports greet from ./lib/all');
+    expect(text).toContain('src/Hello.ts\n  1  imports greet from ./lib');
+    expect(text).toContain('src/Deep.ts\n  1  imports greet from ./lib/all');
     expect(text).toContain('2 imports to src/lib/greet.ts#greet: src/Page.ts → src/Hello.ts:1 imports greet from ./lib');
     expect(text).not.toContain('src/Waver.ts');
     expect(text).not.toContain('src/lib/index.ts');
@@ -117,7 +130,7 @@ describe('ask discover over a checkout', () => {
   it('answers a name set for a host that hands it the tree and the checkout alone, as the MCP server does', async () => {
     const tree = await readTree({ root });
     const asked = (input: Record<string, unknown>): string => discover.run(undefined, input, { tree, root });
-    expect(asked({ declares: '^selectBalance$' })).toContain('src/old/selectors.ts:1  declares selectBalance');
+    expect(asked({ declares: '^selectBalance$' })).toContain('src/old/selectors.ts\n  1  declares selectBalance');
     const text = asked({ imports: ['node:module'], exceptImports: ['./legacy.cjs'] });
     expect(text).toContain('3 files importing `node:module`');
     expect(text).toContain('3 files importing `./legacy.cjs`, taken out');
@@ -136,7 +149,7 @@ describe('ask discover over a checkout', () => {
 
   it('finds a declaration the file does not export, which is where a context is made', async () => {
     const text = await ask({ declares: '^ThemeContext$', from: 'src/Nav.ts' });
-    expect(text).toContain('src/theme.ts:1  declares ThemeContext');
+    expect(text).toContain('src/theme.ts\n  1 import from src/Nav.ts\n  1  declares ThemeContext');
   });
 
   it('answers from the names `variance index` published after a file is edited, and writes no index', async () => {
@@ -145,7 +158,7 @@ describe('ask discover over a checkout', () => {
     const text = readFileSync(join(root, selectors), 'utf8');
     write(selectors, `// moved\n// down\n${text}`);
     try {
-      expect(await declaresBalance()).toContain('src/store/selectors.ts:1  declares selectBalance');
+      expect(await declaresBalance()).toContain('src/store/selectors.ts\n  2 imports from src/Wallet.ts\n  1  declares selectBalance');
     } finally {
       write(selectors, text);
     }
@@ -164,7 +177,7 @@ describe('ask discover over a checkout', () => {
     write('changed.txt', 'src/store/selectors.ts\n');
     const { code, out } = await run(['ask', 'discover', '--declares', '^selectDebt$', '--changed-file', join(root, 'changed.txt')]);
     expect(code).toBe(0);
-    expect(out).toContain('src/store/selectors.ts:2  declares selectDebt');
+    expect(out).toContain('src/store/selectors.ts\n  2  declares selectDebt');
   });
 });
 
@@ -204,8 +217,8 @@ describe('ask discover in a workspace whose member sits beside it', () => {
       process.chdir(join(repository, 'app'));
       expect((await run(['index'])).code).toBe(0);
       const text = await ask({ declares: 'Thing$' });
-      expect(text).toContain('src/a.ts:1  declares appThing');
-      expect(text).toContain('lib/b.ts:1  declares libThing');
+      expect(text).toContain('src/a.ts\n  1  declares appThing');
+      expect(text).toContain('lib/b.ts\n  1  declares libThing');
     } finally {
       process.chdir(root);
       rmSync(repository, { recursive: true, force: true });
