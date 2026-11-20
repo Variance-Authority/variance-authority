@@ -1,0 +1,5 @@
+# A package of its own inside this one, whose files are not this package's.
+[package]
+name = "nested"
+version = "0.1.0"
+edition = "2024"

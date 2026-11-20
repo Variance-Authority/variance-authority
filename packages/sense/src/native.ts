@@ -155,6 +155,16 @@ export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon
    * shifts they were made from, or `null`: `native/instrument/src/cadence.rs`.
    */
   cadence(source: string, file: string, awaited?: boolean): { code: string; mappings: string; shifts: number[] } | null;
+  /**
+   * For each test's `.profraw`s in `profiles`, its own process's first, the
+   * files under `root` its run of `binaries` entered: each a module id and the
+   * ordinals of the Rust reader's regions its counters reached, or `null` when
+   * its own profile is missing, empty or cut short (`native/src/rust_coverage.rs`).
+   * Each test is charged too the root of every file in `compiled`, what its
+   * target was compiled from, and of `launched` when it started a process, and
+   * the whole of such a file no counted function lies in.
+   */
+  rustCoverage(binaries: string[], profiles: string[][], root: string, compiled: string[], launched: string[]): ({ id: string; ordinals: Uint32Array }[] | null)[];
   gitTree(root: string): NativeGitTree | null;
   gitTreeFor(root: string, dirs: string[]): NativeGitTree | null;
   /** The tree an update of the index at `index` is made against (`native/src/change_tree.rs`). */

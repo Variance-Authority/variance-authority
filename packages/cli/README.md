@@ -182,6 +182,7 @@ variance serve   [--config <path>] [--just-answer] # MCP over stdio
 variance doctor  [--config <path>] [--baselines]
 variance prune
 variance job     --suite <name> [--complete-on <exit>] -- <command>...
+variance cargo   [--suite <name>] [-- <cargo test argument>...]
 variance janus   --since <ref> --file <path>... -- <command>...
 variance share   [--config <path>] [--mainline <branch>] [--publish] [<report>...] | [--suite <name>] [--publish [--collected <path>] [--from-queue <artifact pattern>] | --format text|github] [<record>...] | --purge-older-than <days> [--mainline <branch>]
 variance collect [--config <path>] [--subjects <glob>] [--shard <k>/<n>] [--workers <n>] --out <part.json> | merge <part.json>... --out <suite.index>
@@ -2676,6 +2677,22 @@ Files outside the repository are not selected on, and a file the job has never
 read is not seen: a new page the build would pick up does not select it. Declare
 what the recorder cannot see under the suite's `before`: a server the job leaves
 running, or the workflow that starts it.
+
+### `cargo`: record a Cargo suite
+
+`variance cargo` builds a crate's tests with rustc's coverage counters, runs each
+test alone, and writes the suite's record: one row per file that declares tests,
+one case per test, and the functions each one ran. `variance select` and
+`variance covering` then answer a Rust change as they answer a Node one.
+
+```bash
+variance cargo --suite unit -- --workspace --lib --locked
+variance covering --file src/lib.rs --function add
+```
+
+What follows `--` goes to `cargo test`. It exits `0` when every test passed and
+`101` when a test or the build failed. [Rust tests](https://variance-authority.dev/docs/rust) covers
+the build directory, the regions and the cost.
 
 ### `janus`: the old tests on the new code
 

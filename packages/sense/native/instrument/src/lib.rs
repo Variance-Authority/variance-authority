@@ -125,7 +125,7 @@ pub fn recipe(mode: Mode) -> String {
 pub mod native {
     use oxc_ast::ast::Program;
 
-    pub use crate::cut::{cut, Cut};
+    pub use crate::cut::{cut, own_digests, Cut, Utf16};
     pub use crate::dialect::dialect;
     pub use crate::header::header;
     pub use crate::place::{place, Placed};

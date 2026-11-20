@@ -3,7 +3,7 @@ import type { Config } from '../config.js';
 /**
  * How much of a run may happen at once, and the one stage that never may.
  *
- * The whole of the concurrency argument is three small functions, and they are
+ * The whole of the concurrency argument is two small functions, and they are
  * together because they are only meaningful against each other: the raster tier
  * goes as wide as the operator asked for, and collection stays a queue of one
  * however wide that is. Splitting the pair across files is how somebody later
@@ -40,36 +40,6 @@ export function serial(): <T>(job: () => Promise<T>) => Promise<T> {
     );
     return next;
   };
-}
-
-/**
- * Run `worker` over every item, at most `limit` at a time, in index order.
- *
- * Index order of *starting*, not of finishing — workers take the next unclaimed
- * item, so a slow subject delays nothing behind it. The caller is responsible
- * for putting results back in order; here that is `slots`.
- *
- * A worker that rejects rejects the whole call, which is why `observeAll` catches
- * inside the worker instead. Letting one subject's exception abandon the others
- * mid-render would leave pages leased and the report short of subjects it never
- * says it skipped.
- */
-export async function pool<T>(
-  limit: number,
-  items: readonly T[],
-  worker: (item: T, index: number) => Promise<void>,
-): Promise<void> {
-  let next = 0;
-  const lanes = Array.from({ length: Math.min(Math.max(1, limit), items.length) }, async () => {
-    for (;;) {
-      const index = next++;
-      const item = items[index];
-      if (item === undefined) return;
-      await worker(item, index);
-    }
-  });
-
-  await Promise.all(lanes);
 }
 
 /**

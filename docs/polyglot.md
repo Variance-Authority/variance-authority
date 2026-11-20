@@ -204,7 +204,8 @@ file exists, so a `mod` that resolves to nothing is a hole and is reported as
 one. `use crate::read::harvest::Harvest;` names an item, and which prefix is the
 module is again a fact about the disk; resolution takes the longest prefix that
 is a file, and a `use` that finds nothing is an external crate rather than an
-error. `#[path]` is taken as written.
+error. `#[path]` is taken as written. To select Rust tests from what they ran
+rather than from this graph, see [Rust tests](rust.md).
 
 **Java and Kotlin.** Two syntaxes over one resolution algorithm. An import names
 a package and a thing in it, the package is a directory under a source root, and

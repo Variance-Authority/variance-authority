@@ -1,0 +1,12 @@
+[package]
+name = "failing"
+version = "0.1.0"
+edition = "2024"
+
+# Its own workspace, not the repository's.
+[workspace]
+
+# A harness of its own that fails, as a test does.
+[[test]]
+name = "custom"
+harness = false

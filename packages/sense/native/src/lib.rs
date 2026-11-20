@@ -186,6 +186,10 @@ mod specifier;
 mod stored;
 mod style;
 mod text_cut;
+#[cfg(feature = "grammars")]
+mod rust_cut;
+#[cfg(feature = "grammars")]
+mod rust_coverage;
 mod text_digests;
 mod top_level;
 mod tree;
