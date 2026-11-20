@@ -460,3 +460,12 @@ describe('madeBefore', () => {
     expect(madeBefore(undefined, started)).toBe(false);
   });
 });
+
+describe('a name set asked of the server', () => {
+  it('reads the published source index the server answers from, as `variance ask` does', async () => {
+    const root = await fixture.published();
+    const { text, isError } = await asked(root, true, 'docs_discover', { declares: 'taxOf' });
+    expect({ text, isError }).toMatchObject({ text: expect.stringContaining('packages/kit/src/tax.ts') });
+    expect(isError).toBeUndefined();
+  });
+});

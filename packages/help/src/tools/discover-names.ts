@@ -1,5 +1,5 @@
 import type { ToolInvocation, Tree } from '@variance-authority/mcp/tools';
-import { namesFilterOf, READABLE, type NamesFound } from '@variance-authority/sense';
+import { namesFilterOf, READABLE, type NameHit, type NamesFound } from '@variance-authority/sense';
 import { fileNamed, listArg, nameOf, textArg } from './discover-operands.js';
 
 /**
@@ -45,5 +45,14 @@ export function foundOf(input: Readonly<Record<string, unknown>>, tree: Tree, in
   // The tree drops the workspace's directory from the files under it and spells the rest from the index's root.
   const under = `${at.within}/`;
   const spelled = at.within === '' ? (file: string) => file : (file: string) => (file.startsWith(under) ? file.slice(under.length) : file);
-  return { imports: [...read.imports], declares: [...read.declares], unread: read.unread.map(spelled), spelled };
+  // The index holds the whole checkout, and a tree read under some directories answers for its own files alone.
+  // A workspace's index holds its members beside it too, which its tree walks but does not list.
+  const beside = (file: string): boolean => at.within !== '' && !file.startsWith(under);
+  const held = (hits: readonly NameHit[]): NameHit[] => hits.filter((hit) => beside(hit.file) || tree.files.has(spelled(hit.file)));
+  return {
+    imports: read.imports.map(held),
+    declares: read.declares.map((asked) => ({ ...asked, hits: held(asked.hits) })),
+    unread: read.unread.map(spelled),
+    spelled,
+  };
 }
