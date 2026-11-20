@@ -1,6 +1,6 @@
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { FileSet, Tool, ToolInvocation } from '@variance-authority/mcp/tools';
-import { readsNames } from './discover.js';
+import { readsNames } from './discover-operands.js';
 import { FoundNothing } from './find.js';
 import { limitOf, notShown, spellingOf, verbOf } from '@variance-authority/mcp/tools';
 

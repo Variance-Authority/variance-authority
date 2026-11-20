@@ -5,7 +5,7 @@ import type { Help } from '@variance-authority/package/help';
 import { sourceIndexPath } from '@variance-authority/sense';
 import { readWorkspaceForAnswer, type AnsweringOptions } from './read.js';
 import { publishedSourceIndex, workspaceGeneration } from './snapshot.js';
-import { readsNames } from './tools/discover.js';
+import { readsNames } from './tools/discover-operands.js';
 import { namesWanted } from './tools/intersection.js';
 
 /** The tree, every file's names when the question reads them, and the generation both came from. */

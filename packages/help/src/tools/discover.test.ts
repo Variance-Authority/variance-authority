@@ -5,7 +5,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { EdgeKind } from '@variance-authority/core/relate';
 import type { FileNames, FileRecord, SourceNames, Tree } from '@variance-authority/mcp/tools';
 import { treeOf } from '@variance-authority/mcp/tools';
-import { discover, readsNames } from './discover.js';
+import { readsNames } from './discover-operands.js';
+import { discover } from './discover.js';
 
 /**
  * Each operand is a set of files, read whole, and the answer is the files in

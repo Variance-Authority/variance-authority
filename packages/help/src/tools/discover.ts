@@ -1,9 +1,10 @@
 import { extname } from 'node:path';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { FileSet, Link, SourceNames, Tool, ToolInvocation, Tree } from '@variance-authority/mcp/tools';
-import { entryPoints, limitOf, notShown, pathsOf, refusalFor, spellingOf, startPointArg } from '@variance-authority/mcp/tools';
+import { entryPoints, limitOf, notShown, refusalFor, spellingOf } from '@variance-authority/mcp/tools';
 import { READABLE } from '@variance-authority/sense';
 import { startPointNeeded } from './area.js';
+import { fileNamed, listArg, nameOf, textArg } from './discover-operands.js';
 import { ripgrep } from './ripgrep.js';
 import { importsOf as importersOf, type IndexedUse } from './unpublished.js';
 
@@ -94,16 +95,6 @@ function unreadOf(tree: Tree, names: SourceNames): string | undefined {
 
 /** `react/jsx-runtime` is `react`; `./store/selectors` is not `./store`. */
 const isBare = (spec: string): boolean => !spec.startsWith('.') && !spec.startsWith('/');
-
-/** One or several values, said as a string or an array. */
-function listArg(input: Readonly<Record<string, unknown>>, name: string): readonly string[] {
-  return pathsOf(startPointArg(input, name));
-}
-
-function textArg(input: Readonly<Record<string, unknown>>, name: string): string | undefined {
-  const said = input[name];
-  return typeof said === 'string' && said.trim() !== '' ? said : undefined;
-}
 
 function regexOf(name: string, pattern: string, flags: string): RegExp {
   try {
@@ -264,16 +255,6 @@ function importsOf(written: string, tree: Tree, names: () => SourceNames, root: 
   };
 }
 
-/**
- * The file and name of an import operand naming a name out of one of `files`,
- * which the source index answers without the names; anything else is
- * undefined. A `#` with nothing after it is refused, as `nameOf` refuses it.
- */
-function fileNamed(written: string, files: ReadonlySet<string>): { readonly file: string; readonly name: string } | undefined {
-  const { spec, name } = nameOf(written);
-  return name !== undefined && files.has(spec) ? { file: spec, name } : undefined;
-}
-
 /** Every import of `name` out of `file`, followed through the files that pass it on. */
 function importersOfFile(file: string, name: string, root: string | undefined): Operand {
   const read = importersOf(root, [file], name);
@@ -286,17 +267,6 @@ function importersOfFile(file: string, name: string, root: string | undefined): 
     files: new Set(lines.keys()),
     evidence: (at) => lines.get(at) ?? [],
   };
-}
-
-/** `spec#name`, split at the last `#` past the first character; a `#` with nothing after it is refused. */
-function nameOf(written: string): { readonly spec: string; readonly name: string | undefined } {
-  const at = written.lastIndexOf('#');
-  const spec = at > 0 ? written.slice(0, at) : written;
-  const name = at > 0 ? written.slice(at + 1) : undefined;
-  if (name === '') {
-    throw new Error(`\`${written}\` has nothing after \`#\`. Say \`${spec}#name\`, or \`${spec}\` for every import of it.`);
-  }
-  return { spec, name };
 }
 
 /** Each importing file, and the lines on which it imports the name, in the order the index holds them. */
@@ -366,28 +336,6 @@ function operandsOf(input: Readonly<Record<string, unknown>>, tree: Tree, names:
     return operands;
   };
   return { kept: read(''), out: read('except') };
-}
-
-/**
- * Whether a call names an operand read off the names. A question about paths
- * alone reads the tree and nothing else: on a large checkout the names cost a
- * second read of every file for its declarations. An import of a name out of
- * one of `files`, the tree's, is answered off the source index as `importsOf`
- * routes it, so it reads no names; without the tree, every import is taken to.
- */
-export function readsNames(input: Readonly<Record<string, unknown>>, files?: ReadonlySet<string>): boolean {
-  // Read as `operandsOf` reads them, so a set said empty costs no names.
-  const offIndex = (written: string): boolean => {
-    if (files === undefined) return false;
-    try {
-      return fileNamed(written, files) !== undefined;
-    } catch {
-      // Refused when `discover` runs, so nothing is read for it here.
-      return true;
-    }
-  };
-  return ['imports', 'exceptImports'].some((key) => listArg(input, key).some((written) => !offIndex(written))) ||
-    ['declares', 'exceptDeclares'].some((key) => textArg(input, key) !== undefined);
 }
 
 /**
