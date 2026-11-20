@@ -6,6 +6,10 @@ describe('variance cargo', () => {
     expect(parseArgs(['cargo', '--suite', 'native', '--', '-p', 'variance-sense'])).toEqual({ command: 'cargo', suite: 'native', args: ['-p', 'variance-sense'] });
   });
 
+  it('refuses what follows a second `--`, since every test runs and is recorded', () => {
+    expect(() => parseArgs(['cargo', '--', '--lib', '--', 'adds'])).toThrow(/runs every test/);
+  });
+
   it('names no suite when none is given, so the only declared one is meant', () => {
     expect(parseArgs(['cargo'])).toEqual({ command: 'cargo', args: [] });
   });

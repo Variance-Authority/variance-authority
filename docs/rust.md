@@ -30,8 +30,9 @@ npx variance cargo --suite unit
 
 `unit` is a suite you name under `suites` in `variance.config.json` at the
 repository root, as `{ "suites": { "unit": { "kind": "unit" } } }`. What
-follows `--` goes to `cargo test`, before its own `--`: the packages,
-features and targets to build.
+follows `--` goes to `cargo test`: the packages, features and targets to
+build. Every test the build lists runs, so a test filter or a libtest flag
+after a second `--` is refused.
 
 ```bash
 npx variance cargo --suite unit -- --workspace --lib --locked
@@ -52,6 +53,14 @@ The command:
 It exits `0` when every test passed and `101`, Cargo's own code, when a test or
 the build failed. A failing test's output is printed and its row is still
 written, marked incomplete.
+
+It differs from `cargo test` in three ways:
+
+- doctests are not run, so run `cargo test --doc` beside it;
+- each test is its own process, so tests that take turns through a `static`
+  lock, or through `serial_test`, now run at the same time;
+- a test process gets `CARGO_MANIFEST_DIR`, but not the rest of the
+  environment Cargo gives it, such as `CARGO` or the library search path.
 
 ## Select from the record
 

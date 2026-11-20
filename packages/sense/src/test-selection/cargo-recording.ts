@@ -21,6 +21,7 @@ import caseOwner from './case-owner.cjs';
 import { finishedCase } from './case-durations.js';
 import journalFormat from './journal-format.cjs';
 import { whyAbsent } from './native-modules.js';
+import { pool } from './pool.js';
 import { recordFileFor } from './record-location.js';
 import { repositoryRoot } from './repository-root.js';
 import { foldRun } from './selection-fold.js';
@@ -80,7 +81,11 @@ export async function recordCargo(run: CargoRun): Promise<number | undefined> {
       const ran: Ran[] = [];
       for (const binary of sharing) {
         const names = await listed(binary, join(profiles, 'listing-%p.profraw'));
-        ran.push(...await inParallel(names, (name) => alone(binary, name, join(profiles, `${randomUUID()}.profraw`))));
+        const tests: Ran[] = [];
+        await pool(availableParallelism(), names, async (name, at) => {
+          tests[at] = await alone(binary, name, join(profiles, `${randomUUID()}.profraw`));
+        });
+        ran.push(...tests);
       }
       const entered = rustCoverage(sharing.map((binary) => binary.executable), ran.map((test) => test.profile), root);
       writeJournals(selection, testFile, ran, entered);
@@ -227,20 +232,6 @@ function counters(modules: ReadonlyMap<string, ReadonlySet<number>>): Map<string
     out.set(id, entered);
   }
   return out;
-}
-
-/** Each of `items` through `each`, as many at once as the machine has cores. */
-async function inParallel<Item, Result>(items: readonly Item[], each: (item: Item) => Promise<Result>): Promise<Result[]> {
-  const results: Result[] = [];
-  let next = 0;
-  const worker = async (): Promise<void> => {
-    while (next < items.length) {
-      const at = next++;
-      results[at] = await each(items[at]!);
-    }
-  };
-  await Promise.all(Array.from({ length: Math.min(availableParallelism(), items.length) }, worker));
-  return results;
 }
 
 /** A process's exit and its standard output; its standard error goes to ours. */
