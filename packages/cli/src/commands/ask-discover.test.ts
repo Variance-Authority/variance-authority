@@ -1,18 +1,18 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { readNamedTree } from '@variance-authority/help';
 import { sourceIndexPath } from '@variance-authority/sense';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { run } from './ask-packages.fixture.js';
 import { askSource, type SourceRequest } from './ask.js';
 
 /**
- * `variance ask discover` reads its names from the checkout, through the
- * source index. An ask that finds every file already in the index must still
- * have their names: a file the index serves is not a file that declares
- * nothing. The fixture is committed, so the scan knows every file's digest
- * and the second ask is served from the index rather than parsed again.
+ * `variance ask discover` reads its tree and its names from what `variance
+ * index` published, and nothing else: a file edited since answers as the index
+ * read it, and the index is not written. A file the index serves is not a file
+ * that declares nothing.
  *
  * Asked as `variance ask` asks it, from the checkout's root and with the flags
  * as the command line carries them, so the question reaches the reading that
@@ -27,7 +27,7 @@ function write(file: string, text: string): void {
   writeFileSync(join(root, file), text);
 }
 
-beforeAll(() => {
+beforeAll(async () => {
   root = mkdtempSync(join(tmpdir(), 'ask-discover-'));
   write('package.json', '{"name":"ask-discover-fixture","private":true}\n');
   write('src/Wallet.ts', "import { selectBalance } from './store';\nexport const balance = selectBalance;\n");
@@ -55,6 +55,8 @@ beforeAll(() => {
   commit('add', '.');
   commit('-c', 'user.name=fixture', '-c', 'user.email=fixture@example.com', 'commit', '--quiet', '-m', 'fixture');
   process.chdir(root);
+  const { code, err } = await run(['index']);
+  if (code !== 0) throw new Error(`variance index failed on the fixture: ${err}`);
 });
 
 afterAll(() => {
@@ -121,12 +123,76 @@ describe('ask discover over a checkout', () => {
     expect(text).toContain('src/theme.ts:1  declares ThemeContext');
   });
 
-  it('answers the same when every file is read back from the source index', async () => {
-    rmSync(sourceIndexPath(root), { force: true });
-    const parsed = await declaresBalance();
-    expect(existsSync(sourceIndexPath(root))).toBe(true);
-    const held = await declaresBalance();
-    expect(held).toContain('src/store/selectors.ts:1  declares selectBalance');
-    expect(held).toBe(parsed);
+  it('answers from the names `variance index` published after a file is edited, and writes no index', async () => {
+    const published = readFileSync(sourceIndexPath(root));
+    const selectors = 'src/store/selectors.ts';
+    const text = readFileSync(join(root, selectors), 'utf8');
+    write(selectors, `// moved\n// down\n${text}`);
+    try {
+      expect(await declaresBalance()).toContain('src/store/selectors.ts:1  declares selectBalance');
+    } finally {
+      write(selectors, text);
+    }
+    expect(readFileSync(sourceIndexPath(root)).equals(published)).toBe(true);
+  });
+
+  it('dates its answer with the generation it read, as every other source answer is', async () => {
+    const { code, out } = await run(['ask', 'discover', '--declares', '^selectBalance$']);
+    expect(code).toBe(0);
+    expect(out).toMatch(/^Snapshot \d{4}-\d\d-\d\dT[\d:.]+Z, not compared with the checkout: run `variance index` if files changed since\.$/mu);
+  });
+
+  // Last in the block: it publishes a generation the cases above do not read.
+  it('reads the names of a file `--changed-file` names into a new generation before it answers', async () => {
+    write('src/store/selectors.ts', 'export const selectBalance = (state: { balance: number }) => state.balance;\nexport const selectDebt = () => 0;\n');
+    write('changed.txt', 'src/store/selectors.ts\n');
+    const { code, out } = await run(['ask', 'discover', '--declares', '^selectDebt$', '--changed-file', join(root, 'changed.txt')]);
+    expect(code).toBe(0);
+    expect(out).toContain('src/store/selectors.ts:2  declares selectDebt');
+  });
+});
+
+describe('ask discover with nothing published', () => {
+  it('refuses in a line that names `variance index`, and publishes nothing', async () => {
+    const bare = mkdtempSync(join(tmpdir(), 'ask-discover-bare-'));
+    try {
+      writeFileSync(join(bare, 'package.json'), '{"name":"bare","private":true}\n');
+      writeFileSync(join(bare, 'a.ts'), 'export const a = 1;\n');
+      process.chdir(bare);
+      await expect(ask({ declares: '^a$' })).rejects.toThrow(/Run `variance index`/u);
+      await expect(ask({ path: '^a' })).rejects.toThrow(/Run `variance index`/u);
+      expect(existsSync(sourceIndexPath(bare))).toBe(false);
+    } finally {
+      process.chdir(root);
+      rmSync(bare, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('ask discover in a workspace whose member sits beside it', () => {
+  it('reads the names of the index that workspace was published from, spelled as its tree spells them', async () => {
+    const repository = mkdtempSync(join(tmpdir(), 'ask-discover-beside-'));
+    const put = (file: string, text: string): void => {
+      mkdirSync(dirname(join(repository, file)), { recursive: true });
+      writeFileSync(join(repository, file), text);
+    };
+    try {
+      put('app/package.json', '{"name":"app","private":true,"workspaces":["../lib"]}\n');
+      put('app/src/a.ts', 'export const appThing = 1;\n');
+      put('lib/package.json', '{"name":"lib","version":"1.0.0","exports":"./b.ts"}\n');
+      put('lib/b.ts', 'export const libThing = 2;\n');
+      const commit = (...args: string[]): void => void execFileSync('git', ['-C', repository, ...args]);
+      commit('init', '--quiet');
+      commit('add', '.');
+      commit('-c', 'user.name=fixture', '-c', 'user.email=fixture@example.com', 'commit', '--quiet', '-m', 'fixture');
+      process.chdir(join(repository, 'app'));
+      expect((await run(['index'])).code).toBe(0);
+      const text = await ask({ declares: 'Thing$' });
+      expect(text).toContain('src/a.ts:1  declares appThing');
+      expect(text).toContain('lib/b.ts:1  declares libThing');
+    } finally {
+      process.chdir(root);
+      rmSync(repository, { recursive: true, force: true });
+    }
   });
 });

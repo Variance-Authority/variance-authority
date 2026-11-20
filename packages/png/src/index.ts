@@ -25,6 +25,8 @@ export {
 export type { ComparedPixels, PngDecoder } from './compare.js';
 export type { DecodedImage } from './mask.js';
 
+export { regionChange } from './shape.js';
+
 export { changeImages } from './change.js';
 export type { ChangeImages } from './change.js';
 export type { ChangeLabels } from './change-draw.js';

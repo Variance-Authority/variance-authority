@@ -13,6 +13,7 @@ import {
   type NodeId,
   type Relations,
 } from '@variance-authority/core/relate';
+import type { Parsed } from '@variance-authority/sense';
 import { relative } from 'node:path';
 import { costsFrom } from './hops.js';
 import { namesOf, type FileNames, type SourceNames } from './names.js';
@@ -406,6 +407,25 @@ export async function readTree(options: TreeOptions): Promise<Tree> {
   if (names !== undefined) options.names?.(names);
 
   return treeFromRelations(relations, options.root);
+}
+
+/**
+ * Every file's names, read off the parses the source index at `index` holds:
+ * what a question that names a name reads when it answers from the generation
+ * `variance index` published, so the checkout is neither scanned nor compared
+ * and the index is not written. Keyed as the index keys its files, which is
+ * how a walk over the published tree answers.
+ */
+export async function readIndexedNames(index: string): Promise<SourceNames> {
+  const { readSourceParses } = await import('@variance-authority/sense');
+  const names = new Map<string, FileNames>();
+  for (const { file, parsed, targets } of await readSourceParses(index)) nameInto(names, file, parsed, targets);
+  return names;
+}
+
+/** One file's names, for the scan and the published read alike: a parse that holds no declarations is left out, which counts its file as unread rather than declaring nothing. */
+function nameInto(names: Map<string, FileNames>, file: string, parsed: Parsed, targets: readonly (string | undefined)[]): void {
+  if (parsed.harvested === true) names.set(file, namesOf(parsed, targets));
 }
 
 function messageOf(error: unknown): string {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isolateRegions, subtractRegions, type ChangeMask } from './mask.js';
+import { isolateRegions, pixelBox, subtractRegions, type ChangeMask } from './mask.js';
 
 /**
  * A change as a bitmask, tested on hand-drawn masks.
@@ -64,7 +64,7 @@ describe('isolating a change', () => {
     );
 
     expect(isolation.regions).toEqual([
-      { x: 2, y: 1, width: 2, height: 2, pixels: 4, density: 1 },
+      { x: 2, y: 1, width: 2, height: 2, pixels: 4, density: 1, grade: 1 },
     ]);
   });
 
@@ -89,6 +89,19 @@ describe('isolating a change', () => {
     expect(isolation.regions).toHaveLength(3);
     expect(isolation.truncated).toBe(5);
     expect(isolation.truncatedPixels).toBe(5);
+  });
+
+  it('drops a faint region before a strong one when it caps the list', () => {
+    // Three faint pairs and one strong pixel, smaller than any of them.
+    const graded = mask([
+      '##.##.##.#',
+    ]);
+    graded.data[9] = 4;
+
+    const isolation = isolateRegions(graded, { cell: 1, limit: 3 });
+
+    expect(isolation.regions.map((region) => region.grade)).toEqual([1, 1, 4]);
+    expect(isolation.truncatedPixels).toBe(2);
   });
 
   it('survives a mask that changed everywhere', () => {
@@ -204,5 +217,20 @@ describe('subtracting an excluded box', () => {
 
     expect(ignored).toBe(4);
     expect(after.changed).toBe(0);
+  });
+});
+
+describe('the pixels a box touches', () => {
+  it('snaps the near edge down and the far edge up', () => {
+    expect(pixelBox({ x: 7.3, y: 10.4, width: 420, height: 300 })).toEqual({ x: 7, y: 10, width: 421, height: 301 });
+  });
+
+  it('leaves a box already on the grid alone', () => {
+    expect(pixelBox({ x: 0, y: 0, width: 420, height: 300 })).toEqual({ x: 0, y: 0, width: 420, height: 300 });
+  });
+
+  // A 420-wide box at x 7.3 spans 7.3 to 427.3: it touches 421 columns, and rounding its extent loses one.
+  it('does not round the extent, which would lose a column', () => {
+    expect(pixelBox({ x: 7.3, y: 0, width: 420, height: 300 }).width).toBe(421);
   });
 });

@@ -31,7 +31,7 @@ import { differencePixels, type DecodedImage } from './mask.js';
  * per column, so the sheet reads as one picture with its sources named.
  */
 export interface ChangeImages {
-  /** The whole difference: the after image dimmed with the changed pixels in red. */
+  /** The whole difference: the after image dimmed with the changed pixels in red, faint ones pale red. */
   readonly diff: Buffer;
   /**
    * The cuts, before beside after, one under another and all one width, under

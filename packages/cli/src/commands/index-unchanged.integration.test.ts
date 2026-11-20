@@ -76,17 +76,3 @@ it('writes no file it publishes when nothing in the checkout changed', async () 
   expect(await index()).toBe(EXIT_CLEAN);
   expect(written(layer)).toEqual(first);
 });
-
-it('rewrites nothing a question published when it read the checkout first', async () => {
-  const root = checkout();
-  const layer = dirname(sourceIndexPath(root));
-
-  expect(await main(['ask', 'symbol', '--name', 'widget'], { out: () => {}, err: () => {} })).toBe(EXIT_CLEAN);
-  const asked = written(layer);
-  expect(Object.keys(asked)).toContain(relative(layer, `${sourceIndexPath(root)}.help.bin`));
-
-  // The index adds what a question never writes, such as the lexicon, and keeps every file the question left.
-  expect(await index()).toBe(EXIT_CLEAN);
-  const after = written(layer);
-  expect(Object.fromEntries(Object.keys(asked).map((path) => [path, after[path]]))).toEqual(asked);
-});

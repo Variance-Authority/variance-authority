@@ -65,6 +65,7 @@ describe('variance ask symbol --line', () => {
     writeFileSync(join(root, 'src/late.ts'), "export function useSessionId(): string {\n  return 'late';\n}\n");
     execFileSync('git', ['add', '.'], { cwd: root });
     execFileSync('git', ['-c', 'user.name=fixture', '-c', 'user.email=fixture@example.com', 'commit', '--quiet', '-m', 'since'], { cwd: root });
+    expect(await main(['index'], { out: () => {}, err: () => {} })).toBe(EXIT_CLEAN);
 
     const answered = await run(['ask', 'symbol', '--name', 'useSessionId', '--line', 'src/page.ts:3']);
 
@@ -99,6 +100,7 @@ describe('variance ask symbol --line', () => {
     writeFileSync(join(root, 'src/fresh.ts'), "import { useSessionId } from './session';\nexport const fresh = (): string => useSessionId();\n");
     execFileSync('git', ['add', '.'], { cwd: root });
     execFileSync('git', ['-c', 'user.name=fixture', '-c', 'user.email=fixture@example.com', 'commit', '--quiet', '-m', 'since'], { cwd: root });
+    expect(await main(['index'], { out: () => {}, err: () => {} })).toBe(EXIT_CLEAN);
 
     const answered = await run(['ask', 'symbol', '--name', 'useSessionId', '--line', 'src/fresh.ts:2']);
 
@@ -236,6 +238,8 @@ async function recorded({ commit = true, recording = true }: { readonly commit?:
   const git = (...args: string[]): string => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
   git('add', '.');
   git('-c', 'user.name=fixture', '-c', 'user.email=fixture@example.com', 'commit', '--quiet', '-m', 'recorded');
+  // A question reads the generation `variance index` published.
+  expect(await main(['index'], { out: () => {}, err: () => {} })).toBe(EXIT_CLEAN);
   if (!recording) return root;
   const at = testCoverageFile(root);
   const files = ['test/page.test.ts', 'test/legacy.test.ts', 'test/header.test.ts', 'test/use.test.ts', 'test/report.test.ts'];

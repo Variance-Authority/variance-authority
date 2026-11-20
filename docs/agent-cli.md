@@ -28,9 +28,10 @@ variance ask packages
 
 Every other question about the code needs something to ask about: a word, a
 name or a specifier. `packages` is the one that needs nothing, so ask it first
-when you have none of those. It reads the checkout under the working directory
-and nothing else: no report has to exist and `variance.config.json` is not
-opened. For each specifier, it counts the names that at least one other package
+when you have none of those. It reads the index `variance index` published for
+the checkout under the working directory and nothing else: no report has to
+exist and `variance.config.json` is not opened. After you edit, run `variance
+index`, then ask again. For each specifier, it counts the names that at least one other package
 imports. It does not list where those imports are written: `uses` gives the file
 and line of each. An answer looks like this, abridged:
 
@@ -135,7 +136,7 @@ of `published`, `exported`, `declared` or `file`, and is never repeated in `loos
 a refused
 start point returns `refused` with no sections. Only `search` answers in JSON.
 
-These questions read the checkout the same way `packages` does. `--from` and
+These questions read the published index the same way `packages` does. `--from` and
 `--to` are a path in the source tree, answered from what it reaches or what
 reaches it. `locate` is the run question that finds a subject by the names the
 run saw, and its `--from` and `--to` mean the same thing. Carry the path into
@@ -165,9 +166,9 @@ rendered by playwright-chromium (chromium@151.0.7922.34, darwin/arm64, 1x)
 3 changed
 names of 3 subject(s) written down over 8 field(s); `variance_locate {query}` finds a subject from a description
 
-[changed] card/summary — Button: 3,402 pixels differ across 2 regions in Button, Avatar
-[changed] card/compact — Button: 2,825 pixels differ across 1 region in Button
-[changed] badge/standalone — Badge: 1,017 pixels differ across 1 region in Badge
+[changed] card/summary — Button: 3,402 pixels differ across 1 strong region in Button, and 1 faint region, 1 changed in shape and 1 only in colour
+[changed] card/compact — Button: 2,825 pixels differ across 1 region in Button, its shape changed
+[changed] badge/standalone — Badge: 1,017 pixels differ across 1 region in Badge, only its colour changed
 
 coverage: every planned subject was observed.
 findings: none in 3 inspected subject(s).

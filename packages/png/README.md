@@ -117,8 +117,9 @@ against the same image with a 5×5 black square painted into it:
 
 `changed` is an object keyed by policy `id`, one entry per policy compared —
 neither a scalar nor an array. `total` is the pixel count of the canvas the two
-were compared on. `mask.data` is `width * height` bytes, `1` where the pixel
-differs, and `mask.changed` counts them under the single policy you isolated on.
+were compared on. `mask.data` is `width * height` bytes, `0` where the pixel
+is the same and otherwise its grade, 1 to 4, by how far its colour moved (a row
+with no partner is 4), and `mask.changed` counts them under the single policy you isolated on.
 
 That mask is what `isolateRegions` in `@variance-authority/core/attribute` takes
 to group the changed pixels into rectangles.
@@ -266,6 +267,7 @@ the bytes arrive cannot change a verdict.
 | `compareRasters` | `(before: Raster, after: Raster, options?: CompareOptions & { decoder?: PngDecoder }) => Promise<RasterComparison>` |
 | `diffImage` | `(before: Buffer, after: Buffer, policy?: DiffPolicy, decoder?: PngDecoder) => Promise<Buffer>` |
 | `changeImages` | `(before: DecodedImage, after: DecodedImage, regions: readonly DiffRegion[], policy?: DiffPolicy, labels?: ChangeLabels) => { diff: Buffer; change?: Buffer }` |
+| `regionChange` | `(pixels: ComparedPixels, canvas: { width, height }, region: Rect, excluded: readonly Rect[]) => 'shape' \| 'colour' \| undefined`, whether the drawing in a region changed or only its colour, from the pixels `compareRasters`'s `keep` hands over on the comparison's canvas, and `undefined` when neither side has an edge and a pixel is too faint to call flat; the pixels an `excluded` box covers are not read |
 | `decodePortable` | `(bytes: Buffer) => Promise<DecodedImage>` |
 | `refuseUnkept` | `(bytes: Uint8Array) => void` |
 | `isLosslessWebp` | `(bytes: Uint8Array) => boolean` |
@@ -299,7 +301,8 @@ default decoder is `pngjs` for a PNG and WebAssembly libwebp for a WebP, so
 this package still requires nothing native.
 
 `diffImage` resolves to an encoded PNG — the after image dimmed with changed pixels
-in red — for the person who does want to look. It is derived from the same bytes
+in red, pale red where a pixel is faint, short of `STRONG_GRADE` — for the person
+who does want to look. It is derived from the same bytes
 and is not the comparison result.
 
 `changeImages` returns that same diff and, beside it, `change`: the change at
@@ -392,7 +395,8 @@ RGBA, and `alignment` when it aligned the rows. It aligns or pads on its own, so
 something else. Pass
 `{ diffMask: true }` as a fourth argument and it writes only the differing pixels
 and leaves the rest transparent, which is how `comparePngs` gets a mask without
-recovering one from a red-on-grey picture.
+recovering one from a red-on-grey picture. Either way a changed pixel is red, and
+pale red where it is faint.
 
 These are the same functions `comparePngs` runs, not a second implementation of
 them, so a mask built here and a mask built from PNG bytes are the same mask.

@@ -91,7 +91,7 @@ stem and with rarer words counting for more, come back before any installed
 package that says the same words.
 
 ```bash
-variance ask search --query createStore --from src/checkout/ --just-answer
+variance ask search --query createStore --from src/checkout/
 ```
 
 `--from` walks the imports of the named path at any depth. `--to` walks the
@@ -222,21 +222,19 @@ a job, and the agent skills a package ships.
 
 ## Ask the record, or produce a new one
 
-An ordinary source question reuses a published workspace generation for one
-hour and refreshes it after that. Use `--just-answer` when an editor, watcher or
-CI job owns freshness and question latency must contain no Git status, scan or
-regeneration:
+A source question answers from the workspace generation `variance index` last
+published, at any age. It reads no Git status, scans nothing and writes no
+index, so after you edit, run `variance index`, then ask:
 
 ```bash
-variance ask search --query createStore --from src/checkout/ --just-answer
+variance index
+variance ask search --query createStore --from src/checkout/
 ```
 
-Every answer prints when its workspace generation was produced. If no
-generation exists, `--just-answer` refuses instead of turning the question into
-an index build. `search` opens a published search this way, with or without
-the flag. With none published, it reads the checkout like any other question
-unless you passed `--just-answer`. [The source index](source-index.md) explains production,
-incremental reuse and CI caching.
+Every answer prints when its workspace generation was produced and that the
+checkout was not compared with it. If no generation exists, the question
+refuses in one line that names `variance index`. [The source index](source-index.md)
+explains production, incremental reuse and CI caching.
 
 Subject orientation reads the report a completed run already produced. Its
 [lexicon](lexicon.md) records the words observed per subject and builds its

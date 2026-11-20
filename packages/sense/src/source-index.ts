@@ -12,6 +12,7 @@ import { isDeepStrictEqual } from 'node:util';
 import type { FileRecord } from '@variance-authority/core/relate';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { ParseCache, ParseKey, Parsed } from './cache.js';
+import { keyFor, parseWay } from './files.js';
 import { cacheLayers } from './test-selection/cache-layers.js';
 import { prunable } from './ordered-map.js';
 import { realPath } from './resolve.js';
@@ -206,4 +207,28 @@ export async function readSourceRecords(path: string): Promise<readonly FileReco
   return [...stored.records.values()]
     .map((held) => held.record)
     .sort((left, right) => codeUnitOrder(left.file, right.file));
+}
+
+/** One committed file's parse, beside the target each of its requests resolved to. */
+export interface IndexedParse {
+  readonly file: string;
+  readonly parsed: Parsed;
+  readonly targets: readonly (string | undefined)[];
+}
+
+/**
+ * Read each committed file's parse and resolved targets without inspecting the
+ * checkout or asking Git whether it changed: what a question about names reads
+ * when it answers from the generation `variance index` published. A record
+ * whose parse or targets the chain does not hold is left out.
+ */
+export async function readSourceParses(path: string): Promise<readonly IndexedParse[]> {
+  const stored = (await openSourceIndexFile(path)).stored;
+  const read: IndexedParse[] = [];
+  for (const { record, targets } of stored.records.values()) {
+    if (record.digest === undefined || targets === undefined) continue;
+    const parsed = stored.parses.get(keyFor(record.digest, parseWay(record.file)));
+    if (parsed !== undefined) read.push({ file: record.file, parsed, targets });
+  }
+  return read.sort((left, right) => codeUnitOrder(left.file, right.file));
 }

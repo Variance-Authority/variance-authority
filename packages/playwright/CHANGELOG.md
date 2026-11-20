@@ -1,5 +1,17 @@
 # @variance-authority/playwright
 
+## 0.34.0
+
+### Minor Changes
+
+- e2e3951: While a test story records, a page opened through `createHarness` writes into it what it did that the test cannot see from Node: each `log`, `info`, `warn`, `error` or `debug` console line as `page console.<level> <text>`, such as `page console.warn <text>`, a page error as `page error <first line>`, a crash as `page crashed`, and each document its top frame loaded as `page navigated <address>`, or `page reloaded <address>` where the browser reports a reload, without its query. Each lands on the step that was running when Node heard it. With no story recording, the harness adds no listener.
+
+### Patch Changes
+
+- 8cb6a89: A region says whether its shape changed or only its colour
+
+  A changed region now says whether its drawing changed or only its colour. `DiffRegion` gains an optional `change: 'shape' | 'colour'`, `@variance-authority/png` exports `regionChange`, which reads it from the compared pixels, and the verdict counts the regions apart: `120 pixels differ across 2 regions, 1 changed in shape and 1 only in colour`. A recoloured button reads as colour; a block that moved by a pixel, or a page that gained rows, reads as shape. A region with no edge on either side and a pixel too faint to call flat, as a pale tint moved by a pixel, carries no `change`, and the sentence counts only the regions that carry one. `@variance-authority/core/attribute` exports `pixelBox`, the outward rounding of a box to the pixels it touches, which `subtractRegions`, `regionChange` and the Playwright capture's `outward` now share.
+
 ## 0.33.0
 
 ### Minor Changes

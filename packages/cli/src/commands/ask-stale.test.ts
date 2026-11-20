@@ -1,18 +1,18 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { readWorkspaceForAnswer } from '@variance-authority/help';
+import { sourceIndexPath } from '@variance-authority/sense';
 import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
 import { checkout, run } from './ask-packages.fixture.js';
 import { askSource } from './ask.js';
 
 /**
- * `variance ask` about a name the published source index does not hold yet.
- * A generation is reused for an hour, and the dependency lexicon is built only
- * by `variance index`. A name the index does not hold is answered from it, as
- * not found, and the answer says the checkout was not compared with it:
- * keeping the index fresh is `variance index`'s job, not a miss's.
+ * `variance ask` answers from the generation `variance index` published, and
+ * does nothing else: it does not compare it with the checkout, whatever its age
+ * or whatever was edited since, and with none published it refuses. Keeping the
+ * index fresh is `variance index`'s job, run by whoever edited the checkout.
  */
 
 const cwd = process.cwd();
@@ -34,13 +34,6 @@ function write(root: string, files: Readonly<Record<string, string>>): void {
 }
 
 const KEPT = { 'packages/kit/src/kept.ts': 'export function keptOf(amount: number): number {\n  return amount;\n}\n' };
-
-/** An installed package declaring `makeStore`, which the checkout depends on and no file of it declares. */
-const STATE_KIT = {
-  'node_modules/state-kit/package.json': JSON.stringify({ name: 'state-kit', version: '0.3.1', types: 'index.d.ts', main: 'index.js' }),
-  'node_modules/state-kit/index.js': 'exports.makeStore = () => ({});\n',
-  'node_modules/state-kit/index.d.ts': 'export declare function makeStore(): object;\n',
-};
 
 const TAX = 'packages/kit/src/money/tax.ts';
 
@@ -81,20 +74,6 @@ describe('variance ask about a name written after the source index', () => {
     expect(snapshotOf(out)).toBe(published);
   });
 
-  it('leaves the dependency lexicon to `variance index`, and says an installed package was not checked', async () => {
-    const root = checkout();
-    write(root, {
-      'package.json': JSON.stringify({ private: true, workspaces: ['packages/*', 'apps/*'], dependencies: { 'state-kit': '0.3.1' } }),
-      ...STATE_KIT,
-    });
-
-    const { code, out, err } = await run(['ask', 'symbol', '--name', 'makeStore']);
-    expect(err).toBe('');
-    expect(code).toBe(EXIT_CLEAN);
-    expect(out).toContain('Whether an installed dependency publishes it is not known: the dependency lexicon is not published');
-    expect(out).not.toContain('state-kit');
-  });
-
   it('prints the true lines of a published name from a file `--changed-file` names', async () => {
     const root = checkout({ 'changed.txt': 'packages/lib/src/greet.ts\n' });
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
@@ -117,18 +96,6 @@ describe('variance ask about a name written after the source index', () => {
     const { out } = await run(['ask', 'symbol', '--name', 'greet', '--changed-file', join(root, 'changed.txt')]);
 
     expect(out).toContain('exported, without being published');
-  });
-
-  it('answers a name it does not find under `--just-answer` with when the index was published and that the checkout was not compared with it', async () => {
-    const root = checkout();
-    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
-    write(root, KEPT);
-
-    const { code, out, err } = await run(['ask', 'symbol', '--name', 'keptOf', '--just-answer']);
-    expect(code).toBe(EXIT_CLEAN);
-    expect(err).toBe('');
-    expect(out).toContain('`keptOf` is not published by this workspace');
-    expect(out).toMatch(/^Snapshot \d{4}-\d\d-\d\dT[\d:.]+Z, not compared with the checkout: run `variance index` if files changed since\.$/mu);
   });
 
   it('says `search` read an index it did not compare with the checkout, since it reads the published one at any age', async () => {
@@ -171,33 +138,71 @@ describe('variance index over an entry that passes on another binding under the 
 });
 
 describe('variance ask about a name whose file changed since the source index', () => {
-  it('says nothing declares a name renamed in the working tree, from a generation made after the rename', async () => {
+  it.each(['symbol', 'uses'])('answers `%s` for a name renamed in the working tree from the generation `variance index` made, and publishes none', async (question) => {
     const root = checkout();
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
-    const before = snapshotOf((await run(['ask', 'symbol', '--name', 'taxOf'])).out);
+    const before = snapshotOf((await run(['ask', question, '--name', 'taxOf'])).out);
     write(root, Object.fromEntries([TAX, IMPORTER].map((file) => [file, readFileSync(join(root, file), 'utf8').replaceAll('taxOf', 'dutyOf')])));
 
-    const { code, out } = await run(['ask', 'symbol', '--name', 'taxOf']);
+    const { code, out } = await run(['ask', question, '--name', 'taxOf']);
     expect(code).toBe(EXIT_CLEAN);
-    expect(out).toContain('`taxOf` is not');
-    expect(out).not.toContain(`${TAX}:1`);
-    expect(Date.parse(snapshotOf(out)!)).toBeGreaterThan(Date.parse(before!));
+    expect(out).toContain(question === 'symbol' ? `${TAX}:1` : `${IMPORTER}:`);
+    expect(out).toMatch(/^Snapshot \S+, not compared with the checkout: run `variance index` if files changed since\.$/mu);
+    expect(snapshotOf(out)).toBe(before);
   });
 
-  it('says nothing declares a name renamed in the working tree when `uses` asks for it', async () => {
+  it('answers from the generation, and publishes none, when a file a `uses` answer lists changed', async () => {
     const root = checkout();
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
-    const before = snapshotOf((await run(['ask', 'uses', '--name', 'taxOf'])).out);
-    write(root, Object.fromEntries([TAX, IMPORTER].map((file) => [file, readFileSync(join(root, file), 'utf8').replaceAll('taxOf', 'dutyOf')])));
+    const before = await run(['ask', 'uses', '--name', 'taxOf']);
+    expect(before.out).toContain(`${IMPORTER}:`);
+    write(root, { [IMPORTER]: `// one\n// two\n// three\n${readFileSync(join(root, IMPORTER), 'utf8')}` });
 
-    const { code, out } = await run(['ask', 'uses', '--name', 'taxOf']);
-    expect(code).toBe(EXIT_CLEAN);
-    expect(out).not.toContain(IMPORTER);
-    expect(out).toContain('`taxOf` is not');
-    expect(Date.parse(snapshotOf(out)!)).toBeGreaterThan(Date.parse(before!));
+    const { out } = await run(['ask', 'uses', '--name', 'taxOf']);
+    expect(out).toBe(before.out);
+    expect(snapshotOf(out)).toBe(snapshotOf(before.out));
   });
 
-  it('refuses an empty name as the tool does, over a generation it looks at', async () => {
+  it('answers from a generation older than an hour without reading the checkout', async () => {
+    const root = checkout();
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+    const before = await run(['ask', 'symbol', '--name', 'taxOf']);
+    write(root, Object.fromEntries([TAX, IMPORTER].map((file) => [file, readFileSync(join(root, file), 'utf8').replaceAll('taxOf', 'dutyOf')])));
+    vi.useFakeTimers({ toFake: ['Date'], now: Date.now() + 2 * 60 * 60 * 1000 });
+    try {
+      const { out } = await run(['ask', 'symbol', '--name', 'taxOf']);
+      expect(out).toBe(before.out);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('refuses in one line naming `variance index` when no generation is published, and publishes none', async () => {
+    const root = checkout();
+
+    for (const question of [['symbol', '--name', 'taxOf'], ['search', '--query', 'taxOf']]) {
+      const { code, out, err } = await run(['ask', ...question]);
+      expect(code).toBe(EXIT_OPERATOR);
+      expect(out).toBe('');
+      // The refusal is one line; the pointer to the skill every refusal ends with follows it.
+      const [refusal, ...rest] = err.trim().split('\n\n');
+      expect(refusal?.split('\n')).toHaveLength(1);
+      expect(refusal).toContain('Run `variance index`');
+      expect(rest.join('\n\n')).toMatch(/^See the skill at /u);
+    }
+    expect(existsSync(`${sourceIndexPath(root)}.help.bin`)).toBe(false);
+  });
+
+  it('refuses `--just-answer`, since reading only the published generation is what every question does', async () => {
+    checkout();
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { code, err } = await run(['ask', 'symbol', '--name', 'taxOf', '--just-answer']);
+    expect(code).toBe(EXIT_OPERATOR);
+    expect(err).toContain('--just-answer');
+  });
+
+  it('refuses an empty name as the tool does', async () => {
     checkout();
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
 
@@ -207,59 +212,7 @@ describe('variance ask about a name whose file changed since the source index', 
     expect(err).not.toContain('defect in the tool');
   });
 
-  it('keeps the answer, and says why it was not compared, when the checkout could not be read again', async () => {
-    const root = checkout();
-    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
-    const held = await readWorkspaceForAnswer(root);
-    write(root, { [TAX]: `// moved\n${readFileSync(join(root, TAX), 'utf8')}` });
-
-    const answer = await askSource({
-      question: 'symbol',
-      name: 'taxOf',
-      source: async (_root, reading) => {
-        if (reading?.current === true) throw new Error('a manifest is half-written');
-        return { help: held };
-      },
-    });
-
-    expect(answer).toContain(`${TAX}:1`);
-    expect(answer).toMatch(/not compared with the checkout \(it could not be read again: a manifest is half-written\)/u);
-    expect(answer.match(/^Snapshot /gmu)).toHaveLength(1);
-  });
-
-  it('says why under a refusal when the file the name was in moved after the read that found it gone', async () => {
-    const root = checkout();
-    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
-    const held = await readWorkspaceForAnswer(root);
-    write(root, Object.fromEntries([TAX, IMPORTER].map((file) => [file, readFileSync(join(root, file), 'utf8').replaceAll('taxOf', 'dutyOf')])));
-
-    const answer = await askSource({
-      question: 'symbol',
-      name: 'taxOf',
-      source: async (_root, reading) => {
-        if (reading?.current !== true) return { help: held };
-        const help = await readWorkspaceForAnswer(root, { refreshAfterMs: 0 });
-        write(root, { [TAX]: `// moved\n${readFileSync(join(root, TAX), 'utf8')}` });
-        return { help };
-      },
-    });
-
-    expect(answer).toMatch(/not compared with the checkout \(a file it rests on changed while it was read\)/u);
-    expect(answer.match(/^Snapshot /gmu)).toHaveLength(1);
-  });
-
-  it('reads the checkout again when a file a `uses` answer lists changed', async () => {
-    const root = checkout();
-    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
-    const before = await run(['ask', 'uses', '--name', 'taxOf']);
-    expect(before.out).toContain(`${IMPORTER}:`);
-    write(root, { [IMPORTER]: `// one\n// two\n// three\n${readFileSync(join(root, IMPORTER), 'utf8')}` });
-
-    const { out } = await run(['ask', 'uses', '--name', 'taxOf']);
-    expect(snapshotOf(out)).not.toBe(snapshotOf(before.out));
-  });
-
-  it('dates what a generation read again answers, and quotes a file written since it was read as it read it', async () => {
+  it('dates what a generation answers, and quotes a file written since it was read as it read it', async () => {
     const root = checkout({ 'packages/kit/src/options.ts': OPTIONS });
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
     const read = await readWorkspaceForAnswer(root, { refreshAfterMs: 0 });
@@ -272,133 +225,62 @@ describe('variance ask about a name whose file changed since the source index', 
     expect(answer).not.toContain('// two');
   });
 
-  it('prints the text the index read of a file the look found changed, and none of what the file holds today', async () => {
+  it('prints the text the index read of a file written since, and none of what the file holds today', async () => {
     const root = checkout({ 'packages/kit/src/options.ts': OPTIONS, [HIDDEN]: HIDDEN_TEXT });
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
-    const held = await readWorkspaceForAnswer(root);
     write(root, { 'packages/kit/src/options.ts': OPTIONS_REWRITTEN, [HIDDEN]: HIDDEN_REWRITTEN });
-    const refused = async (name: string): Promise<string> =>
-      await askSource({
-        question: 'symbol',
-        name,
-        source: async (_root, reading) => {
-          if (reading?.current === true) throw new Error('a manifest is half-written');
-          return { help: held };
-        },
-      });
 
-    const members = await refused('Options');
+    const members = (await run(['ask', 'symbol', '--name', 'Options'])).out;
     expect(members).toContain('packages/kit/src/options.ts:3 — readonly ci: boolean;');
     expect(members).toContain('packages/kit/src/options.ts:5 — readonly step: string;');
     expect(members).not.toContain('is gone');
     expect(members).not.toContain('went elsewhere');
 
-    const declared = await refused('hiddenOf');
+    const declared = (await run(['ask', 'symbol', '--name', 'hiddenOf'])).out;
     expect(declared).toContain(`declared, not exported, at ${HIDDEN}:3 by @acme/kit\nfunction hiddenOf(amount: number): number\nHalves it.\n`);
     expect(declared).not.toContain('went elsewhere');
     expect(declared).not.toContain('words of today');
   });
 
-  it('carries the caveat, with one reading and the text it read, for a file saved during the read the look asked for', async () => {
-    const root = checkout({ 'packages/kit/src/options.ts': OPTIONS });
-    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
-    const held = await readWorkspaceForAnswer(root);
-    write(root, { 'packages/kit/src/options.ts': `// moved\n${OPTIONS}` });
-    let reads = 0;
-
-    const answer = await askSource({
-      question: 'symbol',
-      name: 'Options',
-      source: async (_root, reading) => {
-        if (reading?.current !== true) return { help: held };
-        reads += 1;
-        const help = await readWorkspaceForAnswer(root, { refreshAfterMs: 0 });
-        // The save the read could not have seen, made once the read is over.
-        write(root, { 'packages/kit/src/options.ts': `// moved\n//\n// the ci job is gone\n${OPTIONS}` });
-        return { help };
-      },
-    });
-
-    expect(reads).toBe(1);
-    expect(answer).toContain('packages/kit/src/options.ts:4 — readonly ci: boolean;');
-    expect(answer).not.toContain('is gone');
-    expect(answer).toMatch(/^Snapshot \S+, not compared with the checkout \(a file it rests on changed while it was read\)/mu);
-    expect(answer.match(/^Snapshot /gmu)).toHaveLength(1);
-
-    const next = await run(['ask', 'symbol', '--name', 'Options']);
-    expect(next.out).toContain('packages/kit/src/options.ts:6 — readonly ci: boolean;');
-    expect(next.out).not.toContain('not compared');
-  });
-
-  it('gives the opening the index read of a file `search` found, once that file was written since the read and could not be read again', async () => {
+  it('gives the opening the index read of a file `search` found, once that file was written since', async () => {
     const opening = (words: string): string => `/**\n * Where painted ${words} dance.\n */\n\n/** One. */\nexport const pond = 1;\n`;
     const root = checkout({ 'packages/kit/src/frogs.ts': opening('frogs') });
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
-    const held = await readWorkspaceForAnswer(root);
     write(root, { 'packages/kit/src/frogs.ts': opening('toads') });
 
-    const answer = await askSource({
-      question: 'search',
-      query: 'painted frogs dance',
-      source: async (_root, reading) => {
-        if (reading?.current === true) throw new Error('a manifest is half-written');
-        return { help: held };
-      },
-    });
+    const { out } = await run(['ask', 'search', '--query', 'painted frogs dance']);
 
-    expect(answer).toContain('packages/kit/src/frogs.ts [file] — @acme/kit — Where painted frogs dance.');
-    expect(answer).not.toContain('toads');
-    expect(answer).toMatch(/^Snapshot \S+, not compared with the checkout \(it could not be read again: a manifest is half-written\)/mu);
+    expect(out).toContain('packages/kit/src/frogs.ts [file] — @acme/kit — Where painted frogs dance.');
+    expect(out).not.toContain('toads');
   });
 
-  it('gives the members it recorded with the text it read of them, and none of today\'s, when the checkout could not be read again', async () => {
-    const root = checkout({ 'packages/kit/src/options.ts': OPTIONS });
-    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
-    const held = await readWorkspaceForAnswer(root);
-    write(root, { 'packages/kit/src/options.ts': `/** One.\n * Two.\n */\nexport const lead = 1;\n${OPTIONS}` });
-
-    const answer = await askSource({
-      question: 'symbol',
-      name: 'Options',
-      source: async (_root, reading) => {
-        if (reading?.current === true) throw new Error('a manifest is half-written');
-        return { help: held };
-      },
-    });
-
-    expect(answer).toContain('packages/kit/src/options.ts:3 — readonly ci: boolean;');
-    expect(answer).toContain('packages/kit/src/options.ts:5 — readonly step: string;');
-    expect(answer).not.toContain('— */');
-    expect(answer).not.toContain('— export interface');
-    expect(answer).toMatch(/not compared with the checkout \(it could not be read again: a manifest is half-written\)/u);
-  });
-
-  it('says nothing declares a name whose file is gone', async () => {
-    const root = checkout();
-    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
-    rmSync(join(root, TAX));
-    write(root, { [IMPORTER]: 'export const total = 1;\n' });
-
-    const { code, out } = await run(['ask', 'symbol', '--name', 'taxOf']);
-    expect(code).toBe(EXIT_CLEAN);
-    expect(out).toContain('`taxOf` is not');
-    expect(out).not.toContain(`${TAX}:1`);
-  });
-
-  it('gives an interface and its members at the lines the file holds them on today', async () => {
+  it('gives the members it recorded with the text it read of them, and none of today\'s, when lines were added above them', async () => {
     const root = checkout({ 'packages/kit/src/options.ts': OPTIONS });
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
     write(root, { 'packages/kit/src/options.ts': `/** One.\n * Two.\n */\nexport const lead = 1;\n${OPTIONS}` });
 
     const { code, out } = await run(['ask', 'symbol', '--name', 'Options']);
     expect(code).toBe(EXIT_CLEAN);
+    expect(out).toContain('packages/kit/src/options.ts:3 — readonly ci: boolean;');
+    expect(out).toContain('packages/kit/src/options.ts:5 — readonly step: string;');
+    expect(out).not.toContain('— */');
+    expect(out).not.toContain('— export interface');
+  });
+
+  it('gives the lines the index read once `variance index` ran again, at the lines the file holds them on today', async () => {
+    const root = checkout({ 'packages/kit/src/options.ts': OPTIONS });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+    write(root, { 'packages/kit/src/options.ts': `/** One.\n * Two.\n */\nexport const lead = 1;\n${OPTIONS}` });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { code, out } = await run(['ask', 'symbol', '--name', 'Options']);
+    expect(code).toBe(EXIT_CLEAN);
     expect(out).toContain('at packages/kit/src/options.ts:5 by');
     expect(out).toContain('packages/kit/src/options.ts:7 — readonly ci: boolean;');
     expect(out).toContain('packages/kit/src/options.ts:9 — readonly step: string;');
-    expect(out).not.toContain('— */');
   });
 
-  it('answers from its generation, and publishes none, when only a file the answer does not name changed', async () => {
+  it('answers from its generation when only a file the answer does not name changed', async () => {
     const root = checkout();
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
     const before = await run(['ask', 'symbol', '--name', 'taxOf']);
@@ -407,35 +289,5 @@ describe('variance ask about a name whose file changed since the source index', 
     const after = await run(['ask', 'symbol', '--name', 'taxOf']);
     expect(after.out).toBe(before.out);
     expect(snapshotOf(after.out)).toBeDefined();
-  });
-
-  it('leaves `--just-answer` to its generation, and says that was not compared', async () => {
-    const root = checkout();
-    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
-    write(root, { [TAX]: readFileSync(join(root, TAX), 'utf8').replace('taxOf', 'dutyOf') });
-
-    const { code, out } = await run(['ask', 'symbol', '--name', 'taxOf', '--just-answer']);
-    expect(code).toBe(EXIT_CLEAN);
-    expect(out).toContain(`${TAX}:1`);
-    expect(out).toMatch(/^Snapshot \S+, not compared with the checkout/mu);
-  });
-
-  it('gives what the record holds, under `--just-answer`, of a file written since its generation was read', async () => {
-    const root = checkout({ 'packages/kit/src/options.ts': OPTIONS });
-    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
-    write(root, { 'packages/kit/src/options.ts': OPTIONS_REWRITTEN });
-
-    const { code, out } = await run(['ask', 'symbol', '--name', 'Options', '--just-answer']);
-    expect(code).toBe(EXIT_CLEAN);
-    expect(out).toContain('packages/kit/src/options.ts:3 — readonly ci: boolean;');
-    expect(out).not.toContain('is gone');
-  });
-
-  it('gives today\'s text, under `--just-answer`, of a file nothing wrote since its generation was read', async () => {
-    checkout({ 'packages/kit/src/options.ts': OPTIONS });
-    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
-
-    const { out } = await run(['ask', 'symbol', '--name', 'Options', '--just-answer']);
-    expect(out).toContain('packages/kit/src/options.ts:3 — readonly ci: boolean;');
   });
 });

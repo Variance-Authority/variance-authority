@@ -411,11 +411,12 @@ describe('variance ask about a name declared and not exported', () => {
     expect(uses.out).not.toContain('were not read into the source index');
   });
 
-  it('names the files whose declarations were not read when `symbol` finds nothing before `variance index` ran', async () => {
+  it('names the files whose declarations `variance index` did not read when `symbol` finds nothing', async () => {
     checkout({
       ...RELAUNCH,
       'packages/kit/src/money/huge.ts': `export const huge = 1;\n${'// filler line\n'.repeat(80_000)}`,
     });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
 
     const { out, err } = await run(['ask', 'symbol', '--name', 'nowhere']);
     expect(`${out}${err}`).toContain('The declarations of 1 file were not read into the source index, so a name declared there is not known: packages/kit/src/money/huge.ts.');

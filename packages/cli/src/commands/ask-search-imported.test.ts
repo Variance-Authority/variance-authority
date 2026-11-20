@@ -1,7 +1,6 @@
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { workspaceSnapshotPath } from '@variance-authority/help';
 import { sourceIndexPath } from '@variance-authority/sense';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EXIT_CLEAN } from '../exit.js';
@@ -170,16 +169,5 @@ describe('variance ask search counts the places that import a published name as 
 
     const { out } = await run(['ask', 'search', '--query', 'tone']);
     expect(out.split('\n').filter((line) => / · toneQuiet \[/u.test(line))).toEqual(['@acme/lib · toneQuiet [const] no other package imports it by its published path — UNDOCUMENTED']);
-  });
-
-  it('says the published store did not open, and counts from the checkout it read instead', async () => {
-    const root = checkout(FIVE_WITHIN);
-    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
-    writeFileSync(workspaceSnapshotPath(sourceIndexPath(root)), 'not a store');
-
-    const { code, out } = await run(['ask', 'search', '--query', 'greet']);
-    expect(code).toBe(EXIT_CLEAN);
-    expect(greetRows(out)).toEqual(['@acme/lib · greet [function] imported in 6 places in 2 packages — UNDOCUMENTED']);
-    expect(out).toMatch(/^The published value at .* did not open \(.*\); the checkout was read instead\.$/mu);
   });
 });

@@ -23,6 +23,12 @@ export interface RegionRecord {
    * edit pushed around. See `rankRegions` — area alone gets this backwards.
    */
   readonly cause: boolean;
+  /**
+   * How strongly its strongest pixel differs: how many severity levels its
+   * colour distance passes, 1 to 4. Below 4 the region is faint. Absent in a
+   * record written before regions were graded.
+   */
+  readonly grade?: number;
   /** `true` when no box contained the region; a wrong scale or origin. */
   readonly unattributed?: boolean;
 

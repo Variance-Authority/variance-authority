@@ -5,18 +5,23 @@
  * Parity with `pixelmatch` is the contract, held by `judge.test.ts`; the one
  * departure is a seam, where a before pixel's anti-aliasing is read from the
  * rows around the one it came from, not the rows the alignment set beside it.
+ * The picture departs too: a changed pixel short of the strong grade ({@link isFaint}) is
+ * drawn {@link FAINT}, not red.
  */
 
-import type { DiffPolicy } from '@variance-authority/raster';
+import { type DiffPolicy, isFaint, SEVERITY_LEVELS } from '@variance-authority/raster';
 import type { DecodedImage } from './mask.js';
 
 /** What a scan writes besides the counts. */
 export interface JudgeOutput {
-  /** One byte per pixel, 1 where this policy (by index) counted a difference. */
+  /** One byte per pixel where this policy (by index) counted a difference: its grade ({@link SEVERITY_LEVELS}). */
   readonly mask?: number;
-  /** `pixelmatch`'s own picture, for this policy (by index). */
+  /** `pixelmatch`'s own picture, for this policy (by index), a faint changed pixel drawn {@link FAINT}. */
   readonly picture?: { readonly policy: number; readonly diffMask: boolean };
 }
+
+/** The colour the picture draws a faint changed pixel in: red, paler than an inserted row's tint, so the two read apart. */
+export const FAINT = [255, 190, 190] as const;
 
 export interface Judged {
   /** Pixels each policy called different, in the order the policies came. */
@@ -74,6 +79,7 @@ export function judgeRows(
   };
 
   const limits = policies.map((policy) => limitOf(policy.threshold));
+  const grades = SEVERITY_LEVELS.map(limitOf);
   const changed = policies.map(() => 0);
   const mask = output.mask === undefined ? undefined : new Uint8Array(width * height);
   const picture = output.picture === undefined ? undefined : new Uint8Array(height * row);
@@ -143,8 +149,13 @@ export function judgeRows(
             }
           }
           changed[index]! += 1;
-          if (index === output.mask) mask![y * width + x] = 1;
-          if (index === drawn) paint(picture!, pos, 255, 0, 0);
+          if (index !== output.mask && index !== drawn) continue;
+          let grade = 1;
+          while (grade < grades.length && size > grades[grade]!) grade += 1;
+          if (index === output.mask) mask![y * width + x] = grade;
+          if (index !== drawn) continue;
+          if (isFaint(grade)) paint(picture!, pos, ...FAINT);
+          else paint(picture!, pos, 255, 0, 0);
         }
       }
     }
@@ -245,7 +256,12 @@ export function limitOf(threshold: number): number {
  * `pixelmatch`'s checkerboard is read, whichever row the first pixel came from.
  */
 export function colorDelta(first: Uint8Array, second: Uint8Array, at: number, pos: number): number {
-  rgbDelta(first[at]!, first[at + 1]!, first[at + 2]!, first[at + 3]!, second, at, pos);
+  return colorDeltaAt(first, at, second, at, pos);
+}
+
+/** {@link colorDelta} between pixels at different offsets, such as two neighbours in one image. */
+export function colorDeltaAt(first: Uint8Array, at: number, second: Uint8Array, from: number, pos: number): number {
+  rgbDelta(first[at]!, first[at + 1]!, first[at + 2]!, first[at + 3]!, second, from, pos);
   const dr = DELTA[0]!;
   const dg = DELTA[1]!;
   const db = DELTA[2]!;

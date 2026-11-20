@@ -1,40 +1,26 @@
-//! `git status`, asked in-process: what the working tree and the index say
-//! instead of `HEAD`, below the root.
+//! Local changes against the same Git index that supplied the inventory.
+//! Tracked paths are compared by `gix-status`, and untracked paths walked by
+//! `gix-dir`. Git handles monitors, untracked caches and sparse checkouts.
 //!
-//! Three questions, answered where the snapshot already holds the answers'
-//! inputs. The index against `HEAD`'s blobs, which `Head::blobs` lists while
-//! the other two are walked. The worktree against the index, by `gix-status`,
-//! which reads the stat of every entry and hashes only the files whose stat
-//! moved. And the untracked files, by `gix-dir` under the repository's ignore
-//! rules.
-//!
-//! A file is compared by its raw bytes, not through `.gitattributes` filters:
-//! the snapshot's digest names the bytes on disk, so a raw hash is the exact
-//! test, and a file a filter would call clean is hashed again by `git` rather
-//! than vouched for.
-//!
-//! `None` hands the question back to `git status`: where a filesystem monitor
-//! holds the answers, under a sparse index, with a submodule below the root,
-//! or in a repository that does not name its objects by SHA-1.
+//! Comparison hashes raw working bytes, without attribute filters: a digest
+//! may skip a scan only when it names the bytes the scan would read.
 
 // compass: variance-authority.reach.source-scan
 
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::BTreeSet;
 use std::path::Path;
 use std::sync::atomic::AtomicBool;
 
 use bstr::ByteSlice;
-use gix_hash::ObjectId;
-use gix_index::entry::{Mode, Stage};
+use gix_index::entry::Mode;
 use gix_status::index_as_worktree::traits::{CompareBlobs, ReadData, SubmoduleStatus};
 use gix_status::index_as_worktree::{Change, EntryStatus, Recorder};
 use gix_worktree::stack::state::{ignore::Source, Ignore};
 use gix_worktree::stack::State;
 
-use crate::git_store::Head;
+use crate::git_store::Checkout;
 
-/// What the working tree says instead of `HEAD`, relative to the root: paths
-/// no longer there, and paths whose bytes may differ from the committed blob.
+/// Changes relative to the root: removed paths and paths needing working bytes.
 #[derive(Debug, Default, PartialEq, Eq)]
 pub(crate) struct Changes {
     pub(crate) gone: Vec<Vec<u8>>,
@@ -92,98 +78,40 @@ pub(crate) fn config_of(listed: &[u8]) -> Config {
     config
 }
 
-/// The working tree against the index, walked before `HEAD`'s blobs are in
-/// hand: what `Walked::against` compares them with.
-pub(crate) struct Walked {
-    pub(super) prefix: Vec<u8>,
-    pub(super) index: gix_index::File,
-    pub(super) removed: Paths,
-    pub(super) dirty: Paths,
-    pub(super) untracked: Paths,
-}
-
-/// The working tree walked against the index below the root, or `None` where
-/// `git status` must answer.
-pub(crate) fn walk(head: &Head, config: &Config) -> Option<Walked> {
-    let index = indexed(head, config)?;
+/// Compare only the working tree: inventory already comes from this index.
+pub(crate) fn walk(head: &Checkout, config: &Config, index: &gix_index::File) -> Option<Changes> {
+    if !can_compare(head, config, index) { return None; }
     let (worktree, untracked) = std::thread::scope(|scope| {
-        let untracked = scope.spawn(|| super::worktree_untracked::untracked(head, &index, config));
-        (worktree(head, &index, config), untracked.join().ok().flatten())
+        let untracked = scope.spawn(|| super::worktree_untracked::untracked(head, index, config));
+        (worktree(head, index, config), untracked.join().ok().flatten())
     });
     let (removed, dirty) = worktree?;
-    Some(Walked { prefix: head.prefix.as_bytes().to_vec(), index, removed, dirty, untracked: untracked? })
+    Some(changes(removed, dirty, untracked?))
 }
 
-/// The index a walk compares the working tree with, or `None` where `git
-/// status` must answer.
-pub(super) fn indexed(head: &Head, config: &Config) -> Option<gix_index::File> {
-    if head.format != "sha1" || config.fsmonitor {
-        return None;
+/// Git owns monitor results, untracked-cache reuse, sparse checkout and submodules.
+pub(super) fn can_compare(head: &Checkout, config: &Config, index: &gix_index::File) -> bool {
+    if head.format != "sha1" || config.fsmonitor || index.untracked().is_some() || index.is_sparse() {
+        return false;
     }
-    let prefix = head.prefix.as_bytes();
-    let index = gix_index::File::at(&head.index, gix_hash::Kind::Sha1, false, Default::default()).ok()?;
-    let below = |entry: &gix_index::Entry| entry.path(&index).starts_with(prefix);
-    // An index holding git's untracked cache lets `status` skip the walk:
-    // on Kibana it answers in 0.28 s, against 0.6 s compared here.
-    if index.untracked().is_some() {
-        return None;
-    }
-    // gix-status passes over a skip-worktree entry, which a sparse checkout
-    // sets without a sparse index; git reads one written back to disk.
-    let handed = |entry: &gix_index::Entry| entry.mode == Mode::COMMIT || entry.flags.contains(gix_index::entry::Flags::SKIP_WORKTREE);
-    if index.is_sparse() || index.entries().iter().any(|entry| handed(entry) && below(entry)) {
-        return None;
-    }
-    Some(index)
+    // Git's staged delta still exposes an assumed-valid path the native walk skips.
+    let handed = |entry: &gix_index::Entry| entry.mode == Mode::COMMIT || entry.flags.intersects(gix_index::entry::Flags::SKIP_WORKTREE | gix_index::entry::Flags::ASSUME_VALID);
+    !index.entries().iter().any(|entry| handed(entry) && entry.path(index).starts_with(head.prefix.as_bytes()))
 }
 
-impl Walked {
-    /// Every path below the root the working tree or the index disagrees with
-    /// `held` about.
-    pub(crate) fn against(self, held: &[(Vec<u8>, ObjectId, bool)]) -> Changes {
-    let Walked { prefix, index, removed, mut dirty, untracked } = self;
-    let prefix = prefix.as_slice();
-
-    // The index against `HEAD`: a path staged away is gone unless a conflict
-    // holds it, and a path staged with other contents or another kind is edited.
-    let committed: HashMap<&[u8], (ObjectId, bool)> = held.iter().map(|(path, id, link)| (path.as_slice(), (*id, *link))).collect();
-    let mut staged: HashSet<&[u8]> = HashSet::new();
-    let mut conflicted: HashSet<&[u8]> = HashSet::new();
-    for entry in index.entries() {
-        let Some(path) = entry.path(&index).strip_prefix(prefix) else {
-            continue;
-        };
-        if entry.stage() != Stage::Unconflicted {
-            conflicted.insert(path);
-            continue;
-        }
-        staged.insert(path);
-        if committed.get(path) != Some(&(entry.id, entry.mode == Mode::SYMLINK)) {
-            dirty.insert(path.to_vec());
-        }
-    }
-    let mut gone: BTreeSet<Vec<u8>> = removed;
-    for path in committed.keys().filter(|path| !staged.contains(*path)) {
-        if conflicted.contains(*path) {
-            dirty.insert(path.to_vec());
-        } else {
-            gone.insert(path.to_vec());
-        }
-    }
-    // A path unstaged with `git rm --cached` is gone from the index and back
-    // on disk as untracked: git lists it both ways, and its bytes are listed.
+/// A path removed from the index can still be an untracked file on disk.
+pub(super) fn changes(mut gone: Paths, mut dirty: Paths, untracked: Paths) -> Changes {
     gone.retain(|path| !untracked.contains(path));
     dirty.extend(untracked);
     dirty.retain(|path| !gone.contains(path));
     Changes { gone: gone.into_iter().collect(), dirty: dirty.into_iter().collect() }
-    }
 }
 
 pub(super) type Paths = BTreeSet<Vec<u8>>;
 
 /// The worktree against the index: paths removed, and paths edited, changed
 /// in kind or mode, conflicted or only intended to be added.
-pub(super) fn worktree(head: &Head, index: &gix_index::File, config: &Config) -> Option<(Paths, Paths)> {
+pub(super) fn worktree(head: &Checkout, index: &gix_index::File, config: &Config) -> Option<(Paths, Paths)> {
     let prefix = head.prefix.as_bytes();
     let top = head.top.as_path();
     let stack = gix_worktree::Stack::new(top, State::IgnoreStack(empty_ignore(Default::default())), case(config), Vec::new(), Vec::new());

@@ -1,4 +1,5 @@
 import type { Page } from 'playwright';
+import { pixelBox } from '@variance-authority/core/attribute';
 import type { ScreenshotOptions, Viewport } from '@variance-authority/core/format';
 import { SUBJECT_PATH } from '@variance-authority/raster';
 
@@ -38,7 +39,7 @@ export const MAX_CAPTURE_PIXELS = 16_384;
  * uniform across engines and is largest exactly where the paint is cheapest.
  *
  * The two paths are byte-identical only if the clip is rounded the way the
- * element path rounds it: see {@link outward}. Verified across 240 randomly
+ * element path rounds it: {@link pixelBox}, the pixels the box touches. Verified across 240 randomly
  * generated subjects — fractional sizes, fractional offsets, borders, shadows,
  * axis-aligned transforms — in all three engines at both device scale factors.
  *
@@ -100,7 +101,7 @@ export async function captureSubject(
   }
 
   if (within(box, viewport) && (await page.evaluate(probeAxisAligned, selector))) {
-    return { bytes: await page.screenshot({ ...options, clip: outward(box) }), box };
+    return { bytes: await page.screenshot({ ...options, clip: pixelBox(box) }), box };
   }
 
   return { bytes: await subject.screenshot(options), box };
@@ -139,27 +140,6 @@ function within(box: Box, viewport: Viewport): boolean {
     box.x + box.width <= viewport.width &&
     box.y + box.height <= viewport.height
   );
-}
-
-/**
- * A fractional box snapped to the pixel grid the way the element path snaps it:
- * floor the near edge, ceil the far one, and take everything between.
- *
- * This is the union of the pixels the subject touches — what a compositor's
- * damage rect is — and it is the only rounding of the five tried that reproduces
- * the element path's bytes. Rounding the *extent* instead of the far *edge* is
- * the tempting mistake: the two differ whenever a box starts at a fraction, which
- * includes a box of integer size sitting at a fractional offset.
- */
-export function outward(box: Box): Box {
-  const x = Math.floor(box.x);
-  const y = Math.floor(box.y);
-  return {
-    x,
-    y,
-    width: Math.ceil(box.x + box.width) - x,
-    height: Math.ceil(box.y + box.height) - y,
-  };
 }
 
 /**

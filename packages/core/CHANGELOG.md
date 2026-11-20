@@ -1,5 +1,26 @@
 # @variance-authority/core
 
+## 0.34.0
+
+### Minor Changes
+
+- 16b1d59: A release that changes the source index's format can start from CI's index
+
+  A share takes `sourceIndex`, off by default. When it is `true`, `variance share --suite` on a mainline also publishes the source index CI built, as the entry `source-index-v<format>` beside the record, each segment cut into pieces of 32 MiB that are the entry's images. The share stores an image once, so a commit sends only the pieces no commit before it sent: the segments its update wrote. The names of a segment's pieces are kept beside the index, so a commit hashes only the segments its update wrote too: on Firefox, a commit after the first carries its index in 3 ms rather than 0.8 s. No segment is too large to publish. An update over an index a release in another format wrote fetches that index as it starts, while it lists the checkout; the mainline's record never waits for it, and when another checkout's index of this release opens, the update starts from that one and drops the download without waiting for it, even when the share never answers. The update then reads only the files that differ from it. Every command that updates the index says on stderr when it starts that download, and why it placed none when the share holds no index in this format or it does not check out; `variance index` names the index it fetched. `updateSourceIndex` and `publishedSources` take a `fetch` callback for this, and the update's result has the fetched index as `fetched`. `carriedSourceIndex`, `placeSourceIndex`, `SOURCE_INDEX_PIECE`, `fetchedSourceIndexPath`, `processAlive`, `sourceIndexChain` and `sourceIndexWrittenIn` are exported; `fetch` is given a `signal` that aborts when another checkout's index fits. The index is about the size of the parsed checkout: on Firefox, about 200,000 files, it is about 2 GB, or 0.7 GB compressed.
+
+  A `LineCell` says with `imagesShared` that an image stored for one line is there for every line, as the directory, HTTP and memory cells do; a mainline's commit is then kept without its images sent again.
+- 8cb6a89: A region says whether its shape changed or only its colour
+
+  A changed region now says whether its drawing changed or only its colour. `DiffRegion` gains an optional `change: 'shape' | 'colour'`, `@variance-authority/png` exports `regionChange`, which reads it from the compared pixels, and the verdict counts the regions apart: `120 pixels differ across 2 regions, 1 changed in shape and 1 only in colour`. A recoloured button reads as colour; a block that moved by a pixel, or a page that gained rows, reads as shape. A region with no edge on either side and a pixel too faint to call flat, as a pale tint moved by a pixel, carries no `change`, and the sentence counts only the regions that carry one. `@variance-authority/core/attribute` exports `pixelBox`, the outward rounding of a box to the pixels it touches, which `subtractRegions`, `regionChange` and the Playwright capture's `outward` now share.
+- cf0c8e8: A page's story names the navigation that loaded each document after the first
+
+  Where a page went to another document of the same origin, or reloaded itself, during a case, its story now says so on the step it happened during, before what the new document ran: `page navigated http://shop.test/checkout`, or `page reloaded http://reloading.test/` where the browser reports a reload. `navigationNote` in `@variance-authority/core/format` writes that note, for any runner that names a page's navigation. The address is the one the top document was loaded at, without its query or fragment. A navigation to another origin carries no tape across, so it is not named. A `PageStory` carries the address as `url`, and `reload` where the browser says so; a frame carries neither.
+- 5d71e42: A changed region is graded by how much its pixels changed in colour: the mask byte is the grade, from 1 for a pixel past the policy's threshold to `SEVERITY_LEVELS.length` for one past 0.2 or a row with no partner, and each `DiffRegion` carries its highest `grade`. The verdict names regions at `STRONG_GRADE` first and counts the rest as faint, so a repaint by a few levels no longer reads like the change beside it. A mask byte is no longer always `1`: test it for non-zero. Regions the 32-region cap leaves out are counted as more regions, not smaller ones, since the faintest go first.
+
+### Patch Changes
+
+- 4d81728: Content that moves beside a column that stays put, such as a page that grew under a fixed sidebar, is aligned in vertical strips. Each strip that moved is paired on its own, and every span of the alignment carries `columns`, the strip it covers. A page under a fixed sidebar no longer marks everything below the edit as changed. The reason counts the rows a column gained rather than adding up every strip's rows. Rows inserted in one strip join a region only when the region lies inside that strip.
+
 ## 0.33.0
 
 ### Minor Changes

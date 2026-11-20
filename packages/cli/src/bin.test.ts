@@ -142,7 +142,8 @@ describe('parseArgs', () => {
       config: resolve('variance.config.json'),
       reports: [],
     });
-    expect(parseArgs(['ask', 'search', '--query', 'button', '--just-answer'])).toMatchObject({ justAnswer: true });
+    // A question always reads the published generation, so only `serve` takes `--just-answer`.
+    expect(() => parseArgs(['ask', 'search', '--query', 'button', '--just-answer'])).toThrow('`--just-answer` is not a `variance ask` flag');
     expect(parseArgs(['serve', '--just-answer'])).toMatchObject({ justAnswer: true });
     // `--story` stands alone: the report path after it is a report, not its value.
     expect(parseArgs(['ask', 'ran', '--story', 'out/report.json'])).toMatchObject({ story: true, reports: ['out/report.json'] });

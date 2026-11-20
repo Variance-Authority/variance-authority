@@ -14,7 +14,7 @@ use gix_worktree::stack::state::{ignore::Source, Ignore};
 use gix_worktree::stack::State;
 
 use super::worktree_status::{pathspec, Config};
-use crate::git_store::Head;
+use crate::git_store::Checkout;
 
 /// Every untracked file or link below the root, under the repository's ignore
 /// rules, listed one by one rather than collapsed into its directory. A
@@ -23,14 +23,14 @@ use crate::git_store::Head;
 /// Git walks one directory at a time, and the walk is most of what `status`
 /// costs. Here a walker meeting a tracked directory while the queue runs short
 /// hands it over instead of descending, so every walker has work.
-pub(crate) fn untracked(head: &Head, index: &gix_index::File, config: &Config) -> Option<BTreeSet<Vec<u8>>> {
+pub(crate) fn untracked(head: &Checkout, index: &gix_index::File, config: &Config) -> Option<BTreeSet<Vec<u8>>> {
     untracked_below(head, index, config, vec![head.prefix.as_bytes().trim_end_with(|c| c == '/').to_vec()])
 }
 
 /// `untracked`, below `dirs` alone, each named from the top of the checkout
 /// and none below another: a directory the walk enters is still classified
 /// from the top, so one git ignores lists nothing.
-pub(crate) fn untracked_below(head: &Head, index: &gix_index::File, config: &Config, dirs: Vec<Vec<u8>>) -> Option<BTreeSet<Vec<u8>>> {
+pub(crate) fn untracked_below(head: &Checkout, index: &gix_index::File, config: &Config, dirs: Vec<Vec<u8>>) -> Option<BTreeSet<Vec<u8>>> {
     let top = head.top.as_path();
     let mut buf = Vec::new();
     let globals = gix_ignore::Search::from_git_dir(&head.common, excludes_file(config, top)?, &mut buf, Default::default()).ok()?;
@@ -140,7 +140,7 @@ impl Queue {
 
 /// One thread's walks, with its own ignore stack and pathspec.
 struct Walker<'a> {
-    head: &'a Head,
+    head: &'a Checkout,
     index: &'a gix_index::File,
     config: &'a Config,
     lookup: Option<&'a gix_index::AccelerateLookup<'a>>,

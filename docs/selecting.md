@@ -963,8 +963,10 @@ A scan runs before every run that selects, so the number that matters is not the
 first one — it is the one after a one-line edit. Three things arrive already
 known, and each removes a layer:
 
-- **`git` names every file's content without opening one.** A blob's name *is*
-  the hash of its bytes, so `git ls-tree` plus `git status` is the entire walk.
+- **`git` names unchanged tracked contents without opening the files.** A blob's
+  name *is* the hash of its bytes. The scan reads tracked paths and blob ids from Git's
+  index and compares local changes against the same loaded index. Git handles
+  the comparison when its monitor, untracked cache or checkout mode requires it.
 - **A digest names the parse.** The parse cache is keyed by content and by the
   parse settings the file's name selects, so it can never go stale: two files
   with one key had one content read one way, on any machine, in any branch, in

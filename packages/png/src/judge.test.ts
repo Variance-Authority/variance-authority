@@ -5,7 +5,7 @@ import {
   STRICT_POLICY,
   type DiffPolicy,
 } from "@variance-authority/raster";
-import { judgeRows, type SourceStrip } from "./judge.js";
+import { FAINT, judgeRows, type SourceStrip } from "./judge.js";
 import type { DecodedImage } from "./mask.js";
 
 /**
@@ -36,7 +36,8 @@ describe("one scan agrees with pixelmatch", () => {
         mask: 0,
       });
       expect(judged.changed).toEqual(masks.map((mask) => mask.changed));
-      expect(judged.mask).toEqual(alphaOf(masks[0]!.data));
+      // Pixelmatch marks a pixel; the judge grades it, so they agree where it is non-zero.
+      expect(judged.mask!.map((grade) => Math.min(grade, 1))).toEqual(alphaOf(masks[0]!.data));
 
       for (const diffMask of [true, false]) {
         for (const [index, policy] of POLICIES.entries()) {
@@ -47,7 +48,8 @@ describe("one scan agrees with pixelmatch", () => {
             POLICIES,
             { picture: { policy: index, diffMask } },
           ).picture;
-          expect(picture).toEqual(oracle(copied, after, policy, diffMask).data);
+          // Pixelmatch paints every changed pixel red; the judge paints a faint one pale.
+          expect(reddened(picture!)).toEqual(oracle(copied, after, policy, diffMask).data);
         }
       }
     });
@@ -176,7 +178,7 @@ describe("a pixel whose neighbour has no row in the other image", () => {
       { mask: 0 },
     );
 
-    expect([...mask!.subarray(0, width)]).toEqual([1, 1, 1, 1, 1]);
+    expect([...mask!.subarray(0, width)]).toEqual([4, 4, 4, 4, 4]);
     // The third row differs too, as 200 against 255.
     expect(changed).toEqual([2 * width]);
   });
@@ -334,6 +336,15 @@ function oracle(
     },
   );
   return { changed, data };
+}
+
+/** The picture with every {@link FAINT} pixel painted red, as `pixelmatch` paints it. */
+function reddened(picture: Uint8Array): Uint8Array {
+  const copy = Uint8Array.from(picture);
+  for (let at = 0; at < copy.length; at += 4) {
+    if (copy[at] === FAINT[0] && copy[at + 1] === FAINT[1] && copy[at + 2] === FAINT[2]) copy.set([255, 0, 0], at);
+  }
+  return copy;
 }
 
 function alphaOf(picture: Uint8Array): Uint8Array {

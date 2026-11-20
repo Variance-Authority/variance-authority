@@ -264,10 +264,10 @@ describe(`${PAGE} connects an agent with no variance config`, () => {
   it('a use of a name the index holds waits for `variance index`, as the page says', () => {
     expect(edited.reused).toBe(edited.indexed);
     expect(edited.reindexed).toContain('src/use.ts');
-    expect(prose(PAGE)).toContain('Run `variance index` when');
+    expect(prose(PAGE)).toContain('after you edit, run `variance index`, then ask');
   });
 
-  // The run keeps the old signature and restarts the hour, and the page says so.
+  // The run keeps the old signature.
   it.todo('a changed signature is answered after `variance index` — needs the publish to read the files the run read again (#953)');
 
   it.each(INSPECTED)('%s prints the Inspector every supported Node runs', (page) => {
