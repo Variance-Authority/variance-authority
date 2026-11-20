@@ -1,10 +1,10 @@
 # Review a visual change
 
 A screenshot suite tells you that pixels differ. A change report from
-[Variance Authority](README.md) tells you three more things about each region
-that differs: whether your edit drew it or only pushed it aside, what kind of
-change it is, and which component, place in the page and source line it comes
-from. This page shows the three on one recorded run, then orders the steps that
+[Variance Authority](README.md) tells you three more things: which components
+your edit changed and which it only pushed aside, what kind of change each is,
+and which component, place in the page and source line each differing region
+comes from. This page shows the three on one recorded run, then orders the steps that
 get the same report out of your own suite and a build that gates on it.
 
 Every step runs on your own build machine, against baselines in your own
@@ -16,75 +16,71 @@ The [visual-review example](../examples/visual-review-case/README.md) renders
 three pricing cards. One edit renames the Team plan to
 `Team, billed yearly for every seat`, so the name wraps onto a second line, and
 turns its `Choose` button orange. Nothing else is edited. A screenshot diff of
-it is three red patches in one card. The run prints this:
+it is three red patches in one card. `variance ask describe --subject
+pricing/plans` answers with this headline:
 
 ```text
-pricing/plans: changed — 4,927 pixels differ across 3 regions in ChooseButton, PlanName, Price, 2 changed in shape and 1 only in colour
+4,927 pixels differ across 3 regions in ChooseButton, PlanName, Price, 2 changed in shape and 1 only in colour
 ```
 
 Every line quoted below is from the example's committed
-[`report.txt`](../examples/visual-review-case/artifacts/report.txt), and a test
-in the example checks that each one still is.
+[`report.txt`](../examples/visual-review-case/artifacts/report.txt), that
+command's answer for the run, and a test in the example checks that each one
+still is.
 
 ### A shift is told from a change
 
-Each region is classed by what happened to its pixels. In a **shape** region,
-ink is in a different place: a glyph appeared, a box grew. In a **colour**
-region, the ink is in the same place and only its colour is different. A region
-whose component's own inputs changed is a **cause**. A region that changed
-only because a cause pushed it is **displaced**:
+The report lists each component the run saw change. A component is a
+**cause** when its own inputs changed — its props, its text, its declared
+styles — and **collateral** when they did not and it is in the diff only
+because a cause pushed it aside. That is decided from the components' inputs,
+read from the page, never from the pixels:
 
 ```text
-  ChooseButton · cause · colour · strong · 3670px · main → region "Plans" → list item 2 of 3 → button "Choose" · examples/visual-review-case/src/plans.js:53
-  PlanName · cause · shape · strong · 733px · main → region "Plans" → list item 2 of 3 → heading "Team, billed yearly for every seat" · examples/visual-review-case/src/plans.js:30
-  Price · displaced · shape · strong · 524px · main → region "Plans" → list item 2 of 3 · examples/visual-review-case/src/plans.js:42
+components:
+  cause      ChooseButton — token
+      background-color (not declared) → rgb(255 74 25 / 1)
+  cause      PlanName — a11y, geometry, content
+  collateral Price — geometry
 ```
 
-The price is 524 pixels of red in the diff image, the same red as the name. The
-report lists it last and calls it displaced: its text and its props are the
-same, and it is lower because the name above it wraps. You review two causes,
-not three changes.
+The price is 524 pixels of red in the diff image, the same red as the name.
+The report calls it collateral: its text and its props are the same, and it is
+lower because the name above it wraps. You review two causes, not three
+changes.
 
 ### Different changes are reported differently
 
-A change also has a kind, read from the page itself — its accessibility tree,
-its layout boxes and its computed styles — rather than from its pixels. Each
-component's properties are split into **bands**, each band is reduced to a
-short fingerprint, and the report names the bands whose fingerprint changed,
-loudest first:
-
-```text
-  ChooseButton · cause · token
-  PlanName · cause · a11y, geometry, content
-  Price · displaced · geometry
-```
+Each component's line also says what kind of change it is. Its properties are
+split into **bands**, each band is reduced to a short fingerprint, and the line
+names the bands whose fingerprint changed:
 
 - `a11y` — a role, accessible name, description or state changed: what a
   screen reader announces. The renamed heading is one.
-- `geometry` — boxes appeared, vanished, moved or resized.
+- `geometry` — boxes appeared, vanished, moved or resized. The pushed price
+  changed in this band alone.
 - `token` — style values changed while the structure stayed the same, as the
   button's colour did.
 - `content` — text changed and nothing else did.
 - `texture` — raster residue with no document counterpart.
 
-So a recolour, a renamed control and a pushed price are three kinds, not three
-pixel counts, and a [sensitivity](sensitivity.md) can let a route test pass on
-`token` while it still fails on `geometry`. Each region is also graded
-**strong** or **faint**: a faint region, such as a colour a few shades lighter,
-is drawn paler and named after the strong ones
-([how strongly it changed](attribution.md#how-strongly-it-changed)). A band the
-run could not observe is reported `unobserved`, never as unchanged
-([the contracts](architecture.md#the-contracts)). In the example every region is
-strong, every band was observed, and no component changed in `texture`.
+Under a component, each declared value that changed is printed as
+`property from → to`: the button's line is the `background-color` somebody
+edited. So a recolour, a renamed heading and a pushed price are three kinds,
+not three pixel counts, and a [sensitivity](sensitivity.md) can let a route
+test pass on `token` while it still fails on `geometry`. In the example no
+component changed in `texture`.
 
 ### Each region is connected to its component and the page
 
-A region line ends with the component that rendered it, its landmark path in
-the page — the route a screen reader takes to it — and the line the component is
-declared at:
+Below the components, the report lists the regions whose pixels differ. Each
+names the component that rendered it, its landmark path in the page — the
+route a screen reader takes to it — and the line the component is declared at:
 
 ```text
-  ChooseButton · cause · colour · strong · 3670px · main → region "Plans" → list item 2 of 3 → button "Choose" · examples/visual-review-case/src/plans.js:53
+  cause      3670px at 360,160 104×40 — ChooseButton
+      in main → region "Plans" → list item 2 of 3 → button "Choose"
+      examples/visual-review-case/src/plans.js:53
 ```
 
 You open `plans.js` at line 53, not the image. The landmark path tells you which

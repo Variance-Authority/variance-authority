@@ -1,36 +1,34 @@
 /**
  * The bands each component of examples/visual-review-case changed in, as the
- * report lists them: the button in `token` alone, the name in `a11y`,
- * `geometry` and `content`, the displaced price in `geometry` alone. No
- * component changed in `texture`, so its column is empty. Each row ends with
- * the class of its region's pixels.
+ * `components:` rows of its committed `variance ask describe` answer list
+ * them: the button in `token` alone, the name in `a11y`, `geometry` and
+ * `content`, the collateral price in `geometry` alone. No component changed in
+ * `texture`, so its column is empty.
  *
- * Ivory marks a band that changed, orange the button: the most pixels of the
- * three, and a change in one style value alone, per docs/visual-guidelines.md.
+ * Ivory marks a band that changed, orange the button: a change in one style
+ * value alone, per docs/visual-guidelines.md.
  */
 
 const IVORY = "#f3f4f6";
 const ORANGE = "#ff4a19";
 const WARM = "#756d67";
 const QUIET = "#8f8580";
-const GROUND = "#181b1d";
 
 const BANDS = ["a11y", "geometry", "token", "content", "texture"] as const;
-const COLUMN_X = [168, 230, 292, 354, 416];
-const REGION_X = 470;
+const COLUMN_X = [212, 284, 356, 428, 500];
 
 interface Row {
   component: string;
-  role: "cause" | "displaced";
+  role: "cause" | "collateral";
   bands: readonly (typeof BANDS)[number][];
-  region: string;
   focus?: boolean;
 }
 
-const ROWS: Row[] = [
-  { component: "ChooseButton", role: "cause", bands: ["token"], region: "colour", focus: true },
-  { component: "PlanName", role: "cause", bands: ["a11y", "geometry", "content"], region: "shape" },
-  { component: "Price", role: "displaced", bands: ["geometry"], region: "shape" },
+/** Pinned to examples/visual-review-case/artifacts/report.txt by its test. */
+export const ROWS: readonly Row[] = [
+  { component: "ChooseButton", role: "cause", bands: ["token"], focus: true },
+  { component: "PlanName", role: "cause", bands: ["a11y", "geometry", "content"] },
+  { component: "Price", role: "collateral", bands: ["geometry"] },
 ];
 
 const rowY = (index: number) => 132 + index * 70;
@@ -41,7 +39,7 @@ export default function ChangeKinds() {
       viewBox="0 0 560 360"
       className="block h-auto w-full"
       role="img"
-      aria-label="A grid of three components against five bands: a11y, geometry, token, content and texture. ChooseButton, a cause, changed in token alone and its region changed in colour. PlanName, a cause, changed in a11y, geometry and content, in shape. Price, displaced, changed in geometry alone, in shape. No component changed in texture."
+      aria-label="A grid of three components against five bands: a11y, geometry, token, content and texture. ChooseButton, a cause, changed in token alone. PlanName, a cause, changed in a11y, geometry and content. Price, collateral, changed in geometry alone. No component changed in texture."
     >
       {BANDS.map((band, column) => (
         <text
@@ -56,9 +54,6 @@ export default function ChangeKinds() {
           {band}
         </text>
       ))}
-      <text className="font-mono" x={REGION_X + 30} y={70} textAnchor="middle" fill={IVORY} fontSize={12}>
-        region
-      </text>
       <line x1={24} y1={88} x2={536} y2={88} stroke={WARM} strokeWidth={1} />
 
       <rect
@@ -91,26 +86,6 @@ export default function ChangeKinds() {
                 <circle key={band} cx={COLUMN_X[column]} cy={y} r={2.5} fill={WARM} />
               ),
             )}
-            <rect
-              x={REGION_X}
-              y={y - 14}
-              width={60}
-              height={26}
-              rx={5}
-              fill={GROUND}
-              stroke={row.focus ? ORANGE : WARM}
-              strokeWidth={1.5}
-            />
-            <text
-              className="font-mono"
-              x={REGION_X + 30}
-              y={y + 4}
-              textAnchor="middle"
-              fill={row.focus ? ORANGE : IVORY}
-              fontSize={12}
-            >
-              {row.region}
-            </text>
           </g>
         );
       })}

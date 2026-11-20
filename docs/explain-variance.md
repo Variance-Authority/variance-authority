@@ -10,20 +10,23 @@ A **subject** is one named UI state you asked for and can ask for again,
 identified by a stable id like `story:checkout--empty`. Every question here is
 asked about one.
 
-## Start from the region line
+## Start from the report
 
-Some of the explanation is already on the report. Each region line says whether
-its component caused the change or was only pushed by one, and names the
-component, its place in the page and its source line. In the
+Some of the explanation is already on the report. `variance ask describe`
+lists each component as a cause, whose own inputs changed, or collateral, only
+pushed aside by a cause, and each region with its component, its place in the
+page and its source line. In the
 [visual-review example](../examples/visual-review-case/README.md), a longer plan
-name pushes the price below it down, and the price's line says so:
+name pushes the price below it down, and the price's region says so:
 
 ```text
-  Price · displaced · shape · strong · 524px · main → region "Plans" → list item 2 of 3 · examples/visual-review-case/src/plans.js:42
+  collateral 524px at 17,223 87×32 — Price
+      in main → region "Plans" → list item 2 of 3
+      examples/visual-review-case/src/plans.js:42
 ```
 
-A displaced region needs no explanation of its own: look at the causes listed
-above it. The table below is for a region the line leaves unexplained.
+A collateral region needs no explanation of its own: look at the causes listed
+above it. The table below is for a region the report leaves unexplained.
 
 ## Ask what kind of explanation is missing
 

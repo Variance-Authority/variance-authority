@@ -2,10 +2,10 @@
  * The Team card from examples/visual-review-case, before and after its one
  * edit. The plan's name grew onto a second line and the Choose button was
  * repainted; the price below the name moved only because the name grew. The
- * labels are the report's own region lines: two causes, and one displaced
- * region.
+ * labels are the `components:` rows of the example's committed
+ * `variance ask describe` answer: two causes, and one collateral component.
  *
- * Ivory marks the causes, orange the displaced price, the shift a pixel count
+ * Ivory marks the causes, orange the collateral price, the shift a pixel count
  * cannot tell from a change, per docs/visual-guidelines.md.
  */
 
@@ -25,20 +25,16 @@ interface Label {
   /** Where the leader starts, on the after card. */
   from: { x: number; y: number };
   component: string;
-  line: string;
+  role: "cause" | "collateral";
+  bands: readonly string[];
   focus?: boolean;
 }
 
-const LABELS: Label[] = [
-  { y: 96, from: { x: AFTER_X + 136, y: 102 }, component: "PlanName", line: "cause · shape · 733px" },
-  {
-    y: 156,
-    from: { x: AFTER_X + 94, y: 147 },
-    component: "Price",
-    line: "displaced · shape · 524px",
-    focus: true,
-  },
-  { y: 254, from: { x: AFTER_X + 134, y: 254 }, component: "ChooseButton", line: "cause · colour · 3670px" },
+/** Pinned to examples/visual-review-case/artifacts/report.txt by its test. */
+export const LABELS: readonly Label[] = [
+  { y: 96, from: { x: AFTER_X + 136, y: 102 }, component: "PlanName", role: "cause", bands: ["a11y", "geometry", "content"] },
+  { y: 156, from: { x: AFTER_X + 94, y: 147 }, component: "Price", role: "collateral", bands: ["geometry"], focus: true },
+  { y: 254, from: { x: AFTER_X + 134, y: 254 }, component: "ChooseButton", role: "cause", bands: ["token"] },
 ];
 
 function Card({ x, title }: { x: number; title: string }) {
@@ -58,7 +54,7 @@ export default function ShiftOrChange() {
       viewBox="0 0 560 360"
       className="block h-auto w-full"
       role="img"
-      aria-label="The Team pricing card before and after its edit. The plan name grows onto a second line and is a cause that changed in shape. The Choose button is repainted and is a cause that changed only in colour. The price moves down below the longer name and is reported displaced."
+      aria-label="The Team pricing card before and after its edit. The plan name grows onto a second line and is a cause, changed in a11y, geometry and content. The Choose button is repainted and is a cause, changed in token. The price moves down below the longer name and is reported collateral, changed in geometry alone."
     >
       <Card x={BEFORE_X} title="before" />
       <rect x={BEFORE_X + 16} y={86} width={84} height={12} rx={3} fill={QUIET} />
@@ -122,7 +118,16 @@ export default function ShiftOrChange() {
             fill={label.focus ? ORANGE : QUIET}
             fontSize={12}
           >
-            {label.line}
+            {label.role}
+          </text>
+          <text
+            className="font-mono"
+            x={LABEL_X}
+            y={label.y + 26}
+            fill={label.focus ? ORANGE : QUIET}
+            fontSize={12}
+          >
+            {label.bands.join(", ")}
           </text>
         </g>
       ))}

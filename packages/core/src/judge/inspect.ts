@@ -122,7 +122,7 @@ export interface Finding {
   /** One sentence, naming the thing rather than the rule. */
   readonly what: string;
 
-  /** Spoken outside-in, from `locate` — `main → region "Todos" → item 2 of 3`. */
+  /** Spoken outside-in, from `locate` — `main → region "Todos" → list item 2 of 3`. */
   readonly where?: string;
 
   /** The component whose JSX created the node, when provenance reached it. */

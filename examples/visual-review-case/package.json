@@ -13,6 +13,8 @@
     "@variance-authority/png": "workspace:^"
   },
   "devDependencies": {
+    "@variance-authority/cli": "workspace:^",
+    "@variance-authority/mcp": "workspace:^",
     "@variance-authority/observe": "workspace:^",
     "@variance-authority/raster": "workspace:^",
     "@variance-authority/sense": "workspace:^",

@@ -5447,8 +5447,10 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@variance-authority/example-visual-review-case@workspace:examples/visual-review-case"
   dependencies:
+    "@variance-authority/cli": "workspace:^"
     "@variance-authority/core": "workspace:^"
     "@variance-authority/dom": "workspace:^"
+    "@variance-authority/mcp": "workspace:^"
     "@variance-authority/observe": "workspace:^"
     "@variance-authority/playwright": "workspace:^"
     "@variance-authority/png": "workspace:^"

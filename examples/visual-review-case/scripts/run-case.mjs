@@ -2,13 +2,14 @@ import { readFile } from 'node:fs/promises';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { build } from 'esbuild';
-import { formatSource, hashComponents, rankRegions, resolveSource } from '@variance-authority/core/attribute';
+import { recordOf } from '@variance-authority/cli';
+import { hashComponents } from '@variance-authority/core/attribute';
 import { digestValue } from '@variance-authority/core/format';
 import { normalize } from '@variance-authority/core/rules';
 import { observeRasters, packSnapshot } from '@variance-authority/observe';
 import { createHarness } from '@variance-authority/playwright';
 import { diffImage } from '@variance-authority/png';
-import { STRONG_GRADE } from '@variance-authority/raster';
+import { toolByName } from '@variance-authority/mcp/tools';
 import { indexDeclarations } from '@variance-authority/sense';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -48,23 +49,6 @@ async function read(harness, variant, identity) {
   return { snapshot, png, raster };
 }
 
-/** One line per region, causes first: what changed, how strongly, where, and in which line. */
-function regionLine(region, source) {
-  const declared = region.component === undefined ? null : resolveSource(region.component, source);
-  const file = region.source !== undefined ? formatSource(region.source) : declared === null ? '' : formatSource(declared);
-  return [
-    `  ${region.component ?? 'unattributed'}`,
-    region.cause ? 'cause' : 'displaced',
-    region.region.change ?? 'unread',
-    region.region.grade >= STRONG_GRADE ? 'strong' : 'faint',
-    `${region.region.pixels}px`,
-    region.where ?? '',
-    file,
-  ]
-    .filter((field) => field !== '')
-    .join(' · ');
-}
-
 /** Run the comparison whose artifacts the visual-review pages show. */
 export async function runVisualReviewCase() {
   const harness = await createHarness({
@@ -94,23 +78,25 @@ export async function runVisualReviewCase() {
       after.raster,
       { snapshot: after.snapshot, source },
     );
-    const ranked = rankRegions(observation.regions, observation.causes ?? []);
-
-    const report = [
-      `${observation.subject}: ${observation.verdict} — ${observation.because}`,
-      'components whose hashes changed:',
-      ...(observation.moved ?? []).map(
-        (entry) => `  ${entry.component} · ${entry.cause ? 'cause' : 'displaced'} · ${entry.bands.join(', ')}`,
-      ),
-      'regions, causes first:',
-      ...ranked.map((region) => regionLine(region, source)),
-    ].join('\n');
+    // The record `variance run` writes for this observation, in the report
+    // `variance ask` reads: the committed report.txt is that command's answer.
+    const record = recordOf(observation, { source });
+    const runReport = {
+      runVersion: 1,
+      at: new Date().toISOString(),
+      identity,
+      retention: 'durable',
+      observations: [record],
+      notObserved: [],
+    };
+    const report = toolByName('variance_describe').run(runReport, { subject: SUBJECT });
 
     return {
       before: before.snapshot,
       after: after.snapshot,
       observation,
-      ranked,
+      record,
+      runReport,
       report,
       beforePng: before.png,
       afterPng: after.png,

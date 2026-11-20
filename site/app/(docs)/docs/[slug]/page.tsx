@@ -114,7 +114,7 @@ export default async function Page({ params }: PageProps) {
                     <figcaption>
                       The Team card before and after its edit. The name and the
                       button are causes; the price moved only because the name
-                      above it grew, and is reported displaced.
+                      above it grew, and is reported collateral.
                     </figcaption>
                   </figure>
                 ),
@@ -122,8 +122,7 @@ export default async function Page({ params }: PageProps) {
                   <figure className="doc-figure doc-figure-panel">
                     <ChangeKinds />
                     <figcaption>
-                      The bands each component changed in, and whether its
-                      region changed in shape or only in colour. No component
+                      The bands each component changed in. No component
                       changed in texture in this run.
                     </figcaption>
                   </figure>
@@ -132,7 +131,7 @@ export default async function Page({ params }: PageProps) {
                   <figure className="doc-figure doc-figure-panel">
                     <RegionToLine />
                     <figcaption>
-                      The button&apos;s region line, unfolded: the region, the
+                      The button&apos;s region, unfolded: the region, the
                       component that painted it, its landmark path, and the
                       line the component is declared at.
                     </figcaption>
@@ -141,13 +140,13 @@ export default async function Page({ params }: PageProps) {
               }
             : slug === "explain-variance"
               ? {
-                  "start-from-the-region-line": (
+                  "start-from-the-report": (
                     <figure className="doc-figure doc-figure-panel">
                       <ShiftOrChange />
                       <figcaption>
                         The price is in the diff, but its own inputs did not
-                        change: the name above it grew. Its line says
-                        displaced, and the explanation starts from the causes.
+                        change: the name above it grew. The report calls it
+                        collateral, and the explanation starts from the causes.
                       </figcaption>
                     </figure>
                   ),

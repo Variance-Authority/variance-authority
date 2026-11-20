@@ -237,7 +237,7 @@ describe('banding', () => {
 
   /**
    * Both are DOM facts, so the cheap tier settles them outright. This is the
-   * measured form of the argument in `docs/compare-visual-review.md` §2.2: the category no
+   * measured form of the argument in `docs/compare-visual-review.md` §3.3: the category no
    * raster comparison can reach is also the category that costs least to reach.
    */
   it('settles a11y and content under jsdom, with no engine and no image', () => {

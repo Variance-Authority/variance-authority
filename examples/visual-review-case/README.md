@@ -7,47 +7,55 @@ render in one list. In the second, the plan's name grows from `Team` to
 `Choose` button turns from charcoal to orange. Nothing else is edited: the
 price below the name moves only because the name grew.
 
-The run tells the three apart. The button changed **colour**, the name changed
-**shape**, and the price is **displaced** — its pixels moved, but its own props
-did not cause it. Each region is placed on its landmark path in the page and on
-the line its component is declared at.
+The run tells the three apart. The name and the button are **causes**: their
+own inputs changed. The price is **collateral**: its pixels moved, but its own
+inputs did not. Each component names the bands it changed in, and each region
+is placed on its landmark path in the page and on the line its component is
+declared at.
 
 ## What it produces
 
-Running it regenerates the five files in [`artifacts/`](artifacts), all of which
+Running it regenerates the six files in [`artifacts/`](artifacts), all of which
 are committed:
 
 | before.png | after.png | diff.png |
 | --- | --- | --- |
 | ![Three pricing cards, Starter, Team and Scale, each with a charcoal Choose button.](artifacts/before.png) | ![The same cards; Team's name wraps onto two lines and its Choose button is orange.](artifacts/after.png) | ![The generated image diff: the Team card's longer name, its moved price and its repainted button highlighted in red.](artifacts/diff.png) |
 
-[`artifacts/report.txt`](artifacts/report.txt):
+[`artifacts/report.json`](artifacts/report.json) is the run report `variance
+run` writes, holding the one observation's record.
+[`artifacts/report.txt`](artifacts/report.txt) is what
+`variance ask describe --subject pricing/plans` answers over it, word for word:
 
 ```text
-pricing/plans: changed — 4,927 pixels differ across 3 regions in ChooseButton, PlanName, Price, 2 changed in shape and 1 only in colour
-components whose hashes changed:
-  ChooseButton · cause · token
-  PlanName · cause · a11y, geometry, content
-  Price · displaced · geometry
-regions, causes first:
-  ChooseButton · cause · colour · strong · 3670px · main → region "Plans" → list item 2 of 3 → button "Choose" · examples/visual-review-case/src/plans.js:53
-  PlanName · cause · shape · strong · 733px · main → region "Plans" → list item 2 of 3 → heading "Team, billed yearly for every seat" · examples/visual-review-case/src/plans.js:30
-  Price · displaced · shape · strong · 524px · main → region "Plans" → list item 2 of 3 · examples/visual-review-case/src/plans.js:42
+[changed] pricing/plans
+4,927 pixels differ across 3 regions in ChooseButton, PlanName, Price, 2 changed in shape and 1 only in colour
+
+components:
+  cause      ChooseButton — token
+      background-color (not declared) → rgb(255 74 25 / 1)
+  cause      PlanName — a11y, geometry, content
+  collateral Price — geometry
+
+  cause      3670px at 360,160 104×40 — ChooseButton
+      in main → region "Plans" → list item 2 of 3 → button "Choose"
+      examples/visual-review-case/src/plans.js:53
+      shape v1:f0ceae0539be67e3c965076afb3829ee
+  cause      733px at 17,163 166×35 — PlanName
+      in main → region "Plans" → list item 2 of 3 → heading "Team, billed yearly for every seat"
+      examples/visual-review-case/src/plans.js:30
+      shape v1:7aad695648c27135a2385d1af21f4b76
+  collateral 524px at 17,223 87×32 — Price
+      in main → region "Plans" → list item 2 of 3
+      examples/visual-review-case/src/plans.js:42
+      shape v1:dcf78d63305c64e488747e46bad7df98
 ```
 
-The first line is the observation's own sentence. The rest is
-[`scripts/run-case.mjs`](scripts/run-case.mjs) laying out the observation's
-fields one per line, with nothing added:
-
-| Report field | Where it comes from |
-| --- | --- |
-| `cause` or `displaced` | Whether the component is one of the observation's causes — its own inputs moved — or only sits where a cause pushed it. |
-| `token`, `a11y`, `geometry`, `content` | The bands the component's hash moved in: a style value with the structure held, what a screen reader announces, its box, its text. |
-| `colour` or `shape` | Whether the region's pixels changed only in colour, or in where ink is. |
-| `strong` or `faint` | Whether the region's change grade reaches the strong threshold. |
-| `Npx` | The pixels in the region that differ. |
-| `main → …` | The region's landmark path, as a screen reader would reach it. |
-| `plans.js:N` | The line the component is declared at. |
+The headline is the observation's own sentence. `components:` lists each
+component whose hashes changed, as a cause or collateral, with the bands it
+changed in and each declared value that changed, from → to. Each region after
+it gives its differing pixels, its box, its component, its landmark path, the
+line its component is declared at, and a fingerprint of its shape.
 
 [`artifacts/provenance.json`](artifacts/provenance.json) records the engine that
 painted the two PNGs, the platform it ran on, the components the run named as
@@ -57,14 +65,14 @@ paint: the same engine rasterizes text differently on macOS and Linux.
 
 ## What it does not show
 
-One run of one change. Every region here grades strong, so no `faint` line
-appears; nothing in it is out of the run's sight, so no region reads
-`unobserved`; and no component changed in the `texture` band. Those outputs
-exist in the engine — [Attribution](../../docs/attribution.md#how-strongly-it-changed)
-says when a region grades faint, [Sensitivity](../../docs/sensitivity.md) says
-what `texture` is, and [Architecture](../../docs/architecture.md#the-contracts)
-says when a band reads `unobserved` — but this
-example does not produce them, so it does not show them.
+One run of one change. No component changed in the `texture` band, and no
+component's box grew, so no `box W × H px` appears. Those outputs exist in the
+report — [Sensitivity](../../docs/sensitivity.md) says what `texture` is — but
+this example does not produce them, so it does not show them.
+
+The button's `background-color` reads `(not declared)` on its before side,
+though the before button declares a charcoal background. That is the report's
+own wording for this run, quoted as printed.
 
 ## Run it
 
@@ -78,14 +86,16 @@ From the repository root:
 yarn workspace @variance-authority/example-visual-review-case generate
 ```
 
-It prints the report and rewrites the five files in `artifacts/`. The package is
+It prints the report and rewrites the six files in `artifacts/`. The package is
 private and is not published; `generate` is its only script.
 
-The Vitest file re-runs the same comparison and checks it — the colour and shape
-classes, the displaced price, the bands, the landmark paths — and that the
-committed report, apart from its pixel counts, is the one the run prints. The
-pixel counts are checked against the committed PNGs, and the documentation's
-quoted lines against the committed report. From the repository root:
+The Vitest file re-runs the same comparison and checks it — the causes, the
+collateral price, the bands, each region's landmark path and line — and that
+the committed report, apart from its pixel counts, boxes and shape
+fingerprints, is the one the run prints. Without a browser it checks that the
+committed `report.txt` is what `variance ask describe` answers over the
+committed `report.json`, that the pixel counts match the committed PNGs, and
+that every documentation page and figure quoting the report still matches it. From the repository root:
 
 ```bash
 yarn vitest run --config vitest.chromium.config.mts examples/visual-review-case/src/visual-review.chromium.test.ts
@@ -101,7 +111,7 @@ checks the committed artifacts.
 | [`src/plans.js`](src/plans.js) | The components and the two variants. Lines 30, 42 and 53 are the lines the report names. |
 | [`src/page-agent.js`](src/page-agent.js) | The bundle that runs in the page and mounts each variant. |
 | [`page/harness.html`](page/harness.html) | The page the cards are mounted into. |
-| [`scripts/run-case.mjs`](scripts/run-case.mjs) | The comparison itself: capture, shoot, observe, rank. |
+| [`scripts/run-case.mjs`](scripts/run-case.mjs) | The comparison itself: capture, shoot, observe, then the record and the `describe` answer. |
 | [`scripts/generate.mjs`](scripts/generate.mjs) | Writes the result to `artifacts/`. |
 | [`src/visual-review.chromium.test.ts`](src/visual-review.chromium.test.ts) | The Vitest file above. |
 

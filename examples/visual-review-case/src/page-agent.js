@@ -22,6 +22,8 @@ function capture(request) {
       viewport: request.viewport,
       engine: request.engine,
       provenanceOf,
+      // The cards render nothing through a portal, so there is none to resolve.
+      portalsOf: () => [],
       fonts: request.fonts ?? [],
       assets: request.assets ?? {},
     }),

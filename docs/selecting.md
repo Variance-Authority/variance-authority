@@ -1369,5 +1369,5 @@ using that record to make one test smaller ·
 for the taint tables themselves · [`packages/sense`](../packages/sense) for what
 the scan reads and where it stops · [`packages/cli`](../packages/cli) for the
 rest of the command line · [`compare-visual-review.md
-§3`](compare-visual-review.md#chromatic) for what TurboSnap does that this does
+§2`](compare-visual-review.md#chromatic) for what TurboSnap does that this does
 not.

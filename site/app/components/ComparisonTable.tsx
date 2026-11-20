@@ -70,10 +70,10 @@ const ROWS = [
       doc("Not described in the cited pages"),
       doc("Not described in the cited pages"),
       doc(
-        "The Dynamic match level tolerates positional shifts around dynamic content; floating regions bound where an element may move",
+        "The Dynamic match level tolerates positional shifts in elements around dynamic content; floating regions bound where an element may be positioned",
       ),
       doc(
-        "Each region is a cause, whose component's own inputs changed, or displaced, moved by a cause and otherwise the same",
+        "Each component is a cause, whose own inputs changed, or collateral, moved by a cause and otherwise the same",
       ),
     ],
   },
@@ -81,13 +81,11 @@ const ROWS = [
     q: "kind of change",
     cells: [
       doc("Not described in the cited pages"),
+      doc("A sensitivity threshold for change detection"),
       doc("Not described in the cited pages"),
-      doc("Not described in the cited pages"),
+      doc("A match level: Strict, Layout, Ignore colors, Dynamic or Exact"),
       doc(
-        "A match level chosen per check or region: Strict, Layout, Ignore colors, Dynamic or Exact",
-      ),
-      doc(
-        "Per component, the bands that changed — `a11y`, `geometry`, `token`, `content`, `texture` — and per region, `shape` or `colour`, graded strong or faint; a band the run could not observe reads `unobserved`",
+        "Per component, the bands that changed — `a11y`, `geometry`, `token`, `content`, `texture` — and each declared value that changed, from → to",
       ),
     ],
   },

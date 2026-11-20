@@ -1,8 +1,8 @@
 /**
- * One region line from examples/visual-review-case, unfolded top to bottom:
- * the region the pixels changed in, the component that painted it, the
- * landmark path a screen reader takes to it, and the line the component is
- * declared at.
+ * One region of examples/visual-review-case's committed `variance ask
+ * describe` answer, unfolded top to bottom: the region the pixels changed in,
+ * the component that painted it, the landmark path a screen reader takes to
+ * it, and the line the component is declared at.
  *
  * Ivory marks each step of the chain, orange the line it ends at, per
  * docs/visual-guidelines.md.
@@ -26,9 +26,10 @@ interface Step {
   focus?: boolean;
 }
 
-const STEPS: Step[] = [
-  { y: 20, text: "colour · strong · 3670px" },
-  { y: 68, text: "ChooseButton · cause" },
+/** Pinned to examples/visual-review-case/artifacts/report.txt by its test. */
+export const STEPS: readonly Step[] = [
+  { y: 20, text: "cause 3670px at 360,160 104×40" },
+  { y: 68, text: "ChooseButton" },
   { y: 116, text: "main", hop: true },
   { y: 152, text: 'region "Plans"', hop: true },
   { y: 188, text: "list item 2 of 3", hop: true },
@@ -49,7 +50,7 @@ export default function RegionToLine() {
       viewBox="0 0 560 360"
       className="block h-auto w-full"
       role="img"
-      aria-label="A region that changed in colour, strong, 3670 pixels, leads to the component ChooseButton, a cause; then along the landmark path main, region Plans, list item 2 of 3, button Choose; and ends at examples/visual-review-case/src/plans.js line 53."
+      aria-label="A cause region of 3670 pixels at 360,160, 104 by 40, leads to the component ChooseButton; then along the landmark path main, region Plans, list item 2 of 3, button Choose; and ends at examples/visual-review-case/src/plans.js line 53."
     >
       <line x1={BOX_X + 20} y1={20 + BOX_H} x2={BOX_X + 20} y2={300} stroke={WARM} strokeWidth={1.5} />
       <path d={`M ${BOX_X + 6} 116 L ${BOX_X - 2} 116 L ${BOX_X - 2} 248 L ${BOX_X + 6} 248`} fill="none" stroke={QUIET} strokeWidth={1.5} />
