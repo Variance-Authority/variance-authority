@@ -264,7 +264,7 @@ export function inputFor(
     if (value === undefined) continue;
     const argument = accepted.find((entry) => entry.property === property);
     if (argument === undefined) {
-      ignored(tool, `--${property}`, `--${property}`, ignore);
+      ignored(tool, flagOf(property), flagOf(property), ignore);
       continue;
     }
     // A list a tool declares is typed once, comma-separated, like `--files`.
@@ -321,6 +321,13 @@ export function refuseWords(tool: Asked, words: readonly string[] | undefined): 
 export function ignored(tool: Asked, flag: string, typed: string, ignore: (message: string) => void): void {
   const flags = argumentsOf(tool).map((argument) => argument.flag);
   ignore(`${notTaken(tool, typed)}, so the answer is what it is without it; ${takesNow(tool)}.${didYouMean(flag, flags)}`);
+}
+
+/** Tells `ignore` of a flag typed where no question was asked, beside the list of questions. */
+export function unasked(unknown: readonly Unknown[], ignore: (message: string) => void): void {
+  for (const { typed } of unknown) {
+    ignore(`\`${typed}\` is not an argument \`variance ask\` takes, so the list of questions is what it is without it; a flag goes after its question.`);
+  }
 }
 
 /** That a question does not take what was typed. */

@@ -47,6 +47,8 @@ describe('parseArgs', () => {
     // A value given with `=` is the flag's too, and a flag after it is not.
     expect(parseArgs(['ask', 'uses', '--top=5', '--name', 'rank'])).toMatchObject({ name: 'rank', reports: [], unknown: [{ flag: '--top', typed: '--top=5' }] });
     expect(parseArgs(['ask', 'uses', '--verbose', '--name', 'rank'])).toMatchObject({ name: 'rank', reports: [], unknown: [{ flag: '--verbose', typed: '--verbose' }] });
+    // Before the question, the next word is the question, never the flag's value.
+    expect(parseArgs(['ask', '--verbose', 'summary'])).toMatchObject({ question: 'summary', unknown: [{ flag: '--verbose', typed: '--verbose' }] });
   });
 
   it('refuses a flag that belongs to another command', () => {

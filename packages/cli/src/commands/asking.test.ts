@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { HELP_TOOLS, intersection, search, symbol } from '@variance-authority/help/tools';
 import { COSTS_TOOLS, REVIEW_TOOLS, TOOLS, VANTAGE_TOOLS, toolByName, vantageToolByName, verbOf } from '@variance-authority/mcp/tools';
-import { QUESTIONS, argumentsOf, questionFor, takes } from './asking.js';
+import { QUESTIONS, argumentsOf, inputFor, questionFor, takes } from './asking.js';
 
 /**
  * The catalogue is derived, and this is the claim that it stays derived.
@@ -95,5 +95,16 @@ describe('what a question takes', () => {
     expect(argumentsOf(ran).find((argument) => argument.property === 'story')?.kind).toBe('switch');
     expect(takes(ran)).toContain('[--story]');
     expect(takes(ran)).not.toContain('--story <');
+  });
+});
+
+describe('an argument a question does not take', () => {
+  it('is named as the flag it is typed as, not as the property it is read into', () => {
+    const lines: string[] = [];
+    const input = inputFor(toolByName('variance_summary')!, { leftOf: 'a', changedFile: 'b' }, (line) => lines.push(line));
+
+    expect(input).toEqual({});
+    expect(lines[0]).toMatch(/^`--left-of` is not an argument `variance ask summary` takes/);
+    expect(lines[1]).toMatch(/^`--changed-file` is not an argument/);
   });
 });

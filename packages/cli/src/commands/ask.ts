@@ -6,7 +6,7 @@ import type { Unknown } from '../args.js';
 import type { Crossing } from '../ask-args.js';
 import { OperatorError } from '../exit.js';
 import { readClaims } from './adjudicate.js';
-import { ignored, inputFor, invocationOf, questionFor, refuseWords, type Question } from './asking.js';
+import { ignored, inputFor, invocationOf, questionFor, refuseWords, unasked, type Question } from './asking.js';
 import { foundNothingAnswer, readWorkspaceForAnswer, refusalFooter, snapshotLine, unopenedLine } from '@variance-authority/help';
 import { containment, discover, intersection, journeyMapTool, orient, retriedTests, search, slowestTests, testCompositionTool, type Help } from '@variance-authority/help/tools';
 import { asOneQuestion } from '@variance-authority/sense';
@@ -189,7 +189,10 @@ export interface Sourced {
 
 /** One question, answered from the artifact or the watcher. Never re-runs and never renders. */
 export async function ask(request: AskRequest): Promise<string> {
-  if (request.question === undefined) return questions();
+  if (request.question === undefined) {
+    unasked(request.unknown ?? [], ignoring(request));
+    return questions();
+  }
 
   const question = questionFor(request.question);
   if (question.source !== undefined) return askSource({ ...request, question: request.question });

@@ -171,8 +171,9 @@ export function readFlags(
     if (!accepted.includes(name) && unknownFlags === 'keep') {
       // Its value goes with it, unless what follows is the next flag, and is
       // kept in `typed` so whoever is told of the flag is told of the word too.
+      // Before the first positional the next word is the question, never a value.
       const next = argv[index];
-      const valued = equals === -1 && next !== undefined && !next.startsWith('-');
+      const valued = equals === -1 && positionals.length > 0 && next !== undefined && !next.startsWith('-');
       if (valued) index += 1;
       unknown.push({ flag: name, typed: valued ? `${argument} ${next}` : argument });
       continue;
