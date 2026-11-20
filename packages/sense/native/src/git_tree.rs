@@ -71,7 +71,7 @@ impl GitTree {
         &self.paths
     }
 
-    fn listing(&self) -> Arc<emitted::Listing> {
+    pub(crate) fn listing(&self) -> Arc<emitted::Listing> {
         let made = || {
             let (at, regular) = (Arc::clone(&self.at), Arc::clone(&self.regular));
             Arc::new(emitted::Listing::of(at, regular, &self.unhashed))

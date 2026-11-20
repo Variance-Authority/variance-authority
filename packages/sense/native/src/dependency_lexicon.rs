@@ -14,6 +14,7 @@ use serde::Serialize;
 #[path = "dependency_lexicon_catalogue.rs"] mod catalogue;
 #[path = "dependency_lexicon_codec.rs"] mod codec;
 #[path = "dependency_lexicon_entry.rs"] mod entry;
+#[path = "dependency_lexicon_files.rs"] mod files;
 #[path = "dependency_lexicon_sites.rs"] mod sites;
 #[path = "dependency_lexicon_stamps.rs"] mod stamps;
 #[path = "dependency_lexicon_view.rs"] mod view;

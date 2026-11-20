@@ -9,7 +9,6 @@
 // compass: variance-authority.report.agent-surface
 
 use std::collections::{BTreeSet, HashMap};
-use std::fs;
 use std::path::Path;
 
 use serde::{Deserialize, Serialize};
@@ -226,17 +225,17 @@ fn headings(text: &str) -> Vec<String> {
 }
 
 /// The words the runtime package (or, failing that, its declarations) publishes about itself.
-pub(super) fn purpose(root: &Path, runtime: &Option<Identity>, declarations: &Option<Identity>, names: Option<&[Name]>) -> Option<Purpose> {
+pub(super) fn purpose(root: &Path, runtime: &Option<Identity>, declarations: &Option<Identity>, names: Option<&[Name]>, files: &super::files::Files) -> Option<Purpose> {
     let identity = runtime.as_ref().or(declarations.as_ref())?;
     let manifest = root.join(&identity.manifest);
-    let value: serde_json::Value = serde_json::from_slice(&fs::read(&manifest).ok()?).ok()?;
+    let value = files.manifest(&manifest)?;
     let description = value.get("description").and_then(|text| text.as_str())
         .map(|text| text.split_whitespace().collect::<Vec<_>>().join(" "))
         .filter(|text| !text.is_empty() && text.chars().count() <= LONGEST * 2);
     let keywords = value.get("keywords").and_then(|list| list.as_array()).map(|list|
         list.iter().filter_map(|word| word.as_str()).map(str::to_owned).collect()).unwrap_or_default();
     let headings = manifest.parent().map(|directory| directory.join("README.md"))
-        .and_then(|path| fs::read_to_string(path).ok()).map(|text| headings(&text)).unwrap_or_default();
+        .and_then(|path| files.read(&path).ok()).and_then(|file| file.text().ok().map(|text| headings(&text))).unwrap_or_default();
     let mut said = stems(&identity.name);
     for text in description.iter().chain(&keywords).chain(&headings) { said.extend(stems(text)); }
     let mut named = Vec::new();

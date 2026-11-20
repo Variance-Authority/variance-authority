@@ -23,7 +23,9 @@ use crate::index_chain::read_chain;
 use crate::GitTree;
 use crate::orient_map_pages::{layers, names, number, pages, Page, Row};
 use crate::orient_map_read::{read, Read};
-use crate::resolve::Tsconfig;
+use crate::resolve::{Resolvers, Tsconfig};
+use crate::emitted::{Emitted, Listing};
+use std::sync::Arc;
 use crate::orient_map_signals::signals;
 use crate::orient_map_tree::tree;
 
@@ -123,11 +125,12 @@ struct Listed<'a> {
     paths: &'a [String],
     oids: &'a [crate::git::Oid],
     unhashed: &'a [String],
+    files: Arc<Listing>,
 }
 
-impl<'a> From<&'a crate::git::Snapshot> for Listed<'a> {
-    fn from(snapshot: &'a crate::git::Snapshot) -> Self {
-        Listed { paths: &snapshot.paths, oids: &snapshot.oids, unhashed: &snapshot.unhashed }
+impl<'a> From<&'a GitTree> for Listed<'a> {
+    fn from(tree: &'a GitTree) -> Self {
+        Listed { paths: &tree.paths, oids: &tree.oids, unhashed: &tree.unhashed, files: tree.listing() }
     }
 }
 
@@ -215,14 +218,14 @@ pub(crate) fn uncarried(root: &str, index: &str, scanned: Option<bool>, workspac
     if scanned == Some(true) {
         return prepare(root, index, None, false, workspaces, tsconfig);
     }
-    let snapshot = crate::git::snapshot(root);
+    let snapshot = crate::git::snapshot(root).map(|snapshot| crate::git_tree::tree_from_snapshot(snapshot, Vec::new()));
     prepare(root, index, snapshot.as_ref().map(Listed::from), snapshot.is_some(), workspaces, tsconfig)
 }
 
 /// `GitTree::prepare_orient_map`, on the calling thread.
 #[cfg(test)]
 pub(crate) fn carried(tree: &GitTree, root: &str, index: &str) -> napi::Result<Option<OrientMapPrepared>> {
-    prepare(root, index, Some(Listed { paths: &tree.paths, oids: &tree.oids, unhashed: &tree.unhashed }), false, false, Tsconfig::Auto)
+    prepare(root, index, Some(Listed::from(tree)), false, false, Tsconfig::Auto)
 }
 
 #[napi]
@@ -244,8 +247,9 @@ impl GitTree {
     ) -> AsyncTask<OffThread<Option<OrientMapPrepared>>> {
         let (paths, oids, unhashed) = (self.paths.clone(), self.oids.clone(), self.unhashed.clone());
         let tsconfig = Tsconfig::from_js(tsconfig);
+        let files = self.listing();
         off_thread(move || {
-            let listed = Listed { paths: &paths, oids: &oids, unhashed: &unhashed };
+            let listed = Listed { paths: &paths, oids: &oids, unhashed: &unhashed, files };
             prepare(&root, &index, Some(listed), false, workspaces, tsconfig)
         })
     }
@@ -283,6 +287,8 @@ fn prepare(root: &str, index: &str, snapshot: Option<Listed>, relisted: bool, wo
         .map(|(at, bytes)| Layer::open(bytes).map_err(|error| format!("segment {at}: {error}")))
         .collect::<Result<_, _>>()
         .map_err(fail)?;
+    let emitted = Emitted::listed(std::path::Path::new(root), snapshot.as_ref().map(|snapshot| Arc::clone(&snapshot.files)));
+    let resolvers = Resolvers::over(tsconfig, None, emitted);
     let mut unmarked = false;
     let read = std::thread::scope(|scope| {
         let marks = scope.spawn(|| {
@@ -290,7 +296,7 @@ fn prepare(root: &str, index: &str, snapshot: Option<Listed>, relisted: bool, wo
                 crate::git::git(root, &["ls-files", "-z", ":(attr:linguist-generated)", ":(attr:linguist-vendored)"], None)
             })
         });
-        read(root, &layers_read, snapshot.as_ref().map(|snapshot| snapshot.paths), tsconfig, || {
+        read(root, &layers_read, snapshot.as_ref().map(|snapshot| snapshot.paths), &resolvers, || {
             let made = marks.join().ok().flatten();
             unmarked = !walked && made.is_none();
             made.unwrap_or_default()
