@@ -1,9 +1,10 @@
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { type Entry, everyEntry, readHelp, undocumented } from './help.js';
+import { type Entry, everyEntry, undocumented } from '@variance-authority/package/help';
+import { readHelp } from './walk.js';
 
-const WORKSPACE = join(dirname(fileURLToPath(import.meta.url)), './__fixtures__/workspace');
+const WORKSPACE = join(dirname(fileURLToPath(import.meta.url)), '../../package/src/__fixtures__/workspace');
 
 function entry(name: string, help = HELP): Entry {
   const found = [...everyEntry(help)].find(([, , candidate]) => candidate.name === name);

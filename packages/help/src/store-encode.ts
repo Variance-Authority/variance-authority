@@ -46,6 +46,11 @@ function storeEntryOf(entry: Entry): StoreEntry {
 }
 
 function storeUseOf(use: Use | Taken): StoreUse {
+  return { ...flatUseOf(use), ...('name' in use ? { name: use.name } : {}) };
+}
+
+/** A use with its `through` laid flat, as the addon and the store hold it. */
+export function flatUseOf(use: Use): Omit<StoreUse, 'name'> {
   return {
     by: use.by,
     at: use.at,
@@ -57,7 +62,6 @@ function storeUseOf(use: Use | Taken): StoreUse {
     throughLine: use.through?.line ?? 0,
     throughDefault: use.through?.throughDefault === true,
     whole: use.through?.whole === true,
-    ...('name' in use ? { name: use.name } : {}),
   };
 }
 

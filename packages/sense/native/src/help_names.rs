@@ -38,6 +38,7 @@ pub struct HelpEntry {
 /// One kind of one published name: where it is declared, its line, head and
 /// doc comment as [`crate::text_cut`] cuts them, and the name it is declared
 /// under there.
+#[napi(object)]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ReachedDeclaration {
     /// As the parser harvested it, or `foreign` for a name read from no
@@ -52,6 +53,7 @@ pub struct ReachedDeclaration {
 
 /// One name an entry hands out, and its kinds, the first declaration read of
 /// each kind kept, in the order they were read.
+#[napi(object)]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PublishedName {
     pub name: String,

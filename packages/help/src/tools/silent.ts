@@ -1,4 +1,4 @@
-import { readMention, readmes } from '@variance-authority/package/help';
+import { readmeMention } from '@variance-authority/sense';
 import type { SilentPackage } from '../dependency-lexicon.js';
 
 /**
@@ -11,14 +11,14 @@ import type { SilentPackage } from '../dependency-lexicon.js';
  * did not, a package is listed only if its README does, because a line per
  * silent package on every miss would be the whole lexicon.
  *
- * The passage is the workspace mention reader's, run on the file the lexicon
- * recorded, and it is labelled as that file's — never presented as a doc comment.
+ * The passage is the addon's README mention, the one the published surface
+ * reads, run on the file the lexicon recorded, and it is labelled as that
+ * file's — never presented as a doc comment.
  *
  * The README belongs to the package, not to the door: every door of one package
  * that falls back to it is named on its own line, and the README follows once.
  */
 export function silentBlocks(root: string, name: string, silent: readonly SilentPackage[], named: boolean): readonly string[] {
-  const held = readmes();
   const packages = new Map<string, SilentPackage[]>();
   for (const one of silent) {
     const key = `${one.package}@${one.version ?? ''}\0${one.readme?.at ?? ''}`;
@@ -30,7 +30,7 @@ export function silentBlocks(root: string, name: string, silent: readonly Silent
     const [one] = doors;
     if (one === undefined) continue;
     const { readme } = one;
-    const passage = readme === undefined || readme.unreadable !== undefined ? undefined : readMention(root, readme.at, name, held);
+    const passage = readme === undefined || readme.unreadable !== undefined ? undefined : readmeMention(root, readme.at, name);
     if (!named && passage === undefined) continue;
 
     const version = one.version === undefined ? '' : `@${one.version}`;

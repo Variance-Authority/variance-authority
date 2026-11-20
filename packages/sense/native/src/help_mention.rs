@@ -1,11 +1,11 @@
 //! What a README says about a name nothing was written above, read where the
 //! publish joins the documented surface.
 //!
-//! `readMention` in `packages/package/src/mention.ts` is the rule, and the walk
-//! that reads a workspace without an index still runs it; this is the same
-//! rule on the publish's side, so no name crosses into JavaScript to be looked
-//! up. Every offset is counted as JavaScript counts it, in UTF-16 code units,
-//! so the passage and its line are the walk's to the character.
+//! The one rule: the publish off the index, the walk with no index
+//! (`joinWalkedHelp`) and a silent dependency's README (`readmeMention`) all
+//! read a mention here, so no name crosses into JavaScript to be looked up.
+//! Every offset is counted as JavaScript counts it, in UTF-16 code units, so a
+//! passage's line is the one an editor opened at it shows.
 //!
 //! A README is read once however many names under it are asked about, and the
 //! READMEs a publish needs are probed and read on every core at once.
@@ -15,6 +15,7 @@
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
+use napi_derive::napi;
 use rayon::prelude::*;
 
 /// How much of a passage is worth carrying before it stops being a passage.
@@ -28,11 +29,12 @@ const CUT_BELOW: &str = "\n…";
 
 /// A passage of a README that names a symbol: the README relative to the
 /// workspace root, the 1-based line the passage begins on, and the passage.
+#[napi(object)]
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct Mention {
-    pub(crate) at: String,
-    pub(crate) line: u32,
-    pub(crate) text: String,
+pub struct Mention {
+    pub at: String,
+    pub line: u32,
+    pub text: String,
 }
 
 /// One README, as JavaScript reads it: the text in UTF-16 code units, and the
@@ -87,6 +89,15 @@ pub(crate) fn readmes<'a>(root: &Path, files: impl Iterator<Item = &'a str>) -> 
     Ok(held)
 }
 
+/// Where the nearest README above `at`, under `root`, names `name`; `None`
+/// when no README is above it or the nearest does not name it. Refused when
+/// the nearest is there and does not read.
+#[napi(catch_unwind)]
+pub fn readme_mention(root: String, at: String, name: String) -> napi::Result<Option<Mention>> {
+    let held = readmes(Path::new(&root), std::iter::once(at.as_str())).map_err(napi::Error::from_reason)?;
+    Ok(nearest(&held, &at).and_then(|readme| mention(readme, &name)))
+}
+
 /// The README paths above `at`, nearest first: `nearest`'s walk.
 fn candidates(at: &str) -> impl Iterator<Item = String> + '_ {
     let parts: Vec<&str> = at.split('/').collect();
@@ -111,7 +122,8 @@ pub(crate) fn nearest<'h>(held: &'h HashMap<String, Option<Readme>>, at: &str) -
     candidates(at).find_map(|from| held.get(&from).and_then(Option::as_ref))
 }
 
-/// Where the nearest README above `at` names `name`, as `readMention` says.
+/// Where `readme` names `name`: the paragraph of its best whole-word
+/// occurrence, or the fence it falls in, windowed around it.
 pub(crate) fn mention(readme: &Readme, name: &str) -> Option<Mention> {
     let name: Vec<u16> = name.encode_utf16().collect();
     let text = &readme.text;

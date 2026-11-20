@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path';
 import { afterEach, expect, it } from 'vitest';
 import type { FileRecord } from '@variance-authority/mcp/tools';
 import { treeOf } from '@variance-authority/mcp/tools';
-import { readHelp } from '@variance-authority/package/help';
+import { readHelp } from '../walk.js';
 import { updateSourceIndex } from '@variance-authority/sense';
 import { refreshDependencyLexicon } from '../dependency-lexicon.js';
 import { searchNames } from '../tools.js';

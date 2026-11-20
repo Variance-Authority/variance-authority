@@ -2,10 +2,10 @@
 //! names beside who uses them, and what a README says of the names nothing is
 //! written above.
 //!
-//! `assembleHelp` in `packages/package/src/help.ts` is the rule, and the walk
-//! that reads a workspace without an index still runs it; this is the same rule
-//! on the publish's side. Nothing it joins crosses into JavaScript: the entries
-//! borrow the reading's uses and declarations, and go straight to the encoder.
+//! The one join: the publish off the index and the walk with no index
+//! (`joinWalkedHelp`) both run it. Nothing it joins crosses into JavaScript:
+//! the entries borrow the reading's uses and declarations, and go straight to
+//! the encoder.
 
 // compass: variance-authority.report.agent-surface
 
@@ -112,8 +112,9 @@ fn opening_of<'a>(
     })
 }
 
-/// `entryOf` and `reachedFrom`: the first kind carries the place and the
-/// prose, and the rest their word; a read off the module's `default` is no use.
+/// One name's entry: the first kind carries the place and the prose, and the
+/// rest their word; a read off the module's `default` is no use, and a
+/// package's own reads are counted in `uses` but not in `used_by`.
 fn entry_of<'a>(owner: &'a str, name: &'a PublishedName, held: &[&'a NameUse], mentions: &'a Mentions<'a>) -> Result<EntryRef<'a>, String> {
     let Some(first) = name.kinds.first() else {
         return Err(format!("`{}` was reached with no declaration behind it", name.name));

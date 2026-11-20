@@ -2,7 +2,8 @@
 import { writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { readHelp, undocumented } from '@variance-authority/package/help';
+import { readHelp } from '@variance-authority/help';
+import { undocumented } from '@variance-authority/package/help';
 
 /**
  * The names another package imports and which say nothing about themselves.

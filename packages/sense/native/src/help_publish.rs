@@ -2,7 +2,9 @@
 //! saved without its export list, its imports by path or a parse row ever
 //! reaching JavaScript.
 //!
-//! `publishHelp` in `packages/help/src/refresh-native.ts` drives it. A reading
+//! `publishHelp` in `packages/help/src/refresh-native.ts` drives it, and the
+//! walk with no index (`packages/help/src/walk.ts`) joins through
+//! `joinWalkedHelp` here too. A reading
 //! holds what the chain says — the uses, the names each published entry hands
 //! out, the export list, the imports by path and the path graph — and
 //! publishing joins the first two with the manifests JavaScript read and the
@@ -326,6 +328,40 @@ impl HelpReading {
     }
 }
 
+/// What the walk with no index read: the manifests' packages, each opening's
+/// names flat in their order, and every use through an opened key.
+#[napi(object)]
+pub struct WalkedHelp {
+    /// Where the READMEs the mentions come from are read.
+    pub readme_root: String,
+    pub packages: Vec<PublishPackage>,
+    pub names: Vec<Vec<PublishedName>>,
+    pub uses: Vec<NameUse>,
+}
+
+/// The walk's packages joined as the publish joins them, mentions read, as a
+/// store holding them alone: the walk decodes its packages from it.
+#[napi(catch_unwind)]
+pub fn join_walked_help(walked: WalkedHelp) -> napi::Result<Buffer> {
+    let skeleton = skeleton_of(&walked.packages);
+    let mentions = mentions(Path::new(&walked.readme_root), &walked.names).map_err(napi::Error::from_reason)?;
+    let packages = join(&skeleton, &walked.names, &walked.uses, &mentions).map_err(napi::Error::from_reason)?;
+    let input = StoreRef { packages: &packages, deep: [vec![], vec![], vec![]], unreadable: &[] };
+    let (store, _) = encode(&input, &[], None, None);
+    Ok(store.into())
+}
+
+fn skeleton_of(packages: &[PublishPackage]) -> Vec<Skeleton<'_>> {
+    packages
+        .iter()
+        .map(|owner| Skeleton {
+            name: &owner.name,
+            entry: owner.entry,
+            openings: owner.openings.iter().map(|opening| OpeningSkeleton { subpath: &opening.subpath, source: &opening.source, spec: &opening.spec }).collect(),
+        })
+        .collect()
+}
+
 impl Held {
     fn publish(self, o: HelpPublish) -> napi::Result<HelpEncoded> {
         let graph_digest = match (&self.tree, o.graph_digest) {
@@ -343,11 +379,7 @@ impl Held {
             index_digest: o.index_digest,
             packages_digest: Some(o.packages_digest),
         };
-        let skeleton: Vec<Skeleton> = o.packages.iter().map(|owner| Skeleton {
-            name: &owner.name,
-            entry: owner.entry,
-            openings: owner.openings.iter().map(|opening| OpeningSkeleton { subpath: &opening.subpath, source: &opening.source, spec: &opening.spec }).collect(),
-        }).collect();
+        let skeleton = skeleton_of(&o.packages);
         let mentions = mentions(Path::new(&o.readme_root), names).map_err(napi::Error::from_reason)?;
         let packages = join(&skeleton, names, &self.uses, &mentions).map_err(napi::Error::from_reason)?;
         let unreadable: Vec<String> = o.unreadable.iter().chain(&self.unreadable).cloned().collect();

@@ -2,20 +2,22 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { readHelp, type Entry, type Help } from '@variance-authority/package/help';
+import { type Entry, type Help } from '@variance-authority/package/help';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { readWorkspace } from './read.js';
+import { readHelp } from './walk.js';
 
 // compass: variance-authority.report.agent-surface
 
 /**
  * The value published off the index is the value the walk joins.
  *
- * The publish joins the uses, the names each entry hands out and the READMEs
- * that mention the names nothing is written above on the addon's side, and the
- * walk joins them in JavaScript. Both must say the same: the same entries in
- * the same order, and the same passage of the same README for each name, its
- * offsets counted as JavaScript counts them, in UTF-16 code units.
+ * Both join the uses, the names each entry hands out and the READMEs that
+ * mention the names nothing is written above in the one join on the addon's
+ * side; the walk reads them from disk and the publish from the index. Both
+ * must say the same: the same entries in the same order, and the same passage
+ * of the same README for each name, its offsets counted as JavaScript counts
+ * them, in UTF-16 code units.
  */
 
 const temporary: string[] = [];

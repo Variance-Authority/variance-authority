@@ -25,7 +25,7 @@ import {
   workspaceTreeOpens,
 } from './snapshot.js';
 import { coversWhole, scanScope, scopeSourceIndexPath } from './scan-scope.js';
-import { specifierOf } from './tools/find.js';
+import { publishedPackages } from './walk.js';
 
 // compass: variance-authority.report.agent-surface
 
@@ -148,15 +148,7 @@ export async function publishHelp(publication: HelpPublication): Promise<{ reado
       readmeRoot: where,
       unreadable: offerings.flatMap((offering) => offering.unreadable ?? []),
       // In the order of `entries`: the addon pairs each opening with the names the reading read for it.
-      packages: offerings.map((offering) => ({
-        name: offering.name,
-        entry: offering.entry,
-        openings: offering.entrypoints.map((entry) => ({
-          subpath: entry.subpath,
-          source: relative(where, entry.source),
-          spec: specifierOf(offering, entry),
-        })),
-      })),
+      packages: publishedPackages(where, offerings),
       ...(graphDigest === undefined ? {} : { graphDigest }),
     });
     const tree = publication.tree ?? encoded.tree;

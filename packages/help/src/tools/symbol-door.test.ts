@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, expect, it } from 'vitest';
-import { readHelp } from '@variance-authority/package/help';
+import { readHelp } from '../walk.js';
 import { updateSourceIndex } from '@variance-authority/sense';
 import { symbol } from './symbol.js';
 
