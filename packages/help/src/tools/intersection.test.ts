@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { FileSet, Tool, ToolInvocation } from '@variance-authority/mcp/tools';
 import { FoundNothing } from './find.js';
-import { intersectionOf } from './intersection.js';
+import { intersectionOf, namesWanted } from './intersection.js';
 
 /**
  * An intersection runs whole questions and answers the files every one of them
@@ -139,6 +139,13 @@ describe('an intersection answers the files every question answers', () => {
   it('wants the tree when any of its questions does', () => {
     expect(intersection.wants?.({ questions: [{ question: 'symbol', input: { name: 'a' } }, { question: 'discover', input: { from: 'a.ts' } }] })).toBe(true);
     expect(intersection.wants?.({ questions: [{ question: 'symbol', input: { name: 'a' } }, { question: 'symbol', input: { name: 'b' } }] })).toBe(false);
+  });
+
+  it('wants no names for a crossed import of a name out of a file the tree holds', () => {
+    const asked = { questions: [{ question: 'discover', input: { imports: ['src/a.ts#x'] } }] };
+    expect(namesWanted(asked, new Set(['src/a.ts']))).toBe(false);
+    expect(namesWanted(asked, new Set(['src/b.ts']))).toBe(true);
+    expect(namesWanted(asked)).toBe(true);
   });
 });
 
