@@ -260,12 +260,12 @@ path, so the injected reader can avoid loading the graph for every other
 question and return it through `Sourced.tree` only then.
 
 `--changed-file` takes a newline-delimited file of scan-root-relative paths an
-editor, watcher, or CI step already detected as changed. It is producer input:
-an empty file states that nothing changed, it replaces Git status discovery, and
-it cannot be combined with `--just-answer`. A file you listed gives its names at
-the lines it holds now. A file you left off is unchanged for
-that request; the next question without a list looks. With no generation to
-refresh, the read is whole and the list is not used.
+editor, watcher, or CI step already detected as changed. It asks for a new
+generation now, whatever the age of the last, and cannot be combined with
+`--just-answer`. An empty file states that nothing changed and keeps the
+generation as it stands. A list does not narrow the read: the source index finds
+what moved from Git and reads those files again, listed or not. With no
+generation to refresh, the read is whole.
 
 `--format json` prints `search` as data: the query, the area, and the
 `published`, `exported` and `loose` sections, each with its `total` and the rows

@@ -118,7 +118,7 @@ export interface AskRequest extends Crossing {
   readonly from?: string;
   /** `--to <path>`: a path to arrive at. Answers from what reaches it, the other way along the imports. */
   readonly to?: string;
-  /** A newline-delimited authoritative changed-file list for source questions. */
+  /** A newline-delimited changed-file list that asks a source question for a new generation now. */
   readonly changedFile?: string;
   /** An addition-only Sense taint table for declarative module edges. */
   readonly taintFile?: string;

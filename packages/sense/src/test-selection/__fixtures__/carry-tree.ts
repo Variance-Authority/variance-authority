@@ -7,8 +7,9 @@
  */
 
 import { rm } from 'node:fs/promises';
+import { join } from 'node:path';
 import { relationsOfFiles } from '@variance-authority/core/relate';
-import { scanRelations } from '../../test-support/scan.js';
+import { readPublishedSources, updateSourceIndex } from '../../published.js';
 import { layeredFiles, repositoryLayers } from '../cache-layers.js';
 import { changedLines } from '../diff-lines.js';
 import { keptDigests, keptTexts, narrowByExecution } from '../index.js';
@@ -35,7 +36,10 @@ export async function forgetKept(walk: Walk): Promise<void> {
 export async function selectedFromTree(walk: Walk, next: string): Promise<readonly string[]> {
   const diff = await patchTo(walk, next);
   const recorded = textAtRecording(walk.root, changedLines(diff).keys());
-  const relations = relationsOfFiles(await scanRelations({ root: walk.root, dirs: ['.'] }));
+  // The source index the CLI reads, kept under the walk's own cache.
+  const index = join(walk.cacheRoot, 'source-index.bin');
+  await updateSourceIndex(walk.root, { index });
+  const relations = relationsOfFiles((await readPublishedSources(index)).records);
   const { entered, incomplete } = await narrowByExecution(walk.coverageFile, diff, {
     root: walk.root,
     relations,

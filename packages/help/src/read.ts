@@ -35,7 +35,7 @@ import { resolve } from 'node:path';
 import { encodeSourceTree, type FileRecord, type Tree } from '@variance-authority/mcp/tools';
 import {
   placesOf,
-  readSourceRecords,
+  readPublishedSources,
   sourceIndexPath,
   stepped,
   updateSourceIndex,
@@ -163,12 +163,10 @@ export interface IndexedUsageOptions {
    * Handed the arrows the scan drew, for a caller that needs the graph as well
    * as the names.
    *
-   * The scan walks the whole checkout and returns the import graph whichever
-   * question asked for it; this reading wanted only the half that says which
-   * names each file takes and hands out, and threw the other half away. A
-   * caller that has to answer *which files does this path reach* would then
-   * scan the repository a second time to learn something the first scan had
-   * already worked out and dropped on the floor.
+   * The index holds the whole checkout's records; the published value keeps
+   * only the names each file takes and hands out. A caller that has to answer
+   * *which files does this path reach* takes the records here rather than
+   * reading the index a second time.
    *
    * So it is a door rather than a return value: the reading that wants it is
    * not the reading this function performs, and a caller that does not want it
@@ -205,9 +203,9 @@ export async function readWorkspace(root: string, options: ReadingOptions = {}):
  * Read the workspace again over a value published before it.
  *
  * Every read publishes the whole value off the saved index, so `documented`
- * says only when its read began: a refresh of `changed` files read those files
- * and nothing else, so every other file is as old as `documented` read it, and
- * the value keeps that time as `readStartedAt`.
+ * says only when its read began. A refresh of `changed` files keeps that time as
+ * `readStartedAt`: it is never later than the update's own start, so a file
+ * saved since either read is compared again.
  */
 export async function refreshWorkspace(
   root: string,
@@ -242,9 +240,11 @@ async function readAndPublish(root: string, options: ReadingOptions, readStarted
   if (update.refused !== undefined) throw new UnsavedRead(update.refused);
   // The records are read back only for a caller that takes them or joins taints
   // the index never holds; the published tree is otherwise the addon's own.
+  // The parses the index holds answer the taints, so no unchanged file is opened again.
   const wanted = options.taints !== undefined || options.records !== undefined;
-  const records = wanted ? await readSourceRecords(at) : [];
-  const given = await taintRecords(records, options.taints ?? [], { root: scope.root });
+  const read = wanted ? await readPublishedSources(at) : undefined;
+  const cache = read === undefined ? {} : { cache: read.cache };
+  const given = await taintRecords(read?.records ?? [], options.taints ?? [], { root: scope.root, ...cache });
   if (given.shadows.size > 0) {
     throw new Error(
       `Help source areas cannot apply subtractive taints: ${given.shadows.size} file(s) shadow a module. ` +
@@ -255,7 +255,7 @@ async function readAndPublish(root: string, options: ReadingOptions, readStarted
   // addon draws it off the saved index; only a caller's taints, which the index
   // never holds, keep the published tree on this side, and then this side joins
   // the mocks the same way. A mock's cut is one test's run and stays out of either.
-  const tainted = options.taints === undefined ? given : await taintRecords(given.records, [mockTaint()], { root: scope.root });
+  const tainted = options.taints === undefined ? given : await taintRecords(given.records, [mockTaint()], { root: scope.root, ...cache });
   if (wanted) options.records?.(tainted.records, scope.root);
 
   const published = await publishHelp({

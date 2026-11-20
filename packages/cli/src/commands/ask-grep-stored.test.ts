@@ -23,7 +23,7 @@ vi.mock('@variance-authority/mcp/tools', async (original) => {
 
 vi.mock('@variance-authority/sense', async (original) => {
   const actual = await original<typeof import('@variance-authority/sense')>();
-  return { ...actual, readPublishedSources: vi.fn(actual.readPublishedSources), runGraphOf: vi.fn(actual.runGraphOf) };
+  return { ...actual, readPublishedSources: vi.fn(actual.readPublishedSources), updateSourceIndex: vi.fn(actual.updateSourceIndex), runGraphOf: vi.fn(actual.runGraphOf) };
 });
 
 const cwd = process.cwd();
@@ -50,6 +50,7 @@ describe('variance ask grep from a start point', () => {
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
     vi.mocked(tools.readTree).mockClear();
     vi.mocked(sense.readPublishedSources).mockClear();
+    vi.mocked(sense.updateSourceIndex).mockClear();
     vi.mocked(sense.runGraphOf).mockClear();
 
     const { code, out } = await run(['ask', 'grep', '--query', 'fetchThing', '--from', 'packages/lib/src/api.test.ts']);
@@ -58,7 +59,8 @@ describe('variance ask grep from a start point', () => {
     expect(out).toMatch(/^packages\/lib\/src\/real\.ts:1/m);
     expect(out).not.toContain('packages/lib/src/far.ts');
     expect(tools.readTree).not.toHaveBeenCalled();
-    // The whole index decoded, the graph drawn, every mock resolved: none of it.
+    // The checkout read again, the whole index decoded, the graph drawn, every mock resolved: none of it.
+    expect(sense.updateSourceIndex).not.toHaveBeenCalled();
     expect(sense.readPublishedSources).not.toHaveBeenCalled();
     expect(sense.runGraphOf).not.toHaveBeenCalled();
   });

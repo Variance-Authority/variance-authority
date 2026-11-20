@@ -334,14 +334,16 @@ export interface TreeOptions {
   /** The repository root. Every coordinate comes back relative to it. */
   readonly root: string;
   /**
-   * Where to start walking, relative to the root. The whole repository when
-   * absent, because a start point may name any path in it and a narrower walk
-   * would answer *not found* about a file that is plainly there.
+   * Where to start walking, relative to the root. The index covers the whole
+   * repository either way; these narrow its records to what they hold and
+   * reach. The whole repository when absent, because a start point may name any
+   * path in it and a narrower walk would answer *not found* about a file that
+   * is plainly there.
    */
   readonly dirs?: readonly string[];
   /**
    * The source index, when the caller keeps one somewhere other than the
-   * checkout's own.
+   * checkout's own, which is written to in the cache directory when absent.
    *
    * It is updated before it is read, so a question asked after a one-file edit
    * re-reads that file and holds every other record as it was.
@@ -362,7 +364,9 @@ export interface TreeOptions {
  * The scanner is imported dynamically and its absence is stated rather than
  * absorbed. Every other optional dependency here degrades in cost; this one
  * decides an answer, and a start point resolved against something that is not
- * the tree is the defect this module exists to remove.
+ * the tree is the defect this module exists to remove. An index the update
+ * could not write throws for the same reason: what is on disk is the tree
+ * before the edit.
  */
 export async function readTree(options: TreeOptions): Promise<Tree> {
   let scanner: typeof import('@variance-authority/sense');

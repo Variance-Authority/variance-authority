@@ -182,10 +182,10 @@ write them one per line and hand the file to a source question:
 variance ask search --query button --from src/issue-view.tsx --changed-file /tmp/changed-paths
 ```
 
-The paths are relative to the scan root. The file is authoritative, including
-when it is empty; a rename writes both its old and new path. Git still supplies
-the committed path set and the named paths are hashed from disk, but `git
-status` is not run to rediscover them.
+The paths are relative to the scan root. The file asks for a new generation
+now, whatever the age of the last; an empty file says nothing changed and keeps
+the generation as it stands. A list does not narrow the read: the source index
+finds what moved from Git and reads those files again, listed or not.
 
 Declarative loaders can be supplied beside that list as a
 [Sense taint table](../packages/sense/README.md):
