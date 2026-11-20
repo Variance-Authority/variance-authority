@@ -7,12 +7,12 @@
  * rows around the one it came from, not the rows the alignment set beside it.
  */
 
-import type { DiffPolicy } from '@variance-authority/raster';
+import { type DiffPolicy, SEVERITY_LEVELS } from '@variance-authority/raster';
 import type { DecodedImage } from './mask.js';
 
 /** What a scan writes besides the counts. */
 export interface JudgeOutput {
-  /** One byte per pixel, 1 where this policy (by index) counted a difference. */
+  /** One byte per pixel where this policy (by index) counted a difference: its grade ({@link SEVERITY_LEVELS}). */
   readonly mask?: number;
   /** `pixelmatch`'s own picture, for this policy (by index). */
   readonly picture?: { readonly policy: number; readonly diffMask: boolean };
@@ -74,6 +74,7 @@ export function judgeRows(
   };
 
   const limits = policies.map((policy) => limitOf(policy.threshold));
+  const grades = SEVERITY_LEVELS.map(limitOf);
   const changed = policies.map(() => 0);
   const mask = output.mask === undefined ? undefined : new Uint8Array(width * height);
   const picture = output.picture === undefined ? undefined : new Uint8Array(height * row);
@@ -143,7 +144,11 @@ export function judgeRows(
             }
           }
           changed[index]! += 1;
-          if (index === output.mask) mask![y * width + x] = 1;
+          if (index === output.mask) {
+            let grade = 1;
+            while (grade < grades.length && size > grades[grade]!) grade += 1;
+            mask![y * width + x] = grade;
+          }
           if (index === drawn) paint(picture!, pos, 255, 0, 0);
         }
       }

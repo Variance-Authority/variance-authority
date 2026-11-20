@@ -32,7 +32,6 @@ mod case_said_napi;
 mod case_shard;
 mod case_times;
 mod commit_text;
-mod committed_tree;
 mod compact;
 #[cfg(any(target_os = "macos", target_os = "linux"))]
 mod large_alloc;
@@ -70,6 +69,7 @@ mod harvest;
 mod chain_lookup;
 mod change_tree;
 mod held;
+mod file_stamp;
 #[cfg(unix)]
 mod held_listing;
 mod help;

@@ -36,7 +36,8 @@ describe("one scan agrees with pixelmatch", () => {
         mask: 0,
       });
       expect(judged.changed).toEqual(masks.map((mask) => mask.changed));
-      expect(judged.mask).toEqual(alphaOf(masks[0]!.data));
+      // Pixelmatch marks a pixel; the judge grades it, so they agree where it is non-zero.
+      expect(judged.mask!.map((grade) => Math.min(grade, 1))).toEqual(alphaOf(masks[0]!.data));
 
       for (const diffMask of [true, false]) {
         for (const [index, policy] of POLICIES.entries()) {
@@ -176,7 +177,7 @@ describe("a pixel whose neighbour has no row in the other image", () => {
       { mask: 0 },
     );
 
-    expect([...mask!.subarray(0, width)]).toEqual([1, 1, 1, 1, 1]);
+    expect([...mask!.subarray(0, width)]).toEqual([4, 4, 4, 4, 4]);
     // The third row differs too, as 200 against 255.
     expect(changed).toEqual([2 * width]);
   });

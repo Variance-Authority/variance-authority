@@ -39,8 +39,8 @@ describe.skipIf(process.platform === 'win32')('the update over a watched checkou
     return ran;
   }
 
-  /** Whether those commands listed the checkout: HEAD's tree, read in-process or by `ls-tree`. */
-  const listed = (ran: string[]): boolean => ran.some((argv) => argv.startsWith('ls-tree') || argv.endsWith(' HEAD^{tree}'));
+  /** Whether those commands located the checkout's index for a fresh inventory. */
+  const listed = (ran: string[]): boolean => ran.some((argv) => argv.startsWith('rev-parse ') && argv.includes('--git-path index'));
 
   /**
    * A file dated a minute back. One written in the second git writes its index

@@ -26,21 +26,7 @@ const REGULAR: &str = "listing.regular";
 const UNHASHED: &str = "listing.unhashed";
 const META: &str = "listing.meta";
 
-/// What a file looked like when the listing was taken; `None` is a file not there.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub(crate) struct Stamp {
-    size: u64,
-    modified: i64,
-    nanos: i64,
-    changed: i64,
-    inode: u64,
-}
-
-fn stamp(path: &Path) -> Option<Stamp> {
-    use std::os::unix::fs::MetadataExt;
-    let metadata = std::fs::metadata(path).ok()?;
-    Some(Stamp { size: metadata.size(), modified: metadata.mtime(), nanos: metadata.mtime_nsec(), changed: metadata.ctime_nsec() + metadata.ctime() * 1_000_000_000, inode: metadata.ino() })
-}
+use crate::file_stamp::{stamp, Stamp};
 
 /// When a held listing still stands, beside it.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -48,7 +34,7 @@ pub(crate) struct Meta {
     pub watch: Watch,
     /// The roots the seeds were taken from.
     pub dirs: Vec<String>,
-    /// Each file git reads to answer `ls-tree HEAD` and `status`, and how it looked.
+    /// Each file git reads to answer the index and `status`, and how it looked.
     pub inputs: Vec<(String, Option<Stamp>)>,
     /// Git's own directories: what moves in them is git's, and the inputs say whether it matters.
     pub git: Vec<String>,
@@ -233,19 +219,18 @@ pub(crate) fn change_tree(root: &str, index: &str, dirs: &[String]) -> Option<(S
         let same = Watch { clock: held.clock.clone(), ..watch.clone() } == *held;
         same.then(|| crate::stages::summed(crate::stages::Sum::Held, || watchman::since(held, excluded)))
     });
-    let record = crate::committed_tree::record(index);
     let (snapshot, followed, settled) = match (&followed, since) {
         (Some((listing, ..)), Some(Some(since))) if !since.fresh => {
-            let (snapshot, followed) = git::snapshot_since(root, &record, &git::worktree_moved::Before { listing, moved: &since.files })?;
+            let (snapshot, followed) = git::snapshot_since(root, &git::worktree_moved::Before { listing, moved: &since.files })?;
             (snapshot, followed, true)
         }
-        (_, Some(answer)) => (git::snapshot_against(root, &record)?, false, answer.is_some()),
+        (_, Some(answer)) => (git::snapshot(root)?, false, answer.is_some()),
         // Whether the watch caught up is asked beside git's listing, so git never waits on it; a
         // listing faster than the answer waits for it, within `SETTLED`, to keep its clock.
         (_, None) => {
             let (snapshot, settled) = std::thread::scope(|scope| {
                 let settled = scope.spawn(|| watch.as_ref().is_some_and(watchman::settled));
-                (git::snapshot_against(root, &record), settled.join().unwrap_or(false))
+                (git::snapshot(root), settled.join().unwrap_or(false))
             });
             (snapshot?, false, settled)
         }

@@ -34,7 +34,7 @@ as the investigation grows.
 | Run the tests this edit needs | [Set one variable on the test run you already call](docs/test-an-edit.md) and it leaves out, under any of the [supported frameworks](docs/supported-frameworks.md#leave-out-the-tests-a-change-did-not-reach), every test file that never executed the code you changed, nearest tests first if you ask. A test with no complete recording always runs. |
 | Make one test smaller | [Find the modules loaded and components rendered that the test never used](docs/distill.md), try one substitution, and confirm it with the same test. |
 | Understand an interface | [Measure grouping, spacing, alignment, emphasis, and repetition](docs/presentation.md) on the live page, make an edit, and measure again. |
-| Explain what changed | [Keep text, accessibility, layout, styles, and pixels separate](docs/explain-variance.md), see which regions changed shape and which only colour, then trace a changed region to its component and source location. |
+| Explain what changed | [Keep text, accessibility, layout, styles, and pixels separate](docs/explain-variance.md), see which regions changed shape and which only colour, then trace a changed region to its component and source location, with strong changes named before a faint repaint. |
 | Check whether the work did what you intended | [Compare the intentions declared before an edit](docs/reasoning.md) with its observed effects: what landed, what did not, and what changed outside the declared scope. |
 
 ## Give your coding agent the same evidence

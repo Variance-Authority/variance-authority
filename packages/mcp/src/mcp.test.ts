@@ -170,7 +170,7 @@ describe('describing a subject', () => {
     // A truncated list that does not say it was truncated reads as complete
     // coverage, and nothing in the output distinguishes the two.
     expect(call('variance_describe', { subject: 'page/todos--populated' })).toContain(
-      '+3 smaller region(s) not listed (12px)',
+      '+3 more region(s) not listed (12px)',
     );
   });
 

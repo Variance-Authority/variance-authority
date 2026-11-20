@@ -1,6 +1,7 @@
 import { PNG } from 'pngjs';
 import { describe, expect, it } from 'vitest';
 import type { Raster, RenderIdentity } from '@variance-authority/core/format';
+import { SEVERITY_LEVELS } from '@variance-authority/raster';
 import { observeRasters } from './observe.js';
 
 /**
@@ -46,7 +47,7 @@ describe('content that moved', () => {
 
     expect(result.verdict).toBe('changed');
     expect(result.isolation?.regions).toEqual([
-      { x: 0, y: 1, width: WIDTH, height: 3, pixels: 3 * WIDTH, density: 1, change: 'shape' },
+      { x: 0, y: 1, width: WIDTH, height: 3, pixels: 3 * WIDTH, density: 1, grade: SEVERITY_LEVELS.length, change: 'shape' },
     ]);
     expect(result.because).toBe(
       `${3 * WIDTH} pixels differ across 1 region, its shape changed; 3 pixel rows inserted in 1 place, ` +

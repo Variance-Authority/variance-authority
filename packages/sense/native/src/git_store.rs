@@ -48,7 +48,6 @@ use gix_index::entry::{stat, Flags, Mode, Stage, Stat};
 use gix_object::{Find as _, Kind};
 use gix_odb::Header as _;
 
-use crate::committed_tree::{Committed, Entry};
 
 /// The largest file a search inflates rather than the disk opening it.
 ///
@@ -157,63 +156,32 @@ impl Objects {
 
 }
 
-/// Where the root lies in its checkout, and the tree `HEAD` holds.
-pub(crate) struct Head {
-    /// The directory asked about.
-    root: PathBuf,
-    /// `--show-prefix`: the root's place in the checkout, from its top.
+/// The checkout's location and index, without reading its history.
+pub(crate) struct Checkout {
+    pub(crate) root: PathBuf,
     pub(crate) prefix: String,
-    /// `HEAD^{tree}`, as git prints it.
-    tree: String,
-    /// `--git-path objects`: the object store, from the root.
-    objects: PathBuf,
-    /// `--show-object-format`: `sha1` or `sha256`.
     pub(crate) format: String,
-    /// `--show-toplevel`: the top of the checkout.
     pub(crate) top: PathBuf,
-    /// `--absolute-git-dir`: this worktree's git directory.
     pub(crate) git_dir: PathBuf,
-    /// `--git-common-dir`: the directory every worktree shares.
     pub(crate) common: PathBuf,
-    /// `--git-path index`: the index, `GIT_INDEX_FILE` included.
     pub(crate) index: PathBuf,
 }
 
-/// What `HEAD` holds below `root`, asked of git in one call, or `None` where
-/// git names no tree for `HEAD`, as on an unborn branch.
-pub(crate) fn head(root: &Path) -> Option<Head> {
-    let located = git(
-        root,
-        &["rev-parse", "--show-prefix", "--show-object-format", "--git-path", "objects", "--git-common-dir", "--git-path", "index", "--absolute-git-dir", "--show-toplevel", "HEAD^{tree}"],
-    )?;
-    // A newline in a path splits one answer in two, and more than eight lines
-    // is none git can be read by.
-    let [prefix, format, objects, common, index, git_dir, top, tree] = <[&str; 8]>::try_from(located.lines().collect::<Vec<_>>()).ok()?;
-    let (common, index, git_dir, top) = (root.join(common), root.join(index), PathBuf::from(git_dir), PathBuf::from(top));
-    let (root, tree, objects) = (root.to_owned(), tree.to_owned(), root.join(objects));
-    Some(Head { root, prefix: prefix.to_owned(), tree, objects, format: format.to_owned(), top, git_dir, common, index })
-}
-
-impl Head {
-    /// Every blob below the root, as `ls-tree -r HEAD -- .` lists it run there:
-    /// in tree order, which is byte order over the path, each path from the
-    /// root, with whether it is a symbolic link. A gitlink is a commit, not a
-    /// blob, and is left out. `None` where the store will not open, or a tree
-    /// is missing or does not decode, and `ls-tree` answers instead.
-    ///
-    /// Read from the record at `held` where one is given, and only the trees it
-    /// does not hold by id; it is then written back (`committed_tree.rs`).
-    /// Apart from where the root lies, so that the listing reads the tree while
-    /// the working tree is walked, rather than before it.
-    pub(crate) fn committed(&self, held: Option<&Path>) -> Option<Committed> {
-        let objects = Objects::at(&self.format, &self.objects, replaced(&self.root)?)?;
-        let top = ObjectId::from_hex(self.tree.as_bytes()).ok()?;
-        let listed = crate::committed_tree::list(&mut objects.reader(), top, &self.prefix, held.and_then(Committed::load))?;
-        if let Some(held) = held.filter(|_| listed.read > 0) {
-            listed.save(held);
-        }
-        Some(listed)
-    }
+/// Locate a checkout, including an unborn branch, in one Git call.
+pub(crate) fn checkout(root: &Path) -> Option<Checkout> {
+    let located = git(root, &["rev-parse", "--show-prefix", "--show-object-format", "--git-common-dir", "--git-path", "index", "--absolute-git-dir", "--show-toplevel"])?;
+    // Separate queries disambiguate a path containing the output's line delimiter.
+    let separate;
+    let lines = located.lines().collect::<Vec<_>>();
+    let [prefix, format, common, index, git_dir, top] = if let Ok(lines) = <[&str; 6]>::try_from(lines) {
+        lines
+    } else {
+        separate = [vec!["--show-prefix"], vec!["--show-object-format"], vec!["--git-common-dir"], vec!["--git-path", "index"], vec!["--absolute-git-dir"], vec!["--show-toplevel"]]
+            .map(|args| git(root, &[&["rev-parse"][..], &args].concat()).and_then(|value| value.strip_suffix('\n').map(str::to_owned)))
+            .into_iter().collect::<Option<Vec<_>>>()?;
+        <[&str; 6]>::try_from(separate.iter().map(String::as_str).collect::<Vec<_>>()).ok()?
+    };
+    Some(Checkout { root: root.to_owned(), prefix: prefix.to_owned(), format: format.to_owned(), top: PathBuf::from(top), git_dir: PathBuf::from(git_dir), common: root.join(common), index: root.join(index) })
 }
 
 impl Store {
@@ -339,45 +307,6 @@ impl Reader {
     pub(crate) fn blob(&mut self, id: &ObjectId) -> Option<&[u8]> {
         let data = self.objects.try_find(id, &mut self.buffer).ok()??;
         (data.kind == Kind::Blob && !crate::lfs::pointer(data.data)).then_some(data.data)
-    }
-
-    /// The tree `name` names in the tree `id`, `Some(None)` where it holds no
-    /// tree by that name, or `None` where `id` is no tree the store can decode.
-    pub(crate) fn subtree(&mut self, id: &ObjectId, name: &[u8]) -> Option<Option<ObjectId>> {
-        let data = self.objects.try_find(id, &mut self.buffer).ok()??;
-        if data.kind != Kind::Tree {
-            return None;
-        }
-        for entry in gix_object::TreeRefIter::from_bytes(data.data, gix_hash::Kind::Sha1) {
-            let entry = entry.ok()?;
-            if entry.filename == name {
-                return Some(entry.mode.is_tree().then(|| entry.oid.to_owned()));
-            }
-        }
-        Some(None)
-    }
-
-    /// The entries of the tree `id` the listing keeps, in tree order, or `None`
-    /// where `id` is no tree the store can decode. Owned: a subtree's read
-    /// reuses the buffer they would borrow.
-    pub(crate) fn entries(&mut self, id: &ObjectId) -> Option<Vec<(Vec<u8>, ObjectId, Entry)>> {
-        let data = self.objects.try_find(id, &mut self.buffer).ok()??;
-        if data.kind != Kind::Tree {
-            return None;
-        }
-        let mut entries = Vec::new();
-        for entry in gix_object::TreeRefIter::from_bytes(data.data, gix_hash::Kind::Sha1) {
-            let entry = entry.ok()?;
-            let kind = if entry.mode.is_tree() {
-                Entry::Tree
-            } else if entry.mode.is_blob_or_symlink() {
-                Entry::Blob { link: entry.mode.is_link() }
-            } else {
-                continue;
-            };
-            entries.push((entry.filename.to_vec(), entry.oid.to_owned(), kind));
-        }
-        Some(entries)
     }
 
     /// The bytes `fresh` was checked out from, or `None` to read the worktree,

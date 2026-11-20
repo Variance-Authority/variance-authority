@@ -26,7 +26,10 @@ import type { IgnoreSite, SemanticSnapshot } from '../format/snapshot.js';
 export interface ChangeMask {
   readonly width: number;
   readonly height: number;
-  /** `1` where the pixel differs. Length is `width * height`. */
+  /**
+   * Non-zero where the pixel differs: how strongly, as a grade that grows with
+   * its colour distance. Length is `width * height`.
+   */
   readonly data: Uint8Array;
   /** Count of set bytes, carried so callers need not rescan. */
   readonly changed: number;
@@ -37,6 +40,8 @@ export interface DiffRegion extends Rect {
   readonly pixels: number;
   /** `pixels / (width * height)`. Low means scattered; high means a solid block. */
   readonly density: number;
+  /** The highest grade of its pixels ({@link ChangeMask.data}): how strongly its strongest pixel differs. */
+  readonly grade: number;
   /** Whether the drawing in the box changed or only its colour, where the pixels were read and told the two apart. */
   readonly change?: RegionChange;
 }
@@ -145,9 +150,10 @@ export function isolateRegions(mask: ChangeMask, options: IsolationOptions = {})
     found.push(tighten(mask, cells, cell, columns));
   }
 
-  found.sort((a, b) => b.pixels - a.pixels || a.y - b.y || a.x - b.x);
+  // The cap drops the faintest first, so a small strong region outlives a large faint one.
+  found.sort((a, b) => b.grade - a.grade || b.pixels - a.pixels || a.y - b.y || a.x - b.x);
 
-  const kept = found.slice(0, limit);
+  const kept = found.slice(0, limit).sort((a, b) => b.pixels - a.pixels || a.y - b.y || a.x - b.x);
   const dropped = found.slice(limit);
 
   return {
@@ -294,6 +300,7 @@ function tighten(mask: ChangeMask, cells: readonly number[], cell: number, colum
   let maxX = -1;
   let maxY = -1;
   let pixels = 0;
+  let grade = 0;
 
   for (const index of cells) {
     const startX = (index % columns) * cell;
@@ -304,8 +311,10 @@ function tighten(mask: ChangeMask, cells: readonly number[], cell: number, colum
     for (let y = startY; y < endY; y += 1) {
       const rowOffset = y * mask.width;
       for (let x = startX; x < endX; x += 1) {
-        if (mask.data[rowOffset + x] === 0) continue;
+        const value = mask.data[rowOffset + x]!;
+        if (value === 0) continue;
         pixels += 1;
+        if (value > grade) grade = value;
         if (x < minX) minX = x;
         if (x > maxX) maxX = x;
         if (y < minY) minY = y;
@@ -317,7 +326,7 @@ function tighten(mask: ChangeMask, cells: readonly number[], cell: number, colum
   const width = maxX - minX + 1;
   const height = maxY - minY + 1;
 
-  return { x: minX, y: minY, width, height, pixels, density: pixels / (width * height) };
+  return { x: minX, y: minY, width, height, pixels, density: pixels / (width * height), grade };
 }
 
 

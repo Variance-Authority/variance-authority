@@ -105,7 +105,7 @@ describe('what changed in each region', () => {
     );
 
     expect(result.isolation!.regions.map((region) => region.change).sort()).toEqual(['shape', undefined]);
-    expect(result.because).toBe('80 pixels differ across 2 regions, 1 changed in shape');
+    expect(result.because).toBe('80 pixels differ across 1 strong region, and 1 faint region, 1 changed in shape');
   });
 
   it('says nothing of shape or colour when no region could be told apart', async () => {
@@ -117,7 +117,7 @@ describe('what changed in each region', () => {
     );
 
     expect(result.isolation!.regions.every((region) => region.change === undefined)).toBe(true);
-    expect(result.because).toMatch(/^\d+ pixels differ across \d+ regions?$/);
+    expect(result.because).toMatch(/^\d+ pixels differ across \d+ (faint )?regions?$/);
   });
 
   it('says which regions it read when the cap left some out', async () => {

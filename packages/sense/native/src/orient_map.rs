@@ -215,7 +215,7 @@ pub(crate) fn uncarried(root: &str, index: &str, scanned: Option<bool>, workspac
     if scanned == Some(true) {
         return prepare(root, index, None, false, workspaces, tsconfig);
     }
-    let snapshot = crate::git::snapshot_against(root, &crate::committed_tree::record(index));
+    let snapshot = crate::git::snapshot(root);
     prepare(root, index, snapshot.as_ref().map(Listed::from), snapshot.is_some(), workspaces, tsconfig)
 }
 
