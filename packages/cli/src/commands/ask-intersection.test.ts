@@ -145,7 +145,7 @@ describe('ask intersection refuses what it cannot cross', () => {
     expect(text).toBe(await ask('symbol --name selectBalance', 'discover --from src/Wallet.ts'));
     expect(warned).toEqual([
       expect.stringMatching(/^variance: question 2, `discover --from .*`: `--form` is not a `variance ask` flag, so the answer ignores it\.\nDid you mean `--from`\?$/),
-      expect.stringMatching(/^variance: question 2, .*: `--component` is not an argument `variance ask discover` takes, so the answer ignores it/),
+      expect.stringMatching(/^variance: question 2, .*: `--component` is not an argument `variance ask discover` takes, so the answer is what it is without it/),
     ]);
   });
 

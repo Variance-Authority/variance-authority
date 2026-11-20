@@ -239,7 +239,7 @@ export function takes(tool: Asked): string {
  *
  * Told rather than refused: a question reads and writes nothing, and the line is
  * printed beside the answer to whoever typed the flag. It says the answer was
- * not narrowed by it, because `variance ask summary --subject story:card` reads,
+ * what it would be without it, because `variance ask summary --subject story:card` reads,
  * to whoever typed it, as a question about that subject, and an answer about the
  * whole suite looks right. A missing required argument is still refused: the
  * question cannot be answered without it.
@@ -261,7 +261,7 @@ export function inputFor(
     const argument = accepted.find((entry) => entry.property === property);
     if (argument === undefined) {
       const flags = accepted.map((entry) => entry.flag);
-      ignore(`${notTaken(tool, `--${property}`, 'so the answer ignores it and is not narrowed by it; it')}.${didYouMean(`--${property}`, flags)}`);
+      ignore(`${notTaken(tool, `--${property}`, 'so the answer is what it is without it; it')}.${didYouMean(`--${property}`, flags)}`);
       continue;
     }
     // A list a tool declares is typed once, comma-separated, like `--files`.

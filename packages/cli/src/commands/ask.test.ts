@@ -200,8 +200,8 @@ describe('a question about the code', () => {
       await ask(asking('/nowhere/report.json', 'search', { query: 'box', subject: 'story:toggle', source: sourced, warn })),
     ).toBe(plain);
     expect(warned).toEqual([
-      expect.stringContaining('`--name` is not an argument `variance ask search` takes, so the answer ignores it'),
-      expect.stringContaining('`--subject` is not an argument `variance ask search` takes, so the answer ignores it'),
+      expect.stringContaining('`--name` is not an argument `variance ask search` takes, so the answer is what it is without it'),
+      expect.stringContaining('`--subject` is not an argument `variance ask search` takes, so the answer is what it is without it'),
     ]);
   });
 
@@ -246,7 +246,7 @@ describe('an answer', () => {
   });
 
   it('answers past a flag the question has no argument for, and names it and the ones it takes', async () => {
-    // The answer covers the whole suite, so the line says it was not narrowed:
+    // The answer covers the whole suite, so the line says it is what it is without the flag:
     // whoever typed `--subject` reads that beside the answer, not after it.
     const path = join(await directory(), 'report.json');
     const warned: string[] = [];
@@ -255,7 +255,7 @@ describe('an answer', () => {
     expect(await ask(asking(path, 'summary', { subject: 'story:toggle', warn }))).toBe(await ask(asking(path, 'summary')));
     expect(await ask(asking(path, 'findings', { component: 'Toggle', warn }))).toBe(await ask(asking(path, 'findings')));
     expect(warned).toEqual([
-      'variance: `--subject` is not an argument `variance ask summary` takes, so the answer ignores it and is not narrowed by it; it takes none.',
+      'variance: `--subject` is not an argument `variance ask summary` takes, so the answer is what it is without it; it takes none.',
       expect.stringMatching(/^variance: `--component` is not an argument `variance ask findings` takes, .*; it takes --rule/),
     ]);
   });

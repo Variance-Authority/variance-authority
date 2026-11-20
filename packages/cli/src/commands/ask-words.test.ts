@@ -47,7 +47,7 @@ describe('a word a question about the code does not take', () => {
     expect(word.code).toBe(EXIT_OPERATOR);
     expect(flag.err).not.toContain('takes; it takes none');
     expect(flag.err).toContain(
-      '`--package` is not an argument `variance ask packages` takes, so the answer ignores it and is not narrowed by it; it takes none.',
+      '`--package` is not an argument `variance ask packages` takes, so the answer is what it is without it; it takes none.',
     );
     expect(word.err).toContain('`@kbn/does-not-exist` is not an argument `variance ask packages` takes; it takes none.');
   });
