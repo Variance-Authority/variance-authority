@@ -1,5 +1,5 @@
 import type { FileSet, Tool, ToolInvocation } from '@variance-authority/mcp/tools';
-import { START_POINT_SCHEMA, limitOf, notShown, spellingOf, startPointArg, stringArg } from '@variance-authority/mcp/tools';
+import { START_POINT_SCHEMA, nextPage, pageAt, pageOf, paged, spellingOf, startPointArg, stringArg } from '@variance-authority/mcp/tools';
 import { testsRan } from '@variance-authority/sense';
 import { areaLine, areaOf, startPointNeeded } from './area.js';
 import { formatGrepRan, grepRan } from './grep-ran.js';
@@ -60,6 +60,10 @@ export const grep: Tool<unknown> = {
         type: 'integer',
         description: `Matching lines to show. ${SHOWN} when not said; the rest are counted.`,
       },
+      offset: {
+        type: 'integer',
+        description: 'Rows to skip before the first shown; an answer with more names the next. 0 when not said.',
+      },
     },
     required: ['query'],
     additionalProperties: false,
@@ -69,9 +73,9 @@ export const grep: Tool<unknown> = {
 
   run: (_help, input, invocation) => {
     const spell = spellingOf(invocation);
-    const limit = limitOf(input, SHOWN, spell);
+    const page = pageOf(input, SHOWN, spell);
     const test = testOf(input, invocation);
-    if (test !== undefined) return formatGrepRan(test.query, grepRan(test.root, test.query, test.file, test.name), limit, spell);
+    if (test !== undefined) return formatGrepRan(test.query, grepRan(test.root, test.query, test.file, test.name), page, spell);
     const { query, area, hits, errors, distanceOf } = grepped(input, invocation);
 
     const header = [areaLine(area)];
@@ -90,9 +94,10 @@ export const grep: Tool<unknown> = {
       ...unread,
       '',
       `${hits.length} matching ${hits.length === 1 ? 'line' : 'lines'} in ${matched} ${matched === 1 ? 'file' : 'files'}, nearest first.`,
+      ...pageAt(page, hits.length, spell),
     ];
     let heading: number | undefined;
-    for (const hit of hits.slice(0, limit)) {
+    for (const hit of paged(hits, page)) {
       const distance = distanceOf(hit.file);
       if (distance !== heading) {
         heading = distance;
@@ -100,7 +105,7 @@ export const grep: Tool<unknown> = {
       }
       lines.push(`${hit.file}:${hit.line}:${hit.text}`);
     }
-    if (hits.length > limit) lines.push('', notShown(hits.length - limit, spell));
+    for (const next of nextPage(page, hits.length, spell)) lines.push('', next);
     return lines.join('\n');
   },
 

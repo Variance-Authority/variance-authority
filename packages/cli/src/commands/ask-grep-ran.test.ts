@@ -114,7 +114,19 @@ describe('variance ask grep --test', () => {
     expect([answered.code, answered.err]).toEqual([EXIT_CLEAN, '']);
     expect(answered.out).toContain("Ran:\nsrc/ship.ts:4:  } else { note('give up slow');\n\n");
     expect(answered.out).not.toContain('Not taken:');
-    expect(answered.out).toContain('3 more');
+    expect(answered.out).toContain('3 more not shown; `--offset` 1 shows the next 1.');
+  });
+
+  it('pages across its sections, so an offset past the ran lines starts in the ones not taken', async () => {
+    await recorded();
+
+    const answered = await run(['ask', 'grep', '--query', 'give up', '--test', 'test/ship.test.ts', '--limit', '1', '--offset', '2']);
+
+    expect([answered.code, answered.err]).toEqual([EXIT_CLEAN, '']);
+    expect(answered.out).toContain('Rows 3–3 of 4.');
+    expect(answered.out).not.toContain('Ran:');
+    expect(answered.out).toContain('Not taken:');
+    expect(answered.out).toContain('1 more not shown; `--offset` 3 shows the next 1.');
   });
 
   it('names a file it could not read, and a file git could not diff against the recorded commit', async () => {
