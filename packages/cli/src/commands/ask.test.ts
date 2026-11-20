@@ -188,13 +188,21 @@ describe('a question about the code', () => {
       .rejects.toThrow('can only be used with a source question');
   });
 
-  it('refuses the arguments of the other subjects by name', async () => {
-    await expect(askSource({ question: 'search', query: 'box', source: sourced, name: 'x' } as never)).rejects.toThrow(
-      '`--name` is not an argument `variance ask search` takes',
-    );
-    await expect(
-      ask(asking('/nowhere/report.json', 'search', { query: 'box', subject: 'story:toggle', source: sourced })),
-    ).rejects.toThrow('`--subject` is not an argument');
+  it('answers without the arguments of the other subjects, and names each one it ignored', async () => {
+    // A question reads and writes nothing, so a flag it does not take costs a
+    // line on stderr rather than a second round trip to ask again without it.
+    const warned: string[] = [];
+    const warn = (line: string): void => { warned.push(line); };
+    const plain = await askSource({ question: 'search', query: 'box', source: sourced });
+
+    expect(await askSource({ question: 'search', query: 'box', source: sourced, name: 'x', warn } as never)).toBe(plain);
+    expect(
+      await ask(asking('/nowhere/report.json', 'search', { query: 'box', subject: 'story:toggle', source: sourced, warn })),
+    ).toBe(plain);
+    expect(warned).toEqual([
+      expect.stringContaining('`--name` is not an argument `variance ask search` takes, so the answer is what it is without it'),
+      expect.stringContaining('`--subject` is not an argument `variance ask search` takes, so the answer is what it is without it'),
+    ]);
   });
 
   it('answers `search` as data when asked for json', async () => {
@@ -237,17 +245,52 @@ describe('an answer', () => {
     expect(await ask(asking(path, 'describe', { subject: 'story:toggle' }))).toBe(`${expected}\n`);
   });
 
-  it('refuses a flag the question has no argument for, and names the ones it takes', async () => {
-    // Ignoring it would answer about the whole suite while the operator reads
-    // their own shell history and sees the subject they asked about.
+  it('answers past a flag the question has no argument for, and names it and the ones it takes', async () => {
+    // The answer covers the whole suite, so the line says it is what it is without the flag:
+    // whoever typed `--subject` reads that beside the answer, not after it.
     const path = join(await directory(), 'report.json');
+    const warned: string[] = [];
+    const warn = (line: string): void => { warned.push(line); };
 
-    await expect(ask(asking(path, 'summary', { subject: 'story:toggle' }))).rejects.toThrow(
-      '`--subject` is not an argument `variance ask summary` takes; it takes none',
-    );
-    await expect(ask(asking(path, 'findings', { component: 'Toggle' }))).rejects.toThrow(
-      'it takes --rule',
-    );
+    expect(await ask(asking(path, 'summary', { subject: 'story:toggle', warn }))).toBe(await ask(asking(path, 'summary')));
+    expect(await ask(asking(path, 'findings', { component: 'Toggle', warn }))).toBe(await ask(asking(path, 'findings')));
+    expect(warned).toEqual([
+      'variance: `--subject` is not an argument `variance ask summary` takes, so the answer is what it is without it; it takes none.',
+      expect.stringMatching(/^variance: `--component` is not an argument `variance ask findings` takes, .*; it takes --rule/),
+    ]);
+  });
+
+  it('reads the word after an unknown flag as the report it is, where the question reads reports', async () => {
+    // `summary --verbose report.json`: the word is the report, not the flag's value.
+    const path = join(await directory(), 'report.json');
+    const warned: string[] = [];
+    const warn = (line: string): void => { warned.push(line); };
+    const unknown = [{ flag: '--verbose', typed: '--verbose', next: 0 }];
+
+    expect(await ask(asking(path, 'summary', { unknown, reports: ['shard.json'], warn }))).toBe(await ask(asking(path, 'summary')));
+    expect(warned).toEqual([
+      'variance: `--verbose` is not an argument `variance ask summary` takes, so the answer is what it is without it; it takes none.',
+    ]);
+  });
+
+  it('answers past `--claims` at a question that takes none, without reading the file', async () => {
+    const path = join(await directory(), 'report.json');
+    const warned: string[] = [];
+    const warn = (line: string): void => { warned.push(line); };
+
+    expect(await ask(asking(path, 'summary', { claims: join(path, '..', 'missing.json'), warn }))).toBe(await ask(asking(path, 'summary')));
+    expect(warned).toEqual([
+      'variance: `--claims` is not an argument `variance ask summary` takes, so the answer is what it is without it; it takes none.',
+    ]);
+  });
+
+  it('still refuses a missing required argument, having named the flag it ignored', async () => {
+    const path = join(await directory(), 'report.json');
+    const warned: string[] = [];
+
+    await expect(ask(asking(path, 'describe', { component: 'Toggle', warn: (line: string) => { warned.push(line); } })))
+      .rejects.toThrow('`variance ask describe` needs --subject');
+    expect(warned).toEqual([expect.stringContaining('`--component` is not an argument `variance ask describe` takes')]);
   });
 
   it('refuses a missing required argument before it reads anything', async () => {

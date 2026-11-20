@@ -25,6 +25,20 @@ export interface Flags {
   readonly positionals: readonly string[];
   /** Every value of a flag its command lists in {@link REPEATABLE}, in the order given; `values` holds the last. */
   readonly repeated: Map<string, readonly string[]>;
+  /** The flags `accepted` lacks, kept rather than refused when the caller asked {@link readFlags} to. */
+  readonly unknown: readonly Unknown[];
+}
+
+/** A flag the command does not take, as it was typed. */
+export interface Unknown {
+  readonly flag: string;
+  /** The flag as typed, its value among it when given with `=`. */
+  readonly typed: string;
+  /**
+   * Where among the positionals the word typed right after it went, when one
+   * did: its value, or a word of its own, which only the command can tell.
+   */
+  readonly next?: number;
 }
 
 /**
@@ -96,7 +110,7 @@ export const BOOLEAN = new Set([
  * is a missing value — the refusal `readFlags` already writes — and not a
  * request for a synopsis.
  */
-export function asksForHelp(argv: readonly string[]): boolean {
+export function asksForHelp(argv: readonly string[], accepted: readonly string[]): boolean {
   let index = 0;
 
   while (index < argv.length) {
@@ -106,8 +120,9 @@ export function asksForHelp(argv: readonly string[]): boolean {
     if (argument === '--') return false;
     if (argument === '--help' || argument === '-h') return true;
     if (!argument.startsWith('-')) continue;
-    // An unknown flag is still refused, by `readFlags`, after this returns false.
-    if (argument.includes('=') || BOOLEAN.has(argument)) continue;
+    // An unknown flag takes no value, as in `readFlags`, which refuses it or
+    // keeps it after this returns false.
+    if (argument.includes('=') || BOOLEAN.has(argument) || !accepted.includes(argument)) continue;
     index += 1;
   }
 
@@ -127,11 +142,18 @@ export function readFlags(
    * one this tool is mostly read by.
    */
   usage: string,
+  /**
+   * `'keep'` returns a flag `accepted` lacks in {@link Flags.unknown}, with the
+   * value that followed it, for a caller that answers past one; `'refuse'`
+   * throws. The caller decides, because only it knows what ignoring costs.
+   */
+  unknownFlags: 'refuse' | 'keep' = 'refuse',
 ): Flags {
   const values = new Map<string, string>();
   const present = new Set<string>();
   const positionals: string[] = [];
   const repeated = new Map<string, string[]>();
+  const unknown: Unknown[] = [];
 
   let index = 0;
   let flagsEnded = false;
@@ -153,6 +175,15 @@ export function readFlags(
     const equals = argument.indexOf('=');
     const name = equals === -1 ? argument : argument.slice(0, equals);
 
+    if (!accepted.includes(name) && unknownFlags === 'keep') {
+      // The word after it stays a positional, and `next` says which: `--limt 5`
+      // gives `5` as its value, `--verbose report.json` gives no value and a
+      // report. Before the first positional the next word is the question.
+      const next = argv[index];
+      const valued = equals === -1 && positionals.length > 0 && next !== undefined && !next.startsWith('-');
+      unknown.push({ flag: name, typed: argument, ...(valued ? { next: positionals.length } : {}) });
+      continue;
+    }
     if (!accepted.includes(name)) {
       // The synopsis names every accepted flag (`bin.test.ts` holds it to that),
       // so the refusal does not list them a second time.
@@ -189,7 +220,7 @@ export function readFlags(
     if (repeatable) repeated.set(name, [...repeated.get(name) ?? [], value]);
   }
 
-  return { values, present, positionals, repeated };
+  return { values, present, positionals, repeated, unknown };
 }
 
 export function noPositionals(positionals: readonly string[], command: string): void {

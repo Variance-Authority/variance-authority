@@ -4,7 +4,7 @@ import { messageOf } from '../config-values.js';
 import { OperatorError } from '../exit.js';
 import { parseArgs } from '../parse.js';
 import { flagged } from './ask-flagged.js';
-import { QUESTIONS, inputFor, questionFor, refuseWords } from './asking.js';
+import { QUESTIONS, inputFor, questionFor, wordless } from './asking.js';
 
 /**
  * The questions `variance ask intersection` crosses, read off the words after
@@ -27,7 +27,11 @@ const crossable = (): string =>
   QUESTIONS.filter((question) => question.source?.files !== undefined).map((question) => verbOf(question.tool)).join(', ');
 
 /** One question, parsed as `variance ask` would parse it alone. */
-function parsedQuestion(text: string, at: number): { readonly question: string; readonly input: Readonly<Record<string, unknown>> } {
+function parsedQuestion(
+  text: string,
+  at: number,
+  ignore: (message: string) => void,
+): { readonly question: string; readonly input: Readonly<Record<string, unknown>> } {
   let words: readonly string[];
   try {
     words = wordsOf(text);
@@ -46,17 +50,22 @@ function parsedQuestion(text: string, at: number): { readonly question: string; 
     // A question with nothing to cross is refused before its words, so a
     // nested `intersection` reads as what it is rather than as stray quotes.
     if (tool.files === undefined) throw new OperatorError(`\`${parsed.question}\` answers no set of files; the questions that do: ${crossable()}`);
-    refuseWords(tool, parsed.reports);
-    return { question: parsed.question, input: inputFor(tool, flagged(parsed)) };
+    const unknown = wordless(tool, parsed.unknown, parsed.reports);
+    const told = (message: string): void => ignore(`question ${at}, \`${text}\`: ${message}`);
+    return { question: parsed.question, input: inputFor(tool, flagged(parsed), told, unknown) };
   } catch (error) {
     throw new OperatorError(`question ${at}, \`${text}\`: ${messageOf(error)}`, { cause: error });
   }
 }
 
 /** The input `intersection` is run with: its questions, in the order typed, and its own `--limit`. */
-export function intersectionInput(reports: readonly string[], limit: number | undefined): Readonly<Record<string, unknown>> {
+export function intersectionInput(
+  reports: readonly string[],
+  limit: number | undefined,
+  ignore: (message: string) => void,
+): Readonly<Record<string, unknown>> {
   return {
-    questions: reports.map((text, at) => parsedQuestion(text, at + 1)),
+    questions: reports.map((text, at) => parsedQuestion(text, at + 1, ignore)),
     ...(limit === undefined ? {} : { limit }),
   };
 }

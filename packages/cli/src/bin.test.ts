@@ -37,6 +37,26 @@ describe('parseArgs', () => {
     expect(error.message).toContain('[--profile jsdom|chromium] [--subjects <glob>] [--shard <k>/<n>] [--intent <text>]');
   });
 
+  it('keeps a flag no question takes, and the word after it among the reports, for the question to read as either', () => {
+    // Only the question knows whether it reads reports: `uses` takes `5` as the
+    // flag's value, `summary` reads `report.json` as the report it is.
+    expect(parseArgs(['ask', 'uses', '--name', 'rank', '--limt', '5'])).toMatchObject({
+      question: 'uses',
+      name: 'rank',
+      reports: ['5'],
+      unknown: [{ flag: '--limt', typed: '--limt', next: 0 }],
+    });
+    expect(parseArgs(['ask', 'summary', '--verbose', 'report.json'])).toMatchObject({
+      reports: ['report.json'],
+      unknown: [{ flag: '--verbose', typed: '--verbose', next: 0 }],
+    });
+    // A value given with `=` is the flag's too, and a flag after it is not.
+    expect(parseArgs(['ask', 'uses', '--top=5', '--name', 'rank'])).toMatchObject({ name: 'rank', reports: [], unknown: [{ flag: '--top', typed: '--top=5' }] });
+    expect(parseArgs(['ask', 'uses', '--verbose', '--name', 'rank'])).toMatchObject({ name: 'rank', reports: [], unknown: [{ flag: '--verbose', typed: '--verbose' }] });
+    // Before the question, the next word is the question, never the flag's value.
+    expect(parseArgs(['ask', '--verbose', 'summary'])).toMatchObject({ question: 'summary', unknown: [{ flag: '--verbose', typed: '--verbose' }] });
+  });
+
   it('refuses a flag that belongs to another command', () => {
     // `--format json` on `run` is meaningless, and accepting it would teach a
     // false model of what the command does.
@@ -143,7 +163,11 @@ describe('parseArgs', () => {
       reports: [],
     });
     // A question always reads the published generation, so only `serve` takes `--just-answer`.
-    expect(() => parseArgs(['ask', 'search', '--query', 'button', '--just-answer'])).toThrow('`--just-answer` is not a `variance ask` flag');
+    // Named and ignored rather than refused: a question reads and writes nothing.
+    expect(parseArgs(['ask', 'search', '--query', 'button', '--just-answer'])).toMatchObject({
+      query: 'button',
+      unknown: [{ flag: '--just-answer', typed: '--just-answer' }],
+    });
     expect(parseArgs(['serve', '--just-answer'])).toMatchObject({ justAnswer: true });
     // `--story` stands alone: the report path after it is a report, not its value.
     expect(parseArgs(['ask', 'ran', '--story', 'out/report.json'])).toMatchObject({ story: true, reports: ['out/report.json'] });

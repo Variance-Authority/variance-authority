@@ -59,7 +59,7 @@ describe('the skill, after a refusal', () => {
 });
 
 /** What a refused command writes to its error stream. */
-async function refusal(argv: readonly string[] = ['ask', '--not-a-flag']): Promise<string> {
+async function refusal(argv: readonly string[] = ['covering', '--not-a-flag']): Promise<string> {
   const errors: string[] = [];
   const code = await main(argv, { out: () => {}, err: (text) => errors.push(text) });
 
@@ -81,7 +81,7 @@ describe('recovering from a typo', () => {
   });
 
   it('names the flag that was probably meant', () => {
-    expect(attempt(['ask', '--quer', 'warning']).message).toContain('Did you mean `--query`?');
+    expect(attempt(['covering', '--fil', 'x']).message).toContain('Did you mean `--file`?');
   });
 
   it('suggests nothing for a word that is not a typo of anything', () => {
@@ -105,9 +105,9 @@ describe('recovering from a typo', () => {
   });
 
   it('shows the shape of the command that was run, and not the other fourteen', () => {
-    const message = attempt(['ask', '--quer', 'warning']).message;
+    const message = attempt(['covering', '--fil', 'x']).message;
 
-    expect(message).toContain('variance ask     [--config <path>]');
+    expect(message).toContain('variance covering --file <path>');
     expect(message).not.toContain('variance distill');
   });
 });

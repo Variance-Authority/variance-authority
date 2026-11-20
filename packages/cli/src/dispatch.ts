@@ -96,6 +96,7 @@ export async function dispatch(
           report: config.report,
           read: () => reportsFor(reports, config), costs: () => costsSubject(config, reports),
           review: (tool, input) => reviewSubject(config, tool, input),
+          warn: (line) => streams.err(`${line}\n`),
         }),
       );
       // A reading is not a verdict. `report` and `adjudicate` are where a run is

@@ -2,10 +2,11 @@ import { dirname, join, resolve } from 'node:path';
 import type { RunReport } from '@variance-authority/report';
 import { VANTAGE_VARIABLE } from '@variance-authority/vantage';
 import type { VantageReading } from '@variance-authority/vantage/attach';
+import type { Unknown } from '../args.js';
 import type { Crossing } from '../ask-args.js';
 import { OperatorError } from '../exit.js';
 import { readClaims } from './adjudicate.js';
-import { inputFor, invocationOf, questionFor, refuseWords, type Question } from './asking.js';
+import { argumentsOf, ignored, inputFor, invocationOf, questionFor, unasked, wordless, type Question } from './asking.js';
 import { foundNothingAnswer, readWorkspaceForAnswer, refusalFooter, snapshotLine, unopenedLine } from '@variance-authority/help';
 import { containment, discover, intersection, journeyMapTool, orient, retriedTests, search, slowestTests, testCompositionTool, type Help } from '@variance-authority/help/tools';
 import { asOneQuestion } from '@variance-authority/sense';
@@ -83,6 +84,10 @@ import { readVantage } from './watch.js';
 export interface AskRequest extends Crossing {
   /** The question. Absent asks for the list of them, which is the MCP handshake. */
   readonly question?: string;
+  /** The flags no question takes, each answered past and named beside the answer. */
+  readonly unknown?: readonly Unknown[];
+  /** Where a line about an ignored flag is said, beside the answer. Standard error when absent. */
+  readonly warn?: (line: string) => void;
   readonly subject?: string;
   readonly subjects?: readonly string[];
   readonly component?: string;
@@ -160,10 +165,11 @@ export interface AskRequest extends Crossing {
 /**
  * What a question about the code takes: every flag `ask` accepts, and nothing
  * about a run. Every flag rather than the seven these tools take, so a
- * `--subject` typed at `search` is refused by name like it is everywhere else,
- * instead of being dropped on the way in and answered around.
+ * `--subject` typed at `search` is named as ignored like it is everywhere else,
+ * instead of being dropped on the way in without a word.
  */
-export type SourceRequest = Flagged & Pick<AskRequest, 'source' | 'changedFile' | 'taintFile' | 'format' | 'reports'> & {
+export type SourceRequest = Flagged &
+  Pick<AskRequest, 'source' | 'changedFile' | 'taintFile' | 'format' | 'reports' | 'unknown' | 'warn'> & {
   readonly question: string;
 };
 
@@ -183,18 +189,22 @@ export interface Sourced {
 
 /** One question, answered from the artifact or the watcher. Never re-runs and never renders. */
 export async function ask(request: AskRequest): Promise<string> {
-  if (request.question === undefined) return questions();
+  if (request.question === undefined) {
+    unasked(request.unknown ?? [], ignoring(request));
+    return questions();
+  }
 
   const question = questionFor(request.question);
   if (question.source !== undefined) return askSource({ ...request, question: request.question });
+  const ignore = ignoring(request);
   if (question.costs !== undefined) {
-    const input = inputFor(question.costs, flagged(request));
+    const input = inputFor(question.costs, flagged(request), ignore, request.unknown);
     if (request.costs === undefined) throw new OperatorError('`costs` needs a config: the times are kept under its project');
     return `${question.costs.run(await request.costs(), input, invocationOf())}\n`;
   }
   if (question.review !== undefined) {
-    const input = inputFor(question.review, flagged(request));
-    refuseWords(question.tool, request.reports);
+    const unknown = wordless(question.tool, request.unknown, request.reports);
+    const input = inputFor(question.review, flagged(request), ignore, unknown);
     if (request.review === undefined) {
       throw new OperatorError(
         `\`${request.question}\` needs a config: it names the deployment and the share token that reads it`,
@@ -212,9 +222,9 @@ export async function ask(request: AskRequest): Promise<string> {
 
   // A question only a watcher answers reads no report, with a watcher or
   // without one, so the word is refused before the missing watcher is.
-  if (question.report === undefined) refuseWords(question.tool, request.reports);
+  const unknown = question.report === undefined ? wordless(question.tool, request.unknown, request.reports) : request.unknown ?? [];
 
-  const input = await inputFrom(question, request);
+  const input = await inputFrom(question, { ...request, unknown }, ignore);
   if (request.at !== undefined && question.live !== undefined) unread(question, request.at, request.reports);
 
   const answer =
@@ -239,14 +249,18 @@ export async function askSource(request: SourceRequest): Promise<string> {
   // `intersection` is the one source question whose words are its own: each
   // is a whole question, in quotes.
   const crossing = tool.name === intersection.name;
-  if (!crossing) refuseWords(tool, request.reports);
+  const ignore = ignoring(request);
+  const unknown = crossing ? request.unknown : wordless(tool, request.unknown, request.reports);
 
   // Refused before anything is read: a question that has no shape to give
   // would otherwise answer in prose to a caller about to parse it.
   if (request.format === 'json' && tool.name !== search.name && tool.name !== containment.name) {
     throw new OperatorError(`\`${request.question}\` answers in text only; \`--format json\` is taken by \`search\` and \`containment\``);
   }
-  const input = crossing ? intersectionInput(request.reports ?? [], request.limit) : inputFor(tool, flagged(request));
+  if (crossing) for (const { flag, typed } of unknown ?? []) ignored(tool, flag, typed, ignore);
+  const input = crossing
+    ? intersectionInput(request.reports ?? [], request.limit, ignore)
+    : inputFor(tool, flagged(request), ignore, unknown);
   const changed = request.changedFile === undefined ? undefined : await readChanged(request.changedFile);
   const taints = request.taintFile === undefined ? undefined : [await readTaint(request.taintFile)];
   // A question answers from the generation `variance index` published, at any
@@ -430,12 +444,30 @@ function unread(question: Question, at: string, reports: readonly string[] | und
 async function inputFrom(
   question: Question,
   request: AskRequest,
+  ignore: (message: string) => void,
 ): Promise<Readonly<Record<string, unknown>>> {
-  return inputFor(question.tool, {
-    ...flagged(request),
-    // The one argument that is a file rather than a word, read through the same
-    // validation `variance adjudicate` reads it through — an agent that declared
-    // its intent badly is told so once, in one wording.
-    claims: request.claims === undefined ? undefined : await readClaims(request.claims),
-  });
+  return inputFor(
+    question.tool,
+    {
+      ...flagged(request),
+      // The one argument that is a file rather than a word, read through the same
+      // validation `variance adjudicate` reads it through — an agent that declared
+      // its intent badly is told so once, in one wording. Only where the question
+      // takes it: elsewhere it is a flag answered past, and its path is never read.
+      claims: request.claims === undefined || !argumentsOf(question.tool).some((argument) => argument.property === 'claims')
+        ? request.claims
+        : await readClaims(request.claims),
+    },
+    ignore,
+    request.unknown,
+  );
+}
+
+/**
+ * Where a question says what it answered without: each line beside the
+ * answer, never in it, so the answer stays what a caller parses.
+ */
+function ignoring(request: Pick<AskRequest, 'warn'>): (message: string) => void {
+  const warn = request.warn ?? ((line: string) => process.stderr.write(`${line}\n`));
+  return (message) => warn(`variance: ${message}`);
 }

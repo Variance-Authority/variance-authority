@@ -193,13 +193,15 @@ describe('variance ask about a name whose file changed since the source index', 
     expect(existsSync(`${sourceIndexPath(root)}.help.bin`)).toBe(false);
   });
 
-  it('refuses `--just-answer`, since reading only the published generation is what every question does', async () => {
+  it('answers past `--just-answer`, naming it, since reading only the published generation is what every question does', async () => {
     checkout();
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
 
-    const { code, err } = await run(['ask', 'symbol', '--name', 'taxOf', '--just-answer']);
-    expect(code).toBe(EXIT_OPERATOR);
-    expect(err).toContain('--just-answer');
+    const plain = await run(['ask', 'symbol', '--name', 'taxOf']);
+    const { code, out, err } = await run(['ask', 'symbol', '--name', 'taxOf', '--just-answer']);
+    expect(code).toBe(EXIT_CLEAN);
+    expect(out).toBe(plain.out);
+    expect(err).toContain('variance: `--just-answer` is not an argument `variance ask symbol` takes, so the answer is what it is without it;');
   });
 
   it('refuses an empty name as the tool does', async () => {
