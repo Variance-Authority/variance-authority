@@ -58,14 +58,15 @@ function parsedQuestion(
   }
 }
 
-/** The input `intersection` is run with: its questions, in the order typed, and its own `--limit`. */
+/** The input `intersection` is run with: its questions, in the order typed, and its own `--limit` and `--offset`. */
 export function intersectionInput(
   reports: readonly string[],
-  limit: number | undefined,
+  page: { readonly limit?: number | undefined; readonly offset?: number | undefined },
   ignore: (message: string) => void,
 ): Readonly<Record<string, unknown>> {
   return {
     questions: reports.map((text, at) => parsedQuestion(text, at + 1, ignore)),
-    ...(limit === undefined ? {} : { limit }),
+    ...(page.limit === undefined ? {} : { limit: page.limit }),
+    ...(page.offset === undefined ? {} : { offset: page.offset }),
   };
 }

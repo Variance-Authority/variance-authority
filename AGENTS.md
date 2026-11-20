@@ -96,8 +96,8 @@ Ask by what you hold. A name goes to `symbol`, a meaning to `search`, and a
 local name, a string or a pattern to `grep`, from the file or folder you are
 working in, or a top folder such as `packages/` or `tools/` at the widest.
 
-Read an answer whole: widen it with `--limit` where it says rows were not
-shown, and never cut it with `head` or `tail`, whose dropped rows read later as
+Read an answer whole: follow the `--offset` it names, or widen it with
+`--limit` where it says rows were not shown and names no offset, and never cut it with `head` or `tail`, whose dropped rows read later as
 a defect `variance` does not have.
 
 `symbol`, `uses` and `search` answer from the files the index parses: JavaScript
