@@ -236,9 +236,12 @@ jobs:
         uses: ./.github/actions/zigbuild
 
       # No `yarn install`. This builds a Rust crate and copies the result — it
-      # needs neither the workspace's dependencies nor its `dist/`. A binary
-      # over its glibc floor fails here: build.mjs makes `prepack`'s refusal.
+      # needs neither the workspace's dependencies nor its `dist/`.
       - run: node packages/sense/native/build.mjs --target ${{ matrix.target }}
+
+      # The same refusal `prepack` makes at publish, made here so a binary over
+      # its glibc floor fails the platform that built it.
+      - run: node packages/sense/scripts/verify-native-pack.mjs packages/sense/npm/${{ matrix.platform }}
 
       - uses: actions/upload-artifact@v7
         with:

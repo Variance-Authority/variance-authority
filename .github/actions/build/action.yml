@@ -109,10 +109,11 @@ runs:
         cache-on-failure: 'true'
         cache-bin: 'false'
 
-    # The linker for a target's glibc floor, which build.mjs uses when it is
-    # there: only on a miss, because a restored binary compiles nothing.
+    # The linker for a target's glibc floor, which build.mjs refuses to build
+    # without in CI. Only where no stamp came back with the binary: a stamped
+    # one compiles nothing, and an unstamped one is built again.
     - name: a linker for the glibc floor
-      if: steps.native.outputs.floor != '' && steps.cache.outputs.cache-hit != 'true' && steps.download.outcome != 'success'
+      if: steps.native.outputs.floor != '' && hashFiles('packages/sense/npm/*/scan.node.tree') == ''
       uses: ./.github/actions/zigbuild
 
     # build.mjs checks the restored binary's compiled-input stamp before skipping Cargo.

@@ -112,8 +112,9 @@ const plain =
   (process.env['RUSTFLAGS'] ?? '') === '' &&
   (process.env['CARGO_ENCODED_RUSTFLAGS'] ?? '') === '';
 const stamped = existsSync(stamp) ? readFileSync(stamp, 'utf8').trim() : undefined;
+const current = plain && tree !== undefined && existsSync(join(into, 'scan.node'));
 
-if (plain && identity !== undefined && stamped === identity && existsSync(join(into, 'scan.node'))) {
+if (current && stamped === identity) {
   console.log(
     `sense: native scanner at ${join(into, 'scan.node')} was built from inputs ${identity}, ` +
       'which is unchanged — not rebuilt',
@@ -151,16 +152,24 @@ if (cargo === undefined) {
  * suffix and writes under the plain triple. Asked for and missing is a failure
  * like a missing target: the binary it would have produced loads on fewer
  * machines than the one we publish, and nothing would say so until a `dlopen`.
- * A host build without it links against this machine's glibc, says so, and
- * leaves no stamp: it loads here, and it is not the binary we publish.
+ * So is a host build without it in CI, which loads and tests the binary we
+ * publish. Elsewhere it links against this machine's glibc, says so, and
+ * stamps the bare tree, which a floored build never takes for its own.
  */
 const linkable =
   wanted === undefined || spawnSync(cargo, ['zigbuild', '--help'], { stdio: 'ignore' }).status === 0;
-if (!linkable && asked !== undefined) {
+if (!linkable && (asked !== undefined || (process.env['CI'] ?? '') !== '')) {
   console.error(
-    `sense: ${asked} links against glibc ${wanted} through \`cargo zigbuild\`, which is not installed`,
+    `sense: ${asked ?? host.triple} links against glibc ${wanted} through \`cargo zigbuild\`, which is not installed`,
   );
   process.exit(1);
+}
+if (!linkable && current && stamped === tree) {
+  console.log(
+    `sense: native scanner at ${join(into, 'scan.node')} was built from inputs ${tree} ` +
+      "on this machine's glibc, which is unchanged — not rebuilt",
+  );
+  process.exit(0);
 }
 if (!linkable) {
   console.error(
@@ -260,5 +269,5 @@ if (floor !== undefined) {
   const checked = spawnSync(process.execPath, [verify, into], { stdio: 'inherit' });
   if (checked.status !== 0) process.exit(checked.status ?? 1);
 }
-if (plain && full && linkable && identity !== undefined) writeFileSync(stamp, `${identity}\n`);
+if (plain && full && tree !== undefined) writeFileSync(stamp, `${floor === undefined ? tree : identity}\n`);
 console.log(`sense: native scanner at ${join(into, 'scan.node')}`);
