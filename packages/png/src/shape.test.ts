@@ -58,6 +58,18 @@ describe('what changed in a region', () => {
     expect(regions.map((region) => regionChange(pixels, region))).toEqual(regions.map(() => 'colour'));
   });
 
+  it('reads a bordered fill repainted from dark to light as colour', async () => {
+    // A button with a 1 px black border: its fill turns from nearly the border's colour to nearly the page's.
+    const button =
+      (fill: readonly [number, number, number]): Paint =>
+      (x, y) => {
+        if (x < 30 || x > 89 || y < 15 || y > 44) return [255, 255, 255];
+        return x === 30 || x === 89 || y === 15 || y === 44 ? [0, 0, 0] : fill;
+      };
+    const { pixels, regions } = await read(raster(120, 60, button([0x33, 0x33, 0x33])), raster(120, 60, button([0xdd, 0xdd, 0xdd])));
+    expect(regions.map((region) => regionChange(pixels, region))).toEqual(['colour']);
+  });
+
   it('reads a block moved by one pixel as shape, at both edges', async () => {
     const { pixels, regions } = await read(raster(120, 60, block(40, [0x33, 0x33, 0x33])), raster(120, 60, block(41, [0x33, 0x33, 0x33])));
     expect(regions).toHaveLength(2);

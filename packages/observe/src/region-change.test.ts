@@ -71,8 +71,7 @@ describe('what changed in each region', () => {
       raster('v1:after', [{ left: 13, top: 10, size: 10, colour: GREY }]),
     );
 
-    expect(result.isolation!.regions.every((region) => region.change === 'shape')).toBe(true);
-    expect(result.because).toMatch(/, (its shape changed|each changed in shape)$/);
+    expect(result.because).toBe('60 pixels differ across 1 region, its shape changed');
   });
 
   it('counts the regions apart when one moved and one was recoloured', async () => {
@@ -88,8 +87,23 @@ describe('what changed in each region', () => {
       ]),
     );
 
-    const shape = result.isolation!.regions.filter((region) => region.change === 'shape').length;
-    expect(result.isolation!.regions.filter((region) => region.change === 'colour')).toHaveLength(1);
-    expect(result.because).toContain(`, ${shape} changed in shape and 1 only in colour`);
+    expect(result.because).toBe('160 pixels differ across 2 regions, 1 changed in shape and 1 only in colour');
+  });
+
+  it('says which regions it read when the cap left some out', async () => {
+    const result = await observeRasters(
+      'button',
+      raster('v1:before', [
+        { left: 4, top: 10, size: 10, colour: GREY },
+        { left: 40, top: 10, size: 8, colour: GREY },
+      ]),
+      raster('v1:after', [
+        { left: 4, top: 10, size: 10, colour: RED },
+        { left: 40, top: 10, size: 8, colour: RED },
+      ]),
+      { limit: 1 },
+    );
+
+    expect(result.because).toMatch(/not listed, 64px\), each listed changed only in colour$/);
   });
 });

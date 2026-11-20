@@ -164,8 +164,10 @@ function drawing(isolation: Isolation): string {
   const shape = listed.filter((region) => region.change === 'shape').length;
   const colour = listed.filter((region) => region.change === 'colour').length;
   if (shape + colour === 0) return '';
-  if (colour === 0) return listed.length === 1 ? ', its shape changed' : ', each changed in shape';
-  if (shape === 0) return listed.length === 1 ? ', only its colour changed' : ', each changed only in colour';
+  // Regions the cap left out were not read, so "each" names only those listed.
+  const each = isolation.truncated > 0 ? 'each listed' : listed.length === 1 ? undefined : 'each';
+  if (colour === 0) return each === undefined ? ', its shape changed' : `, ${each} changed in shape`;
+  if (shape === 0) return each === undefined ? ', only its colour changed' : `, ${each} changed only in colour`;
   return `, ${shape} changed in shape and ${colour} only in colour`;
 }
 

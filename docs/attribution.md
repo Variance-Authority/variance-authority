@@ -53,26 +53,26 @@ reader has no way to know the difference.
 
 ### Shape, or only colour
 
-A repainted button and a button that grew both leave a region, and only one of
-them needs opening. Each listed region says which it is in `change`, and the
+A repainted button and a button that moved both leave a region, and only one
+of them needs opening. Each listed region says which it is in `change`, and the
 verdict's sentence counts them: `1 changed in shape and 1 only in colour`.
 
 The pixels inside the box, and 2 more on each side, are read on both images,
 each paired with the before pixel it was compared against, so a page whose rows
-moved is read at the move. On each side every pixel is ground or ink, by its
-colour distance from that side's most common colour: near it is ground, far
-from it is ink, and a pixel halfway abstains. A side whose pixels barely differ
-is all ground. A pixel ink on one side and ground on the other is drawing that
-moved, appeared or went, and makes the region `shape`; a row the after image
-gained has no partner and does the same. Where every pixel is ink on both sides
-or ground on both, the drawing stands where it stood and only its colour
-changed: `colour`. An anti-aliased edge recoloured stays `colour`, because its
-blended pixels abstain on both sides.
+moved is read at the move. Pixels in an excluded subtree are not read. On each
+side, every pixel is an edge or flat by its colour distance to its right and
+lower neighbours in the same image, against the strongest edge on that side: at
+least half of it is an edge, an eighth or less is flat, and a pixel between
+them abstains. A side whose strongest edge is faint is all flat. A pixel that
+is an edge on one side and flat on the other is drawing that moved, appeared or
+went, and makes the region `shape`; a row the after image gained has no
+partner and does the same. Where the edges stand where they stood, only the
+colour changed: `colour`. A bordered button repainted from dark to light, and
+an anti-aliased edge recoloured, stay `colour`.
 
 The 2-pixel margin is there because a block shifted by a pixel leaves two
-regions a pixel wide, each all ink on one side; the margin brings in the ground
-beside it, so each reads as `shape`. A screenshot diff reports how many pixels
-differ and where, never whether the drawing under them moved.
+regions a pixel wide, with no edge of their own; the margin brings in the edge
+beside each, so each reads as `shape`.
 
 ## What is there
 
