@@ -1,7 +1,7 @@
 //! One refresh's file readings: bytes, their digest, and context-free syntax.
 //! Export traversal stays with each entrypoint, where its package and cycles are known.
 
-// compass: variance-authority.reach.source-scan
+// compass: variance-authority.reach.relations
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -17,7 +17,7 @@ use crate::harvest::SourceSymbol;
 use crate::read::{read_module_and_tree, Export, Read};
 
 /// What an entrypoint's export walk reads of a declaration file. Its install
-/// holds it until the last pair resolved there is read, so the rest of the
+/// holds it while that install's pairs are read, so the rest of the
 /// module record is dropped as soon as the file is parsed.
 pub(super) struct Module {
     /// Whether the reader could not read the file as a module; nothing else is kept then.

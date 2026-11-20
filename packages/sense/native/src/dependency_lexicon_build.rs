@@ -8,10 +8,8 @@
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::path::Path;
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::Arc;
 
-use dashmap::DashMap;
 use rayon::prelude::*;
 
 use super::catalogue::{Catalogue, Made, MadeInstall, MadePair};
@@ -20,21 +18,17 @@ use super::sites::State;
 use super::{entry, files::Files, relative, stamps, wanted, Api, Owner};
 use crate::resolve::{Resolvers, Tsconfig};
 
-/// One install's readings, held until the last pair resolved to it is read. A walk never leaves its package, so
-/// no other install's pair reads these declarations, and a refresh holds only the installs it is reading.
-struct Install {
-    files: Mutex<Option<Arc<Files>>>,
-    unread: AtomicUsize,
-}
-
-impl Install {
-    fn files(&self) -> Arc<Files> {
-        self.files.lock().unwrap().get_or_insert_with(Default::default).clone()
+/// The pairs of each install, in the order they come, installs in the order each first does. An install is read
+/// by one thread from its first pair to its last, so its readings live only as long as that run: a walk never
+/// leaves its package, and no other install's pair reads these declarations.
+fn by_install(keys: &[String]) -> Vec<Vec<usize>> {
+    let mut at = HashMap::<&str, usize>::new();
+    let mut groups = Vec::<Vec<usize>>::new();
+    for (pair, key) in keys.iter().enumerate() {
+        let group = *at.entry(key.as_str()).or_insert_with(|| { groups.push(Vec::new()); groups.len() - 1 });
+        groups[group].push(pair);
     }
-
-    fn read(&self) {
-        if self.unread.fetch_sub(1, Ordering::AcqRel) == 1 { self.files.lock().unwrap().take(); }
-    }
+    groups
 }
 
 fn targets(value: &serde_json::Value, into: &mut Vec<String>) {
@@ -97,7 +91,6 @@ pub(super) fn made(root: &Path, owners: Vec<Owner>, manifests: Vec<String>, inte
     let owner_rows: HashMap<&str, u32> = owners.iter().enumerate().map(|(at, owner)| (owner.manifest.as_str(), at as u32)).collect();
     let owner_of = |manifest: &str| &owners[owner_rows[manifest] as usize];
     let resolver = Resolvers::new(tsconfig, Some(vec!["types".to_owned(), "import".to_owned(), "default".to_owned()]));
-    let parsed = DashMap::<String, Arc<OnceLock<(Arc<Api>, bool)>>>::new();
     let importer_of = |manifest: &str| root.join(&owner_of(manifest).directory).join("__variance_dependency__.ts");
     let resolve = |manifest: &str, package: &str| {
         let importer = importer_of(manifest);
@@ -110,43 +103,43 @@ pub(super) fn made(root: &Path, owners: Vec<Owner>, manifests: Vec<String>, inte
     // names does not depend on which thread got there first.
     let mut home = HashMap::<&str, &str>::new();
     for (((manifest, _), _), key) in pairs.iter().zip(&keys) { home.entry(key.as_str()).or_insert(manifest.as_str()); }
-    let mut readings = HashMap::<&str, Install>::new();
-    for key in &keys {
-        readings.entry(key.as_str()).or_insert_with(|| Install { files: Mutex::new(None), unread: AtomicUsize::new(0) })
-            .unread.fetch_add(1, Ordering::Relaxed);
-    }
-    let read: Vec<Read> = pairs.par_iter().zip(keys.par_iter()).map(|(((manifest, package), imported), key)| {
-        let importer = importer_of(manifest);
+    let groups = by_install(&keys);
+    let mut read: Vec<Option<Read>> = (0..pairs.len()).map(|_| None).collect();
+    let done: Vec<Vec<(usize, Read)>> = groups.par_iter().map(|group| {
+        let key = &keys[group[0]];
         let shared = importer_of(home[key.as_str()]);
-        let install = &readings[key.as_str()];
-        let files = install.files();
-        let mut issues = Vec::new();
-        let opened = resolve(manifest, package).as_ref().and_then(|answer| answer.package_json())
-            .and_then(|package_json| files.manifest(package_json.path()))
-            .map(|value| openings(package, &value));
-        let opened = opened.unwrap_or_else(|| {
-            issues.push(format!("the project resolver could not locate `{package}` from {}", relative(root, &importer)));
-            BTreeSet::from([package.clone()])
-        });
-        let offered: BTreeSet<&String> = opened.iter().chain(*imported).collect();
-        let offers = offered.into_iter().map(|specifier| {
-            let cell = parsed.entry(format!("{key}\0{specifier}")).or_insert_with(|| Arc::new(OnceLock::new())).clone();
-            let (api, reused) = cell.get_or_init(|| {
-                let held = prior_entries.get(&(manifest.as_str(), specifier.as_str())).and_then(|&entry| prior.and_then(|prior| read_api(prior.entry_blob(entry as usize))));
-                let (api, reused) = entry::api(root, &shared, specifier, &resolver, &files, held.as_ref());
-                (Arc::new(api), reused)
-            }).clone();
-            let id = format!("{}\0{}", api.runtime.as_ref().or(api.declarations.as_ref())
-                .map_or_else(|| format!("unresolved:{manifest}"), |identity| identity.manifest.clone()),
-                api.entrypoint.as_deref().unwrap_or(specifier));
-            (specifier.clone(), opened.contains(specifier), id, api, reused)
-        }).collect();
-        drop(files);
-        install.read();
-        issues.sort();
-        issues.dedup();
-        (key.clone(), issues, offers)
+        let files = Files::default();
+        let mut parsed = HashMap::<String, (Arc<Api>, bool)>::new();
+        group.iter().map(|&pair| {
+            let ((manifest, package), imported) = pairs[pair];
+            let importer = importer_of(manifest);
+            let mut issues = Vec::new();
+            let opened = resolve(manifest, package).as_ref().and_then(|answer| answer.package_json())
+                .and_then(|package_json| files.manifest(package_json.path()))
+                .map(|value| openings(package, &value));
+            let opened = opened.unwrap_or_else(|| {
+                issues.push(format!("the project resolver could not locate `{package}` from {}", relative(root, &importer)));
+                BTreeSet::from([package.clone()])
+            });
+            let offered: BTreeSet<&String> = opened.iter().chain(imported).collect();
+            let offers = offered.into_iter().map(|specifier| {
+                let (api, reused) = parsed.entry(specifier.clone()).or_insert_with(|| {
+                    let held = prior_entries.get(&(manifest.as_str(), specifier.as_str())).and_then(|&entry| prior.and_then(|prior| read_api(prior.entry_blob(entry as usize))));
+                    let (api, reused) = entry::api(root, &shared, specifier, &resolver, &files, held.as_ref());
+                    (Arc::new(api), reused)
+                }).clone();
+                let id = format!("{}\0{}", api.runtime.as_ref().or(api.declarations.as_ref())
+                    .map_or_else(|| format!("unresolved:{manifest}"), |identity| identity.manifest.clone()),
+                    api.entrypoint.as_deref().unwrap_or(specifier));
+                (specifier.clone(), opened.contains(specifier), id, api, reused)
+            }).collect();
+            issues.sort();
+            issues.dedup();
+            (pair, (key.clone(), issues, offers))
+        }).collect()
     }).collect();
+    for (pair, reading) in done.into_iter().flatten() { read[pair] = Some(reading); }
+    let read: Vec<Read> = read.into_iter().map(|reading| reading.expect("every pair is in one install")).collect();
 
     // Specifiers that resolve to one entrypoint share an id, and the first one's reading is kept.
     let mut entries = BTreeMap::<String, (Arc<Api>, bool)>::new();
@@ -183,22 +176,11 @@ pub(super) fn made(root: &Path, owners: Vec<Owner>, manifests: Vec<String>, inte
 
 #[cfg(test)]
 mod tests {
-    use std::sync::atomic::AtomicUsize;
-    use std::sync::{Arc, Mutex};
-
-    use super::Install;
+    use super::by_install;
 
     #[test]
-    fn an_installs_readings_are_shared_by_its_pairs_and_released_after_the_last_is_read() {
-        let install = Install { files: Mutex::new(None), unread: AtomicUsize::new(2) };
-        let first = install.files();
-        let second = install.files();
-        assert!(Arc::ptr_eq(&first, &second));
-        let held = Arc::downgrade(&first);
-        drop((first, second));
-        install.read();
-        assert!(held.upgrade().is_some());
-        install.read();
-        assert!(held.upgrade().is_none());
+    fn an_installs_pairs_are_read_together_wherever_its_owners_sort() {
+        let keys = ["react", "lodash", "react", "zod", "lodash", "react"].map(String::from);
+        assert_eq!(by_install(&keys), vec![vec![0, 2, 5], vec![1, 4], vec![3]]);
     }
 }

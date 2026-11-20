@@ -246,8 +246,7 @@ impl Resolvers {
         known: Option<&HashMap<String, u32>>,
     ) -> Option<String> {
         let request = request_of(written)?;
-        let (tsconfig, modules) = self.governed_by(from);
-        self.answer(root, from, request, known, &modules, tsconfig.as_deref())
+        self.answer(root, from, request, known, &self.modules_for(from))
     }
 
     /// [`Self::resolve`] for one of the requests `from` holds, during one walk
@@ -267,7 +266,7 @@ impl Resolvers {
         if let Some(answer) = governing.answers.get(request) {
             return answer.clone();
         }
-        let answer = self.answer(root, from, request, known, &governing.modules, governing.tsconfig.as_deref());
+        let answer = self.answer(root, from, request, known, &governing.modules);
         governing.answers.insert(request.to_owned(), answer.clone());
         answer
     }
@@ -279,7 +278,6 @@ impl Resolvers {
         request: &str,
         known: Option<&HashMap<String, u32>>,
         modules: &Arc<Resolver>,
-        tsconfig: Option<&TsConfig>,
     ) -> Option<String> {
         if let relative::Listed::File(file) = self.listed(root, from, request) {
             if known.is_some_and(|paths| paths.contains_key(&file))
@@ -288,7 +286,6 @@ impl Resolvers {
                 return Some(file);
             }
         }
-        if self.missing_parent(root, from, request, tsconfig) { return None; }
         let mut elsewhere = false;
         for resolver in [modules.as_ref(), &self.exact] {
             let Ok(answer) = resolver.resolve_file(from, request) else {
