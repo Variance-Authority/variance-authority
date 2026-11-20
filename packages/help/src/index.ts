@@ -33,7 +33,7 @@ export { publishedGeneration, publishedHead, readAgain, readWorkspaceSnapshot, w
 export type { AnsweringOptions, ReadingOptions } from './read.js';
 export type { SnapshotOptions } from './snapshot.js';
 export { publishWorkspaceFromIndex, type FromIndexOptions, type IndexPublication } from './refresh-native.js';
-export { readGenerationNames, readNamedTree, type NamedTree } from './names-read.js';
+export { generationSourceIndex, readNamedTree, type NamedTree } from './names-read.js';
 export { countingShown, type ShownCounting } from './ask.js';
 export { readSearchForAnswer, unopenedLine, type SearchReading, type Unopened, type ValueRead } from './search-read.js';
 export type { SearchIndex } from './search-index.js';

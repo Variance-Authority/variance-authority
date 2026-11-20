@@ -1,9 +1,10 @@
-import { extname } from 'node:path';
 import { codeUnitOrder } from '@variance-authority/core/segment';
-import type { FileSet, Link, SourceNames, Tool, ToolInvocation, Tree } from '@variance-authority/mcp/tools';
-import { entryPoints, limitOf, notShown, pathsOf, refusalFor, spellingOf, startPointArg } from '@variance-authority/mcp/tools';
-import { READABLE } from '@variance-authority/sense';
+import type { FileSet, Link, Tool, ToolInvocation, Tree } from '@variance-authority/mcp/tools';
+import { entryPoints, limitOf, notShown, refusalFor, spellingOf } from '@variance-authority/mcp/tools';
+import type { NameHit } from '@variance-authority/sense';
 import { startPointNeeded } from './area.js';
+import { foundOf, type Found } from './discover-names.js';
+import { listArg, nameOf, regexOf, textArg } from './discover-operands.js';
 import { ripgrep } from './ripgrep.js';
 import { importsOf as importersOf, type IndexedUse } from './unpublished.js';
 
@@ -31,13 +32,13 @@ import { importsOf as importersOf, type IndexedUse } from './unpublished.js';
  * A pattern is ripgrep's, over the files the other operands kept — never over
  * the checkout. So `text` alone is refused with how to say a start point.
  *
- * ## Names are read with the tree
+ * ## Names are read where they lie
  *
- * `declares`, and `imports` of a package or a specifier as written, read every
- * file's names, off the parses of the source index the tree came from. A host
- * that read the tree without them refuses those operands rather than answering
- * as though no file declared anything. A name out of a file the tree holds is
- * read off the source index, as `uses` reads it, and needs no names.
+ * `declares`, and `imports` of a package or a specifier as written, are asked
+ * of the source index the tree came from in one native pass over every file's
+ * parse: each name is compared where the index holds it, and only a file that
+ * matches comes back. A name out of a file the tree holds is read off the
+ * source index, as `uses` reads it.
  *
  * ## What reaches a subject says how
  *
@@ -81,36 +82,15 @@ const none = (): readonly Evidence[] => [];
 const said = (unread: string | undefined): string => (unread === undefined ? '' : ` — ${unread}`);
 
 /**
- * The files a reader claims and the names do not hold: a file whose names the
- * scan could not hand over is unknown, never a file that declares and imports
- * nothing, so a name operand says how many there are. A file no reader claims,
- * a README or a manifest, has no names to read and is not counted.
+ * The files the tree holds whose names the index does not: a file whose parse
+ * the scan could not hand over is unknown, never a file that declares and
+ * imports nothing, so a name operand says how many there are. A file no reader
+ * claims, a README or a manifest, has no names to read and is not counted.
  */
-function unreadOf(tree: Tree, names: SourceNames): string | undefined {
+function unreadOf(tree: Tree, found: Found): string | undefined {
   let unread = 0;
-  for (const file of tree.files) if (READABLE.has(extname(file)) && !names.has(file)) unread += 1;
+  for (const file of found.unread) if (tree.files.has(file)) unread += 1;
   return unread === 0 ? undefined : `the names of ${counted(unread)} were not read`;
-}
-
-/** `react/jsx-runtime` is `react`; `./store/selectors` is not `./store`. */
-const isBare = (spec: string): boolean => !spec.startsWith('.') && !spec.startsWith('/');
-
-/** One or several values, said as a string or an array. */
-function listArg(input: Readonly<Record<string, unknown>>, name: string): readonly string[] {
-  return pathsOf(startPointArg(input, name));
-}
-
-function textArg(input: Readonly<Record<string, unknown>>, name: string): string | undefined {
-  const said = input[name];
-  return typeof said === 'string' && said.trim() !== '' ? said : undefined;
-}
-
-function regexOf(name: string, pattern: string, flags: string): RegExp {
-  try {
-    return new RegExp(pattern, flags);
-  } catch (error) {
-    throw new Error(`\`${name}\` is not a regular expression: ${error instanceof Error ? error.message : String(error)}.`);
-  }
 }
 
 /** How a step that is not a plain import is said on a chain. */
@@ -235,29 +215,19 @@ function reachingName(term: string, file: string, name: string, tree: Tree, root
  * followed, so an import through a barrel counts. Anything else — a package, a
  * specifier as written, a file with no name — is matched in the names.
  */
-function importsOf(written: string, tree: Tree, names: () => SourceNames, root: string | undefined): Operand {
+function importsOf(written: string, tree: Tree, found: () => Found, root: string | undefined): Operand {
   const { spec, name } = nameOf(written);
   if (name !== undefined && tree.files.has(spec)) return importersOfFile(spec, name, root);
-  const held = names();
-  const files = new Set<string>();
-  const lines = new Map<string, Evidence[]>();
-  for (const [file, read] of held) {
-    for (const entry of read.imported) {
-      const module = entry.from === spec || (isBare(spec) && entry.from.startsWith(`${spec}/`)) || entry.to === spec;
-      if (!module || (name !== undefined && entry.name !== name)) continue;
-      files.add(file);
-      const what = entry.name === undefined ? '' : `${entry.name} `;
-      const as = entry.local === undefined ? '' : ` as ${entry.local}`;
-      const through = entry.through === undefined ? '' : ` through ${entry.through}`;
-      const list = lines.get(file) ?? [];
-      list.push({ line: entry.line, text: `imports ${what}from ${entry.from}${as}${through}` });
-      lines.set(file, list);
-    }
-  }
+  const held = found();
+  const lines = linesOf(held.imports.shift()!, held, (hit) => {
+    const as = hit.local == null ? '' : ` as ${hit.local}`;
+    const through = hit.through == null ? '' : ` through ${hit.through}`;
+    return `imports ${hit.name == null ? '' : `${hit.name} `}from ${hit.from}${as}${through}`;
+  });
   const unread = unreadOf(tree, held);
   return {
-    header: `${counted(files.size)} importing ${name === undefined ? '' : `\`${name}\` from `}\`${spec}\`${said(unread)}`,
-    files,
+    header: `${counted(lines.size)} importing ${name === undefined ? '' : `\`${name}\` from `}\`${spec}\`${said(unread)}`,
+    files: new Set(lines.keys()),
     evidence: (file) => lines.get(file) ?? [],
     ...(unread === undefined ? {} : { unread }),
   };
@@ -275,17 +245,6 @@ function importersOfFile(file: string, name: string, root: string | undefined): 
     files: new Set(lines.keys()),
     evidence: (at) => lines.get(at) ?? [],
   };
-}
-
-/** `spec#name`, split at the last `#` past the first character; a `#` with nothing after it is refused. */
-function nameOf(written: string): { readonly spec: string; readonly name: string | undefined } {
-  const at = written.lastIndexOf('#');
-  const spec = at > 0 ? written.slice(0, at) : written;
-  const name = at > 0 ? written.slice(at + 1) : undefined;
-  if (name === '') {
-    throw new Error(`\`${written}\` has nothing after \`#\`. Say \`${spec}#name\`, or \`${spec}\` for every import of it.`);
-  }
-  return { spec, name };
 }
 
 /** Each importing file, and the lines on which it imports the name, in the order the index holds them. */
@@ -307,23 +266,29 @@ function passedOn(through: readonly string[]): string {
   return through.length === 0 ? '' : `, through ${counted(through.length)} that ${through.length === 1 ? 'passes' : 'pass'} it on`;
 }
 
-function declaresOf(pattern: string, tree: Tree, names: SourceNames): Operand {
-  const matches = regexOf('declares', pattern, 'i');
-  const files = new Set<string>();
-  const lines = new Map<string, Evidence[]>();
-  for (const [file, held] of names) {
-    const declared = held.declared.filter((entry) => matches.test(entry.name));
-    if (declared.length === 0) continue;
-    files.add(file);
-    lines.set(file, declared.map((entry) => ({ line: entry.line, text: `declares ${entry.name}` })));
-  }
-  const unread = unreadOf(tree, names);
+function declaresOf(pattern: string, tree: Tree, found: Found): Operand {
+  const asked = found.declares.shift()!;
+  if (asked.refused != null) throw new Error(`\`declares\` is not a pattern the source index reads: ${asked.refused}.`);
+  const lines = linesOf(asked.hits, found, (hit) => `declares ${hit.name}`);
+  const unread = unreadOf(tree, found);
   return {
-    header: `${counted(files.size)} declaring a name matching /${pattern}/i${said(unread)}`,
-    files,
+    header: `${counted(lines.size)} declaring a name matching /${pattern}/i${said(unread)}`,
+    files: new Set(lines.keys()),
     evidence: (file) => lines.get(file) ?? [],
     ...(unread === undefined ? {} : { unread }),
   };
+}
+
+/** Each file's lines, spelled as the tree spells it. */
+function linesOf(hits: readonly NameHit[], found: Found, text: (hit: NameHit) => string): ReadonlyMap<string, readonly Evidence[]> {
+  const lines = new Map<string, Evidence[]>();
+  for (const hit of hits) {
+    const file = found.spelled(hit.file);
+    const list = lines.get(file) ?? [];
+    list.push({ line: hit.line, text: text(hit) });
+    lines.set(file, list);
+  }
+  return lines;
 }
 
 function pathOf(pattern: string, tree: Tree): Operand {
@@ -333,23 +298,18 @@ function pathOf(pattern: string, tree: Tree): Operand {
 }
 
 /** The operands a call names, positive and taken out, in the order the schema lists them. */
-function operandsOf(input: Readonly<Record<string, unknown>>, tree: Tree, names: SourceNames | undefined, root: string | undefined) {
-  const named = (): SourceNames => {
-    if (names !== undefined) return names;
-    throw new Error(
-      '`discover` ran nothing: no names were read with the source tree here, so `declares`, and ' +
-        '`imports` of anything but a name out of a repository file, have nothing to answer from. Ask ' +
-        '`variance ask discover` in the checkout, which reads them as it reads the tree.',
-    );
-  };
+function operandsOf(input: Readonly<Record<string, unknown>>, tree: Tree, invocation: ToolInvocation<unknown> | undefined) {
+  const root = invocation?.root;
+  let held: Found | undefined;
+  const found = (): Found => (held ??= foundOf(input, tree, invocation));
   const read = (prefix: '' | 'except'): Operand[] => {
     const key = (name: string): string => (prefix === '' ? name : `${prefix}${name[0]!.toUpperCase()}${name.slice(1)}`);
     const operands: Operand[] = [];
     for (const term of listArg(input, key('from'))) operands.push(reach(term, tree, true, root));
     for (const term of listArg(input, key('to'))) operands.push(reach(term, tree, false, root));
-    for (const written of listArg(input, key('imports'))) operands.push(importsOf(written, tree, named, root));
+    for (const written of listArg(input, key('imports'))) operands.push(importsOf(written, tree, found, root));
     const declares = textArg(input, key('declares'));
-    if (declares !== undefined) operands.push(declaresOf(declares, tree, named()));
+    if (declares !== undefined) operands.push(declaresOf(declares, tree, found()));
     const path = textArg(input, key('path'));
     if (path !== undefined) operands.push(pathOf(path, tree));
     return operands;
@@ -358,19 +318,8 @@ function operandsOf(input: Readonly<Record<string, unknown>>, tree: Tree, names:
 }
 
 /**
- * Whether a call names an operand read off the names. A question about paths
- * alone reads the tree and nothing else: on a large checkout the names cost a
- * second read of every file for its declarations.
- */
-export function readsNames(input: Readonly<Record<string, unknown>>): boolean {
-  // Read as `operandsOf` reads them, so a set said empty costs no names.
-  return ['imports', 'exceptImports'].some((key) => listArg(input, key).length > 0) ||
-    ['declares', 'exceptDeclares'].some((key) => textArg(input, key) !== undefined);
-}
-
-/**
- * Typed over nothing, like `grep`: the tree and the names arrive on the
- * invocation, and the text is ripgrep's.
+ * Typed over nothing, like `grep`: the tree arrives on the invocation, the
+ * names are the source index's, and the text is ripgrep's.
  */
 export const discover: Tool<unknown> = {
   name: 'docs_discover',
@@ -380,8 +329,8 @@ export const discover: Tool<unknown> = {
     'who declares a name matching a pattern (`declares`), whose path matches one (`path`). Several ' +
     'values of one operand are several sets, crossed. `except…` operands take their files out, and ' +
     '`text` keeps only the files with a line ripgrep matches. Nearest first, with the line that puts ' +
-    'each file in each set. `declares`, and `imports` of anything but `file#name`, read every file\'s names ' +
-    'off the source index the tree came from; a host that holds none refuses them.',
+    'each file in each set. `declares`, and `imports` of anything but `file#name`, are read from the ' +
+    'source index the tree came from.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -444,7 +393,7 @@ function answered(input: Readonly<Record<string, unknown>>, invocation: ToolInvo
   if (tree === undefined) {
     throw new Error('`discover` ran nothing: no source tree was read. Ask from a checkout of the workspace.');
   }
-  const { kept, out } = operandsOf(input, tree, invocation?.names, invocation?.root);
+  const { kept, out } = operandsOf(input, tree, invocation);
   if (kept.length === 0) {
     const spell = spellingOf(invocation);
     const sets = ['from', 'to', 'imports', 'declares'].map((name) => `\`${spell.input(name)}\``).join(', ');

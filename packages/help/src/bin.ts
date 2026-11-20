@@ -5,7 +5,7 @@ import { ask, askSearch, askSearchJson, countingShown, inputFrom, invocationOf, 
 import { foundNothingAnswer, refusalFooter, snapshotLine } from './caught-up.js';
 import { readWorkspaceForAnswer } from './read.js';
 import { workspaceGeneration } from './snapshot.js';
-import { readGenerationNames, readNamedTree } from './names-read.js';
+import { generationSourceIndex, readNamedTree } from './names-read.js';
 import { readSearchForAnswer } from './search-read.js';
 import { containment, containmentOf, formatContainment } from './tools/containment.js';
 import { discover } from './tools/discover.js';
@@ -33,18 +33,18 @@ import { writePages } from './write.js';
 
 /**
  * An intersection one of whose questions reads every file's names: the tree
- * comes with the workspace value, and the names off the parses the published
- * source index holds beside it.
+ * comes with the workspace value, and the names are asked of the source index
+ * it was published from.
  */
 async function crossNamed(root: string, reading: Reading, args: readonly string[]): Promise<Answering> {
   const input = inputFrom(intersection, args);
   let tree: Tree | undefined;
   const help = await readWorkspaceForAnswer(root, { ...reading, tree: (drawn) => { tree = drawn; } });
-  const names = { ...(tree === undefined ? {} : { tree }), names: await readGenerationNames(help, root) };
+  const named = { ...(tree === undefined ? {} : { tree }), sourceIndex: generationSourceIndex(help, root) };
   const at = workspaceGeneration(help);
   return {
     answer: () => {
-      const answer = intersection.run(help, input, invocationOf({ ...names, root }));
+      const answer = intersection.run(help, input, invocationOf({ ...named, root }));
       return at === undefined ? answer : `${answer}\n${snapshotLine(at, true)}`;
     },
     at,
@@ -169,7 +169,7 @@ if (asking(verb) && verb !== undefined) {
         return { answer: () => (format === 'json' ? askSearchJson : askSearch)(index, ownArgs, () => tree, true, unopened, importing), at: index.generation?.generatedAt };
       }
       if (tool === discover) {
-        const { at, ...named } = await readNamedTree(root, inputFrom(tool, ownArgs));
+        const { at, ...named } = await readNamedTree(root);
         return {
           answer: () => {
             const answer = discover.run(undefined, inputFrom(tool, ownArgs), invocationOf({ ...named, root }));
