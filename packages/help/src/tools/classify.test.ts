@@ -93,6 +93,15 @@ describe('docs_classify', () => {
     expect(listed('Sense sense')).toEqual(['export @acme/kernel', 'package @acme/sense']);
   });
 
+  it('names two exports of one entrypoint, each with its own `symbol` question', () => {
+    const text = formatClassified(classifyWords('checkoutPath eyes', HELP, MAPPED), PLACED);
+
+    expect(text).toMatch(/^checkoutPath — export @acme\/sense/m);
+    expect(text).toMatch(/^eyes — package @acme\/eyes.*\n {5}— export @acme\/sense/m);
+    expect(text).toContain('variance ask symbol --name checkoutPath');
+    expect(text).toContain('variance ask symbol --name eyes');
+  });
+
   it('asks the next question of everything a word names, not only the first', () => {
     const text = formatClassified(classifyWords('eyes', HELP, MAPPED), PLACED);
 

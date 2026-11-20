@@ -106,13 +106,16 @@ export function classifyWords(text: string, help: Help, packages: Iterable<strin
     // A package or an entrypoint is matched without case and an export only as
     // spelled, so a word lists only what no earlier word did: `Sense` after
     // `sense` still names an export `Sense`, and names nothing new otherwise.
+    // An export is its name in its specifier, so two names one entrypoint
+    // exports are two entities.
     const names = [...(folded.get(word.toLowerCase()) ?? []), ...(exact.get(word) ?? [])];
     if (names.length === 0) {
       plain.add(word);
       continue;
     }
-    const fresh = names.filter((named) => !listed.has(`${named.kind} ${named.specifier}`));
-    for (const named of fresh) listed.add(`${named.kind} ${named.specifier}`);
+    const keyOf = (named: Named): string => (named.kind === 'export' ? `export ${named.specifier} ${word}` : `${named.kind} ${named.specifier}`);
+    const fresh = names.filter((named) => !listed.has(keyOf(named)));
+    for (const named of fresh) listed.add(keyOf(named));
     if (fresh.length > 0) entities.push({ word, names: fresh.sort((one, other) => ORDER.indexOf(one.kind) - ORDER.indexOf(other.kind)) });
   }
   return { entities, plain: [...plain] };

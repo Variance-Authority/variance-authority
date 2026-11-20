@@ -443,7 +443,11 @@ row goes to `docs_entrypoint` as `package`, exactly as printed.
 Holding a request in words rather than a name, call `docs_classify` with it as
 `query` instead. It says which of its words are, whole, a package, an
 entrypoint or an exported name, each with its area and layer on the code map,
-and ends in the `docs_entrypoint` or `docs_symbol` call that each one takes.
+and ends with the question each one takes next, written as the `variance ask`
+command whatever the caller: `symbol` (`docs_symbol`) for an exported name,
+`entrypoint` (`docs_entrypoint`) for a published package or entrypoint, and
+`orient --area` (`docs_orient`) for a package that publishes nothing, or no
+question when the map placed it in no area.
 
 Called with a specifier, `docs_entrypoint` lists the names it opens, ranked by
 how many workspace packages import them. Called with a package's name, it lists
