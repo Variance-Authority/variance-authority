@@ -403,7 +403,7 @@ export const search: Tool<Help> = {
   run: (help, input, invocation) => spoken(searchedOnce(help, input, invocation), invocation?.root),
 
   files: (help, input, invocation): FileSet => ({
-    files: searchedFiles(searchIndexOf(help), searchQuestionOf(input), invocation?.tree),
+    files: searchedFiles(searchIndexOf(help), searchQuestionOf(input), invocation?.tree, invocation?.root),
   }),
 };
 

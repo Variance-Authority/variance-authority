@@ -30,8 +30,8 @@ export function suiteCaseNames(root: string): readonly SuiteCaseNames[] {
   }
 }
 
-/** The cases that answer `query`, the shown few of them, and what was left unread. */
-export function recordedTests(suites: readonly SuiteCaseNames[], query: string, within: ReadonlySet<string> | undefined, cap: number): RecordedTests {
+/** The matching cases and what was unread; `file` receives each match before the display cap. */
+export function recordedTests(suites: readonly SuiteCaseNames[], query: string, within: ReadonlySet<string> | undefined, cap: number, file?: (at: string) => void): RecordedTests {
   const unread = suites.filter((suite) => 'why' in suite);
   const asked = describedWordsNative(query);
   if (asked.length === 0) return { total: 0, shown: [], unread };
@@ -46,6 +46,7 @@ export function recordedTests(suites: readonly SuiteCaseNames[], query: string, 
   const stemmed = termsOfStems(dictionary, asked.map(([stem]) => stem));
   const reached = asked.map(([, word], at) => new Set([...matchingTerms(dictionary, word, 0), ...(stemmed[at] ?? [])]));
   const named = cases.filter((_, at) => reached.every((words) => held[at]?.some((term) => words.has(term))));
+  if (file !== undefined) for (const one of named) file(one.at);
   const phrases = phraseOfNative(query, named.map((row) => row.name));
   const ordered = named
     .map((row, at) => ({ row, apart: phrases[at] === undefined ? 1 : 0 }))
