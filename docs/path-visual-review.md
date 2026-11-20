@@ -47,9 +47,11 @@ not three changes.
 
 ### Different changes are reported differently
 
-A change also has a kind, read from the page's document rather than from its
-pixels. Each component is hashed once per **band**, and the report names the
-bands whose hash changed, loudest first:
+A change also has a kind, read from the page itself — its accessibility tree,
+its layout boxes and its computed styles — rather than from its pixels. Each
+component's properties are split into **bands**, each band is reduced to a
+short fingerprint, and the report names the bands whose fingerprint changed,
+loudest first:
 
 ```text
   ChooseButton · cause · token

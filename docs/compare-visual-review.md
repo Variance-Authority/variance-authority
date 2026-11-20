@@ -5,8 +5,12 @@ Argos, Applitools and [Variance Authority](README.md) against each other, and
 their own pages do not agree on which axes decide it. This page sets the six
 side by side on what each captures for a subject, where its pixels are painted,
 who approves a diff, and what that costs in privacy, browser coverage and
-money. [§7](#7-start-beside-the-tool-you-have) is where you install beside the
-tool you already have. For test selection and coverage reporting, [compare
+money. If your question is what a failing screenshot tells you beyond a red
+image, [§2](#2-what-a-variance-authority-diff-reports) answers it: which regions
+were edited and which were only pushed aside, what kind of change each is, and
+the component and source line behind it.
+[§7](#7-start-beside-the-tool-you-have) is where you install beside the tool
+you already have. For test selection and coverage reporting, [compare
 with the tool you already have](comparison.md).
 
 **Decide first whether you want to operate it.** There is no hosted service, no
