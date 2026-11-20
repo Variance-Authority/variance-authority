@@ -19,7 +19,7 @@
 
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import { linesThen, passedAt, testsRan, type RanRegion, type TestRan } from '@variance-authority/sense';
-import { notShown, type Spelling } from '@variance-authority/mcp/tools';
+import { nextPage, pageAt, paged, type Page, type Spelling } from '@variance-authority/mcp/tools';
 import { ripgrep, type Hit } from './ripgrep.js';
 
 /** One suite's matching lines, split by whether the test ran them. */
@@ -81,12 +81,22 @@ export function grepRan(root: string, query: string, file: string, name: string 
   return { answered, refused };
 }
 
-/** The answer, ran lines first, then the lines in regions the test passed by. */
-export function formatGrepRan(query: string, { answered, refused }: GrepRan, limit: number, spell: Spelling): string {
-  return [...answered.map((marked) => formatSuite(query, marked, limit, spell)), ...refused].join('\n\n');
+/**
+ * The answer, ran lines first, then the lines in regions the test passed by.
+ * Each suite's lines are one ordered list, so `page` counts across its
+ * sections, and every suite shows the same rows of its own list.
+ */
+export function formatGrepRan(query: string, { answered, refused }: GrepRan, page: Page, spell: Spelling): string {
+  return [...answered.map((marked) => formatSuite(query, marked, page, spell)), ...refused].join('\n\n');
 }
 
-function formatSuite(query: string, { suite, ran, taken, passed, written, notes, errors }: Marked, limit: number, spell: Spelling): string {
+/** The rows of `page` that fall in a section starting at `start` of the suite's list. */
+function within<Row>(rows: readonly Row[], start: number, page: Page): readonly Row[] {
+  const from = Math.max(0, page.offset - start);
+  return paged(rows, { offset: from, limit: Math.max(0, page.offset + page.limit - start - from) });
+}
+
+function formatSuite(query: string, { suite, ran, taken, passed, written, notes, errors }: Marked, page: Page, spell: Spelling): string {
   const test = ran.test!;
   const entered = ran.modules.length;
   const lines = [
@@ -98,25 +108,25 @@ function formatSuite(query: string, { suite, ran, taken, passed, written, notes,
   const total = taken.length + passed.length + written.length;
   if (total === 0) return [...lines, '', `Nothing in those files matches \`${query}\`.`].join('\n');
   const matched = new Set([...taken, ...passed.map(({ hit }) => hit), ...written].map((hit) => hit.file)).size;
-  lines.push('', `${total} matching ${total === 1 ? 'line' : 'lines'} in ${matched} ${matched === 1 ? 'file' : 'files'}.`);
-  let left = limit;
-  if (taken.length > 0 && left > 0) {
+  lines.push('', `${total} matching ${total === 1 ? 'line' : 'lines'} in ${matched} ${matched === 1 ? 'file' : 'files'}.`, ...pageAt(page, total, spell));
+  const ranShown = within(taken, 0, page);
+  if (ranShown.length > 0) {
     lines.push('', 'Ran:');
-    for (const hit of taken.slice(0, left)) lines.push(`${hit.file}:${hit.line}:${hit.text}`);
-    left -= Math.min(left, taken.length);
+    for (const hit of ranShown) lines.push(`${hit.file}:${hit.line}:${hit.text}`);
   }
-  if (passed.length > 0 && left > 0) {
+  const passedShown = within(passed, taken.length, page);
+  if (passedShown.length > 0) {
     lines.push('', 'Not taken:');
-    for (const { hit, by, partly } of passed.slice(0, left)) {
+    for (const { hit, by, partly } of passedShown) {
       lines.push(`${hit.file}:${hit.line}:${hit.text}`, `  in ${region(hit.file, by)}, which it did not enter${partly ? '; the rest of the line ran' : ''}`);
     }
-    left -= Math.min(left, passed.length);
   }
-  if (written.length > 0 && left > 0) {
+  const writtenShown = within(written, taken.length + passed.length, page);
+  if (writtenShown.length > 0) {
     lines.push('', 'Written since the recording, so no test has run it:');
-    for (const hit of written.slice(0, left)) lines.push(`${hit.file}:${hit.line}:${hit.text}`);
+    for (const hit of writtenShown) lines.push(`${hit.file}:${hit.line}:${hit.text}`);
   }
-  if (total > limit) lines.push('', notShown(total - limit, spell));
+  for (const next of nextPage(page, total, spell)) lines.push('', next);
   return lines.join('\n');
 }
 

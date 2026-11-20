@@ -1,6 +1,6 @@
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { FileSet, Link, Tool, ToolInvocation, Tree } from '@variance-authority/mcp/tools';
-import { entryPoints, limitOf, notShown, refusalFor, spellingOf } from '@variance-authority/mcp/tools';
+import { entryPoints, nextPage, pageAt, pageOf, paged, refusalFor, spellingOf } from '@variance-authority/mcp/tools';
 import type { NameHit } from '@variance-authority/sense';
 import { startPointNeeded } from './area.js';
 import { foundOf, type Found } from './discover-names.js';
@@ -354,6 +354,7 @@ export const discover: Tool<unknown> = {
       exceptDeclares: { type: 'string', description: 'As `declares`, taken out.' },
       exceptPath: { type: 'string', description: 'As `path`, taken out.' },
       limit: { type: 'integer', description: `Files to show. ${SHOWN} when not said; the rest are counted.` },
+      offset: { type: 'integer', minimum: 0, description: 'Rows to skip before the first shown; an answer with more names the next. 0 when not said.' },
     },
     additionalProperties: false,
   },
@@ -362,19 +363,19 @@ export const discover: Tool<unknown> = {
 
   run: (_subject, input, invocation) => {
     const spell = spellingOf(invocation);
-    const limit = limitOf(input, SHOWN, spell);
+    const page = pageOf(input, SHOWN, spell);
     const { kept, header, answer, matched, reaches } = answered(input, invocation);
     if (answer.length === 0) return [...header, '', 'No file is in all of them.'].join('\n');
 
     const shown = (evidence: Evidence): string => `  ${evidence.line === undefined ? '' : `${evidence.line}  `}${evidence.text}`;
     const order = reaches === 0 ? '.' : ', nearest first.';
-    const lines = [...header, '', `${counted(answer.length)} in all of them${order}`];
-    for (const file of answer.slice(0, limit)) {
+    const lines = [...header, '', `${counted(answer.length)} in all of them${order}`, ...pageAt(page, answer.length, spell)];
+    for (const file of paged(answer, page)) {
       lines.push('', file);
       for (const operand of kept) for (const evidence of operand.evidence(file)) lines.push(shown(evidence));
       for (const evidence of matched.get(file) ?? []) lines.push(shown(evidence));
     }
-    if (answer.length > limit) lines.push('', notShown(answer.length - limit, spell));
+    for (const next of nextPage(page, answer.length, spell)) lines.push('', next);
     return lines.join('\n');
   },
 

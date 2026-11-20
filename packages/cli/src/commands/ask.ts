@@ -259,7 +259,7 @@ export async function askSource(request: SourceRequest): Promise<string> {
   }
   if (crossing) for (const { flag, typed } of unknown ?? []) ignored(tool, flag, typed, ignore);
   const input = crossing
-    ? intersectionInput(request.reports ?? [], request.limit, ignore)
+    ? intersectionInput(request.reports ?? [], request, ignore)
     : inputFor(tool, flagged(request), ignore, unknown);
   const changed = request.changedFile === undefined ? undefined : await readChanged(request.changedFile);
   const taints = request.taintFile === undefined ? undefined : [await readTaint(request.taintFile)];

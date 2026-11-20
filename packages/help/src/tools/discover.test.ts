@@ -246,7 +246,18 @@ describe('discover crosses whole sets', () => {
   it('counts every file and shows the nearest', () => {
     const text = ask({ from: 'src/TopNav.tsx', limit: 2 });
     expect(text).toContain('6 files in all of them');
-    expect(text).toContain('4 more not shown; a higher `limit` shows them.');
+    expect(text).toContain('4 more not shown; `offset` 2 shows the next 2.');
+  });
+
+  it('shows the page an offset asks for, counted from the same order, and says one past the last file shows none', () => {
+    const first = ask({ from: 'src/TopNav.tsx', limit: 2 });
+    const second = ask({ from: 'src/TopNav.tsx', limit: 2, offset: 2 });
+    const rows = (text: string): string[] => text.split('\n').filter((line) => line.startsWith('src/'));
+    expect(second).toContain('6 files in all of them');
+    expect(second).toContain('Rows 3–4 of 6.');
+    expect(second).toContain('2 more not shown; `offset` 4 shows the next 2.');
+    expect([...rows(first), ...rows(second)]).toEqual(rows(ask({ from: 'src/TopNav.tsx', limit: 4 })));
+    expect(ask({ from: 'src/TopNav.tsx', offset: 6 })).toContain('`offset` 6 is past the last of 6 rows.');
   });
 });
 

@@ -588,7 +588,9 @@ file is, then by path and line, each as `path:line:text`. The imports are the
 ones `variance index` resolved, so the answer names its generation; it is asked
 again of the checkout as it is when a file of the area changed since. A file
 written since, under a folder it starts from or importing into its area, waits
-for the next `variance index`.
+for the next `variance index`. It shows 200 lines and counts the rest; the last
+line names the `--offset` of the next page. With `--test`, a suite's ran, not
+taken and written lines are one list, paged the same way.
 
 ### `discover`
 
@@ -638,10 +640,10 @@ that is not a plain import marked — `src/Page.ts → src/Model.ts (type import
 src/store/selectors.ts` — and for `file#name` the chain ends at the line that
 imports the name. The `--to` header names the files it did not reach that
 import something the scan could not resolve, since they may reach the path
-through it. It shows 50; `--limit`
-shows more, and the count is always of all of them. A source file whose names
-the scan did not hand over is counted in the `--imports` and `--declares`
-headers, since it is unknown rather than a file with no names; a README or a
+through it. It shows 50, and the count is always of all of them; when more
+remain, the answer ends with how many and the `--offset` that shows the next
+page. A source file whose names the scan did not hand over is counted in the
+`--imports` and `--declares` headers, since it is unknown rather than a file with no names; a README or a
 manifest has none to read.
 Over MCP, `docs_discover` answers `from`, `to`, `path` and `--imports` of a
 name out of a repo-relative file, and refuses `declares` and any other
@@ -671,10 +673,10 @@ candidates; composition does not make them exact. Installed dependency names
 identify no workspace file. The query's area and fallback rules still apply. The
 answer counts each question's files first, then lists the files in all of
 them, each with the lines that put it in each question, or `the file` when a
-question answers a file without a line. It shows 50; `--limit` shows more, and
-the count is always of all of them. `--changed-file` and `--taint-file` are
-said once, after `intersection`, outside the quotes: every question is answered
-over one reading.
+question answers a file without a line. It shows 50, and the count is always
+of all of them; `--offset` shows the next page, as its last line names.
+`--changed-file` and `--taint-file` are said once, after `intersection`,
+outside the quotes: every question is answered over one reading.
 
 A question about a name nothing declares answers no file: the answer says so
 beside that question, with what was read, and that no file is in all of them,

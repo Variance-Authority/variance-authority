@@ -1,6 +1,9 @@
 /**
  * `limit`, as every listing question reads it: how many rows to show, where
- * every row is still counted and the rest are said.
+ * every row is still counted and the rest are said. A question that answers
+ * one ordered list also reads `offset`, the rows to skip, and names the offset
+ * of its next page, so a reader past the first page asks for that page rather
+ * than for every row.
  */
 
 // compass: variance-authority.report.agent-surface
@@ -42,4 +45,50 @@ export function notShown(rest: number, spell: Spelling, rows?: Rows): string {
 /** The line counting the `count` rows past the first `limit`; none when there are no more. */
 export function notShownPast(count: number, limit: number, spell: Spelling, rows?: Rows): readonly string[] {
   return count > limit ? [notShown(count - limit, spell, rows)] : [];
+}
+
+/** One page of an ordered list: `limit` rows after the first `offset`. */
+export interface Page {
+  readonly offset: number;
+  readonly limit: number;
+}
+
+/**
+ * The page said in `input`: `limit` as `limitOf` reads it, and `offset`, 0
+ * when none is said. An offset that is not a whole number of at least 0 is
+ * refused, naming `offset` as the surface asked takes it.
+ */
+export function pageOf(input: Readonly<Record<string, unknown>>, shown: number, spell: Spelling): Page {
+  const said = input['offset'];
+  const offset = said === undefined ? 0 : typeof said === 'string' && said.trim() !== '' ? Number(said) : said;
+  if (typeof offset !== 'number' || !Number.isInteger(offset) || offset < 0) {
+    throw new Error(`\`${spell.input('offset')}\` takes a whole number of rows to skip, 0 or more; it was given \`${String(said)}\`.`);
+  }
+  return { offset, limit: limitOf(input, shown, spell) };
+}
+
+/** The rows of `page`, in the list's order. */
+export function paged<Row>(rows: readonly Row[], page: Page): readonly Row[] {
+  return rows.slice(page.offset, page.offset + page.limit);
+}
+
+/**
+ * What a page says above its rows when it does not start at the first: which
+ * of the `total` rows it shows, or that `offset` is past the last of them.
+ */
+export function pageAt(page: Page, total: number, spell: Spelling): readonly string[] {
+  if (page.offset === 0) return [];
+  if (page.offset >= total) return [`\`${spell.input('offset')}\` ${page.offset} is past the last of ${total} rows.`];
+  return [`Rows ${page.offset + 1}–${Math.min(total, page.offset + page.limit)} of ${total}.`];
+}
+
+/**
+ * What a page says below its rows when rows remain after it: how many, and
+ * the `offset` that shows the next page, as the surface asked takes it.
+ */
+export function nextPage(page: Page, total: number, spell: Spelling): readonly string[] {
+  const next = page.offset + page.limit;
+  if (next >= total) return [];
+  const rest = total - next;
+  return [`${rest} more not shown; \`${spell.input('offset')}\` ${next} shows the next ${Math.min(rest, page.limit)}.`];
 }

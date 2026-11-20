@@ -97,7 +97,13 @@ describe('ask intersection over a checkout', () => {
   it('takes `--limit` for itself', async () => {
     const text = await askSource({ question: 'intersection', reports: ['discover --path ^src/', 'discover --path selectors'], limit: 1 });
     expect(text).toContain('2 files in all of them.');
-    expect(text).toContain('1 more not shown');
+    expect(text).toContain('1 more not shown; `--offset` 1 shows the next 1.');
+  });
+
+  it('takes `--offset` for itself, and shows the page it names', async () => {
+    const text = await askSource({ question: 'intersection', reports: ['discover --path ^src/', 'discover --path selectors'], limit: 1, offset: 1 });
+    expect(text).toContain('Rows 2–2 of 2.');
+    expect(text).not.toContain('more not shown');
   });
 });
 

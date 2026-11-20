@@ -110,7 +110,13 @@ describe('grep over a closure', () => {
   });
 
   it('counts what the limit leaves out', () => {
-    expect(ask({ query: 'leaf', from: 'src/leaves.ts', limit: 2 })).toContain(`${MANY - 2} more not shown`);
+    expect(ask({ query: 'leaf', from: 'src/leaves.ts', limit: 2 })).toContain(`${MANY - 2} more not shown; \`offset\` 2 shows the next 2.`);
+  });
+
+  it('shows the lines after an offset, with which of them they are', () => {
+    const text = ask({ query: 'leaf', from: 'src/leaves.ts', limit: 2, offset: 2 });
+    expect(text).toContain(`Rows 3–4 of ${MANY}.`);
+    expect(text).toContain(`${MANY - 4} more not shown; \`offset\` 4 shows the next 2.`);
   });
 
   it('says the area held nothing, not that the word is nowhere', () => {

@@ -31,7 +31,6 @@ variance ask stack --from src/env.ts
 ```text
 2 packages usable from src/env.ts, under package.json: 1 imported, 1 declared and not imported, 0 with imports not read.
 1 package ships agent skills, each listed under its package with its SKILL.md.
-Rows 1–2.
 
 Imported here:
   dotenv@17.4.2 · runtime · dependency in package.json · imported 1× (first src/env.ts:1)
@@ -40,8 +39,6 @@ Imported here:
 
 Declared, not imported here:
   picocolors@1.1.1 · runtime · dependency in package.json · not imported
-
-No more rows.
 ```
 
 The list comes from the manifest that owns the path, so in a monorepo it is the

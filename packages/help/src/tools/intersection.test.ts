@@ -122,7 +122,16 @@ describe('an intersection answers the files every question answers', () => {
     expect(text).toContain('3 files in all of them.');
     expect(text).toContain('src/Wallet.ts — 1: the file · 2: the file');
     expect(text).not.toContain('src/store/index.ts —');
-    expect(text).toContain('2 more not shown; a higher `limit` shows them.');
+    expect(text).toContain('2 more not shown; `offset` 1 shows the next 1.');
+    const next = ask(
+      [
+        { question: 'discover', input: { from: 'src/Wallet.ts' } },
+        { question: 'discover', input: { from: 'src/Wallet.ts' } },
+      ],
+      { limit: 1, offset: 1 },
+    );
+    expect(next).toContain('Rows 2–2 of 3.');
+    expect(next).not.toContain('src/Wallet.ts —');
   });
 
   it('asks each question with the subject and everything the host read', () => {

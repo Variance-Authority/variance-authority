@@ -69,7 +69,7 @@ describe('what a question takes', () => {
   });
 
   it('spells whole questions as quoted words, never behind a flag', () => {
-    expect(takes(intersection)).toBe("  '<question>' '<question>'... [--limit <n>]");
+    expect(takes(intersection)).toBe("  '<question>' '<question>'... [--limit <n>] [--offset <n>]");
   });
 
   it('says nothing after a question that takes nothing', () => {
