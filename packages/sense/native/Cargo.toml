@@ -138,10 +138,14 @@ lto = true
 codegen-units = 1
 opt-level = 3
 
-# `mmap`, `munmap` and `mremap`, which the addon's allocator maps a large block
-# with on macOS and Linux, whose allocators keep a freed large block resident.
+# The addon's allocator on macOS and Linux (`large_alloc.rs`): jemalloc for the
+# small blocks, whose pages the system allocators keep resident once freed, and
+# `mmap`, `munmap` and `mremap` for a large block, which they keep resident too.
+# Node loads the addon with `dlopen`, after startup, where glibc may have no
+# static TLS left for jemalloc's initial-exec model.
 [target.'cfg(any(target_os = "macos", target_os = "linux"))'.dependencies]
 libc = "0.2"
+tikv-jemallocator = { version = "0.7", features = ["disable_initial_exec_tls"] }
 
 # The tests' dependencies, oxc above all, built optimised: the instrument crate
 # walks every installed module through the parser, and a debug parser made that
