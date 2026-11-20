@@ -3,8 +3,12 @@ name = "calc"
 version = "0.1.0"
 edition = "2024"
 
-# Its own workspace, not the repository's.
+# Its own workspace, not the repository's, which leaves out a crate it depends on.
 [workspace]
+exclude = ["outside"]
+
+[dependencies]
+outside = { path = "outside" }
 
 # A target with its own `main`, which answers no libtest listing.
 [[test]]

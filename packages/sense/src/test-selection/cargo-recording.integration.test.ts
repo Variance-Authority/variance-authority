@@ -89,9 +89,9 @@ describe('a Cargo suite recorded one test per process', () => {
   });
 
   // What Cargo builds from is read by no test, yet changes what every test runs.
-  it('selects every file when a manifest, Cargo\'s configuration, a build script, a file it names or a file the source includes changes', async () => {
+  it('selects every file when a manifest, Cargo\'s configuration, a build script, a file it names, a file the source includes or a path dependency the workspace leaves out changes', async () => {
     const crate = relative(repository, fixture);
-    for (const file of ['Cargo.toml', 'Cargo.lock', '.cargo/config.toml', 'build.rs', 'schema.txt', 'src/greeting.txt']) {
+    for (const file of ['Cargo.toml', 'Cargo.lock', '.cargo/config.toml', 'build.rs', 'schema.txt', 'src/greeting.txt', 'outside/src/lib.rs']) {
       const diff = `--- a/${crate}/${file}\n+++ b/${crate}/${file}\n@@ -1,1 +1,1 @@\n-a\n+b`;
       await expect(selectTestFiles(coverageFile, diff)).resolves.toEqual([lib, main, aborts, constant, custom, exits, launches, negates].sort());
     }

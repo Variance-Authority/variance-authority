@@ -1,4 +1,4 @@
-pub fn add(a: i32, b: i32) -> i32 { a + b }
+pub fn add(a: i32, b: i32) -> i32 { a + b * outside::step() }
 
 pub fn mul(a: i32, b: i32) -> i32 {
     let mut r = 0;

@@ -17,6 +17,7 @@ import { randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { availableParallelism } from 'node:os';
 import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { native } from '../addon.js';
 import { digestString } from '../digest.js';
 import caseOwner from './case-owner.cjs';
@@ -160,6 +161,7 @@ async function built(run: CargoRun, workspace: Workspace, profile: string): Prom
   // The Rust files of each package's library, and of each executable a test may start, with its package.
   const libraries = new Map<string, string[]>();
   const started: { readonly cwd: string; readonly sources: readonly string[] }[] = [];
+  const outsiders = new Set<string>();
   for (const line of stdout.split('\n')) {
     if (!line.startsWith('{')) continue;
     const message = JSON.parse(line) as {
@@ -176,12 +178,21 @@ async function built(run: CargoRun, workspace: Workspace, profile: string): Prom
     // Cargo writes rustc's diagnostics into the JSON it answers, so a failed build would otherwise say only that it failed.
     if (message.reason === 'compiler-message' && code !== 0) process.stderr.write(message.message?.rendered ?? '');
     if (message.reason === 'build-script-executed' && message.out_dir !== undefined) {
-      const crate = workspace.packages.get(message.package_id ?? '');
+      const crate = workspace.packages.get(message.package_id ?? '') ?? pathPackage(message.package_id ?? '');
       if (crate !== undefined) read.push(...rerunIfChanged(message.out_dir, crate));
     }
     if (message.reason !== 'compiler-artifact') continue;
     const crate = workspace.packages.get(message.package_id ?? '');
-    if (crate === undefined) continue;
+    if (crate === undefined) {
+      // A path dependency the workspace leaves out is built without counters, so every file it is built from holds every row.
+      const outside = pathPackage(message.package_id ?? '');
+      if (outside !== undefined && !outsiders.has(outside)) {
+        outsiders.add(outside);
+        read.push(...packageFiles(outside));
+      }
+      if (outside !== undefined) read.push(...Object.values(included(message.filenames ?? [], workspace)).flat());
+      continue;
+    }
     const { sources, others } = included(message.filenames ?? [], workspace);
     read.push(...others);
     const kind = message.target?.kind ?? [];
@@ -198,6 +209,12 @@ async function built(run: CargoRun, workspace: Workspace, profile: string): Prom
   const linked = (crate: string, sources: readonly string[]) => [...sources, ...linking(crate, workspace).flatMap((at) => libraries.get(at) ?? [])];
   const launched = [...new Set(started.flatMap((binary) => linked(binary.cwd, binary.sources)))];
   return { binaries, launchable, launched, read, compiled: (binary) => [...new Set(linked(binary.cwd, binary.sources))] };
+}
+
+/** The directory of a package Cargo names by a `path+file://` id, one it built from the checkout; none for one from a registry or git. */
+function pathPackage(id: string): string | undefined {
+  if (!id.startsWith('path+file://')) return undefined;
+  return fileURLToPath(id.slice('path+'.length).split('#')[0]!);
 }
 
 /**
