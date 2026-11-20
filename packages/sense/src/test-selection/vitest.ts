@@ -7,7 +7,7 @@ import type { InstrumentMode } from '../instrument/index.js';
 import { captureAfter, placeModule, type Captured, type CapturedAfter, type ComposedMap } from './captured-modules.js';
 import type { UnmappedStep } from './unmapped-transforms.js';
 import { defaultInclude, type ProbePlacement } from './instrumented-modules.js';
-import { writeCut } from './case-cut.js';
+import { writeCut, type CaseCut } from './case-cut.js';
 import { caseRunnerSource, setupSource } from './worker-source.js';
 import { foldRun } from './selection-fold.js';
 import { declareConfig } from './governing-config.js';
@@ -116,14 +116,15 @@ export interface TestSelectionOptions {
    * with that unset every file runs.
    */
   readonly selection?: () => Promise<SuiteSelection>;
+  // TODO: Jest's and Rstest's seams record every run they select; each takes this when a suite of theirs runs a selection twice.
   /**
-   * Whether the run records what it ran. On by default. Off, it selects and
-   * places its files as a recorded run would, from the same record, shuffles
-   * them under `sequence.shuffle` and names the seed, and instruments, writes
-   * and lands nothing: for a second run of a selection under another
-   * configuration, such as one that shares modules between files, whose
-   * record would be a second account of the same files. Vitest's seam only:
-   * Jest's records every run it selects.
+   * Whether the run records what it ran. On by default. Off, the run keeps its
+   * selection and its shard's placement, read from the same record a recorded
+   * run reads, and instruments, writes and lands nothing; a file whose cases the
+   * selection cuts runs whole, since no case runner is installed to cut it. For
+   * a second run of a selection under another configuration, such as one that
+   * shares modules between files, whose record would be a second account of the
+   * same files.
    */
   readonly record?: boolean;
 }
@@ -188,17 +189,17 @@ export function withTestSelection(
   const own = askedSelection(options.selection, () => coverageFile, request);
   const handed = askedSelection(options.selection, () => coverageFile, { ...request, beneath: true });
   const selection = own && handed && (() => (run.alone ? handed : own)());
-  const settle = foldRun(run, { coverageFile, shims: [setupId, runnerId] });
-  // Asked of the mode, not of `run.cases`: a page clears that on the run, and
-  // Vitest loads the configuration again for its browser server, in this process.
-  const story = probesRegions(mode) ? askedForStories(coverageFile) : undefined;
-  const reporter = selectionReporter(run, settle, story);
   // Ahead of the project's reporters, so the banner the first of them prints
   // names the seed of a shuffled run, as Vitest's own does.
   const reporters = [{ onInit: seedInBanner }, ...(config.test?.reporters === undefined ? ['default'] : array(config.test.reporters))];
   if (options.record === false) {
     return { ...config, test: { ...config.test, ...selecting(config, root, configRoot, options, coverageFile, selection, run), reporters } };
   }
+  const settle = foldRun(run, { coverageFile, shims: [setupId, runnerId] });
+  // Asked of the mode, not of `run.cases`: a page clears that on the run, and
+  // Vitest loads the configuration again for its browser server, in this process.
+  const story = probesRegions(mode) ? askedForStories(coverageFile) : undefined;
+  const reporter = selectionReporter(run, settle, story);
 
   // A configuration that names projects describes the run rather than a suite:
   // nothing is transformed under it, it is the only place a reporter is read
@@ -295,10 +296,11 @@ function selecting(
   const sequencer = selectingSequencer(own, {
     root, configRoot, ...(selection === undefined ? {} : { selection }), times, shuffle: sequence?.shuffle,
     sharded: (asked) => { run.alone = recordsAlone(asked, selection !== undefined, handedRecord(root, coverageFile)); },
-    cut: (cases) => {
+    // A run that records nothing installs no case runner to read a cut, so it writes none.
+    ...(options.record === false ? {} : { cut: (cases: CaseCut) => {
       for (const [file, names] of cases) run.cut.set(file, names);
       writeCut(run.cutFile, run.cut);
-    },
+    } }),
   });
   type Sequence = NonNullable<NonNullable<UserConfig['test']>['sequence']>;
   const empty = shardArgument(process.argv) !== undefined && config.test?.passWithNoTests === undefined ? { passWithNoTests: true } : {};

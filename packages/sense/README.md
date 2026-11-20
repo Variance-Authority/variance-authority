@@ -481,7 +481,7 @@ The optional second argument accepts `root`, `suite`, `coverageFile`,
 | `continuations` | off | a case's work outlives it, or the suite is deliberately concurrent ([below](#record-which-case-covered-a-region)) |
 | `cadence` | on | `false` leaves test files as you wrote them, and the record without the test line that reached each region and without the time of each case's statements ([below](#record-which-test-line-reached-a-region)) |
 | `selection` | read from `@variance-authority/cli` when `VARIANCE_AUTHORITY_SINCE` is set | you compute the selection yourself: a function returning the `SuiteSelection` whose `skip` the run removes |
-| `record` | on | `false` runs a second configuration over the same selection, such as one that keeps modules apart per test: the run selects and places its files from the record as a recorded run would, shuffles them under `sequence.shuffle` and names the seed, and writes nothing. Jest's seam records every run it selects |
+| `record` | on | `false` runs a second configuration over the same selection, such as one that shares modules between files: the run selects and places its files from the record as a recorded run would, and instruments, writes and lands nothing. A file whose cases the selection cuts runs whole. Vitest's seam only for now; Jest's and Rstest's record every run they select |
 
 The config file Vite loaded, the local modules it imports and the configured
 setup files become preconditions automatically, and the runtime's own setup file

@@ -115,6 +115,32 @@ describe('a Vitest run handed the cases to skip in a file it runs', () => {
       { file: at('unit/unit.case.ts'), complete: false },
     ]);
   });
+
+  // No case runner reads a cut in a run that records nothing, so none is written.
+  it('runs that file whole and writes nothing beside the record, when it records nothing', async () => {
+    const name = 'cut-quiet';
+    const report = resolve(directory, `${name}.json`);
+    await execute(process.execPath, [
+      vitest, 'run', '--config', 'vitest.config.ts', '--reporter', 'json', '--outputFile', report,
+    ], {
+      cwd: fixture,
+      env: environment(name, {
+        FIXTURE_SKIP: JSON.stringify([at('dom/dom.case.ts')]),
+        FIXTURE_CASES: JSON.stringify({ [at('unit/unit.case.ts')]: ['adds nothing under the unit project'] }),
+        FIXTURE_RECORD: 'off',
+      }),
+    });
+    const { testResults } = JSON.parse(await readFile(report, 'utf8')) as {
+      testResults: { assertionResults: { title: string; status: string }[] }[];
+    };
+
+    expect(testResults.flatMap((file) => file.assertionResults.map(({ title, status }) => [title, status]))).toEqual([
+      ['adds under the unit project', 'passed'],
+      ['adds nothing under the unit project', 'passed'],
+    ]);
+    expect(existsSync(resolve(directory, `${name}.bin`))).toBe(false);
+    expect((await readdir(directory)).filter((entry) => entry.endsWith('-cut.json'))).toEqual([]);
+  });
 });
 
 describe('a Vitest run under --shard, with the times a record holds', () => {
