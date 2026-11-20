@@ -109,11 +109,15 @@ describe('a word a question about a running suite does not take', () => {
     try {
       const word = await run(['ask', 'run-signals', 'bogus', '--config', config]);
       const corrected = await run(['ask', 'run-signals', '--config', config]);
+      const flag = await run(['ask', 'run-signals', '--verbose', '--config', config]);
 
       expect(word.code).toBe(EXIT_OPERATOR);
       expect(word.err).toContain('`bogus` is not an argument `variance ask run-signals` takes; it takes');
       expect(corrected.code).toBe(EXIT_OPERATOR);
       expect(corrected.err).toContain('needs a watcher to ask');
+      // A flag is named, and the question goes on to the watcher it needs.
+      expect(flag.err).toContain('variance: `--verbose` is not an argument `variance ask run-signals` takes');
+      expect(flag.err).toContain('needs a watcher to ask');
     } finally {
       if (exported !== undefined) process.env[VANTAGE_VARIABLE] = exported;
     }
