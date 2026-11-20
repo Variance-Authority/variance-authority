@@ -5,7 +5,7 @@ Argos, Applitools and [Variance Authority](README.md) against each other, and
 their own pages do not agree on which axes decide it. This page sets the six
 side by side on what each captures for a subject, where its pixels are painted,
 who approves a diff, and what that costs in privacy, browser coverage and
-money. [§6](#6-start-beside-the-tool-you-have) is where you install beside the
+money. [§7](#7-start-beside-the-tool-you-have) is where you install beside the
 tool you already have. For test selection and coverage reporting, [compare
 with the tool you already have](comparison.md).
 
@@ -14,7 +14,7 @@ account, and no per-screenshot bill, and the price of that absent meter is that
 you run the thing: compute, storage, renderer capacity, retention, upgrades and
 the pager are yours. “No per-shot bill” is not the same claim as “free.” If you
 want visual review delivered as a managed product — browser fleet, reviewer
-seats, support contract — buy one of the four hosted products below, and §2 says
+seats, support contract — buy one of the four hosted products below, and §3 says
 what each of them leads on.
 
 Each comparison here is keyed by a **subject** — one named UI state you asked for
@@ -50,8 +50,10 @@ hosted-service features there before buying; both change independently.
 | Acquisition | Playwright screenshots the page or locator inside the running test | SDK captures the DOM and its resources, or Automate captures the running browser | Storybook or E2E archive | Host adapters open a page and Playwright produces screenshots | Classic SDK captures in place; Ultrafast Grid captures a DOM snapshot | Storybook, routes and unit tests keep a render document; Playwright keeps a document or takes a screenshot in place |
 | Pixel placement | Caller-owned browser | Percy cloud, or the Automate browser | Capture Cloud | Caller-owned browser | Caller browser or Ultrafast Grid | Caller-owned browser, local renderer, or a renderer you host |
 | Review | PNG files in your repository, reviewed in the pull request that changes them | Hosted dashboard and approval workflow | Hosted UI Test and UI Review | Hosted test review, comments, and flake history | Eyes Test Manager | `tribunal`, a review service you deploy — builds, docket, region overlays, recorded decisions, concerns a reviewer raises without deciding, which `variance push` posts runs to; or no service at all, and the same evidence as JSON, HTML, CLI output or MCP |
-| Browser breadth | Whatever your Playwright projects run | Managed desktop and mobile coverage | Managed browser and mode matrix | Whatever the caller's capture suite runs | Managed grid plus mobile products | Whatever the caller's capture suite runs; the CLI paints with Chromium, Firefox or WebKit (§3.2) |
+| Browser breadth | Whatever your Playwright projects run | Managed desktop and mobile coverage | Managed browser and mode matrix | Whatever the caller's capture suite runs | Managed grid plus mobile products | Whatever the caller's capture suite runs; the CLI paints with Chromium, Firefox or WebKit (§4.1) |
 | Source [attribution](attribution.md) | Test name and snapshot path | DOM and CSS root-cause aids | Story identity and dependency tracing | Spec and story metadata | DOM and CSS root-cause aids | Pixel region → component → `file:line`, when the capture supplies [matching provenance](attribution.md) |
+| Shifted or changed | Not described: `maxDiffPixels` counts every differing pixel | Not described in the cited pages | Not described in the cited pages | Not described in the cited pages | The Dynamic match level tolerates positional shifts around dynamic content; floating regions bound where an element may move | Each region is a cause, whose component's own inputs changed, or displaced, moved by a cause and otherwise the same |
+| Kind of change | A pixel count and a colour-difference `threshold` | Not described in the cited pages | Not described in the cited pages | Not described in the cited pages | A match level chosen per check or region: Strict, Layout, Ignore colors, Dynamic or Exact | Per component, the bands that changed — `a11y`, `geometry`, `token`, `content`, `texture` — and per region, `shape` or `colour`, graded strong or faint; a band the run could not observe reads `unobserved` |
 | Compared against | The committed snapshot file | The approved baseline | The approved baseline | The approved baseline | The approved baseline | The baseline. Also, within a single run: two related states, compared for the gap between them; and one input rendered twice, compared for the point where the two renderings diverge |
 | What a run captures | The assertions the tests you ran reached | The states your test code calls `percySnapshot` on | Stories and archived runs; TurboSnap uses the module graph to avoid snapshots a change cannot reach | The screenshots your suite takes | The checkpoints your SDK calls make | `--since` skips a subject when its baseline lists none of the components the change reached — stories, routes and Playwright subjects alike. Instrumented test runs also select test files by what they executed |
 | Operations | Adopter | Vendor | Vendor | Vendor, with an open-source self-host option outside the supported service contract | Vendor or contracted on-premise deployment | Adopter |
@@ -72,7 +74,7 @@ its own editor tooling; here the index decides which subjects a run skips.
 Variance Authority works beside an existing Playwright Test suite, a built or
 served Storybook, served routes or a static directory, Vitest, Jest or Rstest
 under jsdom, Vitest browser mode, and Rstest with `@rstest/playwright`; any
-other host composes the observation library directly. [§6](#6-start-beside-the-tool-you-have) names the package for each, and
+other host composes the observation library directly. [§7](#7-start-beside-the-tool-you-have) names the package for each, and
 [how a suite connects](surface.md) covers the material and placement each one
 produces.
 
@@ -101,7 +103,7 @@ static module graph.
 This project prunes twice, and neither prune is a prediction. `--since` skips a
 subject when its stored baseline lists none of the components the change reached,
 so the skip rests on what the last run recorded the subject to be made of. What
-survives is then decided at the cheapest representation that can decide it (§3.3):
+survives is then decided at the cheapest representation that can decide it (§2.2):
 structure, semantics, authored CSS, and provenance settle a question without a
 raster, and raster comparison runs for the questions that need pixels. One path
 deliberately spends more: in-place capture takes repeated agreeing screenshots to
@@ -111,14 +113,137 @@ Variance Authority has no vendor meter. Compute, storage, renderer capacity,
 retention, upgrades, and operational labour belong to the adopter. The software
 itself is free of charge and MIT-licensed: every package publishes to npm under
 that licence, and the licence grants use, modification and redistribution,
-including commercially. What you pay is the machines and the hours in §4.
+including commercially. What you pay is the machines and the hours in §5.
 
 Sources: [Percy plans and billing](https://www.browserstack.com/docs/percy/overview/plans-and-billing),
 [Chromatic billing](https://www.chromatic.com/docs/billing/),
 [Argos pricing](https://argos-ci.com/pricing), and
 [Applitools terms](https://applitools.com/terms-of-use/).
 
-## 2. Where the other products lead
+## 2. What a Variance Authority diff reports
+
+Four rows of the table are where this project differs most from the products
+in §3: what a diff points to, whether a shifted region is told from a changed
+one, what kind of change it is, and what a subject is compared against. This
+section shows each of them before the vendor write-ups.
+
+### 2.1 A diff that names a component and a file
+
+PNG comparison produces regions. Component attribution requires a semantic
+snapshot of the same subject, and source attribution requires provenance
+recorded during acquisition. With both present, a region can resolve to a
+component and then to `file:line`. Without them, the observation remains a pixel
+result and the missing fields stay absent.
+
+A region is also told apart from the regions around it. Its pixels changed in
+**shape** — ink in a different place — or only in **colour**; and its component
+is a **cause**, whose own inputs changed, or **displaced**, moved by a cause and
+otherwise the same. In the [visual-review
+example](../examples/visual-review-case/README.md), a plan name that grows to
+two lines pushes the price below it down, and the report lists the price after
+the two causes:
+
+```text
+  Price · displaced · shape · strong · 524px · main → region "Plans" → list item 2 of 3 · examples/visual-review-case/src/plans.js:42
+```
+
+React acquisition reads owner information; another framework can emit the same
+public provenance shape through `data-*` metadata. This is an acquisition
+capability, not something a differ can recover from image bytes.
+
+See [from a pixel to a line](attribution.md) and [the source
+scan](source.md).
+
+### 2.2 Deciding at the cheapest representation that can decide
+
+Structure, semantics, authored CSS, and provenance do not require a pixel render.
+Raster comparison runs only for questions that need pixels. Content-addressed
+documents and render caches make that separation useful across reruns.
+
+A comparison sorts what changed into five **bands** — `a11y` (accessible name,
+role, ARIA state), `geometry` (position and size), `token` (design-token values),
+`content` (text), and `texture` (raster residue with no document counterpart).
+The band is what a report names when it says which *kind* of thing changed, and
+[sensitivity](sensitivity.md) is where a subject declares which bands it asserts
+on. A band the run could not observe is reported `unobserved`; it is not
+converted into an empty result or a pass.
+
+The [visual-review example](../examples/visual-review-case/README.md) recolours
+one button and renames one plan, and its report names a band list per
+component, so the recolour, the rename and the price it pushed down read as
+three kinds of change:
+
+```text
+  ChooseButton · cause · token
+  PlanName · cause · a11y, geometry, content
+  Price · displaced · geometry
+```
+
+The two capture paths trade against each other. In-place capture avoids a second
+browser but takes repeated screenshots to classify same-run instability. Deferred
+capture pays archive and rendering costs but gains placement freedom and cache
+reuse.
+
+See [how the pieces fit together](architecture.md), [the evidence
+instruments](instruments.md), and [how an unstable subject is
+found](flakiness.md).
+
+### 2.3 Comparisons that need no prior good state
+
+Every product in §1 compares a subject against its approved baseline, which
+answers one question: did this change since the last time somebody said it was
+right. Two comparisons here answer different questions, and neither consults
+history.
+
+A subject declared as a [variation](variations.md) of another — by tagging its
+subject plan `variance-parent:<the other subject's id>` — is compared against the
+subject it varies, in the same run. The run prints the pair:
+
+```text
+story:checkout--new-flow ← story:checkout--default (content, structure)
+  `story:checkout--new-flow` differs from `story:checkout--default` in content
+  and structure, led by `Checkout`. The difference is `v1:9f2a11c4e77b`, and it
+  is unchanged for as long as the two subjects keep moving together.
+  components: Checkout, Button
+```
+
+That hash is taken over the difference between the two subjects, not over either
+subject. A token edit that repaints both of them leaves it exactly where it was,
+and it changes only when the variation gains or loses something its parent does
+not have. So *everything changed and the flag still does what it did* arrives as
+a hash that did not change, and *the flag now does something else* arrives as a
+hash that did — a distinction a reviewer otherwise draws by hand, on every diff.
+Nothing on this axis changes the exit code, the baseline store, or what
+`variance accept` does. See [subjects that are other subjects on
+purpose](variations.md) and [the suite compared to itself](composition.md).
+
+A changed subject is also read a second time, and there are two second readings.
+`again` keeps the world still and advances time; `alone` rebuilds the world and
+freezes time. Neither is a retry and neither consults a baseline: each compares
+two readings of one input. The order is load-bearing — `again` runs first,
+because `alone`'s inference is *the clean reading differs from the shared one,
+so the world changed it*, which is only evidence once two readings of one world
+are known to agree. A run re-collects at most `alone.limit` changed subjects
+this way: the first to change in the order it takes them, whatever the number
+of worlds.
+
+Because a document keeps a hash per component per band, the answer is not
+"this subject is flaky", which is a page to re-examine. It is a component and a
+band:
+
+```text
+[unstable] story:checkout--summary: … differ: Clock (content)
+```
+
+`content` is data, `geometry` is layout that has not settled, `token` is a style
+still being applied. That is what a fix can be aimed at. See [how an unstable
+subject is found](flakiness.md).
+
+Both of these cut the same bill, and it is the labour one. A difference a hash
+has already settled, and one already named as an unstable component, are
+two things nobody is asked to look at twice.
+
+## 3. Where the other products lead
 
 ### Playwright's `toHaveScreenshot`
 
@@ -205,6 +330,12 @@ render-many Ultrafast Grid. The grid is the clearest example of acquisition and
 render placement being independent: the SDK records the DOM and its resources, and a
 managed fleet produces browser and device rasters later.
 
+Its match levels choose what a check compares, for the whole check or one
+region. Layout checks where elements are and ignores their text, graphics and
+colour; Ignore colors is Strict without colour; Dynamic, the default for web
+tests, checks text against a pattern and tolerates positional shifts around
+dynamic content. Floating regions bound how far one element may move.
+
 Choose Applitools when managed cross-browser and mobile coverage, perceptual match
 levels, enterprise workflow, or an on-premise commercial deployment is required.
 
@@ -212,29 +343,14 @@ Sources: [Ultrafast Grid](https://applitools.com/docs/eyes/concepts/test-executi
 [match levels](https://applitools.com/docs/eyes/concepts/best-practices/match-levels),
 and [deployment modes](https://help.applitools.com/hc/en-us/articles/360007189231-The-different-deployment-modes).
 
-## 3. What Variance Authority makes independently configurable
+## 4. What Variance Authority makes independently configurable
 
 Variance Authority treats host acquisition, capture material, rendering
 placement, observation, retention, and reporting as independent responsibilities.
 An adapter is useful only when it removes host-specific work without taking over
 the host's runner or creating a second comparison system.
 
-### 3.1 A diff that names a component and a file
-
-PNG comparison produces regions. Component attribution requires a semantic
-snapshot of the same subject, and source attribution requires provenance
-recorded during acquisition. With both present, a region can resolve to a
-component and then to `file:line`. Without them, the observation remains a pixel
-result and the missing fields stay absent.
-
-React acquisition reads owner information; another framework can emit the same
-public provenance shape through `data-*` metadata. This is an acquisition
-capability, not something a differ can recover from image bytes.
-
-See [from a pixel to a line](attribution.md) and [the source
-scan](source.md).
-
-### 3.2 Capture material, rendering placement, and which engine paints
+### 4.1 Capture material, rendering placement, and which engine paints
 
 A run keeps one of the two materials named at the top of this page, and both
 land in the same comparison.
@@ -285,85 +401,7 @@ The resulting adopter surfaces are compositions rather than separate products:
 - Playwright Test in place: caller locator → repeated agreeing screenshots →
   raster → shared observation.
 
-### 3.3 Deciding at the cheapest representation that can decide
-
-Structure, semantics, authored CSS, and provenance do not require a pixel render.
-Raster comparison runs only for questions that need pixels. Content-addressed
-documents and render caches make that separation useful across reruns.
-
-A comparison sorts what changed into five **bands** — `a11y` (accessible name,
-role, ARIA state), `geometry` (position and size), `token` (design-token values),
-`content` (text), and `texture` (raster residue with no document counterpart).
-The band is what a report names when it says which *kind* of thing changed, and
-[sensitivity](sensitivity.md) is where a subject declares which bands it asserts
-on. A band the run could not observe is reported `unobserved`; it is not
-converted into an empty result or a pass.
-
-The two capture paths trade against each other. In-place capture avoids a second
-browser but takes repeated screenshots to classify same-run instability. Deferred
-capture pays archive and rendering costs but gains placement freedom and cache
-reuse.
-
-See [how the pieces fit together](architecture.md), [the evidence
-instruments](instruments.md), and [how an unstable subject is
-found](flakiness.md).
-
-### 3.4 Comparisons that need no prior good state
-
-Every product in §1 compares a subject against its approved baseline, which
-answers one question: did this change since the last time somebody said it was
-right. Two comparisons here answer different questions, and neither consults
-history.
-
-A subject declared as a [variation](variations.md) of another — by tagging its
-subject plan `variance-parent:<the other subject's id>` — is compared against the
-subject it varies, in the same run. The run prints the pair:
-
-```text
-story:checkout--new-flow ← story:checkout--default (content, structure)
-  `story:checkout--new-flow` differs from `story:checkout--default` in content
-  and structure, led by `Checkout`. The difference is `v1:9f2a11c4e77b`, and it
-  is unchanged for as long as the two subjects keep moving together.
-  components: Checkout, Button
-```
-
-That hash is taken over the difference between the two subjects, not over either
-subject. A token edit that repaints both of them leaves it exactly where it was,
-and it changes only when the variation gains or loses something its parent does
-not have. So *everything changed and the flag still does what it did* arrives as
-a hash that did not change, and *the flag now does something else* arrives as a
-hash that did — a distinction a reviewer otherwise draws by hand, on every diff.
-Nothing on this axis changes the exit code, the baseline store, or what
-`variance accept` does. See [subjects that are other subjects on
-purpose](variations.md) and [the suite compared to itself](composition.md).
-
-A changed subject is also read a second time, and there are two second readings.
-`again` keeps the world still and advances time; `alone` rebuilds the world and
-freezes time. Neither is a retry and neither consults a baseline: each compares
-two readings of one input. The order is load-bearing — `again` runs first,
-because `alone`'s inference is *the clean reading differs from the shared one,
-so the world changed it*, which is only evidence once two readings of one world
-are known to agree. A run re-collects at most `alone.limit` changed subjects
-this way: the first to change in the order it takes them, whatever the number
-of worlds.
-
-Because a document keeps a hash per component per band, the answer is not
-"this subject is flaky", which is a page to re-examine. It is a component and a
-band:
-
-```text
-[unstable] story:checkout--summary: … differ: Clock (content)
-```
-
-`content` is data, `geometry` is layout that has not settled, `token` is a style
-still being applied. That is what a fix can be aimed at. See [how an unstable
-subject is found](flakiness.md).
-
-Both of these cut the same bill, and it is the labour one. A difference a hash
-has already settled, and one already named as an unstable component, are
-two things nobody is asked to look at twice.
-
-## 4. Operational boundaries
+## 5. Operational boundaries
 
 Adopter operation is what the absent meter is bought with. Variance Authority
 provides libraries and a CLI for infrastructure you operate, and the arrangement
@@ -440,7 +478,7 @@ The next run reports `unchanged`, and from there `--all` stops being the right
 habit: name the subjects you decided on. The approval history you built elsewhere
 stays where it is.
 
-## 5. Choose the ownership model you want
+## 6. Choose the ownership model you want
 
 Percy, Chromatic, Argos, and Applitools supply managed browser coverage, hosted
 review links, and vendor support. Choose one when you want visual review as a
@@ -453,7 +491,7 @@ with its evidence and be settled in one decision — and when component and sour
 attribution, explicit evidence boundaries, and local or operator-controlled data
 placement are worth the operation they cost.
 
-## 6. Start beside the tool you have
+## 7. Start beside the tool you have
 
 Nothing here asks you to switch the other tool off. Add one subject, run it next
 to the suite you already trust, and compare the two answers on a real diff.

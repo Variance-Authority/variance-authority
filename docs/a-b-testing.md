@@ -92,7 +92,7 @@ refuses the pair where it cannot:
   stabilization and the rasterization recipe together identify the renderer. A
   baseline and a capture that differ in any of them are compared, and the
   field that differs is named as the cause of whatever moved. [Which
-  engine paints](compare-visual-review.md#32-capture-material-rendering-placement-and-which-engine-paints)
+  engine paints](compare-visual-review.md#41-capture-material-rendering-placement-and-which-engine-paints)
   explains why the engine is part of that identity.
 - **A parent that names more than one subject.** A `variance-parent:` tag in
   short form that matches two subjects in the run is refused by name. It is not
@@ -157,5 +157,5 @@ compared only for a question the document cannot answer. A reading keeps a hash
 per component per band, so each row above names a component and a band, and two
 readings with equal digests cost a digest comparison and no paint. [Deciding at
 the cheapest representation that can
-decide](compare-visual-review.md#33-deciding-at-the-cheapest-representation-that-can-decide)
+decide](compare-visual-review.md#22-deciding-at-the-cheapest-representation-that-can-decide)
 explains the order.

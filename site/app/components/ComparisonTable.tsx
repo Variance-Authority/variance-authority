@@ -64,6 +64,34 @@ const ROWS = [
     ],
   },
   {
+    q: "a shift is told from a change",
+    cells: [
+      doc("Not described in the cited pages"),
+      doc("Not described in the cited pages"),
+      doc("Not described in the cited pages"),
+      doc(
+        "The Dynamic match level tolerates positional shifts around dynamic content; floating regions bound where an element may move",
+      ),
+      doc(
+        "Each region is a cause, whose component's own inputs changed, or displaced, moved by a cause and otherwise the same",
+      ),
+    ],
+  },
+  {
+    q: "kind of change",
+    cells: [
+      doc("Not described in the cited pages"),
+      doc("Not described in the cited pages"),
+      doc("Not described in the cited pages"),
+      doc(
+        "A match level chosen per check or region: Strict, Layout, Ignore colors, Dynamic or Exact",
+      ),
+      doc(
+        "Per component, the bands that changed — `a11y`, `geometry`, `token`, `content`, `texture` — and per region, `shape` or `colour`, graded strong or faint; a band the run could not observe reads `unobserved`",
+      ),
+    ],
+  },
+  {
     q: "compared against",
     cells: [
       doc("The approved baseline"),
