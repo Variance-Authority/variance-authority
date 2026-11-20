@@ -91,9 +91,10 @@ while the process brings the index up to date and folds its working layer into
 its base, the two things the process does before it starts on the four. A process that ended before it finished is not
 waited on: the next command that reads what it left makes it and prints the
 lines. `variance index
---wait` makes them before it returns, which is what it always does in CI: a
-step's log is where its lines are read, and nothing may outlive the step that
-saves the cache.
+--wait` waits for that process before it returns, and prints its lines, which
+is what it always does in CI: a step's log is where its lines are read, and
+nothing may outlive the step that saves the cache. The four are made in a
+process of their own either way, so their memory never adds to the index's.
 
 The checkouts of one repository, its primary checkout and its worktrees, index
 one at a time. The update and the follow-ups each use every core, so two

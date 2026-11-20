@@ -8,28 +8,11 @@
  * on, a worktree with none builds on the primary checkout's, and anything else
  * missing costs a cold scan.
  *
- * It then folds the index into the code map `variance ask orient` prints, and
- * keeps it beside the index: the fold reads every record, so it is paid here
- * once rather than by every question.
- *
- * It then walks each suite's latest recording over the index and keeps the
- * journeys beside it, which `variance ask orient` reads for the calls into and
- * out of a file.
- *
- * Last it publishes the value `variance ask` answers from, the search beside it
- * included. `search` opens a published search at any age, so without this a
- * fresh checkout — every agent's first session — would read the whole checkout
- * again on its first `search`.
- *
- * Only the index is made before the prompt comes back on a workstation: the
- * map, the journeys, the lexicon and the value are handed to a process of their
- * own (`index-follow-ups.ts`), which every later command that reads them waits
- * on. In CI, under
- * `--wait`, or when `main` is called as a library, they are made in this process.
- *
- * One line per artifact on stdout, for the person reading a pipeline log: the
- * index, the code map, each suite's walk, the lexicon and the value, each with
- * what it holds or why it is not. A walk git could not make is told to `failed`.
+ * Then come the follow-ups, each read from the index and paid for here once
+ * rather than by every question: the code map, each suite's journeys, the
+ * dependency lexicon and the value `variance ask` answers from. One line per
+ * artifact on stdout, for the person reading a pipeline log, says what it holds
+ * or why it is not.
  */
 
 import {
@@ -46,9 +29,9 @@ import {
   type IndexTurnHolder,
   type SourceUpdate,
 } from '@variance-authority/sense';
-import { OperatorError } from '../exit.js';
+import { EXIT_CLEAN, EXIT_OPERATOR, OperatorError } from '../exit.js';
 import { fetchFromMainline } from './source-index-share.js';
-import { followUpsLogPath, heldBy, holdFollowUps, readiedFollowUps, releaseFollowUps, reserveFollowUps, waitingLine, type Detach } from './index-follow-ups.js';
+import { followUpsLogPath, heldBy, holdFollowUps, readiedFollowUps, releaseFollowUps, reserveFollowUps, waitingLine, type Apart, type Detach, type HandBack, type Running } from './index-follow-ups.js';
 
 export interface IndexRequest {
   readonly cwd: string;
@@ -56,10 +39,15 @@ export interface IndexRequest {
   readonly noGit?: boolean;
   /**
    * Hand the follow-ups to a process of their own and return once the index is
-   * written. Absent, they are made before this returns: a library caller, and
-   * `--wait`.
+   * written. Absent, they are made before this returns.
    */
   readonly detach?: Detach;
+  /**
+   * Without `detach`: make the follow-ups in a process of their own and return
+   * once it has ended, with its lines and its failed walks; `--wait`, and CI.
+   * Absent too, they are made in this process: a library caller.
+   */
+  readonly apart?: Apart;
   /** Told when another `index` holds the follow-ups or another checkout the repository's index turn, once for each wait. */
   readonly waiting?: (text: string) => void;
   /** Told each step as it starts and ends: the update's own, then each follow-up's, which run at once. */
@@ -71,28 +59,72 @@ export interface IndexRequest {
   readonly failed?: (why: string) => void;
 }
 
+/**
+ * Write the index, then the follow-ups. On a workstation they go to a process
+ * of their own (`index-follow-ups.ts`), which every later command that reads them
+ * waits on, and this returns once the index is written. In CI and under `--wait`
+ * they go to the same process and this waits for it to end, so what they hold is
+ * never added to what the walk still holds. A library caller, which has no
+ * program to relaunch, and a run whose process could not be started have them
+ * made in this process. A walk git could not make is told to `failed`.
+ */
 export async function indexOutput(request: IndexRequest): Promise<string> {
   const index = sourceIndexPath(request.cwd);
   const log = followUpsLogPath(index);
-  if (request.detach === undefined) return inline(request);
+  const { detach, apart } = request;
+  if (detach === undefined && apart === undefined) return inline(request);
   if (!(await reserveFollowUps(index, log, (lock) => request.waiting?.(waitingLine(lock))))) return inline(request);
   try {
     const alone: Alone = new Set();
     const update = await written(request, alone);
-    const pid = request.detach(['index', '--follow-ups', ...(request.noGit ? ['--no-git'] : [])], log);
-    if (pid === undefined) return report(update, alone, await followUps(request, update, alone));
-    holdFollowUps(index, { pid, log });
-    return report(update, alone, [`follow-ups: nothing has failed; process ${pid} is still making the code map, the journeys, the dependency lexicon and the questions. The next variance command that reads them waits for it, and exits 2 with the reason if git could not read a walk. Its lines are written to ${log}`]);
+    const argv = ['index', '--follow-ups', ...(request.noGit ? ['--no-git'] : [])];
+    if (detach !== undefined) {
+      const pid = detach(argv, log);
+      if (pid === undefined) return report(update, alone, await followUps(request, update, alone));
+      holdFollowUps(index, { pid, log });
+      return report(update, alone, [`follow-ups: nothing has failed; process ${pid} is still making the code map, the journeys, the dependency lexicon and the questions. The next variance command that reads them waits for it, and exits 2 with the reason if git could not read a walk. Its lines are written to ${log}`]);
+    }
+    const running = apart?.(argv, log);
+    if (running === undefined) return report(update, alone, await followUps(request, update, alone));
+    holdFollowUps(index, { pid: running.pid, log });
+    return report(update, alone, await waitedOn(request, running, alone));
   } finally {
     // A no-op once the lock is handed on: it is then the process's to let go.
     releaseFollowUps(index, process.pid);
   }
 }
 
-async function inline(request: IndexRequest, readied?: () => void): Promise<string> {
+/**
+ * The follow-ups' lines once their process has ended, as it handed them back
+ * over its own channel: a turn it went without is told once, with this run's,
+ * and a walk it could not make is told to `failed`, because this run's exit
+ * carries it. A process that ended before it handed them back, or ended other
+ * than its failed walks say after it did, is a refusal. The lock is left as that
+ * process left it, for every other reader: let go when the follow-ups are
+ * whole, marked with why when a walk failed, and a gone process's otherwise, so
+ * the next reader makes them.
+ */
+async function waitedOn(request: IndexRequest, { pid, ended }: Running, alone: Alone): Promise<readonly string[]> {
+  const index = sourceIndexPath(request.cwd);
+  const { handed, code, signal } = await ended;
+  const how = signal === null ? `exit code ${String(code)}` : `signal ${signal}`;
+  if (handed === undefined) {
+    throw new OperatorError(`process ${pid}, making the follow-ups \`variance index\` waited on, ended with ${how} before it finished; what it wrote is in ${followUpsLogPath(index)}`);
+  }
+  // What it handed back is not how it ended: its last lines come after, and its
+  // exit is the one its failed walks give, or it failed past them.
+  if (signal !== null || code !== (handed.failed.length > 0 ? EXIT_OPERATOR : EXIT_CLEAN)) {
+    throw new OperatorError(`process ${pid}, making the follow-ups \`variance index\` waited on, handed them back, then ended with ${how}; what it wrote is in ${followUpsLogPath(index)}`);
+  }
+  for (const line of handed.alone) alone.add(line);
+  for (const why of handed.failed) request.failed?.(why);
+  return handed.lines;
+}
+
+async function inline(request: IndexRequest): Promise<string> {
   const alone: Alone = new Set();
   const update = await written(request, alone);
-  return report(update, alone, await followUps(request, update, alone, readied));
+  return report(update, alone, await followUps(request, update, alone));
 }
 
 /** The lines a run returns: the index's, why it ran without its turn when it did, then what came after. */
@@ -140,22 +172,28 @@ function turnLine({ pid, root }: IndexTurnHolder): string {
 }
 
 /**
- * What a detached `index` runs: the update again, which finds the index it was
- * handed and writes nothing, for the listing of the checkout it carries; then
- * the follow-ups, the lock marked once the index is readied; then the lock is
- * let go. A walk git could not read marks the lock with why instead, for the
- * next command that reads the follow-ups to tell: nobody reads this process's
- * exit. A process that threw keeps the lock unmarked, so that command finds its
- * holder gone and makes them itself.
+ * What the process `index` hands its follow-ups to runs: the update again,
+ * which finds the index it was handed and writes nothing, for the listing of
+ * the checkout it carries; then the follow-ups, the lock marked once the index
+ * is readied; then the lock is let go, or, when a walk git could not read,
+ * marked with why, for the next command that reads the follow-ups to tell:
+ * only a whole set of follow-ups is a release. Waited on, it then hands its
+ * lines and those walks back to the run waiting on it too, which is the one
+ * reader the lock is not for. A process that threw keeps the lock unmarked,
+ * so the next command finds its holder gone and makes them itself.
  */
-export async function followUpsOutput(request: Omit<IndexRequest, 'detach'>): Promise<string> {
+export async function followUpsOutput(request: Omit<IndexRequest, 'detach' | 'apart'> & { readonly handBack?: HandBack }): Promise<string> {
   const index = sourceIndexPath(request.cwd);
   const failed: string[] = [];
-  const output = await inline({ ...request, failed: (why) => { failed.push(why); request.failed?.(why); } }, () => readiedFollowUps(index, process.pid));
+  const alone: Alone = new Set();
+  const told = { ...request, failed: (why: string) => { failed.push(why); request.failed?.(why); } };
+  const update = await written(told, alone);
+  const lines = await followUps(told, update, alone, () => readiedFollowUps(index, process.pid));
   const held = heldBy(index);
   if (failed.length > 0 && held?.pid === process.pid) holdFollowUps(index, { ...held, failed });
   else releaseFollowUps(index, process.pid);
-  return output;
+  if (request.handBack !== undefined) await request.handBack({ lines, alone: [...alone], failed });
+  return report(update, alone, lines);
 }
 
 /** `readied` is told once the index is folded, before the map, the journeys, the lexicon and the questions. */
@@ -180,6 +218,10 @@ async function followUps(request: IndexRequest, update: SourceUpdate, alone: Alo
 }
 
 /**
+ * The value `variance ask` answers from, the search beside it included: `search`
+ * opens a published search at any age, so without it a fresh checkout would read
+ * the whole checkout again on its first `search`.
+ *
  * Publishing swallows a failed write, because a question it answered is still
  * answered. The step that exists to publish reads back a value it wrote, so a
  * cache it could not write is a line in the log rather than a later refusal; a
@@ -225,7 +267,8 @@ async function lexicon(root: string): Promise<string> {
  * recording, so a walk that fails leaves both standing and says why. Walking is kept
  * when the recording, the index and the walk are the ones the kept journeys
  * were made from. They carry the update's listing of the
- * checkout rather than asking git again.
+ * checkout rather than asking git again. `variance ask orient` reads them for the
+ * calls into and out of a file.
  */
 async function journeys(cwd: string, update: SourceUpdate, failed?: (why: string) => void): Promise<readonly string[]> {
   let prepared: readonly PreparedJourneys[];
@@ -272,7 +315,8 @@ export function journeysLine(one: PreparedJourneys): string {
 }
 
 /**
- * The map is prepared after the index is published, so a map that fails leaves
+ * The map `variance ask orient` prints folds every record of the index. It is
+ * prepared after the index is published, so a map that fails leaves
  * the index standing and says why. It carries the update's listing of the
  * checkout rather than asking git again.
  */
