@@ -160,6 +160,7 @@ mod tests {
 
     /// Whether any resolver `answer` asks, run without the missing-parent
     /// guard, finds a file for the request.
+    #[cfg(unix)]
     fn found(resolvers: &Resolvers, from: &Path, request: &str) -> bool {
         let (_, modules) = resolvers.governed_by(from);
         [modules.as_ref(), &resolvers.exact, resolvers.declarations_for(&modules).as_ref()]
