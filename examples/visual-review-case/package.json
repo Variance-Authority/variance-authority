@@ -9,12 +9,12 @@
   "dependencies": {
     "@variance-authority/core": "workspace:^",
     "@variance-authority/dom": "workspace:^",
-    "@variance-authority/observe": "workspace:^",
     "@variance-authority/playwright": "workspace:^",
-    "@variance-authority/png": "workspace:^",
-    "@variance-authority/raster": "workspace:^"
+    "@variance-authority/png": "workspace:^"
   },
   "devDependencies": {
+    "@variance-authority/observe": "workspace:^",
+    "@variance-authority/raster": "workspace:^",
     "@variance-authority/sense": "workspace:^",
     "esbuild": "^0.28.2",
     "playwright": "^1.64.1",
