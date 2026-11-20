@@ -70,10 +70,10 @@ fn with_the_clock_on_the_listing_line_names_the_parts_that_ran() {
     let line = stderr.lines().find(|line| line.starts_with("variance stage listing:")).unwrap_or_else(|| panic!("no listing line in {stderr}"));
     let parts = line.split_once('(').map_or("", |(_, parts)| parts.trim_end_matches(')'));
     let named = |part: &str| parts.split(", ").any(|entry| entry.strip_prefix(part).and_then(|rest| rest.strip_prefix(' ')).and_then(|rest| rest.strip_suffix(" s")).is_some_and(|seconds| seconds.parse::<f64>().is_ok()));
-    for part in ["head", "tree", "worktree", "compare", "overlay", "merge", "seeds", "assemble"] {
+    for part in ["locate", "inventory", "worktree", "overlay", "merge", "seeds", "assemble"] {
         assert!(named(part), "{part} is not on {line}");
     }
-    for fallback in ["ls-tree", "git status"] {
+    for fallback in ["git ls-files", "git status"] {
         assert!(!line.contains(fallback), "{fallback} is on {line}");
     }
 }

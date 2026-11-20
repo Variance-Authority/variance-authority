@@ -33,13 +33,12 @@ pub(crate) enum Sum {
     Parse,
     Resolve,
     Index,
-    Head,
+    Locate,
     Held,
-    Tree,
-    LsTree,
+    Inventory,
+    LsFiles,
     Worktree,
     GitStatus,
-    Compare,
     Overlay,
     HashObject,
     Merge,
@@ -92,19 +91,17 @@ pub(crate) const WALK: Sums = Sums {
     zeros: true,
 };
 
-/// The listing: each part's wall time, in this order. `tree` and `worktree`
-/// run at once and `overlay` holds `hash-object`, so the parts do not sum to
-/// the listing's line, and work no part names is in the line alone.
+/// The listing's parts. `inventory` includes a `git ls-files` fallback, and
+/// `overlay` includes `hash-object`; nested times do not sum to the stage.
 pub(crate) const LISTING: Sums = Sums {
     lead: "",
     shown: &[
-        shown("head", Sum::Head),
+        shown("locate", Sum::Locate),
         shown("held", Sum::Held),
-        shown("tree", Sum::Tree),
-        shown("ls-tree", Sum::LsTree),
+        shown("inventory", Sum::Inventory),
+        shown("git ls-files", Sum::LsFiles),
         shown("worktree", Sum::Worktree),
         shown("git status", Sum::GitStatus),
-        shown("compare", Sum::Compare),
         shown("overlay", Sum::Overlay),
         shown("hash-object", Sum::HashObject),
         shown("merge", Sum::Merge),

@@ -91,17 +91,17 @@ fn committed_links_are_unhashed_in_code_unit_order_on_every_listing() {
 
 /// Whether the working tree was compared in-process, rather than handed to `status`.
 fn compared(root: &Path) -> bool {
-    let head = crate::git_store::head(root).unwrap();
+    let head = crate::git_store::checkout(root).unwrap();
     let config = crate::git::worktree_status::config_of(&crate::git::git_porcelain::configured(root.to_str().unwrap()));
-    head.committed(None).is_some() && crate::git::worktree_status::walk(&head, &config).is_some()
+    super::inventory::read(&head).and_then(|inventory| inventory.index).is_some_and(|index| crate::git::worktree_status::walk(&head, &config, &index).is_some())
 }
 
 /// The snapshot compared in-process is the one `status` answers, path for path.
 fn agrees(root: &Path) {
     let root = root.to_str().unwrap();
-    let (known, printed) = (snapshot_of(root, true, None, None).unwrap().0, snapshot_of(root, false, None, None).unwrap().0);
-    let digests = |tree: &super::Snapshot| -> Vec<(String, String, bool)> {
-        tree.paths.iter().zip(&tree.oids).zip(&tree.regular).map(|((path, oid), regular)| (path.clone(), hex(oid), *regular)).collect()
+    let (known, printed) = (snapshot_of(root, true, None).unwrap().0, snapshot_of(root, false, None).unwrap().0);
+    let digests = |tree: &super::Snapshot| -> Vec<(String, String)> {
+        tree.paths.iter().zip(&tree.oids).map(|(path, oid)| (path.clone(), hex(oid))).collect()
     };
     assert_eq!(digests(&known), digests(&printed));
     let sorted = |tree: &super::Snapshot| {
@@ -328,5 +328,30 @@ fn an_untracked_cache_hands_the_comparison_to_status() {
 
     assert!(!compared(&root));
     agrees(&root);
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
+fn the_inventory_takes_staged_paths_and_blobs_from_the_index_including_below_the_root() {
+    let root = git_fixture::repository("index-inventory", &[("src/a.ts", b"before\n"), ("gone.ts", b"gone\n")]);
+    write(&root, "src/a.ts", "staged\n");
+    write(&root, "src/new.ts", "new\n");
+    git(&root, &["add", "src"]);
+    git(&root, &["rm", "gone.ts"]);
+    // Inventory is independent of the working bytes; the overlay checks them later.
+    write(&root, "src/a.ts", "unstaged after staging\n");
+    write(&root, "src/untracked.ts", "untracked\n");
+    for at in [root.clone(), root.join("src")] {
+        let checkout = crate::git_store::checkout(&at).unwrap();
+        let inventory = super::inventory::read(&checkout).unwrap();
+        assert!(inventory.index.is_some(), "the native reader carries the index to its comparison");
+        let prefix = if at == root { "src/" } else { "" };
+        let expected = vec![
+            (format!("{prefix}a.ts").into_bytes(), git(&root, &["rev-parse", ":src/a.ts"]), false),
+            (format!("{prefix}new.ts").into_bytes(), git(&root, &["rev-parse", ":src/new.ts"]), false),
+        ];
+        let actual: Vec<_> = inventory.blobs.into_iter().map(|(path, id, link)| (path, id.to_string(), link)).collect();
+        assert_eq!(actual, expected);
+    }
     let _ = std::fs::remove_dir_all(&root);
 }
