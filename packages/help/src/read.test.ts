@@ -165,7 +165,7 @@ describe('reading a workspace through the source index', () => {
       expect(entryNamed(recorded, 'measure')?.doc).toContain('Measures the thing');
       expect(entryNamed(recorded, 'measure')?.doc).not.toContain('Changed later');
       expect(records.length).toBeGreaterThan(0);
-      expect(tree?.files).toEqual(treeOf(records, root).files);
+      expect([...(tree?.files() ?? [])]).toEqual([...treeOf(records, root).files()]);
       expect(workspaceGeneration(recorded)).toMatch(/^\d{4}-\d{2}-\d{2}T/);
       const tool = HELP.tools.find((candidate) => candidate.name === 'docs_search')!;
       expect(tool.run(recorded, { query: 'measure' })).toContain('\nSnapshot ');

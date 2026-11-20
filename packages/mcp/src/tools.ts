@@ -104,8 +104,8 @@ import { variations } from './tools/variations.js';
 export type { FileSet, Served, Tool, ToolInvocation } from './tools/tool.js';
 // The tree a start point is resolved against, exported for the hosts that have
 // a repository to read: a tool cannot walk one, so somebody outside has to.
-export { readTree, treeAtWorkspace, treeFromRelations, treeOf, type Chains, type Link, type Tree, type TreeOptions } from './tools/tree.js';
-export { decodeSourceTree, encodeSourceTree } from './tools/source-tree-format.js';
+export { publishedTreeOf, readTree, treeOf, type Chains, type Link, type Tree, type TreeOptions } from './tools/tree.js';
+export { encodeSourceTree } from './tools/source-tree-format.js';
 // `treeOf` takes these, so a host that builds a tree out of a scan it already
 // ran has to be able to name them. Exporting the function without its argument
 // type left that host reaching into `core` for one word.

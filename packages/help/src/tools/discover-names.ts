@@ -25,7 +25,7 @@ export function foundOf(input: Readonly<Record<string, unknown>>, tree: Tree, in
   for (const prefix of ['', 'except'] as const) {
     for (const written of listArg(input, prefix === '' ? 'imports' : 'exceptImports')) {
       // A name out of a repository file is `importsOf`'s to answer off the index's edges, as `fileNamed` routes it.
-      if (fileNamed(written, tree.files) !== undefined) continue;
+      if (fileNamed(written, tree) !== undefined) continue;
       const { spec, name } = nameOf(written);
       imports.push({ spec, ...(name === undefined ? {} : { name }) });
     }
@@ -48,7 +48,7 @@ export function foundOf(input: Readonly<Record<string, unknown>>, tree: Tree, in
   // The index holds the whole checkout, and a tree read under some directories answers for its own files alone.
   // A workspace's index holds its members beside it too, which its tree walks but does not list.
   const beside = (file: string): boolean => at.within !== '' && !file.startsWith(under);
-  const held = (hits: readonly NameHit[]): NameHit[] => hits.filter((hit) => beside(hit.file) || tree.files.has(spelled(hit.file)));
+  const held = (hits: readonly NameHit[]): NameHit[] => hits.filter((hit) => beside(hit.file) || tree.has(spelled(hit.file)));
   return {
     imports: read.imports.map(held),
     declares: read.declares.map((asked) => ({ ...asked, hits: held(asked.hits) })),

@@ -32,9 +32,9 @@ pull request, with the new reason.
   fan-out heuristic or folder-only mode narrows it, as [escapes](escapes.md)
   keeps hop narrowing out, because code jumps folders at any real scale.
 - **Distance selects and cost ranks.** The two never merge into one number,
-  which would hide depth inside a factor. The hop constants match measured
-  co-change in this repository's history;
-  [`hops.ts`](../../packages/mcp/src/tools/hops.ts) holds the measurement.
+  which would hide depth inside a factor. No ranking reads a cost today: the
+  half-hop constants measured against co-change were removed unread, and
+  their measurement stays in commit 66417b44e.
 - **Text finds the file and the record finds the case.** An orientation answer
   prints the text search's list first, with the record's leads beside it, not a
   fused ranking. No routing rule has beaten always searching text out of sample.

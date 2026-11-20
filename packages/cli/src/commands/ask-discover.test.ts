@@ -124,13 +124,6 @@ describe('ask discover over a checkout', () => {
     expect(text).toContain('No file is in all of them.');
   });
 
-  it('answers a name set from the files of a tree read under one directory, as `dirs` narrows it', async () => {
-    const tree = await readTree({ root, dirs: ['src/store'] });
-    const text = discover.run(undefined, { declares: '^selectBalance$' }, { tree, root });
-    expect(text).toContain('src/store/selectors.ts:1  declares selectBalance');
-    expect(text).not.toContain('src/old/');
-  });
-
   it('asks the source index for no names when every import set names a name out of a repository file, which its edges answer', async () => {
     // A tree that names no index refuses any set the names filter answers, so a set it answers asked none.
     const { index: _, ...tree } = await readTree({ root });

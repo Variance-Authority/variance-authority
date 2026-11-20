@@ -96,38 +96,6 @@ function widthOf(term: string): Width | undefined {
 }
 
 /**
- * Whether one path in the tree is at the place a start point names.
- *
- * Anchored at the root and compared whole: the caller's segments have to *be*
- * the beginning of the tree's path, in order, character for character. The
- * width then says how much of the rest is allowed — none for a file, one
- * segment for a directory's own files, any depth for a directory.
- */
-function at(term: string, width: Width): (value: string) => boolean {
-  const term_ = segmentsOf(term);
-  const named = width === 'own' ? term_.slice(0, -1) : term_;
-  if (named.length === 0) return () => false;
-  const depth =
-    width === 'file' ? named.length : width === 'own' ? named.length + 1 : undefined;
-  // A path with no empty segment is its segments joined, so whether it starts
-  // at the named place is one comparison, not a split. The tree holds every file
-  // in the checkout, and splitting all of them costs more than the walk the
-  // start point opens. Anything else is split and compared as said.
-  const prefix = `${named.join('/')}/`;
-  return (value) => {
-    if (value.charCodeAt(0) !== 47 && !value.includes('//') && !value.startsWith(prefix)) {
-      if (width !== 'file' || value !== prefix.slice(0, -1)) return false;
-    }
-    const value_ = segmentsOf(value);
-    if (depth !== undefined ? value_.length !== depth : value_.length <= named.length) return false;
-    for (let segment = 0; segment < named.length; segment += 1) {
-      if (named[segment] !== value_[segment]) return false;
-    }
-    return true;
-  };
-}
-
-/**
  * An absolute path as the repo-relative one the tree holds, or nothing when it
  * is outside the repository.
  *
@@ -186,13 +154,10 @@ export function entryPoints(terms: readonly string[], tree: Tree): EntryPoints {
     const width = said === undefined ? undefined : widthOf(said);
     let here = false;
     if (said !== undefined && width !== undefined) {
-      // A file-width path that is no file is the folder of that name, said
-      // without its slash. A tree holds no file and folder at one path, so the
-      // one predicate never turns a file into a folder.
-      const named = at(said, width);
-      const folder = width === 'file' ? at(`${said}/`, 'under') : undefined;
-      for (const file of tree.files) {
-        if (!named(file) && !folder?.(file)) continue;
+      // Anchored at the root and compared whole segment for segment; a
+      // file-width path that is no file is the folder of that name. The tree
+      // answers natively, so no file list crosses into JavaScript.
+      for (const file of tree.entries(said, width)) {
         files.add(file);
         here = true;
       }

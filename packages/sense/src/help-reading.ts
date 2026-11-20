@@ -16,10 +16,8 @@ import { native, nativeRefusal } from './addon.js';
 import type { NativeAsked, NativeImporters, NativeIndexedUsage } from './native-orient.js';
 import type { DeclaredNames, NameTerms } from './declared-names.js';
 import { sourceIndexPath } from './source-index.js';
-import { CODE_EXTENSIONS } from './language.js';
-import type { ResolveOptions } from './resolve.js';
-import { withDeclaredTsconfig } from './typescript.js';
 import type { Mention, WalkedHelp } from './help-walked.js';
+import { mocking } from './source-tree.js';
 
 /** One name the export list holds, as the store's encoder takes it. */
 export type NamedExport = NativeIndexedUsage['exported'][number];
@@ -350,12 +348,6 @@ export function readHelp(
   drawn = true,
 ): Promise<HelpReading | null> {
   return entry('readHelp')(root, index, [...entries], [...targets.published], [...targets.unentered], [...targets.declared], drawn, ...mocking(root));
-}
-
-/** How a test's loads beside its mocks resolve: the `tsconfig` the repository declares, and the extensions read as code. */
-function mocking(root: string): [string | boolean | null, string[]] {
-  const { tsconfig } = withDeclaredTsconfig<ResolveOptions>(root, {});
-  return [tsconfig ?? null, [...CODE_EXTENSIONS]];
 }
 
 /** The store of `store` and `exported`, stamped with `meta` when it is published, and the digest of `exported`. */
