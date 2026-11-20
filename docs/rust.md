@@ -2,9 +2,9 @@
 
 `variance cargo` runs a Cargo test suite with rustc's coverage counters and
 records which functions each test ran. A change to a Rust function then runs
-only the test targets whose tests ran it. The record is one row per file that
-declares tests, with one case per test, and `variance select` answers a diff
-from it.
+only the test targets whose tests ran it: selection picks whole targets, such as
+a crate's unit tests or one file under `tests/`, and every test in a selected
+target runs.
 
 rustc places the counters itself, so the source is never rewritten, and the
 profiles are read inside the `variance` process with no `llvm-cov` installed.
@@ -15,7 +15,8 @@ first run also builds it, in about a minute.
 
 ## Record a Cargo suite
 
-Install the CLI next to the code that runs your suite:
+The CLI is a Node package, so you need Node 22.12 or newer. Install it at the
+repository root, beside your `Cargo.toml`:
 
 ```bash
 npm install --save-dev @variance-authority/cli
@@ -27,7 +28,9 @@ Then, from the crate or the workspace root:
 npx variance cargo --suite unit
 ```
 
-What follows `--` goes to `cargo test`, before its own `--`: the packages,
+`unit` is a suite you name under `suites` in `variance.config.json` at the
+repository root, as `{ "suites": { "unit": { "kind": "unit" } } }`. What
+follows `--` goes to `cargo test`, before its own `--`: the packages,
 features and targets to build.
 
 ```bash
@@ -48,6 +51,37 @@ It exits `0` when every test passed and `101`, Cargo's own code, when a test or
 the build failed. A failing test's output is printed and its row is still
 written, marked incomplete.
 
+## Select from the record
+
+The record is read the way a Node suite's is:
+
+```bash
+npx variance select --suite unit --since origin/main
+```
+
+It prints the test files the change since `origin/main` does not reach, one per
+line: those are the targets you may skip. A test file that is not in the record
+is never printed, so it runs. Each file is one Cargo target: `src/lib.rs` is the
+crate's `--lib`, and `tests/negates.rs` is `--test negates`. Run `cargo test`
+with the targets that were not printed.
+
+The record lives in your [cache](cache.md) and answers for the commit it was
+made at. Record again on your mainline after a merge, so the next diff is read
+against a record of the code it starts from. `variance covering` names the tests
+that ran a function:
+
+```bash
+npx variance covering --file src/lib.rs --function add
+```
+
+```text
+unit (unit):
+  2 named tests covered function add of src/lib.rs:
+    src/lib.rs — 2/3
+      tests::adds
+      tests::muls
+```
+
 ## What a row holds
 
 Each `.rs` file a test ran is a module, and each `fn` in it is one region, from
@@ -61,28 +95,3 @@ A row is the file the tests are declared in: `src/lib.rs` for a crate's unit
 tests, `tests/negates.rs` for an integration test target. A case in the row is a
 test by its libtest path, such as `tests::adds`. Only files under the repository
 root are recorded, so a dependency in the Cargo registry is never a region.
-
-## Select from the record
-
-The record is read the way a Node suite's is:
-
-```bash
-npx variance select --suite unit --since origin/main
-```
-
-It prints the test files the change since `origin/main` does not reach, one per
-line: those are the targets you may skip. A test file that is not in the record
-is never printed, so it runs. `variance covering` names the tests that ran a
-function:
-
-```bash
-npx variance covering --file src/lib.rs --function add
-```
-
-```text
-unit (unit):
-  2 named tests covered function add of src/lib.rs:
-    src/lib.rs — 2/3
-      tests::adds
-      tests::muls
-```
