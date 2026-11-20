@@ -90,11 +90,15 @@ export function classifyWords(text: string, help: Help): Classified {
   const entities = new Map<string, Entity>();
   const plain = new Set<string>();
   for (const word of wordsOf(text)) {
-    if (entities.has(word) || plain.has(word)) continue;
-    const names = [...(folded.get(word.toLowerCase()) ?? []), ...(exact.get(word) ?? [])]
+    // A package or an entrypoint is matched without case, so its word is
+    // listed once however it is written; an export only as spelled.
+    const caseless = folded.get(word.toLowerCase());
+    const key = caseless === undefined ? word : word.toLowerCase();
+    if (entities.has(key) || plain.has(word)) continue;
+    const names = [...(caseless ?? []), ...(exact.get(word) ?? [])]
       .sort((one, other) => ORDER.indexOf(one.kind) - ORDER.indexOf(other.kind));
     if (names.length === 0) plain.add(word);
-    else entities.set(word, { word, names });
+    else entities.set(key, { word, names });
   }
   return { entities: [...entities.values()], plain: [...plain] };
 }

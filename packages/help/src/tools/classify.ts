@@ -68,8 +68,11 @@ export const classify: Tool<Help> = {
     if (root === undefined) {
       throw new Error('`classify` reads the code map a checkout keeps, and this host named no checkout to read');
     }
+    // The map is read only to place what was found.
+    const classified = classifyWords(query, help);
+    if (classified.entities.length === 0) return formatClassified(classified, new Map());
     const placements = placementsOf(root);
     if (typeof placements === 'string') return placements;
-    return formatClassified(classifyWords(query, help), placements);
+    return formatClassified(classified, placements);
   },
 };

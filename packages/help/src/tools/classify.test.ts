@@ -72,6 +72,12 @@ describe('docs_classify', () => {
     ]);
   });
 
+  it('lists a package written in two cases once, as first written', () => {
+    const { entities } = classifyWords('sense and Sense', HELP);
+
+    expect(entities.map((found) => found.word)).toEqual(['sense']);
+  });
+
   it('takes an entrypoint, a scoped name and an exported identifier whole, in the asker\'s punctuation', () => {
     const { entities } = classifyWords('does sense/test-selection call attachVantage, from @acme/vantage?', HELP);
 
