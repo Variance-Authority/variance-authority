@@ -81,10 +81,10 @@ describe('the glibc floor', () => {
   });
 
   // Not held against `npm/<linux>/scan.node` here. A `yarn build` on a Linux
-  // host writes its own unfloored binary into that directory, which is right
-  // for the machine it runs on and wrong to publish. What is published is held
-  // to the floor by `scripts/verify-native-pack.mjs`, after the release build
-  // and again at prepack, on the bytes being packed.
+  // host without `cargo zigbuild` writes its own unfloored binary into that
+  // directory, which is right for the machine it runs on and wrong to publish.
+  // What is built at the floor is held to it by `scripts/verify-native-pack.mjs`
+  // where it is built, and again at prepack, on the bytes being packed.
   it('asks for no glibc that Node 22 does not already need', () => {
     for (const target of linux) {
       expect(compareVersions(target.glibc as string, NODE_22_GLIBC)).toBeLessThanOrEqual(0);

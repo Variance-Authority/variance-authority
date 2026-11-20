@@ -230,15 +230,10 @@ jobs:
       # Linux links against the glibc floor in `native/targets.mjs` rather than
       # the runner's own, which is what `cargo zigbuild` is for. Built on
       # ubuntu-latest without it, the scanner asked for glibc 2.39 and failed
-      # to load on Debian 12 while Node and oxc ran there fine.
+      # to load on Debian 12 while Node and oxc ran there fine. Pull-request
+      # CI links the same way, through the same action, at the same floor.
       - if: startsWith(matrix.platform, 'linux-')
-        uses: mlugg/setup-zig@v2
-        with:
-          version: 0.16.0
-      - if: startsWith(matrix.platform, 'linux-')
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-zigbuild
+        uses: ./.github/actions/zigbuild
 
       # No `yarn install`. This builds a Rust crate and copies the result — it
       # needs neither the workspace's dependencies nor its `dist/`.
