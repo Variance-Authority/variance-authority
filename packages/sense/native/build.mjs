@@ -62,7 +62,7 @@ import { spawnSync } from 'node:child_process';
 import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { TARGETS, hostTarget } from './targets.mjs';
+import { LINKER, TARGETS, hostTarget, linkedAt } from './targets.mjs';
 import { nativeBuildInputs } from './build-inputs.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -105,7 +105,7 @@ function builtFrom() {
 /** The glibc a build links against when its subcommand can: the target's floor. */
 const wanted = asked === undefined ? host?.glibc : TARGETS[asked].glibc;
 const tree = builtFrom();
-const identity = tree === undefined || wanted === undefined ? tree : `${tree} glibc ${wanted}`;
+const identity = tree === undefined || wanted === undefined ? tree : `${tree} ${linkedAt(wanted)}`;
 const plain =
   asked === undefined &&
   (process.env['SENSE_TARGET_CPU'] ?? '') === '' &&
@@ -113,8 +113,20 @@ const plain =
   (process.env['CARGO_ENCODED_RUSTFLAGS'] ?? '') === '';
 const stamped = existsSync(stamp) ? readFileSync(stamp, 'utf8').trim() : undefined;
 const current = plain && tree !== undefined && existsSync(join(into, 'scan.node'));
+const fresh = current && stamped === identity;
 
-if (current && stamped === identity) {
+/**
+ * `--compiles` answers whether this build would run cargo, as `true` or
+ * `false`, and builds nothing. CI asks it before installing the linker: the
+ * stamp is this script's, and a binary left on disk by an earlier lookup is
+ * not one this build keeps.
+ */
+if (process.argv.includes('--compiles')) {
+  process.stdout.write(`${!fresh}\n`);
+  process.exit(0);
+}
+
+if (fresh) {
   console.log(
     `sense: native scanner at ${join(into, 'scan.node')} was built from inputs ${identity}, ` +
       'which is unchanged — not rebuilt',
@@ -177,6 +189,23 @@ if (!linkable) {
   );
 }
 const floor = linkable ? wanted : undefined;
+
+// The linker the stamp names is the pinned one; a different one builds, says
+// so and leaves no stamp, and in CI, which installs the pins, it is a failure.
+const installed =
+  floor === undefined
+    ? undefined
+    : [
+        spawnSync(cargo, ['zigbuild', '--version'], { encoding: 'utf8' }).stdout?.trim().split(' ').at(-1),
+        spawnSync('zig', ['version'], { encoding: 'utf8' }).stdout?.trim(),
+      ];
+const pinned = installed === undefined || (installed[0] === LINKER.zigbuild && installed[1] === LINKER.zig);
+if (!pinned) {
+  console.error(
+    `sense: linking with cargo-zigbuild ${installed[0]} and zig ${installed[1]}, not the pinned ${LINKER.zigbuild} and ${LINKER.zig}`,
+  );
+  if ((process.env['CI'] ?? '') !== '') process.exit(1);
+}
 const target = asked ?? (floor === undefined ? undefined : host.triple);
 const subcommand = floor === undefined ? 'build' : 'zigbuild';
 const triple = floor === undefined ? target : `${target}.${floor}`;
@@ -269,5 +298,5 @@ if (floor !== undefined) {
   const checked = spawnSync(process.execPath, [verify, into], { stdio: 'inherit' });
   if (checked.status !== 0) process.exit(checked.status ?? 1);
 }
-if (plain && full && tree !== undefined) writeFileSync(stamp, `${floor === undefined ? tree : identity}\n`);
+if (plain && full && pinned && tree !== undefined) writeFileSync(stamp, `${floor === undefined ? tree : identity}\n`);
 console.log(`sense: native scanner at ${join(into, 'scan.node')}`);

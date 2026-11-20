@@ -63,11 +63,12 @@ runs:
           process.stdout.write(inputs.identity);
         ')
         libc=$(ldd --version 2>/dev/null | awk 'NR == 1 { print $NF }' || true)
-        # build.mjs links this host's binary at its target's glibc floor, which
-        # makes it independent of the runner's glibc and never one built on it.
+        # build.mjs links this host's binary at its target's glibc floor with
+        # the pinned linker, which makes it independent of the runner's glibc
+        # and names the linker, as the binary's stamp does.
         floor=$(node --input-type=module -e 'import { hostTarget } from "./targets.mjs"; process.stdout.write(hostTarget()?.glibc ?? "")')
         echo "floor=$floor" >> "$GITHUB_OUTPUT"
-        linked=${floor:+glibc-floor-$floor}
+        linked=$(FLOOR=$floor node --input-type=module -e 'import { linkedAt } from "./targets.mjs"; const f = process.env.FLOOR; process.stdout.write(f ? linkedAt(f).replaceAll(" ", "-") : "")')
         compiler=$(rustc -vV | sha256sum | cut -d ' ' -f 1)
         echo "toolchain=$(rustc --version | cut -d ' ' -f 2)" >> "$GITHUB_OUTPUT"
         rustup default "$(rustup show active-toolchain | cut -d ' ' -f 1)"
@@ -110,10 +111,16 @@ runs:
         cache-bin: 'false'
 
     # The linker for a target's glibc floor, which build.mjs refuses to build
-    # without in CI. Only where no stamp came back with the binary: a stamped
-    # one compiles nothing, and an unstamped one is built again.
+    # without in CI. Only when build.mjs says it will compile: it owns the
+    # stamp, and a binary an earlier lookup left on disk may not be current.
+    - name: will the native scanner compile
+      id: compiles
+      if: steps.native.outputs.floor != ''
+      shell: bash
+      run: echo "native=$(node packages/sense/native/build.mjs --compiles)" >> "$GITHUB_OUTPUT"
+
     - name: a linker for the glibc floor
-      if: steps.native.outputs.floor != '' && hashFiles('packages/sense/npm/*/scan.node.tree') == ''
+      if: steps.compiles.outputs.native == 'true'
       uses: ./.github/actions/zigbuild
 
     # build.mjs checks the restored binary's compiled-input stamp before skipping Cargo.
