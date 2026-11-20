@@ -2282,8 +2282,9 @@ stderr, so no answer comes from a map older than the index. `variance select`
 reads none of them, and waits only while the process brings the index up to
 date and folds its working layer into its base, which it does before the four. A process that ended before it
 finished is not waited on: the next command that reads them makes them itself
-and prints their lines. `--wait` makes them before `index` returns, which is what it
-always does in CI. `--follow-ups` is what the started process runs.
+and prints their lines. `--wait` waits for that process before `index` returns, and
+prints its lines and exits as it did, which is what it always does in CI.
+`--follow-ups` is what the started process runs.
 
 In CI, run it as its own step after you restore the cache. A reader that finds
 nothing published there exits `2` and names the missing step, because an index
