@@ -6,6 +6,7 @@
 use std::collections::HashSet;
 
 use rayon::prelude::*;
+use rustc_hash::FxHashMap;
 
 use crate::help_store::{flags, DeepRef, EntryRef, StoreRef, UseRef, NONE, USE_KINDS};
 use crate::help_search::{headed, joined, postings, terms_of, Pool, SPLIT};
@@ -13,21 +14,56 @@ use crate::help_usage::NamedExport;
 use crate::order::code_unit;
 use crate::segment::{u32s, u8s, Column};
 
-/// Each term one row holds, as (term, row) pairs in term byte order and then
-/// row order, so a term's rows lie side by side and ascend.
-fn pairs(held: Vec<HashSet<String>>) -> Vec<(String, u32)> {
-    let mut pairs: Vec<(String, u32)> =
-        held.into_par_iter().enumerate().flat_map_iter(|(row, terms)| terms.into_iter().map(move |term| (term, row as u32))).collect();
-    pairs.par_sort_unstable();
-    pairs
+/// Rows whose text is cut or lowered at once, on every core: only one batch's
+/// term sets and lowered strings are held, never every row's.
+const BATCH: usize = 1 << 14;
+
+/// `of` over `rows`, a batch at a time, in row order.
+fn batched<'a, T: Sync, R: Send + 'a>(rows: &'a [T], of: impl Fn(&T) -> R + Sync + 'a) -> impl Iterator<Item = R> + 'a {
+    rows.chunks(BATCH).flat_map(move |batch| batch.par_iter().map(&of).collect::<Vec<R>>())
 }
 
-/// `postings` over `terms` from `pairs`, both in term byte order.
-fn posted(terms: &[&str], pairs: &[(String, u32)]) -> (Vec<u32>, Vec<u32>) {
-    let (mut off, mut rows, mut at) = (Vec::with_capacity(terms.len() + 1), Vec::with_capacity(pairs.len()), 0);
-    for term in terms {
+/// Every distinct term once, by the id it was first met under, so a row's
+/// terms are held as ids and each term's text once.
+#[derive(Default)]
+struct Terms {
+    ids: FxHashMap<String, u32>,
+}
+
+impl Terms {
+    /// Each term a row holds, as (term id, row) pairs.
+    fn pairs<T: Sync>(&mut self, rows: &[T], of: impl Fn(&T) -> HashSet<String> + Sync) -> Vec<(u32, u32)> {
+        let mut pairs = Vec::new();
+        for (row, held) in batched(rows, of).enumerate() {
+            for term in held {
+                let next = self.ids.len() as u32;
+                pairs.push((*self.ids.entry(term).or_insert(next), row as u32));
+            }
+        }
+        pairs
+    }
+
+    /// The terms in byte order, and each id's place among them.
+    fn sorted(self) -> (Vec<String>, Vec<u32>) {
+        let mut terms: Vec<(String, u32)> = self.ids.into_iter().collect();
+        terms.par_sort_unstable();
+        let mut place = vec![0; terms.len()];
+        for (at, (_, id)) in terms.iter().enumerate() {
+            place[*id as usize] = at as u32;
+        }
+        (terms.into_iter().map(|(term, _)| term).collect(), place)
+    }
+}
+
+/// `postings` over `count` terms from (term id, row) pairs, an id read by its
+/// `place` in term byte order: a term's rows lie side by side and ascend.
+fn posted(count: usize, mut pairs: Vec<(u32, u32)>, place: &[u32]) -> (Vec<u32>, Vec<u32>) {
+    pairs.par_iter_mut().for_each(|pair| pair.0 = place[pair.0 as usize]);
+    pairs.par_sort_unstable();
+    let (mut off, mut rows, mut at) = (Vec::with_capacity(count + 1), Vec::with_capacity(pairs.len()), 0);
+    for term in 0..count as u32 {
         off.push(rows.len() as u32);
-        while pairs.get(at).is_some_and(|(held, _)| held == term) {
+        while pairs.get(at).is_some_and(|(held, _)| *held == term) {
             rows.push(pairs[at].1);
             at += 1;
         }
@@ -98,12 +134,6 @@ pub(crate) fn body_of<'a>(input: &'a StoreRef<'a>, exported: &'a [NamedExport]) 
     let (mut used_by_off, mut used_by) = (vec![0u32], Vec::new());
     let mut pub_uses = Vec::with_capacity(rows);
     let mut pub_more: [Vec<u32>; 6] = Default::default(); // declared, line, signature, mentionAt, mentionLine, mentionText
-    let doc_lower: Vec<String> = entries.par_iter().map(|(entry, _)| entry.doc.unwrap_or("").to_lowercase()).collect();
-    let doc_terms: Vec<HashSet<String>> =
-        entries.par_iter().map(|(entry, _)| entry.doc.map(|doc| terms_of(split, doc)).unwrap_or_default()).collect();
-    let signature_terms: Vec<HashSet<String>> = entries.par_iter()
-        .map(|(entry, _)| headed(&entry.kind).then_some(entry.signature).flatten().map(|signature| terms_of(split, signature)).unwrap_or_default())
-        .collect();
     for (row, (entry, spec)) in entries.iter().enumerate() {
         let name = name_of!(entry.name);
         name_pub[name as usize].push(row as u32);
@@ -176,12 +206,6 @@ pub(crate) fn body_of<'a>(input: &'a StoreRef<'a>, exported: &'a [NamedExport]) 
     let count = exported.len();
     let mut exp: [Vec<u32>; 9] = Default::default(); // name, at, by, line, doc, bound, declaration, boundLine, signature
     let (mut exp_kind, mut exp_type) = (Vec::with_capacity(count), Vec::with_capacity(count));
-    let exp_doc_lower: Vec<String> = exported.par_iter().map(|named| named.doc.as_deref().unwrap_or("").to_lowercase()).collect();
-    let exp_terms: Vec<HashSet<String>> =
-        exported.par_iter().map(|named| named.doc.as_deref().map(|doc| terms_of(split, doc)).unwrap_or_default()).collect();
-    let exp_signature_terms: Vec<HashSet<String>> = exported.par_iter()
-        .map(|named| named.declaration.as_deref().is_none_or(headed).then_some(named.signature.as_deref()).flatten().map(|signature| terms_of(split, signature)).unwrap_or_default())
-        .collect();
     for (row, named) in exported.iter().enumerate() {
         let name = name_of!(named.name.as_str());
         name_exp[name as usize].push(row as u32);
@@ -198,30 +222,35 @@ pub(crate) fn body_of<'a>(input: &'a StoreRef<'a>, exported: &'a [NamedExport]) 
         exp_type.push(u8::from(named.r#type));
     }
 
-    let name_terms: Vec<HashSet<String>> = names.values.par_iter().map(|name| terms_of(split, name)).collect();
     // Names, then rows by doc, by export doc, by signature and by export signature.
-    let held: Vec<Vec<(String, u32)>> = [name_terms, doc_terms, exp_terms, signature_terms, exp_signature_terms].into_par_iter().map(pairs).collect();
-    // Each kind's pairs are sorted, so its distinct terms are one per run of them.
-    let mut terms: Vec<&str> = held.iter()
-        .flat_map(|pairs| pairs.chunk_by(|(a, _), (b, _)| a == b).map(|run| run[0].0.as_str()))
-        .collect();
-    terms.par_sort_unstable();
-    terms.dedup();
+    let mut found = Terms::default();
+    let held = [
+        found.pairs(&names.values, |name| terms_of(split, name)),
+        found.pairs(&entries, |(entry, _)| entry.doc.map(|doc| terms_of(split, doc)).unwrap_or_default()),
+        found.pairs(exported, |named| named.doc.as_deref().map(|doc| terms_of(split, doc)).unwrap_or_default()),
+        found.pairs(&entries, |(entry, _)| {
+            headed(&entry.kind).then_some(entry.signature).flatten().map(|signature| terms_of(split, signature)).unwrap_or_default()
+        }),
+        found.pairs(exported, |named| {
+            let signature = named.declaration.as_deref().is_none_or(headed).then_some(named.signature.as_deref()).flatten();
+            signature.map(|signature| terms_of(split, signature)).unwrap_or_default()
+        }),
+    ];
+    let (terms, place) = found.sorted();
 
     let site_files = &uses.at[..*sites_off.last().unwrap_or(&0) as usize];
     let mut files: Vec<u32> = pub_cols[4].iter().chain(site_files).chain(&exp[1]).copied().collect::<HashSet<u32>>().into_iter().collect();
     files.par_sort_unstable_by(|&a, &b| strings.values[a as usize].as_bytes().cmp(strings.values[b as usize].as_bytes()));
 
     let (strings_off, strings_blob) = joined(&strings.values, "");
-    let lowered: Vec<String> = names.values.par_iter().map(|name| name.to_lowercase()).collect();
-    let (lower_off, lower_blob) = joined(&lowered, "\0");
-    let (doc_off, doc_blob) = joined(&doc_lower, "\0");
-    let (exp_doc_off, exp_doc_blob) = joined(&exp_doc_lower, "\0");
+    let (lower_off, lower_blob) = joined(batched(&names.values, |name| name.to_lowercase()), "\0");
+    let (doc_off, doc_blob) = joined(batched(&entries, |(entry, _)| entry.doc.unwrap_or("").to_lowercase()), "\0");
+    let (exp_doc_off, exp_doc_blob) = joined(batched(exported, |named| named.doc.as_deref().unwrap_or("").to_lowercase()), "\0");
     let (terms_off, terms_blob) = joined(&terms, "");
     let lists = |lists: &[Vec<u32>]| postings(&lists.iter().map(Vec::as_slice).collect::<Vec<_>>());
     let (names_pub_off, names_pub) = lists(&name_pub);
     let (names_exp_off, names_exp) = lists(&name_exp);
-    let posted: Vec<(Vec<u32>, Vec<u32>)> = held.par_iter().map(|pairs| posted(&terms, pairs)).collect();
+    let posted: Vec<(Vec<u32>, Vec<u32>)> = held.into_iter().map(|pairs| posted(terms.len(), pairs, &place)).collect();
     let [(term_name_off, term_name), (term_pub_off, term_pub), (term_exp_off, term_exp), (term_pub_sig_off, term_pub_sig), (term_exp_sig_off, term_exp_sig)]: [_; 5] =
         posted.try_into().unwrap_or_else(|_| unreachable!("five kinds"));
 
@@ -254,3 +283,7 @@ pub(crate) fn body_of<'a>(input: &'a StoreRef<'a>, exported: &'a [NamedExport]) 
         u32s("terms.expSigOff", term_exp_sig_off), u32s("terms.expSig", term_exp_sig),
     ]
 }
+
+#[cfg(test)]
+#[path = "help_store_encode_tests.rs"]
+mod tests;

@@ -116,10 +116,11 @@ fn words_of(token: &str) -> Vec<&str> {
 }
 
 /// `joined`: strings as UTF-8 with a separator, and where each one starts.
-pub(crate) fn joined<S: AsRef<str>>(values: &[S], separator: &str) -> (Vec<u32>, Vec<u8>) {
-    let mut off = Vec::with_capacity(values.len() + 1);
+pub(crate) fn joined<S: AsRef<str>>(values: impl IntoIterator<Item = S>, separator: &str) -> (Vec<u32>, Vec<u8>) {
+    let values = values.into_iter();
+    let mut off = Vec::with_capacity(values.size_hint().0 + 1);
     let mut blob = Vec::new();
-    for (at, value) in values.iter().enumerate() {
+    for (at, value) in values.enumerate() {
         if at > 0 {
             blob.extend_from_slice(separator.as_bytes());
         }
@@ -127,7 +128,7 @@ pub(crate) fn joined<S: AsRef<str>>(values: &[S], separator: &str) -> (Vec<u32>,
         off.push((blob.len()) as u32);
         blob.extend_from_slice(value.as_ref().as_bytes());
     }
-    off.push(if values.is_empty() { 0 } else { (blob.len() + separator.len()) as u32 });
+    off.push(if off.is_empty() { 0 } else { (blob.len() + separator.len()) as u32 });
     (off, blob)
 }
 
