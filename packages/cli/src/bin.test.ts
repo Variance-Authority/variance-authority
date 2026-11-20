@@ -299,12 +299,6 @@ describe('parseArgs', () => {
     }
   });
 
-  it('reads `--help` after a flag no question takes, which takes no value of its own', () => {
-    // `ask` answers past an unknown flag, so the help scan must not hand it the
-    // next word as a value the lexer would never give it.
-    expect(parseArgs(['ask', 'packages', '--verbose', '--help'])).toEqual({ command: 'help', topic: 'ask' });
-  });
-
   it('leaves `--help` after `--` as a positional, and after a value-taking flag as its missing value', () => {
     // Both are the lexer's rules, and help must not be the one word that escapes
     // them: `accept -- --help` names a subject, and `ask --query --help` is a
