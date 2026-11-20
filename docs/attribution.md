@@ -69,7 +69,9 @@ is an edge on one side and flat on the other is drawing that moved, appeared or
 went, and makes the region `shape`; a row the after image gained has no
 partner and does the same. Where the edges stand where they stood, only the
 colour changed: `colour`. A bordered button repainted from dark to light, and
-an anti-aliased edge recoloured, stay `colour`.
+an anti-aliased edge recoloured, stay `colour`. A region with no edge on either
+side, a tint too faint to mark, carries no `change`: nothing in it tells the
+two apart.
 
 The 2-pixel margin is there because a block shifted by a pixel leaves two
 regions a pixel wide, with no edge of their own; the margin brings in the edge

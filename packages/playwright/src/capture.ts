@@ -1,4 +1,5 @@
 import type { Page } from 'playwright';
+import { pixelBox } from '@variance-authority/core/attribute';
 import type { ScreenshotOptions, Viewport } from '@variance-authority/core/format';
 import { SUBJECT_PATH } from '@variance-authority/raster';
 
@@ -151,16 +152,7 @@ function within(box: Box, viewport: Viewport): boolean {
  * the tempting mistake: the two differ whenever a box starts at a fraction, which
  * includes a box of integer size sitting at a fractional offset.
  */
-export function outward(box: Box): Box {
-  const x = Math.floor(box.x);
-  const y = Math.floor(box.y);
-  return {
-    x,
-    y,
-    width: Math.ceil(box.x + box.width) - x,
-    height: Math.ceil(box.y + box.height) - y,
-  };
-}
+export const outward: (box: Box) => Box = pixelBox;
 
 /**
  * Whether the subject reaches the screen without rotation or skew.

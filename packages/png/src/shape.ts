@@ -1,4 +1,4 @@
-import type { RegionChange } from '@variance-authority/core/attribute';
+import { pixelBox, type RegionChange } from '@variance-authority/core/attribute';
 import type { Rect } from '@variance-authority/core/format';
 import type { ComparedPixels } from './compare.js';
 import { colorDeltaAt, limitOf } from './judge.js';
@@ -31,14 +31,15 @@ const FLAT = EDGE / 4;
 
 /**
  * What changed in `region`, from the pixels the comparison decoded and its row
- * pairing. Reads only the pixels in its box and {@link REGION_MARGIN} around
- * it, less any in `excluded`, so the cost is the changed area.
+ * pairing, or `undefined` when neither side has an edge in it to tell by. Reads
+ * only the pixels in its box and {@link REGION_MARGIN} around it, less the
+ * pixels any `excluded` box covers, so the cost is the changed area.
  */
 export function regionChange(
   { before, after, aligned }: ComparedPixels,
   region: Rect,
-  excluded: readonly Rect[] = [],
-): RegionChange {
+  excluded: readonly Rect[],
+): RegionChange | undefined {
   // The canvas is the after image's when the rows were paired, the box holding both when they were not.
   const width = aligned === null ? Math.max(before.width, after.width) : after.width;
   const height = aligned === null ? Math.max(before.height, after.height) : after.height;
@@ -48,8 +49,9 @@ export function regionChange(
   const rows = Math.min(height, region.y + region.height + REGION_MARGIN) - top;
   const inside = (x: number, y: number) =>
     x >= region.x && x < region.x + region.width && y >= region.y && y < region.y + region.height;
+  const covered = excluded.map(pixelBox);
   const skipped = (x: number, y: number) =>
-    excluded.some((box) => x >= box.x && x < box.x + box.width && y >= box.y && y < box.y + box.height);
+    covered.some((box) => x >= box.x && x < box.x + box.width && y >= box.y && y < box.y + box.height);
   // Each column's pairing of after rows to before rows, found once per column rather than per pixel.
   const pairing = Array.from({ length: Math.max(0, columns) }, (_, column) =>
     aligned === null ? null : (aligned.strips.find((strip) => left + column < strip.to)?.source ?? null),
@@ -80,7 +82,8 @@ export function regionChange(
   for (let index = 0; index < first.length; index += 1) {
     if (first[index]! >= 0 && second[index]! >= 0 && first[index] !== second[index]) return 'shape';
   }
-  return 'colour';
+  // Flat on both sides, or too faint to mark: nothing says the drawing stayed.
+  return first.includes(1) || second.includes(1) ? 'colour' : undefined;
 }
 
 /**
