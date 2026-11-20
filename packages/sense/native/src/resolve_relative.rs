@@ -33,7 +33,10 @@ impl Resolvers {
         if request.contains(['?', '#']) || tsconfig.is_some_and(|config| config.compiler_options.root_dirs.is_some()) {
             return false;
         }
-        let Some(path) = joined(root, from, request).map(|path| root.join(path)) else { return false };
+        if !(request.starts_with("./") || request.starts_with("../")) || request.ends_with('/') { return false; }
+        let Some(directory) = from.parent() else { return false };
+        let path = crate::conditions::normalize(&directory.join(request));
+        if !path.starts_with(root) { return false; }
         let Some(parent) = path.parent() else { return false };
         match oxc_resolver::FileSystem::metadata(&self.emitted, parent) {
             Ok(metadata) => !metadata.is_dir(),
@@ -140,6 +143,19 @@ mod tests {
         assert_eq!(joined(root, from, "../../../out"), None);
         assert_eq!(joined(root, from, "./dir/"), None);
         assert_eq!(joined(root, from, "pkg"), None);
+    }
+
+    #[test]
+    fn a_parent_relative_request_keeps_native_directory_components() {
+        let root = std::env::temp_dir().join(format!("sense-native-relative-{}", std::process::id()));
+        std::fs::create_dir_all(root.join("src/nested")).unwrap();
+        std::fs::create_dir_all(root.join("src/shared")).unwrap();
+        std::fs::write(root.join("src/nested/from.ts"), "export {};").unwrap();
+        std::fs::write(root.join("src/shared/value.ts"), "export const value = 1;").unwrap();
+        let root = std::fs::canonicalize(root).unwrap();
+        let resolver = Resolvers::new(Tsconfig::Off, None);
+        assert_eq!(resolver.resolve(&root, &root.join("src/nested/from.ts"), "../shared/value", None).as_deref(), Some("src/shared/value.ts"));
+        std::fs::remove_dir_all(root).unwrap();
     }
 
     #[test]
