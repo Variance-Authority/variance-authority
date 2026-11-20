@@ -365,7 +365,7 @@ pub fn join_walked_help(walked: WalkedHelp) -> napi::Result<Buffer> {
     let packages = Joined::new(skeleton, &walked.names, &walked.uses, &mentions).map_err(napi::Error::from_reason)?;
     let deep = [&walked.deep, &walked.by_path, &walked.unfollowed].map(|held| held.iter().map(DeepRef::from).collect());
     let input = StoreRef { packages: &packages, deep, unreadable: &walked.unreadable };
-    let (store, _) = encode(&input, &walked.exported, None, None).map_err(napi::Error::from_reason)?;
+    let (store, _) = encode(&input, &walked.exported, None, None);
     Ok(store.into())
 }
 
@@ -403,7 +403,7 @@ impl Held {
         let unreadable: Vec<String> = o.unreadable.iter().chain(&self.unreadable).cloned().collect();
         let deep = [&self.deep[0], &self.deep[1], &self.deep[2]].map(|held| held.iter().map(DeepRef::from).collect());
         let input = StoreRef { packages: &packages, deep, unreadable: &unreadable };
-        let (store, _) = encode(&input, &self.exported, Some(&meta), None).map_err(napi::Error::from_reason)?;
+        let (store, _) = encode(&input, &self.exported, Some(&meta), None);
         drop(input);
         drop(packages);
         drop(mentions);

@@ -155,7 +155,7 @@ fn maybe<'a>(pool: &mut Pool<'a>, value: Option<&'a str>) -> u32 {
 
 /// The store's columns but its head. A name's id is its place in code-unit
 /// order, so a question lists names in that order by id alone.
-pub(crate) fn body_of<'a>(input: &'a StoreRef<'a>, exported: &'a [NamedExport]) -> Result<Vec<Column>, String> {
+pub(crate) fn body_of<'a>(input: &'a StoreRef<'a>, exported: &'a [NamedExport]) -> Vec<Column> {
     let split = &*SPLIT;
     let (mut strings, mut names) = (Pool::default(), Pool::default());
 
@@ -240,7 +240,7 @@ pub(crate) fn body_of<'a>(input: &'a StoreRef<'a>, exported: &'a [NamedExport]) 
             doc_lower.push(&lowered);
         }
         row += entries.len() as u32;
-    })?;
+    });
 
     let (mut uses, _) = sites.pooled(&mut strings);
     let (held, _) = td.pooled(&mut strings);
@@ -324,7 +324,7 @@ pub(crate) fn body_of<'a>(input: &'a StoreRef<'a>, exported: &'a [NamedExport]) 
     let [pub_declared, pub_line, pub_signature, mention_at, mention_line, mention_text] = pub_more;
     let [exp_name, exp_at, exp_by, exp_line, exp_doc, exp_bound, exp_declaration, exp_bound_line, exp_signature] = exp;
     let [deep_specifier, deep_by, deep_at, deep_line, deep_to] = deep;
-    Ok(vec![
+    vec![
         u32s("strings.off", strings_off), u8s("strings.blob", strings_blob), u32s("files", files),
         u32s("names.name", name_string), u32s("names.lowerOff", lower_off), u8s("names.lower", lower_blob),
         u32s("names.pubOff", names_pub_off), u32s("names.pub", names_pub), u32s("names.expOff", names_exp_off), u32s("names.exp", names_exp),
@@ -347,7 +347,7 @@ pub(crate) fn body_of<'a>(input: &'a StoreRef<'a>, exported: &'a [NamedExport]) 
         u32s("terms.nameOff", term_name_off), u32s("terms.name", term_name), u32s("terms.pubOff", term_pub_off), u32s("terms.pub", term_pub),
         u32s("terms.expOff", term_exp_off), u32s("terms.exp", term_exp), u32s("terms.pubSigOff", term_pub_sig_off), u32s("terms.pubSig", term_pub_sig),
         u32s("terms.expSigOff", term_exp_sig_off), u32s("terms.expSig", term_exp_sig),
-    ])
+    ]
 }
 
 #[cfg(test)]

@@ -134,12 +134,12 @@ pub struct EncodedStore {
 
 /// Encode `store` and `exported`, stamped with `meta` when it is published.
 #[napi(catch_unwind)]
-pub fn encode_help_store(store: HelpStore, exported: Vec<NamedExport>, meta: Option<StoreMeta>) -> napi::Result<EncodedStore> {
+pub fn encode_help_store(store: HelpStore, exported: Vec<NamedExport>, meta: Option<StoreMeta>) -> EncodedStore {
     let deep = [&store.deep, &store.by_path, &store.unfollowed].map(|held| held.iter().map(DeepRef::from).collect());
     let packages: Vec<PackageRef> = store.packages.iter().map(PackageRef::from).collect();
     let input = StoreRef { packages: &packages, deep, unreadable: &store.unreadable };
-    let (bytes, digest) = encode(&input, &exported, meta.as_ref(), None).map_err(napi::Error::from_reason)?;
-    Ok(EncodedStore { bytes: bytes.into(), exported: digest })
+    let (bytes, digest) = encode(&input, &exported, meta.as_ref(), None);
+    EncodedStore { bytes: bytes.into(), exported: digest }
 }
 
 /// The same store with a new `generatedAt`: every column but the head's is copied as it is.
@@ -337,10 +337,11 @@ pub(crate) struct StoreRef<'a> {
 /// The packages a store is encoded from, handed over a run at a time, in
 /// order: only one run's joined rows are held while it is encoded.
 pub(crate) trait Packages: Sync {
-    /// Every entry's name, once per entry.
+    /// Every entry's name, once per entry: exactly the names `each` hands
+    /// over on its entries.
     fn names(&self) -> Vec<&str>;
-    /// Each run of packages, in order; `Err` stops at the first that did not join.
-    fn each<'s>(&'s self, visit: &mut dyn FnMut(&[PackageRef<'s>])) -> Result<(), String>;
+    /// Each run of packages, in order.
+    fn each<'s>(&'s self, visit: &mut dyn FnMut(&[PackageRef<'s>]));
 }
 
 /// Packages already joined are one run.
@@ -349,9 +350,8 @@ impl Packages for Vec<PackageRef<'_>> {
         self.iter().flat_map(|owner| &owner.openings).flat_map(|opening| &opening.entries).map(|entry| entry.name).collect()
     }
 
-    fn each<'s>(&'s self, visit: &mut dyn FnMut(&[PackageRef<'s>])) -> Result<(), String> {
+    fn each<'s>(&'s self, visit: &mut dyn FnMut(&[PackageRef<'s>])) {
         visit(self);
-        Ok(())
     }
 }
 
@@ -359,10 +359,8 @@ use crate::help_store_encode::body_of;
 
 /// The store's bytes and the digest of `exported`: `digest` when the caller
 /// holds it, computed beside the body when not.
-/// `Err` names the first package whose openings did not join.
-pub(crate) fn encode(input: &StoreRef, exported: &[NamedExport], meta: Option<&StoreMeta>, digest: Option<&str>) -> Result<(Vec<u8>, String), String> {
+pub(crate) fn encode(input: &StoreRef, exported: &[NamedExport], meta: Option<&StoreMeta>, digest: Option<&str>) -> (Vec<u8>, String) {
     let (body, digest) = rayon::join(|| body_of(input, exported),|| digest.map_or_else(|| exported_digest(exported), str::to_owned));
-    let body = body?;
     let meta: [Option<&str>; META] = match meta {
         Some(held) => [
             Some(&held.root), Some(&held.graph_root), Some(&held.graph_digest), Some(&held.generated_at), Some(&held.read_started_at),
@@ -373,7 +371,7 @@ pub(crate) fn encode(input: &StoreRef, exported: &[NamedExport], meta: Option<&S
     };
     let mut columns = Vec::from(head_columns(&meta));
     columns.extend(body);
-    Ok((segment::encode_as(FORMAT, VERSION, columns), digest))
+    (segment::encode_as(FORMAT, VERSION, columns), digest)
 }
 
 /// The flags of one use: type, kind, how it is read through, and whether

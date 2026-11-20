@@ -104,7 +104,7 @@ pub(crate) fn published_names<'a>(layers: &'a [Layer<'a>], entries: &[HelpEntry]
     };
     let reached = entries.iter().map(|entry| walk.names_at(&entry.file, &mut HashSet::new())).collect::<Result<Vec<_>, _>>()?;
     // Once the walk lets go of what it read, each entry's names are taken, not copied; only a
-    // file two entries open is copied, for the second.
+    // file two entries open is copied, for the first, and the last to open it takes it.
     drop(walk);
     Ok(reached.into_iter().map(|names| Rc::try_unwrap(names).map_or_else(|shared| shared.order.clone(), |names| names.order)).collect())
 }

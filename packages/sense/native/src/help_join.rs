@@ -73,16 +73,23 @@ pub(crate) fn mentions<'a>(root: &Path, names: &'a [Vec<PublishedName>]) -> Resu
 /// each opening's names, flat in the skeleton's order, and `uses` every use
 /// through an opened key. Entries are ordered by how many packages reach for
 /// them, then how often, then by name in code units. Joined a run of packages
-/// at a time, as the encoder asks; `Err` names a name with no declaration
-/// behind it.
+/// at a time, as the encoder asks.
 pub(crate) struct Joined<'a> {
     skeleton: Vec<Skeleton<'a>>,
     names: &'a [Vec<PublishedName>],
     grouped: Grouped<'a>,
     mentions: &'a Mentions<'a>,
-    /// The kind of each name declared as several, written once.
-    kinds: HashSet<String>,
+    /// The kinds of the names declared as several, each written once.
+    kinds: Vec<String>,
+    /// By each name's place in `names`, flat: its kind in `kinds`, or `NONE`
+    /// for a name of one kind.
+    kind_of: Vec<u32>,
+    /// The entries at which a run closes.
+    run: usize,
 }
+
+/// No kind of `kinds`: the name has one kind of its own.
+const NONE: u32 = u32::MAX;
 
 impl<'a> Joined<'a> {
     pub(crate) fn new(skeleton: Vec<Skeleton<'a>>, names: &'a [Vec<PublishedName>], uses: &'a [NameUse], mentions: &'a Mentions<'a>) -> Result<Self, String> {
@@ -94,14 +101,33 @@ impl<'a> Joined<'a> {
         for held in uses {
             grouped.entry(held.key.as_str()).or_default().entry(held.name.as_str()).or_default().push(held);
         }
-        let kinds = names.iter().flatten().filter(|name| name.kinds.len() > 1).map(several).collect();
+        let (mut kinds, mut at): (Vec<String>, HashMap<String, u32>) = (Vec::new(), HashMap::new());
+        let mut kind_of = Vec::with_capacity(names.iter().map(Vec::len).sum());
+        for name in names.iter().flatten() {
+            kind_of.push(match name.kinds.len() {
+                0 => return Err(format!("`{}` was reached with no declaration behind it", name.name)),
+                1 => NONE,
+                _ => *at.entry(several(name)).or_insert_with_key(|joined| {
+                    kinds.push(joined.clone());
+                    kinds.len() as u32 - 1
+                }),
+            });
+        }
         Ok(Joined {
             skeleton,
             names,
             grouped,
             mentions,
             kinds,
+            kind_of,
+            run: RUN,
         })
+    }
+
+    /// The same join, closing its runs at `run` entries.
+    #[cfg(test)]
+    pub(crate) fn in_runs_of(self, run: usize) -> Self {
+        Joined { run, ..self }
     }
 }
 
@@ -110,22 +136,31 @@ impl Packages for Joined<'_> {
         self.names.iter().flatten().map(|name| name.name.as_str()).collect()
     }
 
-    fn each<'s>(&'s self, visit: &mut dyn FnMut(&[PackageRef<'s>])) -> Result<(), String> {
-        let (mut package, mut opening) = (0, 0);
+    fn each<'s>(&'s self, visit: &mut dyn FnMut(&[PackageRef<'s>])) {
+        let (mut package, mut opening, mut name) = (0, 0, 0);
         while package < self.skeleton.len() {
             let (from, first, mut held) = (package, opening, 0);
-            while package < self.skeleton.len() && (package == from || held < RUN) {
+            while package < self.skeleton.len() && (package == from || held < self.run) {
                 let count = self.skeleton[package].openings.len();
                 held += self.names[opening..opening + count].iter().map(Vec::len).sum::<usize>();
                 (package, opening) = (package + 1, opening + count);
             }
             let owners = &self.skeleton[from..package];
-            let flat: Vec<(&Skeleton, &OpeningSkeleton)> = owners.iter().flat_map(|owner| owner.openings.iter().map(move |opening| (owner, opening))).collect();
+            // Each opening of the run, and the place of its first name in `names`, flat.
+            let flat: Vec<(&Skeleton, &OpeningSkeleton, usize)> = owners
+                .iter()
+                .flat_map(|owner| owner.openings.iter().map(move |opening| (owner, opening)))
+                .zip(&self.names[first..opening])
+                .map(|((owner, opening), names)| {
+                    name += names.len();
+                    (owner, opening, name - names.len())
+                })
+                .collect();
             let openings: Vec<OpeningRef> = flat
                 .par_iter()
                 .zip(self.names[first..opening].par_iter())
-                .map(|((owner, opening), names)| self.opening_of(owner.name, opening, names, self.grouped.get(format!("{} {}", owner.name, opening.subpath).as_str())))
-                .collect::<Result<_, _>>()?;
+                .map(|((owner, opening, at), names)| self.opening_of(owner.name, opening, names, *at, self.grouped.get(format!("{} {}", owner.name, opening.subpath).as_str())))
+                .collect();
             let mut openings = openings.into_iter();
             let run: Vec<PackageRef> = owners
                 .iter()
@@ -137,7 +172,6 @@ impl Packages for Joined<'_> {
                 .collect();
             visit(&run);
         }
-        Ok(())
     }
 }
 
@@ -154,33 +188,31 @@ impl<'a> Joined<'a> {
         owner: &'s str,
         opening: &OpeningSkeleton<'s>,
         names: &'s [PublishedName],
+        at: usize,
         by_name: Option<&HashMap<&'s str, Vec<&'s NameUse>>>,
-    ) -> Result<OpeningRef<'s>, String> {
+    ) -> OpeningRef<'s> {
         let held = |name: &str| by_name.and_then(|by_name| by_name.get(name)).map_or(&[][..], Vec::as_slice);
-        let mut entries = Vec::with_capacity(names.len());
-        for name in names {
-            entries.push(self.entry_of(owner, name, held(&name.name))?);
-        }
+        let mut entries: Vec<EntryRef> = names.iter().zip(&self.kind_of[at..at + names.len()]).map(|(name, kind)| self.entry_of(owner, name, *kind, held(&name.name))).collect();
         entries.sort_by(|a, b| b.used_by.len().cmp(&a.used_by.len()).then(b.uses.cmp(&a.uses)).then_with(|| code_unit(a.name, b.name)));
-        Ok(OpeningRef {
+        OpeningRef {
             subpath: opening.subpath,
             source: opening.source,
             spec: opening.spec,
             entries,
             whole: held("*").iter().map(|held| UseRef::site(held)).collect(),
-        })
+        }
     }
 
     /// One name's entry: the first kind carries the place and the prose, and the
     /// rest their word; a read off the module's `default` is no use, and a
-    /// package's own reads are counted in `uses` but not in `used_by`.
-    fn entry_of<'s>(&'s self, owner: &'s str, name: &'s PublishedName, held: &[&'s NameUse]) -> Result<EntryRef<'s>, String> {
-        let Some(first) = name.kinds.first() else {
-            return Err(format!("`{}` was reached with no declaration behind it", name.name));
-        };
-        let kind = match name.kinds.len() {
-            1 => first.kind.as_str(),
-            _ => self.kinds.get(several(name).as_str()).map_or_else(|| unreachable!("written when joined"), String::as_str),
+    /// package's own reads are counted in `uses` but not in `used_by`. `kind`
+    /// is the name's place in `kinds`, as `kind_of` holds it.
+    fn entry_of<'s>(&'s self, owner: &'s str, name: &'s PublishedName, kind: u32, held: &[&'s NameUse]) -> EntryRef<'s> {
+        // `new` refused a name with no kinds.
+        let first = &name.kinds[0];
+        let kind = match kind {
+            NONE => first.kind.as_str(),
+            at => self.kinds[at as usize].as_str(),
         };
         let defaulted = |held: &NameUse| held.through.is_some() && held.through_default;
         let (through_default, sites): (Vec<&NameUse>, Vec<&NameUse>) = held.iter().copied().partition(|held| defaulted(held));
@@ -190,7 +222,7 @@ impl<'a> Joined<'a> {
             Some(_) => None,
             None => self.mentions.get(&(first.at.as_str(), name.name.as_str())),
         };
-        Ok(EntryRef {
+        EntryRef {
             name: &name.name,
             kind,
             at: &first.at,
@@ -207,6 +239,10 @@ impl<'a> Joined<'a> {
                 line: held.line,
                 text: &held.text,
             }),
-        })
+        }
     }
 }
+
+#[cfg(test)]
+#[path = "help_join_tests.rs"]
+mod tests;

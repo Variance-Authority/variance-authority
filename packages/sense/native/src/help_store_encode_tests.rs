@@ -108,7 +108,7 @@ fn written(packages: impl FnOnce(Vec<PackageRef>) -> Box<dyn Packages + '_>, hel
     let deep = [&held.deep, &held.by_path, &held.unfollowed].map(|held| held.iter().map(DeepRef::from).collect());
     let packages = packages(held.packages.iter().map(PackageRef::from).collect());
     let input = StoreRef { packages: packages.as_ref(), deep, unreadable: &held.unreadable };
-    let (bytes, _) = encode(&input, exported, None, None).unwrap();
+    let (bytes, _) = encode(&input, exported, None, None);
     (bytes.len(), Sha256::digest(&bytes).iter().map(|byte| format!("{byte:02x}")).collect())
 }
 
@@ -129,9 +129,8 @@ impl Packages for InRuns<'_> {
         self.0.names()
     }
 
-    fn each<'s>(&'s self, visit: &mut dyn FnMut(&[PackageRef<'s>])) -> Result<(), String> {
+    fn each<'s>(&'s self, visit: &mut dyn FnMut(&[PackageRef<'s>])) {
         self.0.chunks(self.1).for_each(visit);
-        Ok(())
     }
 }
 
