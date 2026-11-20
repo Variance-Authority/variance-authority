@@ -34,8 +34,7 @@ import { importsOf as importersOf, type IndexedUse } from './unpublished.js';
  * ## Names are read with the tree
  *
  * `declares`, and `imports` of a package or a specifier as written, read every
- * file's names, off the parses of the source index the tree came from: the
- * scan that draws it on a server, the published one on `variance ask`. A host
+ * file's names, off the parses of the source index the tree came from. A host
  * that read the tree without them refuses those operands rather than answering
  * as though no file declared anything. A name out of a file the tree holds is
  * read off the source index, as `uses` reads it, and needs no names.
