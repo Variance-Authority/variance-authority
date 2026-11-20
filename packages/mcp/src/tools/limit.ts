@@ -86,10 +86,9 @@ export function pageAt(page: Page, total: number, spell: Spelling): readonly str
  * What a page says below its rows when rows remain after it: how many, and
  * the `offset` that shows the next page, as the surface asked takes it.
  */
-export function nextPage(page: Page, total: number, spell: Spelling, rows?: Rows): readonly string[] {
+export function nextPage(page: Page, total: number, spell: Spelling): readonly string[] {
   const next = page.offset + page.limit;
   if (next >= total) return [];
   const rest = total - next;
-  const noun = rows === undefined ? '' : `${rest === 1 ? rows.one : rows.many} `;
-  return [`${rest} more ${noun}not shown; \`${spell.input('offset')}\` ${next} shows the next ${Math.min(rest, page.limit)}.`];
+  return [`${rest} more not shown; \`${spell.input('offset')}\` ${next} shows the next ${Math.min(rest, page.limit)}.`];
 }

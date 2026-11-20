@@ -354,7 +354,7 @@ export const discover: Tool<unknown> = {
       exceptDeclares: { type: 'string', description: 'As `declares`, taken out.' },
       exceptPath: { type: 'string', description: 'As `path`, taken out.' },
       limit: { type: 'integer', description: `Files to show. ${SHOWN} when not said; the rest are counted.` },
-      offset: { type: 'integer', description: 'Rows to skip before the first shown; an answer with more names the next. 0 when not said.' },
+      offset: { type: 'integer', minimum: 0, description: 'Rows to skip before the first shown; an answer with more names the next. 0 when not said.' },
     },
     additionalProperties: false,
   },

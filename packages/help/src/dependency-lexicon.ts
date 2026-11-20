@@ -83,7 +83,6 @@ export interface StackRow {
 export interface Stack {
   readonly location: readonly string[]; readonly total: number;
   readonly imported: number; readonly unused: number; readonly unread: number;
-  readonly offset: number; readonly remaining: number;
   readonly rows: readonly StackRow[];
   readonly unreadable: readonly { readonly manifest: string; readonly package: string; readonly reason: string }[];
   /** Rows, across every page, whose package ships skills. */

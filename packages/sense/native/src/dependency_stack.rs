@@ -59,9 +59,6 @@ struct Stack {
     imported: u32,
     unused: u32,
     unread: u32,
-    offset: u32,
-    /// Rows after this page.
-    remaining: u32,
     rows: Vec<Row>,
     unreadable: Vec<Unreadable>,
     /// Rows, on every page, whose package ships skills.
@@ -110,7 +107,6 @@ pub fn dependency_stack(path: String, sites: String, files: Vec<String>, offset:
     let mut unreadable: Vec<Unreadable> = issues.iter()
         .map(|issue| Unreadable { manifest: issue.owner.to_owned(), package: issue.package.to_owned(), reason: issue.reason.to_owned() }).collect();
     unreadable.sort_by(|a, b| (&a.manifest, &a.package).cmp(&(&b.manifest, &b.package)));
-    let answer = Stack { location, total, imported, unused, unread, offset: start as u32,
-        remaining: total - (start as u32 + page.len() as u32), rows: page, unreadable, skilled };
+    let answer = Stack { location, total, imported, unused, unread, rows: page, unreadable, skilled };
     serde_json::to_string(&answer).map(Some).map_err(|error| napi::Error::from_reason(error.to_string()))
 }

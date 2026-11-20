@@ -62,6 +62,7 @@ export const grep: Tool<unknown> = {
       },
       offset: {
         type: 'integer',
+        minimum: 0,
         description: 'Rows to skip before the first shown; an answer with more names the next. 0 when not said.',
       },
     },

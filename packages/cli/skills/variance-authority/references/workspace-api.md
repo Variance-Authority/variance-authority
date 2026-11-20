@@ -639,12 +639,7 @@ imports the name. The `--to` header names the files it did not reach that
 import something the scan could not resolve, since they may reach the path
 through it. It shows 50, and the count is always of all of them; when more
 remain, the answer ends with how many and the `--offset` that shows the next
-page, so read on page by page rather than raising `--limit` to the whole list:
-
-```
-2023 more not shown; `--offset` 50 shows the next 50.
-``` A source file whose names
-the scan did not hand over is counted in the `--imports` and `--declares`
+page. A source file whose names the scan did not hand over is counted in the `--imports` and `--declares`
 headers, since it is unknown rather than a file with no names; a README or a
 manifest has none to read.
 Over MCP, `docs_discover` answers `from`, `to`, `path` and `--imports` of a
@@ -676,8 +671,8 @@ identify no workspace file. The query's area and fallback rules still apply. The
 answer counts each question's files first, then lists the files in all of
 them, each with the lines that put it in each question, or `the file` when a
 question answers a file without a line. It shows 50, and the count is always
-of all of them; `--offset` shows the next page, as its last line names. `--changed-file` and `--taint-file` are
-said once, after `intersection`, outside the quotes: every question is answered
+of all of them; `--offset` shows the next page, as its last line names.
+`--changed-file` and `--taint-file` are said once, after `intersection`, outside the quotes: every question is answered
 over one reading.
 
 A question about a name nothing declares answers no file: the answer says so
