@@ -31,11 +31,17 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
-/** What `found` returns once it returns something, polled; undefined after five seconds of nothing. */
-async function until<T>(found: () => T | undefined): Promise<T | undefined> {
+/**
+ * The pid `from` handed the lock beside `index` to; undefined once five seconds
+ * pass without it. Polled, as `awaitFollowUps` polls: a hand-over is a rename,
+ * and nothing announces it, while `awaitFollowUps` itself answers only once the
+ * process it was handed to has finished or readied the index, by which time
+ * that process may be done.
+ */
+async function handedOn(index: string, from: number | undefined): Promise<number | undefined> {
   for (let tries = 0; tries < 1000; tries++) {
-    const value = found();
-    if (value !== undefined) return value;
+    const held = heldBy(index)?.pid;
+    if (held !== undefined && held !== from) return held;
     await new Promise((resolve) => setTimeout(resolve, 5));
   }
   return undefined;
@@ -125,7 +131,7 @@ describe('variance index --wait', () => {
     const waiting = spawn(process.execPath, [BIN, 'index', '--wait'], { cwd: root, env: { ...process.env, CI: 'false' }, stdio: 'ignore' });
     const exited = once(waiting, 'exit');
 
-    const apart = await until(() => { const held = heldBy(index)?.pid; return held !== undefined && held !== waiting.pid ? held : undefined; });
+    const apart = await handedOn(index, waiting.pid);
     waiting.kill('SIGTERM');
 
     // Ended by the same signal, and only once what it started has ended.

@@ -770,6 +770,11 @@
     "count": 2
   },
   {
+    "idiom": "timer",
+    "at": "packages/cli/src/commands/index-wait.integration.test.ts",
+    "count": 1
+  },
+  {
     "idiom": "fresh-page",
     "at": "packages/cli/src/commands/ran-page.chromium.test.ts",
     "count": 3
