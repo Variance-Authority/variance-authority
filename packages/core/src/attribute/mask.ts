@@ -198,6 +198,11 @@ export interface Subtraction {
  * mask is a pixel grid; the half-pixel at the edge belongs to the thing that was
  * excluded, because the alternative is a one-pixel rim of permanent residue
  * around every ignore.
+ *
+ * It is also how a browser's element screenshot snaps a fractional box, and a
+ * clip rounded this way reproduces its bytes: floor the near edge, ceil the far
+ * one. Rounding the *extent* instead of the far *edge* differs whenever a box
+ * starts at a fraction, an integer size at a fractional offset included.
  */
 export function pixelBox(box: Rect): Rect {
   const x = Math.floor(box.x);

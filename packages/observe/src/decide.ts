@@ -254,7 +254,7 @@ export async function decide(
     const fingerprint = fingerprintOfMask(subtraction.mask, region);
     const rule = shapes[fingerprint];
     if (rule === undefined) {
-      const change = regionChange(held.pixels!, region, boxes);
+      const change = regionChange(held.pixels!, comparison, region, boxes);
       const read: DiffRegion = change === undefined ? region : { ...region, change };
       prints.set(read, fingerprint);
       kept.push(read);

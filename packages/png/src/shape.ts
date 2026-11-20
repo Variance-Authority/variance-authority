@@ -31,19 +31,17 @@ const FLAT = EDGE / 4;
 
 /**
  * What changed in `region`, from the pixels the comparison decoded and its row
- * pairing, or `undefined` when neither side has an edge in it and a pixel is too
+ * pairing, on `canvas`, the comparison's own size, or `undefined` when neither side has an edge in it and a pixel is too
  * faint to call flat, so nothing tells the two apart. Reads
  * only the pixels in its box and {@link REGION_MARGIN} around it, less the
  * pixels any `excluded` box covers, so the cost is the changed area.
  */
 export function regionChange(
   { before, after, aligned }: ComparedPixels,
+  { width, height }: { readonly width: number; readonly height: number },
   region: Rect,
   excluded: readonly Rect[],
 ): RegionChange | undefined {
-  // The canvas is the after image's when the rows were paired, the box holding both when they were not.
-  const width = aligned === null ? Math.max(before.width, after.width) : after.width;
-  const height = aligned === null ? Math.max(before.height, after.height) : after.height;
   const left = Math.max(0, region.x - REGION_MARGIN);
   const top = Math.max(0, region.y - REGION_MARGIN);
   const columns = Math.min(width, region.x + region.width + REGION_MARGIN) - left;
@@ -94,7 +92,9 @@ export function regionChange(
  * or with no neighbour read.
  */
 function edges(data: Uint8Array, offsets: Int32Array, columns: number): Int8Array {
-  const words = new Uint32Array(data.buffer, data.byteOffset, data.byteLength >> 2);
+  // A word view starts only at a multiple of 4; a decoder's buffer at another offset is copied.
+  const aligned = data.byteOffset % 4 === 0 ? data : new Uint8Array(data);
+  const words = new Uint32Array(aligned.buffer, aligned.byteOffset, aligned.byteLength >> 2);
   const towards = (at: number, to: number): number => {
     if (to < 0) return -1;
     if (words[at >> 2] === words[to >> 2]) return 0;

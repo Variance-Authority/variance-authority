@@ -34,14 +34,14 @@ async function read(before: Raster, after: Raster) {
   let pixels: ComparedPixels | undefined;
   const comparison = await compareRasters(before, after, { keep: (kept) => (pixels = kept) });
   const regions = isolateRegions(comparison.mask).regions;
-  return { pixels: pixels!, regions };
+  return { pixels: pixels!, comparison, regions };
 }
 
 describe('what changed in a region', () => {
   it('reads a recoloured block as colour', async () => {
-    const { pixels, regions } = await read(raster(120, 60, block(40, [0x33, 0x33, 0x33])), raster(120, 60, block(40, [0xcc, 0x00, 0x33])));
+    const { pixels, comparison, regions } = await read(raster(120, 60, block(40, [0x33, 0x33, 0x33])), raster(120, 60, block(40, [0xcc, 0x00, 0x33])));
     expect(regions).toHaveLength(1);
-    expect(regions.map((region) => regionChange(pixels, region, []))).toEqual(['colour']);
+    expect(regions.map((region) => regionChange(pixels, comparison, region, []))).toEqual(['colour']);
   });
 
   it('reads a recolour of an anti-aliased edge as colour', async () => {
@@ -54,8 +54,8 @@ describe('what changed in a region', () => {
           : x === 39 || x === 80
             ? (colour.map((channel) => Math.round((channel + 255) / 2)) as unknown as readonly [number, number, number])
             : colour;
-    const { pixels, regions } = await read(raster(120, 60, soft([0x33, 0x33, 0x33])), raster(120, 60, soft([0x00, 0x33, 0xcc])));
-    expect(regions.map((region) => regionChange(pixels, region, []))).toEqual(regions.map(() => 'colour'));
+    const { pixels, comparison, regions } = await read(raster(120, 60, soft([0x33, 0x33, 0x33])), raster(120, 60, soft([0x00, 0x33, 0xcc])));
+    expect(regions.map((region) => regionChange(pixels, comparison, region, []))).toEqual(regions.map(() => 'colour'));
   });
 
   it('reads a bordered fill repainted from dark to light as colour', async () => {
@@ -66,8 +66,8 @@ describe('what changed in a region', () => {
         if (x < 30 || x > 89 || y < 15 || y > 44) return [255, 255, 255];
         return x === 30 || x === 89 || y === 15 || y === 44 ? [0, 0, 0] : fill;
       };
-    const { pixels, regions } = await read(raster(120, 60, button([0x33, 0x33, 0x33])), raster(120, 60, button([0xdd, 0xdd, 0xdd])));
-    expect(regions.map((region) => regionChange(pixels, region, []))).toEqual(['colour']);
+    const { pixels, comparison, regions } = await read(raster(120, 60, button([0x33, 0x33, 0x33])), raster(120, 60, button([0xdd, 0xdd, 0xdd])));
+    expect(regions.map((region) => regionChange(pixels, comparison, region, []))).toEqual(['colour']);
   });
 
   it('reads a recolour as colour beside an unchanged faint line', async () => {
@@ -76,8 +76,8 @@ describe('what changed in a region', () => {
       (colour: readonly [number, number, number]): Paint =>
       (x, y) =>
         y === 41 ? [0xe0, 0xe0, 0xe0] : block(40, colour)(x, y);
-    const { pixels, regions } = await read(raster(120, 60, paint([0, 0, 0])), raster(120, 60, paint([0xd0, 0xd0, 0xd0])));
-    expect(regions.map((region) => regionChange(pixels, region, []))).toEqual(regions.map(() => 'colour'));
+    const { pixels, comparison, regions } = await read(raster(120, 60, paint([0, 0, 0])), raster(120, 60, paint([0xd0, 0xd0, 0xd0])));
+    expect(regions.map((region) => regionChange(pixels, comparison, region, []))).toEqual(regions.map(() => 'colour'));
   });
 
   it('reads a faint line moved by one pixel as shape beside a dark one', async () => {
@@ -85,26 +85,26 @@ describe('what changed in a region', () => {
       (faint: number): Paint =>
       (x, y) =>
         y < 20 || y >= 40 ? [255, 255, 255] : x === 40 ? [0, 0, 0] : x === faint ? [0xd0, 0xd0, 0xd0] : [255, 255, 255];
-    const { pixels, regions } = await read(raster(120, 60, lines(42)), raster(120, 60, lines(43)));
+    const { pixels, comparison, regions } = await read(raster(120, 60, lines(42)), raster(120, 60, lines(43)));
     expect(regions.length).toBeGreaterThan(0);
-    expect(regions.map((region) => regionChange(pixels, region, []))).toEqual(regions.map(() => 'shape'));
+    expect(regions.map((region) => regionChange(pixels, comparison, region, []))).toEqual(regions.map(() => 'shape'));
   });
 
   it('reads a block moved by one pixel as shape, at both edges', async () => {
-    const { pixels, regions } = await read(raster(120, 60, block(40, [0x33, 0x33, 0x33])), raster(120, 60, block(41, [0x33, 0x33, 0x33])));
+    const { pixels, comparison, regions } = await read(raster(120, 60, block(40, [0x33, 0x33, 0x33])), raster(120, 60, block(41, [0x33, 0x33, 0x33])));
     expect(regions).toHaveLength(2);
-    expect(regions.map((region) => regionChange(pixels, region, []))).toEqual(['shape', 'shape']);
+    expect(regions.map((region) => regionChange(pixels, comparison, region, []))).toEqual(['shape', 'shape']);
   });
 
   it('carries no change for a block too faint to have an edge, moved by one pixel', async () => {
-    const { pixels, regions } = await read(raster(120, 60, block(40, [0xf8, 0xf8, 0xf8])), raster(120, 60, block(41, [0xf8, 0xf8, 0xf8])));
+    const { pixels, comparison, regions } = await read(raster(120, 60, block(40, [0xf8, 0xf8, 0xf8])), raster(120, 60, block(41, [0xf8, 0xf8, 0xf8])));
     expect(regions.length).toBeGreaterThan(0);
-    expect(regions.map((region) => regionChange(pixels, region, []))).toEqual(regions.map(() => undefined));
+    expect(regions.map((region) => regionChange(pixels, comparison, region, []))).toEqual(regions.map(() => undefined));
   });
 
   it('reads a flat fill recoloured as colour, with no edge on either side', async () => {
-    const { pixels, regions } = await read(raster(40, 30, () => [0x2f, 0x34, 0x37]), raster(40, 30, () => [0x3a, 0x40, 0x43]));
-    expect(regions.map((region) => regionChange(pixels, region, []))).toEqual(['colour']);
+    const { pixels, comparison, regions } = await read(raster(40, 30, () => [0x2f, 0x34, 0x37]), raster(40, 30, () => [0x3a, 0x40, 0x43]));
+    expect(regions.map((region) => regionChange(pixels, comparison, region, []))).toEqual(['colour']);
   });
 
   it('reads none of a box the comparison excluded, rounded out to the pixels it touches', async () => {
@@ -120,11 +120,11 @@ describe('what changed in a region', () => {
     });
     const regions = isolateRegions(subtractRegions(comparison.mask, [box]).mask).regions;
     expect(regions).toHaveLength(1);
-    expect(regions.map((region) => regionChange(pixels!, region, [box]))).toEqual(['colour']);
+    expect(regions.map((region) => regionChange(pixels!, comparison, region, [box]))).toEqual(['colour']);
   });
 
   it('reads only the pixels in and just around each region', async () => {
-    const { pixels, regions } = await read(raster(120, 60, block(40, [0x33, 0x33, 0x33])), raster(120, 60, block(40, [0xcc, 0x00, 0x33])));
+    const { pixels, comparison, regions } = await read(raster(120, 60, block(40, [0x33, 0x33, 0x33])), raster(120, 60, block(40, [0xcc, 0x00, 0x33])));
     const [box] = regions;
     const near = (x: number, y: number) =>
       x >= box!.x - REGION_MARGIN && x < box!.x + box!.width + REGION_MARGIN && y >= box!.y - REGION_MARGIN && y < box!.y + box!.height + REGION_MARGIN;
@@ -137,13 +137,13 @@ describe('what changed in a region', () => {
       return { ...image, data };
     };
     const outside = { ...pixels, before: poisoned(pixels.before, 0), after: poisoned(pixels.after, 1) };
-    expect(regions.map((region) => regionChange(outside, region, []))).toEqual(['colour']);
+    expect(regions.map((region) => regionChange(outside, comparison, region, []))).toEqual(['colour']);
   });
 
   it("reads the section inserted into the site's own page as shape", async () => {
     const file = (side: string): Buffer => readFileSync(new URL(`./fixtures/site-header-${side}.png`, import.meta.url));
     const page = (bytes: Buffer, height: number) => ({ bytes: bytes.toString('base64'), width: 1280, height }) as Raster;
-    const { pixels, regions } = await read(page(file('before'), 220), page(file('after'), 273));
-    expect(regions.map((region) => regionChange(pixels, region, []))).toEqual(['shape']);
+    const { pixels, comparison, regions } = await read(page(file('before'), 220), page(file('after'), 273));
+    expect(regions.map((region) => regionChange(pixels, comparison, region, []))).toEqual(['shape']);
   });
 });

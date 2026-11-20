@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isolateRegions, subtractRegions, type ChangeMask } from './mask.js';
+import { isolateRegions, pixelBox, subtractRegions, type ChangeMask } from './mask.js';
 
 /**
  * A change as a bitmask, tested on hand-drawn masks.
@@ -204,5 +204,20 @@ describe('subtracting an excluded box', () => {
 
     expect(ignored).toBe(4);
     expect(after.changed).toBe(0);
+  });
+});
+
+describe('the pixels a box touches', () => {
+  it('snaps the near edge down and the far edge up', () => {
+    expect(pixelBox({ x: 7.3, y: 10.4, width: 420, height: 300 })).toEqual({ x: 7, y: 10, width: 421, height: 301 });
+  });
+
+  it('leaves a box already on the grid alone', () => {
+    expect(pixelBox({ x: 0, y: 0, width: 420, height: 300 })).toEqual({ x: 0, y: 0, width: 420, height: 300 });
+  });
+
+  // A 420-wide box at x 7.3 spans 7.3 to 427.3: it touches 421 columns, and rounding its extent loses one.
+  it('does not round the extent, which would lose a column', () => {
+    expect(pixelBox({ x: 7.3, y: 0, width: 420, height: 300 }).width).toBe(421);
   });
 });
