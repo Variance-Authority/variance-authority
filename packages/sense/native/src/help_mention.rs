@@ -44,9 +44,9 @@ pub(crate) struct Readme {
 
 /// The READMEs above `files`, every directory from each file's own up to the
 /// root inclusive, each probed once and read once: by the README path it is
-/// named by, `None` where there is none. A README that exists and does not read
-/// counts as none; the walk throws there.
-pub(crate) fn readmes<'a>(root: &Path, files: impl Iterator<Item = &'a str>) -> HashMap<String, Option<Readme>> {
+/// named by, `None` where there is none. A README that is there and does not
+/// read refuses the publish, naming it, as it refuses the walk.
+pub(crate) fn readmes<'a>(root: &Path, files: impl Iterator<Item = &'a str>) -> Result<HashMap<String, Option<Readme>>, String> {
     let mut asked: Vec<String> = Vec::new();
     let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
     for file in files {
@@ -60,10 +60,13 @@ pub(crate) fn readmes<'a>(root: &Path, files: impl Iterator<Item = &'a str>) -> 
     }
     asked
         .into_par_iter()
-        .map(|from| {
-            let text = std::fs::read(readme_path(root, &from)).ok().map(|bytes| String::from_utf8_lossy(&bytes).encode_utf16().collect());
-            let readme = text.map(|text| Readme { from: from.clone(), text });
-            (from, readme)
+        .map(|from| match std::fs::read(readme_path(root, &from)) {
+            Ok(bytes) => {
+                let readme = Readme { from: from.clone(), text: String::from_utf8_lossy(&bytes).encode_utf16().collect() };
+                Ok((from, Some(readme)))
+            }
+            Err(missing) if missing.kind() == std::io::ErrorKind::NotFound => Ok((from, None)),
+            Err(refused) => Err(format!("{from} is there and could not be read: {refused}")),
         })
         .collect()
 }
@@ -96,8 +99,9 @@ pub(crate) fn nearest<'h>(held: &'h HashMap<String, Option<Readme>>, at: &str) -
 pub(crate) fn mention(readme: &Readme, name: &str) -> Option<Mention> {
     let name: Vec<u16> = name.encode_utf16().collect();
     let text = &readme.text;
-    let first = first_occurrence(text, &name)?;
-    let (from, to) = passage(text, first);
+    let spans = fences(text);
+    let first = first_occurrence(text, &spans, &name)?;
+    let (from, to) = passage(text, &spans, first);
     let (shown, at) = windowed(text, from, to, first);
     Some(Mention { at: readme.from.clone(), line: line_of(text, at), text: shown })
 }
@@ -145,17 +149,16 @@ fn fencing(spans: &[(usize, usize)], at: usize) -> Option<(usize, usize)> {
 /// The best whole-word occurrence of `name`: the first backticked one in
 /// prose, else the first bare one, else the first in a fence. An empty name
 /// names nothing.
-fn first_occurrence(text: &[u16], name: &[u16]) -> Option<usize> {
+fn first_occurrence(text: &[u16], spans: &[(usize, usize)], name: &[u16]) -> Option<usize> {
     if name.is_empty() {
         return None;
     }
-    let spans = fences(text);
     let (mut bare, mut coded) = (None, None);
     let mut found = index_of(text, name, 0);
     while let Some(at) = found {
         let after = text.get(at + name.len());
         if !word(at.checked_sub(1).and_then(|before| text.get(before))) && !word(after) {
-            if fencing(&spans, at).is_some() {
+            if fencing(spans, at).is_some() {
                 coded = coded.or(Some(at));
             } else if at.checked_sub(1).and_then(|before| text.get(before)) == Some(&TICK) || after == Some(&TICK) {
                 return Some(at);
@@ -169,8 +172,8 @@ fn first_occurrence(text: &[u16], name: &[u16]) -> Option<usize> {
 }
 
 /// The paragraph an offset falls in, or the whole fence when it falls in one.
-fn passage(text: &[u16], at: usize) -> (usize, usize) {
-    if let Some((open, close)) = fencing(&fences(text), at) {
+fn passage(text: &[u16], spans: &[(usize, usize)], at: usize) -> (usize, usize) {
+    if let Some((open, close)) = fencing(spans, at) {
         return (last_index_of(text, &[NEWLINE], open).map_or(0, |found| found + 1), close);
     }
     let from = last_index_of(text, &BLANK, at).map_or(0, |blank| blank + 2);

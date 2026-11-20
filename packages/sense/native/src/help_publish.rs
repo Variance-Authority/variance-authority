@@ -348,7 +348,7 @@ impl Held {
             entry: owner.entry,
             openings: owner.openings.iter().map(|opening| OpeningSkeleton { subpath: &opening.subpath, source: &opening.source, spec: &opening.spec }).collect(),
         }).collect();
-        let mentions = mentions(Path::new(&o.readme_root), names);
+        let mentions = mentions(Path::new(&o.readme_root), names).map_err(napi::Error::from_reason)?;
         let packages = join(&skeleton, names, &self.uses, &mentions).map_err(napi::Error::from_reason)?;
         let unreadable: Vec<String> = o.unreadable.iter().chain(&self.unreadable).cloned().collect();
         let deep = [&self.deep[0], &self.deep[1], &self.deep[2]].map(|held| held.iter().map(DeepRef::from).collect());

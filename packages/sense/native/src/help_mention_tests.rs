@@ -61,3 +61,17 @@ fn the_nearest_readme_wins_even_when_it_does_not_name_the_name() {
     assert_eq!(mention(found, "name"), None);
     assert_eq!(candidates("file.ts").collect::<Vec<_>>(), vec!["README.md"]);
 }
+
+#[test]
+fn a_crlf_gap_is_no_blank_line_as_javascript_reads_it() {
+    assert_eq!(said("Intro.\r\n\r\nThen `name` here.", "name"), Some((1, "Intro.\r\n\r\nThen `name` here.".to_owned())));
+}
+
+#[test]
+fn a_readme_that_is_there_and_does_not_read_refuses() {
+    let root = std::env::temp_dir().join(format!("help-mention-unreadable-{}", std::process::id()));
+    std::fs::create_dir_all(root.join("a/README.md")).unwrap();
+    let read = readmes(&root, ["a/file.ts"].into_iter());
+    std::fs::remove_dir_all(&root).unwrap();
+    assert!(read.is_err_and(|refused| refused.starts_with("a/README.md is there and could not be read")));
+}

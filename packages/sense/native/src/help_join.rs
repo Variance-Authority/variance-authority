@@ -45,8 +45,9 @@ pub(crate) type Mentions<'a> = HashMap<(&'a str, &'a str), Option<Mention>>;
 
 /// The names of the openings of `packages`, given flat in their order as
 /// `names`, whose first kind has no doc and whose nearest README under
-/// `root` names them, looked up once per declaring file and name.
-pub(crate) fn mentions<'a>(root: &Path, names: &'a [Vec<PublishedName>]) -> Mentions<'a> {
+/// `root` names them, looked up once per declaring file and name. `Err` names
+/// a README that is there and could not be read.
+pub(crate) fn mentions<'a>(root: &Path, names: &'a [Vec<PublishedName>]) -> Result<Mentions<'a>, String> {
     let mut asked: Vec<(&str, &str)> = Vec::new();
     let mut seen: HashSet<(&str, &str)> = HashSet::new();
     for name in names.iter().flatten() {
@@ -56,15 +57,15 @@ pub(crate) fn mentions<'a>(root: &Path, names: &'a [Vec<PublishedName>]) -> Ment
             }
         }
     }
-    let held = readmes(root, asked.iter().map(|(at, _)| *at));
-    asked.into_par_iter().map(|(at, name)| ((at, name), nearest(&held, at).and_then(|readme| mention(readme, name)))).collect()
+    let held = readmes(root, asked.iter().map(|(at, _)| *at))?;
+    Ok(asked.into_par_iter().map(|(at, name)| ((at, name), nearest(&held, at).and_then(|readme| mention(readme, name)))).collect())
 }
 
 /// Every package of `skeleton`, its openings' entries joined: `names` holds
 /// each opening's names, flat in the skeleton's order, and `uses` every use
 /// through an opened key. Entries are ordered by how many packages reach for
-/// them, then how often, then by name in code units. `Err` names the first
-/// name with no declaration behind it.
+/// them, then how often, then by name in code units. `Err` names a name
+/// with no declaration behind it.
 pub(crate) fn join<'a>(
     skeleton: &'a [Skeleton<'a>],
     names: &'a [Vec<PublishedName>],

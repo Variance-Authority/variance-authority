@@ -25,6 +25,7 @@ import {
   workspaceTreeOpens,
 } from './snapshot.js';
 import { coversWhole, scanScope, scopeSourceIndexPath } from './scan-scope.js';
+import { specifierOf } from './tools/find.js';
 
 // compass: variance-authority.report.agent-surface
 
@@ -153,7 +154,7 @@ export async function publishHelp(publication: HelpPublication): Promise<{ reado
         openings: offering.entrypoints.map((entry) => ({
           subpath: entry.subpath,
           source: relative(where, entry.source),
-          spec: `${offering.name}${entry.subpath === '.' ? '' : entry.subpath.slice(1)}`,
+          spec: specifierOf(offering, entry),
         })),
       })),
       ...(graphDigest === undefined ? {} : { graphDigest }),
