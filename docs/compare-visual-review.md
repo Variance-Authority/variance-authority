@@ -41,10 +41,10 @@ a diff mattered. Both bills are driven by one quantity — how many comparisons
 are shown to a person — and an architecture fixes that quantity long before a
 report does.
 
-## 1. Compare the responsibilities that matter
-
 Vendor documentation is authoritative for vendor behaviour. Verify pricing and
 hosted-service features there before buying; both change independently.
+
+## 1. Compare the responsibilities that matter
 
 | Dimension | `toHaveScreenshot` | Percy | Chromatic | Argos | Applitools | Variance Authority |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -52,8 +52,6 @@ hosted-service features there before buying; both change independently.
 | Pixel placement | Caller-owned browser | Percy cloud, or the Automate browser | Capture Cloud | Caller-owned browser | Caller browser or Ultrafast Grid | Caller-owned browser, local renderer, or a renderer you host |
 | Review | PNG files in your repository, reviewed in the pull request that changes them | Hosted dashboard and approval workflow | Hosted UI Test and UI Review | Hosted test review, comments, and flake history | Eyes Test Manager | `tribunal`, a review service you deploy — builds, docket, region overlays, recorded decisions, concerns a reviewer raises without deciding, which `variance push` posts runs to; or no service at all, and the same evidence as JSON, HTML, CLI output or MCP |
 | Browser breadth | Whatever your Playwright projects run | Managed desktop and mobile coverage | Managed browser and mode matrix | Whatever the caller's capture suite runs | Managed grid plus mobile products | Whatever the caller's capture suite runs; the CLI paints with Chromium, Firefox or WebKit (§3.2) |
-| Shifted or changed | Not described in the cited page; `maxDiffPixels` bounds how many pixels may differ | Not described in the cited pages | Not described in the cited pages | Not described in the cited pages | The Dynamic match level tolerates positional shifts in elements around dynamic content; floating regions bound where an element may be positioned | Each component is a cause, whose own inputs changed, or collateral, moved by a cause and otherwise the same |
-| Kind of change | A pixel count, `maxDiffPixels`, and a perceived colour-difference `threshold` | Not described in the cited pages | A sensitivity threshold for change detection | Not described in the cited pages | A match level: Strict, Layout, Ignore colors, Dynamic or Exact | Per component, the bands that changed — `a11y`, `geometry`, `token`, `content`, `texture` — and each declared value that changed, from → to |
 | Source [attribution](attribution.md) | Test name and snapshot path | DOM and CSS root-cause aids | Story identity and dependency tracing | Spec and story metadata | DOM and CSS root-cause aids | Pixel region → component → `file:line`, when the capture supplies [matching provenance](attribution.md) |
 | Compared against | The committed snapshot file | The approved baseline | The approved baseline | The approved baseline | The approved baseline | The baseline. Also, within a single run: two related states, compared for the gap between them; and one input rendered twice, compared for the point where the two renderings diverge |
 | What a run captures | The assertions the tests you ran reached | The states your test code calls `percySnapshot` on | Stories and archived runs; TurboSnap uses the module graph to avoid snapshots a change cannot reach | The screenshots your suite takes | The checkpoints your SDK calls make | `--since` skips a subject when its baseline lists none of the components the change reached — stories, routes and Playwright subjects alike. Instrumented test runs also select test files by what they executed |
@@ -236,16 +234,19 @@ aside. A component is a **cause** when its own inputs changed, and
 the components' inputs, not from pixels. Each component lists the bands it
 changed in, and each declared value that changed, from → to. In the
 [visual-review example](../examples/visual-review-case/README.md), a plan name
-that grows to two lines pushes the price below it down, and
-`variance ask describe` lists:
+that grows to two lines pushes the price below it down, one accent edit
+repaints every button, and `variance ask describe` lists:
 
 ```text
 components:
   cause      ChooseButton — token
-      background-color (not declared) → rgb(255 74 25 / 1)
+      background-color rgb(36 40 42 / 1) → rgb(255 74 25 / 1)
   cause      PlanName — a11y, geometry, content
   collateral Price — geometry
 ```
+
+[Review a visual change](path-visual-review.md#what-a-change-report-gives-you)
+walks through the rest of that report.
 
 React acquisition reads owner information; another framework can emit the same
 public provenance shape through `data-*` metadata. This is an acquisition

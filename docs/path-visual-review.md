@@ -15,18 +15,18 @@ repository, and links the page that owns it.
 The [visual-review example](../examples/visual-review-case/README.md) renders
 three pricing cards. One edit renames the Team plan to
 `Team, billed yearly for every seat`, so the name wraps onto a second line, and
-turns its `Choose` button orange. Nothing else is edited. A screenshot diff of
-it is three red patches in one card. `variance ask describe --subject
-pricing/plans` answers with this headline:
+moves the accent every `Choose` button is painted in from charcoal to orange.
+Nothing else is edited. A screenshot diff of it is five red patches across the
+three cards. `variance ask describe --subject pricing/plans` answers with this
+headline:
 
 ```text
-4,927 pixels differ across 3 regions in ChooseButton, PlanName, Price, 2 changed in shape and 1 only in colour
+12,267 pixels differ across 5 regions in ChooseButton, PlanName, Price, 2 changed in shape and 3 only in colour
 ```
 
 Every line quoted below is from the example's committed
 [`report.txt`](../examples/visual-review-case/artifacts/report.txt), that
-command's answer for the run, and a test in the example checks that each one
-still is.
+command's answer for the run.
 
 ### A shift is told from a change
 
@@ -39,37 +39,40 @@ read from the page, never from the pixels:
 ```text
 components:
   cause      ChooseButton — token
-      background-color (not declared) → rgb(255 74 25 / 1)
+      background-color rgb(36 40 42 / 1) → rgb(255 74 25 / 1)
   cause      PlanName — a11y, geometry, content
   collateral Price — geometry
 ```
 
 The price is 524 pixels of red in the diff image, the same red as the name.
 The report calls it collateral: its text and its props are the same, and it is
-lower because the name above it wraps. You review two causes, not three
-changes.
+lower because the name above it wraps. You review two causes, not five
+regions.
 
 ### Different changes are reported differently
 
 Each component's line also says what kind of change it is. Its properties are
 split into **bands**, each band is reduced to a short fingerprint, and the line
-names the bands whose fingerprint changed:
+names the bands whose fingerprint changed. A component changes in four:
 
 - `a11y` — a role, accessible name, description or state changed: what a
   screen reader announces. The renamed heading is one.
-- `geometry` — boxes appeared, vanished, moved or resized. The pushed price
+- `geometry` — boxes appeared, vanished, moved or resized, or the structure
+  changed: tags, attributes, the boundaries between children. The pushed price
   changed in this band alone.
-- `token` — style values changed while the structure stayed the same, as the
-  button's colour did.
-- `content` — text changed and nothing else did.
-- `texture` — raster residue with no document counterpart.
+- `token` — declared style values changed, custom properties included, while
+  the structure stayed the same, as the buttons' background did.
+- `content` — the component's text changed. The heading's did.
+
+A fifth band, `texture`, is raster residue with no document counterpart, so no
+component changes in it: it is counted on the region and the observation, as
+[Sensitivity](sensitivity.md) says.
 
 Under a component, each declared value that changed is printed as
-`property from → to`: the button's line is the `background-color` somebody
-edited. So a recolour, a renamed heading and a pushed price are three kinds,
-not three pixel counts, and a [sensitivity](sensitivity.md) can let a route
-test pass on `token` while it still fails on `geometry`. In the example no
-component changed in `texture`.
+`property from → to`: the buttons' `background-color`, from charcoal to orange.
+So a recolour, a renamed heading and a pushed price are three kinds, not three
+pixel counts, and a [sensitivity](sensitivity.md) can let a route test pass on
+`token` while it still fails on `geometry`.
 
 ### Each region is connected to its component and the page
 
@@ -80,12 +83,14 @@ route a screen reader takes to it — and the line the component is declared at:
 ```text
   cause      3670px at 360,160 104×40 — ChooseButton
       in main → region "Plans" → list item 2 of 3 → button "Choose"
-      examples/visual-review-case/src/plans.js:53
+      examples/visual-review-case/src/plans.js:56
 ```
 
-You open `plans.js` at line 53, not the image. The landmark path tells you which
-of three identical buttons it is without a selector.
-[From a pixel to a line](attribution.md) owns how each hop is made.
+You open `plans.js` at line 56, not the image. The one accent edit repainted
+three identical buttons, so the report lists three such regions, all at that
+line; the landmark path tells them apart — `list item 1 of 3`, `2 of 3`,
+`3 of 3` — without a selector. [From a pixel to a line](attribution.md) owns
+how each hop is made.
 
 ## 1. Connect the harness that already reaches the state
 

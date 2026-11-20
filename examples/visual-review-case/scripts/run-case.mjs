@@ -4,10 +4,10 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { build } from 'esbuild';
 import { recordOf } from '@variance-authority/cli';
 import { hashComponents } from '@variance-authority/core/attribute';
-import { digestValue } from '@variance-authority/core/format';
 import { normalize } from '@variance-authority/core/rules';
 import { observeRasters, packSnapshot } from '@variance-authority/observe';
-import { createHarness } from '@variance-authority/playwright';
+import { acquireFromAgent, createHarness } from '@variance-authority/playwright';
+import { createPlaywrightRenderer } from '@variance-authority/playwright/renderer';
 import { diffImage } from '@variance-authority/png';
 import { toolByName } from '@variance-authority/mcp/tools';
 import { indexDeclarations } from '@variance-authority/sense';
@@ -31,25 +31,36 @@ async function agentBundle() {
   return output.text;
 }
 
-/** One side: the normalized snapshot, and its root shot to a raster. */
-async function read(harness, variant, identity) {
-  const snapshot = normalize(await harness.capture('plans', variant));
-  const rect = snapshot.root.rect;
-  if (rect === undefined) throw new Error('the snapshot has no root box to shoot');
-  const png = await harness.page.screenshot({ clip: rect });
-  const raster = {
-    documentDigest: digestValue(snapshot),
-    identity,
-    width: rect.width,
-    height: rect.height,
-    bytes: png.toString('base64'),
-    missingFonts: [],
-    components: hashComponents(snapshot),
-  };
-  return { snapshot, png, raster };
+/**
+ * One side: the page agent's document and snapshot, read from one mount through
+ * `acquireFromAgent` as the shipped collectors read theirs, and the document
+ * painted by the shipped Playwright renderer, which stamps the raster's
+ * document digest, identity and missing fonts itself.
+ */
+async function read(harness, renderer, variant) {
+  const json = await acquireFromAgent(harness.page, undefined, {
+    subject: 'plans',
+    variant,
+    subjectId: SUBJECT,
+    viewport: VIEWPORT,
+    engine: harness.engine,
+    fonts: FONTS,
+  });
+  const { document, capture } = JSON.parse(json);
+  const snapshot = normalize(capture);
+  const raster = await renderer.render(document);
+  if (raster.bytes === undefined) throw new Error(`the ${variant} side painted no pixels`);
+  return { snapshot, raster, png: Buffer.from(raster.bytes, 'base64') };
 }
 
-/** Run the comparison whose artifacts the visual-review pages show. */
+/**
+ * Run the comparison whose artifacts the visual-review pages show.
+ *
+ * No shipped command runs this end to end: `variance run` reads its subjects
+ * through a collector, and this page is a plain script. So the script calls the
+ * pieces `variance run` calls, each for its own value, and assembles only the
+ * run report itself, in the shape `variance run` writes.
+ */
 export async function runVisualReviewCase() {
   const harness = await createHarness({
     url: pathToFileURL(HARNESS_PAGE).href,
@@ -58,33 +69,30 @@ export async function runVisualReviewCase() {
     fonts: FONTS,
     subjectId: () => SUBJECT,
   });
+  const renderer = await createPlaywrightRenderer({ fonts: FONTS });
 
   try {
-    const identity = {
-      renderer: 'playwright-chromium',
-      engine: harness.engine,
-      platform: `${process.platform}/${process.arch}`,
-      deviceScaleFactor: VIEWPORT.deviceScaleFactor,
-      fonts: FONTS,
-    };
-    const before = await read(harness, 'before', identity);
-    const after = await read(harness, 'after', identity);
+    const before = await read(harness, renderer, 'before');
+    const after = await read(harness, renderer, 'after');
     const sourcePath = relative(REPOSITORY_ROOT, SOURCE_FILE);
     const source = indexDeclarations(sourcePath, await readFile(SOURCE_FILE, 'utf8'));
 
+    // The evidence a run attaches to the rasters it compares: on the before
+    // side, what `variance run` writes beside a candidate it may promote to a
+    // baseline; on the after side, the component hashes of this run's snapshot.
     const observation = await observeRasters(
       SUBJECT,
-      { ...before.raster, snapshot: packSnapshot(before.snapshot) },
-      after.raster,
+      { ...before.raster, components: hashComponents(before.snapshot), snapshot: packSnapshot(before.snapshot) },
+      { ...after.raster, components: hashComponents(after.snapshot) },
       { snapshot: after.snapshot, source },
     );
-    // The record `variance run` writes for this observation, in the report
-    // `variance ask` reads: the committed report.txt is that command's answer.
     const record = recordOf(observation, { source });
+    // Assembled here, in the fields `variance run` writes: no shipped function
+    // builds a run report outside that command.
     const runReport = {
       runVersion: 1,
       at: new Date().toISOString(),
-      identity,
+      identity: renderer.identity,
       retention: 'durable',
       observations: [record],
       notObserved: [],
@@ -101,9 +109,10 @@ export async function runVisualReviewCase() {
       beforePng: before.png,
       afterPng: after.png,
       diffPng: await diffImage(before.png, after.png),
-      engine: harness.engine,
+      engine: renderer.identity.engine,
     };
   } finally {
+    await renderer.close();
     await harness.close();
   }
 }

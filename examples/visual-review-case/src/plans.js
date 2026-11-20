@@ -1,19 +1,22 @@
 import { digestValue } from '@variance-authority/core/format';
 
 /**
- * The page before and after one edit: the Team plan is renamed, and its button
- * takes the accent colour. Nothing else in the file differs between the two.
+ * The page before and after one edit: the Team plan is renamed, and the accent
+ * every Choose button is painted in moves from charcoal to orange. Nothing else
+ * in the file differs between the two.
  */
+const ACCENT = { before: '#24282a', after: '#ff4a19' };
+
 const PLANS = {
   before: [
-    { name: 'Starter', price: '$0 a month', accent: '#24282a' },
-    { name: 'Team', price: '$12 a month', accent: '#24282a' },
-    { name: 'Scale', price: '$40 a month', accent: '#24282a' },
+    { name: 'Starter', price: '$0 a month' },
+    { name: 'Team', price: '$12 a month' },
+    { name: 'Scale', price: '$40 a month' },
   ],
   after: [
-    { name: 'Starter', price: '$0 a month', accent: '#24282a' },
-    { name: 'Team, billed yearly for every seat', price: '$12 a month', accent: '#ff4a19' },
-    { name: 'Scale', price: '$40 a month', accent: '#24282a' },
+    { name: 'Starter', price: '$0 a month' },
+    { name: 'Team, billed yearly for every seat', price: '$12 a month' },
+    { name: 'Scale', price: '$40 a month' },
   ],
 };
 
@@ -86,7 +89,7 @@ export function Plans(variant) {
   section.setAttribute('aria-label', 'Plans');
   const list = document.createElement('ul');
   Object.assign(list.style, { listStyle: 'none', margin: '0', padding: '0' });
-  list.append(...PLANS[variant].map((plan) => PlanCard(plan)));
+  list.append(...PLANS[variant].map((plan) => PlanCard({ ...plan, accent: ACCENT[variant] })));
   section.append(list);
   main.append(section);
   return main;

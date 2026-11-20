@@ -1,21 +1,29 @@
 [changed] pricing/plans
-4,927 pixels differ across 3 regions in ChooseButton, PlanName, Price, 2 changed in shape and 1 only in colour
+12,267 pixels differ across 5 regions in ChooseButton, PlanName, Price, 2 changed in shape and 3 only in colour
 
 components:
   cause      ChooseButton — token
-      background-color (not declared) → rgb(255 74 25 / 1)
+      background-color rgb(36 40 42 / 1) → rgb(255 74 25 / 1)
   cause      PlanName — a11y, geometry, content
   collateral Price — geometry
 
+  cause      3670px at 360,16 104×40 — ChooseButton
+      in main → region "Plans" → list item 1 of 3 → button "Choose"
+      examples/visual-review-case/src/plans.js:56
+      shape v1:f0ceae0539be67e3c965076afb3829ee
   cause      3670px at 360,160 104×40 — ChooseButton
       in main → region "Plans" → list item 2 of 3 → button "Choose"
-      examples/visual-review-case/src/plans.js:53
+      examples/visual-review-case/src/plans.js:56
+      shape v1:f0ceae0539be67e3c965076afb3829ee
+  cause      3670px at 360,304 104×40 — ChooseButton
+      in main → region "Plans" → list item 3 of 3 → button "Choose"
+      examples/visual-review-case/src/plans.js:56
       shape v1:f0ceae0539be67e3c965076afb3829ee
   cause      733px at 17,163 166×35 — PlanName
       in main → region "Plans" → list item 2 of 3 → heading "Team, billed yearly for every seat"
-      examples/visual-review-case/src/plans.js:30
+      examples/visual-review-case/src/plans.js:33
       shape v1:7aad695648c27135a2385d1af21f4b76
   collateral 524px at 17,223 87×32 — Price
       in main → region "Plans" → list item 2 of 3
-      examples/visual-review-case/src/plans.js:42
+      examples/visual-review-case/src/plans.js:45
       shape v1:dcf78d63305c64e488747e46bad7df98

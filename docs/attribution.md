@@ -251,10 +251,10 @@ a list. `main → region "Todos" → list item 2 of 3` is a sentence somebody ca
 follow without opening a screenshot, and it stays true while the layout moves
 under it. Every node on the way down that has both a role and a name is a step
 of its own, the region's own node included: the [visual-review
-example](../examples/visual-review-case/README.md) places its repainted button
-at `main → region "Plans" → list item 2 of 3 → button "Choose"`. A path that
-does not resolve produces an empty location rather than an exception; losing
-the phrase is not worth losing the finding.
+example](../examples/visual-review-case/README.md) places the Team card's
+repainted button at `main → region "Plans" → list item 2 of 3 → button
+"Choose"`. A path that does not resolve produces an empty location rather than
+an exception; losing the phrase is not worth losing the finding.
 
 ## Which line
 
@@ -418,7 +418,7 @@ A region whose component is not one of the causes is **collateral**: it is in
 the diff because a cause moved it. The [visual-review
 example](../examples/visual-review-case/README.md) renames a plan so its name
 wraps, and the price under it is reported collateral, after the two causes.
-Its 524 differing pixels are fewer than the name's 733 and the button's 3670,
+Its 524 differing pixels are fewer than the name's 733 and each button's 3670,
 but that is not why: the label comes from its inputs, which did not change.
 
 Two limits:

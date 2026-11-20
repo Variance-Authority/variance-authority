@@ -36,11 +36,17 @@ const shape = (report: string) =>
 /** The documentation pages that name the example, each pinned below. */
 const QUOTING_PAGES = ['attribution.md', 'compare-visual-review.md', 'explain-variance.md', 'path-visual-review.md'];
 
-/** A fenced `text` block quotes the report when it names one of its components. */
+/**
+ * A fenced `text` block quotes the report when it opens the way one of the
+ * report's own blocks does: its headline, its `components:` block, or a row
+ * naming a cause or a collateral component.
+ */
 const quotedBlocks = (page: string) =>
   [...page.matchAll(/```text\n([\s\S]*?)```/g)]
     .map((block) => block[1]!)
-    .filter((block) => /ChooseButton|PlanName|Price/.test(block));
+    .filter((block) =>
+      /^(\[changed\] pricing\/plans|components:|\s*(cause|collateral) +(\d+px at |(ChooseButton|PlanName|Price) —))/.test(block),
+    );
 
 const artifact = (name: string) => readFile(join(ARTIFACT_ROOT, name), 'utf8');
 const page = (name: string) => readFile(join(REPOSITORY_ROOT, 'docs', name), 'utf8');
@@ -75,23 +81,28 @@ describe.skipIf(!BROWSER_AVAILABLE)('the visual-review example', () => {
       Price: ['geometry'],
     });
     expect(moved.find((entry) => entry.component === 'ChooseButton')?.changed).toEqual([
-      { property: 'background-color', from: [], to: ['rgb(255 74 25 / 1)'] },
+      { property: 'background-color', from: ['rgb(36 40 42 / 1)'], to: ['rgb(255 74 25 / 1)'] },
     ]);
   });
 
   it('places every region on a landmark path and the line its component is declared at', () => {
-    const at = Object.fromEntries(result!.record.regions.map((region) => [region.component, [region.where, region.file]]));
-    expect(at).toEqual({
-      ChooseButton: [
-        'main → region "Plans" → list item 2 of 3 → button "Choose"',
-        'examples/visual-review-case/src/plans.js:53',
-      ],
-      PlanName: [
+    const at = result!.record.regions.map((region) => [region.component, region.where, region.file]);
+    const button = (item: number) => [
+      'ChooseButton',
+      `main → region "Plans" → list item ${item} of 3 → button "Choose"`,
+      'examples/visual-review-case/src/plans.js:56',
+    ];
+    expect(at).toEqual([
+      button(1),
+      button(2),
+      button(3),
+      [
+        'PlanName',
         'main → region "Plans" → list item 2 of 3 → heading "Team, billed yearly for every seat"',
-        'examples/visual-review-case/src/plans.js:30',
+        'examples/visual-review-case/src/plans.js:33',
       ],
-      Price: ['main → region "Plans" → list item 2 of 3', 'examples/visual-review-case/src/plans.js:42'],
-    });
+      ['Price', 'main → region "Plans" → list item 2 of 3', 'examples/visual-review-case/src/plans.js:45'],
+    ]);
   });
 
   it('commits the answer `variance ask describe` gives for this run', async () => {
@@ -184,7 +195,7 @@ describe("the visual-review example's committed artifacts", () => {
     expect(path).toContain(`You open \`plans.js\` at line ${region.ChooseButton.file.split(':')[1]}`);
     expect(attribution).toContain(
       `Its ${region.Price.pixels} differing pixels are fewer than the name's ${region.PlanName.pixels} ` +
-        `and the button's ${region.ChooseButton.pixels}`,
+        `and each button's ${region.ChooseButton.pixels}`,
     );
   });
 });

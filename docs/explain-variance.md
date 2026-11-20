@@ -22,11 +22,12 @@ name pushes the price below it down, and the price's region says so:
 ```text
   collateral 524px at 17,223 87×32 — Price
       in main → region "Plans" → list item 2 of 3
-      examples/visual-review-case/src/plans.js:42
+      examples/visual-review-case/src/plans.js:45
 ```
 
 A collateral region needs no explanation of its own: look at the causes listed
-above it. The table below is for a region the report leaves unexplained.
+above it, as [Review a visual change](path-visual-review.md#a-shift-is-told-from-a-change)
+does for the whole report. The table below is for a region the report leaves unexplained.
 
 ## Ask what kind of explanation is missing
 

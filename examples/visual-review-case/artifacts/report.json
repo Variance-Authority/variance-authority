@@ -1,6 +1,6 @@
 {
   "runVersion": 1,
-  "at": "2026-11-20T08:28:11.738Z",
+  "at": "2026-11-20T08:57:51.531Z",
   "identity": {
     "renderer": "playwright-chromium",
     "engine": "chromium@156.0.8078.4",
@@ -9,15 +9,17 @@
     "fonts": [
       "Arial/400/normal/system",
       "Arial/600/normal/system"
-    ]
+    ],
+    "stabilization": "v1:80024b1adabdaed86c9f1578cedb626a",
+    "rasterization": "v1:66ea57e507094ae95afd1ad467e8cc84"
   },
   "retention": "durable",
   "observations": [
     {
       "subject": "pricing/plans",
       "verdict": "changed",
-      "because": "4,927 pixels differ across 3 regions in ChooseButton, PlanName, Price, 2 changed in shape and 1 only in colour",
-      "changedPixels": 4927,
+      "because": "12,267 pixels differ across 5 regions in ChooseButton, PlanName, Price, 2 changed in shape and 3 only in colour",
+      "changedPixels": 12267,
       "signals": {
         "document": "changed",
         "pixels": "changed"
@@ -32,7 +34,9 @@
           "changed": [
             {
               "property": "background-color",
-              "from": [],
+              "from": [
+                "rgb(36 40 42 / 1)"
+              ],
               "to": [
                 "rgb(255 74 25 / 1)"
               ]
@@ -59,6 +63,20 @@
       "regions": [
         {
           "x": 360,
+          "y": 16,
+          "width": 104,
+          "height": 40,
+          "pixels": 3670,
+          "grade": 4,
+          "cause": true,
+          "component": "ChooseButton",
+          "path": "0/0/0/0/2",
+          "where": "main → region \"Plans\" → list item 1 of 3 → button \"Choose\"",
+          "file": "examples/visual-review-case/src/plans.js:56",
+          "fingerprint": "v1:f0ceae0539be67e3c965076afb3829ee"
+        },
+        {
+          "x": 360,
           "y": 160,
           "width": 104,
           "height": 40,
@@ -68,7 +86,21 @@
           "component": "ChooseButton",
           "path": "0/0/0/1/2",
           "where": "main → region \"Plans\" → list item 2 of 3 → button \"Choose\"",
-          "file": "examples/visual-review-case/src/plans.js:53",
+          "file": "examples/visual-review-case/src/plans.js:56",
+          "fingerprint": "v1:f0ceae0539be67e3c965076afb3829ee"
+        },
+        {
+          "x": 360,
+          "y": 304,
+          "width": 104,
+          "height": 40,
+          "pixels": 3670,
+          "grade": 4,
+          "cause": true,
+          "component": "ChooseButton",
+          "path": "0/0/0/2/2",
+          "where": "main → region \"Plans\" → list item 3 of 3 → button \"Choose\"",
+          "file": "examples/visual-review-case/src/plans.js:56",
           "fingerprint": "v1:f0ceae0539be67e3c965076afb3829ee"
         },
         {
@@ -82,7 +114,7 @@
           "component": "PlanName",
           "path": "0/0/0/1/0",
           "where": "main → region \"Plans\" → list item 2 of 3 → heading \"Team, billed yearly for every seat\"",
-          "file": "examples/visual-review-case/src/plans.js:30",
+          "file": "examples/visual-review-case/src/plans.js:33",
           "fingerprint": "v1:7aad695648c27135a2385d1af21f4b76"
         },
         {
@@ -96,7 +128,7 @@
           "component": "Price",
           "path": "0/0/0/1/1",
           "where": "main → region \"Plans\" → list item 2 of 3",
-          "file": "examples/visual-review-case/src/plans.js:42",
+          "file": "examples/visual-review-case/src/plans.js:45",
           "fingerprint": "v1:dcf78d63305c64e488747e46bad7df98"
         }
       ]
