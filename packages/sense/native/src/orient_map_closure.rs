@@ -72,60 +72,75 @@ pub(crate) fn closures(nodes: &Nodes, packages: usize) -> Vec<Closure> {
     let outgoing = |at: usize| nodes.outgoing.get(at).map_or(&[][..], Vec::as_slice);
     (0..packages.div_ceil(BLOCK))
         .into_par_iter()
-        .flat_map_iter(|block| {
-            let first = block * BLOCK;
-            let width = BLOCK.min(packages - first);
-            let mut reached = vec![0u64; total];
-            let mut pending = vec![0u64; total];
-            let mut queue: VecDeque<u32> = VecDeque::new();
-            for bit in 0..width {
-                for &start in &seeds[first + bit] {
-                    if pending[start as usize] == 0 {
-                        queue.push_back(start);
-                    }
-                    reached[start as usize] |= 1 << bit;
-                    pending[start as usize] |= 1 << bit;
-                }
-            }
-            while let Some(at) = queue.pop_front() {
-                let carried = std::mem::take(&mut pending[at as usize]);
-                for &to in outgoing(at as usize) {
-                    let to = to as usize;
-                    let new = carried & !reached[to];
-                    if new != 0 {
-                        reached[to] |= new;
-                        if pending[to] == 0 {
-                            queue.push_back(to as u32);
+        // Each worker keeps its two words per node across its blocks, and a
+        // block reads and clears only the nodes it reached: a block of
+        // packages that reach little costs what they reach, not the checkout.
+        .map_init(
+            || (vec![0u64; total], vec![0u64; total]),
+            |(reached, pending), block| {
+                let first = block * BLOCK;
+                let width = BLOCK.min(packages - first);
+                let mut touched: Vec<u32> = Vec::new();
+                let mut queue: VecDeque<u32> = VecDeque::new();
+                for bit in 0..width {
+                    for &start in &seeds[first + bit] {
+                        let at = start as usize;
+                        if reached[at] == 0 {
+                            touched.push(start);
                         }
-                        pending[to] |= new;
-                    }
-                }
-            }
-            let mut found = vec![Closure::default(); width];
-            for (at, &mask) in reached.iter().enumerate() {
-                let sized = nodes.lines.get(at).copied().flatten();
-                // A file's own lines count only for the package that owns it.
-                if let Some(lines) = sized {
-                    let own = (nodes.owner[at] as usize).wrapping_sub(first);
-                    if own < width && mask & (1 << own) != 0 {
-                        found[own].own += u64::from(lines);
-                    }
-                }
-                let mut bits = mask;
-                while bits != 0 {
-                    let closure = &mut found[bits.trailing_zeros() as usize];
-                    match sized {
-                        Some(lines) => {
-                            closure.lines += u64::from(lines);
-                            closure.files += 1;
+                        if pending[at] == 0 {
+                            queue.push_back(start);
                         }
-                        None => closure.unsized_files += 1,
+                        reached[at] |= 1 << bit;
+                        pending[at] |= 1 << bit;
                     }
-                    bits &= bits - 1;
                 }
-            }
-            found
-        })
+                while let Some(at) = queue.pop_front() {
+                    let carried = std::mem::take(&mut pending[at as usize]);
+                    for &to in outgoing(at as usize) {
+                        let to = to as usize;
+                        let new = carried & !reached[to];
+                        if new != 0 {
+                            if reached[to] == 0 {
+                                touched.push(to as u32);
+                            }
+                            reached[to] |= new;
+                            if pending[to] == 0 {
+                                queue.push_back(to as u32);
+                            }
+                            pending[to] |= new;
+                        }
+                    }
+                }
+                let mut found = vec![Closure::default(); width];
+                for &at in &touched {
+                    let at = at as usize;
+                    let mask = std::mem::take(&mut reached[at]);
+                    let sized = nodes.lines.get(at).copied().flatten();
+                    // A file's own lines count only for the package that owns it.
+                    if let Some(lines) = sized {
+                        let own = (nodes.owner[at] as usize).wrapping_sub(first);
+                        if own < width && mask & (1 << own) != 0 {
+                            found[own].own += u64::from(lines);
+                        }
+                    }
+                    let mut bits = mask;
+                    while bits != 0 {
+                        let closure = &mut found[bits.trailing_zeros() as usize];
+                        match sized {
+                            Some(lines) => {
+                                closure.lines += u64::from(lines);
+                                closure.files += 1;
+                            }
+                            None => closure.unsized_files += 1,
+                        }
+                        bits &= bits - 1;
+                    }
+                }
+                found
+            },
+        )
+        .flatten_iter()
         .collect()
 }
 
@@ -202,6 +217,10 @@ mod tests {
             leaves,
         };
         assert_eq!(closures(&nodes, packages + 1), walked(&nodes, packages + 1));
+        // One worker folds every block in turn over the same words per node,
+        // so a node one block reached must not be read by the next.
+        let one = rayon::ThreadPoolBuilder::new().num_threads(1).build().expect("a pool of one");
+        assert_eq!(one.install(|| closures(&nodes, packages + 1)), walked(&nodes, packages + 1));
     }
 
     #[test]
