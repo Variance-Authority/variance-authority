@@ -158,6 +158,75 @@ mod tests {
         std::fs::remove_dir_all(root).unwrap();
     }
 
+    /// Whether any resolver `answer` asks, run without the missing-parent
+    /// guard, finds a file for the request.
+    fn found(resolvers: &Resolvers, from: &Path, request: &str) -> bool {
+        let (_, modules) = resolvers.governed_by(from);
+        [modules.as_ref(), &resolvers.exact, resolvers.declarations_for(&modules).as_ref()]
+            .iter()
+            .any(|resolver| resolver.resolve_file(from, request).is_ok())
+    }
+
+    /// The guard stops a request only where no resolver would find it: a
+    /// parent git does not list is still there when the emitted view holds it
+    /// as unbuilt output, an ignored directory on disk, a directory reached
+    /// through a link, or a `rootDirs` sibling inherited through `extends`.
+    #[cfg(unix)]
+    #[test]
+    fn a_parent_git_does_not_list_stops_a_request_only_where_no_resolver_finds_it() {
+        let root = std::env::temp_dir().join(format!("sense-missing-parent-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let listed = [
+            ("from.ts", "export {};"),
+            ("pkg/package.json", r#"{"name":"pkg"}"#),
+            ("pkg/tsconfig.json", r#"{"compilerOptions":{"rootDir":"src","outDir":"dist"}}"#),
+            ("pkg/src/from.ts", "export {};"),
+            ("pkg/src/sub/value.ts", "export const value = 1;"),
+            ("roots/tsconfig.json", r#"{"extends":"./base.json"}"#),
+            ("roots/base.json", r#"{"compilerOptions":{"rootDirs":["virtual","src"]}}"#),
+            ("roots/src/from.ts", "export {};"),
+            ("roots/src/value.ts", "export const value = 1;"),
+        ];
+        for (path, text) in listed.iter().chain(&[("gen/out/value.ts", "export const value = 1;")]) {
+            std::fs::create_dir_all(root.join(path).parent().unwrap()).unwrap();
+            std::fs::write(root.join(path), text).unwrap();
+        }
+        std::os::unix::fs::symlink("pkg/src", root.join("linked")).unwrap();
+        let root = std::fs::canonicalize(root).unwrap();
+        let paths: Vec<&str> = listed.iter().map(|(path, _)| *path).chain(["linked"]).collect();
+        let files: Arc<HashMap<String, u32>> = Arc::new(paths.iter().map(|path| (*path).to_owned()).zip(0..).collect());
+        let regular = paths.iter().map(|path| *path != "linked").collect();
+        let listing = Listing::of(Arc::clone(&files), Arc::new(regular), &[]);
+        let resolvers = Resolvers::over(Tsconfig::Auto, None, Emitted::listed(&root, Some(Arc::new(listing))));
+        // (from, request, whether a resolver finds it)
+        let requests = [
+            // Unbuilt output: `dist/sub` is a directory because `src/sub` is.
+            ("pkg/src/from.ts", "../dist/sub/value.js", true),
+            // A directory git ignores, which the disk holds.
+            ("from.ts", "./gen/out/value", true),
+            // A directory beneath a link git lists as a blob.
+            ("from.ts", "./linked/sub/value", true),
+            // A request written beside a link resolves lexically, not from where the link leads.
+            ("linked/from.ts", "../dist/sub/value.js", false),
+            // A `rootDirs` sibling with no directory of its own, declared in the config's base.
+            ("roots/src/from.ts", "../virtual/value", true),
+            // A case the disk may fold: found on a disk that ignores case, not on one that keeps it.
+            ("pkg/src/from.ts", "./SUB/value", cfg!(target_os = "macos")),
+            ("pkg/src/from.ts", "./nowhere/value", false),
+            ("pkg/src/from.ts", "./sub/value.ts/inner", false),
+            ("pkg/src/from.ts", "../dist/gone/value.js", false),
+        ];
+        for (from, request, expected) in requests {
+            let from = root.join(from);
+            let (tsconfig, _) = resolvers.governed_by(&from);
+            let stopped = resolvers.missing_parent(&root, &from, request, tsconfig.as_deref());
+            let found = found(&resolvers, &from, request);
+            assert_eq!(found, expected, "{request} from {} by a resolver", from.display());
+            assert!(!(stopped && found), "{request} from {} is stopped, yet a resolver finds it", from.display());
+        }
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
     #[test]
     fn the_listing_answers_a_relative_request_as_the_resolver_does() {
         let root = std::env::temp_dir().join(format!("sense-listed-relative-{}", std::process::id()));

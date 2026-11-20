@@ -66,17 +66,10 @@ impl Reader<'_> {
     fn read(&mut self, file: &Path) -> Vec<Name> {
         let Some(module) = self.files.module(file) else { return Vec::new() };
         self.sources.insert(file.to_owned());
-        let parsed = &module.parsed;
-        if parsed.unknown.is_some() { return Vec::new(); }
+        if module.unknown { return Vec::new(); }
         let utf16 = &module.utf16;
         let mut names = BTreeMap::<(String, String), Name>::new();
-        let mut imports = HashMap::<String, (String, String)>::new();
-        for request in &parsed.requests {
-            for binding in &request.bindings {
-                imports.insert(binding.local.clone(), (request.value.clone(), binding.imported.clone()));
-            }
-        }
-        for export in &parsed.exports {
+        for export in &module.exports {
             let Some(public) = &export.exported else {
                 if let Some(from) = &export.from {
                     if let Some(target) = self.target(file, from) {
@@ -106,7 +99,7 @@ impl Reader<'_> {
                 continue;
             }
             let local = export.local.as_deref().unwrap_or(public);
-            let mut matched: Vec<_> = parsed.symbols.iter().filter(|symbol| symbol.name == local).collect();
+            let mut matched: Vec<_> = module.symbols.iter().filter(|symbol| symbol.name == local).collect();
             // A name is a spelling: a statement that declares what it exports
             // binds that declaration, and `export { Kind }` every one spelled so.
             let written = |symbol: &&SourceSymbol| symbol.signature.as_ref().zip(export.signature.as_ref())
@@ -122,7 +115,7 @@ impl Reader<'_> {
                         doc: crate::dependency_namespace::doc(&utf16, symbol.doc.as_ref().or(export.doc.as_ref())) };
                     names.entry((name.name.clone(), name.kind.clone())).or_insert(name);
                 }
-            } else if let Some((request, imported)) = imports.get(local) {
+            } else if let Some((request, imported)) = module.imports.get(local) {
                 if let Some(target) = self.target(file, request) {
                     for mut name in self.names(&target).into_iter().filter(|name| &name.name == imported) {
                         name.name = public.clone();

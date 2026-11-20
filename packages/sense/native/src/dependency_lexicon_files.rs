@@ -3,6 +3,7 @@
 
 // compass: variance-authority.reach.source-scan
 
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, OnceLock};
 use std::{fs, io};
@@ -12,13 +13,40 @@ use oxc_allocator::Allocator;
 use sha2::{Digest, Sha256};
 
 use crate::dependency_namespace::{exported_import, exported_namespace, NamespaceSymbol};
-use crate::read::{read_module_and_tree, Read};
+use crate::harvest::SourceSymbol;
+use crate::read::{read_module_and_tree, Export, Read};
 
+/// What an entrypoint's export walk reads of a declaration file. Its install
+/// holds it until the last pair resolved there is read, so the rest of the
+/// module record is dropped as soon as the file is parsed.
 pub(super) struct Module {
-    pub parsed: Read,
+    /// Whether the reader could not read the file as a module; nothing else is kept then.
+    pub unknown: bool,
+    /// Each name an import binds, to its request and the name imported.
+    pub imports: HashMap<String, (String, String)>,
+    pub exports: Vec<Export>,
+    pub symbols: Vec<SourceSymbol>,
     pub utf16: Vec<u16>,
     pub namespace: Vec<NamespaceSymbol>,
     pub forwarded: Vec<String>,
+}
+
+impl Module {
+    fn of(path: &Path, source: &str) -> Self {
+        let allocator = Allocator::default();
+        let path = path.to_string_lossy();
+        let (parsed, program) = read_module_and_tree(&path, source, &allocator, true);
+        if parsed.unknown.is_some() {
+            return Module { unknown: true, imports: HashMap::new(), exports: Vec::new(), symbols: Vec::new(),
+                utf16: Vec::new(), namespace: Vec::new(), forwarded: Vec::new() };
+        }
+        let namespace = exported_namespace(&path, source, &program, &parsed.symbols);
+        let forwarded = exported_import(&program);
+        let Read { requests, exports, symbols, .. } = parsed;
+        let imports = requests.into_iter().flat_map(|request| request.bindings.into_iter()
+            .map(move |binding| (binding.local, (request.value.clone(), binding.imported)))).collect();
+        Module { unknown: false, imports, exports, symbols, utf16: source.encode_utf16().collect(), namespace, forwarded }
+    }
 }
 
 pub(super) struct File {
@@ -39,12 +67,7 @@ impl File {
 
     fn module(&self, path: &Path) -> Option<Arc<Module>> {
         self.module.get_or_init(|| {
-            let source = self.text().ok()?;
-            let allocator = Allocator::default();
-            let (parsed, program) = read_module_and_tree(&path.to_string_lossy(), source, &allocator, true);
-            let namespace = exported_namespace(&path.to_string_lossy(), source, &program, &parsed.symbols);
-            let forwarded = exported_import(&program);
-            Some(Arc::new(Module { parsed, utf16: source.encode_utf16().collect(), namespace, forwarded }))
+            Some(Arc::new(Module::of(path, self.text().ok()?)))
         }).clone()
     }
 }
@@ -89,11 +112,11 @@ mod tests {
         let original = "export declare const original: true;";
         std::fs::write(&path, original).unwrap();
         let refresh = Files::default();
-        assert_eq!(refresh.module(&path).unwrap().parsed.symbols[0].name, "original");
+        assert_eq!(refresh.module(&path).unwrap().symbols[0].name, "original");
         std::fs::write(&path, "export declare const edited: true;").unwrap();
         assert_eq!(refresh.digest(&path), Some(crate::journeys::hex(&Sha256::digest(original.as_bytes()))));
         let next = Files::default();
-        assert_eq!(next.module(&path).unwrap().parsed.symbols[0].name, "edited");
+        assert_eq!(next.module(&path).unwrap().symbols[0].name, "edited");
         assert_ne!(refresh.digest(&path), next.digest(&path));
         std::fs::remove_file(path).unwrap();
     }

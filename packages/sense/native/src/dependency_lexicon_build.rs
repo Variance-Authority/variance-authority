@@ -8,7 +8,8 @@
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::path::Path;
-use std::sync::{Arc, OnceLock};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex, OnceLock};
 
 use dashmap::DashMap;
 use rayon::prelude::*;
@@ -18,6 +19,23 @@ use super::codec::{api as encoded, read_api};
 use super::sites::State;
 use super::{entry, files::Files, relative, stamps, wanted, Api, Owner};
 use crate::resolve::{Resolvers, Tsconfig};
+
+/// One install's readings, held until the last pair resolved to it is read. A walk never leaves its package, so
+/// no other install's pair reads these declarations, and a refresh holds only the installs it is reading.
+struct Install {
+    files: Mutex<Option<Arc<Files>>>,
+    unread: AtomicUsize,
+}
+
+impl Install {
+    fn files(&self) -> Arc<Files> {
+        self.files.lock().unwrap().get_or_insert_with(Default::default).clone()
+    }
+
+    fn read(&self) {
+        if self.unread.fetch_sub(1, Ordering::AcqRel) == 1 { self.files.lock().unwrap().take(); }
+    }
+}
 
 fn targets(value: &serde_json::Value, into: &mut Vec<String>) {
     match value {
@@ -80,7 +98,6 @@ pub(super) fn made(root: &Path, owners: Vec<Owner>, manifests: Vec<String>, inte
     let owner_of = |manifest: &str| &owners[owner_rows[manifest] as usize];
     let resolver = Resolvers::new(tsconfig, Some(vec!["types".to_owned(), "import".to_owned(), "default".to_owned()]));
     let parsed = DashMap::<String, Arc<OnceLock<(Arc<Api>, bool)>>>::new();
-    let files = Files::default();
     let importer_of = |manifest: &str| root.join(&owner_of(manifest).directory).join("__variance_dependency__.ts");
     let resolve = |manifest: &str, package: &str| {
         let importer = importer_of(manifest);
@@ -93,9 +110,16 @@ pub(super) fn made(root: &Path, owners: Vec<Owner>, manifests: Vec<String>, inte
     // names does not depend on which thread got there first.
     let mut home = HashMap::<&str, &str>::new();
     for (((manifest, _), _), key) in pairs.iter().zip(&keys) { home.entry(key.as_str()).or_insert(manifest.as_str()); }
+    let mut readings = HashMap::<&str, Install>::new();
+    for key in &keys {
+        readings.entry(key.as_str()).or_insert_with(|| Install { files: Mutex::new(None), unread: AtomicUsize::new(0) })
+            .unread.fetch_add(1, Ordering::Relaxed);
+    }
     let read: Vec<Read> = pairs.par_iter().zip(keys.par_iter()).map(|(((manifest, package), imported), key)| {
         let importer = importer_of(manifest);
         let shared = importer_of(home[key.as_str()]);
+        let install = &readings[key.as_str()];
+        let files = install.files();
         let mut issues = Vec::new();
         let opened = resolve(manifest, package).as_ref().and_then(|answer| answer.package_json())
             .and_then(|package_json| files.manifest(package_json.path()))
@@ -117,6 +141,8 @@ pub(super) fn made(root: &Path, owners: Vec<Owner>, manifests: Vec<String>, inte
                 api.entrypoint.as_deref().unwrap_or(specifier));
             (specifier.clone(), opened.contains(specifier), id, api, reused)
         }).collect();
+        drop(files);
+        install.read();
         issues.sort();
         issues.dedup();
         (key.clone(), issues, offers)
@@ -153,4 +179,26 @@ pub(super) fn made(root: &Path, owners: Vec<Owner>, manifests: Vec<String>, inte
         owners, manifests, internal, pairs: made_pairs, installs: made_installs, stamps, summary,
     };
     (made, reused, unresolved)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::atomic::AtomicUsize;
+    use std::sync::{Arc, Mutex};
+
+    use super::Install;
+
+    #[test]
+    fn an_installs_readings_are_shared_by_its_pairs_and_released_after_the_last_is_read() {
+        let install = Install { files: Mutex::new(None), unread: AtomicUsize::new(2) };
+        let first = install.files();
+        let second = install.files();
+        assert!(Arc::ptr_eq(&first, &second));
+        let held = Arc::downgrade(&first);
+        drop((first, second));
+        install.read();
+        assert!(held.upgrade().is_some());
+        install.read();
+        assert!(held.upgrade().is_none());
+    }
 }
