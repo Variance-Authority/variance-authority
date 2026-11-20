@@ -71,7 +71,7 @@ export function withoutConfig(parsed: Parsed): parsed is Configless {
  */
 export async function constantAnswer(
   parsed: Parsed,
-  streams: { out(text: string): void },
+  streams: Pick<Streams, 'out' | 'err'>,
 ): Promise<ExitCode | undefined> {
   if (parsed.command !== 'ask') return undefined;
   const [{ askSource }, { questions }, { questionFor }] = await Promise.all([
@@ -84,7 +84,7 @@ export async function constantAnswer(
     return EXIT_CLEAN;
   }
   if (questionFor(parsed.question).source !== undefined) {
-    streams.out(await askSource({ ...parsed, question: parsed.question }));
+    streams.out(await askSource({ ...parsed, question: parsed.question, warn: (line) => streams.err(`${line}\n`) }));
     return EXIT_CLEAN;
   }
   // A question only a watcher answers reads no project either: the watcher
@@ -97,7 +97,7 @@ export async function constantAnswer(
     const read = (): never => {
       throw new OperatorError(`\`${parsed.question}\` reads no report`);
     };
-    streams.out(await ask({ ...parsed, ...(at === undefined ? {} : { at }), report: '', read }));
+    streams.out(await ask({ ...parsed, ...(at === undefined ? {} : { at }), report: '', read, warn: (line) => streams.err(`${line}\n`) }));
     return EXIT_CLEAN;
   }
   return undefined;

@@ -83,6 +83,10 @@ import { readVantage } from './watch.js';
 export interface AskRequest extends Crossing {
   /** The question. Absent asks for the list of them, which is the MCP handshake. */
   readonly question?: string;
+  /** What the flag parser said of each flag no question takes, which it ignored. */
+  readonly ignored?: readonly string[];
+  /** Where a line about an ignored flag is said, beside the answer. Standard error when absent. */
+  readonly warn?: (line: string) => void;
   readonly subject?: string;
   readonly subjects?: readonly string[];
   readonly component?: string;
@@ -160,10 +164,11 @@ export interface AskRequest extends Crossing {
 /**
  * What a question about the code takes: every flag `ask` accepts, and nothing
  * about a run. Every flag rather than the seven these tools take, so a
- * `--subject` typed at `search` is refused by name like it is everywhere else,
- * instead of being dropped on the way in and answered around.
+ * `--subject` typed at `search` is named as ignored like it is everywhere else,
+ * instead of being dropped on the way in without a word.
  */
-export type SourceRequest = Flagged & Pick<AskRequest, 'source' | 'changedFile' | 'taintFile' | 'format' | 'reports'> & {
+export type SourceRequest = Flagged &
+  Pick<AskRequest, 'source' | 'changedFile' | 'taintFile' | 'format' | 'reports' | 'ignored' | 'warn'> & {
   readonly question: string;
 };
 
@@ -187,13 +192,14 @@ export async function ask(request: AskRequest): Promise<string> {
 
   const question = questionFor(request.question);
   if (question.source !== undefined) return askSource({ ...request, question: request.question });
+  const ignore = ignoring(request);
   if (question.costs !== undefined) {
-    const input = inputFor(question.costs, flagged(request));
+    const input = inputFor(question.costs, flagged(request), ignore);
     if (request.costs === undefined) throw new OperatorError('`costs` needs a config: the times are kept under its project');
     return `${question.costs.run(await request.costs(), input, invocationOf())}\n`;
   }
   if (question.review !== undefined) {
-    const input = inputFor(question.review, flagged(request));
+    const input = inputFor(question.review, flagged(request), ignore);
     refuseWords(question.tool, request.reports);
     if (request.review === undefined) {
       throw new OperatorError(
@@ -214,7 +220,7 @@ export async function ask(request: AskRequest): Promise<string> {
   // without one, so the word is refused before the missing watcher is.
   if (question.report === undefined) refuseWords(question.tool, request.reports);
 
-  const input = await inputFrom(question, request);
+  const input = await inputFrom(question, request, ignore);
   if (request.at !== undefined && question.live !== undefined) unread(question, request.at, request.reports);
 
   const answer =
@@ -239,6 +245,7 @@ export async function askSource(request: SourceRequest): Promise<string> {
   // `intersection` is the one source question whose words are its own: each
   // is a whole question, in quotes.
   const crossing = tool.name === intersection.name;
+  const ignore = ignoring(request);
   if (!crossing) refuseWords(tool, request.reports);
 
   // Refused before anything is read: a question that has no shape to give
@@ -246,7 +253,7 @@ export async function askSource(request: SourceRequest): Promise<string> {
   if (request.format === 'json' && tool.name !== search.name && tool.name !== containment.name) {
     throw new OperatorError(`\`${request.question}\` answers in text only; \`--format json\` is taken by \`search\` and \`containment\``);
   }
-  const input = crossing ? intersectionInput(request.reports ?? [], request.limit) : inputFor(tool, flagged(request));
+  const input = crossing ? intersectionInput(request.reports ?? [], request.limit, ignore) : inputFor(tool, flagged(request), ignore);
   const changed = request.changedFile === undefined ? undefined : await readChanged(request.changedFile);
   const taints = request.taintFile === undefined ? undefined : [await readTaint(request.taintFile)];
   // A question answers from the generation `variance index` published, at any
@@ -430,12 +437,29 @@ function unread(question: Question, at: string, reports: readonly string[] | und
 async function inputFrom(
   question: Question,
   request: AskRequest,
+  ignore: (message: string) => void,
 ): Promise<Readonly<Record<string, unknown>>> {
-  return inputFor(question.tool, {
-    ...flagged(request),
-    // The one argument that is a file rather than a word, read through the same
-    // validation `variance adjudicate` reads it through — an agent that declared
-    // its intent badly is told so once, in one wording.
-    claims: request.claims === undefined ? undefined : await readClaims(request.claims),
-  });
+  return inputFor(
+    question.tool,
+    {
+      ...flagged(request),
+      // The one argument that is a file rather than a word, read through the same
+      // validation `variance adjudicate` reads it through — an agent that declared
+      // its intent badly is told so once, in one wording.
+      claims: request.claims === undefined ? undefined : await readClaims(request.claims),
+    },
+    ignore,
+  );
+}
+
+/**
+ * Says what the flag parser ignored, and returns where a question says what it
+ * ignored: each line beside the answer, never in it, so the answer stays what
+ * a caller parses.
+ */
+function ignoring(request: Pick<AskRequest, 'ignored' | 'warn'>): (message: string) => void {
+  const warn = request.warn ?? ((line: string) => process.stderr.write(`${line}\n`));
+  const ignore = (message: string): void => warn(`variance: ${message}`);
+  for (const message of request.ignored ?? []) ignore(message);
+  return ignore;
 }

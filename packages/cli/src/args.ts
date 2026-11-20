@@ -25,7 +25,19 @@ export interface Flags {
   readonly positionals: readonly string[];
   /** Every value of a flag its command lists in {@link REPEATABLE}, in the order given; `values` holds the last. */
   readonly repeated: Map<string, readonly string[]>;
+  /** What a {@link TOLERANT} command says of each flag it ignored, said beside its answer. */
+  readonly ignored: readonly string[];
 }
+
+/**
+ * Commands that answer past a flag they do not take, naming it on stderr.
+ *
+ * Every other command refuses one, for the reason `parse.ts` gives: `run
+ * --subject` runs the whole suite and reports success. A question reads and
+ * writes nothing, and the line that names the flag is printed beside the answer
+ * to whoever typed it, so a refusal only costs them a second round trip.
+ */
+const TOLERANT = new Set(['ask']);
 
 /**
  * Flags a command takes more than once, each time adding one more of a kind.
@@ -132,6 +144,7 @@ export function readFlags(
   const present = new Set<string>();
   const positionals: string[] = [];
   const repeated = new Map<string, string[]>();
+  const ignored: string[] = [];
 
   let index = 0;
   let flagsEnded = false;
@@ -153,6 +166,15 @@ export function readFlags(
     const equals = argument.indexOf('=');
     const name = equals === -1 ? argument : argument.slice(0, equals);
 
+    if (!accepted.includes(name) && TOLERANT.has(command)) {
+      // Its value goes with it, unless what follows is the next flag.
+      const next = argv[index];
+      if (equals === -1 && next !== undefined && !next.startsWith('-')) index += 1;
+      ignored.push(
+        `\`${name}\` is not a \`variance ${command}\` flag, so the answer ignores it.${didYouMean(name, accepted)}`,
+      );
+      continue;
+    }
     if (!accepted.includes(name)) {
       // The synopsis names every accepted flag (`bin.test.ts` holds it to that),
       // so the refusal does not list them a second time.
@@ -189,7 +211,7 @@ export function readFlags(
     if (repeatable) repeated.set(name, [...repeated.get(name) ?? [], value]);
   }
 
-  return { values, present, positionals, repeated };
+  return { values, present, positionals, repeated, ignored };
 }
 
 export function noPositionals(positionals: readonly string[], command: string): void {

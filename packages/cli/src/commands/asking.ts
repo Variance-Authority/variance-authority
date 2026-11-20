@@ -235,12 +235,14 @@ export function takes(tool: Asked): string {
 }
 
 /**
- * The arguments this question takes, refusing the ones it does not.
+ * The arguments this question takes, telling `ignore` of each one it does not.
  *
- * Refused rather than ignored, for the reason the flag parser refuses an unknown
- * flag: `variance ask summary --subject story:card` reads, to whoever typed it,
- * as a question about that subject, and answering the whole suite instead is the
- * failure that survives review because the output looks right.
+ * Told rather than refused: a question reads and writes nothing, and the line is
+ * printed beside the answer to whoever typed the flag. It says the answer was
+ * not narrowed by it, because `variance ask summary --subject story:card` reads,
+ * to whoever typed it, as a question about that subject, and an answer about the
+ * whole suite looks right. A missing required argument is still refused: the
+ * question cannot be answered without it.
  *
  * `given` is keyed by property rather than by flag so the caller can resolve a
  * value however it needs to — one of these is a file that has to be read and
@@ -249,6 +251,7 @@ export function takes(tool: Asked): string {
 export function inputFor(
   tool: Asked,
   given: Readonly<Record<string, unknown>>,
+  ignore: (message: string) => void,
 ): Readonly<Record<string, unknown>> {
   const accepted = argumentsOf(tool);
   const input: Record<string, unknown> = {};
@@ -258,7 +261,8 @@ export function inputFor(
     const argument = accepted.find((entry) => entry.property === property);
     if (argument === undefined) {
       const flags = accepted.map((entry) => entry.flag);
-      throw new OperatorError(`${notTaken(tool, `--${property}`)}.${didYouMean(`--${property}`, flags)}`);
+      ignore(`${notTaken(tool, `--${property}`, 'so the answer ignores it and is not narrowed by it; it')}.${didYouMean(`--${property}`, flags)}`);
+      continue;
     }
     // A list a tool declares is typed once, comma-separated, like `--files`.
     input[property] = argument.kind === 'list' && typeof value === 'string'
@@ -306,11 +310,11 @@ export function refuseWords(tool: Asked, words: readonly string[] | undefined): 
   throw new OperatorError(`${notTaken(tool, word)}.${quoted}`);
 }
 
-/** That a question does not take what was typed, and what it takes instead. */
-function notTaken(tool: Asked, typed: string): string {
+/** That a question does not take what was typed, what came of it, and what it takes instead. */
+function notTaken(tool: Asked, typed: string, so = '; it'): string {
   const flags = argumentsOf(tool).map(spelling);
   return (
-    `\`${typed}\` is not an argument \`variance ask ${verbOf(tool)}\` takes; it ` +
+    `\`${typed}\` is not an argument \`variance ask ${verbOf(tool)}\` takes${so === '; it' ? '' : ', '}${so} ` +
     `takes ${flags.length === 0 ? 'none' : flags.join(', ')}`
   );
 }

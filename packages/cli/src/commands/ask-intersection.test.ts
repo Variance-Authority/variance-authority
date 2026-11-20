@@ -137,8 +137,16 @@ describe('ask intersection refuses what it cannot cross', () => {
     await expect(ask('packages', 'symbol --name selectBalance')).rejects.toThrow(/`packages` answers no set of files; the questions that do: symbol, uses, search, grep, discover$/);
   });
 
-  it('refuses a flag the question does not take, saying which question', async () => {
-    await expect(ask('symbol --name selectBalance', 'discover --form src/Wallet.ts')).rejects.toThrow(/question 2, `discover --form src\/Wallet.ts`: .*`--form`/);
+  it('answers past a flag a question does not take, naming it and which question', async () => {
+    const warned: string[] = [];
+    const reports = ['symbol --name selectBalance', 'discover --from src/Wallet.ts --component Wallet --form x'];
+    const text = await askSource({ question: 'intersection', reports, warn: (line) => { warned.push(line); } });
+
+    expect(text).toBe(await ask('symbol --name selectBalance', 'discover --from src/Wallet.ts'));
+    expect(warned).toEqual([
+      expect.stringMatching(/^variance: question 2, `discover --from .*`: `--form` is not a `variance ask` flag, so the answer ignores it\.\nDid you mean `--from`\?$/),
+      expect.stringMatching(/^variance: question 2, .*: `--component` is not an argument `variance ask discover` takes, so the answer ignores it/),
+    ]);
   });
 
   it('refuses a word left over inside a question', async () => {

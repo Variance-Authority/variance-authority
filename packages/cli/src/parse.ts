@@ -43,6 +43,8 @@ import { parseJourneysArgs, type ParsedJourneys } from './journeys-args.js';
  * `--subjects` was meant runs the whole suite and reports success, and the
  * operator reads their own shell history and sees the flag they intended. A
  * misspelled flag must stop the run, and it must name the flags that exist.
+ * `ask` is the one exception: a question reads and writes nothing, so it names
+ * the flag it ignored beside the answer and answers from the rest.
  *
  * **Flags are per-command.** `--format json` is meaningless on `run`, and
  * accepting it there teaches the operator a false model of the tool. Each

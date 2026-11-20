@@ -8,8 +8,9 @@ import { main } from '../bin.js';
 import { EXIT_OPERATOR } from '../exit.js';
 
 /**
- * A word after a question about the code is refused, as a flag it does not
- * take is refused.
+ * A word after a question about the code is refused, where a flag it does not
+ * take is named and answered past: a word is read as a report, and a report
+ * changes what the question means.
  *
  * Every word after the question is a report path, and a question about the
  * checkout reads no report. `ask packages @kbn/does-not-exist` read as a
@@ -37,12 +38,17 @@ describe('a word a question about the code does not take', () => {
     }
   });
 
-  it('is refused the way the flag is, with the same exit and the same list', async () => {
+  it('is refused where the flag is answered past, each naming what the question takes', async () => {
     const flag = await run(['ask', 'packages', '--package', '@kbn/does-not-exist']);
     const word = await run(['ask', 'packages', '@kbn/does-not-exist']);
 
-    expect(word.code).toBe(flag.code);
-    expect(flag.err).toContain('`--package` is not an argument `variance ask packages` takes; it takes none.');
+    // The flag is named and passed over before the checkout is read; with no
+    // index here, what follows is the answer's own failure, not a refusal of it.
+    expect(word.code).toBe(EXIT_OPERATOR);
+    expect(flag.err).not.toContain('takes; it takes none');
+    expect(flag.err).toContain(
+      '`--package` is not an argument `variance ask packages` takes, so the answer ignores it and is not narrowed by it; it takes none.',
+    );
     expect(word.err).toContain('`@kbn/does-not-exist` is not an argument `variance ask packages` takes; it takes none.');
   });
 

@@ -82,6 +82,8 @@ export interface ParsedAsk extends Crossing {
    * that reads like the sentence somebody meant.
    */
   readonly question?: string;
+  /** A line for each flag `ask` takes for no question, said on stderr beside the answer. */
+  readonly ignored?: readonly string[];
   readonly subject?: string;
   /** `--subjects <id>[,...]`: the plural argument `changelog` takes, not `--subject`. */
   readonly subjects?: readonly string[];
@@ -214,6 +216,7 @@ export function parseAskArgs(flags: Flags, config: string): ParsedAsk {
     command: 'ask',
     config,
     ...(question !== undefined ? { question } : {}),
+    ...(flags.ignored.length > 0 ? { ignored: flags.ignored } : {}),
     ...(subject !== undefined ? { subject } : {}),
     ...(subjects.length > 0 ? { subjects } : {}),
     ...(component !== undefined ? { component } : {}),

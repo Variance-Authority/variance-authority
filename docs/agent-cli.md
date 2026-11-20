@@ -442,9 +442,18 @@ reading and the skill's counterfactual verification loop are described in
 ## Arguments are per-question
 
 Each question takes only the arguments its own contract declares. An argument
-another question takes is refused by name rather than ignored, because a
-question answered about the whole suite when a subject was named reads as
-correct and is not.
+the question does not take, or a flag no question takes, is named on standard
+error and the question is answered from the rest, exit `0`. The line says the
+answer was not narrowed by it, because a question answered about the whole
+suite when a subject was named reads as correct and is not:
+
+```text
+variance: `--subject` is not an argument `variance ask summary` takes, so the answer ignores it and is not narrowed by it; it takes none.
+```
+
+A missing required argument, a malformed value and a stray word after the
+question are still refused, since each changes what the question means. Every
+command other than `ask` refuses an unknown flag.
 
 ```bash
 variance ask describe --subject story:card

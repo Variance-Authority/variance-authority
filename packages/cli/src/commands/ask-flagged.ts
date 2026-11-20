@@ -13,9 +13,9 @@ export type Flagged = Crossing & Pick<
 /**
  * The flags, and only the flags, off a request. Named one by one rather than
  * spread, because a request also carries what it is *about* — a report path, a
- * watcher address, a reader — and `inputFor` refuses every property it does
- * not recognise, which is the right rule for a flag and the wrong one for a
- * subject.
+ * watcher address, a reader — and `inputFor` names every property it does
+ * not recognise as ignored, which is the right rule for a flag and the wrong
+ * one for a subject.
  */
 export function flagged(request: Flagged): Readonly<Record<string, unknown>> {
   return {

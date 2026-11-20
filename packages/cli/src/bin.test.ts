@@ -37,6 +37,18 @@ describe('parseArgs', () => {
     expect(error.message).toContain('[--profile jsdom|chromium] [--subjects <glob>] [--shard <k>/<n>] [--intent <text>]');
   });
 
+  it('ignores a flag no question takes, with its value, and names the flag it was near', () => {
+    expect(parseArgs(['ask', 'uses', '--name', 'rank', '--limt', '5'])).toMatchObject({
+      question: 'uses',
+      name: 'rank',
+      reports: [],
+      ignored: ['`--limt` is not a `variance ask` flag, so the answer ignores it.\nDid you mean `--limit`?'],
+    });
+    // A value given with `=` is the flag's too, and a flag after it is not.
+    expect(parseArgs(['ask', 'uses', '--top=5', '--name', 'rank'])).toMatchObject({ name: 'rank', reports: [] });
+    expect(parseArgs(['ask', 'uses', '--verbose', '--name', 'rank'])).toMatchObject({ name: 'rank', reports: [] });
+  });
+
   it('refuses a flag that belongs to another command', () => {
     // `--format json` on `run` is meaningless, and accepting it would teach a
     // false model of what the command does.
@@ -143,7 +155,11 @@ describe('parseArgs', () => {
       reports: [],
     });
     // A question always reads the published generation, so only `serve` takes `--just-answer`.
-    expect(() => parseArgs(['ask', 'search', '--query', 'button', '--just-answer'])).toThrow('`--just-answer` is not a `variance ask` flag');
+    // Named and ignored rather than refused: a question reads and writes nothing.
+    expect(parseArgs(['ask', 'search', '--query', 'button', '--just-answer'])).toMatchObject({
+      query: 'button',
+      ignored: ['`--just-answer` is not a `variance ask` flag, so the answer ignores it.'],
+    });
     expect(parseArgs(['serve', '--just-answer'])).toMatchObject({ justAnswer: true });
     // `--story` stands alone: the report path after it is a report, not its value.
     expect(parseArgs(['ask', 'ran', '--story', 'out/report.json'])).toMatchObject({ story: true, reports: ['out/report.json'] });
