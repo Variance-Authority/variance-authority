@@ -99,3 +99,26 @@ unsafe impl GlobalAlloc for Mapped {
         moved
     }
 }
+
+#[cfg(test)]
+mod tests {
+    extern "C" {
+        fn _rjem_mallctl(name: *const u8, old: *mut std::ffi::c_void, old_len: *mut usize, new: *mut std::ffi::c_void, new_len: usize) -> i32;
+    }
+
+    fn option(name: &[u8]) -> isize {
+        let mut value: isize = -2;
+        let mut len = std::mem::size_of::<isize>();
+        let status = unsafe { _rjem_mallctl(name.as_ptr(), (&mut value as *mut isize).cast(), &mut len, std::ptr::null_mut(), 0) };
+        assert_eq!(status, 0, "jemalloc has no option {}", String::from_utf8_lossy(name));
+        value
+    }
+
+    // The peak this allocator was chosen for holds only while jemalloc reads
+    // `MALLOC_CONF`; a symbol name it no longer looks for is ignored silently.
+    #[test]
+    fn jemalloc_returns_a_freed_page_at_once() {
+        assert_eq!(option(b"opt.dirty_decay_ms\0"), 0);
+        assert_eq!(option(b"opt.muzzy_decay_ms\0"), 0);
+    }
+}
