@@ -2,7 +2,7 @@ import { PNG } from 'pngjs';
 import { describe, expect, it, vi } from 'vitest';
 import { isolateRegions } from '@variance-authority/core/attribute';
 import type { Raster } from '@variance-authority/core/format';
-import { DEFAULT_POLICY, STRICT_POLICY } from '@variance-authority/raster';
+import { DEFAULT_POLICY, SEVERITY_LEVELS, STRICT_POLICY } from '@variance-authority/raster';
 import { alignRows } from './align.js';
 import { changeImages } from './change.js';
 import { comparePngs, compareRasters, type ComparedPixels } from './compare.js';
@@ -77,7 +77,7 @@ describe('comparing two rasters', () => {
     expect(comparison.mask.changed).toBe(25);
 
     const regions = isolateRegions(comparison.mask, { cell: 1 }).regions;
-    expect(regions).toEqual([{ x: 5, y: 5, width: 5, height: 5, pixels: 25, density: 1 }]);
+    expect(regions).toEqual([{ x: 5, y: 5, width: 5, height: 5, pixels: 25, density: 1, grade: SEVERITY_LEVELS.length }]);
   });
 
   it('reports both a forgiving and an exact policy', () => {

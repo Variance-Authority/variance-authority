@@ -7,15 +7,15 @@ the count into **this region, inside `Toggle`, in
 `main → region "Todos" → item 2 of 3`, written at
 `examples/todomvc/src/ds/components.tsx:107`.**
 
-Read this page to find out how a changed region gets a component name and a
-`file:line`, what each step needs from your build, and where the chain stops
+Read this page to find out how a changed region is graded strong or faint, how
+it gets a component name and a `file:line`, what each step needs from your build, and where the chain stops
 instead of guessing. New here? Start with [your first run](start.md).
 
 Five hops, each one a pure function over data the run already has.
 
 | hop | from | to | needs |
 |---|---|---|---|
-| isolate | a change mask | regions with boxes | nothing but the mask |
+| isolate | a change mask | regions with boxes and grades | nothing but the mask |
 | join | regions and a snapshot | a node per region | a snapshot with rects |
 | name | a node's provenance | a component | React's owner links, which a development build keeps |
 | orient | a node's path | a landmark phrase | landmarks, roles and list position in the snapshot |
@@ -32,8 +32,9 @@ which components produced it, so by the time a change is observed its author is
 
 ## Where on the canvas
 
-A change arrives as a mask: one byte per pixel, row-major, `1` where the pixel
-differs, and the changed count comes with it so nothing has to rescan.
+A change arrives as a mask: one byte per pixel, row-major, `0` where the pixel
+is the same and its [grade](#how-strongly-it-changed), from 1 to 4, where it differs. The
+changed count comes with it so nothing has to rescan.
 
 `isolateRegions` clusters it. Connected components are computed on a coarse grid
 — **8 pixels by default** — rather than on the pixels themselves, and the grid
@@ -46,10 +47,56 @@ tightened back onto the actual changed pixels afterwards, so a region's box is
 exact. Each region has a pixel count and a density — `pixels / area` — which is
 what tells a scattered text change from a solid block of repaint.
 
-Regions come back largest first, capped at 32, and the cap is *reported*:
+Regions come back largest first, capped at 32 with the [faintest](#how-strongly-it-changed)
+dropped first, and the cap is *reported*:
 `truncated` counts the regions dropped and `truncatedPixels` the change in them.
 A capped list that does not report its cap reads as complete coverage, and the
 reader has no way to know the difference.
+
+## How strongly it changed
+
+A screenshot diff says how many pixels differ, and a header repainted one
+shade lighter counts as much as the button inserted under it. **A region's
+grade says how far its colour is from the baseline**, so the two read apart.
+It is a reading separate from density, which says whether the changed pixels
+are scattered or solid: a solid region can be faint, and a scattered one strong.
+
+The comparison measures every pixel's colour distance on pixelmatch's
+threshold scale, from 0 to 1. The policy decides which pixels count as changed:
+the default policy counts a distance past 0.01, the strict one any difference.
+Each counted pixel is then graded against `SEVERITY_LEVELS` from
+`@variance-authority/raster`, 0.01, 0.05, 0.1 and 0.2. The first, 0.01, is the
+default policy's own threshold, so every pixel it counts has passed it:
+
+| colour distance | grade |
+|---|---|
+| past 0.2 | 4 |
+| past 0.1 | 3 |
+| past 0.05 | 2 |
+| any other counted pixel | 1 |
+
+A pixel row the after image added, which the row alignment pairs with no row
+of the before image, gets grade 4. When the width changed there is no
+alignment, and each row is graded by its colour against white padding. A region's grade, `DiffRegion.grade`, is the highest
+grade among its pixels.
+
+A region at `STRONG_GRADE`, grade 4, is **strong**: added content, or a colour
+past 0.2, Playwright's default threshold, which its own comparator would count
+too. A region below it is **faint**, such as a colour repainted a few shades lighter. A faint region
+still decides `changed`: the grade never forgives a pixel the policy counted,
+and never changes a verdict's status.
+
+The reason a verdict gives names the components under the strong regions and
+counts the faint ones after them:
+
+```
+48 pixels differ across 1 strong region in Hero, and 2 faint regions
+```
+
+When every region is faint, the reason names their components and calls them
+faint. The grade decides only which regions that sentence names. The region
+list keeps its own order, largest first, and the semantic ranking below
+reorders it by cause without changing which regions the sentence names.
 
 ## What is there
 

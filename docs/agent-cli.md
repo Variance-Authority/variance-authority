@@ -166,7 +166,7 @@ rendered by playwright-chromium (chromium@151.0.7922.34, darwin/arm64, 1x)
 3 changed
 names of 3 subject(s) written down over 8 field(s); `variance_locate {query}` finds a subject from a description
 
-[changed] card/summary — Button: 3,402 pixels differ across 2 regions in Button, Avatar
+[changed] card/summary — Button: 3,402 pixels differ across 1 strong region in Button, and 1 faint region
 [changed] card/compact — Button: 2,825 pixels differ across 1 region in Button
 [changed] badge/standalone — Badge: 1,017 pixels differ across 1 region in Badge
 
