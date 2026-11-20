@@ -189,3 +189,17 @@ fn a_wildcard_keeps_output_declared_above_its_package() {
     let resolvers = crate::resolve::Resolvers::new(crate::resolve::Tsconfig::Auto, None);
     assert_eq!(super::declared(&fixture.0.to_string_lossy(), &[&package], &counted, &[0], &resolvers), vec![vec![0]]);
 }
+
+#[test]
+fn a_wildcard_keeps_a_root_dirs_redirect_through_a_missing_parent() {
+    let root = std::env::temp_dir().join(format!("sense-orient-root-dirs-{}", std::process::id()));
+    std::fs::create_dir_all(root.join("src")).unwrap();
+    let fixture = Fixture(root.clone());
+    std::fs::write(root.join("package.json"), r#"{"name":"redirected"}"#).unwrap();
+    std::fs::write(root.join("tsconfig.json"), r#"{"compilerOptions":{"rootDirs":["missing","src"]}}"#).unwrap();
+    std::fs::write(root.join("src/foo.ts"), "export const value = 1;").unwrap();
+    let package = crate::package_owners::Package { directory: String::new(), name: "redirected".to_owned(), depends: Vec::new(), develops: Vec::new(), offers: vec!["./missing/*.ts".to_owned()] };
+    let counted = std::collections::HashMap::from([("src/foo.ts", 0)]);
+    let resolvers = crate::resolve::Resolvers::new(crate::resolve::Tsconfig::Named(root.join("tsconfig.json")), None);
+    assert_eq!(super::declared(&fixture.0.to_string_lossy(), &[&package], &counted, &[0], &resolvers), vec![vec![0]]);
+}

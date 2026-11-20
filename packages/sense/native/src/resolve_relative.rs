@@ -26,6 +26,21 @@ pub(super) enum Listed {
 }
 
 impl Resolvers {
+    /// A missing parent rules out a relative request before oxc retains all
+    /// its candidate paths. Virtual outputs and links are the file system's
+    /// answer; rootDirs may redirect the request elsewhere.
+    pub(super) fn missing_parent(&self, root: &Path, from: &Path, request: &str, tsconfig: Option<&oxc_resolver::TsConfig>) -> bool {
+        if request.contains(['?', '#']) || tsconfig.is_some_and(|config| config.compiler_options.root_dirs.is_some()) {
+            return false;
+        }
+        let Some(path) = joined(root, from, request).map(|path| root.join(path)) else { return false };
+        let Some(parent) = path.parent() else { return false };
+        match oxc_resolver::FileSystem::metadata(&self.emitted, parent) {
+            Ok(metadata) => !metadata.is_dir(),
+            Err(error) => matches!(error.kind(), std::io::ErrorKind::NotFound | std::io::ErrorKind::NotADirectory),
+        }
+    }
+
     /// The file a relative `request` written in `from` names, read from the
     /// listing in the order the module resolver tries candidates: the
     /// extension a `.js` stands for, the path as written, the path with each
