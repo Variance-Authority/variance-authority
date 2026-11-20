@@ -1,9 +1,12 @@
 /**
- * The Team card from examples/visual-review-case, before and after its one
- * edit. The plan's name grew onto a second line and the Choose button was
- * repainted; the price below the name moved only because the name grew. The
- * labels are the `components:` rows of the example's committed
- * `variance ask describe` answer: two causes, and one collateral component.
+ * The Team card from examples/visual-review-case, before and after its edits,
+ * laid out as the committed `after.png` shows it at five eighths of its size:
+ * the plan's name top-left, the Choose button top-right and level with it, the
+ * price below the name. The name grew onto a second line and every Choose
+ * button was repainted, the Team card's among them; the price moved down only
+ * because the name grew. The labels are the `components:` rows of the
+ * example's committed `variance ask describe` answer: two causes, and one
+ * collateral component.
  *
  * Ivory marks the causes, orange the collateral price, the shift a pixel count
  * cannot tell from a change, per docs/visual-guidelines.md.
@@ -15,9 +18,15 @@ const WARM = "#756d67";
 const QUIET = "#8f8580";
 const GROUND = "#181b1d";
 
-const BEFORE_X = 30;
-const AFTER_X = 196;
-const CARD_W = 150;
+/** The card is 480×144 in after.png; every length below is five eighths of the page's. */
+const CARD_X = 30;
+const CARD_W = 300;
+const CARD_H = 90;
+const BEFORE_Y = 56;
+const AFTER_Y = 206;
+const INSET = 10;
+const BUTTON = { x: 225, y: 10, width: 65, height: 25 };
+const LINE_H = 10;
 const LABEL_X = 372;
 
 interface Label {
@@ -32,43 +41,51 @@ interface Label {
 
 /** Pinned to examples/visual-review-case/artifacts/report.txt by its test. */
 export const LABELS: readonly Label[] = [
-  { y: 96, from: { x: AFTER_X + 136, y: 102 }, component: "PlanName", role: "cause", bands: ["a11y", "geometry", "content"] },
-  { y: 156, from: { x: AFTER_X + 94, y: 147 }, component: "Price", role: "collateral", bands: ["geometry"], focus: true },
-  { y: 254, from: { x: AFTER_X + 134, y: 254 }, component: "ChooseButton", role: "cause", bands: ["token"] },
+  {
+    y: 180,
+    from: { x: CARD_X + BUTTON.x + BUTTON.width, y: AFTER_Y + BUTTON.y + 6 },
+    component: "ChooseButton",
+    role: "cause",
+    bands: ["token"],
+  },
+  { y: 256, from: { x: CARD_X + 74, y: AFTER_Y + 29 }, component: "PlanName", role: "cause", bands: ["a11y", "geometry", "content"] },
+  { y: 316, from: { x: CARD_X + 76, y: AFTER_Y + 67 }, component: "Price", role: "collateral", bands: ["geometry"], focus: true },
 ];
 
-function Card({ x, title }: { x: number; title: string }) {
+function Card({ y, title }: { y: number; title: string }) {
   return (
     <>
-      <text className="font-mono" x={x} y={40} fill={QUIET} fontSize={12}>
+      <text className="font-mono" x={CARD_X} y={y - 16} fill={QUIET} fontSize={12}>
         {title}
       </text>
-      <rect x={x} y={56} width={CARD_W} height={240} rx={8} fill={GROUND} stroke={WARM} strokeWidth={1.5} />
+      <rect x={CARD_X} y={y} width={CARD_W} height={CARD_H} rx={8} fill={GROUND} stroke={WARM} strokeWidth={1.5} />
     </>
   );
 }
 
 export default function ShiftOrChange() {
+  const left = CARD_X + INSET;
+  const button = { x: CARD_X + BUTTON.x, width: BUTTON.width, height: BUTTON.height, rx: 5 };
   return (
     <svg
       viewBox="0 0 560 360"
       className="block h-auto w-full"
       role="img"
-      aria-label="The Team pricing card before and after its edit. The plan name grows onto a second line and is a cause, changed in a11y, geometry and content. The Choose button is repainted and is a cause, changed in token. The price moves down below the longer name and is reported collateral, changed in geometry alone."
+      aria-label="The Team pricing card before and after its edits, with the plan name top-left, the Choose button top-right level with it, and the price below the name. The plan name grows onto a second line and is a cause, changed in a11y, geometry and content. The Choose button is repainted, as every card's is, and is a cause, changed in token. The price moves down below the longer name and is reported collateral, changed in geometry alone."
     >
-      <Card x={BEFORE_X} title="before" />
-      <rect x={BEFORE_X + 16} y={86} width={84} height={12} rx={3} fill={QUIET} />
-      <rect x={BEFORE_X + 16} y={114} width={64} height={18} rx={3} fill={QUIET} />
-      <rect x={BEFORE_X + 16} y={240} width={118} height={28} rx={6} fill={GROUND} stroke={QUIET} strokeWidth={1.5} />
+      <Card y={BEFORE_Y} title="before" />
+      <rect x={left} y={BEFORE_Y + 12} width={30} height={LINE_H} rx={3} fill={QUIET} />
+      <rect x={left} y={BEFORE_Y + 50} width={54} height={LINE_H} rx={3} fill={QUIET} />
+      <rect {...button} y={BEFORE_Y + BUTTON.y} fill={GROUND} stroke={QUIET} strokeWidth={1.5} />
 
-      <Card x={AFTER_X} title="after" />
-      <rect x={AFTER_X + 16} y={86} width={120} height={12} rx={3} fill={IVORY} />
-      <rect x={AFTER_X + 16} y={104} width={84} height={12} rx={3} fill={IVORY} />
+      <Card y={AFTER_Y} title="after" />
+      <rect x={left} y={AFTER_Y + 12} width={104} height={LINE_H} rx={3} fill={IVORY} />
+      <rect x={left} y={AFTER_Y + 24} width={60} height={LINE_H} rx={3} fill={IVORY} />
       <rect
-        x={AFTER_X + 16}
-        y={114}
-        width={64}
-        height={18}
+        x={left}
+        y={AFTER_Y + 50}
+        width={54}
+        height={LINE_H}
         rx={3}
         fill="none"
         stroke={WARM}
@@ -76,21 +93,21 @@ export default function ShiftOrChange() {
         strokeDasharray="3 4"
       />
       <path
-        d={`M ${AFTER_X + 88} ${123} L ${AFTER_X + 88} ${140}`}
+        d={`M ${left + 60} ${AFTER_Y + 52} L ${left + 60} ${AFTER_Y + 68}`}
         stroke={ORANGE}
         strokeWidth={2}
         strokeLinecap="round"
       />
       <path
-        d={`M ${AFTER_X + 84} ${135} L ${AFTER_X + 88} ${141} L ${AFTER_X + 92} ${135}`}
+        d={`M ${left + 56} ${AFTER_Y + 63} L ${left + 60} ${AFTER_Y + 69} L ${left + 64} ${AFTER_Y + 63}`}
         fill="none"
         stroke={ORANGE}
         strokeWidth={2}
         strokeLinecap="round"
         strokeLinejoin="round"
       />
-      <rect x={AFTER_X + 16} y={138} width={64} height={18} rx={3} fill={ORANGE} />
-      <rect x={AFTER_X + 16} y={240} width={118} height={28} rx={6} fill={IVORY} />
+      <rect x={left} y={AFTER_Y + 62} width={54} height={LINE_H} rx={3} fill={ORANGE} />
+      <rect {...button} y={AFTER_Y + BUTTON.y} fill={IVORY} />
 
       {LABELS.map((label) => (
         <g key={label.component}>
@@ -131,7 +148,6 @@ export default function ShiftOrChange() {
           </text>
         </g>
       ))}
-
     </svg>
   );
 }

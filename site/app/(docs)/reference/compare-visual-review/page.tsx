@@ -2,7 +2,6 @@ import Comparison from "../../../components/Comparison";
 import DocsPage from "../../../components/DocsPage";
 import MarkdownDocument from "../../../components/MarkdownDocument";
 import MarkdownLead from "../../../components/MarkdownLead";
-import ShiftOrChange from "../../../components/ShiftOrChange";
 import {
   documentDescription,
   documentTitle,
@@ -16,19 +15,6 @@ export const revalidate = 3600;
 const document = productDocument("compare-visual-review")!;
 const title = documentTitle(document.source);
 const description = documentDescription(document.source);
-
-const sectionFigures = {
-  "31-a-diff-that-names-a-component-and-a-file": (
-    <figure className="doc-figure doc-figure-panel">
-      <ShiftOrChange />
-      <figcaption>
-        From the visual-review example: the name and the button are causes; the
-        price moved only because the name above it grew, and is reported
-        collateral.
-      </figcaption>
-    </figure>
-  ),
-};
 
 export const metadata = pageMetadata(
   "/reference/compare-visual-review",
@@ -56,7 +42,6 @@ export default function Page() {
       <MarkdownDocument
         source={document.source}
         sourcePath={document.sourcePath}
-        sectionFigures={sectionFigures}
       />
     </DocsPage>
   );

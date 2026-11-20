@@ -2,8 +2,9 @@
  * The bands each component of examples/visual-review-case changed in, as the
  * `components:` rows of its committed `variance ask describe` answer list
  * them: the button in `token` alone, the name in `a11y`, `geometry` and
- * `content`, the collateral price in `geometry` alone. No component changed in
- * `texture`, so its column is empty.
+ * `content`, the collateral price in `geometry` alone. The columns are the four
+ * bands a component changes in; `texture` is raster residue counted on a region,
+ * never on a component, so it has none.
  *
  * Ivory marks a band that changed, orange the button: a change in one style
  * value alone, per docs/visual-guidelines.md.
@@ -14,8 +15,8 @@ const ORANGE = "#ff4a19";
 const WARM = "#756d67";
 const QUIET = "#8f8580";
 
-const BANDS = ["a11y", "geometry", "token", "content", "texture"] as const;
-const COLUMN_X = [212, 284, 356, 428, 500];
+const BANDS = ["a11y", "geometry", "token", "content"] as const;
+const COLUMN_X = [230, 320, 410, 500];
 
 interface Row {
   component: string;
@@ -39,7 +40,7 @@ export default function ChangeKinds() {
       viewBox="0 0 560 360"
       className="block h-auto w-full"
       role="img"
-      aria-label="A grid of three components against five bands: a11y, geometry, token, content and texture. ChooseButton, a cause, changed in token alone. PlanName, a cause, changed in a11y, geometry and content. Price, collateral, changed in geometry alone. No component changed in texture."
+      aria-label="A grid of three components against the four bands a component changes in: a11y, geometry, token and content. ChooseButton, a cause, changed in token alone. PlanName, a cause, changed in a11y, geometry and content. Price, collateral, changed in geometry alone."
     >
       {BANDS.map((band, column) => (
         <text
@@ -48,25 +49,13 @@ export default function ChangeKinds() {
           x={COLUMN_X[column]}
           y={70}
           textAnchor="middle"
-          fill={band === "texture" ? QUIET : IVORY}
+          fill={IVORY}
           fontSize={12}
         >
           {band}
         </text>
       ))}
       <line x1={24} y1={88} x2={536} y2={88} stroke={WARM} strokeWidth={1} />
-
-      <rect
-        x={COLUMN_X[4]! - 26}
-        y={100}
-        width={52}
-        height={204}
-        rx={6}
-        fill="none"
-        stroke={WARM}
-        strokeWidth={1.5}
-        strokeDasharray="3 5"
-      />
 
       {ROWS.map((row, index) => {
         const y = rowY(index);

@@ -34,7 +34,7 @@ export const STEPS: readonly Step[] = [
   { y: 152, text: 'region "Plans"', hop: true },
   { y: 188, text: "list item 2 of 3", hop: true },
   { y: 224, text: 'button "Choose"', hop: true },
-  { y: 300, text: "examples/visual-review-case/src/plans.js:53", focus: true },
+  { y: 300, text: "examples/visual-review-case/src/plans.js:56", focus: true },
 ];
 
 const KINDS = [
@@ -50,7 +50,7 @@ export default function RegionToLine() {
       viewBox="0 0 560 360"
       className="block h-auto w-full"
       role="img"
-      aria-label="A cause region of 3670 pixels at 360,160, 104 by 40, leads to the component ChooseButton; then along the landmark path main, region Plans, list item 2 of 3, button Choose; and ends at examples/visual-review-case/src/plans.js line 53."
+      aria-label="A cause region of 3670 pixels at 360,160, 104 by 40, leads to the component ChooseButton; then along the landmark path main, region Plans, list item 2 of 3, button Choose; and ends at examples/visual-review-case/src/plans.js line 56."
     >
       <line x1={BOX_X + 20} y1={20 + BOX_H} x2={BOX_X + 20} y2={300} stroke={WARM} strokeWidth={1.5} />
       <path d={`M ${BOX_X + 6} 116 L ${BOX_X - 2} 116 L ${BOX_X - 2} 248 L ${BOX_X + 6} 248`} fill="none" stroke={QUIET} strokeWidth={1.5} />
