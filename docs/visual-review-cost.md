@@ -164,7 +164,7 @@ a person then opens the image to find out what that means. Variance Authority
 traces each changed region to the element that painted it, the component that
 rendered it, and the line that wrote it:
 
-> **this region, inside `Toggle`, in `main → region "Todos" → list item 2 of 3`,
+> **this region, inside `Toggle`, in `main → region "Todos" → item 2 of 3`,
 > written at `examples/todomvc/src/ds/components.tsx:107`.**
 
 A reviewer reads that in seconds and knows who to ask.

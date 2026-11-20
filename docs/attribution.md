@@ -4,7 +4,7 @@ A pixel differ answers one question — how many pixels differ — and *5482*
 cannot be read, cannot be assigned, and leaves you opening the image to look,
 which is the expensive act the tool was supposed to replace. Attribution turns
 the count into **this region, inside `Toggle`, in
-`main → region "Todos" → list item 2 of 3`, written at
+`main → region "Todos" → item 2 of 3`, written at
 `examples/todomvc/src/ds/components.tsx:107`.**
 
 Read this page to find out how a changed region is graded strong or faint, how
@@ -247,7 +247,7 @@ describes this build and no other.
 
 `locate` builds a phrase from the things a person would use to say where they
 are: the landmark they are in, the named region or dialog, and their position in
-a list. `main → region "Todos" → list item 2 of 3` is a sentence somebody can
+a list. `main → region "Todos" → list → item 2 of 3` is a sentence somebody can
 follow without opening a screenshot, and it stays true while the layout moves
 under it. A path that does not resolve produces an empty location rather than an
 exception; losing the phrase is not worth losing the finding.
