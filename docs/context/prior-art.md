@@ -540,6 +540,39 @@ same step one level up: its operands are whole questions, each read uncapped,
 which is the composition a query language gives for free and a fixed set of
 questions has to name.
 
+**Grouping a search answer by structure** answers the step before reading:
+which part of the codebase do these words land in? CodeScaleBench's first
+failure, lost in the codebase, is an agent without that step. Its Kubernetes
+baseline got hundreds of hits across dozens of directories and followed imports
+until it timed out, and the post says the agent lacked tools to narrow the
+search space. Its second failure, wrong file or wrong symbol, is the same flat
+list from the other side. The post narrows by package and by a hand-written
+scope, and says nothing of layers. The field has three ways to group results:
+
+- **By path or declaration.** IntelliJ IDEA's Find Usages groups usages by
+  module, package, directory and usage type. Sourcegraph's and GitHub's
+  `repo:`, `file:` and `path:` filters narrow by path, but only to a scope the
+  asker already wrote.
+- **By vertical.** Aggregated web search picks which verticals a query belongs
+  to before it ranks inside one (Arguello, Diaz, Callan & Crespo, *Sources of
+  evidence for vertical selection*, SIGIR 2009).
+- **By cluster.** Scatter/Gather (Cutting, Karger, Pedersen & Tukey, SIGIR
+  1992) clusters the result set by text, and the reader picks a cluster and
+  searches again inside it. Information foraging (Pirolli & Card, Psychological
+  Review, 1999) names that choice: a reader picks a patch by its scent, then
+  reads inside it.
+
+Why a codebase has groups to find is Conway's observation (*How do committees
+invent?*, Datamation, 1968): a system's structure follows the organisation that
+built it. Lakos's levelization ([`boundaries.md`](../boundaries.md)) gives each
+part its layer. None of the three ways groups by the import graph. Here, the
+code map already computes an area, its dependency layer and its foundation or
+application role (ADR-0082). Placing a search hit on that map gives groups that
+are the same on every run and that no model drew, and an agent can enter a
+group with `--from`. Whether this saves the calls CodeScaleBench counted is
+measured the way it measured them: on large public repositories, never on this
+one ([#1652](https://github.com/Variance-Authority/variance-authority/issues/1652)).
+
 ## Architecture that keeps what matters
 
 The field that asks which facts about a codebase deserve to be remembered, and
