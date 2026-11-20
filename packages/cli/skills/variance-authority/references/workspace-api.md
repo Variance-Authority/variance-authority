@@ -306,7 +306,9 @@ the source index holds no export list of and that does not declare the name.
 `--limit <n>` sets how many rows of each list are shown: 5 declarations a file
 keeps to itself, 5 member declarations, 5 containers named when a member is
 not found, and 100 installed declarations when not said. The rest are counted,
-and the line that counts them names `--limit`. Under `--line` the ranked list is
+and the line that counts them names `--limit`. The files that import the name
+under another name are a list in one sentence, cut at 12, which `--limit` does
+not reach. Under `--line` the ranked list is
 never cut; `--limit` reaches the answer given without the line.
 
 `symbol` prints what a name is and how to call it. For why it exists and what it
@@ -505,8 +507,8 @@ file as it is now.
 ### `search`
 
 **A list contains candidates, not every match.** Each list is capped and prints
-how many rows it did not show: 40 published names, 25 of each other kind, and 15
-loose or described ones, unless `--limit <n>` sets one cap for every list; the
+how many rows it did not show: 40 published names, 20 installed ones, 25 of each
+other kind, and 15 loose or described ones, unless `--limit <n>` sets one cap for every list; the
 JSON caps its lists the same way. Once any name matches, looser matches and members
 and functions inside a function that only contain your words are left out without
 a count. `git grep -i <word>` prints every tracked line that writes the word, and

@@ -24,18 +24,13 @@ import type { AliasMatch, DeclaredMatch, DeclaredRead, HeldMatch, Matches } from
 import { boundOf, SLOT } from './declaration-key.js';
 import { isUnnamedContainer } from './members.js';
 import { sharedSegments } from './shared-segments.js';
-import { notShown, type Spelling } from '@variance-authority/mcp/tools';
+import { notShownPast, type Spelling } from '@variance-authority/mcp/tools';
 import type { Help } from '@variance-authority/package/help';
 import { askedOnce } from './asked-once.js';
 import { grep } from './grep.js';
 
 /** How many declarations of one name `symbol` writes out before it counts the rest. */
 export const DECLARED_CAP = 5;
-
-/** The line counting the `count` rows past the first `limit`, naming the argument that shows them; none when there are no more. */
-export function notShownPast(count: number, limit: number, spell: Spelling): readonly string[] {
-  return count > limit ? [notShown(count - limit, spell)] : [];
-}
 
 /** What the source index says about declarations, or why it says nothing. */
 export type Declarations =
@@ -211,7 +206,7 @@ export function declaredBlocks(
   if (held.length === 0) return { blocks: [] };
   const blocks = [
     ...held.slice(0, limit).map((one) => declaredBlock(one, spell)),
-    ...notShownPast(held.length, limit, spell),
+    ...notShownPast(held.length, limit, spell, { one: `declaration of \`${name}\``, many: `declarations of \`${name}\`` }),
     ...unreadLine(read.unread),
   ];
   return { blocks };

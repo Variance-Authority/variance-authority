@@ -55,7 +55,7 @@ describe('variance ask symbol --limit', () => {
     const { code, out } = await run(['ask', 'symbol', '--name', 'rank', '--limit', '2']);
     expect(code).toBe(EXIT_CLEAN);
     expect(out.match(/^rank \[function\]$/gm)).toHaveLength(2);
-    expect(out).toContain('4 more not shown; a higher `--limit` shows them.');
+    expect(out).toContain('4 more declarations of `rank` not shown; a higher `--limit` shows them.');
   });
 
   it('cuts the members of a name at the same limit, five when none is said', async () => {
@@ -65,7 +65,7 @@ describe('variance ask symbol --limit', () => {
     const plain = await run(['ask', 'symbol', '--name', 'rank']);
     expect(plain.code).toBe(EXIT_CLEAN);
     expect(plain.out.match(/a member of `Ranked\d`/g)).toHaveLength(5);
-    expect(plain.out).toContain('1 more not shown; a higher `--limit` shows them.');
+    expect(plain.out).toContain('1 more member declaration of `rank` not shown; a higher `--limit` shows them.');
 
     const { code, out, err } = await run(['ask', 'symbol', '--name', 'rank', '--limit', '10']);
     expect(err).toBe('');

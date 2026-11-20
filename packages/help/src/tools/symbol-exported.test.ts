@@ -98,7 +98,7 @@ it('lists the first members of a name many containers declare, and counts the re
   const root = await workspace();
   const out = symbol.run(readHelp(root), { name: 'size' }, { root });
   expect(out.match(/a member of `Sized\d`/gu)).toHaveLength(5);
-  expect(out).toContain('1 more not shown; a higher `limit` shows them.');
+  expect(out).toContain('1 more member declaration of `size` not shown; a higher `limit` shows them.');
 });
 
 it('lists as many members as the limit says, and refuses a limit that is no whole number of rows', async () => {

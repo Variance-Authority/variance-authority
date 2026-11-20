@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { limitOf, notShown } from './limit.js';
+import { limitOf, notShown, notShownPast } from './limit.js';
 import { spellingOf } from './spelling.js';
 
 /**
@@ -31,5 +31,12 @@ describe('limit', () => {
   it('says the rows it left out, naming `limit` as the surface asked takes it', () => {
     expect(notShown(3, WIRE)).toBe('3 more not shown; a higher `limit` shows them.');
     expect(notShown(3, SHELL)).toBe('3 more not shown; a higher `--limit` shows them.');
+  });
+
+  it('names the rows it left out, one or many, where an answer holds more than one list', () => {
+    const rows = { one: 'declaration of `rank`', many: 'declarations of `rank`' };
+    expect(notShown(1, SHELL, rows)).toBe('1 more declaration of `rank` not shown; a higher `--limit` shows them.');
+    expect(notShownPast(7, 5, SHELL, rows)).toEqual(['2 more declarations of `rank` not shown; a higher `--limit` shows them.']);
+    expect(notShownPast(5, 5, SHELL, rows)).toEqual([]);
   });
 });

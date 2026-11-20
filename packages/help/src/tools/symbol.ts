@@ -1,5 +1,5 @@
 import type { FileSet, Spelling, Tool, ToolInvocation } from '@variance-authority/mcp/tools';
-import { limitOf, START_POINT_SCHEMA, spellingOf, startPointArg, stringArg } from '@variance-authority/mcp/tools';
+import { limitOf, notShownPast, START_POINT_SCHEMA, spellingOf, startPointArg, stringArg } from '@variance-authority/mcp/tools';
 import type { Help, Named } from '@variance-authority/package/help';
 import { how, sitesByPath, type PathSite } from './by-path.js';
 import { FoundNothing, nowhere, specifierOf } from './find.js';
@@ -8,7 +8,7 @@ import { block, plural } from './format.js';
 import { queryDependencyLexicon, type LexiconMatches, type SilentPackage } from '../dependency-lexicon.js';
 import { silentBlocks } from './silent.js';
 import { thirdBlock } from './third-party.js';
-import { DECLARED_CAP, declarationsNamed, declaredAt, declaredBlocks, isNested, notShownPast, textRows, unreadLine } from './declared.js';
+import { DECLARED_CAP, declarationsNamed, declaredAt, declaredBlocks, isNested, textRows, unreadLine } from './declared.js';
 import { uses } from './uses.js';
 import { type Members, containerOf, isUnnamedContainer, membersOf, membersStop } from './members.js';
 import { exportedRows } from './passed-on.js';
@@ -155,7 +155,7 @@ export const symbol: Tool<Help> = {
         one.installed !== undefined && shown.shown.some((match) => match.installed === one.installed);
       const silent = silentBlocks(invocation.root, name, (shown.silent ?? []).filter((one) => !answered(one)), wanted !== undefined);
       const cut = (matches: LexiconMatches): readonly string[] =>
-        notShownPast(matches.total, matches.shown.length, spell);
+        notShownPast(matches.total, matches.shown.length, spell, { one: 'match', many: 'matches' });
       if (paths !== undefined && here !== undefined && here.total === 0 && everywhere.total > 0) {
         // Not usable at the path is a fact with an answer: the workspaces that do offer it, each with its own version.
         const owner = here.scope.location?.join(', ') ?? 'the manifest that owns it';
@@ -294,7 +294,7 @@ function memberBlocks(name: string, members: Members, spell: Spelling, limit: nu
         `\`${spell.tool(uses)}\` names the lines that use it through a value written as its container, and the declaration to ask its language's find-references about for the rest.`,
       ].join('\n'),
     ),
-    ...notShownPast(members.declared.length, limit, spell),
+    ...notShownPast(members.declared.length, limit, spell, { one: `member declaration of \`${name}\``, many: `member declarations of \`${name}\`` }),
     ...(stop === undefined ? [] : [stop]),
   ];
 }

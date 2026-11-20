@@ -1,5 +1,5 @@
 import type { FileSet, Spelling, Tool, ToolInvocation, Tree } from '@variance-authority/mcp/tools';
-import { limitOf, START_POINT_SCHEMA, spellingOf, startPointArg, stringArg } from '@variance-authority/mcp/tools';
+import { limitOf, notShownPast, START_POINT_SCHEMA, spellingOf, startPointArg, stringArg } from '@variance-authority/mcp/tools';
 import type { Help } from '@variance-authority/package/help';
 import type { SearchIndex } from '../search-index.js';
 import { searchIndexOf } from '../snapshot.js';
@@ -7,7 +7,7 @@ import { areaLine } from './area.js';
 import { describedLine, thirdLine, thirdScope } from './third-party.js';
 import type { PublishedMatch } from './published-match.js';
 import type { DeclaredMatch, DescribedMatch, ExportedMatch, FileMatch, Matches, RecordedTests, Searched, SearchQuestion, TestMatch } from './search-matches.js';
-import { aliasLine, declaredLine, heldLine, notShownPast, unreadLine } from './declared.js';
+import { aliasLine, declaredLine, heldLine, unreadLine } from './declared.js';
 import { unreadStop } from './members.js';
 import { CAP, ELSEWHERE_CAP, LOOSE_CAP, searched, searchedFiles } from './search-answer.js';
 import { type ImportingOf, importingOf } from './published-match.js';
@@ -410,7 +410,7 @@ export const search: Tool<Help> = {
       },
       limit: {
         type: 'integer',
-        description: `Rows to show in each list of the answer. Each list's own cap when not said: ${CAP} published, ${ELSEWHERE_CAP} of each other kind, ${LOOSE_CAP} loose or described; the rest are counted.`,
+        description: `Rows to show in each list of the answer. Each list's own cap when not said: ${CAP} published, 20 installed, ${ELSEWHERE_CAP} of each other kind, ${LOOSE_CAP} loose or described; the rest are counted.`,
       },
     },
     required: ['query'],
