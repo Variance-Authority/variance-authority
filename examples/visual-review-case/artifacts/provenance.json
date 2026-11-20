@@ -1,0 +1,10 @@
+{
+  "generatedBy": "examples/visual-review-case/scripts/generate.mjs",
+  "engine": "chromium@156.0.8078.4",
+  "raster": "darwin",
+  "causes": [
+    "ChooseButton",
+    "PlanName"
+  ],
+  "changedPixels": 4927
+}
