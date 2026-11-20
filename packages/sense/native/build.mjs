@@ -192,11 +192,20 @@ const floor = linkable ? wanted : undefined;
 
 // The linker the stamp names is the pinned one; a different one builds, says
 // so and leaves no stamp, and in CI, which installs the pins, it is a failure.
+// Only the binary answers `--version`: `cargo zigbuild --version` is refused
+// as an unknown argument. Cargo finds it on `PATH` or beside itself.
+const zigbuildVersion = () =>
+  ['cargo-zigbuild', join(dirname(cargo), 'cargo-zigbuild')]
+    .map((candidate) => spawnSync(candidate, ['--version'], { encoding: 'utf8' }))
+    .find((run) => run.status === 0)
+    ?.stdout.trim()
+    .split(' ')
+    .at(-1);
 const installed =
   floor === undefined
     ? undefined
     : [
-        spawnSync(cargo, ['zigbuild', '--version'], { encoding: 'utf8' }).stdout?.trim().split(' ').at(-1),
+        zigbuildVersion(),
         spawnSync('zig', ['version'], { encoding: 'utf8' }).stdout?.trim(),
       ];
 const pinned = installed === undefined || (installed[0] === LINKER.zigbuild && installed[1] === LINKER.zig);
