@@ -102,6 +102,17 @@ describe('what changed in a region', () => {
     expect(regions.map((region) => regionChange(pixels, comparison, region, []))).toEqual(regions.map(() => undefined));
   });
 
+  it('carries no change for a faint block moved by one pixel beside an unchanged dark line', async () => {
+    // The line, inside the margin, keeps its edge on both sides; it says nothing of the pixels that changed.
+    const paint =
+      (left: number): Paint =>
+      (x, y) =>
+        y === 41 ? [0, 0, 0] : block(left, [0xf8, 0xf8, 0xf8])(x, y);
+    const { pixels, comparison, regions } = await read(raster(120, 60, paint(40)), raster(120, 60, paint(41)));
+    expect(regions.length).toBeGreaterThan(0);
+    expect(regions.map((region) => regionChange(pixels, comparison, region, []))).toEqual(regions.map(() => undefined));
+  });
+
   it('reads a flat fill recoloured as colour, with no edge on either side', async () => {
     const { pixels, comparison, regions } = await read(raster(40, 30, () => [0x2f, 0x34, 0x37]), raster(40, 30, () => [0x3a, 0x40, 0x43]));
     expect(regions.map((region) => regionChange(pixels, comparison, region, []))).toEqual(['colour']);

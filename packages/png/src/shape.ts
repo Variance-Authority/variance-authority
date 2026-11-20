@@ -31,8 +31,8 @@ const FLAT = EDGE / 4;
 
 /**
  * What changed in `region`, from the pixels the comparison decoded and its row
- * pairing, on `canvas`, the comparison's own size, or `undefined` when neither side has an edge in it and a pixel is too
- * faint to call flat, so nothing tells the two apart. Reads
+ * pairing, on `canvas`, the comparison's own size, or `undefined` when neither side has an edge where
+ * the pixels changed and one there is too faint to call flat, so nothing tells the two apart. Reads
  * only the pixels in its box and {@link REGION_MARGIN} around it, less the
  * pixels any `excluded` box covers, so the cost is the changed area.
  */
@@ -81,9 +81,25 @@ export function regionChange(
   for (let index = 0; index < first.length; index += 1) {
     if (first[index]! >= 0 && second[index]! >= 0 && first[index] !== second[index]) return 'shape';
   }
-  // No edge on either side, and a pixel too faint to call flat: nothing says the drawing stayed.
-  if (first.includes(1) || second.includes(1)) return 'colour';
-  return first.includes(-1) || second.includes(-1) ? undefined : 'colour';
+  // Only a pixel whose own edge mark the change reached is evidence for colour:
+  // an unchanged neighbour's edge, standing on both sides, says nothing of it.
+  const changed = (index: number): boolean => {
+    const at = was[index]!;
+    const to = now[index]!;
+    if (at < 0 || to < 0) return false;
+    for (let channel = 0; channel < 4; channel += 1) if (before.data[at + channel] !== after.data[to + channel]) return true;
+    return false;
+  };
+  const reached = (index: number): boolean =>
+    changed(index) || ((index + 1) % columns !== 0 && changed(index + 1)) || changed(index + columns);
+  let faint = false;
+  for (let index = 0; index < first.length; index += 1) {
+    if (!reached(index)) continue;
+    if (first[index] === 1 || second[index] === 1) return 'colour';
+    if (first[index] === -1 || second[index] === -1) faint = true;
+  }
+  // No edge where it changed, and a pixel too faint to call flat: nothing says the drawing stayed.
+  return faint ? undefined : 'colour';
 }
 
 /**
