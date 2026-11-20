@@ -48,20 +48,13 @@ export interface PixelDifference {
 }
 
 /**
- * Two images onto one mask, at a policy.
+ * Two images onto one mask, at a policy. `diffMask` off renders the picture a
+ * human opens, changed pixels on the dimmed before image (see `FAINT`); on, only
+ * the changed pixels, so the alpha channel is the mask.
  *
- * `diffMask` is the difference between the two things this is asked for. Off,
- * it renders `pixelmatch`'s familiar picture — the before image dimmed with the
- * changed pixels in red, pale where a pixel is short of `STRONG_GRADE` — which
- * is what a human opens. On, it writes *only* the
- * differing pixels and leaves the rest transparent, so the alpha channel is the
- * mask and nothing has to be recovered from red-on-grey.
- *
- * When the rows align (`alignRows`), each after row is compared with the
- * before row that shows the same content, on the after image's canvas, and an
- * after row with no partner is marked in full. Otherwise the two are compared
- * position by position on the union box. `alignment` is the caller's, when it
- * computed one already, and `null` when it asked and there was none.
+ * Aligned rows (`alignRows`) are compared by content on the after canvas, and an
+ * after row with no partner is marked in full; otherwise by position on the
+ * union box. `alignment` is the caller's, or `null` when it found none.
  */
 export function differencePixels(
   before: DecodedImage,
