@@ -40,8 +40,8 @@ describe('variance index --wait', () => {
   it.each([
     ['`--wait` on a workstation', ['index', '--wait'], 'false'],
     ['`index` in CI', ['index'], 'true'],
-  ])('makes the follow-ups in a process of its own under %s, and prints their lines after the index\'s once it has ended', (_, argv, ci) => {
-    const root = checkout();
+  ])('makes the follow-ups in a process of its own under %s, and prints their lines after the index\'s once it has ended', async (_, argv, ci) => {
+    const root = await checkout();
     const index = sourceIndexPath(root);
 
     const indexed = spawnSync(process.execPath, [BIN, ...argv], { cwd: root, env: { ...process.env, CI: ci }, encoding: 'utf8' });
@@ -53,8 +53,8 @@ describe('variance index --wait', () => {
     expect(existsSync(followUpsLockPath(index))).toBe(false);
   });
 
-  it('exits as the operator\'s when that process could not walk the journeys, after every line, and leaves no lock', () => {
-    const root = checkout();
+  it('exits as the operator\'s when that process could not walk the journeys, after every line, and leaves no lock', async () => {
+    const root = await checkout();
     unwalkable(root);
     const index = sourceIndexPath(root);
 
@@ -67,7 +67,7 @@ describe('variance index --wait', () => {
   });
 
   it('hands that process the lock while it runs, and refuses with its exit when it ended without finishing', async () => {
-    const root = checkout();
+    const root = await checkout();
     const index = sourceIndexPath(root);
     const pid = gone();
     let held: number | undefined;
@@ -86,7 +86,7 @@ describe('variance index --wait', () => {
   });
 
   it('makes the follow-ups itself when that process cannot be started', async () => {
-    const root = checkout();
+    const root = await checkout();
 
     expect(await indexOutput({ cwd: root, apart: () => undefined }))
       .toBe(`source index built: 2 files, at ${sourceIndexPath(root)}\n${unprepared(root)}`);

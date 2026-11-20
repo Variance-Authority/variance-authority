@@ -4,11 +4,10 @@
  * Shared by the tests of the in-process run and of the run that waits on a
  * process of its own, which print the same lines.
  */
-import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { sourceIndexPath } from '@variance-authority/sense';
+import { committedCheckout } from './committed-checkout.fixture.js';
 import { encodeAsSetExecutionIndex, encodeTestCoverage, testCoverageFile, withCaseSections } from '@variance-authority/sense/test-selection';
 
 /** The lines after the index's own: no manifest names a package, no dependency, and nothing is recorded. `kept` is the generation of the questions a run that found the index where the last one left it keeps, with the map, reading no lexicon. */
@@ -20,22 +19,13 @@ export function unprepared(root: string, kept?: string): string {
     (unchanged ? `questions: kept at ${kept}, because the index and the manifests are the ones it was published from\n` : `questions: published at ${sourceIndexPath(root)}.help.bin\n`);
 }
 
-export function checkout(): string {
-  const root = mkdtempSync(join(tmpdir(), 'va-index-'));
-  const git = (args: readonly string[]): void => {
-    execFileSync('git', args, { cwd: root, stdio: 'pipe' });
-  };
-  git(['init', '--quiet', '--initial-branch', 'main']);
-  git(['config', 'user.email', 'fixture@example.test']);
-  git(['config', 'user.name', 'Fixture']);
-  mkdirSync(join(root, 'src'), { recursive: true });
-  writeFileSync(join(root, 'src/widget.ts'), "import { unit } from './unit.js';\nexport const widget = unit;\n");
-  writeFileSync(join(root, 'src/unit.ts'), 'export const unit = 1;\n');
-  git(['add', '-A']);
-  git(['commit', '--quiet', '-m', 'the checkout']);
+export async function checkout(): Promise<string> {
+  const root = await committedCheckout('va-index-', {
+    'src/widget.ts': "import { unit } from './unit.js';\nexport const widget = unit;\n",
+    'src/unit.ts': 'export const unit = 1;\n',
+  });
   process.chdir(root);
-  // The path the process sees, which is the one a recording is keyed by: the temporary directory is a symlink on macOS.
-  return realpathSync(root);
+  return root;
 }
 
 /** A recording at a commit this checkout's object store does not hold, which no walk can read. */

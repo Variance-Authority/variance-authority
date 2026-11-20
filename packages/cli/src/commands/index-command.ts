@@ -8,30 +8,11 @@
  * on, a worktree with none builds on the primary checkout's, and anything else
  * missing costs a cold scan.
  *
- * It then folds the index into the code map `variance ask orient` prints, and
- * keeps it beside the index: the fold reads every record, so it is paid here
- * once rather than by every question.
- *
- * It then walks each suite's latest recording over the index and keeps the
- * journeys beside it, which `variance ask orient` reads for the calls into and
- * out of a file.
- *
- * Last it publishes the value `variance ask` answers from, the search beside it
- * included. `search` opens a published search at any age, so without this a
- * fresh checkout — every agent's first session — would read the whole checkout
- * again on its first `search`.
- *
- * Only the index is made before the prompt comes back on a workstation: the
- * map, the journeys, the lexicon and the value are handed to a process of their
- * own (`index-follow-ups.ts`), which every later command that reads them waits
- * on. In CI and under `--wait` they go to the same process, and this one waits
- * for it to end, so what they hold is never added to what the walk still holds.
- * Only when `main` is called as a library, which has no program to relaunch,
- * are they made in this process.
- *
- * One line per artifact on stdout, for the person reading a pipeline log: the
- * index, the code map, each suite's walk, the lexicon and the value, each with
- * what it holds or why it is not. A walk git could not make is told to `failed`.
+ * Then come the follow-ups, each read from the index and paid for here once
+ * rather than by every question: the code map, each suite's journeys, the
+ * dependency lexicon and the value `variance ask` answers from. One line per
+ * artifact on stdout, for the person reading a pipeline log, says what it holds
+ * or why it is not.
  */
 
 import {
@@ -78,6 +59,15 @@ export interface IndexRequest {
   readonly failed?: (why: string) => void;
 }
 
+/**
+ * Write the index, then the follow-ups. On a workstation they go to a process
+ * of their own (`index-follow-ups.ts`), which every later command that reads them
+ * waits on, and this returns once the index is written. In CI and under `--wait`
+ * they go to the same process and this waits for it to end, so what they hold is
+ * never added to what the walk still holds. Only a library caller, which has no
+ * program to relaunch, has them made in this process. A walk git could not make
+ * is told to `failed`.
+ */
 export async function indexOutput(request: IndexRequest): Promise<string> {
   const index = sourceIndexPath(request.cwd);
   const log = followUpsLogPath(index);
@@ -217,6 +207,10 @@ async function followUps(request: IndexRequest, update: SourceUpdate, alone: Alo
 }
 
 /**
+ * The value `variance ask` answers from, the search beside it included: `search`
+ * opens a published search at any age, so without it a fresh checkout would read
+ * the whole checkout again on its first `search`.
+ *
  * Publishing swallows a failed write, because a question it answered is still
  * answered. The step that exists to publish reads back a value it wrote, so a
  * cache it could not write is a line in the log rather than a later refusal; a
@@ -262,7 +256,8 @@ async function lexicon(root: string): Promise<string> {
  * recording, so a walk that fails leaves both standing and says why. Walking is kept
  * when the recording, the index and the walk are the ones the kept journeys
  * were made from. They carry the update's listing of the
- * checkout rather than asking git again.
+ * checkout rather than asking git again. `variance ask orient` reads them for the
+ * calls into and out of a file.
  */
 async function journeys(cwd: string, update: SourceUpdate, failed?: (why: string) => void): Promise<readonly string[]> {
   let prepared: readonly PreparedJourneys[];
@@ -309,7 +304,8 @@ export function journeysLine(one: PreparedJourneys): string {
 }
 
 /**
- * The map is prepared after the index is published, so a map that fails leaves
+ * The map `variance ask orient` prints folds every record of the index. It is
+ * prepared after the index is published, so a map that fails leaves
  * the index standing and says why. It carries the update's listing of the
  * checkout rather than asking git again.
  */
