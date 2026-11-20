@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, relative, resolve, sep } from 'node:path';
 import type { ViteUserConfig as UserConfig } from 'vitest/config';
+import type { Reporter } from 'vitest/node';
 import { probesRegions } from '../instrument/identity.js';
 import type { InstrumentMode } from '../instrument/index.js';
 import { captureAfter, placeModule, type Captured, type CapturedAfter, type ComposedMap } from './captured-modules.js';
@@ -14,6 +15,7 @@ import { declareConfig } from './governing-config.js';
 import { refusal, selectionPlugin, type ConfigPlugin } from './vitest-plugin.js';
 import { runFor, seamModuleId, writeSeamModule, type SelectionRun } from './selection-run.js';
 import { handedRecord, recordFileFor } from './record-location.js';
+import { takeReadFor } from './record-base.js';
 import { recordsAlone } from './mainline-layer.js';
 import { testFilesAt } from './test-files.js';
 import { selectionReporter } from './vitest-reporter.js';
@@ -21,7 +23,7 @@ import { repositoryRoot } from './repository-root.js';
 import { askedForStories } from '../story/directory.js';
 import type { SuiteSelection } from './suite-selection.js';
 import { askedSelection, landingTimes } from './selection-environment.js';
-import { seedInBanner, selectingSequencer, type SequencerClass } from './vitest-sequencer.js';
+import { readCommandLine, seedInBanner, selectingSequencer, type SequencerClass } from './vitest-sequencer.js';
 import { shardArgument } from './shard-placement.js';
 
 export interface TestSelectionOptions {
@@ -193,7 +195,24 @@ export function withTestSelection(
   // names the seed of a shuffled run, as Vitest's own does.
   const reporters = [{ onInit: seedInBanner }, ...(config.test?.reporters === undefined ? ['default'] : array(config.test.reporters))];
   if (options.record === false) {
-    return { ...config, test: { ...config.test, ...selecting(config, root, configRoot, options, coverageFile, selection, run), reporters } };
+    // What the probes plugin and the recording reporter do that a run landing
+    // nothing still needs: the command line read for the sequencer, and the
+    // record its selection read taken when the run ends, as a landing takes it.
+    const forget = () => { takeReadFor(coverageFile); };
+    // Vitest 2 ends a run with `onFinished` alone, and Vitest 4 with `onTestRunEnd` alone.
+    const forgetting = { onFinished: forget, onTestRunEnd: forget } as Reporter;
+    return {
+      ...config,
+      plugins: [...array(config.plugins), {
+        name: 'variance-authority:test-selection-command-line',
+        config: (resolved: UserConfig) => readCommandLine(resolved.test?.sequence?.sequencer),
+      }],
+      test: {
+        ...config.test,
+        ...selecting(config, root, configRoot, options, coverageFile, selection, run),
+        reporters: [...reporters, forgetting],
+      },
+    };
   }
   const settle = foldRun(run, { coverageFile, shims: [setupId, runnerId] });
   // Asked of the mode, not of `run.cases`: a page clears that on the run, and

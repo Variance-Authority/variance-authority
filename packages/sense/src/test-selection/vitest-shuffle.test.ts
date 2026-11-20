@@ -106,6 +106,25 @@ describe('the sequencer under `sequence.shuffle`', () => {
     }
   });
 
+  it('reads `--sequence.shuffle.files` from Vitest\'s command line for a run that records nothing', async () => {
+    const directory = await mkdtemp(resolve(tmpdir(), 'va-shuffle-unrecorded-'));
+    const argv = process.argv;
+    process.argv = [process.execPath, resolve(process.cwd(), 'node_modules/vitest/vitest.mjs'), 'run', '--sequence.shuffle.files'];
+    try {
+      // Rooted here, where the project's Vitest resolves to parse the command line.
+      const wrapped = withTestSelection({}, { coverageFile: resolve(directory, 'coverage.bin'), record: false });
+      for (const plugin of (wrapped.plugins ?? []) as { config?: (config: typeof wrapped) => unknown }[]) await plugin.config?.(wrapped);
+      const Selecting = wrapped.test!.sequence!.sequencer as unknown as new (ctx: SequencerContext) => unknown;
+      const config: SequencerContext['config'] = { root: directory, sequence: {} };
+      new Selecting(context(config));
+
+      expect(config.sequence?.seed).toBeTypeOf('number');
+    } finally {
+      process.argv = argv;
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
   it('picks no seed when the project names its own sequencer, as Vitest leaves that to its own', () => {
     const config: SequencerContext['config'] = { root, sequence: { shuffle: true } };
     new (selectingSequencer(Own, { root, configRoot: root, say: () => {} }))(context(config));
