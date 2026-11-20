@@ -210,7 +210,7 @@ export function parseArgs(argv: readonly string[]): Parsed {
   // the table and useless about the request: a reader who types
   // `variance run --help` wants run's synopsis, and got the whole table under a
   // complaint — and then an exit code that said the command had succeeded.
-  if (asksForHelp(argv.slice(1))) return { command: 'help', topic: first };
+  if (asksForHelp(argv.slice(1), flagsFor(first))) return { command: 'help', topic: first };
 
   // `ask` keeps an unknown flag and names it beside the answer: a question reads
   // and writes nothing, so refusing costs a round trip and buys nothing, where

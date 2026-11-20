@@ -110,7 +110,7 @@ export const BOOLEAN = new Set([
  * is a missing value — the refusal `readFlags` already writes — and not a
  * request for a synopsis.
  */
-export function asksForHelp(argv: readonly string[]): boolean {
+export function asksForHelp(argv: readonly string[], accepted: readonly string[]): boolean {
   let index = 0;
 
   while (index < argv.length) {
@@ -120,8 +120,9 @@ export function asksForHelp(argv: readonly string[]): boolean {
     if (argument === '--') return false;
     if (argument === '--help' || argument === '-h') return true;
     if (!argument.startsWith('-')) continue;
-    // An unknown flag is still refused, by `readFlags`, after this returns false.
-    if (argument.includes('=') || BOOLEAN.has(argument)) continue;
+    // An unknown flag takes no value, as in `readFlags`, which refuses it or
+    // keeps it after this returns false.
+    if (argument.includes('=') || BOOLEAN.has(argument) || !accepted.includes(argument)) continue;
     index += 1;
   }
 
