@@ -24,7 +24,7 @@ import type { AliasMatch, DeclaredMatch, DeclaredRead, HeldMatch, Matches } from
 import { boundOf, SLOT } from './declaration-key.js';
 import { isUnnamedContainer } from './members.js';
 import { sharedSegments } from './shared-segments.js';
-import type { Spelling } from '@variance-authority/mcp/tools';
+import { notShown, type Spelling } from '@variance-authority/mcp/tools';
 import type { Help } from '@variance-authority/package/help';
 import { askedOnce } from './asked-once.js';
 import { grep } from './grep.js';
@@ -32,10 +32,9 @@ import { grep } from './grep.js';
 /** How many declarations of one name `symbol` writes out before it counts the rest. */
 export const DECLARED_CAP = 5;
 
-/** The line counting the `count` declarations of `name`, each a `noun`, past the first `DECLARED_CAP`; none when there are no more. */
-export function notShown(count: number, noun: string, name: string): readonly string[] {
-  const more = count - DECLARED_CAP;
-  return more > 0 ? [`${more} more ${noun}${more === 1 ? '' : 's'} of \`${name}\` not shown.`] : [];
+/** The line counting the `count` rows past the first `limit`, naming the argument that shows them; none when there are no more. */
+export function notShownPast(count: number, limit: number, spell: Spelling): readonly string[] {
+  return count > limit ? [notShown(count - limit, spell)] : [];
 }
 
 /** What the source index says about declarations, or why it says nothing. */
@@ -190,7 +189,7 @@ export function unreadLine(unread: readonly string[]): readonly string[] {
  * The blocks `symbol` answers a name's file-private declarations with — alone
  * when no file exports it, after the exports when another file does: one per
  * declaration, source first and nearest a path in `from` first, the first
- * `DECLARED_CAP` of them, a count of the rest, and the files whose
+ * `limit` of them, a count of the rest, and the files whose
  * declarations were not read; nothing when the
  * source index is not at hand, since a name nothing exports is then unknown.
  */
@@ -200,6 +199,7 @@ export function declaredBlocks(
   name: string,
   wanted: string | undefined,
   spell: Spelling,
+  limit: number,
   from: readonly string[] = [],
 ): { readonly blocks: readonly string[] } {
   const read = declarationsNamed(help, root, name);
@@ -210,8 +210,8 @@ export function declaredBlocks(
   );
   if (held.length === 0) return { blocks: [] };
   const blocks = [
-    ...held.slice(0, DECLARED_CAP).map((one) => declaredBlock(one, spell)),
-    ...notShown(held.length, 'declaration', name),
+    ...held.slice(0, limit).map((one) => declaredBlock(one, spell)),
+    ...notShownPast(held.length, limit, spell),
     ...unreadLine(read.unread),
   ];
   return { blocks };

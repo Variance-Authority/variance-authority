@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { relative } from 'node:path';
 import type { Tree } from '@variance-authority/mcp/tools';
+import { spellingOf } from '@variance-authority/mcp/tools';
 import { ask, askSearch, askSearchJson, countingShown, inputFrom, invocationOf, toolNamed, verbs } from './ask.js';
 import { foundNothingAnswer, refusalFooter, snapshotLine } from './caught-up.js';
 import { readWorkspaceForAnswer } from './read.js';
@@ -165,7 +166,7 @@ if (asking(verb) && verb !== undefined) {
       if (tool === search) {
         const read = await readSearchForAnswer(root, reading);
         const { index } = read;
-        const { importing, unopened } = await countingShown(read, searchQuestionOf(inputFrom(search, ownArgs)), tree, root);
+        const { importing, unopened } = await countingShown(read, searchQuestionOf(inputFrom(search, ownArgs), spellingOf(invocationOf({}))), tree, root);
         return { answer: () => (format === 'json' ? askSearchJson : askSearch)(index, ownArgs, () => tree, true, unopened, importing), at: index.generation?.generatedAt };
       }
       if (tool === discover) {

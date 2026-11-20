@@ -123,7 +123,7 @@ it('answers an export no entry publishes beside a published namesake', () => {
 
 it('counts the declarations it does not write out, and writes out those nearest the file asked from first', () => {
   const answer = ask({ name: 'keyOf' });
-  expect(answer).toContain('2 more declarations of `keyOf` not shown.');
+  expect(answer).toContain('2 more not shown; a higher `limit` shows them.');
   expect(answer).not.toContain('packages/locals/src/f.ts');
   const near = ask({ name: 'keyOf', from: 'packages/locals/src/g.ts' });
   expect(near.indexOf('declared, not exported, at packages/locals/src/g.ts:1')).toBeGreaterThan(-1);
