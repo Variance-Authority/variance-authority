@@ -31,7 +31,7 @@ import {
 } from '@variance-authority/sense';
 import { OperatorError } from '../exit.js';
 import { fetchFromMainline } from './source-index-share.js';
-import { followUpsLogPath, heldBy, holdFollowUps, readiedFollowUps, releaseFollowUps, reserveFollowUps, waitingLine, type Apart, type Detach, type Running } from './index-follow-ups.js';
+import { followUpsLogPath, heldBy, holdFollowUps, readiedFollowUps, releaseFollowUps, reserveFollowUps, waitingLine, type Apart, type Detach, type HandBack, type Running } from './index-follow-ups.js';
 
 export interface IndexRequest {
   readonly cwd: string;
@@ -95,31 +95,29 @@ export async function indexOutput(request: IndexRequest): Promise<string> {
 }
 
 /**
- * The lines of the follow-ups' process once it has ended, after the index's own:
- * its first line is its own update finding the index this run wrote, and a turn
- * it went without is told once, with this run's. A walk it could not make is
- * told to `failed` and its lock let go, because this run's exit carries it; a
- * process that ended any other way before it finished is a refusal, and its
- * lock is let go for the next reader to make them.
+ * The follow-ups' lines once their process has ended, as it handed them back
+ * over its own channel: a turn it went without is told once, with this run's,
+ * and a walk it could not make is told to `failed`, because this run's exit
+ * carries it. A process that ended before it handed them back is a refusal,
+ * and its lock is let go for the next reader to make them.
  */
 async function waitedOn(request: IndexRequest, { pid, ended }: Running, alone: Alone): Promise<readonly string[]> {
   const index = sourceIndexPath(request.cwd);
-  const { out, code, signal } = await ended;
-  const held = heldBy(index);
-  const failed = held?.pid === pid ? held.failed : undefined;
+  const { handed, code, signal } = await ended;
   releaseFollowUps(index, pid);
-  for (const why of failed ?? []) request.failed?.(why);
-  if (code !== 0 && failed === undefined) {
+  if (handed === undefined) {
     const how = signal === null ? `exit code ${String(code)}` : `signal ${signal}`;
     throw new OperatorError(`process ${pid}, making the follow-ups \`variance index\` waited on, ended with ${how} before it finished; what it wrote is in ${followUpsLogPath(index)}`);
   }
-  return out.split('\n').slice(1).filter((line) => line !== '' && !alone.has(line));
+  for (const line of handed.alone) alone.add(line);
+  for (const why of handed.failed) request.failed?.(why);
+  return handed.lines;
 }
 
-async function inline(request: IndexRequest, readied?: () => void): Promise<string> {
+async function inline(request: IndexRequest): Promise<string> {
   const alone: Alone = new Set();
   const update = await written(request, alone);
-  return report(update, alone, await followUps(request, update, alone, readied));
+  return report(update, alone, await followUps(request, update, alone));
 }
 
 /** The lines a run returns: the index's, why it ran without its turn when it did, then what came after. */
@@ -170,20 +168,24 @@ function turnLine({ pid, root }: IndexTurnHolder): string {
  * What the process `index` hands its follow-ups to runs: the update again,
  * which finds the index it was handed and writes nothing, for the listing of
  * the checkout it carries; then the follow-ups, the lock marked once the index
- * is readied; then the lock is let go. A walk git could not read marks the lock
- * with why instead, for the next command that reads the follow-ups to tell, or
- * for the run waiting on this process to carry in its exit. A process that
- * threw keeps the lock unmarked, so that command finds its holder gone and
- * makes them itself.
+ * is readied; then the lock is let go. Waited on, it hands its lines and the
+ * walks git could not read back to the run waiting on it. Detached, a walk git
+ * could not read marks the lock with why instead, for the next command that
+ * reads the follow-ups to tell. A process that threw keeps the lock unmarked,
+ * so that command finds its holder gone and makes them itself.
  */
-export async function followUpsOutput(request: Omit<IndexRequest, 'detach' | 'apart'>): Promise<string> {
+export async function followUpsOutput(request: Omit<IndexRequest, 'detach' | 'apart'> & { readonly handBack?: HandBack }): Promise<string> {
   const index = sourceIndexPath(request.cwd);
   const failed: string[] = [];
-  const output = await inline({ ...request, failed: (why) => { failed.push(why); request.failed?.(why); } }, () => readiedFollowUps(index, process.pid));
+  const alone: Alone = new Set();
+  const told = { ...request, failed: (why: string) => { failed.push(why); request.failed?.(why); } };
+  const update = await written(told, alone);
+  const lines = await followUps(told, update, alone, () => readiedFollowUps(index, process.pid));
+  if (request.handBack !== undefined) await request.handBack({ lines, alone: [...alone], failed });
   const held = heldBy(index);
-  if (failed.length > 0 && held?.pid === process.pid) holdFollowUps(index, { ...held, failed });
+  if (request.handBack === undefined && failed.length > 0 && held?.pid === process.pid) holdFollowUps(index, { ...held, failed });
   else releaseFollowUps(index, process.pid);
-  return output;
+  return report(update, alone, lines);
 }
 
 /** `readied` is told once the index is folded, before the map, the journeys, the lexicon and the questions. */

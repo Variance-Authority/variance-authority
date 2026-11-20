@@ -1,10 +1,11 @@
 /// <depends path="../bin.ts" />
-import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync } from 'node:fs';
+import { spawn, spawnSync } from 'node:child_process';
+import { once } from 'node:events';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { sourceIndexPath } from '@variance-authority/sense';
+import { processAlive, sourceIndexPath } from '@variance-authority/sense';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EXIT_CLEAN, EXIT_OPERATOR, OperatorError } from '../exit.js';
 import { checkout, unprepared, unwalkable } from './index-checkout.fixture.js';
@@ -29,6 +30,16 @@ afterEach(() => {
   process.chdir(cwd);
   vi.unstubAllEnvs();
 });
+
+/** What `found` returns once it returns something, polled; undefined after five seconds of nothing. */
+async function until<T>(found: () => T | undefined): Promise<T | undefined> {
+  for (let tries = 0; tries < 1000; tries++) {
+    const value = found();
+    if (value !== undefined) return value;
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+  return undefined;
+}
 
 /** A pid nothing holds any more. */
 function gone(): number {
@@ -76,7 +87,7 @@ describe('variance index --wait', () => {
       cwd: root,
       apart: (argv) => {
         expect(argv).toEqual(['index', '--follow-ups']);
-        return { pid, ended: Promise.resolve().then(() => { held = heldBy(index)?.pid; return { out: '', code: 1, signal: null }; }) };
+        return { pid, ended: Promise.resolve().then(() => { held = heldBy(index)?.pid; return { code: 1, signal: null }; }) };
       },
     });
 
@@ -84,6 +95,44 @@ describe('variance index --wait', () => {
     await expect(run).rejects.toThrow(`process ${pid}, making the follow-ups \`variance index\` waited on, ended with exit code 1 before it finished; what it wrote is in ${followUpsLogPath(index)}`);
     expect(held).toBe(pid);
     expect(existsSync(followUpsLockPath(index))).toBe(false);
+  });
+
+  it('carries what that process handed back, its failed walks with it, though another command let its lock go first', async () => {
+    const root = await checkout();
+    const index = sourceIndexPath(root);
+    const told: string[] = [];
+
+    const run = indexOutput({
+      cwd: root,
+      failed: (why) => told.push(why),
+      apart: () => ({
+        pid: gone(),
+        ended: Promise.resolve().then(() => {
+          // A command waiting on the lock took it as finished and let it go.
+          rmSync(followUpsLockPath(index), { force: true });
+          return { handed: { lines: ['code map: written'], alone: [], failed: ['commit 0123456789ab is not here'] }, code: EXIT_OPERATOR, signal: null };
+        }),
+      }),
+    });
+
+    expect(await run).toBe(`source index built: 2 files, at ${index}\ncode map: written\n`);
+    expect(told).toEqual(['commit 0123456789ab is not here']);
+  });
+
+  it('stops that process when it is stopped itself, and ends once it has', async () => {
+    const root = await checkout();
+    const index = sourceIndexPath(root);
+    const waiting = spawn(process.execPath, [BIN, 'index', '--wait'], { cwd: root, env: { ...process.env, CI: 'false' }, stdio: 'ignore' });
+    const exited = once(waiting, 'exit');
+
+    const apart = await until(() => { const held = heldBy(index)?.pid; return held !== undefined && held !== waiting.pid ? held : undefined; });
+    waiting.kill('SIGTERM');
+
+    // Ended by the same signal, and only once what it started has ended.
+    expect((await exited)[1]).toBe('SIGTERM');
+    expect(processAlive(apart!)).toBe(false);
+    // Stopped, that process let nothing go: what it held is left for the next command to make.
+    expect(heldBy(index)?.pid).toBe(apart);
   });
 
   it('makes the follow-ups itself when that process cannot be started', async () => {

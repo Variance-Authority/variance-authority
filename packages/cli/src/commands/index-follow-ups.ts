@@ -43,7 +43,8 @@ export interface FollowUpsLock {
   /**
    * The process finished, and git could not read what these walks needed. Its
    * exit reaches nobody, so the next command that reads the follow-ups tells
-   * each reason and exits as the operator's; `--wait` carries the walk in its own exit.
+   * each reason and exits as the operator's. A process a run waits on hands its
+   * reasons back to that run instead, and never writes them here.
    */
   readonly failed?: readonly string[];
 }
@@ -57,10 +58,24 @@ export type Detach = (argv: readonly string[], log: string) => number | undefine
  */
 export type Apart = (argv: readonly string[], log: string) => Running | undefined;
 
-/** A process `Apart` started, and how it ended: its stdout, then its exit code or the signal that ended it. */
+/**
+ * What a process `Apart` started hands back to the run waiting on it, over a
+ * channel only that run reads: the follow-ups' lines, the index turns it went
+ * without, and the walks git could not read.
+ */
+export interface Handed {
+  readonly lines: readonly string[];
+  readonly alone: readonly string[];
+  readonly failed: readonly string[];
+}
+
+/** Hand the follow-ups back to the run waiting on this process. */
+export type HandBack = (handed: Handed) => Promise<void>;
+
+/** A process `Apart` started, and how it ended: what it handed back, if it got that far, then its exit code or the signal that ended it. */
 export interface Running {
   readonly pid: number;
-  readonly ended: Promise<{ readonly out: string; readonly code: number | null; readonly signal: NodeJS.Signals | null }>;
+  readonly ended: Promise<{ readonly handed?: Handed; readonly code: number | null; readonly signal: NodeJS.Signals | null }>;
 }
 
 export const followUpsLockPath = (index: string): string => `${index}.follow-ups`;
