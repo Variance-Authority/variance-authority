@@ -12,7 +12,7 @@
 // index lists files from git; node_modules holds the workspace links an
 // install would make, so a package's name resolves to its directory.
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
 
@@ -48,14 +48,10 @@ const nameOf = (index) => `@corp/p${String(index).padStart(5, "0")}`;
 const dirOf = (index) => join("packages", `l${String(layerOf(index)).padStart(3, "0")}`, `p${String(index).padStart(5, "0")}`);
 const firstOfLayer = (layer) => Math.ceil((layer * packages) / layers);
 
-// Only a corpus this script wrote is replaced: any other non-empty directory
-// is refused rather than deleted.
+// Nothing is deleted: a non-empty directory is refused, whoever wrote it.
 if (existsSync(root) && readdirSync(root).length > 0) {
-  const manifest = join(root, "package.json");
-  const name = existsSync(manifest) ? JSON.parse(readFileSync(manifest, "utf8")).name : undefined;
-  if (name !== "corpus") throw new Error(`${root} is not empty and holds no corpus this script wrote`);
+  throw new Error(`${root} is not empty; give the corpus an empty or new directory`);
 }
-rmSync(root, { recursive: true, force: true });
 mkdirSync(root, { recursive: true });
 writeFileSync(
   join(root, "package.json"),
