@@ -1,5 +1,65 @@
 # @variance-authority/sense
 
+## 0.34.0
+
+### Minor Changes
+
+- 16b1d59: A release that changes the source index's format can start from CI's index
+
+  A share takes `sourceIndex`, off by default. When it is `true`, `variance share --suite` on a mainline also publishes the source index CI built, as the entry `source-index-v<format>` beside the record, each segment cut into pieces of 32 MiB that are the entry's images. The share stores an image once, so a commit sends only the pieces no commit before it sent: the segments its update wrote. The names of a segment's pieces are kept beside the index, so a commit hashes only the segments its update wrote too: on Firefox, a commit after the first carries its index in 3 ms rather than 0.8 s. No segment is too large to publish. An update over an index a release in another format wrote fetches that index as it starts, while it lists the checkout; the mainline's record never waits for it, and when another checkout's index of this release opens, the update starts from that one and drops the download without waiting for it, even when the share never answers. The update then reads only the files that differ from it. Every command that updates the index says on stderr when it starts that download, and why it placed none when the share holds no index in this format or it does not check out; `variance index` names the index it fetched. `updateSourceIndex` and `publishedSources` take a `fetch` callback for this, and the update's result has the fetched index as `fetched`. `carriedSourceIndex`, `placeSourceIndex`, `SOURCE_INDEX_PIECE`, `fetchedSourceIndexPath`, `processAlive`, `sourceIndexChain` and `sourceIndexWrittenIn` are exported; `fetch` is given a `signal` that aborts when another checkout's index fits. The index is about the size of the parsed checkout: on Firefox, about 200,000 files, it is about 2 GB, or 0.7 GB compressed.
+
+  A `LineCell` says with `imagesShared` that an image stored for one line is there for every line, as the directory, HTTP and memory cells do; a mainline's commit is then kept without its images sent again.
+- cf0c8e8: A page's story names the navigation that loaded each document after the first
+
+  Where a page went to another document of the same origin, or reloaded itself, during a case, its story now says so on the step it happened during, before what the new document ran: `page navigated http://shop.test/checkout`, or `page reloaded http://reloading.test/` where the browser reports a reload. `navigationNote` in `@variance-authority/core/format` writes that note, for any runner that names a page's navigation. The address is the one the top document was loaded at, without its query or fragment. A navigation to another origin carries no tape across, so it is not named. A `PageStory` carries the address as `url`, and `reload` where the browser says so; a frame carries neither.
+- 9ea65e9: `variance janus --since <ref> --file <path>... -- <command>` runs a command with each named file rolled back to its text at the ref, in place, so the old tests run on the new code with nothing checked out. Each file must exist in the checkout and at the ref: janus rolls back changes in existing files, and neither adds nor hides one. A run that never read a file it was served fails and names it.
+
+### Patch Changes
+
+- f6258f2: A configuration file is a file: an edit to a `package.json`, a lock file or a `tsconfig*.json` rebuilds no other file's record. Before, any byte in any of them rebuilt the whole index, so adding a `description` to one manifest cost what a cold scan does.
+
+  A configuration edit reaches other files through the edits that come with it: a new `paths` entry or `exports` subpath arrives with the files refactored to import through it, a moved target is a moved file, a new workspace package is new files imported by edited files, and a dependency bump moves no answer in your workspace. Each of these lands on the answers a cold index gives. Editing a mapping alone, to redirect code nobody edited, is not followed until that code is edited.
+
+  A `tsconfig` the scan cannot follow no longer makes every run cold whenever a file is added: it rebuilds nothing beyond its own record, and an import through a mapping it declared keeps its answer until the importing file is edited. The first update after upgrading reads every file once.
+- a882c35: A checkout with no source index it can stand on — none yet, as in a fresh worktree, a damaged one, or one another release wrote — starts from another checkout's index of the same repository and reads only the files that differ from it, rather than reading every file. `variance index` names the index it started from, and the update's result carries it as `from`. A record from the other index stands only where nothing in it was parsed, or where the parse store holds the same parse of that blob. The other checkout may have parsed bytes it edited after git named them, so any other record is read again. With no index in any checkout, every file is read as before.
+- 4dc1335: `variance index` keeps the tree `HEAD` names beside the index, by the tree id of
+  every package in it. A run whose `HEAD` tree is unchanged reads no tree from
+  git's object store. After a commit, a pull or a branch switch it compares each
+  changed package's old tree with its new one in the object store and reads only
+  the trees on the changed paths, and it reads a package whole only when git has
+  pruned its old tree; the working tree is compared on every run, as
+  before. The tree part of an unchanged run falls from about 80 ms to about 20 ms
+  on Kibana, and from about 1.1 s to about 50 ms on Firefox; the run's wall time
+  does not move on either, because the tree is read while the working tree is
+  walked. A Watchman watch that ignores directories, such as `node_modules` or
+  `dist`, now vouches for the held listing too, since what it ignores is out of
+  the source:
+  on Firefox, whose own watch ignores its build directories, an unchanged run
+  falls from about 6.2 s to about 1.2 s.
+  Under a watch, a branch switch, a reset or a commit compares only the files
+  Watchman reports moved, and the kept listing answers for the rest: a switch one
+  commit away and back takes the listing from about 0.66 s to about 0.23 s on
+  Kibana, and from about 2.2 s to about 0.67 s on Firefox, where the run falls
+  from about 5.9 s to about 4.4 s.
+- 9b46668: Read the working inventory from Git's index instead of traversing HEAD's object trees. Reuse the loaded index to detect local changes, and retain Git's handling of filesystem monitors, untracked caches and sparse checkouts. Indexing no longer opens the object store or maintains a separate committed-tree cache just to list files.
+- 9eed8c9: Each question `variance index` asks Watchman waits about a second at most, and
+  the update lists with git when the watch has not answered by then. A watch still crawling a fresh
+  worktree, or still catching up after a large branch switch, no longer holds the
+  update: the clock is taken without a sync, and whether the watch has caught up
+  is asked beside git's listing, so only a watch that has caught up gives the next
+  update its clock. Under a crawling watch, Watchman's part of a fresh index falls
+  from about 0.8 s to about 0.13 s on Kibana and from about 1.8 s to about 0.13 s
+  on Firefox, the same as with no watch. A switch 200 commits away on Kibana
+  falls from about 9.9 s to about 5.9 s for the run. A settled watch still
+  vouches for an unchanged checkout with no git listing.
+- b921267: Bound each indexed file’s alias dependencies to the TypeScript configuration its resolver selects. Large monorepos no longer multiply every import’s directory witnesses by unrelated configurations, preventing the resulting memory exhaustion with default settings. Scans, cold indexes and incremental updates share the same resolver-owned candidates; disabled TypeScript configuration contributes none.
+- f1f2ba1: The source index is read by the native addon alone, and a row of it is decoded only when a caller asks for that row.
+
+  Reading the index now needs the addon, as writing it already did: without it, a read fails and names why the addon did not load.
+
+  A segment is checked whole when it is opened, so an index that read before may now be found damaged. On a workstation it is updated from the segments that read; in CI the step that publishes it runs again.
+- 5aca4e9: The source index keeps each signature, doc and line once, however many declarations name it. A checkout that holds minified bundles, whose one line every declaration on it named, gets an index a fraction of the size: on Firefox a segment falls from about 2 GB to about 0.35 GB. The source-index format version moves, so an index or stored parse an earlier release wrote is rebuilt.
+
 ## 0.33.0
 
 ### Minor Changes

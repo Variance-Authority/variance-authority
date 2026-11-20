@@ -1,5 +1,15 @@
 # @variance-authority/report
 
+## 0.34.0
+
+### Minor Changes
+
+- d175ab8: A faint region is drawn apart from a strong one. The diff image paints a changed
+  pixel short of `STRONG_GRADE` pale red rather than red, the HTML report draws a
+  faint region's box dashed and lighter, and the run's JSON carries each region's `grade`.
+  `raster` exports `isFaint(grade)`, the one test of faint that the picture, the
+  report and the verdict sentence share.
+
 ## 0.33.0
 
 Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
