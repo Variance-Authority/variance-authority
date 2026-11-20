@@ -34,8 +34,9 @@ pub struct RustEntered {
 /// For each profile, in order, the files under `root` its run entered.
 ///
 /// `binaries` are the instrumented executables the profiles were written by. A
-/// file outside `root`, or one that no longer parses, is left out: the first is
-/// not the checkout's, and the second has no region to charge. A profile that is
+/// file outside `root` is left out, since it is not the checkout's; one the cut
+/// cannot parse is entered at its root alone, as a module the reader cannot parse
+/// is, so an edit to it selects every test that entered it. A profile that is
 /// missing or cut short entered nothing: its test died before it was written.
 #[napi(js_name = "rustCoverage", catch_unwind)]
 pub fn rust_coverage(binaries: Vec<String>, profiles: Vec<String>, root: String) -> napi::Result<Vec<Vec<RustEntered>>> {
@@ -140,6 +141,8 @@ impl Map {
             let mut values = vec![None; function.expressions.len()];
             for (counter, file, line, column) in &function.regions {
                 if value(*counter, counters, &function.expressions, &mut values) > 0 {
+                    // rustc counts only function bodies, so a file entered had its root run too, as a module's load runs it.
+                    ordinals[*file].push(0);
                     ordinals[*file].extend(self.files[*file].charged(*line, *column));
                 }
             }
@@ -149,8 +152,6 @@ impl Map {
             .enumerate()
             .filter(|(_, ordinals)| !ordinals.is_empty())
             .map(|(file, mut ordinals)| {
-                // rustc counts only function bodies, so a file entered had its root run too, as a module's load runs it.
-                ordinals.push(0);
                 ordinals.sort_unstable();
                 ordinals.dedup();
                 RustEntered { id: self.files[file].id.clone(), ordinals: Uint32Array::new(ordinals) }
@@ -201,7 +202,8 @@ fn value(counter: Counter, counters: &[u64], expressions: &[Expression], values:
 /// A Rust file of the checkout, cut once for every profile that entered it.
 struct File {
     id: String,
-    cut: Cut,
+    /// None for a file the cut cannot parse, whose root alone is charged.
+    cut: Option<Cut>,
     /// Where each line starts, in bytes.
     lines: Vec<usize>,
     utf16: Option<Utf16>,
@@ -211,7 +213,7 @@ impl File {
     fn read(path: &Path, root: &Path) -> Option<File> {
         let relative = path.strip_prefix(root).ok()?;
         let source = std::fs::read_to_string(path).ok()?;
-        let cut = crate::rust_cut::cut(&source)?;
+        let cut = crate::rust_cut::cut(&source);
         let id = variance_sense_instrument::module_id(&relative.to_string_lossy().replace('\\', "/"), &source);
         let lines = std::iter::once(0).chain(source.match_indices('\n').map(|(at, _)| at + 1)).collect();
         let utf16 = (!source.is_ascii()).then(|| Utf16::new(&source));
@@ -223,7 +225,7 @@ impl File {
         let byte = *self.lines.get(line.checked_sub(1)?)? + column.saturating_sub(1);
         let at = self.utf16.as_ref().map_or(byte as u32, |table| table.at(byte as u32));
         // Blocks are in pre-order, so the last one around a point is the innermost.
-        self.cut.blocks.iter().rposition(|block| block.start <= at && at < block.end).map(|ordinal| ordinal as u32)
+        self.cut.as_ref()?.blocks.iter().rposition(|block| block.start <= at && at < block.end).map(|ordinal| ordinal as u32)
     }
 }
 
@@ -236,5 +238,26 @@ mod tests {
         let entered = rust_coverage(Vec::new(), vec!["/nonexistent/aborted.profraw".into()], "/".into()).expect("a missing profile is no error");
         assert_eq!(entered.len(), 1);
         assert!(entered[0].is_empty());
+    }
+
+    // As a JavaScript module the reader cannot parse: an edit to it selects every test that entered it.
+    #[test]
+    fn a_file_the_cut_refuses_is_entered_at_its_root() {
+        let root = std::env::temp_dir().join(format!("variance-rust-coverage-{}", std::process::id()));
+        std::fs::create_dir_all(&root).expect("a scratch directory");
+        let source = "fn broken( {\n";
+        std::fs::write(root.join("broken.rs"), source).expect("the file is written");
+        let file = File::read(&root.join("broken.rs"), &root);
+        std::fs::remove_dir_all(&root).ok();
+        let file = file.expect("a file under the root is kept though the cut refuses it");
+        let map = Map {
+            files: vec![file],
+            functions: vec![Function { key: (1, 2), expressions: Vec::new(), regions: vec![(Counter::instrumentation(0), 0, 1, 1)] }],
+        };
+        let counts = Counts { version: None, functions: HashMap::from([((1, 2), vec![1])]) };
+        let entered = map.entered(&counts);
+        assert_eq!(entered.len(), 1);
+        assert_eq!(entered[0].id, variance_sense_instrument::module_id("broken.rs", source));
+        assert_eq!(entered[0].ordinals.to_vec(), vec![0]);
     }
 }
