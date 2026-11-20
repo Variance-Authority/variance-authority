@@ -61,22 +61,69 @@ pub(crate) struct Page {
 /// Each package's dependency layer, and how many layers there are.
 pub(crate) fn layers(read: &Read) -> (Vec<u32>, u32) {
     let n = read.packages.len();
-    let mut next: Vec<Vec<u32>> = vec![Vec::new(); n];
+    let mut next: Vec<Vec<usize>> = vec![Vec::new(); n];
     for &(a, b, _) in &read.edges {
-        next[a as usize].push(b);
+        next[a as usize].push(b as usize);
     }
-    // A component is numbered after every one it takes, so the lowest first
-    // has each layer below it settled.
-    let (component, count) = components(n, |at| next[at].as_slice());
-    let mut below: Vec<Vec<u32>> = vec![Vec::new(); count as usize];
-    for (at, &c) in component.iter().enumerate() {
-        below[c as usize].extend(next[at].iter().map(|&to| component[to as usize]).filter(|&to| to != c));
+    // Tarjan, without recursion; a component closes after everything it takes.
+    let (mut index, mut low) = (vec![usize::MAX; n], vec![0usize; n]);
+    let (mut on, mut stack, mut counter) = (vec![false; n], Vec::new(), 0usize);
+    let mut component = vec![usize::MAX; n];
+    let mut layer_of: Vec<u32> = Vec::new();
+    for start in 0..n {
+        if index[start] != usize::MAX {
+            continue;
+        }
+        let mut work: Vec<(usize, usize)> = vec![(start, 0)];
+        index[start] = counter;
+        low[start] = counter;
+        counter += 1;
+        stack.push(start);
+        on[start] = true;
+        while let Some(&mut (v, ref mut edge)) = work.last_mut() {
+            if *edge < next[v].len() {
+                let w = next[v][*edge];
+                *edge += 1;
+                if index[w] == usize::MAX {
+                    index[w] = counter;
+                    low[w] = counter;
+                    counter += 1;
+                    stack.push(w);
+                    on[w] = true;
+                    work.push((w, 0));
+                } else if on[w] {
+                    low[v] = low[v].min(index[w]);
+                }
+                continue;
+            }
+            work.pop();
+            if let Some(&(u, _)) = work.last() {
+                low[u] = low[u].min(low[v]);
+            }
+            if low[v] == index[v] {
+                let c = layer_of.len();
+                let mut members = Vec::new();
+                loop {
+                    let w = stack.pop().expect("the component's root is on the stack");
+                    on[w] = false;
+                    component[w] = c;
+                    members.push(w);
+                    if w == v {
+                        break;
+                    }
+                }
+                let layer = members
+                    .iter()
+                    .flat_map(|&i| next[i].iter())
+                    .filter(|&&j| component[j] != c)
+                    .map(|&j| layer_of[component[j]] + 1)
+                    .max()
+                    .unwrap_or(1);
+                layer_of.push(layer);
+            }
+        }
     }
-    let mut layer_of = vec![1u32; count as usize];
-    for c in 0..count as usize {
-        layer_of[c] = below[c].iter().map(|&to| layer_of[to as usize] + 1).max().unwrap_or(1);
-    }
-    let layers: Vec<u32> = component.iter().map(|&c| layer_of[c as usize]).collect();
+    let layers: Vec<u32> = component.iter().map(|&c| layer_of[c]).collect();
     let count = layers.iter().copied().max().unwrap_or(0);
     (layers, count)
 }
@@ -368,63 +415,6 @@ pub(crate) fn pages(read: &Read, signals: &Signals, areas: &[Area], layer: &[u32
             }
         })
         .collect()
-}
-
-/// Each of `total` nodes' strongly connected component, by Tarjan's algorithm
-/// without recursion, and how many there are, where `outgoing` gives a node's
-/// successors. A component is numbered once every one it reaches is, so an
-/// edge never runs to a higher number, and `layers` folds them in that order.
-fn components<'a>(total: usize, outgoing: impl Fn(usize) -> &'a [u32]) -> (Vec<u32>, u32) {
-    const UNSEEN: u32 = u32::MAX;
-    let (mut index, mut low, mut held) = (vec![UNSEEN; total], vec![0u32; total], vec![false; total]);
-    let mut component = vec![UNSEEN; total];
-    let (mut stack, mut calls): (Vec<u32>, Vec<(u32, u32)>) = (Vec::new(), Vec::new());
-    let (mut next, mut count) = (0u32, 0u32);
-    for root in 0..total {
-        if index[root] != UNSEEN {
-            continue;
-        }
-        index[root] = next;
-        low[root] = next;
-        next += 1;
-        stack.push(root as u32);
-        held[root] = true;
-        calls.push((root as u32, 0));
-        while let Some(&(at, edge)) = calls.last() {
-            let at = at as usize;
-            if let Some(&to) = outgoing(at).get(edge as usize) {
-                calls.last_mut().expect("a call is open").1 += 1;
-                let to = to as usize;
-                if index[to] == UNSEEN {
-                    index[to] = next;
-                    low[to] = next;
-                    next += 1;
-                    stack.push(to as u32);
-                    held[to] = true;
-                    calls.push((to as u32, 0));
-                } else if held[to] {
-                    low[at] = low[at].min(index[to]);
-                }
-                continue;
-            }
-            calls.pop();
-            if let Some(&(caller, _)) = calls.last() {
-                low[caller as usize] = low[caller as usize].min(low[at]);
-            }
-            if low[at] == index[at] {
-                loop {
-                    let member = stack.pop().expect("the component's root is on the stack") as usize;
-                    held[member] = false;
-                    component[member] = count;
-                    if member == at {
-                        break;
-                    }
-                }
-                count += 1;
-            }
-        }
-    }
-    (component, count)
 }
 
 #[cfg(test)]
