@@ -242,10 +242,12 @@ names, and none of its text.
 `--changed-file` and `--taint-file` are the exception: they ask for a new
 generation by name, and are the one way a question has the index updated.
 `--changed-file` takes a newline-delimited file of scan-root-relative paths an
-editor, watcher, or CI step already detected as changed. It is producer input:
-an empty file states that nothing changed, and it replaces Git status discovery.
-A file you listed gives its names at the lines it holds now. With no generation
-to refresh, the read is whole and the list is not used.
+editor, watcher, or CI step already detected as changed. It asks for a new
+generation now, whatever the age of the last, and cannot be combined with
+`--just-answer`. An empty file states that nothing changed and keeps the
+generation as it stands. A list does not narrow the read: the source index finds
+what moved from Git and reads those files again, listed or not. With no
+generation to refresh, the read is whole.
 
 A library host that injects `AskRequest.source` receives `SourceReadOptions`.
 Its `justAnswer` field is true unless the question names a changed file or a

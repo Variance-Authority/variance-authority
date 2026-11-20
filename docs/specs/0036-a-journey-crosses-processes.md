@@ -134,9 +134,9 @@ which did not, a change behind the second hop has to widen exactly as a change
 behind an unwatched origin does.
 
 **6. The head's cost is a number in the harness.**
-`packages/sense/scripts/overhead.mjs` reports against a control band of two
-identical uninstrumented builds, and the journey-keyed factory is not an arm in
-it. A getter over async context costs one context read per probe, plus a
+The overhead harness reported against a control band of two identical
+uninstrumented builds until it retired with the JavaScript scanner it
+instrumented, and the journey-keyed factory was never an arm in it. A getter over async context costs one context read per probe, plus a
 re-resolve wherever two journeys interleave inside one module — a curve
 proportional to real interleaving and flat where there is none.
 [ADR-0004](../context/adr/0004-defer-native-acceleration.md) says that is measured

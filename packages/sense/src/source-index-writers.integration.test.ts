@@ -7,7 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Digest } from '@variance-authority/core/format';
 import { native } from './addon.js';
 import { readPublishedSources, updateSourceIndex } from './published.js';
-import { scanRelations } from './scan.js';
+import { scanRelations } from './test-support/scan.js';
 import { openSourceIndex } from './source-index.js';
 import { openSourceIndexFile } from './source-index-file.js';
 import { encodeSourceIndex } from './source-index-format.js';

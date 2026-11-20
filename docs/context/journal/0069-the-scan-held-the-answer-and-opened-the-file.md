@@ -20,7 +20,7 @@ spell an identity string, and then calls `read_all`, which opens all of them off
 the disk.
 
 Which path a cold scan takes is decided in
-[`scan.ts`](../../../packages/sense/src/scan.ts):
+[`scan.ts`](../../../packages/sense/src/test-support/scan.ts):
 
 ```ts
 const useGraph = !nativeGraphUsed && tree?.native !== undefined && pending.length >= 10_000;

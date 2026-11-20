@@ -5,7 +5,7 @@
  * exist under the configured roots, which of them are worth reading at all, and
  * what a name implies about the bytes behind it — the language it is read as,
  * the dialect that language's parser is handed, whether its declarations count
- * as components. [`scan.ts`](./scan.ts) asks, and the walk of a tree Git does
+ * as components. `test-support/scan.ts` asks, and the walk of a tree Git does
  * not describe is the addon's (`seed_files` in `native/src/seed.rs`); the answers live here because they
  * are about naming and walking rather than about the graph.
  *

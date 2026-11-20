@@ -391,12 +391,10 @@ ask` does.
 When an editor, watcher, or orchestrator produces a generation and already has
 the changed paths, write their scan-root-relative paths to a newline-delimited
 file and pass that file through `--changed-file`. An empty file declares that
-nothing changed. This is producer input, and the one way `variance ask` writes
-the index: it replaces Git's changed-file discovery, and the refresh reads the
-files you listed and no others, so the generation keeps the time of the read it
-refreshed. An answer given with the list gives a listed file's names at the
-lines the file holds now, with their text as the refresh read it. With no
-generation to refresh, the read is whole and the list is not used.
+nothing changed. The list asks for a new generation now and cannot be combined
+with `--just-answer`. It does not narrow the read: the source index finds what
+moved from Git and reads those files again, listed or not. With no generation
+to refresh, the read is whole.
 [Naming what changed](source-index.md#naming-what-changed) gives the file
 contract.
 

@@ -13,7 +13,7 @@ import { graphRecords, nativeIndexGraph } from './native-index-graph.js';
 import { updateSourceIndex } from './published.js';
 import { MODULE_EXTENSIONS } from './read.js';
 import { shapeOf } from './reuse.js';
-import { LARGEST_FILE } from './scan.js';
+import { LARGEST_FILE } from './record.js';
 import { openSourceIndexFile } from './source-index-file.js';
 import type { IndexedRecord, StoredSourceIndex } from './source-index-format.js';
 import { readSourceIndexSegment } from './source-index-reader.js';

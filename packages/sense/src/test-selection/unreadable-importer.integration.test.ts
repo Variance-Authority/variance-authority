@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { relationsOfFiles, type Relations } from '@variance-authority/core/relate';
-import { scanRelations } from '../scan.js';
+import { scanRelations } from '../test-support/scan.js';
 import { taintRecords } from '../taint/index.js';
 import { mockTaint } from '../taint/mocks.js';
 import { narrowByExecution } from './index.js';

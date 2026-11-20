@@ -130,7 +130,7 @@ export interface ParsedAsk extends Crossing {
   readonly from?: string;
   /** `--to <path>`: a path to arrive at. Answers what reaches it, the other way along the imports. */
   readonly to?: string;
-  /** `--changed-file <path>`: authoritative scan-root-relative paths, one per line. */
+  /** `--changed-file <path>`: scan-root-relative paths, one per line, that ask for a new generation now. */
   readonly changedFile?: string;
   /** `--taint-file <path>`: addition-only declarative module edges. */
   readonly taintFile?: string;

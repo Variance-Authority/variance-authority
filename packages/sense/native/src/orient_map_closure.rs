@@ -15,6 +15,8 @@
 
 // compass: variance-authority.reach.relations
 
+use std::collections::VecDeque;
+
 use rayon::prelude::*;
 
 /// The graph a closure is walked over. Nodes below `lines.len()` are counted
@@ -45,7 +47,19 @@ pub(crate) struct Closure {
     pub unsized_files: u32,
 }
 
+/// Packages one walk carries at once, a bit each in a word per node.
+const BLOCK: usize = 64;
+
 /// Every package's closure, by package index.
+///
+/// A walk per package costs the packages times what each reaches, which grows
+/// with the square of the checkout. Instead each block of 64 packages walks
+/// the graph once as a bitset: a node holds the bits of every package that
+/// reached it, and is visited again only while it carries bits it has not yet
+/// passed on, so a file reached by many packages, or along many paths, is
+/// walked once per block rather than once per package and path. A node's
+/// size is then added to each package whose bit it holds. The blocks run in
+/// parallel.
 pub(crate) fn closures(nodes: &Nodes, packages: usize) -> Vec<Closure> {
     let counted = nodes.lines.len();
     let total = counted + nodes.leaves as usize;
@@ -55,54 +69,79 @@ pub(crate) fn closures(nodes: &Nodes, packages: usize) -> Vec<Closure> {
             seeds[nodes.owner[at] as usize].push(at as u32);
         }
     }
-    seeds
-        .par_iter()
-        .enumerate()
+    let outgoing = |at: usize| nodes.outgoing.get(at).map_or(&[][..], Vec::as_slice);
+    (0..packages.div_ceil(BLOCK))
+        .into_par_iter()
+        // Each worker keeps its two words per node across its blocks, and a
+        // block reads and clears only the nodes it reached: a block of
+        // packages that reach little costs what they reach, not the checkout.
         .map_init(
-            || (vec![u32::MAX; total], Vec::<u32>::new()),
-            |(stamp, queue), (package, starts)| walk(nodes, package as u32, starts, stamp, queue),
-        )
-        .collect()
-}
-
-/// One breadth-first walk from `package`'s entries, `starts`. `stamp` marks a
-/// node visited by the first seed of the walk that marked it, so one buffer
-/// serves every walk a worker makes without being cleared.
-fn walk(nodes: &Nodes, package: u32, starts: &[u32], stamp: &mut [u32], queue: &mut Vec<u32>) -> Closure {
-    let mut closure = Closure::default();
-    let Some(&mark) = starts.first() else { return closure };
-    let counted = nodes.lines.len() as u32;
-    queue.clear();
-    for &start in starts {
-        stamp[start as usize] = mark;
-        queue.push(start);
-    }
-    let mut head = 0;
-    while head < queue.len() {
-        let at = queue[head];
-        head += 1;
-        if at >= counted {
-            closure.unsized_files += 1;
-            continue;
-        }
-        match nodes.lines[at as usize] {
-            Some(lines) => {
-                if nodes.owner[at as usize] == package {
-                    closure.own += u64::from(lines);
+            || (vec![0u64; total], vec![0u64; total]),
+            |(reached, pending), block| {
+                let first = block * BLOCK;
+                let width = BLOCK.min(packages - first);
+                let mut touched: Vec<u32> = Vec::new();
+                let mut queue: VecDeque<u32> = VecDeque::new();
+                for bit in 0..width {
+                    for &start in &seeds[first + bit] {
+                        let at = start as usize;
+                        if reached[at] == 0 {
+                            touched.push(start);
+                        }
+                        if pending[at] == 0 {
+                            queue.push_back(start);
+                        }
+                        reached[at] |= 1 << bit;
+                        pending[at] |= 1 << bit;
+                    }
                 }
-                closure.lines += u64::from(lines);
-                closure.files += 1;
-            }
-            None => closure.unsized_files += 1,
-        }
-        for &to in &nodes.outgoing[at as usize] {
-            if stamp[to as usize] != mark {
-                stamp[to as usize] = mark;
-                queue.push(to);
-            }
-        }
-    }
-    closure
+                while let Some(at) = queue.pop_front() {
+                    let carried = std::mem::take(&mut pending[at as usize]);
+                    for &to in outgoing(at as usize) {
+                        let to = to as usize;
+                        let new = carried & !reached[to];
+                        if new != 0 {
+                            if reached[to] == 0 {
+                                touched.push(to as u32);
+                            }
+                            reached[to] |= new;
+                            if pending[to] == 0 {
+                                queue.push_back(to as u32);
+                            }
+                            pending[to] |= new;
+                        }
+                    }
+                }
+                let mut found = vec![Closure::default(); width];
+                for &at in &touched {
+                    let at = at as usize;
+                    let mask = std::mem::take(&mut reached[at]);
+                    let sized = nodes.lines.get(at).copied().flatten();
+                    // A file's own lines count only for the package that owns it.
+                    if let Some(lines) = sized {
+                        let own = (nodes.owner[at] as usize).wrapping_sub(first);
+                        if own < width && mask & (1 << own) != 0 {
+                            found[own].own += u64::from(lines);
+                        }
+                    }
+                    let mut bits = mask;
+                    while bits != 0 {
+                        let closure = &mut found[bits.trailing_zeros() as usize];
+                        match sized {
+                            Some(lines) => {
+                                closure.lines += u64::from(lines);
+                                closure.files += 1;
+                            }
+                            None => closure.unsized_files += 1,
+                        }
+                        bits &= bits - 1;
+                    }
+                }
+                found
+            },
+        )
+        .flatten_iter()
+        .collect()
 }
 
 #[cfg(test)]
@@ -128,6 +167,93 @@ mod tests {
         assert_eq!(found[1], Closure { lines: 115, own: 100, files: 3, unsized_files: 1 });
         // A package with no shipped file pulls in nothing.
         assert_eq!(found[2], Closure::default());
+    }
+
+    /// Each package walked on its own, breadth first: what a closure means.
+    fn walked(nodes: &Nodes, packages: usize) -> Vec<Closure> {
+        let counted = nodes.lines.len();
+        (0..packages)
+            .map(|package| {
+                let mut seen = vec![false; counted + nodes.leaves as usize];
+                let mut queue: Vec<usize> = (0..counted).filter(|&at| nodes.roots[at] && nodes.owner[at] as usize == package).collect();
+                queue.iter().for_each(|&at| seen[at] = true);
+                let mut closure = Closure::default();
+                while let Some(at) = queue.pop() {
+                    match nodes.lines.get(at).copied().flatten() {
+                        Some(lines) => {
+                            closure.lines += u64::from(lines);
+                            closure.own += if nodes.owner[at] as usize == package { u64::from(lines) } else { 0 };
+                            closure.files += 1;
+                        }
+                        None => closure.unsized_files += 1,
+                    }
+                    for &to in nodes.outgoing.get(at).map_or(&[][..], Vec::as_slice) {
+                        if !std::mem::replace(&mut seen[to as usize], true) {
+                            queue.push(to as usize);
+                        }
+                    }
+                }
+                closure
+            })
+            .collect()
+    }
+
+    #[test]
+    fn every_closure_is_what_its_own_walk_reaches_through_cycles_and_across_blocks() {
+        // More packages than one block of the fold holds, files in cycles, and
+        // packages with no entry, from a fixed seed.
+        let mut seed = 7u64;
+        let mut next = |below: usize| {
+            seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            ((seed >> 33) as usize) % below
+        };
+        let (files, packages, leaves) = (3000, 700, 40);
+        let owner: Vec<u32> = (0..files).map(|_| next(packages) as u32).collect();
+        let nodes = Nodes {
+            lines: (0..files).map(|_| if next(10) == 0 { None } else { Some(next(200) as u32) }).collect(),
+            roots: (0..files).map(|_| next(3) == 0).collect(),
+            outgoing: (0..files).map(|_| (0..next(4)).map(|_| next(files + leaves as usize) as u32).collect()).collect(),
+            owner,
+            leaves,
+        };
+        assert_eq!(closures(&nodes, packages + 1), walked(&nodes, packages + 1));
+        // One worker folds every block in turn over the same words per node,
+        // so a node one block reached must not be read by the next.
+        let one = rayon::ThreadPoolBuilder::new().num_threads(1).build().expect("a pool of one");
+        assert_eq!(one.install(|| closures(&nodes, packages + 1)), walked(&nodes, packages + 1));
+    }
+
+    #[test]
+    fn converging_paths_and_a_cycle_through_many_packages_count_each_file_once() {
+        // A lattice where every file of a rank loads every file of the next,
+        // so each bottom file is reached along thousands of paths, and one
+        // cycle that runs through a file of each of 300 packages, more than a
+        // block holds, owned by packages on both sides of the lattice.
+        let (width, ranks, ring) = (12usize, 10usize, 300usize);
+        let lattice = width * ranks;
+        let files = lattice + ring;
+        let mut outgoing: Vec<Vec<u32>> = vec![Vec::new(); files];
+        for rank in 0..ranks - 1 {
+            for at in 0..width {
+                outgoing[rank * width + at] = (0..width).map(|to| ((rank + 1) * width + to) as u32).collect();
+            }
+        }
+        for at in 0..ring {
+            outgoing[lattice + at].push((lattice + (at + 1) % ring) as u32);
+        }
+        // The lattice's bottom enters the ring, and the ring re-enters the lattice's top.
+        outgoing[lattice - 1].push(lattice as u32);
+        outgoing[lattice + ring / 2].push(0);
+        let packages = ring + width;
+        let owner: Vec<u32> = (0..files).map(|at| if at < lattice { (ring + at % width) as u32 } else { (at - lattice) as u32 }).collect();
+        let nodes = Nodes {
+            lines: (0..files).map(|at| if at % 17 == 0 { None } else { Some((at % 23) as u32 + 1) }).collect(),
+            roots: (0..files).map(|at| at < width || (at >= lattice && at % 5 == 0)).collect(),
+            outgoing,
+            owner,
+            leaves: 0,
+        };
+        assert_eq!(closures(&nodes, packages), walked(&nodes, packages));
     }
 
     #[test]

@@ -112,9 +112,9 @@ answer it.
 
 **7. The overhead criterion has a published reading.**
 [Spec 0027](0027-a-test-is-selected-by-what-it-executed.md) pre-registers `o` —
-instrumented run over uninstrumented run — at 1.35, and the instrument exists:
-`packages/sense/scripts/overhead.mjs`, wired as `yarn overhead`. What is missing
-is the reading. `docs/instruments.md` names no selection instrument and no
+instrumented run over uninstrumented run — at 1.35, and the instrument that read
+it, `yarn overhead`, retired with the JavaScript scanner it instrumented. What is
+missing is the reading. `docs/instruments.md` names no selection instrument and no
 overhead instrument, so the criterion is checked by a script an operator has to
 know to run. A criterion whose reading is not published reads, from outside, as
 a criterion nothing checks.

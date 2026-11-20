@@ -25,7 +25,7 @@ import type { FileRecord, Uses } from '@variance-authority/core/relate';
 import type { Digest } from '@variance-authority/core/format';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { ParseCache, ParseKey, Parsed } from './cache.js';
-import { seedPaths } from './files.js';
+import { keyFor, parseWay, seedPaths } from './files.js';
 import type { NativeGitTree } from './native.js';
 import { realPath } from './resolve.js';
 import { placesOf, type Progress } from './progress.js';
@@ -62,6 +62,18 @@ export interface PublishedSources {
    * above when a walk asks for an edge. Nothing is stored for it.
    */
   readonly uses: Uses;
+  /**
+   * What the generation holds of one file beyond its record: the parse its
+   * text was read into, and what each of the parse's specifiers resolved to,
+   * in the parse's order. Undefined for a file the generation does not hold.
+   */
+  readonly indexed: (file: string) => IndexedFile | undefined;
+}
+
+/** {@link PublishedSources.indexed}: a file's parse and the targets its specifiers resolved to. */
+export interface IndexedFile {
+  readonly parsed?: Parsed;
+  readonly targets: readonly (string | undefined)[];
 }
 
 /** Open the published generation at `path`. Reads the index and nothing else. */
@@ -84,6 +96,13 @@ export async function readPublishedSources(path: string): Promise<PublishedSourc
     cache,
     generation: file.generation,
     uses: usesOf(stored.records, cache),
+    indexed: (file) => {
+      const held = stored.records.get(file);
+      if (held === undefined) return undefined;
+      const digest = held.record.digest;
+      const parsed = digest === undefined ? undefined : cache.get(keyFor(digest, parseWay(file)));
+      return { ...(parsed === undefined ? {} : { parsed }), targets: held.targets ?? [] };
+    },
   };
 }
 
@@ -116,13 +135,13 @@ export function sourcesWithin(
 export interface SourceUpdateOptions {
   /** The index to update. The checkout's own, from `sourceIndexPath`, when absent. */
   readonly index?: string;
-  /** `false` reads each file's bytes from the working tree, as `scanRelations` takes it. */
+  /** `false` reads each file's bytes from the working tree rather than from git's packs. */
   readonly packs?: boolean;
   /** Told each step as it starts and ends: the git listing, then the read of what changed. */
   readonly progress?: Progress;
   /**
-   * The directories below `root` the index covers, as `scanRelations` takes
-   * them: what they hold and what it reaches. The whole of `root` when absent.
+   * The directories below `root` the index covers: what they hold and what
+   * it reaches. The whole of `root` when absent.
    */
   readonly dirs?: readonly string[];
   /**

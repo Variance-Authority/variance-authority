@@ -6,8 +6,8 @@ import { promisify } from 'node:util';
 import { afterAll, describe, expect, it } from 'vitest';
 import type { Digest } from '@variance-authority/core/format';
 import type { FileRecord } from '@variance-authority/core/relate';
-import { memoryRecordCache, openRecordCache, treeShapeOf, type RecordCache, type TreeShape } from './reuse.js';
-import { scanRelations } from './scan.js';
+import { memoryRecordCache, treeShapeOf, type RecordCache, type TreeShape } from './reuse.js';
+import { scanRelations } from './test-support/scan.js';
 import { directoriesOf } from './witness.js';
 
 /**
@@ -201,109 +201,6 @@ describe('the record cache in memory', () => {
     cache.set({ file: 'src/legacy.js', unknown: 'could not be read' }, []);
 
     expect(cache.get('src/legacy.js', A)).toBeUndefined();
-  });
-});
-
-describe('the record cache on disk', () => {
-  async function path(): Promise<string> {
-    const dir = await mkdtemp(join(tmpdir(), 'variance-reuse-'));
-    made.push(dir);
-    return join(dir, 'nested', 'records.bin');
-  }
-
-  it('round-trips a record, and prunes one nothing touched', async () => {
-    const file = await path();
-
-    const first = await openRecordCache(file);
-    first.under(HERE);
-    first.set(RECORD, WITNESSES);
-    first.set({ file: 'src/Clock.tsx', digest: B }, WITNESSES);
-    await first.save();
-
-    const second = await openRecordCache(file);
-    second.under(HERE);
-    expect(second.get('src/Button.tsx', A)).toEqual(RECORD);
-    await second.save();
-
-    const third = await openRecordCache(file);
-    third.under(HERE);
-    expect(third.get('src/Button.tsx', A)).toEqual(RECORD);
-    expect(third.get('src/Clock.tsx', B)).toBeUndefined();
-  });
-
-  it('carries a record’s witnesses across the file, not just its edges', async () => {
-    const file = await path();
-
-    const first = await openRecordCache(file);
-    first.under(HERE);
-    first.set(RECORD, WITNESSES);
-    await first.save();
-
-    // Witnesses are derived from the specifiers, which live in a parse the next
-    // run never opens. Losing them on the way to disk would make every reused
-    // record unprunable, which is worse than not reusing it.
-    const second = await openRecordCache(file);
-    second.under(shape(['package.json', 'src/Button.tsx', 'src/button.css', 'src/late.ts']));
-
-    expect(second.get('src/Button.tsx', A)).toBeUndefined();
-  });
-
-  it('discards a file written under another configuration', async () => {
-    const file = await path();
-
-    const first = await openRecordCache(file);
-    first.under(HERE);
-    first.set(RECORD, WITNESSES);
-    await first.save();
-
-    const second = await openRecordCache(file);
-    second.under({ ...HERE, config: B });
-
-    expect(second.get('src/Button.tsx', A)).toBeUndefined();
-  });
-
-  it('writes nothing at all when no scan adopted a shape', async () => {
-    const file = await path();
-
-    const first = await openRecordCache(file);
-    first.under(HERE);
-    first.set(RECORD, WITNESSES);
-    await first.save();
-
-    // A scan with no digests validates nothing and reuses nothing. Letting it
-    // save would replace a usable cache with an empty one, and the next scan
-    // that *could* have reused would pay for it.
-    const unused = await openRecordCache(file);
-    await unused.save();
-
-    const third = await openRecordCache(file);
-    third.under(HERE);
-    expect(third.get('src/Button.tsx', A)).toEqual(RECORD);
-  });
-
-  it('starts empty on a file that is not what it expects', async () => {
-    const file = await path();
-    await mkdir(dirname(file), { recursive: true });
-    await writeFile(file, 'half an index', 'utf8');
-
-    const cache = await openRecordCache(file);
-    cache.under(HERE);
-
-    expect(cache.get('src/Button.tsx', A)).toBeUndefined();
-  });
-
-  it('saves nowhere rather than failing the run', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'variance-reuse-'));
-    made.push(dir);
-
-    const blocked = join(dir, 'file');
-    await writeFile(blocked, 'not a directory', 'utf8');
-
-    const cache = await openRecordCache(join(blocked, 'records.bin'));
-    cache.under(HERE);
-    cache.set(RECORD, WITNESSES);
-
-    await expect(cache.save()).resolves.toBeUndefined();
   });
 });
 
