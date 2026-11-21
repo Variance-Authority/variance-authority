@@ -1,6 +1,6 @@
 // compass: variance-authority.report.agent-surface
 
-import { rarityNative, saturationNative } from '@variance-authority/sense';
+import { rarityNative, saturationNative } from '@variance-authority/sense/rarity';
 
 /**
  * How rare a word is in a population, as an integer from 0 to 1000: of
