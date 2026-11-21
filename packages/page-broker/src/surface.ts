@@ -36,7 +36,11 @@ export interface Quiet {
  * action rests at, or to another page or under a modal dialog, which cannot.
  */
 export interface Left {
-  readonly by: 'address' | 'page' | 'modal';
+  /**
+   * `address` is the same document at a new address, the one way out that may
+   * still be staying; `document` is a new document loaded in the page.
+   */
+  readonly by: 'address' | 'document' | 'page' | 'modal';
   /** Where, in words. */
   readonly words: string;
 }

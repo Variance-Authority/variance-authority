@@ -12,6 +12,9 @@ const MODALS = ':modal, [aria-modal="true"]';
 export async function elsewhere(page: Page): Promise<Elsewhere> {
   let went: string | undefined;
   let opened = false;
+  // A navigation request of this page's own frame is a new document; a history
+  // or hash change makes none.
+  let loaded = false;
   const navigated = (frame: Frame): void => {
     if (frame !== page.mainFrame()) return;
     const { pathname, search, hash } = new URL(frame.url());
@@ -26,7 +29,7 @@ export async function elsewhere(page: Page): Promise<Elsewhere> {
   const asked = (request: Request): void => {
     if (!request.isNavigationRequest()) return;
     try {
-      request.frame();
+      if (request.frame() === page.mainFrame()) loaded = true;
     } catch {
       // Playwright's documented case: `frame()` throws for a navigation request
       // issued before its frame is created, which is a new page's document.
@@ -45,14 +48,17 @@ export async function elsewhere(page: Page): Promise<Elsewhere> {
   page.context().on('request', asked);
   return {
     left: async () => {
-      if (went !== undefined) return { by: 'address', words: `the page went to ${went}` };
+      // A new document, a new page or a modal is told before a new address:
+      // each rules out staying, and an address change alone does not.
+      if (loaded && went !== undefined) return { by: 'document', words: `a new document at ${went}` };
       if (opened) return { by: 'page', words: 'a new page opened' };
       const opens = await page.evaluate(
         ([query, open]) =>
           [...document.querySelectorAll(query)].some((each) => each.checkVisibility() && !open.includes(each)),
         [MODALS, before] as const,
       );
-      return opens ? { by: 'modal', words: 'a modal dialog opened' } : undefined;
+      if (opens) return { by: 'modal', words: 'a modal dialog opened' };
+      return went === undefined ? undefined : { by: 'address', words: `the page went to ${went}` };
     },
     stop: () => {
       page.off('framenavigated', navigated);

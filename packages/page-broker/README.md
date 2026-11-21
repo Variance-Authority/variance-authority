@@ -141,13 +141,14 @@ the page going quiet — every outcome is looked at once.
   the act has finished and nothing has been pending for the quiet period. Work
   that starts within it begins the wait again, so a slow answer that leads
   somewhere is not mistaken for staying. A new address that still shows the
-  broker is staying — "next product" moves to `/product/2` — but a new page or
-  a modal dialog never is.
+  broker is staying — "next product" moves to `/product/2` — but a new
+  document, a new page or a modal dialog never is, even with the address
+  changed in the same action.
 - **None, quiet, and the app went somewhere you did not declare**: the action
   fails and says where — `billing.submit: reached none of payment, signIn, and
   the page went to /help, which no outcome declares`. Somewhere is the page
-  navigating, a hash or history change included, a new page opening, or a
-  modal dialog opening.
+  navigating, a hash or history change included, a new document loading, a
+  new page opening, or a modal dialog opening.
 - **None, and the broker has left the page**: staying is not the answer, so the
   action waits on and fails at the timeout — `billing left the page, and
   reached none of payment, signIn within 5000 ms`.

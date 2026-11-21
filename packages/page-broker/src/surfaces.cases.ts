@@ -11,10 +11,11 @@ import type { Surface } from './surface.js';
  * shows the Payment form, `signIn` the Sign in dialog, `help` opens a modal
  * dialog, `helpShown` shows a modal dialog that was on the page hidden, `next`
  * moves the page to `/checkout/next` with the form still on it, `gone` hides
- * the form and shows nothing in its place, and `nothing` leaves the page as it was.
+ * the form and shows nothing in its place, `nothing` leaves the page as it was,
+ * and answers joined by a comma happen together.
  */
 export type Checkout = (
-  answer: 'payment' | 'signIn' | 'help' | 'helpShown' | 'next' | 'gone' | 'nothing',
+  answer: 'payment' | 'signIn' | 'help' | 'helpShown' | 'next' | 'next,help' | 'gone' | 'nothing',
   after: number,
 ) => Promise<Surface>;
 
@@ -128,6 +129,12 @@ export function cases(checkout: Checkout): void {
 
   it('does not stay under a modal dialog opened over it', async () => {
     const billing = await Billing.on(await checkout('help', 20));
+
+    await expect(billing.next()).rejects.toMatchObject({ reason: 'elsewhere', went: 'a modal dialog opened' });
+  });
+
+  it('does not stay under a modal dialog opened with a new address, though it is still on the page', async () => {
+    const billing = await Billing.on(await checkout('next,help', 20));
 
     await expect(billing.next()).rejects.toMatchObject({ reason: 'elsewhere', went: 'a modal dialog opened' });
   });

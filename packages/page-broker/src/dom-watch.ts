@@ -187,14 +187,14 @@ export function away(document: Document): Elsewhere {
   }
   return {
     left: async () => {
-      if (document.location.href !== href) {
-        const { pathname, search, hash } = new URL(document.location.href);
-        return { by: 'address', words: `the page went to ${pathname}${search}${hash}` };
-      }
+      // A new page or a modal is told before a new address: either rules out
+      // staying, and an address change alone does not.
       if (opened) return { by: 'page', words: 'a new page opened' };
-      const now = modals(document);
       // Shown now and not before: a dialog mounted hidden and then shown opened just the same.
-      return [...now].some((each) => !before.has(each)) ? { by: 'modal', words: 'a modal dialog opened' } : undefined;
+      if ([...modals(document)].some((each) => !before.has(each))) return { by: 'modal', words: 'a modal dialog opened' };
+      if (document.location.href === href) return undefined;
+      const { pathname, search, hash } = new URL(document.location.href);
+      return { by: 'address', words: `the page went to ${pathname}${search}${hash}` };
     },
     stop: () => {
       for (const each of undo) each();

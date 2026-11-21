@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
-import { chromium, type Browser, type Locator, type Page } from 'playwright-core';
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { chromium, type Browser, type BrowserContext, type Locator, type Page } from 'playwright-core';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { by } from './broker.js';
 import { broker, stay, Unreached, type Members } from './index.js';
 import { surface, type PageSurface } from './playwright.js';
@@ -75,6 +75,7 @@ const CHECKOUT = `<!doctype html>
 
 let browser: Browser | undefined;
 let page: Page;
+let context: BrowserContext;
 
 const Payment = broker('payment', { probe: { role: 'form', name: 'Payment' } });
 const SignIn = broker('signIn', { probe: { role: 'dialog', name: 'Sign in' } });
@@ -109,44 +110,57 @@ async function open(query: string): Promise<void> {
   await page.goto(`${ORIGIN}/checkout?${query}`);
 }
 
-beforeAll(async () => {
-  if (!BROWSER_AVAILABLE) return;
-  browser = await chromium.launch({ headless: true });
-});
+/** What `/checkout/elsewhere` answers with; a case may put another document there. */
+let elsewhere: string;
+const OTHER = '<main>Elsewhere</main>';
 
-// A page per case, on Playwright alone: the package stands on nothing else
-// here, the harness's page pool included.
-beforeEach(async () => {
-  if (browser === undefined) return;
-  page = await browser.newPage();
+/** One page for every case; a case that closes it gets the next one. */
+async function fresh(): Promise<void> {
+  page = await context.newPage();
   await page.route(`${ORIGIN}/checkout**`, (route) =>
     route.fulfill({ contentType: 'text/html', body: CHECKOUT }),
   );
-  // Another document, with no billing form on it.
   await page.route(`${ORIGIN}/checkout/elsewhere`, (route) =>
-    route.fulfill({ contentType: 'text/html', body: '<main>Elsewhere</main>' }),
+    route.fulfill({ contentType: 'text/html', body: elsewhere }),
   );
-  // Never answered: the stream stays in flight for as long as the page lives.
+  // Never answered: the stream stays in flight until the document goes.
   await page.route(`${ORIGIN}/api/stream`, () => undefined);
   await page.route(`${ORIGIN}/api/picture`, () => undefined);
   await page.route(`${ORIGIN}/api/again**`, (route) =>
     // Slower than a quiet period: the deadline the first answer armed runs out with this in flight.
     setTimeout(() => {
-      void route.fulfill({
-        contentType: 'text/plain',
-        body: new URL(route.request().url()).searchParams.get('answer') ?? '',
-      });
+      void route
+        .fulfill({ contentType: 'text/plain', body: new URL(route.request().url()).searchParams.get('answer') ?? '' })
+        .catch(() => undefined);
     }, 2 * QUIET),
   );
   await page.route(`${ORIGIN}/api/billing**`, async (route) => {
     const query = new URL(route.request().url()).searchParams;
     await new Promise((done) => setTimeout(done, Number(query.get('after') ?? 0)));
-    await route.fulfill({ contentType: 'text/plain', body: query.get('answer') ?? '' });
+    await route.fulfill({ contentType: 'text/plain', body: query.get('answer') ?? '' }).catch(() => undefined);
   });
+}
+
+// One browser, one context and one page, on Playwright alone: the package
+// stands on nothing else here, the harness's page pool included. Each case
+// moves the page to its own document.
+beforeAll(async () => {
+  if (!BROWSER_AVAILABLE) return;
+  browser = await chromium.launch({ headless: true });
+  context = await browser.newContext();
+  // The page a `slowWindow` opens takes three quiet periods to begin.
+  await context.route(`${ORIGIN}/slow`, (route) =>
+    setTimeout(() => void route.fulfill({ contentType: 'text/html', body: 'slow' }).catch(() => undefined), 3 * QUIET),
+  );
+  await fresh();
 });
 
-afterEach(async () => {
-  if (browser !== undefined) await page.close();
+beforeEach(async () => {
+  if (browser === undefined) return;
+  elsewhere = OTHER;
+  // Pages a case opened, and the page itself when a case closed it.
+  await Promise.all(context.pages().filter((each) => each !== page).map((each) => each.close()));
+  if (page.isClosed()) await fresh();
 });
 
 afterAll(async () => {
@@ -233,7 +247,7 @@ chromium_('a broker over a page that announces nothing', () => {
   });
 
   it.each([
-    ['elsewhere', 'the page went to /checkout/elsewhere'],
+    ['elsewhere', 'a new document at /checkout/elsewhere'],
     ['window', 'a new page opened'],
     ['help', 'a modal dialog opened'],
     ['overlay', 'a modal dialog opened'],
@@ -257,6 +271,17 @@ chromium_('a broker over a page that announces nothing', () => {
 
     await expect(submit()).resolves.toMatchObject({ outcome: 'refused' });
     expect(new URL(page.url()).pathname).toBe('/checkout/next');
+  });
+
+  it('does not report staying when a new document shows the broker again', async () => {
+    elsewhere = CHECKOUT;
+    await open('answer=elsewhere&after=50');
+    const { submit } = await billing({ submit: quick({ ...outcomes, refused: stay }, click) });
+
+    await expect(submit()).rejects.toMatchObject({
+      reason: 'elsewhere',
+      went: 'a new document at /checkout/elsewhere',
+    });
   });
 
   it('reports staying when only a frame inside the page went somewhere', async () => {
@@ -283,10 +308,6 @@ chromium_('a broker over a page that announces nothing', () => {
 
   it('fails, and does not report staying, when the page it opened has not answered yet', async () => {
     // The new page's document takes three quiet periods to begin.
-    await page.context().route(`${ORIGIN}/slow`, (route) =>
-      // The case is over, and its context gone, before this answers.
-      setTimeout(() => void route.fulfill({ contentType: 'text/html', body: 'slow' }).catch(() => undefined), 3 * QUIET),
-    );
     await open('answer=slowWindow');
     const { submit } = await billing({ submit: quick({ ...outcomes, refused: stay }, click) });
 
@@ -296,9 +317,7 @@ chromium_('a broker over a page that announces nothing', () => {
   });
 
   it('reaches a declared outcome on another document', async () => {
-    await page.route(`${ORIGIN}/checkout/elsewhere`, (route) =>
-      route.fulfill({ contentType: 'text/html', body: '<form aria-label="Payment">Card number</form>' }),
-    );
+    elsewhere = '<form aria-label="Payment">Card number</form>';
     await open('answer=elsewhere');
     const { submit } = await billing({ submit: quick(outcomes, click) });
 

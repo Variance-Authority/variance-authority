@@ -22,18 +22,19 @@ function checkout(answer: string, after = 20): void {
   });
   document.querySelector('form')!.addEventListener('submit', async (event) => {
     event.preventDefault();
-    const said = await (await fetch('/api/billing')).text();
-    if (said === 'payment') (document.querySelector('[aria-label=Payment]') as HTMLElement).hidden = false;
-    if (said === 'signIn') (document.querySelector('[role=dialog]') as HTMLElement).hidden = false;
-    if (said === 'helpShown') (document.querySelector('[aria-label=Help]') as HTMLElement).hidden = false;
-    if (said === 'help') {
-      const help = document.body.appendChild(document.createElement('div'));
-      help.setAttribute('role', 'dialog');
-      help.setAttribute('aria-modal', 'true');
+    for (const said of (await (await fetch('/api/billing')).text()).split(',')) {
+      if (said === 'payment') (document.querySelector('[aria-label=Payment]') as HTMLElement).hidden = false;
+      if (said === 'signIn') (document.querySelector('[role=dialog]') as HTMLElement).hidden = false;
+      if (said === 'helpShown') (document.querySelector('[aria-label=Help]') as HTMLElement).hidden = false;
+      if (said === 'help') {
+        const help = document.body.appendChild(document.createElement('div'));
+        help.setAttribute('role', 'dialog');
+        help.setAttribute('aria-modal', 'true');
+      }
+      if (said === 'elsewhere' || said === 'gone') (document.querySelector('[aria-label=Billing]') as HTMLElement).hidden = true;
+      if (said === 'elsewhere') history.pushState(null, '', '/help');
+      if (said === 'next') history.pushState(null, '', '/checkout/next');
     }
-    if (said === 'elsewhere' || said === 'gone') (document.querySelector('[aria-label=Billing]') as HTMLElement).hidden = true;
-    if (said === 'elsewhere') history.pushState(null, '', '/help');
-    if (said === 'next') history.pushState(null, '', '/checkout/next');
   });
 }
 
