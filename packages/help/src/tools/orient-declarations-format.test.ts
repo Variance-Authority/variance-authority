@@ -43,6 +43,20 @@ describe('the declarations part of an orientation', () => {
     ]);
   });
 
+  it('names a member that shares its line with its container or the member before it, rather than print the line again', () => {
+    const line = 'type Streams = { out(text: string): void; err(text: string): void };';
+    expect(
+      formatDeclarations([
+        {
+          file: 'src/streams.ts',
+          read: true,
+          declarations: [{ name: 'Streams', kind: 'type', line: 3, exported: false, members: [{ name: 'out', line: 3, text: line }, { name: 'err', line: 3, text: line }], moreMembers: 0 }],
+          more: 0,
+        },
+      ]),
+    ).toEqual(['', 'Declared at the top level, from the source index:', '  src/streams.ts', '    3  type Streams', '       3  out', '       3  err']);
+  });
+
   it('is left out when no file asked about is in the index, or no index is published', () => {
     expect(formatDeclarations([])).toEqual([]);
     expect(formatDeclarations(undefined)).toEqual([]);

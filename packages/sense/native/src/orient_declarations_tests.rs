@@ -66,3 +66,11 @@ fn the_budget_shows_top_level_declarations_first_and_counts_the_members_and_decl
     assert_eq!(rows(&cut[0]), vec!["2 function total Some(true) +0", "4 class Basket Some(true) +2"]);
     assert_eq!(cut[0].more, 1);
 }
+
+#[test]
+fn a_member_on_its_container_line_is_listed_as_symbol_lists_it() {
+    let (records, parses) = chain(&[("src/id.ts", "git:b", "export type Id = { id: string; at: number };\n")]);
+    let layers = [Layer::open(&records).unwrap(), Layer::open(&parses).unwrap()];
+    let found = declarations_of(&layers, &["src/id.ts".to_owned()], 40);
+    assert_eq!(rows(&found[0]), vec!["1 type Id Some(true) +0", "  1 id", "  1 at"]);
+}

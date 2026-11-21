@@ -4,8 +4,9 @@
 //! declares, where, which an export binds, and what a class, an interface or a
 //! type alias holds. The scan already recorded all of it with the file's parse
 //! — its top-level symbols, its exports and its member declarations — so the
-//! outline is read off the chain the orientation already opened, with no file
-//! read and no second index open.
+//! outline is read off the chain the orientation already read, with no file
+//! read; it opens that chain's layers beside the other two readings, as each
+//! of them does.
 //!
 //! An outline is bounded by lines, not names: a file of four hundred exports
 //! would otherwise print four hundred lines before the graph the reader asked
@@ -21,7 +22,7 @@ use napi_derive::napi;
 use crate::chain_lookup::fold;
 use crate::compact::Layer;
 use crate::help_declared::exported_locals;
-use crate::help_members::ContainerMember;
+use crate::help_members::{members_of_row, ContainerMember};
 use crate::package_graph::{join_parses, Crossing};
 use crate::package_owners::NO_OWNER;
 
@@ -92,24 +93,15 @@ fn outline(layers: &[Layer], crossing: &Crossing, budget: usize) -> FileDeclarat
     let more = declarations.len().saturating_sub(budget) as u32;
     declarations.truncate(budget);
 
-    // A member goes under the first declaration of its container's name; a
-    // member on the line its container is declared on is already shown there.
+    // A member goes under the first declaration of its container's name, as
+    // `symbol` lists a container's members.
     let mut holder: HashMap<&str, usize> = HashMap::new();
     for (at, declaration) in declarations.iter().enumerate() {
         holder.entry(declaration.name.as_str()).or_insert(at);
     }
-    let mut members: Vec<(usize, ContainerMember)> = parses
-        .member_declarations
-        .range(row)
-        .filter_map(|member| {
-            let on = holder.get(stored.text(parses.member_declaration_on.at(member)))?;
-            let line = parses.member_declaration_line.at(member);
-            (line != declarations[*on].line).then(|| (*on, ContainerMember {
-                name: stored.text(parses.member_declaration_name.at(member)).to_owned(),
-                line,
-                text: stored.kept(parses.member_declaration_line_text.at(member)).map(str::to_owned),
-            }))
-        })
+    let mut members: Vec<(usize, ContainerMember)> = members_of_row(&layers[layer], row)
+        .into_iter()
+        .filter_map(|(of, member)| Some((*holder.get(of)?, member)))
         .collect();
     members.sort_by_key(|(on, member)| (declarations[*on].line, member.line));
     let mut left = budget - declarations.len();
