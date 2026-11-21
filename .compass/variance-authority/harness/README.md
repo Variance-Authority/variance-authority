@@ -17,20 +17,29 @@ an app that went somewhere no outcome declares fails the action.
 
 ## Boundary
 
-It owns the declared outcomes of an action, nothing else. Locating an element
-and waiting for it stay the [test host](../../externals/test-host.md)'s: an
-outcome is recognised through the host's own locator. It exports no `test`, no
-`expect`, no configuration and no lifecycle. It reads no signal the app was
+It owns the declared outcomes of an action, nothing else. It exports no `test`,
+no `expect`, no configuration and no lifecycle. It reads no signal the app was
 written to give — no `aria-busy`, no announced event — records nothing, and
 keeps nothing after the action returns. It does not say when an action may
 start, and it models no page: what is on screen besides the declared outcomes
 is not its question.
 
+One model decides every outcome; a surface only finds, looks, acts and says
+what counts as pending and as elsewhere. Over a browser, finding and visibility
+are Playwright's. Over a document, finding is Testing Library's and visibility
+is decided here, from `hidden` and computed style, since a document has no
+layout; `fetch`, `XMLHttpRequest` and `window.open` are wrapped while an action
+runs and put back by the last overlapping action to finish.
+
 ## Technology
 
-TypeScript on Node. Playwright's `Page` and `Locator` as types only, with
-`@playwright/test` as a peer; the page's own request events as the one sign of
-pending work, and its navigation and popup events as the sign of having left.
+TypeScript on Node, behind two entries with optional peers: `playwright-core`
+for a browser page, and `@testing-library/dom` with
+`@testing-library/user-event` for a document in jsdom, happy-dom or a runner's
+browser mode. Over a browser the page's request events are the sign of pending
+work and its navigation and popup events the sign of having left; over a
+document, requests in flight and changes to it are pending, and a location
+change, `window.open` or a new modal dialog is having left.
 
 ## Implementation coordinates
 
@@ -41,7 +50,9 @@ pending work, and its navigation and popup events as the sign of having left.
 
 ## Communicates with
 
-No block. It imports nothing from the rest of the chart and nothing imports it.
+[Arrival](../stability/arrival/README.md): which requests count as work is
+`awaitedRequest` from `@variance-authority/core`, the list arrival waits on, so
+the two never disagree. Nothing imports this block.
 
 ## Uses
 
@@ -49,14 +60,16 @@ No block. It imports nothing from the rest of the chart and nothing imports it.
 
 #### Why
 
-Whether a part of the page is visible is a question the host already answers,
-with the adopter's own selectors. A second way to find an element would be a
+Finding a part of the page is a question the host already answers, with the
+queries the adopter already writes. A second way to find an element would be a
 second answer to disagree with.
 
 #### What I need from it
 
-A locator that can be asked once whether it is visible, without waiting, and
-the page's request, navigation and popup events.
+Over a browser, a locator that can be asked once whether it is visible, without
+waiting, and the page's request, navigation and popup events. Over a document,
+the queries and user events of Testing Library, which the adopter's tests
+already use.
 
 #### What would make me leave
 

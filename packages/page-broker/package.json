@@ -48,6 +48,9 @@
   "scripts": {
     "build": "tsc --build"
   },
+  "dependencies": {
+    "@variance-authority/core": "workspace:^"
+  },
   "peerDependencies": {
     "@testing-library/dom": ">=10.4 <11",
     "@testing-library/user-event": ">=14.6 <15",

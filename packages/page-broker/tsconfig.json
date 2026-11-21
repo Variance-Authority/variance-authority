@@ -8,5 +8,6 @@
     "types": ["node"]
   },
   "include": ["src/**/*"],
-  "exclude": ["src/**/*.test.ts", "src/**/*.cases.ts", "src/**/*.measure.ts"]
+  "exclude": ["src/**/*.test.ts", "src/**/*.cases.ts", "src/**/*.measure.ts"],
+  "references": [{ "path": "../core" }]
 }

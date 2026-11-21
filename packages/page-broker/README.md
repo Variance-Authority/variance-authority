@@ -31,8 +31,8 @@ It needs nothing from the app. No attribute, event or hook written for tests is
 read: an outcome is a part of the page becoming visible, and staying is the page
 going quiet with none of them on it. It is a page object whose methods also say
 which of their declared destinations the app took, not a framework: your runner,
-`expect` and everything else stay yours. It depends on nothing else in Variance
-Authority.
+`expect` and everything else stay yours. Of Variance Authority it needs only
+`@variance-authority/core`, for which requests count as work.
 
 ## Requirements
 
@@ -162,8 +162,10 @@ Both surfaces answer the same questions from what each can see.
 | Elsewhere | the location changing, `window.open`, a new modal dialog | a navigation, a new page, a new modal dialog |
 | Acts | the events a user's input makes: a click is pointer and mouse down, up, then click | Playwright's actions |
 
-A document has no layout, so an element drawn off screen or covered still reads
-as visible there. jsdom has no `:modal`, so a modal dialog is one marked
+Over a document, `fetch`, `XMLHttpRequest` and `window.open` are wrapped while
+an action runs, so its work and where it went can be seen, and put back when the
+last action overlapping it has finished. A document has no layout, so an
+element drawn off screen or covered still reads as visible there. jsdom has no `:modal`, so a modal dialog is one marked
 `aria-modal="true"`.
 
 ## What it does not do

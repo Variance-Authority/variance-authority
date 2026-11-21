@@ -26,8 +26,11 @@ each over a page that announces nothing.
   the outcomes none of which was reached, or what kept the page busy.
 - **An undeclared destination is never staying.** A navigation, a new page or a
   modal dialog that no outcome declares fails the action and is named.
-- **Quiet is told one way on every surface.** `quiet-period.ts` is the one
-  clock; each surface says only what counts as pending. Whether a timer is the
+- **Quiet is told by one clock on every surface.** `quiet-period.ts` keeps
+  it; what counts as pending differs, since each surface sees different work:
+  requests in flight over a browser, requests and document changes over a
+  document. Which requests count is `awaitedRequest`, from
+  `@variance-authority/core`, on both. Whether a timer is the
   right way is
   [open](https://github.com/Variance-Authority/variance-authority/issues/1473).
 

@@ -98,7 +98,9 @@ committing, and the fix is made where the markup is.
   effects, says when React never loaded, and compares the markup the tap copied
   at the hydration commit (`tap.hydration(root)`) with the markup it ends on.
   A page agent that is stopped while it waits on the wire is named by the
-  requests still arriving (`stillArriving`, in `arrivals.ts`).
+  requests still arriving (`stillArriving`, in `arrivals.ts`). Which requests
+  count — not a channel, a stream or an asset — is `awaitedRequest` in
+  `packages/core/src/awaited.ts`, the one list the harness reads too.
   `packages/route-collector/src/read.ts` turns the settlement into the
   warnings, and `packages/route-collector/src/page-agent-entry.ts` taps once
   per document.

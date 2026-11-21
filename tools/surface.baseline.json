@@ -221,6 +221,7 @@
         "CaptureArtifact": "interface",
         "CaptureMaterial": "type",
         "LFS_POINTER_HEAD_BYTES": "const",
+        "awaitedRequest": "function",
         "didYouMean": "function",
         "isLfsPointer": "function",
         "nearest": "function"
@@ -1852,7 +1853,6 @@
         "UnansweredAssets": "class",
         "WidthPlanned": "interface",
         "acquireFromAgent": "function",
-        "awaitedRequest": "function",
         "blankKey": "function",
         "blankPng": "function",
         "blankRuleError": "function",
