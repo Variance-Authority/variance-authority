@@ -75,8 +75,16 @@ it('answers a name said twice once, as it answers it alone', () => {
   expect(symbol.run(help, { name: ['localToRemote', ' localToRemote'] }, { root })).toBe(alone('localToRemote'));
 });
 
-it('refuses for each of a list nothing declares what the answer refuses, as `files` and `restsOn` read it', () => {
-  const said = `${alone('baseToRemote')}\n\n${alone('remoteCompare')}`;
+it('refuses a list nothing declares, as `files` and `restsOn` read it, with each name\'s refusal said', () => {
+  const refusalOf = (name: string): string => {
+    try {
+      symbol.files?.(help, { name }, { root });
+    } catch (refusal) {
+      if (refusal instanceof FoundNothing) return refusal.message;
+    }
+    throw new Error(`\`${name}\` was not refused`);
+  };
+  const said = `${refusalOf('baseToRemote')}\n\n${refusalOf('remoteCompare')}`;
   expect(() => symbol.files?.(help, { name: ['baseToRemote', 'remoteCompare'] }, { root })).toThrow(said);
   expect(() => [...restsOn(help, { name: ['baseToRemote', 'remoteCompare'] }, { root })]).toThrow(said);
 });
