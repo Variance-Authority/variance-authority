@@ -31,4 +31,11 @@ describe('the note on a record this checkout ran over many states', () => {
     expect(many).not.toContain('t0.test.ts');
     expect(many.length - few.length).toBeLessThan(10);
   });
+
+  it('counts a test file that ran in several earlier states once', async () => {
+    const same = states(4).map((state) => ({ ...state, files: ['t.test.ts'] }));
+    const said = await checkoutRead('unit', await repository(), { layer: { ran: same } });
+
+    expect(said).toContain('; and 1 test file(s) over 3 earlier state(s)');
+  });
 });

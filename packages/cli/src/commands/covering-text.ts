@@ -18,7 +18,7 @@ import { nextPage, pageAt, paged, spellingOf, type Page } from '@variance-author
 import { FIRST_PAGE } from '../covering-args.js';
 import { quoted } from '../direct-call.js';
 import { runsOfLines, runsText, targetText, type UnrunPart } from './covering-at.js';
-import { casesByFile, type CoveringFile } from './covering-files.js';
+import { calledInto, casesByFile, type CoveringFile } from './covering-files.js';
 import type { CoveringRange } from './covering-frame.js';
 import { motionText } from './covering-motion.js';
 import { preconditionText } from './covering-unloaded.js';
@@ -274,8 +274,7 @@ function staleText(answer: Covering, paging: Paging): Paged {
 function wholeFile(answer: Covering, ranges: readonly CoveringRange[], paging: Paging): Paged {
   const file = answer.file ?? '';
   if (ranges.length === 0) return whole(`No line of ${file} is recorded in ${answer.from}.`);
-  const called = (range: CoveringRange) => range.tests.filter((test) => test.loaded !== true);
-  const named = new Map(ranges.flatMap((range) => called(range).map((test) => [test.id, test] as const)));
+  const named = new Map(calledInto(ranges).map((test) => [test.id, test] as const));
   // A case that reached the file only while its own file imported the module is counted, not named: on a module
   // every test file imports, those are most of the suite, and say who imports the file rather than who runs it.
   const loading = new Set(ranges.flatMap((range) => range.tests.filter((test) => test.loaded === true).map((test) => test.id)));

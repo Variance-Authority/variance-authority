@@ -96,3 +96,23 @@ describe('a covering answer an agent reads', () => {
     expect(() => parse(['--since', 'HEAD~1', '--offset', '10'])).toThrow(/`--since` and `--offset`/);
   });
 });
+
+describe('a case that called into one range of a file and only loaded the module on a later one', () => {
+  it('ranks its test file with the count of the cases that called in, as the header counts them', async () => {
+    const file = join(await mkdtemp(join(tmpdir(), 'variance-covering-loaded-')), 'cases.json');
+    await writeFile(file, JSON.stringify({
+      tests: [{ id: 'a.test.ts > calls', file: 'a.test.ts', name: 'calls' }],
+      modules: [{
+        file: 'src/hub.ts',
+        blocks: [
+          { kind: 'function', name: 'hub', path: 'entry', startLine: 1, endLine: 5, source: true, crossings: [{ test: 0, distance: 0 }] },
+          { kind: 'function', name: 'spoke', path: 'entry', startLine: 6, endLine: 9, source: true, crossings: [{ test: 0, distance: 0, loaded: true }] },
+        ],
+      }],
+    }));
+    const answer = await covering(parse(['--file', 'src/hub.ts', '--execution', file]));
+
+    expect(answer.files).toEqual([{ file: 'a.test.ts', cases: 1, of: 1 }]);
+    expect(formatCovering(answer, 'text', Date.now())).toContain('1 named test in 1 test file\n  a.test.ts — 1/1\n');
+  });
+});

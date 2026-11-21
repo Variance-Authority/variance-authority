@@ -52,7 +52,7 @@ function statesRead(ran: readonly OwnState[], offHead: ReadonlySet<string>): str
   const latest = ran.at(-1)!;
   const earlier = ran.slice(0, -1);
   if (earlier.length === 0) return stateRead(latest, offHead);
-  const files = earlier.flatMap((state) => state.files).length;
+  const files = new Set(earlier.flatMap((state) => state.files)).size;
   const away = earlier.filter((state) => offHead.has(state.commit)).length;
   return `${stateRead(latest, offHead)}; and ${String(files)} test file(s) over ${String(earlier.length)} earlier state(s)` +
     (away === 0 ? '' : `, ${String(away)} of them not on this branch`);

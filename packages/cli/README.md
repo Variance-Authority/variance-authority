@@ -479,16 +479,17 @@ native/src/lib.rs is not instrumented: the suite declares it a precondition of e
 ```
 
 Over a whole module, each test file whose cases called into it is named once,
-the most cases first, and the cases that ran it only while their file imported
-the module are counted, not named:
+the most cases first, with how many of its cases called in out of how many the
+record holds for it (`3/5`). The cases that ran it only while their file
+imported the module are counted, not named:
 
 ```text
 src/format/index.ts — 3 recorded ranges, 4 named tests in 2 test files, and 180 more that ran it only while their file imported it
-  src/format/index.test.ts — 3 cases
+  src/format/index.test.ts — 3/5
     formats a total
     formats a refund
     rounds half up
-  src/format/currency.test.ts — 1 case
+  src/format/currency.test.ts — 1/4
     formats yen
 lines 41-48 — loaded
   12 cases in 9 test files ran it only while their file imported the module
@@ -677,7 +678,7 @@ variance covering --file src/checkout/total.ts --cases src/checkout/total.test.t
 ```text
 Read from the 3 cases of the last run at 8a72c74b1e03, not the whole suite.
 src/checkout/total.ts — 4 recorded ranges, 3 named tests in 1 test file
-  src/checkout/total.test.ts — 3 cases
+  src/checkout/total.test.ts — 3/3
 …
 ```
 

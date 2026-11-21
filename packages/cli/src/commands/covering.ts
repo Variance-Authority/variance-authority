@@ -47,7 +47,7 @@ import { recordedExecutionFile } from './execution-input.js';
 import { recordedOrMainline, type FoundRecord, type RecordSource } from './suite-base.js';
 import { cutGap, probesGap, probesNote, type CutGap, type ProbesGap } from './probes-gap.js';
 import { hopsToTests } from './covering-reach.js';
-import { coveringFiles, type CoveringFile } from './covering-files.js';
+import { calledInto, coveringFiles, type CoveringFile } from './covering-files.js';
 import { RecordOlder } from './covering-unloaded.js';
 import { motionFor, type CoveringMotion } from './covering-motion.js';
 import { scopeCases, type CoveringScope } from './covering-scope.js';
@@ -339,9 +339,7 @@ export async function covering(request: CoveringQuestion, graph: Graph = graphOn
   const motion = await motionFor(request, answer.from, scope, full, runs);
   const hops = answer.tests !== undefined && request.since === undefined && request.hops === true ? await hopsToTests(request) : undefined;
   // A whole file ranks its test files as a line does, over every case that called into one of its ranges.
-  const called = answer.tests ?? (answer.ranges === undefined
-    ? undefined
-    : [...new Map(answer.ranges.flatMap((range) => range.tests.map((test) => [test.id, test] as const))).values()]);
+  const called = answer.tests ?? (answer.ranges === undefined ? undefined : calledInto(answer.ranges));
   const files = called === undefined || whole === undefined ? undefined : coveringFiles(called, whole, hops?.byFile);
   const probes = await gapOf(request, answer.from, whole);
   const at = record?.at;
