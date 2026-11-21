@@ -9,9 +9,8 @@
  * questions each of those files raises: what it declares at its top level, the
  * package it belongs to, the names that cross that package's edge in both
  * directions, the recorded cases that ran it, the calls those cases took into
- * and out of it, and the commands that ask about one of the names it printed.
- * A file asked as `path:line` narrows the calls to the function holding that
- * line.
+ * and out of it, and the commands that ask about one of the names it printed;
+ * `path:line` narrows the calls to the function holding that line.
  *
  * The package graph and the recorded cases are the addon's, through
  * `@variance-authority/sense`: they read what an earlier `variance index` and
