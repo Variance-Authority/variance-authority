@@ -22,21 +22,9 @@ export interface SearchReading {
    * failure.
    */
   readonly unopened?: readonly Unopened[];
-  /**
-   * The value the search was written from, which the published rows shown are
-   * counted against as `uses` counts them; the shell asks for it only for a row
-   * it counts.
-   */
-  readonly value: () => Promise<ValueRead>;
+  /** The already-open value whose published names the search counts as `uses` does. */
+  readonly help: Help;
 }
-
-/** The value a search was written from. */
-export interface ValueRead {
-  readonly help?: Help;
-}
-
-/** A value already in hand, as {@link SearchReading.value} hands it over. */
-const held = (help: Help): (() => Promise<ValueRead>) => () => Promise.resolve({ help });
 
 /** A published file the reading tried, and why it did not open. */
 export interface Unopened {
@@ -96,9 +84,9 @@ export async function readSearchForAnswer(root: string, options: AnsweringOption
       if (!(error instanceof UnsavedRead)) throw error;
       const { changed: _, taints: _taints, ...last } = reading;
       help = await readWorkspaceForAnswer(root, { ...last, justAnswer: true });
-      return { index: searchIndexOf(help), compared: false, value: held(help) };
+      return { index: searchIndexOf(help), compared: false, help };
     }
-    return { index: searchIndexOf(help), compared: !justAnswer, value: held(help) };
+    return { index: searchIndexOf(help), compared: !justAnswer, help };
   }
 
   const at = workspaceSnapshotPath(index);
@@ -109,7 +97,7 @@ export async function readSearchForAnswer(root: string, options: AnsweringOption
       ...(reading.index === undefined ? {} : { index: reading.index }),
       ...(reading.tree === undefined ? {} : { tree: reading.tree }),
     });
-    return { index: searchIndexOf(help), compared: false, value: held(help) };
+    return { index: searchIndexOf(help), compared: false, help };
   } catch (cause) {
     // Not published says nothing; published and unopenable is said with the answer.
     if (!absent(cause)) unopened = [{ published: 'value', at, reason: reasonOf(cause) }];
@@ -124,5 +112,5 @@ export async function readSearchForAnswer(root: string, options: AnsweringOption
     }
   }
   const read = await readWorkspace(root, reading);
-  return { index: searchIndexOf(read), compared: true, value: held(read), ...(unopened === undefined ? {} : { unopened }) };
+  return { index: searchIndexOf(read), compared: true, help: read, ...(unopened === undefined ? {} : { unopened }) };
 }

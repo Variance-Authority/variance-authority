@@ -6,11 +6,10 @@ import { asOneQuestion } from '@variance-authority/sense';
 import { snapshotLine } from './caught-up.js';
 import { workspaceGeneration } from './snapshot.js';
 import type { SearchIndex } from './search-index.js';
-import { type SearchReading, unopenedLine, type Unopened } from './search-read.js';
+import { unopenedLine, type Unopened } from './search-read.js';
 import { searchNames } from './tools/search-answer.js';
-import type { SearchQuestion } from './tools/search-matches.js';
 import { answerSearch, search, searchQuestionOf } from './tools/search.js';
-import { importingOf, type ImportingOf, showsPublished } from './tools/published-match.js';
+import type { ImportingOf } from './tools/published-match.js';
 import { wordsOf } from './words.js';
 
 /**
@@ -179,24 +178,4 @@ export function askSearch(index: SearchIndex, args: readonly string[], walk?: ()
 /** Every verb and what it answers, for the usage text and for `--help`. */
 export function verbs(): readonly (readonly [string, string])[] {
   return HELP_TOOLS.map((tool) => [verbOf(tool), tool.description] as const);
-}
-
-/** What the published rows a search shows are counted with, and every published file that did not open. */
-export interface ShownCounting {
-  readonly importing?: ImportingOf;
-  readonly unopened?: readonly Unopened[];
-}
-
-/**
- * The counts for the rows `question` shows, as `uses` gives them, read from
- * the value only when one of those rows is published: a question that prints
- * none never opens it.
- */
-export async function countingShown(reading: SearchReading, question: SearchQuestion, tree: Tree | undefined, root: string | undefined): Promise<ShownCounting> {
-  // Named no checkout: `root` adds declared names and other sections, never a published row.
-  const opened = showsPublished(searchNames(reading.index, question, tree)) ? await reading.value() : {};
-  return {
-    ...(opened.help === undefined ? {} : { importing: importingOf(opened.help, root) }),
-    ...(reading.unopened === undefined ? {} : { unopened: reading.unopened }),
-  };
 }

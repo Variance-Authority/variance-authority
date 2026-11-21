@@ -1,8 +1,7 @@
 #!/usr/bin/env node
 import { relative } from 'node:path';
 import type { Tree } from '@variance-authority/mcp/tools';
-import { spellingOf } from '@variance-authority/mcp/tools';
-import { ask, askSearch, askSearchJson, countingShown, inputFrom, invocationOf, toolNamed, verbs } from './ask.js';
+import { ask, askSearch, askSearchJson, inputFrom, invocationOf, toolNamed, verbs } from './ask.js';
 import { foundNothingAnswer, refusalFooter, snapshotLine } from './caught-up.js';
 import { readWorkspaceForAnswer } from './read.js';
 import { workspaceGeneration } from './snapshot.js';
@@ -11,7 +10,8 @@ import { readSearchForAnswer } from './search-read.js';
 import { containment, containmentOf, formatContainment } from './tools/containment.js';
 import { discover } from './tools/discover.js';
 import { intersection, namesWanted, RECORDED } from './tools.js';
-import { search, searchQuestionOf } from './tools/search.js';
+import { search } from './tools/search.js';
+import { importingOf } from './tools/published-match.js';
 import { serveWorkspace } from './server.js';
 import { writePages } from './write.js';
 
@@ -152,7 +152,7 @@ if (asking(verb) && verb !== undefined) {
     if (format === 'json' && tool !== search && tool !== containment) throw new Error(`\`${verb}\` answers in text only; \`--format json\` is taken by \`search\` and \`containment\``);
     const wantsTree = tool.wants?.(inputFrom(tool, ownArgs)) === true;
     if (args.includes('--just-answer')) throw new Error('`--just-answer` is taken by `serve`: a question always answers from the published generation');
-    // `search` opens the file published for it rather than the whole value;
+    // `search` decodes only the rows its question reads from the published value;
     // `discover` reads no workspace value, only the tree and its names.
     const answering = async (): Promise<Answering> => {
       let tree: Tree | undefined;
@@ -162,8 +162,8 @@ if (asking(verb) && verb !== undefined) {
       };
       if (tool === search) {
         const read = await readSearchForAnswer(root, reading);
-        const { index } = read;
-        const { importing, unopened } = await countingShown(read, searchQuestionOf(inputFrom(search, ownArgs), spellingOf(invocationOf({}))), tree, root);
+        const { index, help, unopened } = read;
+        const importing = importingOf(help, root);
         return { answer: () => (format === 'json' ? askSearchJson : askSearch)(index, ownArgs, () => tree, true, unopened, importing), at: index.generation?.generatedAt };
       }
       if (tool === discover) {
