@@ -35,8 +35,9 @@ function parse(argv: readonly string[]) {
 }
 
 async function ask(argv: readonly string[]): Promise<string> {
-  const question = parse([...argv, '--execution', await indexFile()]);
-  return formatCovering(await covering(question), question.format, Date.now(), question.page);
+  const execution = await indexFile();
+  const question = { ...parse([...argv, '--execution', execution]), asked: parse(argv).asked };
+  return formatCovering(await covering(question), question.format, Date.now(), question.page, question.asked);
 }
 
 describe('a covering answer an agent reads', () => {
@@ -47,8 +48,19 @@ describe('a covering answer an agent reads', () => {
     expect(text.split('t00.test.ts').length - 1).toBe(1);
     expect(text).toContain('  t09.test.ts — 3/3\n');
     expect(text).not.toContain('t10.test.ts');
-    expect(text).toContain('2 more not shown; `--offset` 10 shows the next 2.');
     expect(text).not.toContain('lines 1-5');
+  });
+
+  it('ends with the question that asks the next page, spelled as it was asked', async () => {
+    const text = await ask(['--file', 'src/hub.ts']);
+
+    expect(text.trimEnd().split('\n').at(-1)).toBe('2 more not shown; the next 2: `variance covering --file src/hub.ts --offset 10`.');
+  });
+
+  it('asks the next page with the `--limit` it was asked with, and no `--offset` twice', async () => {
+    const text = await ask(['--file', 'src/hub.ts', '--line', '2', '--offset', '2', '--limit', '4']);
+
+    expect(text.trimEnd().split('\n').at(-1)).toBe('6 more not shown; the next 4: `variance covering --file src/hub.ts --line 2 --limit 4 --offset 6`.');
   });
 
   it('shows three case names under a file and counts the rest', async () => {

@@ -44,6 +44,13 @@ export interface CoveringSource {
    * carries every one.
    */
   readonly page?: Page;
+  /**
+   * The flags the text answer was asked with, as typed, every one but
+   * `--offset`: the next page is this question again at another offset, so
+   * the answer can end with it spelled whole. Absent under JSON and refs,
+   * which are not paged.
+   */
+  readonly asked?: readonly string[];
 }
 
 /** The test files a text answer shows when no page is asked: enough to pick from, few enough to read. */
@@ -263,9 +270,18 @@ function executionAnd(flags: Flags): CoveringSource {
     ...(where.length === 0 ? {} : { where }),
     ...(read.length === 0 ? {} : { read }),
     ...(page === undefined ? {} : { page }),
+    ...(format === 'text' ? { asked: askedFlags(flags) } : {}),
     root: resolve(flags.values.get('--root') ?? process.cwd()),
     format: format as CoveringFormat,
   };
+}
+
+/** Every flag given, in the order typed, with its values, `--offset` left out: the next page says its own. */
+function askedFlags(flags: Flags): readonly string[] {
+  return [...flags.present].filter((flag) => flag !== '--offset').flatMap((flag) => {
+    const values = flags.repeated.get(flag) ?? [flags.values.get(flag)];
+    return values.flatMap((value) => (value === undefined ? [flag] : [flag, value]));
+  });
 }
 
 /** `--limit` and `--offset` as every listing reads them (`limit.ts`), absent when neither is said. */

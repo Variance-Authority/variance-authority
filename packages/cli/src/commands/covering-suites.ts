@@ -24,12 +24,12 @@ import {
   type SuiteKind,
 } from '@variance-authority/sense/test-selection';
 import type { Page } from '@variance-authority/mcp/tools';
-import type { CoveringQuestion, ParsedCovering } from '../covering-args.js';
+import { FIRST_PAGE, type CoveringQuestion, type ParsedCovering } from '../covering-args.js';
 import { OperatorError, type RefusalKind } from '../exit.js';
 import { heldText } from './covering-frame.js';
 import { listedChange } from './covering-since.js';
 import { covering, type Covering, type CoveringFormat } from './covering.js';
-import { formatCovering } from './covering-text.js';
+import { coveringText, formatCovering } from './covering-text.js';
 import { graphOnce, type Graph } from './gap-selection.js';
 import { marksOf, type GutterMark } from './covering-marks.js';
 import { evidenceGapText, GapRefusal, type EvidenceGap } from './evidence-gap.js';
@@ -162,19 +162,30 @@ async function askSuite(request: CoveringQuestion, suite: DeclaredSuite, graph: 
  * every refusal is printed in full, since a wrong path is then the likely
  * cause. JSON carries every refusal whole either way. Under `refs` no gap is
  * said: the list is for a runner, and {@link answerGaps} hands the gaps to the
- * caller for the person. Each record is dated against `now`, in ms.
+ * caller for the person. Each record is dated against `now`, in ms. The
+ * text ends with the question that asks each suite's next page, spelled from
+ * `asked` with that suite named, so the last line is the one to run next.
  */
-export function formatCoveringAnswer(answer: Covering | CoveringSuites, format: CoveringFormat, now: number, page?: Page): string {
-  if (!('suites' in answer)) return formatCovering(answer, format, now, page);
+export function formatCoveringAnswer(
+  answer: Covering | CoveringSuites,
+  format: CoveringFormat,
+  now: number,
+  page?: Page,
+  asked?: readonly string[],
+): string {
+  if (!('suites' in answer)) return formatCovering(answer, format, now, page, asked);
   if (format === 'json') return `${JSON.stringify(answer, undefined, 2)}\n`;
 
   const named = (one: SuiteAnswer): string => `${one.suite} (${one.kind})`;
+  const next: string[] = [];
   const say = (one: SuiteAnswer): string => {
     const head = `${named(one)}:`;
     const gap = one.gap === undefined || format === 'refs' ? '' : `${evidenceGapText(one.gap).replace(/^/gmu, '  ')}\n`;
     if ('reason' in one) return `${head} ${one.reason}\n${gap}`;
-    const body = formatCovering(one, format, now, page);
-    return `${head}\n${format === 'refs' ? body : body.replace(/^(?=.)/gmu, '  ')}`;
+    if (format === 'refs') return `${head}\n${formatCovering(one, format, now)}`;
+    const said = coveringText(one, now, page ?? FIRST_PAGE, asked === undefined ? undefined : withSuite(asked, one.suite));
+    next.push(...said.next.map((line) => `${head} ${line}`));
+    return `${head}\n${said.lines.map((line) => line.replace(/^(?=.)/gmu, '  ')).join('\n')}\n`;
   };
   if (answer.suites.every((one) => 'reason' in one)) return answer.suites.map(say).join('\n');
 
@@ -192,5 +203,11 @@ export function formatCoveringAnswer(answer: Covering | CoveringSuites, format: 
         'which is not the same as no test covering it.\n',
     );
   }
+  if (next.length > 0) said.push(`${next.join('\n')}\n`);
   return said.join('\n');
+}
+
+/** The asked flags with the suite named, so the next page reads the one suite whose rows ran past this one. */
+function withSuite(asked: readonly string[], suite: string): readonly string[] {
+  return asked.includes('--suite') ? asked : [...asked, '--suite', suite];
 }

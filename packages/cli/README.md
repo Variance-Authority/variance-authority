@@ -495,9 +495,10 @@ lines 41-48 — loaded
 ```
 
 The text shows ten test files and three cases under each, counts the rest, and
-says under them the `--offset` that shows the next page; `--limit` and `--offset`
-page it as they page every `ask` listing, and `--format json` names every case
-and range.
+ends with the question that asks the next page, spelled whole with its
+`--offset`, and its `--suite` when several suites answered; `--limit` and
+`--offset` page it as they page every `ask` listing, and `--format json` names
+every case and range.
 
 A record cut under probes this build does not place still answers: what ran,
 and which cases ran it, is read from the record as it holds it, at its own

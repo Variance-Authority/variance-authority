@@ -35,9 +35,10 @@ state, `No case called into lines 61-68, 101-103: unwalked.`, and the regions no
 case entered on lines a case called into are named once for the file.
 
 The text shows ten test files and three cases under each, counts the rest, and
-says under them the `--offset` that shows the next page; `--limit` and `--offset`
-page it as they page every `ask` listing. `--format json` names every case and
-range.
+ends with the question that asks the next page, spelled whole: ``2 more not
+shown; the next 2: `variance covering --file src/total.ts --offset 10`.``, with
+`--suite` named when several suites answered. `--limit` and `--offset` page it
+as they page every `ask` listing. `--format json` names every case and range.
 
 A line lands on the regions an edit to it charges, the same ones `variance
 select` reads, so the list is what a selection over your edit would run.
