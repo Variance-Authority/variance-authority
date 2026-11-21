@@ -6,7 +6,10 @@
 //! declares and did not enter is missing. Only what the source spells is
 //! declared — a literal id, a callback written in place, a helper the file
 //! names — so a check built at run time is never named, rather than named by
-//! a guess.
+//! a guess. A case's body is the one the journeys walk starts from
+//! (`journeys_roots::test_roots`), so both read one case the same way.
+
+// compass: variance-authority.reach.relations
 
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
@@ -15,7 +18,7 @@ use napi_derive::napi;
 use rayon::prelude::*;
 
 use crate::journeys_parse::{self, Parsed};
-use crate::journeys_roots::{body_hint, describe};
+use crate::journeys_roots::test_roots;
 
 /// The entry `checked` ships from.
 const ENTRY: &str = "@variance-authority/sense/checked";
@@ -76,7 +79,7 @@ pub fn declared_checks(root: String, cases: Vec<CheckedCaseAsk>) -> Vec<Option<D
 fn declared(parsed: &Parsed, name: &str) -> Option<(u32, Vec<(String, u32)>)> {
     let sites: HashMap<u32, u32> = parsed.calls.iter().filter_map(|call| call.callback.map(|at| (at, call.line))).collect();
     let site = |at: u32| sites.get(&at).copied().unwrap_or(parsed.fns[at as usize].line);
-    let body = body_of(parsed, name)?;
+    let body = test_roots(parsed, name, None)?.body;
     // What `checked` is called by in this file: its local name, or `checked` on a namespace.
     let callees: HashSet<&str> = parsed
         .imports
@@ -137,26 +140,6 @@ fn within(parsed: &Parsed, at: u32, scope: u32) -> bool {
     false
 }
 
-/// The body registered under `name`: its describes' titles and its own,
-/// joined as a runner joins them — ` > `, or Jest's space.
-fn body_of(parsed: &Parsed, name: &str) -> Option<u32> {
-    (0..parsed.fns.len() as u32).find(|&at| {
-        let func = &parsed.fns[at as usize];
-        let Some(own) = func.title.as_deref().filter(|_| body_hint(func.hint.as_deref())) else { return false };
-        let mut path = vec![own];
-        let mut scope = func.parent;
-        while let Some(s) = scope {
-            let outer = &parsed.fns[s as usize];
-            if let Some(title) = outer.title.as_deref().filter(|_| describe(outer.hint.as_deref())) {
-                path.push(title);
-            }
-            scope = outer.parent;
-        }
-        path.reverse();
-        path.join(" > ") == name || path.join(" ") == name
-    })
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -198,11 +181,34 @@ it('retries', { retry: 1 }, () => {
 
     #[test]
     fn declares_nothing_for_a_name_no_body_spells_nor_a_check_the_file_does_not_import() {
-        assert_eq!(read(SOURCE, "sends"), None);
-        assert_eq!(read(SOURCE, "other > sends"), None);
+        assert_eq!(read(SOURCE, "form > publishes"), None);
         let unimported = SOURCE.replacen("@variance-authority/sense/checked", "./checked", 1);
         assert_eq!(read(&unimported, "form > sends"), None);
         let renamed = SOURCE.replacen("{ checked }", "{ checked as check }", 1).replace("  checked(", "  check(");
         assert_eq!(read(&renamed, "retries").map(|(_, checks)| checks.len()), Some(1));
+    }
+
+    #[test]
+    fn finds_the_body_as_the_journeys_walk_does_by_its_path_then_its_title_then_its_template() {
+        let source = "import { checked } from '@variance-authority/sense/checked';
+describe('draft', () => {
+  it('sends', () => {
+    checked('draft', () => 1);
+  });
+});
+describe('final', () => {
+  it('sends', () => {
+    checked('final', () => 1);
+  });
+});
+it.each([1, 2])('adds %s', (n) => {
+  checked('sum', () => n);
+});
+";
+        let ids = |name: &str| read(source, name).map(|(_, checks)| checks.into_iter().map(|(id, _)| id).collect::<Vec<_>>());
+        assert_eq!(ids("final > sends"), Some(vec!["final".to_owned()]));
+        assert_eq!(ids("final sends"), Some(vec!["final".to_owned()]));
+        assert_eq!(ids("draft > sends"), Some(vec!["draft".to_owned()]));
+        assert_eq!(ids("adds 2"), Some(vec!["sum".to_owned()]));
     }
 }

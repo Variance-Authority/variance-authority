@@ -159,6 +159,18 @@ fn via_of(callee: &Option<Callee>) -> Option<String> {
     callee.as_ref().and_then(|named| named.prop.clone().or_else(|| named.id.clone()))
 }
 
+/// What a call through a curried `.each` hands its callbacks to: the call it
+/// curries, so `it.each(table)(title, body)` hands `body` to `it`.
+fn each_via(callee: &Expression) -> Option<String> {
+    let curried = match unwrapped(callee) {
+        Expression::CallExpression(inner) => &inner.callee,
+        Expression::TaggedTemplateExpression(inner) => &inner.tag,
+        _ => return None,
+    };
+    let named = callee_of(unwrapped(curried))?;
+    (named.prop.as_deref() == Some("each")).then(|| named.ns.unwrap_or_else(|| "each".to_owned()))
+}
+
 /// The call a callback is handed to.
 struct Site {
     line: u32,

@@ -198,7 +198,7 @@ impl<'a> Visit<'a> for Walker {
     fn visit_call_expression(&mut self, it: &CallExpression<'a>) {
         let own = self.guard + u32::from(it.optional);
         let callee = callee_of(&it.callee);
-        let via = via_of(&callee);
+        let via = via_of(&callee).or_else(|| each_via(&it.callee));
         self.call(it.span, callee, &it.arguments, own);
         self.visit_expression(&it.callee);
         if let Some(arguments) = &it.type_arguments {

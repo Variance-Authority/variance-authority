@@ -95,14 +95,33 @@ fn glob(pattern: &str, text: &str) -> bool {
     rest.len() >= last.len() && rest.ends_with(last)
 }
 
-struct Found {
-    body: u32,
+pub(crate) struct Found {
+    pub(crate) body: u32,
     hooks: Vec<u32>,
     scopes: Vec<u32>,
 }
 
-fn test_roots(parsed: &Parsed, name: &str, path: Option<&[&str]>) -> Option<Found> {
+/// Body `at`'s describes' titles and its own, joined by `by`.
+fn spelled(parsed: &Parsed, at: u32, by: &str) -> String {
+    let mut path = Vec::new();
+    let mut scope = Some(at);
+    while let Some(s) = scope {
+        let func = &parsed.fns[s as usize];
+        if let Some(own) = func.title.as_deref().filter(|_| s == at || describe(func.hint.as_deref())) {
+            path.push(own);
+        }
+        scope = func.parent;
+    }
+    path.reverse();
+    path.join(by)
+}
+
+/// The body registered under `name`: one whose describes and title spell it
+/// as a runner joins them — ` > `, or Jest's space — then one with its last
+/// title, then a template that may have formatted it.
+pub(crate) fn test_roots(parsed: &Parsed, name: &str, path: Option<&[&str]>) -> Option<Found> {
     let title = name.rsplit(" > ").next().unwrap_or(name);
+    let whole = |at: u32| spelled(parsed, at, " > ") == name || spelled(parsed, at, " ") == name;
     let matches = |own: &str| own == title || (own.contains('*') && glob(own, title)) || formatted(own);
     let on_path = |at: u32, path: &[&str]| {
         let mut scope = parsed.fns[at as usize].parent;
@@ -122,11 +141,16 @@ fn test_roots(parsed: &Parsed, name: &str, path: Option<&[&str]>) -> Option<Foun
             let func = &parsed.fns[at as usize];
             let Some(own) = func.title.as_deref() else { return false };
             body_hint(func.hint.as_deref())
-                && matches(own)
+                && (matches(own) || whole(at))
                 && path.is_none_or(|path| !placeholder(own) && on_path(at, path))
         })
         .collect();
-    let body = bodies.iter().copied().find(|&at| parsed.fns[at as usize].title.as_deref() == Some(title)).or(bodies.first().copied())?;
+    let body = bodies
+        .iter()
+        .copied()
+        .find(|&at| whole(at))
+        .or_else(|| bodies.iter().copied().find(|&at| parsed.fns[at as usize].title.as_deref() == Some(title)))
+        .or(bodies.first().copied())?;
     let mut chain = Vec::new();
     let mut scope = parsed.fns[body as usize].parent;
     while let Some(s) = scope {
