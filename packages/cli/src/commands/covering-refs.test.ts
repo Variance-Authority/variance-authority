@@ -101,12 +101,12 @@ describe('an answer with every case named once', () => {
     ]);
   });
 
-  it('keeps the text answer to one file heading, and says a repeated list in one line', () => {
+  it('keeps the text answer to one file heading, and names each test file once', () => {
     const text = formatCovering(WHOLE_FILE, 'text', Date.now());
 
-    expect(text).toContain(`lines 1-5 — walked\n  ${RESET}\n    configure > honours a second driver\n`);
-    expect(text).toContain('line 62 — walked\n  the same 3 named tests as lines 1-5\n');
+    expect(text).toContain(`\n  ${RESET} — 3 cases\n    configure > honours a second driver\n`);
+    expect(text).not.toContain('line 62');
     expect(text).toContain('lines 70-72 — loaded\n  1 case in 1 test file ran it only while their file imported the module\n');
-    expect(text.split(RESET).length - 1).toBe(2);
+    expect(text.split(RESET).length - 1).toBe(1);
   });
 });

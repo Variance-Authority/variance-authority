@@ -23,6 +23,7 @@ import {
   type DeclaredSuite,
   type SuiteKind,
 } from '@variance-authority/sense/test-selection';
+import type { Page } from '@variance-authority/mcp/tools';
 import type { CoveringQuestion, ParsedCovering } from '../covering-args.js';
 import { OperatorError, type RefusalKind } from '../exit.js';
 import { heldText } from './covering-frame.js';
@@ -163,8 +164,8 @@ async function askSuite(request: CoveringQuestion, suite: DeclaredSuite, graph: 
  * said: the list is for a runner, and {@link answerGaps} hands the gaps to the
  * caller for the person. Each record is dated against `now`, in ms.
  */
-export function formatCoveringAnswer(answer: Covering | CoveringSuites, format: CoveringFormat, now: number): string {
-  if (!('suites' in answer)) return formatCovering(answer, format, now);
+export function formatCoveringAnswer(answer: Covering | CoveringSuites, format: CoveringFormat, now: number, page?: Page): string {
+  if (!('suites' in answer)) return formatCovering(answer, format, now, page);
   if (format === 'json') return `${JSON.stringify(answer, undefined, 2)}\n`;
 
   const named = (one: SuiteAnswer): string => `${one.suite} (${one.kind})`;
@@ -172,7 +173,7 @@ export function formatCoveringAnswer(answer: Covering | CoveringSuites, format: 
     const head = `${named(one)}:`;
     const gap = one.gap === undefined || format === 'refs' ? '' : `${evidenceGapText(one.gap).replace(/^/gmu, '  ')}\n`;
     if ('reason' in one) return `${head} ${one.reason}\n${gap}`;
-    const body = formatCovering(one, format, now);
+    const body = formatCovering(one, format, now, page);
     return `${head}\n${format === 'refs' ? body : body.replace(/^(?=.)/gmu, '  ')}`;
   };
   if (answer.suites.every((one) => 'reason' in one)) return answer.suites.map(say).join('\n');

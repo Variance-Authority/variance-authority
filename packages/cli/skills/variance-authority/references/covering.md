@@ -21,12 +21,23 @@ variance covering --file src/checkout/total.ts --line 48
 variance covering --file src/checkout/total.ts --line 40-60
 variance covering --file src/checkout/total.ts --function applyDiscount --format json
 variance covering --file src/checkout/total.ts --function Cart   # every recorded method of the class
-variance covering --file src/checkout/total.ts                  # per recorded range
+variance covering --file src/checkout/total.ts                  # its test files, the most cases first
 variance covering --file src/checkout/total.ts --format refs    # each case once, ranges by number
 ```
 
 A line or a function is answered per test file first: `total.test.ts — 2/3`
-means two of that file's three cases ran through it, and the cases follow.
+means two of that file's three cases ran through it, and the cases follow. A
+whole file is answered the same way, once: each test file whose cases called
+into any of its ranges, the most cases first, `total.test.ts — 3 cases`. A
+range is named under the files only when it has something of its own to say,
+such as an edit that moved it. The ranges no case called into are one line per
+state, `No case called into lines 61-68, 101-103: unwalked.`, and the regions
+no case entered one sentence, each named once.
+
+The text shows ten test files and three cases under each, counts the rest, and
+ends with the `--offset` that shows the next page; `--limit` and `--offset`
+page it as they page every `ask` listing. `--format json` names every case and
+range.
 
 A line lands on the regions an edit to it charges, the same ones `variance
 select` reads, so the list is what a selection over your edit would run.
@@ -79,8 +90,8 @@ no region holds it.
   that holds no preconditions is in [case preconditions](case-preconditions.md).
 - `--format refs` numbers each case once in a table at the end and names every
   range's cases by those numbers, so a module whose eleven cases all run it
-  costs one table, not eleven names per range. It is the shortest answer to hand
-  another agent.
+  costs one table, not eleven names per range. It names every case and every
+  range, where the text pages its test files.
 
 ```bash
 variance covering --file src/checkout/total.ts --line 48 --hops
@@ -206,14 +217,15 @@ record cannot rank.
 A range's cases are the ones an edit to its lines selects, so the line that
 opens a branch carries the cases of the function around it. A region no case
 entered on such a line, a one-line branch or the opening line of a longer one,
-gets a range of its own in the whole-file answer and a line under it that says
-no case entered it, with its state:
+gets a range of its own, and the whole-file answer says once, below the test
+files, that no case entered it, with its state:
 
 ```text
-line 6 — alone
-  the same named test as lines 4-5
-  no case entered the branch on line 6, and every case that could have reached it finished: unwalked.
+No case entered the branch on line 6, and every case that could have reached it finished: unwalked.
 ```
+
+The unwalked regions share that sentence; a hole has one of its own, with the
+cases that stopped before it under it.
 
 `--format json` lists those regions under the range's `unentered`, and
 `--format refs` adds `; unentered branch 6 unwalked` to its line.

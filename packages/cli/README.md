@@ -447,8 +447,9 @@ file, and the answer says so.
 
 Over a whole file, a region no case entered on a line the function around it
 also charges, such as a one-line branch or the line that opens a longer one,
-gets a range of its own and a line saying no case entered it, and whether that
-is unwalked or a hole; `--format json` lists it under the range's `unentered`.
+gets a range of its own, and the answer says once that no case entered it, and
+whether that is unwalked or a hole; `--format json` lists it under the range's
+`unentered`.
 A narrowed answer and a file edited since the run say the same, at the line the
 region stands on now.
 
@@ -477,18 +478,26 @@ reaches, is said to be one rather than met by each test file:
 native/src/lib.rs is not instrumented: the suite declares it a precondition of every one of the 212 test files these cases come from, so no case is recorded entering any line of it, and a change to it selects all of them.
 ```
 
-Over a whole module that many test files import, each range names the cases
-that ran it and counts the rest, the ones that ran it only while their file
-imported the module:
+Over a whole module, each test file whose cases called into it is named once,
+the most cases first, and the cases that ran it only while their file imported
+the module are counted, not named:
 
 ```text
-src/format/index.ts — 3 recorded ranges, 4 named tests, and 180 more that ran it only while their file imported it
-lines 1-40
-  src/format/index.test.ts
+src/format/index.ts — 3 recorded ranges, 4 named tests in 2 test files, and 180 more that ran it only while their file imported it
+  src/format/index.test.ts — 3 cases
     formats a total
-  and 180 cases in 96 test files ran it only while their file imported the module
-…
+    formats a refund
+    rounds half up
+  src/format/currency.test.ts — 1 case
+    formats yen
+lines 41-48 — loaded
+  12 cases in 9 test files ran it only while their file imported the module
 ```
+
+The text shows ten test files and three cases under each, counts the rest, and
+ends with the `--offset` that shows the next page; `--limit` and `--offset`
+page it as they page every `ask` listing, and `--format json` names every case
+and range.
 
 A record cut under probes this build does not place still answers: what ran,
 and which cases ran it, is read from the record as it holds it, at its own
@@ -630,9 +639,10 @@ does not, and writes zero into every crossing, so a depth column here was a
 constant dressed as a measurement. *How far away is this test* is an import
 count, and it is the two flags above.
 
-Given `--file` alone the answer is per range rather than per test: the recorded
-regions of the file, each with the tests shared by every line in it, which is
-where an unclaimed region shows up as one.
+Given `--file` alone the answer names each test file once and then the ranges
+with something of their own to say, which is where an unclaimed region shows
+up: a range no case called into, a range an edit moved, and a region on a range
+no case entered. `--format json` holds every range with its cases.
 
 Each range, and the answer about one line, also carries the one word an editor
 paints it with:
@@ -665,7 +675,9 @@ variance covering --file src/checkout/total.ts --cases src/checkout/total.test.t
 
 ```text
 Read from the 3 cases of the last run at 8a72c74b1e03, not the whole suite.
-src/checkout/total.ts — 4 recorded ranges, 3 named tests
+src/checkout/total.ts — 4 recorded ranges, 3 named tests in 1 test file
+  src/checkout/total.test.ts — 3 cases
+…
 ```
 
 `last` is the run that wrote the index last, which is the run you just made. A

@@ -8,12 +8,16 @@
 
 import {
   formatCoveringChange,
+  unenteredPlace,
   unenteredSentence,
   whyUnentered,
   type CoveringTest,
   type ExecutionTest,
   type HeldLines,
+  type Unentered,
 } from '@variance-authority/sense/test-selection';
+import { nextPage, pageAt, paged, spellingOf, type Page } from '@variance-authority/mcp/tools';
+import { FIRST_PAGE } from '../covering-args.js';
 import { runsOfLines, runsText, targetText, type UnrunPart } from './covering-at.js';
 import { casesByFile, type CoveringFile } from './covering-files.js';
 import type { CoveringRange } from './covering-frame.js';
@@ -31,8 +35,10 @@ import type { Covering, CoveringFormat, CoveringTarget, StatedChange } from './c
  * Say the answer in the shape the caller asked for.
  *
  * @param now The clock the answer is dated against, in ms.
+ * @param page The test files the text shows, ten from the first unless
+ *   `--limit` or `--offset` asked another page; refs and JSON carry every one.
  */
-export function formatCovering(answer: Covering, format: CoveringFormat, now: number): string {
+export function formatCovering(answer: Covering, format: CoveringFormat, now: number, page: Page = FIRST_PAGE): string {
   if (format === 'refs') return formatCoveringRefs(answer);
   if (format === 'json') return `${JSON.stringify(answer, undefined, 2)}\n`;
   return `${[
@@ -40,7 +46,7 @@ export function formatCovering(answer: Covering, format: CoveringFormat, now: nu
     ...probesText(answer),
     ...scopeText(answer),
     ...whereText(answer),
-    ...said(text(answer)),
+    ...said(text(answer, page)),
     ...hopsText(answer),
     ...motionText(answer.motion),
     ...frameText(answer),
@@ -60,11 +66,11 @@ function said(block: string): readonly string[] {
   return block === '' ? [] : [block];
 }
 
-function text(answer: Covering): string {
+function text(answer: Covering, page: Page): string {
   if (answer.changed !== undefined) return sinceText(answer, answer.changed);
   if (answer.preconditionOf !== undefined) return preconditionText(answer.file ?? '', answer.preconditionOf, answer.held, answer.among);
-  if (staleFile(answer)) return staleText(answer);
-  if (answer.ranges !== undefined) return wholeFile(answer, answer.ranges);
+  if (staleFile(answer)) return staleText(answer, page);
+  if (answer.ranges !== undefined) return wholeFile(answer, answer.ranges, page);
 
   const tests = answer.tests ?? [];
   // Past the file's ranges the answer is `coveringAt`'s, which always names what was asked.
@@ -94,7 +100,7 @@ function text(answer: Covering): string {
     `${tests.length} named test${tests.length === 1 ? '' : 's'} covered ${where} of ${answer.file}${
       answer.state === 'alone' ? ', and it is the only case that could have' : ''
     }:`,
-    ...caseLines(tests, '  ', answer.files),
+    ...caseLines(tests, '  ', answer.files, page),
     ...legend(tests),
     ...unrunText(answer.unrun),
     ...grainText(answer, where),
@@ -200,96 +206,131 @@ export function scopeText(answer: Covering): readonly string[] {
  * history, so there is no line to give: the cases that ran code in the file,
  * and the reading the gap takes away.
  */
-function staleText(answer: Covering): string {
+function staleText(answer: Covering, page: Page): string {
   const { gone, header } = staleLines(answer);
   const tests = answer.tests ?? [];
   return [
     gone,
     ...header === undefined ? [] : [tests.length === 0 ? header : `${header}:`],
-    ...caseLines(tests, '  ', answer.files),
+    ...caseLines(tests, '  ', answer.files, page),
     ...legend(tests),
     ...narrowedText(answer),
   ].join('\n');
 }
 
 /**
- * Every recorded range of a file, each with the cases that called into it.
+ * The test files whose cases called into a file, each named once, the most
+ * cases first, then the ranges that have something to say on their own.
  *
- * A case that reached a range only while its file imported the module is
+ * Which range a case entered is the JSON's and `--line`'s answer: the reader of
+ * the text picks test files to run and to open, and the same files listed again
+ * under every range they entered told them nothing new. A range is said only
+ * when no case called into it, an edit moved it, or it holds what its cases do
+ * not say.
+ *
+ * A case that reached the file only while its own file imported the module is
  * counted, not named: on a module every test file imports, those are most of
  * the suite, and a list of them says who imports the file rather than who runs
- * the range. Asked by line or function, or as JSON, they are named.
+ * it. Asked by line or function, or as JSON, they are named.
  */
-function wholeFile(answer: Covering, ranges: readonly CoveringRange[]): string {
+function wholeFile(answer: Covering, ranges: readonly CoveringRange[], page: Page): string {
   const file = answer.file ?? '';
   if (ranges.length === 0) return `No line of ${file} is recorded in ${answer.from}.`;
   const called = (range: CoveringRange) => range.tests.filter((test) => test.loaded !== true);
-  const named = new Set(ranges.flatMap((range) => called(range).map((test) => test.id)));
+  const named = new Map(ranges.flatMap((range) => called(range).map((test) => [test.id, test] as const)));
   const loading = new Set(ranges.flatMap((range) => range.tests.filter((test) => test.loaded === true).map((test) => test.id)));
-  for (const id of named) loading.delete(id);
+  for (const id of named.keys()) loading.delete(id);
+  const byFile = [...casesByFile([...named.values()], [])].sort(([left, a], [right, b]) =>
+    b.length - a.length || (left < right ? -1 : left > right ? 1 : 0));
   const lines = [
-    `${file} — ${ranges.length} recorded range${ranges.length === 1 ? '' : 's'}, ${
-      named.size
-    } named test${named.size === 1 ? '' : 's'}${
-      loading.size === 0 ? '' : `, and ${loading.size} more that ran it only while their file imported it`
-    }`,
+    `${file} — ${ranges.length} recorded range${ranges.length === 1 ? '' : 's'}, ${named.size} named test${named.size === 1 ? '' : 's'}${
+      named.size === 0 ? '' : ` in ${byFile.length} test file${byFile.length === 1 ? '' : 's'}`
+    }${loading.size === 0 ? '' : `, and ${loading.size} more that ran it only while their file imported it`}`,
+    ...fileRows(byFile, '  ', page, (_, cases) => ` — ${cases.length} case${cases.length === 1 ? '' : 's'}`),
   ];
-  // Where each list of cases was first printed, so a later range walked by the same cases points at it.
-  const printed = new Map<string, string>();
-  for (const range of ranges) {
-    const place = range.startLine === range.endLine ? `line ${range.startLine}` : `lines ${range.startLine}-${range.endLine}`;
-    lines.push(`${place}${range.state === undefined ? '' : ` — ${range.state}`}${
-      range.moved === true ? ', edited since the recording' : ''
-    }`);
-    const tests = called(range);
-    const carried = range.tests.filter((test) => test.loaded === true);
-    const key = `${tests.map((test) => test.id).join('\n')}\0${carried.map((test) => test.id).join('\n')}`;
-    if (range.tests.length === 0) {
-      // The header already says `loaded`, `unwalked` or `hole`; the stopped cases are the rest of a hole, and
-      // say nothing about a range that ran while its module loaded.
-      const said = range.state === 'loaded' || range.state === 'unwalked' || range.state === 'hole';
-      // Under `--where` or `--read` the state is read over cases the list leaves out, so an empty list says nothing about them.
-      if (!said) {
-        lines.push(answer.where === undefined
-          ? range.overwritten === undefined
-            ? `  no named test covered this range${whyUnentered(range.stopped)}`
-            : `  this range is ${lostText({ other: false, it: 'it' })}`
-          : `  no case ${answer.where.read === undefined ? '`--where`' : answer.where.asked.length === 0 ? '`--read`' : '`--where` and `--read`'} kept covered this range`);
-      }
-      lines.push(...(range.state === 'loaded' ? [] : range.stopped ?? []).map((test) =>
-        said ? `  stopped first: ${test.file} > ${caseName(test)}` : `    stopped: ${test.file} > ${caseName(test)}`));
-    } else if (printed.has(key)) {
-      const named = tests.length === 0 ? [] : [tests.length === 1 ? 'named test' : `${tests.length} named tests`];
-      const loading = carried.length === 0 ? [] : [`${carried.length} case${carried.length === 1 ? '' : 's'} that only loaded the module`];
-      lines.push(`  the same ${[...named, ...loading].join(', and ')}${named.length > 0 && loading.length > 0 ? ',' : ''} as ${printed.get(key)}`);
-    } else {
-      lines.push(...caseLines(tests, '  '), ...loadedOnly(carried, tests.length > 0));
-      printed.set(key, place);
-    }
-    if (range.tests.length > 0 && range.overwritten !== undefined) lines.push(`  it is also ${lostText({ other: true, it: 'it' })}`);
-    lines.push(...unenteredLines(range));
+  const quiet = ranges.filter(isQuiet);
+  for (const range of ranges) if (!quiet.includes(range)) lines.push(...rangeNote(answer, range));
+  for (const state of new Set(quiet.map((range) => range.state))) {
+    const runs = quiet.filter((range) => range.state === state);
+    lines.push(`No case called into ${single(runs) ? 'line' : 'lines'} ${runsText(runs)}: ${state}.`);
   }
+  lines.push(...unenteredText(ranges));
   lines.push(...narrowedText(answer));
   return lines.join('\n');
 }
 
-/**
- * The regions on a range nobody entered: the range's cases are the ones an
- * edit to its lines selects, and a region with no line of its own would read as
- * theirs (`unentered.ts` in sense).
- */
-function unenteredLines(range: CoveringRange): readonly string[] {
-  return (range.unentered ?? []).flatMap((region) => [
-    `  ${unenteredSentence(region)}`,
-    ...(region.stopped ?? []).map((test) => `    stopped: ${test.file} > ${caseName(test)}`),
-  ]);
+/** What one range says that the file's rows do not: nothing when cases called into it and it holds nothing else. */
+function rangeNote(answer: Covering, range: CoveringRange): readonly string[] {
+  const tests = range.tests.filter((test) => test.loaded !== true);
+  const carried = range.tests.filter((test) => test.loaded === true);
+  const notes: string[] = [];
+  if (range.tests.length === 0) {
+    // The header already says `loaded`, `unwalked` or `hole`; the stopped cases are the rest of a hole, and
+    // say nothing about a range that ran while its module loaded.
+    const said = range.state === 'loaded' || range.state === 'unwalked' || range.state === 'hole';
+    // Under `--where` or `--read` the state is read over cases the list leaves out, so an empty list says nothing about them.
+    if (!said) {
+      notes.push(answer.where === undefined
+        ? range.overwritten === undefined
+          ? `  no named test covered this range${whyUnentered(range.stopped)}`
+          : `  this range is ${lostText({ other: false, it: 'it' })}`
+        : `  no case ${answer.where.read === undefined ? '`--where`' : answer.where.asked.length === 0 ? '`--read`' : '`--where` and `--read`'} kept covered this range`);
+    }
+    notes.push(...(range.state === 'loaded' ? [] : range.stopped ?? []).map((test) =>
+      said ? `  stopped first: ${test.file} > ${caseName(test)}` : `    stopped: ${test.file} > ${caseName(test)}`));
+  } else if (tests.length === 0) {
+    notes.push(...loadedOnly(carried));
+  }
+  if (range.tests.length > 0 && range.overwritten !== undefined) notes.push(`  it is also ${lostText({ other: true, it: 'it' })}`);
+  if (notes.length === 0 && range.tests.length > 0 && range.moved !== true) return [];
+  const place = range.startLine === range.endLine ? `line ${range.startLine}` : `lines ${range.startLine}-${range.endLine}`;
+  return [`${place}${range.state === undefined ? '' : ` — ${range.state}`}${range.moved === true ? ', edited since the recording' : ''}`, ...notes];
 }
 
-/** The cases that reached a range only while their file imported its module, counted under the ones that called into it. */
-function loadedOnly(carried: readonly CoveringTest[], more: boolean): readonly string[] {
+/**
+ * A range whose state says all there is: no case called into it, none stopped
+ * short of it, and no edit or overwrite on it. Said in one line per state for
+ * the whole file, not a header per range.
+ */
+function isQuiet(range: CoveringRange): boolean {
+  return range.tests.length === 0 &&
+    (range.state === 'unwalked' || range.state === 'loaded' || range.state === 'hole') &&
+    (range.state === 'loaded' || (range.stopped ?? []).length === 0) &&
+    range.moved !== true && range.overwritten === undefined;
+}
+
+/**
+ * The regions nobody entered, once each, though a function's opening and
+ * closing lines sit on two ranges: the range's cases are the ones an edit to its
+ * lines selects, and a region with no line of its own would read as theirs
+ * (`unentered.ts` in sense). The unwalked ones are one sentence; a hole keeps
+ * its own, with the cases that stopped before it.
+ */
+function unenteredText(ranges: readonly CoveringRange[]): readonly string[] {
+  const regions = new Map<string, Unentered>();
+  for (const region of ranges.flatMap((range) => range.unentered ?? [])) {
+    regions.set(`${region.kind}:${region.startLine}:${region.endLine}`, region);
+  }
+  const all = [...regions.values()];
+  const lines: string[] = [];
+  for (const stopped of [[], undefined] as const) {
+    const plain = all.filter((region) => (region.stopped === undefined) === (stopped === undefined) && (region.stopped ?? []).length === 0);
+    if (plain.length === 0) continue;
+    const why = whyUnentered(stopped);
+    lines.push(`No case entered ${plain.map(unenteredPlace).join(', ')}${plain.length === 1 ? why : why.replace('reached it', 'reached them')}`);
+  }
+  for (const region of all.filter((one) => (one.stopped ?? []).length > 0)) {
+    lines.push(`N${unenteredSentence(region).slice(1)}`,
+      ...(region.stopped ?? []).map((test) => `  stopped: ${test.file} > ${caseName(test)}`));
+  }
+  return lines;
+}
+
+/** The cases that reached a range only while their file imported its module, counted where no case called into it. */
+function loadedOnly(carried: readonly CoveringTest[]): readonly string[] {
   if (carried.length === 0) return [];
   const files = new Set(carried.map((test) => test.file)).size;
-  return [`  ${more ? 'and ' : ''}${carried.length} case${carried.length === 1 ? '' : 's'} in ${files} test file${
+  return [`  ${carried.length} case${carried.length === 1 ? '' : 's'} in ${files} test file${
     files === 1 ? '' : 's'
   } ran it only while their file imported the module`];
 }
@@ -348,13 +389,41 @@ function sinceText(answer: Covering, changed: readonly StatedChange[]): string {
 function caseLines(
   tests: readonly CoveringTest[],
   indent: string,
-  files: readonly CoveringFile[] = [],
+  files: readonly CoveringFile[] | undefined,
+  page: Page,
 ): readonly string[] {
-  const rows = new Map(files.map((row) => [row.file, row]));
-  return [...casesByFile(tests, files)].flatMap(([file, cases]) => [
-    `${indent}${file}${fileCount(rows.get(file))}`,
-    ...cases.map((test) => `${indent}  ${caseName(test)}${test.loaded === true ? '*' : ''}${heldText(test)}`),
-  ]);
+  const rows = new Map((files ?? []).map((row) => [row.file, row]));
+  return fileRows([...casesByFile(tests, files ?? [])], indent, page, (file) => fileCount(rows.get(file)));
+}
+
+/** The cases a file row names before it counts the rest: enough to open the file at one, few enough to read on every row. */
+const CASES_SHOWN = 3;
+
+const SHELL = spellingOf({ shell: 'variance' });
+
+/**
+ * One page of test files, each with its first cases and the count of the
+ * rest, as `limit.ts` pages every listing; when a file or a case was left
+ * out, where every one of them is.
+ */
+function fileRows(
+  byFile: readonly (readonly [string, readonly CoveringTest[]])[],
+  indent: string,
+  page: Page,
+  rowText: (file: string, cases: readonly CoveringTest[]) => string,
+): readonly string[] {
+  const shown = paged(byFile, page);
+  const cut = shown.length < byFile.length || shown.some(([, cases]) => cases.length > CASES_SHOWN);
+  return [
+    ...pageAt(page, byFile.length, SHELL),
+    ...shown.flatMap(([file, cases]) => [
+      `${indent}${file}${rowText(file, cases)}`,
+      ...cases.slice(0, CASES_SHOWN).map((test) => `${indent}  ${caseName(test)}${test.loaded === true ? '*' : ''}${heldText(test)}`),
+      ...(cases.length > CASES_SHOWN ? [`${indent}  and ${cases.length - CASES_SHOWN} more`] : []),
+    ]),
+    ...nextPage(page, byFile.length, SHELL),
+    ...(cut ? ['`--format json` names every case.'] : []),
+  ];
 }
 
 /**

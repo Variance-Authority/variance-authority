@@ -168,13 +168,14 @@ describe('a case read by what it said', () => {
     expect(formatCovering(answer, 'text', Date.now())).toMatch(/1 case was recorded without preconditions/);
   });
 
-  it('prints every case with what it said and where, in text and refs, and keeps a contradiction', async () => {
+  it('prints a case with what it said and where, in text and refs, and keeps a contradiction', async () => {
     const answer = await ask([], await recorded(MEASURED));
 
     const text = formatCovering(answer, 'text', Date.now());
-    expect(text).toContain(`refunds mocked behind a flag — flags:checkout=ff-on (${at(9)}), network:api=mocked (${at(4)})`);
+    expect(text).toContain(`half on — flags:checkout=ff-half (${at(24)}), network:api=mocked (${at(4)})`);
     expect(text).toContain(`contradicted — flags:checkout contradicted: ff-off (${at(20)}), ff-on (${at(19)})`);
     const refs = formatCovering(answer, 'refs', Date.now());
+    expect(refs).toContain(`refunds mocked behind a flag — flags:checkout=ff-on (${at(9)}), network:api=mocked (${at(4)})`);
     expect(refs).toContain(`replays a recording — network:api=recorded (${at(14)})`);
     const json = JSON.parse(formatCovering(answer, 'json', Date.now())) as { tests: ExecutionTest[] };
     expect(rowOf(json.tests.find((test) => test.name === 'pays mocked')!)).toEqual([
