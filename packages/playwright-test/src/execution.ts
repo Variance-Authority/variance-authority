@@ -29,6 +29,7 @@ import {
   stageExecution,
   stagingDirectory,
   type CasePrecondition,
+  type EnteredCheck,
   type EvaluatingPage,
   type ObservedAttempt,
   type ObservedCase,
@@ -125,6 +126,8 @@ export interface ExecutionRecorder {
    * the id the index gives the case; see `case-scope.ts`.
    */
   readonly eyes: (owner: string, subject: ObservedTest, attempt: number, journal?: Readonly<Record<string, unknown>>) => void;
+  /** Keep that one attempt of a case entered the check `check`, as `checked` tells the case scope; see `case-scope.ts`. */
+  readonly checked: (owner: string, subject: ObservedTest, attempt: number, check: string) => void;
   /** Keep how one attempt of a case ended, as the runner said it when the attempt's fixtures tore down. */
   readonly ended: (owner: string, subject: ObservedTest, attempt: ObservedAttempt) => void;
   /** What the case has said so far, or nothing where no listener runs; see `arranged.ts`. */
@@ -184,6 +187,8 @@ export function createExecutionRecorder(
   const looked = new Map<string, ObservedEyes[]>();
   // How each attempt of each case ended, one per attempt this worker ran.
   const tried = new Map<string, ObservedAttempt[]>();
+  // The checks each attempt of each case entered, in the order it entered them.
+  const entered = new Map<string, EnteredCheck[]>();
   const add = (key: string, duration: number): void => void spent.set(key, (spent.get(key) ?? 0) + duration);
   // The medium is opened on the first execution that could use it, and only when
   // a head was named: a suite with one realm has nothing to reach it from
@@ -212,6 +217,11 @@ export function createExecutionRecorder(
       caseOf(owner, subject);
       const key = caseKey(owner, subject.id);
       looked.set(key, [...(looked.get(key) ?? []), ...(journal === undefined ? [] : [{ attempt, journal }])]);
+    },
+    checked: (owner, subject, attempt, check) => {
+      caseOf(owner, subject);
+      const key = caseKey(owner, subject.id);
+      entered.set(key, [...(entered.get(key) ?? []), { attempt, check }]);
     },
     ended: (owner, subject, attempt) => {
       caseOf(owner, subject);
@@ -330,6 +340,7 @@ export function createExecutionRecorder(
       const limit = limits.get(key);
       const eyes = looked.get(key);
       const attempts = tried.get(key);
+      const checks = entered.get(key);
       const listened = listener === undefined ? undefined : (heard.get(key) ?? listener.nothing);
       const said = listened !== undefined && unheard.has(key) ? withoutEmptyReads(listened) : listened;
       const lines = reached.of(key);
@@ -341,6 +352,7 @@ export function createExecutionRecorder(
         ...(limit === undefined ? {} : { limit }),
         ...(eyes === undefined ? {} : { eyes }),
         ...(attempts === undefined ? {} : { attempts }),
+        ...(checks === undefined ? {} : { checks }),
         ...(lines === undefined ? {} : { lines }),
         journal: journalOf(held.hits),
       };
@@ -355,6 +367,11 @@ export function createExecutionRecorder(
           '`@variance-authority/sense/journal`, or the next `--since` will run ' +
           'every spec\n',
       );
+      // Its cases still say how each attempt ended and which checks it entered,
+      // and a retry lands in a fresh worker that may drive no page at all: they
+      // are staged for the fold, which records them beside the other workers' pages.
+      const staging = stagingDirectory();
+      if (staging !== undefined && cases.size > 0) await stageExecution(staging, { subjects: [], cases: observedCases() });
       return;
     }
 
