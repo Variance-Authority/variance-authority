@@ -759,19 +759,12 @@ does not list it.
 
 ### Declare what a test checks
 
-A test that passes says only that nothing it ran failed. A check run as
-`checked(id, fn)` is declared and recorded as it is under every runner, as
+A test that passes says only that nothing it ran failed. A test declares the
+check it is there for by calling `checked(id, fn)` from
+`@variance-authority/sense/checked` in its body, the same call under every
+runner, as
 [Name the check a case is there for](https://variance-authority.dev/reference/packages/sense#name-the-check-a-case-is-there-for)
-sets it up; this package re-exports it:
-
-```ts
-import { checked } from '@variance-authority/playwright-test';
-
-test('submits the form', async ({ page }) => {
-  await page.getByRole('button', { name: 'Create' }).click();
-  await checked('create-event/submitted-title', () => expect(page.getByRole('heading')).toHaveText('Launch'));
-});
-```
+sets it up.
 
 Each attempt of a retried test is judged on its own: a retry that passes without
 the check is named with its attempt. A spec file where a run was interrupted,

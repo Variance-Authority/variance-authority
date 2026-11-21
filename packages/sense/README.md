@@ -2737,8 +2737,7 @@ test('submits the form', async () => {
 });
 ```
 
-It is the same call in a Vitest, Jest, Rstest or Playwright case; a Playwright
-test may import it from `@variance-authority/playwright-test`, which re-exports it. What a case
+It is the same call in a Vitest, Jest, Rstest or Playwright case. What a case
 declares is read from its test file before the run: each `checked` call in its
 body, and each in a function of the same file the body calls, declared at the
 line the body calls it. The id is read from the source, so it is a string

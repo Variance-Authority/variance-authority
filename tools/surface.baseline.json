@@ -1909,7 +1909,6 @@
         "asRun": "function",
         "assertUnchanged": "function",
         "bundlePageAgent": "function",
-        "checked": "function",
         "createExecutionRecorder": "function",
         "createVariance": "function",
         "driveBeforeTest": "function",
