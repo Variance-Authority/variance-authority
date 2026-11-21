@@ -135,6 +135,21 @@ describe('docs_classify', () => {
     expect(text).not.toContain('entrypoint --package case-runner');
   });
 
+  it('lists the areas the words point to, best first, and asks `search` from the best for its two weightiest words', () => {
+    const areas = [
+      { path: 'x-pack/plugins/task_manager/server', files: 3, words: ['manager', 'task', 'claiming'], score: 2900 },
+      { path: 'x-pack/plugins/alerting/server', files: 1, words: ['task'], score: 700 },
+    ];
+    const text = formatClassified(classifyWords('task manager claiming', HELP, MAPPED), PLACED, areas);
+
+    expect(text).toContain([
+      'Areas its words point to, best first:',
+      '  x-pack/plugins/task_manager/server — 3 files · holds manager task claiming',
+      '  x-pack/plugins/alerting/server — 1 file · holds task',
+    ].join('\n'));
+    expect(text).toContain("variance ask search --query 'manager task' --from x-pack/plugins/task_manager/server");
+  });
+
   it('says the map is older than the source index when it was folded from an earlier one', () => {
     const text = formatClassified(classifyWords(ASKED, HELP, MAPPED), { ...PLACED, current: false });
 

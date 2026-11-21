@@ -196,9 +196,18 @@ exported name, an `entrypoint` question per published package or entrypoint,
 and an `orient --area` question per package that publishes nothing, or none
 when the map placed that package in no area. A word the
 request spells another way — a plural, two words for a hyphenated name, a
-domain word no name carries — is not recognised: ask `search` for it. It reads
-the code map `variance index` folds, and without one it says so and classifies
-nothing.
+domain word no name carries — is not an entity.
+
+Then it ranks the areas of the tree the request's words point to, ten at
+most, best first: a directory of at most 500 tracked files, a larger one read
+as its children. An area's words are its path's, its files' names and the
+exported names its files declare, compared by stem, and a word counts for more
+the fewer areas hold it. Each area is listed with its file count and the
+request's words it holds, the one weighing most there first, and the best one
+is asked `search --from` for its two weightiest words. A request that names
+nothing still points somewhere: `Fix task manager claiming tasks twice` ranks
+the task manager plugin first in Kibana. It reads the code map `variance index`
+folds, and without one it says so and classifies nothing.
 
 ### `entrypoint`
 

@@ -20,6 +20,7 @@
 import { everyEntry, type Help } from '@variance-authority/package/help';
 import { STALE_MAP, unscoped } from './code-map-format.js';
 import { specifierOf } from './find.js';
+import type { RankedArea } from './classify-areas.js';
 import { narrower, plural, shell } from './format.js';
 
 /** What one word names: a package, one of its entrypoints, or a name it exports. */
@@ -128,8 +129,16 @@ function where(placed: Placed | undefined): string {
   return `${area} · layer ${placed.layer}`;
 }
 
-/** The entities, one line per thing each names with its place on the code map, then the plain words on one line. */
-export function formatClassified({ entities, plain }: Classified, { current, packages }: CodeMapPlaces): string {
+/**
+ * The entities, one line per thing each names with its place on the code map,
+ * then the plain words on one line, then the areas of the tree the words point
+ * to, best first.
+ */
+export function formatClassified(
+  { entities, plain }: Classified,
+  { current, packages }: CodeMapPlaces,
+  areas: readonly RankedArea[] = [],
+): string {
   const lines = [
     entities.length === 0
       ? 'No word names a package on the code map, an entrypoint or an exported name.'
@@ -139,6 +148,10 @@ export function formatClassified({ entities, plain }: Classified, { current, pac
     ),
   ];
   if (plain.length > 0) lines.push(`Not entities: ${plain.join(' ')}`);
+  if (areas.length > 0) {
+    lines.push('', 'Areas its words point to, best first:');
+    for (const area of areas) lines.push(`  ${area.path} — ${plural(area.files, 'file')} · holds ${area.words.join(' ')}`);
+  }
   // What each entity is asked next: an exported name is read by `symbol`, a
   // published package or entrypoint counted by `entrypoint`, and a package that
   // publishes nothing placed by `orient` on its area, if one took it.
@@ -148,6 +161,10 @@ export function formatClassified({ entities, plain }: Classified, { current, pac
     const area = packages.get(named.package)?.area;
     return area === undefined ? [] : [`variance ask orient --area ${shell(area.id)}`];
   }));
+  // `search` takes the words of one name, so the best area is asked for the
+  // two that weigh most there.
+  const best = areas[0];
+  if (best !== undefined) asks.push(`variance ask search --query ${shell(best.words.slice(0, 2).join(' '))} --from ${shell(best.path)}`);
   lines.push(...narrower([...new Set(asks)]));
   if (!current) lines.push('', STALE_MAP);
   return lines.join('\n');

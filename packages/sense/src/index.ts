@@ -173,7 +173,7 @@ export {
   type NativeOrientShipped as ShippedFiles,
 } from './native-orient.js';
 export { loadedUnprobed, modulePath } from './module-path.js';
-export { checkoutListing, checkoutPath, existedAt, existingAt, type CheckoutListing, type CheckoutPath } from './checkout-path.js';
+export { checkoutListing, checkoutPath, existedAt, existingAt, trackedPaths, type CheckoutListing, type CheckoutPath } from './checkout-path.js';
 export {
   forksBetween,
   journeysAmong,

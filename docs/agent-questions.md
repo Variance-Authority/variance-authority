@@ -20,7 +20,7 @@ A missing domain is unavailable, never an empty measurement.
 | live watcher | Is this the watcher the suite connected to? | `variance ask self` | `variance_self` |
 | [execution index](execution-record.md) and the [Eyes](eyes.md) journals it keeps | What can this test be distilled to? | `variance distill --test <id> …` | `variance_distill` |
 | current workspace source | What is each package imported for, and which packages are imported past their entry? | `variance ask packages` | `docs_packages` on the workspace API server |
-| a request, in the asker's words | Which of these words name a package, an entrypoint or an exported name, and where on the code map is each? | `variance ask classify --query <words>` | `docs_classify` on the workspace API server |
+| a request, in the asker's words | Which of these words name a package, an entrypoint or an exported name, where on the code map is each, and which areas of the tree do the words point to? | `variance ask classify --query <words>` | `docs_classify` on the workspace API server |
 | current workspace source | What does this package publish, and what do other packages import from it? | `variance ask entrypoint --package <name>` | `docs_entrypoint` on the workspace API server |
 | current workspace source | Where is this symbol already used, and what shows how to call it? | `variance ask uses --name <name>` | `docs_uses` on the workspace API server |
 | current workspace source | What rests on this file or this name through imports, at any depth, and by which chain? | `variance ask discover --to <path>` or `--to <file>#<name>` | `docs_discover` on the workspace API server |
