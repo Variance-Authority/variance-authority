@@ -70,8 +70,8 @@ describe('variance ask uses through a namespace held inside another', () => {
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
 
     const greet = await uses('greet');
-    expect(greet).toMatch(/^packages\/lib\/src\/use-loud\.ts:2 — @acme\/lib \(namespace, line 1\)$/m);
-    expect(greet).toMatch(/^packages\/lib\/src\/use-quiet\.ts:2 — @acme\/lib \(namespace, line 1\)$/m);
+    expect(greet).toMatch(/^packages\/lib\/src\/use-loud\.ts:2 \(namespace, line 1\)$/m);
+    expect(greet).toMatch(/^packages\/lib\/src\/use-quiet\.ts:2 \(namespace, line 1\)$/m);
   });
 
   it('marks a member read with the line its import starts on', async () => {

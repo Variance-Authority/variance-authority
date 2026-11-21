@@ -223,7 +223,7 @@ describe('variance ask about a name whose file changed since the source index', 
     const answer = await askSource({ question: 'symbol', name: 'Options', source: async () => ({ help: read }) });
 
     expect(snapshotOf(answer)).toBeDefined();
-    expect(answer).toContain('packages/kit/src/options.ts:3 — readonly ci: boolean;');
+    expect(answer).toContain('packages/kit/src/options.ts\n  3: readonly ci: boolean;');
     expect(answer).not.toContain('// two');
   });
 
@@ -233,8 +233,7 @@ describe('variance ask about a name whose file changed since the source index', 
     write(root, { 'packages/kit/src/options.ts': OPTIONS_REWRITTEN, [HIDDEN]: HIDDEN_REWRITTEN });
 
     const members = (await run(['ask', 'symbol', '--name', 'Options'])).out;
-    expect(members).toContain('packages/kit/src/options.ts:3 — readonly ci: boolean;');
-    expect(members).toContain('packages/kit/src/options.ts:5 — readonly step: string;');
+    expect(members).toContain('packages/kit/src/options.ts\n  3: readonly ci: boolean;\n  5: readonly step: string;');
     expect(members).not.toContain('is gone');
     expect(members).not.toContain('went elsewhere');
 
@@ -263,10 +262,8 @@ describe('variance ask about a name whose file changed since the source index', 
 
     const { code, out } = await run(['ask', 'symbol', '--name', 'Options']);
     expect(code).toBe(EXIT_CLEAN);
-    expect(out).toContain('packages/kit/src/options.ts:3 — readonly ci: boolean;');
-    expect(out).toContain('packages/kit/src/options.ts:5 — readonly step: string;');
-    expect(out).not.toContain('— */');
-    expect(out).not.toContain('— export interface');
+    expect(out).toContain('packages/kit/src/options.ts\n  3: readonly ci: boolean;\n  5: readonly step: string;');
+    expect(out).not.toMatch(/^ {2}\d+: (?:\*\/|export interface)/m);
   });
 
   it('gives the lines the index read once `variance index` ran again, at the lines the file holds them on today', async () => {
@@ -278,8 +275,7 @@ describe('variance ask about a name whose file changed since the source index', 
     const { code, out } = await run(['ask', 'symbol', '--name', 'Options']);
     expect(code).toBe(EXIT_CLEAN);
     expect(out).toContain('at packages/kit/src/options.ts:5 by');
-    expect(out).toContain('packages/kit/src/options.ts:7 — readonly ci: boolean;');
-    expect(out).toContain('packages/kit/src/options.ts:9 — readonly step: string;');
+    expect(out).toContain('packages/kit/src/options.ts\n  7: readonly ci: boolean;\n  9: readonly step: string;');
   });
 
   it('answers from its generation when only a file the answer does not name changed', async () => {

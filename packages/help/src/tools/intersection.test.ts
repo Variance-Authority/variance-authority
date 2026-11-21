@@ -57,7 +57,7 @@ describe('an intersection answers the files every question answers', () => {
     ]);
     expect(text).toContain('1. `{"question":"symbol","input":{"name":"selectBalance"}}`: 2 files');
     expect(text).toContain('2. `{"question":"discover","input":{"from":"src/Wallet.ts"}}`: 3 files');
-    expect(text).toContain('1 file in all of them.');
+    expect(text).toContain('1 file in all of them:');
     expect(text).toContain('src/store/selectors.ts — 1: line 1 · 2: the file');
     expect(text).not.toContain('src/old/selectors.ts');
     expect(text).not.toContain('src/Wallet.ts —');
@@ -82,7 +82,7 @@ describe('an intersection answers the files every question answers', () => {
       { question: 'grep', input: { from: 'src/Wallet.ts' } },
       { question: 'discover', input: { from: 'src/Wallet.ts' } },
     ]);
-    expect(text).toContain('2 files in all of them.');
+    expect(text).toContain('2 files in all of them:');
     const [first, second] = ['src/Wallet.ts —', 'src/store/selectors.ts —'].map((line) => text.indexOf(line));
     expect(first).toBeGreaterThan(-1);
     expect(second).toBeGreaterThan(first!);
@@ -103,7 +103,7 @@ describe('an intersection answers the files every question answers', () => {
       { question: 'grep', input: { from: 'src/Wallet.ts' } },
       { question: 'discover', input: { from: 'src/Wallet.ts' } },
     ]);
-    expect(text).toContain('1 file in all of them.');
+    expect(text).toContain('1 file in all of them:');
     const none = ask([
       { question: 'symbol', input: { name: 'selectBalance' } },
       { question: 'search', input: { name: 'nav' } },
@@ -119,8 +119,13 @@ describe('an intersection answers the files every question answers', () => {
       ],
       { limit: 1 },
     );
-    expect(text).toContain('3 files in all of them.');
-    expect(text).toContain('src/Wallet.ts — 1: the file · 2: the file');
+    // The answer first, the questions it crossed under it, then a row per file.
+    expect(text.split('\n').slice(0, 3)).toEqual([
+      '3 files in all of them:',
+      '1. `{"question":"discover","input":{"from":"src/Wallet.ts"}}`: 3 files',
+      '2. `{"question":"discover","input":{"from":"src/Wallet.ts"}}`: 3 files',
+    ]);
+    expect(text).toContain(': 3 files\nsrc/Wallet.ts — 1: the file · 2: the file\n2 more not shown');
     expect(text).not.toContain('src/store/index.ts —');
     expect(text).toContain('2 more not shown; `offset` 1 shows the next 1.');
     const next = ask(

@@ -49,6 +49,12 @@ export function renamedSites(name: string, sites: readonly (Use & { readonly nam
   return [`Imported under another name: ${renamed.slice(0, CAP).join(', ')}${more(renamed.length)}.`];
 }
 
+/** A declaration by its file and its declared name, as {@link keyOf} keys it: one string for one declaration. */
+export function declarationKey(help: Help, root: string | undefined, held: Parameters<typeof keyOf>[2]): string {
+  const { at, named } = keyOf(help, root, held);
+  return `${at}\0${named}`;
+}
+
 /** What a list cut at `CAP` leaves out. */
 function more(count: number): string {
   return count > CAP ? `, and ${count - CAP} more` : '';
@@ -58,6 +64,19 @@ function more(count: number): string {
 interface Original {
   readonly text: string;
   readonly at: readonly (readonly [string, number, string])[];
+  /** The rows that name the export without its declaration, and where that declaration is, when the checkout declares it. */
+  readonly brief?: { readonly rows: readonly string[]; readonly declares: string; readonly key: string };
+}
+
+/**
+ * One local name's answer: `text` in full, and `brief` when its original is
+ * declared in the checkout, which says the declaration by its line instead of
+ * showing it again. `key` is that declaration by its file and its declared
+ * name, as {@link keyOf} keys it.
+ */
+export interface LocalName {
+  readonly text: string;
+  readonly brief?: { readonly text: string; readonly key: string };
 }
 
 /**
@@ -71,7 +90,7 @@ export const localNames = askedOnce((
   root: string | undefined,
   local: string,
   wanted: string | undefined,
-): { readonly blocks: readonly string[]; readonly files: readonly (readonly [string, number, string])[] } => {
+): { readonly blocks: readonly LocalName[]; readonly files: readonly (readonly [string, number, string])[] } => {
   if (root === undefined) return { blocks: [], files: [] };
   let aliases: readonly Alias[] | undefined;
   try {
@@ -86,7 +105,7 @@ export const localNames = askedOnce((
     const key = `${alias.imported}\u0000${alias.to ?? `\u0000${alias.specifier}`}`;
     groups.set(key, [...(groups.get(key) ?? []), alias]);
   }
-  const blocks: string[] = [];
+  const blocks: LocalName[] = [];
   const files: (readonly [string, number, string])[] = [];
   for (const group of groups.values()) {
     const [first] = group;
@@ -100,12 +119,18 @@ export const localNames = askedOnce((
     const original = originalOf(help, root, first, wanted, named);
     if (original === undefined) continue;
     const also = group.slice(1);
-    blocks.push([
+    const lead = [
       `\`${local}\` is a local name: ${importLine(first, named, local)}.`,
       ...(also.length === 0 ? [] : [`Also imported as \`${local}\` at ${also.slice(0, CAP).map((alias) => `${alias.at}:${alias.line}`).join(', ')}${more(also.length)}.`]),
       '',
-      original.text,
-    ].join('\n'));
+    ];
+    const { brief } = original;
+    blocks.push({
+      text: [...lead, original.text].join('\n'),
+      ...(brief === undefined
+        ? {}
+        : { brief: { text: [...lead, ...brief.rows, `Its declaration, at ${brief.declares}, is answered above.`].join('\n'), key: brief.key } }),
+    });
     files.push(...group.map((alias) => [alias.at, alias.line, local] as const));
     files.push(...original.at);
   }
@@ -147,6 +172,8 @@ function originalOf(help: Help, root: string, alias: Alias, wanted: string | und
           ...memberRows(root, declared.at, declared.name, declared.line),
         ].join('\n'),
         at: [[held.at, held.line, held.name], ...(declared === held ? [] : [[declared.at, declared.line, declared.name] as const])],
+        // The name and where it is exported, and the line that passes it on when another file declares it.
+        brief: { rows: rows.slice(0, declared === held ? 2 : 3), declares: `${declared.at}:${declared.line}`, key: declarationKey(help, root, held) },
       };
     }
   }

@@ -30,7 +30,7 @@ function section(out: string, heading: string): readonly string[] {
   const at = lines.indexOf(heading);
   if (at === -1) return [];
   const after = lines.slice(at + 2);
-  const end = after.findIndex((line) => !/^\S+:\d+ — /.test(line));
+  const end = after.findIndex((line) => !/^\S+:\d+(?: |;|$)/.test(line));
   return end === -1 ? after : after.slice(0, end);
 }
 
@@ -55,7 +55,7 @@ describe('variance ask uses inside the declaring package', () => {
     const { code, out } = await run(['ask', 'uses', '--name', 'greet']);
     expect(code).toBe(EXIT_CLEAN);
     expect(out).toContain('`greet` [function] is imported in 2 places: 1 from another package and 1 inside @acme/lib.');
-    expect(section(out, 'Source, inside @acme/lib:')).toEqual(['packages/lib/src/shout.ts:1 — @acme/lib (as hail); used on lines 4, 5']);
+    expect(section(out, 'Source, inside @acme/lib:')).toEqual(['packages/lib/src/shout.ts:1 (as hail); used on lines 4, 5']);
     expect(section(out, 'Source, from other packages:')).toEqual(['apps/app/src/hello.ts:1 — @acme/app; used on line 2']);
     expect(out).not.toMatch(/^Source:$/m);
   });

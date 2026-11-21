@@ -83,7 +83,7 @@ describe('a name only passed on', () => {
 
     const { out } = await run(['ask', 'symbol', '--name', 'Fee']);
     expect(out).toContain('It passes on `Rate`, declared at packages/kit/src/money/types.ts:1:');
-    expect(out).toContain('Members:\npackages/kit/src/money/types.ts:2 — percent: number;');
+    expect(out).toContain('Members:\npackages/kit/src/money/types.ts:2: percent: number;');
   });
 
   it('follows a chain of stars, lets a named export shadow a star, and names none for two stars that disagree', async () => {

@@ -86,10 +86,12 @@ describe('grep refuses without a closure', () => {
 describe('grep over a closure', () => {
   it('answers from the files in reach, nearest first', () => {
     const text = ask({ query: 'needle', from: 'src/entry.ts' });
-    expect(text).toContain('2 matching lines in 2 files, nearest first.');
-    expect(text.indexOf('src/entry.ts:2:const needle = 0;')).toBeLessThan(text.indexOf('src/far.ts:1:export const needle = 1;'));
+    expect(text).toContain('2 matching lines in 2 files, nearest first:');
+    expect(text.indexOf('src/entry.ts:2: const needle = 0;')).toBeLessThan(text.indexOf('src/far.ts:1: export const needle = 1;'));
     expect(text).toContain('2 imports away:');
     expect(text).not.toContain('outside.ts');
+    // The area bounds the counts, so it is said even when every file in it was read through.
+    expect(text.split('\n').at(-1)).toMatch(/^note: In \d+ file\(s\) reachable from `src\/entry.ts` along the imports/u);
   });
 
   it('answers against the imports with `to`', () => {
@@ -106,7 +108,10 @@ describe('grep over a closure', () => {
   });
 
   it('answers a file that matches on more lines than a call takes as arguments', () => {
-    expect(ask({ query: 'crowd', from: 'src/crowded.ts' })).toContain(`${CROWDED} matching lines in 1 file, nearest first.`);
+    const text = ask({ query: 'crowd', from: 'src/crowded.ts' });
+    // The answer first, and a file with several lines named once above them.
+    expect(text.split('\n').slice(0, 5)).toEqual([`${CROWDED} matching lines in 1 file, nearest first:`, '0 imports away:', 'src/crowded.ts', '  1: crowd', '  2: crowd']);
+    expect(text.split('\n').filter((line) => line.startsWith('src/crowded.ts'))).toEqual(['src/crowded.ts']);
   });
 
   it('counts what the limit leaves out', () => {
@@ -124,7 +129,7 @@ describe('grep over a closure', () => {
   });
 
   it('anchors `^` at every line, as ripgrep does', () => {
-    expect(ask({ query: '^const needle', from: 'src/entry.ts' })).toContain('src/entry.ts:2:const needle = 0;');
+    expect(ask({ query: '^const needle', from: 'src/entry.ts' })).toContain('src/entry.ts:2: const needle = 0;');
   });
 
   it('reads the files of a workspace nested below the graph from where the graph names them', () => {
@@ -134,7 +139,7 @@ describe('grep over a closure', () => {
 
     const answer = grep.run(undefined, { query: 'needle', from: 'src/entry.ts' }, { tree: nested });
 
-    expect(answer).toContain('app/src/far.ts:1:export const needle = 3;');
+    expect(answer).toContain('app/src/far.ts:1: export const needle = 3;');
     expect(answer).not.toContain('ripgrep reported');
   });
 
@@ -150,7 +155,7 @@ describe('grep over a closure', () => {
     const path = process.env.PATH;
     process.env.PATH = '';
     try {
-      expect(ask({ query: 'needle', from: 'src/entry.ts' })).toContain('src/entry.ts:2:const needle = 0;');
+      expect(ask({ query: 'needle', from: 'src/entry.ts' })).toContain('src/entry.ts:2: const needle = 0;');
     } finally {
       if (path === undefined) delete process.env.PATH;
       else process.env.PATH = path;

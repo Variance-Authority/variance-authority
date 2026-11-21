@@ -74,11 +74,11 @@ describe('ask uses', () => {
     const handed = async (name: string): Promise<string[]> =>
       (await run(['ask', 'uses', '--name', name, '--limit', '1000'])).out.split('\n').filter((line) => line.startsWith('apps/app/src/handed.ts:'));
     expect(await handed('left')).toEqual([
-      'apps/app/src/handed.ts:8 — @acme/app (namespace, line 1)',
-      'apps/app/src/handed.ts:11 — @acme/app (import() on line 4)',
-      'apps/app/src/handed.ts:12 — @acme/app (namespace, line 1, passed on whole: may read it)',
+      'apps/app/src/handed.ts:8 (namespace, line 1)',
+      'apps/app/src/handed.ts:11 (import() on line 4)',
+      'apps/app/src/handed.ts:12 (namespace, line 1, passed on whole: may read it)',
     ]);
-    expect(await handed('right')).toEqual(['apps/app/src/handed.ts:12 — @acme/app (namespace, line 1, passed on whole: may read it)']);
+    expect(await handed('right')).toEqual(['apps/app/src/handed.ts:12 (namespace, line 1, passed on whole: may read it)']);
   });
   it.todo('counts a destructured dynamic import (`const { greet } = await import(...)`) — needs destructuring of an `await import()` recorded as named imports');
   it.todo('does not mark `typeof lib.x` type-only — needs `typeof` in a type position told apart from a type-only import');
