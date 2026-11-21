@@ -85,8 +85,11 @@ function attemptsOf(ran: RanCase, ids: ReadonlySet<string>): CheckedAttempt[] {
   });
 }
 
-/** Whether the runner ended every attempt `attempts` holds and every one before the last. */
+/**
+ * Whether the runner ended every attempt `attempts` holds and every one before
+ * the last. A case the run ran made one at least, so none known is not all ended.
+ */
 function endedAll(attempts: readonly CheckedAttempt[]): boolean {
-  return attempts.length === (attempts.at(-1)?.attempt ?? 0)
+  return attempts.length > 0 && attempts.length === attempts.at(-1)!.attempt
     && attempts.every((one) => one.ended !== undefined && one.ended !== 'interrupted');
 }

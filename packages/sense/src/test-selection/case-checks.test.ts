@@ -57,6 +57,7 @@ describe('checksOf', () => {
     ['an attempt the runner did not end', [{ attempt: 1 }]],
     ['an attempt it interrupted', [{ attempt: 1, ended: 'interrupted' }]],
     ['an attempt before the last it did not report', [{ attempt: 2, ended: 'passed' }]],
+    ['a case whose runner reported no attempt and that entered none of its checks', undefined],
   ])('marks the file incomplete for %s', (_, attempts) => {
     expect(checksOf(root, [ran(attempts)])?.incomplete).toEqual(['a.test.ts']);
   });
