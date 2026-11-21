@@ -287,6 +287,7 @@ pub(crate) fn rank<'a>(asked: &'a BTreeMap<String, String>, paths: &[&'a str], d
                 .iter()
                 .map(|(&stem, &held)| {
                     let rarity = crate::rarity::rarity(population, holders.get(stem).copied().unwrap_or(0) as f64);
+                    // No length: the helper saturates as if every area had the mean length.
                     (stem, ((rarity * crate::rarity::saturation(held as f64, 0.0, 0.0, 0.0)) / 1000.0).floor())
                 })
                 .collect();
