@@ -5,13 +5,14 @@
  * A reader handed a file wants its outline before its text: each name with the
  * line it is declared on, whether an export binds it, and, under a class, an
  * interface or a type alias, the members it holds, each as the line the index
- * recorded, the way `symbol` lists them. The addon chose which rows fit the
+ * recorded, through the rule `symbol` lists them by. The addon chose which rows fit the
  * line budget and counted the rest; this chooses the words and the order.
  */
 
 // compass: variance-authority.report.agent-surface
 
 import type { FileDeclaration, FileDeclarations } from '@variance-authority/sense';
+import { memberLines } from './container.js';
 import { plural } from './format.js';
 import { membersNotReadIn } from './members.js';
 
@@ -35,7 +36,7 @@ function outline(file: FileDeclarations): readonly string[] {
   const wide = String(Math.max(1, ...lines)).length;
   return [
     `  ${file.file}${notes.map((note) => `  (${note})`).join('')}`,
-    ...file.declarations.flatMap((declaration) => rows(declaration, wide)),
+    ...file.declarations.flatMap((declaration) => rows(file.file, declaration, wide)),
     ...[left(file)].filter((line) => line !== undefined),
   ];
 }
@@ -49,15 +50,12 @@ function left(file: FileDeclarations): string | undefined {
   return cut.length === 0 ? undefined : `    ${cut.join(' and ')} not shown.`;
 }
 
-function rows(declaration: FileDeclaration, wide: number): readonly string[] {
+function rows(file: string, declaration: FileDeclaration, wide: number): readonly string[] {
   const under = `    ${' '.repeat(wide)}  `;
   return [
     `    ${String(declaration.line).padStart(wide)}  ${declaration.exported === true ? 'exported ' : ''}${declaration.kind} ${declaration.name}`,
-    // A member that shares its line with the container or the member before it
-    // is named, so a one-line type does not print its line once per member.
-    ...declaration.members.map((member, at) => {
-      const shared = member.line === (at === 0 ? declaration.line : declaration.members[at - 1]?.line);
-      return `${under}${String(member.line).padStart(wide)}  ${shared ? member.name : (member.text?.trim() ?? member.name)}`;
-    }),
+    // The row above names the declaration and does not show its line, so no
+    // line is shown already: a member on the container's line shows that line.
+    ...memberLines(file, declaration.members, []).map((member) => `${under}${String(member.line).padStart(wide)}  ${member.text}`),
   ];
 }

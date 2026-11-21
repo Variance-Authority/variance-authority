@@ -12,7 +12,7 @@
 
 // compass: variance-authority.report.agent-surface
 
-import { membersOn } from '@variance-authority/sense';
+import { membersOn, type ContainerMember } from '@variance-authority/sense';
 import { byFile, type Located } from './format.js';
 
 /**
@@ -33,12 +33,23 @@ export function memberRows(root: string | undefined, at: string, on: string, lin
     return ['', `Members were not read: ${error instanceof Error ? error.message : String(error)}; run \`variance index\`.`];
   }
   if (found === undefined || found.length === 0) return [];
-  const shown = new Set([line]);
-  const rows: Located[] = [];
-  for (const member of found) {
-    if (shown.has(member.line)) continue;
-    shown.add(member.line);
-    rows.push({ file: at, line: member.line, text: member.text?.trim() ?? member.name });
-  }
+  const rows = memberLines(at, found, [line]);
   return rows.length === 0 ? [] : ['', 'Members:', ...byFile(rows)];
+}
+
+/**
+ * One row per line of `file` that declares one of `members`, in their order,
+ * as the index recorded the line, or by the member's name when it kept no
+ * text; a line in `shown`, or one an earlier member already showed, is not
+ * shown again, so a line that declares three members reads once.
+ */
+export function memberLines(file: string, members: readonly ContainerMember[], shown: readonly number[]): readonly Located[] {
+  const seen = new Set(shown);
+  const rows: Located[] = [];
+  for (const member of members) {
+    if (seen.has(member.line)) continue;
+    seen.add(member.line);
+    rows.push({ file, line: member.line, text: member.text?.trim() ?? member.name });
+  }
+  return rows;
 }

@@ -7,10 +7,9 @@
  * get a paragraph. Nothing is counted here: every share and every number is
  * the addon's, and this only chooses the words and the order.
  *
- * The answer is for an agent at a terminal. It is six parts, each one a
+ * The answer is for an agent at a terminal. It is five parts, each one a
  * narrower reading of the one above it — the files asked about and what each
- * declares at its top level, which packages
- * they belong to and what crosses their edges, which recorded cases ran
+ * declares at its top level, which packages they belong to and what crosses their edges, which recorded cases ran
  * those files, the calls those cases took into and out of them, and the
  * commands that ask about one name or one file — and a
  * part that could not be read is left out with one line saying why, so an

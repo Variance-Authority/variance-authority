@@ -168,6 +168,13 @@ impl Parties {
 }
 
 pub(crate) fn orientation(root: &str, chain: &Chain, listed: &Listed, files: &[String], limits: Limits) -> Result<Orientation, String> {
+    let (layers, owners) = opened(root, chain, listed)?;
+    Ok(orientation_over(chain, &layers, &owners, listed, files, limits))
+}
+
+/// The chain's layers, each opened and checked on every core, beside the
+/// packages that own the listed files: what every orient reading reads.
+pub(crate) fn opened<'a>(root: &str, chain: &'a Chain, listed: &Listed<'a>) -> Result<(Vec<Layer<'a>>, Owners<'a>), String> {
     let (layers, owners) = rayon::join(
         || {
             chain
@@ -179,7 +186,11 @@ pub(crate) fn orientation(root: &str, chain: &Chain, listed: &Listed, files: &[S
         },
         || owners(root, listed.paths),
     );
-    let layers = layers?;
+    Ok((layers?, owners))
+}
+
+/// The orientation of `files`, over layers and owners already read.
+pub(crate) fn orientation_over(chain: &Chain, layers: &[Layer], owners: &Owners, listed: &Listed, files: &[String], limits: Limits) -> Orientation {
     let owner_of = |file: &str| owners.files.get(file).map_or(NO_OWNER, |&(owner, _)| owner);
 
     let mut asked: Vec<u32> = Vec::new();
@@ -190,11 +201,11 @@ pub(crate) fn orientation(root: &str, chain: &Chain, listed: &Listed, files: &[S
         }
     }
 
-    let folded = fold(&layers);
+    let folded = fold(layers);
     let indexed: Vec<bool> = files.iter().map(|file| folded.contains_key(file.as_str())).collect();
     let folded: Vec<(&str, At)> = folded.into_iter().collect();
 
-    let read: Vec<Record> = folded.par_iter().map(|&(file, at)| record(&layers, &owners, listed, file, at)).collect();
+    let read: Vec<Record> = folded.par_iter().map(|&(file, at)| record(layers, owners, listed, file, at)).collect();
     let stale = read.iter().filter(|record| record.stale).count() as u32;
     let mut parties = Parties::new(asked, owners.packages.len());
     let mut indexed_in = vec![0u32; parties.asked.len()];
@@ -219,10 +230,10 @@ pub(crate) fn orientation(root: &str, chain: &Chain, listed: &Listed, files: &[S
             })
         })
         .collect();
-    join_parses(&layers, &mut crossings);
+    join_parses(layers, &mut crossings);
 
     let used: Vec<Option<Vec<(u32, &str)>>> =
-        crossings.par_iter().map(|crossing| units(&layers, &owners, &parties, crossing)).collect();
+        crossings.par_iter().map(|crossing| units(layers, owners, &parties, crossing)).collect();
     let mut takes: Vec<(Uses, u32)> = parties.asked.iter().map(|_| (Uses::new(), 0)).collect();
     let mut taken: Vec<(Uses, u32)> = parties.asked.iter().map(|_| (Uses::new(), 0)).collect();
     // Every unit each counted package gets from outside it: a name's total.
@@ -281,14 +292,14 @@ pub(crate) fn orientation(root: &str, chain: &Chain, listed: &Listed, files: &[S
             }
         })
         .collect();
-    Ok(Orientation {
+    Orientation {
         owners: owners_asked,
         packages,
         records: folded.len() as u32,
         stale,
         unread,
         dropped: chain.damaged(),
-    })
+    }
 }
 
 /// Whether the record is stale, and which other packages its targets land in.

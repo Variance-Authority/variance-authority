@@ -4,9 +4,8 @@
 //! declares, where, which an export binds, and what a class, an interface or a
 //! type alias holds. The scan already recorded all of it with the file's parse
 //! — its top-level symbols, its exports and its member declarations — so the
-//! outline is read off the chain the orientation already read, with no file
-//! read; it opens that chain's layers beside the other two readings, as each
-//! of them does.
+//! outline is read off the layers the orientation already opened for its
+//! other two readings, with no file read.
 //!
 //! An outline is bounded by lines, not names: a file of four hundred exports
 //! would otherwise print four hundred lines before the graph the reader asked
