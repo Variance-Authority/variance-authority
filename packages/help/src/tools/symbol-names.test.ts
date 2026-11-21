@@ -93,3 +93,8 @@ it('gives the files that declare any of the names, leaving out the one nothing d
   const files = symbol.files?.(help, { name: ['localToRemote', 'baseToRemote', 'baseToLocal'] }, { root });
   expect(files === undefined ? [] : [...files.files.keys()].sort()).toEqual(['packages/merge/src/base.ts', 'packages/merge/src/local.ts']);
 });
+
+it('refuses a list that names no name', () => {
+  expect(() => symbol.run(help, { name: [] }, { root })).toThrow('`name` is required and must name at least one name');
+  expect(() => symbol.run(help, { name: [' '] }, { root })).toThrow('`name` is required and must name at least one name');
+});
