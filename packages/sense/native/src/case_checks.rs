@@ -12,6 +12,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
 use napi_derive::napi;
+use rayon::prelude::*;
 
 use crate::journeys_parse::{self, Parsed};
 use crate::journeys_roots::{body_hint, describe};
@@ -45,22 +46,26 @@ pub struct DeclaredChecks {
 /// The checks each case declares, in the order asked; `None` for a case that
 /// declares none the source spells: its file cannot be read or does not name
 /// the entry, or its body is not found by its name or holds no check. Each
-/// file is read once, and parsed only when its text names the entry.
+/// distinct file is read once, the files on every core, and parsed only when
+/// its text names the entry.
 #[napi(catch_unwind)]
 pub fn declared_checks(root: String, cases: Vec<CheckedCaseAsk>) -> Vec<Option<DeclaredChecks>> {
-    let mut parsed: HashMap<String, Option<Parsed>> = HashMap::new();
+    let files: HashSet<&str> = cases.iter().map(|case| case.file.as_str()).collect();
+    let parsed: HashMap<&str, Parsed> = files
+        .into_par_iter()
+        .filter_map(|file| {
+            let text = std::fs::read_to_string(Path::new(&root).join(file)).ok()?;
+            // Most test files call no check: their text is not parsed for one.
+            if !text.contains(ENTRY) {
+                return None;
+            }
+            Some((file, journeys_parse::parse(file, &text)?))
+        })
+        .collect();
     cases
         .iter()
         .map(|case| {
-            let file = parsed.entry(case.file.clone()).or_insert_with(|| {
-                let text = std::fs::read_to_string(Path::new(&root).join(&case.file)).ok()?;
-                // Most test files call no check: their text is not parsed for one.
-                if !text.contains(ENTRY) {
-                    return None;
-                }
-                journeys_parse::parse(&case.file, &text)
-            });
-            let (line, checks) = declared(file.as_ref()?, &case.name)?;
+            let (line, checks) = declared(parsed.get(case.file.as_str())?, &case.name)?;
             Some(DeclaredChecks { line, checks: checks.into_iter().map(|(id, line)| DeclaredCheck { id, line }).collect() })
         })
         .collect()
