@@ -81,19 +81,16 @@ export function cases(checkout: Checkout): void {
     await expect(enter(await checkout('payment', 20))).resolves.toMatchObject({ outcome: 'payment' });
   });
 
-  it('rests at a region still on the page after the app moved to a new address', async () => {
-    const next = by({ timeout: 2000, quiet: 100 })('next', { to: { billing } }, (on) =>
-      on.click({ role: 'button', name: 'Continue' }),
-    );
+  // Continue with only the form declared: it rests there, or fails where the app went.
+  const next = by({ timeout: 2000, quiet: 100 })('next', { to: { billing } }, (on) =>
+    on.click({ role: 'button', name: 'Continue' }),
+  );
 
+  it('rests at a region still on the page after the app moved to a new address', async () => {
     await expect(next(await checkout('next', 20))).resolves.toMatchObject({ outcome: 'billing' });
   });
 
   it('does not rest at a region a modal dialog has opened over', async () => {
-    const next = by({ timeout: 2000, quiet: 100 })('next', { to: { billing } }, (on) =>
-      on.click({ role: 'button', name: 'Continue' }),
-    );
-
     await expect(next(await checkout('help', 20))).rejects.toMatchObject({
       reason: 'elsewhere',
       went: 'a modal dialog opened',

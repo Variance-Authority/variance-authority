@@ -1778,6 +1778,8 @@
         "Declared": "interface",
         "Elsewhere": "interface",
         "Ends": "interface",
+        "Left": "interface",
+        "Model": "interface",
         "Outcomes": "type",
         "Query": "type",
         "Quiet": "interface",
@@ -1790,6 +1792,7 @@
         "Unreached": "class",
         "action": "const",
         "here": "function",
+        "model": "function",
         "region": "function",
         "stay": "const"
       },
