@@ -26,7 +26,8 @@ lane would be a second world.
 
 One block has none. [harness](./harness/README.md) is a piece of the adopter's
 harness offered beside the rest: it reads nothing a run left behind and hands
-nothing on, so no edge is drawn to it.
+nothing on, so no edge is drawn to it. Of the code beside it, it imports only
+the core's rule for which requests count as work.
 
 ## Blocks
 
