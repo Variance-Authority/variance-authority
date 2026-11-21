@@ -18,21 +18,19 @@
 import { existsSync } from 'node:fs';
 import { readChecks, type ChecksReading } from './test-selection/checks-record.js';
 import { recordedChecksAt } from './test-selection/case-record.js';
-import { askCoverageFile } from './test-selection/coverage-file.js';
 import { nearestRecord, type RecordOrigin } from './test-selection/record-location.js';
 import { declaredSuites } from './test-selection/suites.js';
-import { takenAt } from './recorded-durations.js';
 
 /** What one record says of its run's declared checks, or why it does not say. */
 export type CheckedRun =
   | ({
-      /** The commit the record was taken at; absent where it names none. */
+      /** The commit the checks' own run stood at; absent where it named none. */
       readonly commit?: string;
-      /** When the record's latest run landed, as ISO 8601; absent where it does not say. */
+      /** When the checks' own run landed them, as ISO 8601; absent where they do not say. */
       readonly landed?: string;
     } & ChecksReading)
   /** The record's latest run kept no checks: none of its cases declared one, its runner does not report them, or a build older than them wrote it. */
-  | { readonly commit?: string; readonly landed?: string; readonly unkept: true }
+  | { readonly unkept: true }
   | { readonly unread: string };
 
 /** One suite's checks, and the record that answered. */
@@ -54,9 +52,12 @@ export function recordedChecks(root: string): readonly RecordedChecks[] {
 export function checksAt(recording: string): CheckedRun {
   if (!existsSync(recording)) return { unread: 'nothing is recorded there' };
   try {
+    // The checks name their own run: the coverage beside them, if any, may be
+    // an earlier run's, and a record that keeps cases alone has none.
     const section = recordedChecksAt(recording);
-    const taken = takenAt(recording, askCoverageFile(recording, (view) => view.commit));
-    return section === undefined ? { ...taken, unkept: true } : { ...taken, ...readChecks(section) };
+    if (section === undefined) return { unkept: true };
+    const { commit, landed } = section;
+    return { ...(commit === undefined ? {} : { commit }), ...(landed === undefined ? {} : { landed }), ...readChecks(section) };
   } catch (error) {
     return { unread: error instanceof Error ? error.message : String(error) };
   }

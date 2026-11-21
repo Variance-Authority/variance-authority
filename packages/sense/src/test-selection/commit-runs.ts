@@ -298,12 +298,12 @@ async function landUncovered(coverageFile: string, root: string, cases: FreshCas
 /**
  * Lay `checks` over the record at `coverageFile` and change nothing else in it:
  * a run that landed no case still says what it was asked and what it entered,
- * so the run before it never answers for it. No record holds no checks to
- * replace, and none is written.
+ * so the run before it never answers for it. Where no record stands, the checks
+ * are the record; the caller has laid the checkout's base first.
  */
 export async function landChecks(coverageFile: string, checks: Uint8Array): Promise<void> {
   const over = await recordBytes(coverageFile);
-  if (over === undefined) return;
+  if (over === undefined) return writeCoverageBytes(coverageFile, recordOfCases({ checks }));
   const sections = { ...casesRecordedOver(coverageFile), checks };
   const held = coveredRecord(coverageFile, over);
   return writeCoverageBytes(coverageFile, held === undefined ? recordOfCases(sections) : withCaseSections(held, sections));

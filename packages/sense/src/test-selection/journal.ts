@@ -49,7 +49,7 @@ import { digestString } from '../digest.js';
 import { instrumentationId, type InstrumentMode, type ModuleId } from '../instrument/index.js';
 import { ownedExecutionIndexFrom } from './cases.js';
 import { attemptsOfCases } from './attempts-record.js';
-import { encodeChecks, type ChecksSection } from './checks-record.js';
+import { landedChecks, type ChecksSection } from './checks-record.js';
 import { eyesOfCases } from './eyes-record.js';
 import { encodeOwnedSetExecutionIndex } from './execution-set-format.js';
 import {
@@ -60,7 +60,7 @@ import {
 } from './observed.js';
 import { commitOf } from './commit.js';
 import { noteAnEmptyRecord } from './finished-files.js';
-import { landChecks, laidProbes, landRun } from './commit-runs.js';
+import { laidProbes, landRun } from './commit-runs.js';
 import { markCheckout } from './cache-layers.js';
 import { repositoryRoot } from './repository-root.js';
 import { busyIndex, withIndexLock } from './index-lock.js';
@@ -227,19 +227,7 @@ export interface ExecutionRecord {
   readonly cases?: number;
 }
 
-/**
- * Lay a run's checks over the record it would have landed in, when the run
- * staged nothing else to land: the record then says this run's scope and
- * checks, never the run's before it. Under the same lock as {@link recordExecution}.
- */
-export async function recordChecks(
-  options: Pick<RecordExecutionOptions, 'root' | 'coverageFile' | 'suite'>,
-  checks: ChecksSection,
-): Promise<void> {
-  const root = resolve(options.root);
-  const coverageFile = recordFileFor(root, root, options);
-  await withIndexLock(coverageFile, () => landChecks(coverageFile, encodeChecks(checks)));
-}
+export { recordChecks } from './checks-landing.js';
 
 /**
  * Join drained journals to the modules they name and merge them into the index.
@@ -448,7 +436,7 @@ export async function recordExecution(
     // A worktree layers onto the repository's months of recording rather than
     // onto nothing. A no-op here and after the first run.
     await prepareRecord(lock, root, laidProbes(current), { cacheRoot: options.cacheRoot });
-    await landRun(coverageFile, current, root, options.cacheRoot, cases, options.checks === undefined ? undefined : encodeChecks(options.checks));
+    await landRun(coverageFile, current, root, options.cacheRoot, cases, options.checks === undefined ? undefined : landedChecks(options.checks, commit));
     markCheckout(repositoryRoot(root), options.cacheRoot);
   });
   if (!merged.held) {

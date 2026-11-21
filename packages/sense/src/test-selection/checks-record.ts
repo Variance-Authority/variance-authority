@@ -61,6 +61,10 @@ export interface CheckedCase {
 
 /** One run's checks. */
 export interface ChecksSection {
+  /** The commit the run stood at, when it landed; absent where git named none. The coverage beside it may be an earlier run's. */
+  readonly commit?: string;
+  /** When the run's checks landed, as ISO 8601; absent before they land. */
+  readonly landed?: string;
   /** Whether the runner ended the run itself; a run it was stopped short of names no check missing. */
   readonly complete: boolean;
   readonly scope: ChecksScope;
@@ -90,6 +94,11 @@ export function encodeChecks(section: ChecksSection): Uint8Array {
   return Buffer.from(`${JSON.stringify({ version: 1, ...section })}\n`);
 }
 
+/** The section bytes for `section`, as the run at `commit` lands them now. */
+export function landedChecks(section: ChecksSection, commit: string | undefined): Uint8Array {
+  return encodeChecks({ ...section, ...(commit === undefined ? {} : { commit }), landed: new Date().toISOString() });
+}
+
 /** What a checks section holds, refusing a section that is not one. */
 export function decodeChecks(bytes: Uint8Array): ChecksSection {
   let section: unknown;
@@ -100,10 +109,12 @@ export function decodeChecks(bytes: Uint8Array): ChecksSection {
   }
   const candidate = section as Partial<ChecksSection & { version: number }> | null;
   if (typeof candidate !== 'object' || candidate === null || candidate.version !== 1 ||
-    typeof candidate.complete !== 'boolean' || typeof candidate.scope !== 'object' || !Array.isArray(candidate.cases)) {
+    typeof candidate.complete !== 'boolean' || typeof candidate.scope !== 'object' || !Array.isArray(candidate.cases) ||
+    !['string', 'undefined'].includes(typeof candidate.commit) || !['string', 'undefined'].includes(typeof candidate.landed)) {
     throw new Error('the record\'s checks section is not version 1');
   }
-  return { complete: candidate.complete, scope: candidate.scope!, cases: candidate.cases };
+  const { commit, landed } = candidate;
+  return { ...(commit === undefined ? {} : { commit }), ...(landed === undefined ? {} : { landed }), complete: candidate.complete, scope: candidate.scope!, cases: candidate.cases };
 }
 
 /**
