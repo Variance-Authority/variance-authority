@@ -52,28 +52,28 @@ describe('ask intersection over a checkout', () => {
   it('finds the declaration of a name among every one, by what a file reaches', async () => {
     const text = await ask('symbol --name selectBalance', 'discover --from src/Wallet.ts');
     expect(text).toContain('1. `symbol --name selectBalance`: 2 files');
-    expect(text).toContain('1 file in all of them.');
+    expect(text).toContain('1 file in all of them:');
     expect(text).toContain('src/store/selectors.ts — 1: line 1 · 2: the file');
     expect(text).not.toContain('src/old/selectors.ts —');
   });
 
   it('crosses the files that import a name, at the lines that do', async () => {
     const text = await ask('uses --name selectBalance', 'discover --path ^src/Wallet');
-    expect(text).toContain('1 file in all of them.');
+    expect(text).toContain('1 file in all of them:');
     expect(text).toContain('src/Wallet.ts — 1: line 1 · 2: the file');
   });
 
   it('crosses the files a search finds, and spells each question back so it can be pasted', async () => {
     const text = await ask('search --query balance', "discover --path '^src/' --except-path old");
     expect(text).toContain('2. `discover --path ^src/ --except-path old`: 3 files');
-    expect(text).toContain('3 files in all of them.');
+    expect(text).toContain('3 files in all of them:');
     expect(text).toContain('src/store/selectors.ts — 1: line 1 · 2: the file');
     expect(text).not.toContain('src/old/selectors.ts —');
   });
 
   it('reads the names a question needs, and the tree another needs', async () => {
     const text = await ask("discover --declares '^selectBalance$'", 'grep --query state --from src/Wallet.ts');
-    expect(text).toContain('1 file in all of them.');
+    expect(text).toContain('1 file in all of them:');
     expect(text).toContain('src/store/selectors.ts — 1: line 1 · 2: line 1');
   });
 
@@ -90,13 +90,13 @@ describe('ask intersection over a checkout', () => {
       reports: ["discover --declares '^selectBalance$'", 'discover --from src/Wallet.ts'],
       taintFile,
     });
-    expect(text).toContain('2 files in all of them.');
+    expect(text).toContain('2 files in all of them:');
     expect(text).toContain('src/old/selectors.ts — 1: line 1 · 2: the file');
   });
 
   it('takes `--limit` for itself', async () => {
     const text = await askSource({ question: 'intersection', reports: ['discover --path ^src/', 'discover --path selectors'], limit: 1 });
-    expect(text).toContain('2 files in all of them.');
+    expect(text).toContain('2 files in all of them:');
     expect(text).toContain('1 more not shown; `--offset` 1 shows the next 1.');
   });
 

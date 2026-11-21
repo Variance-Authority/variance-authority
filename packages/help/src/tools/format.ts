@@ -156,3 +156,70 @@ export function said(entry: Entry): readonly string[] {
     entry.mention.text,
   ];
 }
+
+/*
+ * The row grammar every located answer shares, read by agents for the facts
+ * per token. A row is one line. What the rows on a page share is said once:
+ * a file with several rows is a heading with its lines under it, as
+ * `rg --heading` prints them, and the run of import steps every chain on a
+ * page ends with is printed once above the rows, each row keeping its own.
+ */
+
+/** One located row: a file, a line in it, and what stands there. */
+export interface Located {
+  readonly file: string;
+  readonly line: number;
+  readonly text: string;
+}
+
+/** `12: text`, the line and what stands on it, under a file already named. */
+export const atLine = (line: number, text: string): string => `${line}: ${text.trimStart()}`;
+
+/**
+ * Rows in their order, a run of one file's rows said under that file once:
+ * a file with one row is `file:line: text`, a file with several is the file,
+ * then `  line: text` per row.
+ */
+export function byFile(rows: readonly Located[]): readonly string[] {
+  const lines: string[] = [];
+  for (let at = 0; at < rows.length; ) {
+    const file = rows[at]!.file;
+    let end = at;
+    while (end < rows.length && rows[end]!.file === file) end++;
+    if (end - at === 1) lines.push(`${file}:${atLine(rows[at]!.line, rows[at]!.text)}`);
+    else {
+      lines.push(file);
+      for (let row = at; row < end; row++) lines.push(`  ${atLine(rows[row]!.line, rows[row]!.text)}`);
+    }
+    at = end;
+  }
+  return lines;
+}
+
+/**
+ * The longest run of steps every chain on a page ends with, when two chains or
+ * more share one; none otherwise. Even the target alone is worth saying once:
+ * it is the longest step of every row.
+ */
+export function chainsEnd(chains: readonly (readonly string[])[]): readonly string[] {
+  if (chains.length < 2) return [];
+  let shared = Math.min(...chains.map((chain) => chain.length));
+  const first = chains[0]!;
+  for (const chain of chains.slice(1)) {
+    let same = 0;
+    while (same < shared && chain[chain.length - 1 - same] === first[first.length - 1 - same]) same++;
+    shared = same;
+  }
+  return shared === 0 ? [] : first.slice(first.length - shared);
+}
+
+/**
+ * A chain short of the end every chain on its page shares: its own steps,
+ * then `→ …` where the shared end follows. A chain is never cut below its
+ * first step, the file the row is about.
+ */
+export function ownSteps(chain: readonly string[], end: readonly string[]): string {
+  if (end.length === 0) return chain.join(' → ');
+  const own = chain.slice(0, Math.max(1, chain.length - end.length));
+  return own.length < chain.length ? `${own.join(' → ')} → …` : own.join(' → ');
+}

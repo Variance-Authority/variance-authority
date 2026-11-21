@@ -118,8 +118,9 @@ describe('ask symbol, the text it prints of a doc, a signature and a member', ()
       Nothing in this workspace imports it; a namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted.
 
       Members:
-      packages/kit/src/cut.ts:26 — readonly open: boolean;
-      packages/kit/src/cut.ts:27 — close(): void;
+      packages/kit/src/cut.ts
+        26: readonly open: boolean;
+        27: close(): void;
       Snapshot
       ",
         "No export, top-level declaration or member of a class, an interface or a type in this repository, nor the doc of one, nor a function inside a function, writes \`marks pair\`. The nearest follow.

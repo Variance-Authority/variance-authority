@@ -91,7 +91,7 @@ describe('variance ask uses --limit', () => {
       const at = lines.indexOf('Used in packages/lib/src/greet.ts, which declares it:');
       if (at === -1) return [];
       const after = lines.slice(at + 2);
-      const end = after.findIndex((line) => !/^\S+:\d+ — /.test(line));
+      const end = after.findIndex((line) => !/^\S+:\d+(?: |;|$)/.test(line));
       return end === -1 ? after : after.slice(0, end);
     };
     const all = await run(['ask', 'uses', '--name', 'greet']);

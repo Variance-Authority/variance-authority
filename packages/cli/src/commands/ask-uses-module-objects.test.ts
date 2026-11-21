@@ -64,7 +64,7 @@ describe('variance ask uses over a module object', () => {
     const recorder = await uses('recorder');
     expect(recorder).toMatch(/^apps\/app\/src\/listen\.ts:2 — @acme\/app.* \(namespace, line 1, through `default`: may read it\)$/m);
     const scoped = await uses('scoped');
-    expect(scoped).toMatch(/^packages\/kit\/src\/runner\.ts:2 — @acme\/kit \(namespace, line 1, through `default`: may read it\)$/m);
+    expect(scoped).toMatch(/^packages\/kit\/src\/runner\.ts:2 \(namespace, line 1, through `default`: may read it\)$/m);
   });
 
   it('lists a type query off a type-only default import of an `export =` object as a read through `default`', async () => {
@@ -93,7 +93,7 @@ describe('variance ask uses over a module object', () => {
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
 
     const recorder = await uses('recorder');
-    expect(recorder).toMatch(/^packages\/kit\/src\/preconditions\.cts:7 — @acme\/kit$/m);
+    expect(recorder).toMatch(/^packages\/kit\/src\/preconditions\.cts:7$/m);
     expect(recorder).not.toMatch(/preconditions\.cts:10 /);
     expect(await uses('scoped')).not.toMatch(/preconditions\.cts:10 /);
   });
@@ -103,15 +103,15 @@ describe('variance ask uses over a module object', () => {
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
 
     const scoped = await uses('scoped');
-    expect(scoped).toMatch(/^packages\/kit\/src\/typed\.test\.ts:3 — @acme\/kit \(type only\) \(import\(\) on line 2\)$/m);
-    expect(scoped).toMatch(/^packages\/kit\/src\/typed\.test\.ts:4 — @acme\/kit \(type only\) \(import\(\) on line 2\)$/m);
+    expect(scoped).toMatch(/^packages\/kit\/src\/typed\.test\.ts:3 \(type only\) \(import\(\) on line 2\)$/m);
+    expect(scoped).toMatch(/^packages\/kit\/src\/typed\.test\.ts:4 \(type only\) \(import\(\) on line 2\)$/m);
   });
 
   it('reads a call off a cast to `typeof import()` written in place, with no variable', async () => {
     checkout(OBJECTS);
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
 
-    expect(await uses('scoped')).toMatch(/^packages\/kit\/src\/direct\.ts:2 — @acme\/kit \(type only\) \(import\(\) on line 2\)$/m);
+    expect(await uses('scoped')).toMatch(/^packages\/kit\/src\/direct\.ts:2 \(type only\) \(import\(\) on line 2\)$/m);
   });
 
   it('reads a member off a parameter a `typeof import()` alias types', async () => {

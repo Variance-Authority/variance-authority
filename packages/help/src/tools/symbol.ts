@@ -16,7 +16,7 @@ import { answers, boundOf, keyOf, originOf, SLOT } from './declaration-key.js';
 import { UNCOUNTED, exportsNamed, importsApart } from './unpublished.js';
 import { type Counted, counted, spokenSplit } from './uses-count.js';
 import { type PublishedDeclaration, publishedDeclarations, publishingFiles, usesOf } from './uses-of.js';
-import { localNames, renamedSites } from './renamed.js';
+import { declarationKey, localNames, renamedSites } from './renamed.js';
 import { exportedIn, exportedNamed } from './rows.js';
 import { symbolAtLine } from './symbol-line.js';
 
@@ -104,13 +104,16 @@ export const symbol: Tool<Help> = {
       (site) => name !== SLOT || site.held.to === undefined || answers(help, invocation?.root, { at: site.held.to, name }, name),
     );
     // A name an import binds to an export of another name: the import, and the export it names.
-    const aliased = localNames(help, invocation?.root, name, wanted).blocks;
+    const local = localNames(help, invocation?.root, name, wanted).blocks;
 
     // Exported for a neighbour and never published: the workspace's own name,
     // said first. An installed name it matches is said after it, since a file
     // that passes an installed binding on exports it without declaring it.
     // A published namesake is another declaration, so it never hides this one.
     const exported = unpublishedExports(help, invocation?.root, name, wanted, found.map((one) => [one.at, one.declared] as const));
+    // A local name of a declaration answered above says it by its line, not again whole.
+    const above = new Set([...found.map((one) => `${one.at}\0${one.declared}`), ...exported.map((held) => declarationKey(help, invocation?.root, held))]);
+    const aliased = local.map((one) => (one.brief !== undefined && above.has(one.brief.key) ? one.brief.text : one.text));
     const others = exported.length > 0 ? [exportedOnly(help, name, exported, invocation?.root, spell)] : [];
     // A member of an interface, a type literal or a class is the workspace's
     // own declaration too, which no import names and the scan records. It

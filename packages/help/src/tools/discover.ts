@@ -3,6 +3,7 @@ import type { FileSet, Link, Tool, ToolInvocation, Tree } from '@variance-author
 import { entryPoints, nextPage, pageAt, pageOf, paged, refusalFor, spellingOf } from '@variance-authority/mcp/tools';
 import type { NameHit } from '@variance-authority/sense';
 import { startPointNeeded } from './area.js';
+import { atLine, chainsEnd, ownSteps } from './format.js';
 import { foundOf, type Found } from './discover-names.js';
 import { fileNamed, listArg, nameOf, textArg } from './discover-operands.js';
 import { ripgrep } from './ripgrep.js';
@@ -59,6 +60,12 @@ interface Evidence {
   readonly text: string;
 }
 
+/** A file's distance from a reach operand's start point, and the chain that walks it, when there is one. */
+interface Reach {
+  readonly hops: number;
+  readonly steps?: readonly string[];
+}
+
 /** One set, read whole, and how it says a file is in it. */
 interface Operand {
   readonly header: string;
@@ -66,6 +73,12 @@ interface Operand {
   /** Import distance from or to its start point; reach operands only. */
   readonly distance?: ReadonlyMap<string, number>;
   readonly evidence: (file: string) => readonly Evidence[];
+  /**
+   * How far a file is from the start point, and against the imports the steps
+   * that take it there, the file itself first; reach operands only. Asked only
+   * of the files a page shows, since a chain costs a walk back per file.
+   */
+  readonly reach?: (file: string) => Reach;
   /**
    * The lines that put a file in the set, for a caller that prints no
    * evidence; read off `evidence` when absent. A reach says it, since its
@@ -77,9 +90,7 @@ interface Operand {
 }
 
 const counted = (count: number): string => `${count} ${count === 1 ? 'file' : 'files'}`;
-const imports = (count: number): string => `${count} ${count === 1 ? 'import' : 'imports'}`;
 const none = (): readonly Evidence[] => [];
-const said = (unread: string | undefined): string => (unread === undefined ? '' : ` — ${unread}`);
 
 /**
  * The files the tree holds whose names the index does not: a file whose parse
@@ -112,11 +123,9 @@ const STEP: Readonly<Record<string, string>> = {
 /** Files of the unresolved ones named before the rest are counted. */
 const NAMED = 5;
 
-/** `a.ts → b.ts (type import) → c.ts`: each file, and the kind of the import it takes to the next. */
-function chainText(links: readonly Link[]): string {
-  return links
-    .map((link) => (link.kind === undefined || link.kind === 'imports' ? link.file : `${link.file} (${STEP[link.kind] ?? link.kind})`))
-    .join(' → ');
+/** `a.ts`, `b.ts (type import)`, `c.ts`: each file, and the kind of the import it takes to the next. */
+function chainSteps(links: readonly Link[]): readonly string[] {
+  return links.map((link) => (link.kind === undefined || link.kind === 'imports' ? link.file : `${link.file} (${STEP[link.kind] ?? link.kind})`));
 }
 
 /**
@@ -125,10 +134,11 @@ function chainText(links: readonly Link[]): string {
  * them, a file the walk did not reach may import the subject through the one
  * import nobody resolved, so those are the files named.
  */
-function holesOf(tree: Tree, files: ReadonlySet<string>, along: boolean): string | undefined {
+function holesOf(tree: Tree, files: ReadonlySet<string>, along: boolean, term = ''): string | undefined {
   if (along) {
     const unresolved = tree.unknownAmong(files).length;
-    return unresolved === 0 ? undefined : `${unresolved} of them import something the scan could not resolve`;
+    const which = unresolved === 1 ? 'file' : 'files';
+    return unresolved === 0 ? undefined : `${unresolved} ${which} reached from \`${term}\` import something the scan could not resolve`;
   }
   const unseen = tree.unknownFiles().filter((file) => !files.has(file));
   if (unseen.length === 0) return undefined;
@@ -161,16 +171,15 @@ function reach(term: string, tree: Tree, along: boolean, root: string | undefine
   const chains = along ? undefined : tree.chainsTo(seeds.files);
   const distance = chains?.distance ?? tree.distanceFrom(seeds.files);
   const files = new Set(distance.keys());
-  const holes = holesOf(tree, files, along);
-  const way = along ? 'from' : 'to';
+  const holes = holesOf(tree, files, along, term);
   return {
-    header: `${counted(files.size)} ${along ? 'reached from' : 'reaching'} \`${term}\`${said(holes)}`,
+    header: `${counted(files.size)} ${along ? 'reached from' : 'reaching'} \`${term}\``,
     files,
     distance,
-    evidence: (file) => {
+    evidence: none,
+    reach: (file) => {
       const hops = distance.get(file) ?? 0;
-      const chain = chains !== undefined && hops > 1 ? `: ${chainText(chains.chain(file))}` : '';
-      return [{ text: `${imports(hops)} ${way} ${term}${chain}` }];
+      return chains !== undefined && hops > 1 ? { hops, steps: chainSteps(chains.chain(file)) } : { hops };
     },
     lines: () => [],
     ...(holes === undefined ? {} : { unread: holes }),
@@ -197,17 +206,17 @@ function reachingName(term: string, file: string, name: string, tree: Tree, root
   const files = new Set(distance.keys());
   const holes = holesOf(tree, files, false);
   return {
-    header: `${counted(files.size)} reaching \`${name}\` from \`${file}\`${passedOn(read.through)}${said(holes)}`,
+    header: `${counted(files.size)} reaching \`${name}\` from \`${file}\`${passedOn(read.through)}`,
     files,
     distance,
-    evidence: (at) => {
+    evidence: (at) => (distance.get(at) === 1 ? (sites.get(at) ?? []) : []),
+    reach: (at) => {
       const hops = distance.get(at) ?? 0;
-      if (hops === 0) return [{ text: `0 imports to ${term}` }];
-      if (hops === 1) return sites.get(at) ?? [];
+      if (hops <= 1) return { hops };
       const chain = chains.chain(at);
       const seed = chain.at(-1)!.file;
       const site = sites.get(seed)![0]!;
-      return [{ text: `${imports(hops)} to ${term}: ${chainText(chain.slice(0, -1))} → ${seed}:${site.line} ${site.text}` }];
+      return { hops, steps: [...chainSteps(chain.slice(0, -1)), `${seed}:${site.line} ${site.text}`] };
     },
     lines: (at) => (distance.get(at) === 1 ? (sites.get(at) ?? []).flatMap((site) => (site.line === undefined ? [] : [site.line])) : []),
     ...(holes === undefined ? {} : { unread: holes }),
@@ -279,7 +288,7 @@ function declaresOf(pattern: string, tree: Tree, found: Found): Operand {
 function namedOperand(what: string, lines: ReadonlyMap<string, readonly Evidence[]>, tree: Tree, found: Found): Operand {
   const unread = unreadOf(tree, found);
   return {
-    header: `${counted(lines.size)} ${what}${said(unread)}`,
+    header: `${counted(lines.size)} ${what}`,
     files: new Set(lines.keys()),
     evidence: (file) => lines.get(file) ?? [],
     ...(unread === undefined ? {} : { unread }),
@@ -364,19 +373,10 @@ export const discover: Tool<unknown> = {
   run: (_subject, input, invocation) => {
     const spell = spellingOf(invocation);
     const page = pageOf(input, SHOWN, spell);
-    const { kept, header, answer, matched, reaches } = answered(input, invocation);
-    if (answer.length === 0) return [...header, '', 'No file is in all of them.'].join('\n');
-
-    const shown = (evidence: Evidence): string => `  ${evidence.line === undefined ? '' : `${evidence.line}  `}${evidence.text}`;
-    const order = reaches === 0 ? '.' : ', nearest first.';
-    const lines = [...header, '', `${counted(answer.length)} in all of them${order}`, ...pageAt(page, answer.length, spell)];
-    for (const file of paged(answer, page)) {
-      lines.push('', file);
-      for (const operand of kept) for (const evidence of operand.evidence(file)) lines.push(shown(evidence));
-      for (const evidence of matched.get(file) ?? []) lines.push(shown(evidence));
-    }
-    for (const next of nextPage(page, answer.length, spell)) lines.push('', next);
-    return lines.join('\n');
+    const { kept, header, answer, matched, notes } = answered(input, invocation);
+    const noted = notes.map((note) => `note: ${note}`);
+    if (answer.length === 0) return [...header, '', 'No file is in all of them.', ...noted].join('\n');
+    return [...rowsOf(kept, header, answer, matched, page, spell), ...noted, ...nextPage(page, answer.length, spell)].join('\n');
   },
 
   // Every file in all of the sets, at each line that put it in one; what any
@@ -444,5 +444,47 @@ function answered(input: Readonly<Record<string, unknown>>, invocation: ToolInvo
     unread.push(...errors.map((error) => `ripgrep: ${error}`));
     answer = answer.filter((file) => matched.has(file));
   }
-  return { kept, header, answer, matched, reaches: reaches.length, unread };
+  // One index answers every name set, so its unread files are said once, not per set.
+  const notes = [...new Set([...kept, ...out].flatMap((operand) => (operand.unread === undefined ? [] : [operand.unread])))];
+  return { kept, header, answer, matched, unread, notes };
+}
+
+/**
+ * The answer first, then the sets it crossed, then one line per file: its
+ * distance from each reach operand's start point, its path, or the steps of
+ * its chain short of the run every chain on the page ends with, which is said
+ * once above the rows. The lines that put a file in a set follow it, indented.
+ */
+function rowsOf(
+  kept: readonly Operand[],
+  header: readonly string[],
+  answer: readonly string[],
+  matched: ReadonlyMap<string, readonly Evidence[]>,
+  page: ReturnType<typeof pageOf>,
+  spell: ReturnType<typeof spellingOf>,
+): readonly string[] {
+  const reaches = kept.filter((operand) => operand.reach !== undefined);
+  const shown = paged(answer, page).map((file) => ({ file, reached: reaches.map((operand) => operand.reach!(file)) }));
+  const ends = reaches.map((_, at) => chainsEnd(shown.flatMap(({ reached }) => (reached[at]!.steps === undefined ? [] : [reached[at]!.steps!]))));
+  const chained = reaches.flatMap((operand, at) => (shown.some(({ reached }) => reached[at]!.steps !== undefined) ? [at] : []));
+
+  const lines = [
+    `${counted(answer.length)} in all of them${reaches.length === 0 ? ':' : ', nearest first:'}`,
+    ...header.map((said) => `- ${said}`),
+    ...(reaches.length > 1 ? [`each row: imports ${reaches.map((operand) => operand.header.replace(/^\d+ files? /u, '')).join(', then ')}`] : []),
+    ...ends.flatMap((end, at) =>
+      end.length === 0 ? [] : [`${chained.length > 1 ? `chains ${reaches[at]!.header.replace(/^\d+ files? /u, '')} ` : 'chains '}end: ${end.join(' → ')}`]),
+    ...pageAt(page, answer.length, spell),
+  ];
+  for (const { file, reached } of shown) {
+    const hops = reached.map((one) => `${one.hops} `).join('');
+    const inline = chained.length === 1 ? reached[chained[0]!]!.steps : undefined;
+    lines.push(`${hops}${inline === undefined ? file : ownSteps(inline, ends[chained[0]!]!)}`);
+    if (chained.length > 1) {
+      for (const at of chained) if (reached[at]!.steps !== undefined) lines.push(`  → ${ownSteps(reached[at]!.steps!, ends[at]!)}`);
+    }
+    const evidence = [...kept.flatMap((operand) => operand.evidence(file)), ...(matched.get(file) ?? [])];
+    for (const one of evidence) lines.push(`  ${one.line === undefined ? one.text : atLine(one.line, one.text)}`);
+  }
+  return lines;
 }

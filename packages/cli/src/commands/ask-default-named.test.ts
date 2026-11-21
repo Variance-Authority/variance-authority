@@ -44,7 +44,7 @@ describe('variance ask over a declaration exported only as default', () => {
 
     const out = await ask('uses', '--name', 'shout');
     expect(out.split('\n')[0]).toMatch(/^`shout` \[function\] is imported in 2 places: 1 from another package and 1 inside @acme\/lib, /);
-    expect(out).toMatch(/^packages\/lib\/src\/anon-use\.ts:1 — @acme\/lib; used on line 2$/m);
+    expect(out).toMatch(/^packages\/lib\/src\/anon-use\.ts:1; used on line 2$/m);
     expect(out).toMatch(/^apps\/app\/src\/anon-deep\.ts:1 — @acme\/app \(as yell\); used on line 2$/m);
   });
 
@@ -55,8 +55,8 @@ describe('variance ask over a declaration exported only as default', () => {
     for (const name of ['bark', 'shout', 'yell']) {
       const out = await ask('uses', '--name', name);
       expect(out).not.toMatch(/No file in this workspace declares/);
-      expect(out).toMatch(/^packages\/lib\/src\/anon-use\.ts:1 — @acme\/lib/m);
-      expect(out).toMatch(/^packages\/lib\/src\/a\.ts:1 — @acme\/lib/m);
+      expect(out).toMatch(/^packages\/lib\/src\/anon-use\.ts:1/m);
+      expect(out).toMatch(/^packages\/lib\/src\/a\.ts:1/m);
       expect(out).toMatch(/^apps\/app\/src\/anon-deep\.ts:1 — @acme\/app/m);
     }
   });
@@ -81,7 +81,7 @@ describe('variance ask over a declaration exported only as default', () => {
 
     const uses = await ask('uses', '--name', 'Badge');
     expect(uses.split('\n')[0]).toMatch(/^`Badge` \[function\] is imported in 1 place, inside @acme\/lib, /);
-    expect(uses).toMatch(/^packages\/lib\/src\/badge-use\.ts:1 — @acme\/lib \(as Btn\); used on line 2$/m);
+    expect(uses).toMatch(/^packages\/lib\/src\/badge-use\.ts:1 \(as Btn\); used on line 2$/m);
     expect(await ask('symbol', '--name', 'Badge')).toMatch(/^Badge \[function\]$/m);
   });
 

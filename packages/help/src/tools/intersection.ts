@@ -169,12 +169,13 @@ export function intersectionOf<Subject>(operands: readonly Tool<Subject>[]): Too
         return none;
       }
 
-      lines.push('', `${counted(common.length)} in all of them.`, ...pageAt(page, common.length, spell), '');
-      for (const file of paged(common, page)) {
-        lines.push(`${file} — ${sets.map((set, at) => `${at + 1}: ${evidenceOf(set.files.get(file)!)}`).join(' · ')}`);
-      }
-      for (const next of nextPage(page, common.length, spell)) lines.push('', next);
-      return lines.join('\n');
+      // The answer first, then the questions it crossed, then one row per file.
+      const rows = paged(common, page).map(
+        (file) => `${file} — ${sets.map((set, at) => `${at + 1}: ${evidenceOf(set.files.get(file)!)}`).join(' · ')}`,
+      );
+      return [`${counted(common.length)} in all of them:`, ...lines, ...pageAt(page, common.length, spell), ...rows, ...nextPage(page, common.length, spell)].join(
+        '\n',
+      );
     },
   };
   return tool;

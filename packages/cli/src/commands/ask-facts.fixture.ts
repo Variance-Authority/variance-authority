@@ -122,7 +122,7 @@ export async function uses(name: string): Promise<UsesAnswer> {
     } else if (section === 'member-declarations' && (m = new RegExp(`^${AT} — ([\\w$]+)$`, 'u').exec(line))) memberOf.push(m[3]!);
     else if (section === 'member' && (m = new RegExp(`^${AT} — \\S+, (read|write)$`, 'u').exec(line))) {
       into.push({ file: m[1]!, section, container, typeOnly: false, dynamic: false, as: undefined, passedOnWhole: false, access: m[3] as 'read' | 'write' });
-    } else if (section !== undefined && section !== 'member-declarations' && (m = new RegExp(`^${AT} — [^\\s,;]+(?:, [^(;]+)?(?: \\((.+?)\\))?(?:; used on lines? [\\d, ]+(?: and \\d+ more)?)?$`, 'u').exec(line))) {
+    } else if (section !== undefined && section !== 'member-declarations' && (m = new RegExp(`^${AT}(?: — [^\\s,;]+)?(?:, [^(;]+)?(?: \\((.+?)\\))?(?:; used on lines? [\\d, ]+(?: and \\d+ more)?)?$`, 'u').exec(line))) {
       const notes = m[3] ?? '';
       into.push({
         file: m[1]!,

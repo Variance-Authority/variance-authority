@@ -29,7 +29,7 @@ function section(out: string, heading: string): readonly string[] {
   const at = lines.indexOf(heading);
   if (at === -1) return [];
   const after = lines.slice(at + 2);
-  const end = after.findIndex((line) => !/^\S+:\d+ — /.test(line));
+  const end = after.findIndex((line) => !/^\S+:\d+(?: |;|$)/.test(line));
   return end === -1 ? after : after.slice(0, end);
 }
 
@@ -59,8 +59,8 @@ describe('variance ask uses over the file that declares the name', () => {
     expect(code).toBe(EXIT_CLEAN);
     expect(out).toMatch(/^apps\/app\/src\/hello\.ts:1 — @acme\/app; used on line 2$/m);
     expect(section(out, own('packages/lib/src/greet.ts'))).toEqual([
-      'packages/lib/src/greet.ts:4 — @acme/lib',
-      'packages/lib/src/greet.ts:10 — @acme/lib',
+      'packages/lib/src/greet.ts:4',
+      'packages/lib/src/greet.ts:10',
     ]);
   });
 
@@ -81,9 +81,9 @@ describe('variance ask uses over the file that declares the name', () => {
     const { code, out } = await run(['ask', 'uses', '--name', 'greet']);
     expect(code).toBe(EXIT_CLEAN);
     expect(section(out, own('packages/lib/src/greet.ts'))).toEqual([
-      'packages/lib/src/greet.ts:4 — @acme/lib',
-      'packages/lib/src/greet.ts:5 — @acme/lib',
-      'packages/lib/src/greet.ts:6 — @acme/lib',
+      'packages/lib/src/greet.ts:4',
+      'packages/lib/src/greet.ts:5',
+      'packages/lib/src/greet.ts:6',
     ]);
   });
 
@@ -96,7 +96,7 @@ describe('variance ask uses over the file that declares the name', () => {
     const { code, out } = await run(['ask', 'uses', '--name', 'keptAside']);
     expect(code).toBe(EXIT_CLEAN);
     expect(out).toContain('`keptAside` [function] is declared, not exported, at packages/lib/src/kept.ts:1');
-    expect(section(out, own('packages/lib/src/kept.ts'))).toEqual(['packages/lib/src/kept.ts:4 — @acme/lib']);
+    expect(section(out, own('packages/lib/src/kept.ts'))).toEqual(['packages/lib/src/kept.ts:4']);
   });
 
   it('lists the lines of a Rust file that use an item it declares, through an inline test module too', async () => {
@@ -132,8 +132,8 @@ describe('variance ask uses over the file that declares the name', () => {
     const { code, out } = await run(['ask', 'uses', '--name', 'passed_on']);
     expect(code).toBe(EXIT_CLEAN);
     expect(section(out, own('packages/kit/src/graph.rs'))).toEqual([
-      'packages/kit/src/graph.rs:8 — @acme/kit',
-      'packages/kit/src/graph.rs:14 — @acme/kit',
+      'packages/kit/src/graph.rs:8',
+      'packages/kit/src/graph.rs:14',
     ]);
   });
 
@@ -163,13 +163,13 @@ describe('variance ask uses over the file that declares the name', () => {
     const { code, out } = await run(['ask', 'uses', '--name', 'helper']);
     expect(code).toBe(EXIT_CLEAN);
     expect(out).toContain('`helper` [function] is declared, not exported, at packages/kit/src/graph.rs:2');
-    expect(out).toMatch(/^packages\/kit\/src\/graph\/child\.rs:1 — @acme\/kit$/m);
+    expect(out).toMatch(/^packages\/kit\/src\/graph\/child\.rs:1$/m);
     expect(section(out, own('packages/kit/src/graph.rs'))).toEqual([
-      'packages/kit/src/graph.rs:6 — @acme/kit',
-      'packages/kit/src/graph.rs:10 — @acme/kit',
-      'packages/kit/src/graph.rs:12 — @acme/kit',
+      'packages/kit/src/graph.rs:6',
+      'packages/kit/src/graph.rs:10',
+      'packages/kit/src/graph.rs:12',
     ]);
-    expect(out.match(/^packages\/kit\/src\/graph\.rs:\d+ — /gm)).toHaveLength(3);
+    expect(out.match(/^packages\/kit\/src\/graph\.rs:\d+$/gm)).toHaveLength(3);
   });
 
   it('marks a child that takes a kept Rust item under another name, and lists the lines of its own file unmarked', async () => {
@@ -182,8 +182,8 @@ describe('variance ask uses over the file that declares the name', () => {
 
     const { code, out } = await run(['ask', 'uses', '--name', 'helper']);
     expect(code).toBe(EXIT_CLEAN);
-    expect(out).toMatch(/^packages\/kit\/src\/graph\/child\.rs:1 — @acme\/kit \(as aid\)$/m);
-    expect(section(out, own('packages/kit/src/graph.rs'))).toEqual(['packages/kit/src/graph.rs:6 — @acme/kit']);
+    expect(out).toMatch(/^packages\/kit\/src\/graph\/child\.rs:1 \(as aid\)$/m);
+    expect(section(out, own('packages/kit/src/graph.rs'))).toEqual(['packages/kit/src/graph.rs:6']);
   });
 
   it('lists the lines of each file that keeps a name of its own under that file, and none under another', async () => {
@@ -195,10 +195,10 @@ describe('variance ask uses over the file that declares the name', () => {
 
     const { code, out } = await run(['ask', 'uses', '--name', 'tally']);
     expect(code).toBe(EXIT_CLEAN);
-    expect(section(out, own('packages/lib/src/one.ts'))).toEqual(['packages/lib/src/one.ts:4 — @acme/lib']);
+    expect(section(out, own('packages/lib/src/one.ts'))).toEqual(['packages/lib/src/one.ts:4']);
     expect(section(out, own('packages/lib/src/two.ts'))).toEqual([
-      'packages/lib/src/two.ts:2 — @acme/lib',
-      'packages/lib/src/two.ts:3 — @acme/lib',
+      'packages/lib/src/two.ts:2',
+      'packages/lib/src/two.ts:3',
     ]);
   });
 

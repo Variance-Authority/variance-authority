@@ -147,7 +147,7 @@ describe('variance ask grep --test', () => {
 
     const text = await askSource({ question: 'intersection', reports: ['grep --query give --test test/refund.test.ts', 'grep --query give --test test/order.test.ts'] });
 
-    expect(text).toContain('1 file in all of them.');
+    expect(text).toContain('1 file in all of them:');
     expect(text).toContain('src/order.ts —');
     expect(text).not.toContain('src/refund.ts —');
   });

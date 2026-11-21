@@ -78,7 +78,7 @@ describe('variance ask uses over a member', () => {
 
     const { code, out } = await run(['ask', 'uses', '--name', 'scanner']);
     expect(code).toBe(EXIT_CLEAN);
-    expect(out).toMatch(/^packages\/lib\/src\/effects\.ts:1 — @acme\/lib; used on line 2$/m);
+    expect(out).toMatch(/^packages\/lib\/src\/effects\.ts:1; used on line 2$/m);
     expect(out).not.toContain('type checker');
     expect(out).not.toContain('find-references');
   });
@@ -89,8 +89,8 @@ describe('variance ask uses over a member', () => {
 
     const { code, out } = await run(['ask', 'grep', '--query', '\\bresolveThings\\b', '--to', 'packages/lib/src/native.ts']);
     expect(code).toBe(EXIT_CLEAN);
-    expect(out).toMatch(/^packages\/lib\/src\/effects\.ts:3:/m);
-    expect(out).toMatch(/^packages\/lib\/src\/references\.ts:3:/m);
+    expect(out).toMatch(/^packages\/lib\/src\/effects\.ts\n  3: /m);
+    expect(out).toMatch(/^packages\/lib\/src\/references\.ts\n  3: /m);
     expect(out).toMatch(/^packages\/lib\/src\/references\.test\.ts:2:/m);
     expect(out).toMatch(/^packages\/lib\/src\/accessor\.ts:3:/m);
     expect(out).not.toContain('elsewhere.ts');
@@ -118,11 +118,11 @@ describe('variance ask uses over a member', () => {
     const { code, out } = await run(['ask', 'uses', '--name', 'resolveThings']);
     expect(code).toBe(EXIT_CLEAN);
     expect(out).toContain('`resolveThings` is a member too, declared in 3 places:');
-    const listed = out.split('\n').filter((line) => / — /.test(line) && /\.ts:\d+/.test(line));
+    const listed = out.split('\n').filter((line) => (/ — /.test(line) || /^\S+:\d+$/.test(line)) && /\.ts:\d+/.test(line));
     // `references.ts` destructures its own `resolveThings` and reads it a line
     // later, which is a use in the declaring file, listed before the members.
     expect(listed).toEqual([
-      'packages/lib/src/references.ts:4 — @acme/lib',
+      'packages/lib/src/references.ts:4',
       'packages/kit/src/held.ts:2 — Held',
       'packages/lib/src/native.ts:5 — Scanner',
       'packages/lib/src/native.ts:9 — Later',
@@ -145,7 +145,7 @@ describe('variance ask uses over a member', () => {
 
     const { code, out } = await run(['ask', 'uses', '--name', 'resolveThings']);
     expect(code).toBe(EXIT_CLEAN);
-    const imported = out.search(/^packages\/lib\/src\/wrapped\.ts:1 — @acme\/lib; used on line 2$/m);
+    const imported = out.search(/^packages\/lib\/src\/wrapped\.ts:1; used on line 2$/m);
     const member = out.indexOf('`resolveThings` is a member too, declared in 1 place:');
     expect(imported).toBeGreaterThanOrEqual(0);
     expect(member).toBeGreaterThan(imported);

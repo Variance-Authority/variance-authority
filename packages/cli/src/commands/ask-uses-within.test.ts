@@ -50,16 +50,16 @@ describe('variance ask over the imports of a name within its own package', () =>
     // `other.ts` declares another `greet`, so the headline names the declaration it counts.
     expect(out).toContain('`greet` [function] is imported in 5 places: 1 from another package and 4 inside @acme/lib, published by @acme/lib, declared at packages/lib/src/greet.ts:2.');
     expect(out).toMatch(/^apps\/app\/src\/hello\.ts:1 — @acme\/app; used on line 2$/m);
-    expect(out).toMatch(/^packages\/lib\/src\/greeting\.ts:1 — @acme\/lib; used on line 2$/m);
-    expect(out).toMatch(/^packages\/lib\/src\/both\.ts:2 — @acme\/lib; used on line 3$/m);
-    expect(out).toMatch(/^packages\/lib\/src\/barrelled\.ts:1 — @acme\/lib; used on line 2$/m);
-    expect(out).toMatch(/^packages\/lib\/src\/saluted\.ts:1 — @acme\/lib \(as salute\); used on line 2$/m);
+    expect(out).toMatch(/^packages\/lib\/src\/greeting\.ts:1; used on line 2$/m);
+    expect(out).toMatch(/^packages\/lib\/src\/both\.ts:2; used on line 3$/m);
+    expect(out).toMatch(/^packages\/lib\/src\/barrelled\.ts:1; used on line 2$/m);
+    expect(out).toMatch(/^packages\/lib\/src\/saluted\.ts:1 \(as salute\); used on line 2$/m);
     // The same-named export of another file is answered apart, with its own import.
     const [own, namesake] = out.split('`greet` is exported, without being published, at packages/lib/src/other.ts:1 as well, which is another declaration.');
     expect(own).not.toMatch(/both\.ts:1|index\.ts|alias\.ts|unrelated\.ts/);
     expect(own).toContain(`\n\n${UNCOUNTED_LINE}`);
     expect(namesake).toMatch(/^Imported in 1 place, inside @acme\/lib\.$/m);
-    expect(namesake).toMatch(/^packages\/lib\/src\/unrelated\.ts:1 — @acme\/lib; used on line 2$/m);
+    expect(namesake).toMatch(/^packages\/lib\/src\/unrelated\.ts:1; used on line 2$/m);
   });
 
   it('lists the imports within its package of a name an entry publishes under another name than its declaration', async () => {
@@ -71,7 +71,7 @@ describe('variance ask over the imports of a name within its own package', () =>
 
     const { code, out } = await run(['ask', 'uses', '--name', 'salute']);
     expect(code).toBe(EXIT_CLEAN);
-    expect(out).toMatch(/^packages\/lib\/src\/inner\.ts:1 — @acme\/lib; used on line 2$/m);
+    expect(out).toMatch(/^packages\/lib\/src\/inner\.ts:1; used on line 2$/m);
   });
 
   it('does not list a re-export in another package as a use, and follows a type-only one as a type', async () => {
@@ -105,9 +105,9 @@ describe('variance ask over the imports of a name within its own package', () =>
 
     const { code, out } = await run(['ask', 'uses', '--name', 'greet']);
     expect(code).toBe(EXIT_CLEAN);
-    expect(out).toMatch(/^packages\/lib\/src\/typeuse\.ts:1 — @acme\/lib \(type only\); used on line 2$/m);
-    expect(out).toMatch(/^packages\/lib\/src\/types\.ts:1 — @acme\/lib \(type only\); used on line 3$/m);
-    expect(out).toMatch(/^packages\/lib\/src\/hi\.ts:1 — @acme\/lib \(as Hi\) \(type only\); used on line 2$/m);
+    expect(out).toMatch(/^packages\/lib\/src\/typeuse\.ts:1 \(type only\); used on line 2$/m);
+    expect(out).toMatch(/^packages\/lib\/src\/types\.ts:1 \(type only\); used on line 3$/m);
+    expect(out).toMatch(/^packages\/lib\/src\/hi\.ts:1 \(as Hi\) \(type only\); used on line 2$/m);
     expect(out).not.toMatch(/typed\.ts|types\.ts:2|all\.ts/);
   });
 
@@ -194,7 +194,7 @@ describe('variance ask over the imports of a name within its own package', () =>
     expect(uses.err).toBe('');
     expect(uses.code).toBe(EXIT_CLEAN);
     expect(uses.out).toContain('`greet` [function] is imported in 1 place, inside @acme/lib.');
-    expect(uses.out).toMatch(/^packages\/lib\/src\/greet\.test\.ts:1 — @acme\/lib; used on line 2$/m);
+    expect(uses.out).toMatch(/^packages\/lib\/src\/greet\.test\.ts:1; used on line 2$/m);
     expect(uses.out).not.toContain('not exported');
 
     const symbol = await run(['ask', 'symbol', '--name', 'greet']);

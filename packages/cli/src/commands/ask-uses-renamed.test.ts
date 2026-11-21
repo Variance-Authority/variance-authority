@@ -48,7 +48,7 @@ describe('variance ask uses over a declaration published under another name', ()
     expect(namesake).toBeDefined();
     expect(published).toMatch(/^apps\/app\/src\/hello\.ts:1 — @acme\/app; used on line 2$/m);
     expect(published).not.toMatch(/own-salute\.ts/);
-    expect(namesake).toMatch(/^packages\/lib\/src\/own-salute\.ts:1 — @acme\/lib; used on line 2$/m);
+    expect(namesake).toMatch(/^packages\/lib\/src\/own-salute\.ts:1; used on line 2$/m);
     expect(namesake).not.toMatch(/hello\.ts/);
   });
 
@@ -95,7 +95,7 @@ describe('variance ask uses over a declaration published under another name', ()
     const out = await uses('salute');
     expect(out).not.toMatch(/another declaration/);
     expect(out).toMatch(/^apps\/app\/src\/hello\.ts:1 — @acme\/app; used on line 2$/m);
-    expect(out).toMatch(/^packages\/lib\/src\/inner\.ts:1 — @acme\/lib; used on line 2$/m);
+    expect(out).toMatch(/^packages\/lib\/src\/inner\.ts:1; used on line 2$/m);
   });
 
   it('counts, in `ask symbol`, each of two bindings one file publishes by its own importers', async () => {
@@ -140,7 +140,7 @@ describe('variance ask uses over a declaration published under another name', ()
     expect(out).not.toMatch(/another declaration/);
     expect(out.split('\n')[0]).toMatch(/^`greet` \[function\] is imported in 2 places: 1 from another package and 1 inside @acme\/lib\.$/);
     expect(out).toMatch(/^apps\/app\/src\/hello\.ts:1 — @acme\/app; used on line 2$/m);
-    expect(out).toMatch(/^packages\/lib\/src\/inner\.ts:1 — @acme\/lib; used on line 2$/m);
+    expect(out).toMatch(/^packages\/lib\/src\/inner\.ts:1; used on line 2$/m);
   });
 
   it('lists every line one import uses a binding by, under each of its names', async () => {
@@ -151,8 +151,8 @@ describe('variance ask uses over a declaration published under another name', ()
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
 
     const out = await uses('greet');
-    expect(out.match(/^packages\/lib\/src\/both\.ts:1 /gm)).toEqual(['packages/lib/src/both.ts:1 ']);
-    expect(out).toMatch(/^packages\/lib\/src\/both\.ts:1 — @acme\/lib; used on lines 2, 3$/m);
+    expect(out.match(/^packages\/lib\/src\/both\.ts:1\b/gm)).toEqual(['packages/lib/src/both.ts:1']);
+    expect(out).toMatch(/^packages\/lib\/src\/both\.ts:1; used on lines 2, 3$/m);
   });
 
   it('answers, in `ask symbol`, one binding a door publishes as `default` as one declaration, with no local name', async () => {
