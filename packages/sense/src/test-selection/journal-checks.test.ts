@@ -48,4 +48,36 @@ describe('a driver that records the checks of its cases', () => {
       expect(recordedChecksAt(coverageFile)).toBeUndefined();
     });
   });
+
+  it('loses the checks one share entered when another lands after it whole, which is what `partial` keeps from being read', async () => {
+    await inRoot(async (root) => {
+      const cacheRoot = resolve(root, 'cache');
+      const coverageFile = resolve(root, 'coverage.bin');
+      const run = twoCases(root);
+      await run.write();
+      await mkdir(resolve(root, 'e2e'), { recursive: true });
+      const spec = (name: string, check: string) => [
+        "import { checked } from '@variance-authority/sense/checked';",
+        `test('${name}', async () => {`,
+        `  await checked('${check}', async () => {});`,
+        '});',
+        '',
+      ].join('\n');
+      await writeFile(resolve(root, 'e2e/price.spec.ts'), spec('charges twice above ten', 'price/doubled'));
+      await writeFile(resolve(root, 'e2e/stock.spec.ts'), spec('holds the last one', 'stock/held'));
+      const share = (file: string, name: string, journal: typeof run.premium) => ({
+        root,
+        cacheRoot,
+        coverageFile,
+        subjects: [{ owner: file, journal }],
+        cases: [{ file, name, id: file, journal, attempts: [{ attempt: 1, ended: 'passed' as const }], checks: [] }],
+      });
+
+      // Two Playwright workers without the reporter, each holding one spec.
+      await recordExecution(share('e2e/price.spec.ts', 'charges twice above ten', run.premium));
+      await recordExecution(share('e2e/stock.spec.ts', 'holds the last one', run.plain));
+      const kept = recordedChecksAt(coverageFile) as { cases?: readonly { file: string }[] } | undefined;
+      expect(kept?.cases?.map((one) => one.file)).toEqual(['e2e/stock.spec.ts']);
+    });
+  });
 });

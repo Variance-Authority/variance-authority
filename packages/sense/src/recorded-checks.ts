@@ -23,6 +23,7 @@ import { existsSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { readChecks, type ChecksReading } from './test-selection/checks-record.js';
 import { recordedChecksAt } from './test-selection/case-record.js';
+import { runPid } from './test-selection/prune.js';
 import { nearestRecord, type RecordOrigin } from './test-selection/record-location.js';
 import { declaredSuites } from './test-selection/suites.js';
 
@@ -81,7 +82,7 @@ export function checksAt(recording: string): CheckedRun {
 function unlandedSince(recording: string, since: number): string | undefined {
   const directory = dirname(recording);
   const latest = Math.max(-Infinity, ...readdirSync(directory)
-    .filter((name) => name.startsWith('.run-'))
+    .filter((name) => runPid(name) !== null)
     .map((name) => statSync(join(directory, name), { throwIfNoEntry: false })?.mtimeMs ?? -Infinity)
     .filter((at) => at >= since));
   return latest === -Infinity ? undefined : new Date(latest).toISOString();
