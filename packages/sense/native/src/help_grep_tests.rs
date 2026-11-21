@@ -17,30 +17,31 @@ fn answer(root: &Path, pattern: &str, files: &[String], crossover: usize) -> (Ve
 
 #[test]
 fn the_store_and_the_worktree_answer_the_same_lines_for_binary_and_bom_encoded_files() {
-    // A NUL late in a file decides it is binary only when the searcher reaches
-    // it, and `rg` stops at that point rather than before the first match.
+    // Detection after earlier buffers matched must still discard those rows.
     let mut late_nul = b"needle early\n".to_vec();
-    late_nul.extend(std::iter::repeat_n(b'x', 60_000));
+    late_nul.extend(b"none\n".repeat(30_000));
     late_nul.extend(b"\0\nneedle late\n");
     let mut utf16 = vec![0xff, 0xfe];
     for unit in "needle in utf-16\nnone\n".encode_utf16() {
         utf16.extend(unit.to_le_bytes());
     }
     let root = repository("help-grep-bytes", &[
+        ("early-nul.bin", b"\x89PNG\r\n\x1a\n\0needle binary\xff\0\n"),
         ("late-nul.bin", &late_nul),
         ("utf16.txt", &utf16),
         ("crlf.ts", b"const needle = 1;\r\nnone\r\n"),
         ("plain.ts", b"needle\nneedle again\n"),
         ("empty.ts", b""),
     ]);
-    let files: Vec<String> = ["late-nul.bin", "utf16.txt", "crlf.ts", "plain.ts", "empty.ts", "gone.ts"].map(String::from).to_vec();
+    let files: Vec<String> = ["early-nul.bin", "late-nul.bin", "utf16.txt", "crlf.ts", "plain.ts", "empty.ts", "gone.ts"].map(String::from).to_vec();
 
     let (worktree, none) = answer(&root, "needle", &files, usize::MAX);
     let (stored, read) = answer(&root, "needle", &files, 0);
 
     assert_eq!(none, 0, "a list under the crossover never opens the store");
-    assert_eq!(read, 5, "every tracked file but the missing one came from the store");
+    assert_eq!(read, 5, "the large late-NUL file reads the worktree; every other tracked file came from the store");
     assert_eq!(stored, worktree);
+    assert!(!worktree.iter().any(|line| line.starts_with("early-nul.bin:") || line.starts_with("late-nul.bin:")), "binary payload rows: {worktree:?}");
     assert!(worktree.iter().any(|line| line == "utf16.txt:1:needle in utf-16"), "{worktree:?}");
 }
 

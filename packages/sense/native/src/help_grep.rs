@@ -1,8 +1,7 @@
 //! ripgrep's search, over the files `grep` and `discover` already chose.
 //!
-//! The pattern language, the BOM-sniffed encodings and the binary detection
-//! are ripgrep's own crates, configured as `rg` configures them for files named
-//! on its command line, so a query matches here what it matches there. Hits
+//! The pattern language, BOM-sniffed encodings and binary detection come from
+//! ripgrep's own crates. Binary files contribute no text rows. Hits
 //! cross as columns, and a line is cut before it crosses: one match in a
 //! minified bundle is a megabyte of line. The files are searched in the disk
 //! reader's opening pool, not on every core: past a few threads at once, each
@@ -21,7 +20,7 @@
 use std::path::Path;
 
 use grep_regex::{RegexMatcher, RegexMatcherBuilder};
-use grep_searcher::{sinks::Bytes, BinaryDetection, SearcherBuilder};
+use grep_searcher::{BinaryDetection, Searcher, SearcherBuilder, Sink, SinkMatch};
 use napi_derive::napi;
 use rayon::prelude::*;
 
@@ -52,13 +51,33 @@ pub fn ripgrep(root: String, pattern: String, files: Vec<String>) -> napi::Resul
 /// whether its bytes came out of the store.
 type Searched = (Result<Vec<(u32, String)>, String>, bool);
 
+/// A file's text rows, discarded if the search engine detects binary data.
+struct TextLines(Vec<(u32, String)>);
+
+impl Sink for TextLines {
+    type Error = std::io::Error;
+
+    fn matched(&mut self, _searcher: &Searcher, matched: &SinkMatch<'_>) -> Result<bool, Self::Error> {
+        let first = matched.line_number().unwrap();
+        for (offset, bytes) in matched.lines().enumerate() {
+            self.0.push(((first + offset as u64) as u32, shown(bytes)));
+        }
+        Ok(true)
+    }
+
+    fn binary_data(&mut self, _searcher: &Searcher, _offset: u64) -> Result<bool, Self::Error> {
+        self.0.clear();
+        Ok(false)
+    }
+}
+
 /// The search, and how many files it read out of the store: none when `files`
 /// is under `crossover`, which pays for no git call and no index.
 fn search(root: &Path, pattern: &str, files: &[String], crossover: usize) -> napi::Result<(Grepped, usize)> {
     let matcher = RegexMatcherBuilder::new()
         .multi_line(true)
         .line_terminator(Some(b'\n'))
-        // Binary detection turns NUL into a line break, so a pattern holding one never matches; `rg` refuses it.
+        // NUL marks binary data, so a pattern holding one cannot match text; `rg` refuses it.
         .ban_byte(Some(b'\0'))
         .build(pattern)
         .map_err(|error| napi::Error::from_reason(format!("ripgrep refused the pattern: {error}")))?;
@@ -96,24 +115,20 @@ fn each(root: &Path, matcher: &RegexMatcher, files: &[String], store: Option<&St
             .map_init(
                 || {
                     let searcher =
-                        SearcherBuilder::new().line_number(true).binary_detection(BinaryDetection::convert(b'\0')).build();
+                        SearcherBuilder::new().line_number(true).binary_detection(BinaryDetection::quit(b'\0')).build();
                     (searcher, store.map(Store::reader))
                 },
                 |(searcher, reader), file| {
-                    let mut hits = Vec::new();
-                    let sink = Bytes(|line, bytes| {
-                        hits.push((line as u32, shown(bytes)));
-                        Ok(true)
-                    });
+                    let mut hits = TextLines(Vec::new());
                     let fresh = store.and_then(|store| store.checked_out(file));
                     let stored = fresh.as_ref().zip(reader.as_mut()).and_then(|(fresh, reader)| reader.checkout_bytes(fresh));
                     let read = stored.is_some();
                     let searched = match stored {
-                        Some(bytes) => searcher.search_reader(matcher, bytes, sink),
-                        None => searcher.search_path(matcher, root.join(file), sink),
+                        Some(bytes) => searcher.search_reader(matcher, bytes, &mut hits),
+                        None => searcher.search_path(matcher, root.join(file), &mut hits),
                     };
                     match searched {
-                        Ok(()) => (Ok(hits), read),
+                        Ok(()) => (Ok(hits.0), read),
                         Err(error) => (Err(format!("{file}: {error}")), read),
                     }
                 },
