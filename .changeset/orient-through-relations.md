@@ -7,3 +7,5 @@ Guide orientation from a known owner through import relations and file predicate
 Route coding tasks to a focused orientation reference, keeping complete argument and answer contracts in one reference per question. The question table links each contract directly; the shared workspace reference keeps setup and the old section links. Prefer concrete source text to paraphrased name queries, and show how to search text in one exact file without traversing its dependencies.
 
 Document MCP `docs_discover` support for declaration patterns and module-name import filters.
+
+Route text questions about one named file directly to exact-path `discover --text` in the skill's question table.
