@@ -129,6 +129,8 @@ describe('ask symbol, the text it prints of a doc, a signature and a member', ()
       Near matches, not exact: 1 holds most of \`marks pair\`:
 
       opened — @acme/kit · packages/kit/src/cut.ts:8 — Opens the door. door.open() * Led by two marks Wears 😀 a pair [holds: marks, pair]
+
+      Next: \`variance ask orient --files packages/kit/src/cut.ts\`
       Snapshot
       ",
         "Nothing published matches \`rated declared\`.

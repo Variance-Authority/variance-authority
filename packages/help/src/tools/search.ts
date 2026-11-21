@@ -11,7 +11,7 @@ import { aliasLine, declaredLine, heldLine, unreadLine } from './declared.js';
 import { unreadStop } from './members.js';
 import { CAP, ELSEWHERE_CAP, LOOSE_CAP, NEAR_CAP, searched, searchedFiles } from './search-answer.js';
 import { type ImportingOf, importingOf } from './published-match.js';
-import { byPublishedPath, plural } from './format.js';
+import { byPublishedPath, named, plural, shell } from './format.js';
 
 /**
  * `docs_search` — the name for a thing somebody can only describe.
@@ -154,19 +154,11 @@ const testLine = (match: TestMatch): string => `${match.name} [test] — ${match
  */
 function casesUnder(tests: RecordedTests | undefined): readonly string[] {
   if (tests === undefined || tests.total > 0) return [];
+  // A suite is named only where the root config declares suites, so no reason holds a named and an unnamed one.
   const suitesBy = new Map<string, string[]>();
   for (const { suite, why } of tests.unread) suitesBy.set(why, [...(suitesBy.get(why) ?? []), ...(suite === undefined ? [] : [`\`${suite}\``])]);
   const left = [...suitesBy].map(([why, suites]) => `No recorded case${suites.length === 0 ? '' : ` of ${suites.join(', ')}`} was read: ${why}.`);
   return left.length === 0 ? [] : ['', ...left];
-}
-
-/** At most this many names on the one line that stands for a list the repository's own answer outranks. */
-const NAMED = 5;
-
-/** A list on one line: its head, then up to `NAMED` of its names, and how many more it holds. */
-function named(head: string, names: readonly string[], total: number): readonly string[] {
-  const shown = names.slice(0, NAMED);
-  return ['', `${head}: ${shown.join(', ')}${total > shown.length ? ` and ${total - shown.length} more` : ''}.`];
 }
 
 const matchLine = (match: PublishedMatch | ExportedMatch | DeclaredMatch): string =>
@@ -254,7 +246,7 @@ function spoken({ answer, area }: Searched, root: string | undefined, spell: Spe
   const describedHead = `${describing} ${describing === 1 ? 'package describes' : 'packages describe'} \`${query}\``;
   const describedSection =
     third?.describedUnread !== undefined
-      ? ownFound ? [] : ['', `${third.describedUnread}, so no package was asked whether it describes \`${query}\`; \`variance index\` rebuilds it.`]
+      ? ['', `${third.describedUnread}, so no package was asked whether it describes \`${query}\`; \`variance index\` rebuilds it.`]
       : described.length === 0
       ? []
       : ownFound
@@ -311,6 +303,15 @@ function spoken({ answer, area }: Searched, root: string | undefined, spell: Spe
   const testSection = section(`${tests.total} recorded test ${tests.total === 1 ? 'case holds' : 'cases hold'} every word, as the last run wrote it:`, tests, testLine, spell);
   const declaredSection = [...namesSection, ...insideSection, ...testSection, ...casesUnder(answer.tests), ...aliasSection];
 
+  // Last, so the answer ends on what to run: the declaration of the first
+  // published row by its specifier, or what surrounds the first file this
+  // repository answered with; nothing when it answered with no row.
+  const first = found.shown[0];
+  const at = [rest, declared, inside, aliases, held, answer.loose].map((list) => list?.shown[0]?.at).find((file) => file !== undefined);
+  const next = first !== undefined
+    ? ['', `Next: \`variance ask symbol --name ${shell(first.name)} --package ${shell(first.specifier)}\``]
+    : at === undefined ? [] : ['', `Next: \`variance ask orient --files ${shell(at)}\``];
+
   if (found.total === 0 && rest.total === 0 && declared.total === 0 && inside.total === 0 && tests.total === 0 && aliases.total === 0 && (third?.total ?? 0) === 0) {
     // It names what the substring read, and no more: a local that is no function
     // is in no index, a closure's doc is its holder's, and the doc a file opens
@@ -331,7 +332,7 @@ function spoken({ answer, area }: Searched, root: string | undefined, spell: Spe
         ? `${read}. \`packages\` lists every entrypoint; \`entrypoint\` lists what one opens.`
         : `${read}. That is a fact about the area, not about the word — ask again without \`from\`/\`to\` to search the whole workspace.`;
     const stop = unreadStop(answer.membersUnread ?? []);
-    return [...where, nowhere, ...(stop === undefined ? [] : ['', stop]), ...declaredSection, ...own, ...thirdSection, ...describedSection, ...missing].join('\n');
+    return [...where, nowhere, ...(stop === undefined ? [] : ['', stop]), ...declaredSection, ...own, ...thirdSection, ...describedSection, ...missing, ...next].join('\n');
   }
 
   // A capped list that does not say it was capped reads as the whole answer,
@@ -348,14 +349,6 @@ function spoken({ answer, area }: Searched, root: string | undefined, spell: Spe
           ...found.shown.map(publishedLine),
           ...more,
         ];
-
-  // Last, so the answer ends on what to run: the declaration of the first
-  // published row, or what surrounds the file of the first exported one.
-  const next = found.shown.length > 0
-    ? ['', `Next: \`variance ask symbol --name ${found.shown[0]!.name}\``]
-    : rest.shown.length > 0
-    ? ['', `Next: \`variance ask orient --files ${rest.shown[0]!.at}\``]
-    : [];
 
   if (rest.total === 0) return [...where, ...(found.total === 0 ? [] : heads), ...declaredSection, ...own, ...thirdSection, ...describedSection, ...missing, ...next].join('\n');
 
@@ -411,7 +404,7 @@ export const search: Tool<Help> = {
     `each labelled with the words it holds. After a question of two words or more answered as written, at most ${NEAR_CAP} ` +
     'of them follow the answer, so you learn the repository\'s own wording; when nothing holds the question ' +
     'as written they lead, and names that match loosely — your words apart, or within a ' +
-    'character of the ones written, exported or kept to their file — follow them. Neither is mixed into the sections above. The answer ends with `Next:` and the command to run on its first row. On a large ' +
+    'character of the ones written, exported or kept to their file — follow them. Neither is mixed into the sections above. An answer holding a row of this repository ends with `Next:` and the command to run on its first one. On a large ' +
     'repository a substring alone matches everywhere a product says its own name, so say where ' +
     'you are standing. Carry a path the editor, ticket or stack trace already supplied: `from` ' +
     'answers with published names imported by the files that path reaches; `to` does the same ' +

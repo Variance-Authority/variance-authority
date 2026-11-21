@@ -60,6 +60,15 @@ describe('a question whose words are not equally rare', () => {
     expect(said).not.toMatch(/fileAt\d/u);
   });
 
+  it('ends an answer of near matches alone with the question about the first one\'s file', async () => {
+    expect(await ask(FIXTURE, 'xylophone file')).toMatch(/\n\nNext: `variance ask orient --files src\/rare\.ts`$/u);
+  });
+
+  it('ends an answer of a name kept to its file with the question about that file', async () => {
+    const said = await ask({ 'src/kept file.ts': 'const xylophoneTuner = 1;\nexport const used = xylophoneTuner;\n' }, 'xylophoneTuner');
+    expect(said).toMatch(/\n\nNext: `variance ask orient --files 'src\/kept file\.ts'`$/u);
+  });
+
   it('keeps a row lacking one rare word when the rest of the question outweighs it', async () => {
     // The shape of `count probes and measure their overhead`: `census` holds
     // three of the four words, and not the rarest.

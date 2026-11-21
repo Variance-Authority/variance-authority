@@ -237,7 +237,7 @@ kit · freeze [function] imported in 1 place in 1 package — Freezes a value an
 
 No recorded case was read: no run kept its cases there.
 
-Next: `variance ask symbol --name freeze`
+Next: `variance ask symbol --name freeze --package kit`
 Snapshot <masked>
 
 ## search --query numbers add
@@ -249,6 +249,8 @@ Near matches, not exact: 2 hold most of `numbers add`:
 
 kit · count [function] imported in 1 place in 1 package — Adds the numbers it is given. [holds: add, numbers]
 tally — kit · packages/kit/src/tally.ts:2 — Adds the numbers it is given. [holds: add, numbers]
+
+Next: `variance ask orient --files packages/kit/src/tally.ts`
 Snapshot <masked>
 
 ## search --query clock time
@@ -261,6 +263,8 @@ Near matches, not exact: 3 hold most of `clock time`:
 kit · Clock [interface] imported in 1 place in 1 package — A source of the time. [holds: clock, time]
 packages/kit/src/clock.ts [file] — kit [holds: clock]
 kit/extra · walk [function] imported in 1 place in 1 package — Walks a tree, one level at a time. [holds: time]
+
+Next: `variance ask orient --files packages/kit/src/clock.ts`
 Snapshot <masked>
 
 ## packages

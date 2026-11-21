@@ -563,9 +563,10 @@ opens, is named under the answer, since the name may be declared there.
 packages, and `search` reads it. When nothing in the repository answers, the
 installed names and the packages that describe your words are listed in full, or
 a line says which manifests were searched. When the repository answers, each is
-one line naming up to five, and an empty one is not mentioned. An answer with a
-published or exported row ends with `Next:` and the command for its first row:
-`ask symbol --name` for a published one, `ask orient --files` for an exported one. `symbol`
+one line naming up to five, and an empty one is not mentioned. An answer holding
+a row of this repository ends with `Next:` and the command for its first one:
+`ask symbol --name --package` for a published row, `ask orient --files` for the
+file of any other. `symbol`
 matches installed third-party declarations from the same lexicon, which is
 `dependency-lexicon.bin` beside the source index. It is a binary file: ask
 `search` and `symbol` for what it holds.
