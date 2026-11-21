@@ -142,7 +142,6 @@ describe('the names a question puts first', () => {
 
 describe('the published rows a question shows', () => {
   it('are, named no checkout, every row it shows named one: the checkout adds declared names and other sections, never a published row', () => {
-    // `countingShown` decides whether to open the value from the answer named no checkout.
     const shown = (query: string, checkout?: string): readonly string[] =>
       (searchNames(index, { query }, treeOf([], root), checkout).published?.shown ?? []).map((one) => `${one.name} ${one.at}`);
     const questions = ['instrument', 'probe', 'region', 'Region', 'tally', 'call', 'region placement', 'run time'];

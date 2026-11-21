@@ -3,11 +3,12 @@ import { access, cp, mkdtemp, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { Tree } from '@variance-authority/mcp/tools';
 import { ask, askSearch, askSearchJson } from './ask.js';
 import { readWorkspace, readWorkspaceForAnswer } from './read.js';
-import { workspaceSnapshotPath } from './snapshot.js';
+import * as workspace from './read.js';
+import { searchIndexOf, workspaceSnapshotPath } from './snapshot.js';
 import { readSearchForAnswer, unopenedLine } from './search-read.js';
 import { importingOf } from './tools/published-match.js';
 
@@ -50,6 +51,27 @@ afterAll(async () => {
 });
 
 describe('search from its published store', () => {
+  it.each([{ changed: [] }, { taints: [] }])('carries the value and its search together after an explicit refresh: %j', async (refresh) => {
+    const reading = await readSearchForAnswer(root, { index: at, ...refresh });
+    expect(reading.compared).toBe(true);
+    expect(searchIndexOf(reading.help)).toBe(reading.index);
+    expect(askSearch(reading.index, ['--query', 'measure'])).toContain('measure');
+  });
+
+  it('carries the last published value and search when a requested refresh could not be saved', async () => {
+    const refresh = vi.spyOn(workspace, 'readWorkspaceForAnswer');
+    refresh.mockRejectedValueOnce(new workspace.UnsavedRead('the index could not be replaced'));
+    try {
+      const reading = await readSearchForAnswer(root, { index: at, changed: ['packages/alpha/src/values.ts'] });
+      expect(reading.compared).toBe(false);
+      expect(searchIndexOf(reading.help)).toBe(reading.index);
+      expect(askSearch(reading.index, ['--query', 'measure'])).toContain('measure');
+      expect(refresh).toHaveBeenLastCalledWith(root, { index: at, justAnswer: true });
+    } finally {
+      refresh.mockRestore();
+    }
+  });
+
   it('prints what the whole value prints, footer included', async () => {
     let tree: Tree | undefined;
     const help = await readWorkspaceForAnswer(root, { index: at, justAnswer: true, tree: (drawn) => { tree = drawn; } });

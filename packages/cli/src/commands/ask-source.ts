@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import { countingShown, generationSourceIndex, readNamedTree, readSearchForAnswer, readWorkspaceForAnswer, workspaceGeneration, type AnsweringOptions, type Unopened } from '@variance-authority/help';
+import { generationSourceIndex, readNamedTree, readSearchForAnswer, readWorkspaceForAnswer, workspaceGeneration, type AnsweringOptions, type Unopened } from '@variance-authority/help';
 import { answerSearch, containmentOf, discover, formatContainment, importingOf, intersection, namesWanted, type Containment, type Help, type SearchAnswer, searchIndexOf, searchNames, searchQuestionOf } from '@variance-authority/help/tools';
 import { spellingOf, type Tool, type Tree } from '@variance-authority/mcp/tools';
 import { sourceIndexPath } from '@variance-authority/sense';
@@ -12,10 +12,9 @@ import type { AskRequest, SourceReadOptions, Sourced } from './ask.js';
 /**
  * How `variance ask` reads the generation `variance index` published for a question about the code.
  *
- * Every source question reads the published workspace value, except `search`:
- * it reads only names, docs and sites, and opens the file published for that
- * beside the value instead of parsing all of it. Both are answered by the tool
- * `@variance-authority/help` publishes, over the same generation.
+ * Source questions read the published workspace value in place, decoding only
+ * the names, docs and sites they need. The tool `@variance-authority/help`
+ * publishes answers each question over that same generation.
  */
 
 /** A source answer not yet given, and the generation it will be given from. */
@@ -62,9 +61,9 @@ export async function searchSource(
     ...(options.justAnswer === true ? { justAnswer: true } : {}),
     ...(options.tree === true ? { tree: (drawn: Tree) => { tree = drawn; } } : {}),
   });
-  const { index, compared } = read;
+  const { index, compared, help, unopened } = read;
   const spell = spellingOf(invocationOf({ root }));
-  const { importing, unopened } = await countingShown(read, searchQuestionOf(input, spell), tree, root);
+  const importing = importingOf(help, root);
   return {
     answer: () => answerSearch(index, input, tree, root, importing, spell),
     data: () => searchNames(index, searchQuestionOf(input, spell), tree, root, importing),
