@@ -12,7 +12,7 @@
 //! holds more files and names, more subjects rather than more words for one,
 //! the scope BM25 leaves unnormalised, and saturation already caps a repeated
 //! word. Discounted, a source area declaring many names ranked below short
-//! test and fixture areas even where it alone held the request's rarest words.
+//! test and fixture areas even where it held the request's rarest words.
 //!
 //! Every file `HEAD` holds is read here, from git, and the names they declare
 //! from the help store and the source index: only the ten areas answered cross
@@ -152,8 +152,8 @@ pub fn classify_areas(
                 *files.entry(file.to_owned()).or_default() += 1;
             }
         }
-        // Every private top-level name counts its words, asked or not, so a
-        // name's visibility alone does not change its file's length.
+        // A private top-level name, one no export binds, declares a name in
+        // its file too.
         for row in private_words(layers) {
             if row.words == 0 || !row.at.starts_with(&under) {
                 continue;
