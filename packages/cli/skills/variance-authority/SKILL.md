@@ -12,6 +12,26 @@ page from here to manufacture the reading. The distillation loop does rerun a
 test: that is an experiment you run, and its evidence comes back through the
 same read-only commands.
 
+## Questions about the code
+
+`variance ask` answers about the source `variance index` read. These are its
+main questions; pick the one that fits what you hold, each is one command:
+
+| You hold | Ask | Example |
+|---|---|---|
+| The task's words | which of them name a package, an entrypoint or an export, and the folders they point to | `variance ask classify --query "checkout payment retry"` |
+| Nothing yet | the map: packages, areas, layers | `variance ask orient` |
+| A file | its place on that map | `variance ask orient --files src/billing/invoice.ts` |
+| What a thing does | the names that do it | `variance ask search --query "retry payment" --from src/billing/` |
+| A name | where it is declared | `variance ask symbol --name PaymentRetry` |
+| A name | every file that imports it; `--from` sorts them, it does not narrow | `variance ask uses --name PaymentRetry` |
+| A name and an area | the files there that import it | `variance ask discover --imports src/billing/retry.ts#PaymentRetry --path '^src/checkout/'` |
+| A file | what it reaches through its imports, nearest first; `--declares <regex>` keeps the ones declaring a name | `variance ask discover --from src/billing/invoice.ts --declares Retry` |
+| A file | what reaches it through imports | `variance ask discover --to src/billing/invoice.ts` |
+| Two questions | the files both answer | `variance ask intersection 'symbol --name PaymentRetry' 'discover --from src/checkout/'` |
+| A string or a pattern | the source lines that hold it | `variance ask grep --query 'retryCount' --from src/billing/` |
+| Text nothing in the source imports: YAML, JSON, Markdown, shell, workflows, logs | not `variance`: `rg` or `git grep` | `rg 'retryCount' .github/` |
+
 ## Fill a gap with a run of what it names
 
 An answer gives what the record has and names what it lacks — its gap. Fill a
@@ -205,20 +225,15 @@ intersects its operands instead. A path has three widths and no others:
 everything under it at any depth. Write the parent with the file name —
 `Provider.tsx` alone is not unique. A path is a fact about the source tree, so
 ask from a checkout at the revision you are asking about.
-On `uses`, `--from` only sorts the workspace-wide import sites; it does not
-narrow them. For importers in one area, cross `discover --imports <file#name>`
-with `--path <regex>`.
 
 **Name the code before you open it.** Ask `search` for meaning, `symbol` for
 a name, or `discover --path <regex> --declares <regex>` for declarations in
 an area. Once an answer names a plausible feature owner, read its named lines
 and imports; these verbs are choices, not a sequence to complete first.
-Find the next responsibility by crossing what you know: `discover --from <file>
---declares <regex>` for a dependency, `discover --to <file> --path <regex>` for
-an example or other importer, or `discover --imports <file#name> --path <regex>`
-for importers of a name in an area, through re-exports too. Take import names
-from the source you read. When each fact is already a complete question, cross
-them with `intersection`.
+Find the next responsibility by crossing what you know, with the `discover`
+and `intersection` rows of [the table](#questions-about-the-code);
+`discover --imports` follows re-exports too. Take import names from the source
+you read.
 A historical symptom may be gone:
 establish the current feature's owners before searching for the old predicate.
 A file explicitly named by the task can be read directly. Any other file no

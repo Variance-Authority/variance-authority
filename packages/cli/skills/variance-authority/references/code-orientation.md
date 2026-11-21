@@ -1,17 +1,8 @@
 # Find coding start points
 
-Use the most concrete input the task supplies:
-
-| You hold | Ask |
-|---|---|
-| A local name, a UI label, an error message or a pattern in code | `grep --from <path>`, from where you are working |
-| A name whose signature or declaration you need | `symbol` |
-| Every importer of a name | `uses`; `--from` sorts, it does not narrow |
-| A known file or import, and a related responsibility to find | `discover`, crossing the relation with `--declares` or `--path` |
-| Two facts already expressed as complete file questions | `intersection` |
-| A request with no concrete name, source text or owner | `classify`, for which of its words are names |
-| A meaning, in words | `search`, with each likely spelling |
-| Text outside the source: YAML, JSON, Markdown, shell, workflows, logs | `rg` or `git grep` |
+Choose one question from the skill's
+[Questions about the code](../SKILL.md#questions-about-the-code) table, using
+the most concrete input the task supplies.
 
 The source is the files the index parses — JavaScript and TypeScript,
 stylesheets, Python, Rust, Java, Kotlin and Swift — and any other file one of
@@ -67,9 +58,8 @@ For importers of a known name inside one area, through re-exports too, cross
 variance ask discover --imports src/currency/codes.ts#CURRENCY_CODES --path '^src/currency/' --limit 6
 ```
 
-`uses --from` only orders its workspace-wide inventory. Keep that full inventory
-when changing a name's contract; use `discover` to select related code while
-orienting. A loader naming a transform as a path string creates no
+Keep the full `uses` inventory when changing a name's contract; use
+`discover` to select related code while orienting. A loader naming a transform as a path string creates no
 import edge: ask scoped `grep` for that string. For a data-shape change, inspect
 the example or fixture representing the requested state as well as the code
 that consumes it. An import alone proves neither that state nor its behaviour.

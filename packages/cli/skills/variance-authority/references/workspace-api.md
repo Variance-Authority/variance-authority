@@ -102,9 +102,11 @@ one subdirectory, and there `search` is the only verb worth asking, because
 
 ## Names, then relations
 
-For a feature task, use [Find coding start points](code-orientation.md) to
-choose a question from the concrete names, source text and relations you have.
-The sections below specify each question's arguments and limits.
+Choose a question from the skill's
+[Questions about the code](../SKILL.md#questions-about-the-code) table.
+For a feature task, [Find coding start points](code-orientation.md) explains
+how to use concrete source text and import relations. The sections below
+specify each question's arguments and limits.
 
 ## The verbs
 
