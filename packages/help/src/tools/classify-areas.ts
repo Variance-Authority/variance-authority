@@ -10,8 +10,9 @@ import { describedWordsNative } from '@variance-authority/sense';
  * A request is written in the words people use for a change, and most of them
  * are no declared name. What they point to is a part of the tree: the area is a
  * directory of at most {@link AREA_FILES} tracked files, a larger one split
- * into its children, and its words are its path's, its files' names and the
- * names its files declare. Each of the request's stems counts by how few areas
+ * into its children, and its words are every directory's on the way to its
+ * files, its files' names and the names its files declare. Each directory counts
+ * once per area. Each of the request's stems counts by how few areas
  * hold it, through the shared {@link rarity}, saturated the way BM25 saturates
  * a term's count and in integers, so one request ranks the same on every run.
  */
@@ -49,6 +50,8 @@ const PATH_WEIGHT = 3;
 /** One directory and what the request's stems count in it. */
 interface Area {
   files: number;
+  /** Directory paths whose own segment has already contributed to this area's vocabulary. */
+  readonly directories: Set<string>;
   /** How many words it holds, the request's or not: BM25's document length. */
   length: number;
   readonly held: Map<string, number>;
@@ -76,13 +79,16 @@ export function rankedAreas(
     const directory = areaDirectory(path, under, most);
     let area = areas.get(directory);
     if (area === undefined) {
-      area = { files: 0, length: 0, held: new Map(), declares: false };
-      for (const segment of directory.split('/')) {
-        const cut = stemsOf(segment);
-        area.length += cut.words * PATH_WEIGHT;
-        for (const stem of cut.stems) count(area.held, stem, PATH_WEIGHT);
-      }
+      area = { files: 0, directories: new Set(), length: 0, held: new Map(), declares: false };
       areas.set(directory, area);
+    }
+    for (let start = 0, at = path.indexOf('/'); at !== -1; start = at + 1, at = path.indexOf('/', at + 1)) {
+      const prefix = path.slice(0, at);
+      if (area.directories.has(prefix)) continue;
+      area.directories.add(prefix);
+      const cut = stemsOf(path.slice(start, at));
+      area.length += cut.words * PATH_WEIGHT;
+      for (const stem of cut.stems) count(area.held, stem, PATH_WEIGHT);
     }
     return area;
   };

@@ -19,6 +19,32 @@ const PATHS = [
 ];
 
 describe('rankedAreas', () => {
+  it('keeps feature words from directories below the selected area', () => {
+    const paths = [
+      'tools/src/migrations/alpha-to-beta/index.ts',
+      'tools/src/migrations/alpha-to-beta/transform.ts',
+      'ui/src/index.ts',
+    ];
+
+    const areas = rankedAreas('alpha beta', paths, NONE, { most: 2 });
+
+    expect(areas.map(({ path, words }) => ({ path, words }))).toEqual([
+      { path: 'tools', words: ['alpha', 'beta'] },
+    ]);
+    expect(areas).toEqual(rankedAreas('alpha beta', [...paths].reverse(), NONE, { most: 2 }));
+  });
+
+  it('counts a directory once even when it contains several files', () => {
+    // Stop-word basenames add no vocabulary, so another sibling only changes the file count.
+    const paths = ['tools/alpha/the.ts', 'tools/alpha/and.ts', ...filesUnder('ui', ['one.ts', 'two.ts', 'three.ts'])];
+    const before = rankedAreas('alpha', paths, NONE, { most: 3 });
+    const after = rankedAreas('alpha', [...paths, 'tools/alpha/of.ts'], NONE, { most: 3 });
+
+    expect(before[0]?.words).toEqual(['alpha']);
+    expect(after[0]?.score).toBe(before[0]?.score);
+    expect(after[0]?.files).toBe(3);
+  });
+
   it('ranks first the directory whose path and file names hold the request\'s words, none of them a declared name', () => {
     const areas = rankedAreas('Fix task manager claiming tasks twice after a restart', PATHS, NONE, { most: 2 });
 
