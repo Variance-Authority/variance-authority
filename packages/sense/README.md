@@ -2767,6 +2767,7 @@ same under every host:
 | `@variance-authority/sense/cache-root` | `cacheRootFor`, the checkout's cache directory, without loading the parser and resolver | a checkout |
 | `@variance-authority/sense/checkout-path` | `checkoutPath`, a path asked about spelled the way the recording spells it, or why it is outside the checkout, without loading the parser and resolver | a checkout |
 | `@variance-authority/sense/side-effects` | `declaresSideEffects(files)`, which of these modules their package's `sideEffects` names, the reading test selection uses | absolute paths |
+| `@variance-authority/sense/rarity` | `rarityNative` and `saturationNative`, the ranking weights the addon defines, without loading the parser and resolver | the native addon |
 | `@variance-authority/sense` | the source index: `updateSourceIndex`, `readPublishedSources`, `sourcesWithin` | a readable checkout and the native addon |
 | `@variance-authority/sense/read` | `readModule` when a module's source text already comes from a VFS, editor, or bundler | a file id and source string |
 | `@variance-authority/sense/lock` | reading which packages an install changed between two revisions, and how they rest on each other | the lockfile's text at both revisions; nothing else, and no `node_modules` |

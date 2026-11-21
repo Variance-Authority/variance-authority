@@ -14,9 +14,9 @@ import { readFileSync } from 'node:fs';
 import { dirname, relative, sep } from 'node:path';
 import type { Tool } from '@variance-authority/mcp/tools';
 import { members } from '@variance-authority/package';
-import { firstParentChanges, trackedFiles, type CommitChanges } from '@variance-authority/sense';
+import { firstParentChanges, pathKinds } from '@variance-authority/sense';
 import { operatorError } from '../operator.js';
-import { countContainment, type ContainmentCount, type Share } from './containment-count.js';
+import { SOURCE_EXTENSIONS, countContainment, type ContainmentCount, type Share } from './containment-count.js';
 
 /** The figures and what they were read over. */
 export interface Containment extends ContainmentCount {
@@ -47,9 +47,10 @@ function packageDirectories(root: string): readonly string[] {
   return manifests.map((manifest) => relative(root, dirname(manifest)).split(sep).join('/')).filter((dir) => dir !== '');
 }
 
-function changesOf(root: string, after: string): CommitChanges & { readonly tracked: readonly string[] } {
+/** What git says, or the refusal that says git could not read the checkout. */
+function fromGit<T>(read: () => T): T {
   try {
-    return { ...firstParentChanges(root, after), tracked: trackedFiles(root) };
+    return read();
   } catch (error) {
     throw operatorError(`\`git log\` could not read this checkout's history: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
   }
@@ -59,9 +60,13 @@ function changesOf(root: string, after: string): CommitChanges & { readonly trac
 export function containmentOf(root: string, input: Readonly<Record<string, unknown>>): Containment {
   const said = input['after'];
   const after = typeof said === 'string' ? dateOf(said) : twoWeeksBefore(new Date());
-  const { commits, shallow, tracked } = changesOf(root, after);
+  const { commits, shallow } = fromGit(() => firstParentChanges(root, after));
   const packages = packageDirectories(root);
-  return { reading: 'co-occurrence', after, packages: packages.length, shallow, ...countContainment(commits, tracked, packages) };
+  const kinds = pathKinds(packages, SOURCE_EXTENSIONS);
+  // The trees of what HEAD holds that hold source, read by the addon: only the trees cross.
+  const read = kinds.sourceTrees(root);
+  if (read.refused != null) throw operatorError(`git could not list the files HEAD holds: ${read.refused}`);
+  return { reading: 'co-occurrence', after, packages: packages.length, shallow, ...countContainment(commits, new Set(read.trees), kinds) };
 }
 
 function shared({ count, of }: Share): string {

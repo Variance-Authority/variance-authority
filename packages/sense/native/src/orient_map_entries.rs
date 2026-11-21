@@ -31,7 +31,7 @@
 // compass: variance-authority.reach.relations
 
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::Path;
 
 use rayon::prelude::*;
 
@@ -48,9 +48,7 @@ pub(crate) fn declared(root: &str, packages: &[&Package], counted: &HashMap<&str
     if packages.iter().all(|package| package.offers.is_empty()) {
         return vec![Vec::new(); packages.len()];
     }
-    // The resolver answers with the path a symlink leads to, and a repository
-    // path is cut from the root that path lies under.
-    let root = std::fs::canonicalize(root).unwrap_or_else(|_| PathBuf::from(root));
+    let root = crate::resolve::checkout_root(Path::new(root));
     // A counted file under a directory the disk alone declines, such as a
     // tracked `build/`, is one git listed, and that is the word `resolve` takes.
     let known: HashMap<String, u32> = counted.keys().map(|&path| (path.to_owned(), 0)).collect();

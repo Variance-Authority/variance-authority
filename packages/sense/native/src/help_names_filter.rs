@@ -26,6 +26,7 @@ use regex::{Regex, RegexBuilder};
 
 use crate::chain_lookup::fold;
 use crate::compact::Layer;
+use crate::path::extension;
 use crate::package_graph::Crossing;
 
 /// `import * as x`: the module is taken whole, and its names arrive as members.
@@ -239,15 +240,6 @@ fn declared<'a>(layers: &'a [Layer], layer: usize, row: usize) -> Vec<(&'a str, 
         }
     }
     names
-}
-
-/// `.ts` of `src/a.ts`; empty for a file with none, as `extname` says.
-fn extension(file: &str) -> &str {
-    let base = file.rsplit('/').next().unwrap_or(file);
-    match base.rfind('.') {
-        Some(0) | None => "",
-        Some(at) => &base[at..],
-    }
 }
 
 #[cfg(test)]

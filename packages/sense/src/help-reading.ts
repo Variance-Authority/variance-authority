@@ -14,10 +14,11 @@
 
 import { native, nativeRefusal } from './addon.js';
 import type { NativeAsked, NativeImporters, NativeIndexedUsage } from './native-orient.js';
+import type { ClassifiedAreas } from './classified-areas.js';
 import type { DeclaredNames, NameTerms } from './declared-names.js';
 import { sourceIndexPath } from './source-index.js';
 import type { Mention, WalkedHelp } from './help-walked.js';
-import { mocking } from './source-tree.js';
+import { mocking, type SourceWalk } from './source-tree.js';
 
 /** One name the export list holds, as the store's encoder takes it. */
 export type NamedExport = NativeIndexedUsage['exported'][number];
@@ -255,6 +256,7 @@ export interface NativeHelp {
   declaredTermsOf?(index: OpenedIndex, files: string[] | null): string[] | null;
   nameTerms?(names: string[]): NameTerms;
   declaredLooseOf?(root: string, index: OpenedIndex, groups: string[][], files: string[] | null): DeclaredNames | null;
+  classifyAreas?(root: string, query: string, terms: number[][], store: Uint8Array | null, index: string, within: string, scoped: boolean, from: SourceWalk | null, to: SourceWalk | null): ClassifiedAreas;
   /** ripgrep's matching lines of `files` under `root`, as columns; throws `ripgrep refused the pattern: …` for an invalid one. */
   ripgrep?(root: string, pattern: string, files: string[]): Grepped;
 }

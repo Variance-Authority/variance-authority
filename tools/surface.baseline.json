@@ -2735,6 +2735,10 @@
           "types": "./dist/read.d.ts",
           "default": "./dist/read.js"
         },
+        "./rarity": {
+          "types": "./dist/rarity.d.ts",
+          "default": "./dist/rarity.js"
+        },
         "./lock": {
           "types": "./dist/lock/index.d.ts",
           "default": "./dist/lock/index.js"
@@ -2838,6 +2842,7 @@
     "names": {
       ".": {
         "Alias": "interface",
+        "AreasAsked": "interface",
         "CODE_EXTENSIONS": "const",
         "CapViolation": "interface",
         "CarriedSourceIndex": "interface",
@@ -2846,6 +2851,7 @@
         "CheckoutListing": "type",
         "CheckoutPath": "type",
         "ChecksScope": "interface",
+        "ClassifiedAreas": "interface",
         "CodeMapAnswer": "interface",
         "CodeMapMade": "interface",
         "CodeMapPage": "interface",
@@ -2931,6 +2937,8 @@
         "PackagesAround": "interface",
         "ParseCache": "interface",
         "Parsed": "interface",
+        "PathKind": "interface",
+        "PathKinds": "interface",
         "PathsThrough": "interface",
         "PreparedCodeMap": "interface",
         "PreparedJourneys": "type",
@@ -2944,6 +2952,7 @@
         "READABLE": "const",
         "RanModule": "interface",
         "RanRegion": "interface",
+        "RankedArea": "interface",
         "ReachedDeclaration": "interface",
         "RecordOrigin": "type",
         "RecordedAttempts": "type",
@@ -2975,6 +2984,7 @@
         "SourceSymbolKind": "type",
         "SourceSymbolReach": "type",
         "SourceTree": "interface",
+        "SourceTrees": "interface",
         "SourceUpdate": "interface",
         "SourceUpdateOptions": "interface",
         "SourceWalk": "interface",
@@ -3023,6 +3033,7 @@
         "chainBetween": "function",
         "checkoutListing": "function",
         "checkoutPath": "function",
+        "classifiedAreas": "function",
         "codeMapPage": "function",
         "decidesResolution": "function",
         "declarationExported": "function",
@@ -3081,6 +3092,7 @@
         "parseTiers": "function",
         "parseTypescript": "function",
         "passedAt": "function",
+        "pathKinds": "function",
         "pathsThrough": "function",
         "phraseOfNative": "function",
         "placeSourceIndex": "function",
@@ -3091,6 +3103,7 @@
         "publishedNames": "function",
         "publishedSources": "function",
         "queryDependencyLexiconNative": "function",
+        "rarityNative": "function",
         "readHelp": "function",
         "readPublishedNames": "function",
         "readPublishedSources": "function",
@@ -3113,6 +3126,7 @@
         "restrictedImports": "function",
         "ripgrepNative": "function",
         "runGraphOf": "function",
+        "saturationNative": "function",
         "seedPaths": "function",
         "shadowReach": "function",
         "shippedFiles": "function",
@@ -3131,7 +3145,6 @@
         "tierLabel": "function",
         "tierMoves": "function",
         "tierOf": "function",
-        "trackedFiles": "function",
         "treeShapeOf": "function",
         "tsconfigUse": "function",
         "updateSourceIndex": "function",
@@ -3158,6 +3171,10 @@
         "isExternal": "function",
         "linesOf": "function",
         "readModule": "function"
+      },
+      "./rarity": {
+        "rarityNative": "function",
+        "saturationNative": "function"
       },
       "./lock": {
         "LOCKFILES": "const",
