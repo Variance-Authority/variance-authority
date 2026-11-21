@@ -2870,6 +2870,8 @@
         "EncodedStore": "interface",
         "ExportedDeclaration": "interface",
         "ExternalOrientation": "interface",
+        "FileDeclaration": "interface",
+        "FileDeclarations": "interface",
         "FileSize": "interface",
         "ForksBetween": "interface",
         "Grepped": "interface",

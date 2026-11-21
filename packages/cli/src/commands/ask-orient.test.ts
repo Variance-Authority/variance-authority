@@ -327,6 +327,12 @@ describe('variance ask orient', () => {
         '  packages/cart/src/price.ts      @t/cart',
         '  src/gone.ts                     outside index',
         '',
+        'Declared at the top level, from the source index:',
+        '  packages/checkout/src/total.ts',
+        '    3  exported const total',
+        '  packages/cart/src/price.ts',
+        '    2  exported const priceOf',
+        '',
         `Packages, from the source index at ${sourceIndexPath(root)} (4 files indexed).`,
         "Observed in source: a use is one file importing one name from another package. A package's share is of the uses on that side; " +
           "a name's share is of every use the package exporting it gets from outside. Each share has its count beside it, " +
@@ -354,6 +360,60 @@ describe('variance ask orient', () => {
         '',
       ].join('\n'),
     });
+  });
+
+  it('lists what each file declares at the top level, with its line, whether an export binds it, and a class\'s members under it', async () => {
+    repository({
+      'package.json': JSON.stringify({ name: 'shop', private: true }),
+      'src/basket.ts': [
+        '/** The sum of some amounts. */',
+        'export function total(amounts: number[]): number {',
+        '  return amounts.reduce((sum, amount) => sum + amount, 0);',
+        '}',
+        '',
+        'export class Basket {',
+        '  private readonly lines: string[] = [];',
+        '  add(line: string): void {',
+        '    this.lines.push(line);',
+        '  }',
+        '}',
+        '',
+        'const limit = 10;',
+        'export const capacity = limit;',
+        '',
+      ].join('\n'),
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const answered = await run(['ask', 'orient', '--files', 'src/basket.ts']);
+
+    expect(answered.code).toBe(EXIT_CLEAN);
+    const lines = answered.out.split('\n');
+    const from = lines.indexOf('Declared at the top level, from the source index:');
+    expect(lines.slice(from, from + 8)).toEqual([
+      'Declared at the top level, from the source index:',
+      '  src/basket.ts',
+      '     2  exported function total',
+      '     6  exported class Basket',
+      '         7  private readonly lines: string[] = [];',
+      '         8  add(line: string): void {',
+      '    13  const limit',
+      '    14  exported const capacity',
+    ]);
+  });
+
+  it('shows a file\'s declarations up to the line budget and names how many it did not show', async () => {
+    const consts = Array.from({ length: 45 }, (_, at) => `export const c${at} = ${at};`);
+    repository({ 'package.json': JSON.stringify({ name: 'many', private: true }), 'src/many.ts': `${consts.join('\n')}\n` });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const answered = await run(['ask', 'orient', '--files', 'src/many.ts']);
+
+    const lines = answered.out.split('\n');
+    const from = lines.indexOf('  src/many.ts');
+    expect(from).toBeGreaterThan(-1);
+    expect(lines[from + 40]).toBe('    40  exported const c39');
+    expect(lines[from + 41]).toBe('    5 more top-level declarations not shown.');
   });
 
   it('with files, says an index another release wrote in its own format version is of another version, and names the step that rebuilds it', async () => {

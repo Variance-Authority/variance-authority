@@ -17,6 +17,7 @@
 // compass: variance-authority.reach.relations
 
 import { native, nativeRefusal } from './addon.js';
+import type { ContainerMember } from './help-reading.js';
 import type { NativeCasesEntered, NativeExternalOrientation, NativeOrientation } from './native-orient.js';
 import { sourceIndexPath } from './source-index.js';
 import { eachSuiteCases } from './suite-cases.js';
@@ -57,20 +58,54 @@ export function packagesAround(root: string, files: readonly string[], limits: O
   return orientation === null ? { index } : { index, orientation };
 }
 
+/** One top-level declaration of a file, from its parse in the source index. */
+export interface FileDeclaration {
+  readonly name: string;
+  /** The word the reader of its language gave it: `function`, `class`, `const`, … */
+  readonly kind: string;
+  readonly line: number;
+  /** Whether an export of the file binds the name; absent when the parse kept no exports to tell by. */
+  readonly exported?: boolean | null;
+  /** The members declared on it, by line, as many as the line budget left. */
+  readonly members: readonly ContainerMember[];
+}
+
+/** What one asked file declares at its top level. */
+export interface FileDeclarations {
+  readonly file: string;
+  /** False when the index holds the file and no parse of its declarations: whether it declares anything is unknown. */
+  readonly read: boolean;
+  readonly declarations: readonly FileDeclaration[];
+  /** The top-level declarations the budget left out. */
+  readonly more: number;
+  /** The member lines the budget left out, those of a declaration it cut included; a line that declares several members is one. */
+  readonly moreMembers: number;
+}
+
 /**
  * `packagesAround` and `dependenciesAround` over one read of the chain and one listing of the tree, which is
  * what either costs: where the repository leaves `core.fsmonitor` off, `git status` is 2.2 s on seven copies
- * of Material UI, and a question that made it twice paid 4.4 s.
+ * of Material UI, and a question that made it twice paid 4.4 s. The same read gives what each file the index
+ * holds declares at its top level, in the order asked, each within `declarationLines` lines: top-level
+ * declarations first, then the members of a class, an interface or a type alias while lines are left.
  */
-export function orientAround(root: string, files: readonly string[], packages: OrientLimits, external: OrientLimits): {
+export function orientAround(
+  root: string,
+  files: readonly string[],
+  packages: OrientLimits,
+  external: OrientLimits,
+  declarationLines: number,
+): {
   readonly packages: PackagesAround;
   readonly external: DependenciesAround;
+  /** Absent when no source index was ever published. */
+  readonly declarations?: readonly FileDeclarations[];
 } {
   const index = sourceIndexPath(root);
-  const both = entry('orientAround')(root, index, [...files], packages.rows, packages.names, external.rows, external.names);
-  return both === null
+  const all = entry('orientAround')(root, index, [...files], packages.rows, packages.names, external.rows, external.names, declarationLines);
+  return all === null
     ? { packages: { index }, external: { index } }
-    : { packages: { index, orientation: both.packages }, external: { index, orientation: both.external } };
+    : { packages: { index, orientation: all.packages }, external: { index, orientation: all.external }, declarations: all.declarations };
 }
 
 /** The external requests part of an answer. */

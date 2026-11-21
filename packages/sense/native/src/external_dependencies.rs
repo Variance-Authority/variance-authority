@@ -10,14 +10,14 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 
 use napi_derive::napi;
-use rayon::prelude::*;
 
 use crate::chain_lookup::fold;
 use crate::compact::Layer;
 use crate::index_chain::{read_chain, Chain};
 use crate::order::code_unit;
-use crate::package_graph::{join_parses, names_object, orientation, Crossing, Limits, Listed, Orientation};
-use crate::package_owners::{declared, owners, Manifest, NO_OWNER};
+use crate::orient_declarations::{declarations_of, FileDeclarations};
+use crate::package_graph::{join_parses, names_object, opened, orientation_over, Crossing, Limits, Listed, Orientation};
+use crate::package_owners::{declared, Manifest, Owners, NO_OWNER};
 use crate::specifier::{package_of, request_of};
 
 #[napi(object)]
@@ -78,12 +78,14 @@ pub fn external_dependencies(
     inspect(&root, &chain, &listed, &files, rows as usize, sites as usize).map(Some).map_err(fail)
 }
 
-/// Both readings a question makes of the source index, from one read of the chain and one listing of
+/// The readings a question makes of the source index, from one read of the chain, one open of its layers and one listing of
 /// the working tree: `git status` is the cost of either, and asking it twice charged a question twice.
 #[napi(object)]
 pub struct Around {
     pub packages: Orientation,
     pub external: ExternalOrientation,
+    /// What each asked file the chain holds declares at its top level, in the order asked.
+    pub declarations: Vec<FileDeclarations>,
 }
 
 #[napi(catch_unwind)]
@@ -96,6 +98,7 @@ pub fn orient_around(
     package_names: u32,
     external_rows: u32,
     external_sites: u32,
+    declaration_lines: u32,
 ) -> napi::Result<Option<Around>> {
     let (chain, snapshot) = std::thread::scope(|scope| {
         let snapshot = scope.spawn(|| crate::git::snapshot(&root));
@@ -106,11 +109,15 @@ pub fn orient_around(
     let snapshot = snapshot.ok_or_else(|| napi::Error::from_reason(format!("git could not list the tree at {root}")))?;
     let listed = Listed { paths: &snapshot.paths, oids: &snapshot.oids };
     let limits = Limits { rows: package_rows as usize, names: package_names as usize };
-    let (packages, external) = rayon::join(
-        || orientation(&root, &chain, &listed, &files, limits),
-        || inspect(&root, &chain, &listed, &files, external_rows as usize, external_sites as usize),
+    let (layers, owners) = opened(&root, &chain, &listed).map_err(fail)?;
+    let ((packages, external), declarations) = rayon::join(
+        || rayon::join(
+            || orientation_over(&chain, &layers, &owners, &listed, &files, limits),
+            || inspect_over(&root, &chain, &layers, &owners, &listed, &files, external_rows as usize, external_sites as usize),
+        ),
+        || declarations_of(&layers, &files, declaration_lines as usize),
     );
-    Ok(Some(Around { packages: packages.map_err(fail)?, external: external.map_err(fail)? }))
+    Ok(Some(Around { packages, external, declarations }))
 }
 
 struct Found {
@@ -147,14 +154,23 @@ fn inspect(
     row_limit: usize,
     site_limit: usize,
 ) -> Result<ExternalOrientation, String> {
-    let (layers, owners) = rayon::join(
-        || chain.segments.par_iter().enumerate().map(|(at, bytes)| {
-            Layer::open(bytes).map_err(|error| format!("segment {at}: {error}"))
-        }).collect::<Result<Vec<_>, _>>(),
-        || owners(root, listed.paths),
-    );
-    let layers = layers?;
-    let folded = fold(&layers);
+    let (layers, owners) = opened(root, chain, listed)?;
+    Ok(inspect_over(root, chain, &layers, &owners, listed, files, row_limit, site_limit))
+}
+
+/// The external dependencies `files` reach, over layers and owners already read.
+#[allow(clippy::too_many_arguments, reason = "one index reading and its output bounds")]
+fn inspect_over(
+    root: &str,
+    chain: &Chain,
+    layers: &[Layer],
+    owners: &Owners,
+    listed: &Listed,
+    files: &[String],
+    row_limit: usize,
+    site_limit: usize,
+) -> ExternalOrientation {
+    let folded = fold(layers);
     let internal: HashSet<&str> = owners.packages.iter().map(|package| package.name.as_str()).collect();
     let (root_runtime, root_development) = root_declarations(root);
 
@@ -264,10 +280,10 @@ fn inspect(
         .then_with(|| code_unit(&left.package, &right.package)));
     let more = dependencies.len().saturating_sub(row_limit) as u32;
     dependencies.truncate(row_limit);
-    Ok(ExternalOrientation {
+    ExternalOrientation {
         dependencies, more, reached: distance.len() as u32, unread, stale, missing,
         declared_only, more_declared_only, dropped: chain.damaged(),
-    })
+    }
 }
 
 /// One written request for a package outside the checkout.
