@@ -4,7 +4,9 @@
  * A story is the order one case visited the code in, and a visit says where the
  * case was, never with what. The attention Eyes keeps is the other half: which
  * query the test asked with which arguments, what it found, which event fired
- * on which element, which components committed. Said beside the visits, a
+ * on which element, and which components committed, where the React story
+ * setup, `@variance-authority/react/story`, is not in the suite to say why
+ * each rendered. Said beside the visits, a
  * route reads `getByRole("button", {"name":"Save"}) → button "Save" in
  * SaveBar` at the step the query ran, and a reader comparing two runs sees the
  * argument that changed rather than inferring it.
@@ -18,6 +20,8 @@ import type { ArgumentSnapshot, AttentionDraft, LocatorStep, TargetSnapshot } fr
 
 /** Where a story recorder in this realm listens; mirrors `NOTE` in sense's `story-tap.cts`. */
 const NOTE = Symbol.for('variance-authority.story.note');
+/** Set by `@variance-authority/react/story` once it taps this realm's commits for the story. */
+const REACT_STORY = Symbol.for('variance-authority.react.story.tapped');
 
 type Channel = (text: string) => void;
 
@@ -84,6 +88,8 @@ export function noteOf(draft: AttentionDraft): string {
 export function sayToStory(draft: AttentionDraft): void {
   const channel = (globalThis as { [NOTE]?: Channel })[NOTE];
   if (typeof channel !== 'function') return;
+  // Where the React story setup taps this realm, a commit is its to say, with why each component rendered.
+  if (draft.kind === 'react-commit' && (globalThis as { [REACT_STORY]?: true })[REACT_STORY] === true) return;
   try {
     channel(noteOf(draft));
   } catch {

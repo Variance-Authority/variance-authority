@@ -25,7 +25,9 @@ printed, threw and loaded, told to the same note channel;
 from a page, each drain's tape, which the runner names with the case and the
 line it was drained under, or, from a page under Vantage, each execution's
 part as `reportPage` names it; and, to name what was visited, the region inventory
-the record beside it holds. Out: one **story** per case,
+the record beside it holds; and the lines a setup file says through the story's
+note channel, such as the React story setup's one line per component a commit
+rendered and why. Out: one **story** per case,
 written beside the record the run writes; read back, a route of numbered steps —
 declarations with, when steps are drawn, the branches and loops each went
 through drawn as the code nests them, every arm counted and an arm the case took
@@ -73,6 +75,10 @@ by guess.
 
 - `packages/sense/src/instrument/story-tap.cts` — the root that stands in front
   of the engine, tapes every hit and forwards it
+- `packages/react/src/story.ts` — the React story setup: a commit tap that says
+  each component that rendered, and why, through the note channel
+- `packages/react/src/renders.ts` — why one component rendered: the inputs that
+  moved since `fiber.alternate`, a mount, or a Suspense boundary's retry
 - `packages/sense/src/instrument/story-listen.cts` — what a realm announces and
   prints, put on its tap as notes
 - `packages/react/src/story-suspense.ts` — the watch that tells the story each

@@ -189,6 +189,30 @@ describe('what a commit says', () => {
     tap.stop();
   });
 
+  it('hands every component that rendered to onRender, past nameLimit and ahead of onCommit, and a throwing one breaks nothing', async () => {
+    const heard: string[] = [];
+    function Leaf({ n }: { n: number }) {
+      return h('i', null, String(n));
+    }
+    function List() {
+      return h('div', null, h(Leaf, { n: 1 }), h(Leaf, { n: 2 }), h(Leaf, { n: 3 }));
+    }
+
+    const tap = tapCommits({
+      nameLimit: 1,
+      onRender: (fiber) => {
+        heard.push(typeof fiber.type === 'function' ? fiber.type.name : '?');
+        throw new Error('an observer that fails');
+      },
+      onCommit: (commit) => heard.push(`commit ${commit.components.join(' ')}`),
+    });
+    await render(h(List, null));
+
+    expect(heard).toEqual(['List', 'Leaf', 'Leaf', 'Leaf', 'commit List']);
+    expect(container.textContent).toBe('123');
+    tap.stop();
+  });
+
   it('drops the oldest commits rather than growing without bound, and counts them', async () => {
     let bump!: () => void;
     function Counter() {

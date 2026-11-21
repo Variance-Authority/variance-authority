@@ -1,24 +1,7 @@
-import { createContext, createElement, forwardRef, memo } from 'react';
+// The setup file in a realm with a page and no story listening: it taps no
+// commit, and puts one Suspense watch on the page however often it runs.
+
 import { describe, expect, it, vi } from 'vitest';
-import { reactKind } from './story.js';
-
-describe('what a story calls a React object', () => {
-  it('the kind React marks it with', () => {
-    const Theme = createContext('light');
-    const Panel = (): null => null;
-
-    expect(reactKind(Theme)).toBe('react.context');
-    expect(reactKind(memo(Panel))).toBe('react.memo');
-    expect(reactKind(forwardRef(Panel))).toBe('react.forward_ref');
-    expect(reactKind(createElement(Panel))).toBe('react.transitional.element');
-  });
-
-  it('nothing for an object React did not mark', () => {
-    expect(reactKind({})).toBeUndefined();
-    expect(reactKind({ $$typeof: Symbol.for('other.kind') })).toBeUndefined();
-    expect(reactKind(() => null)).toBeUndefined();
-  });
-});
 
 describe('the watch a setup file puts on its page', () => {
   it('one Suspense watch, however many times the setup file is evaluated', async () => {
