@@ -131,9 +131,18 @@ limits](https://variance-authority.dev/docs/source#limits) say what each leaves
 out.
 
 `search` turns the words you have into candidate names. When the editor, ticket
-or stack trace already gives you a path, pass it on that first search as a start
-point (`--from`, `--to`; see `SKILL.md`). Then ask `symbol` for the chosen
-name's contract, and `uses` for its exact import sites and worked examples.
+or stack trace already gives you a path, pass it as a start point (`--from`,
+`--to`; see `SKILL.md`). Read a plausible owner's named lines before another
+search; ask `symbol` when you need its contract, or `uses` for its import sites.
+
+Directory membership, import reach and runtime loading answer different
+questions. `discover --path <regex>` selects paths; `--from` and `--to` follow
+imports, including type imports. Cross a graph operand with `--declares` to
+find a related responsibility, such as a mock reached by an example that
+imports a component. A loader naming a transform as a path string creates no
+import edge: ask scoped `grep` for that string. For a data-shape change, inspect
+the example or fixture representing the requested state as well as the code
+that consumes it. An import alone proves neither that state nor its behaviour.
 
 This is a module graph, not a call graph. A site is an import. Never turn it
 into a claim that one function calls another; open the file or ask a language
