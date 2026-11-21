@@ -748,15 +748,17 @@ question whose answer is a set of files can be one: `symbol`, `uses`,
 
 ```bash
 variance ask intersection 'symbol --name selectBalance' 'discover --from src/Wallet.tsx'
-variance ask intersection "uses --name useTheme" "grep --query 'dark mode' --from src/App.tsx"
+variance ask intersection 'search --query token --from src/' 'search --query refresh --from src/'
 ```
 
 Each question is read whole, before display caps: the file two questions agree
 on can sit past the cap of either. A `search` operand includes the same
 workspace candidates as the standalone search: declarations, import aliases,
 recorded test names, and described or loose candidates when those sections
-run. Every matching file of a grouped name participates. Loose matches remain
-candidates; composition does not make them exact. Installed dependency names
+run. Every matching file of a grouped name participates. Each common file labels
+near and loose search matches beside the operand they came from. A file with both
+query matches and near candidates lists both; composition does not make a candidate
+exact. Installed dependency names
 identify no workspace file. The query's area and fallback rules still apply. The
 answer opens with how many files are in all of them, `N files in all of them:`,
 then counts each question's files, then lists one row per file: its path, then
