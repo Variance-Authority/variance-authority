@@ -2,6 +2,8 @@
 import type { Frame, Page, Request } from 'playwright-core';
 import type { Elsewhere } from './surface.js';
 
+const MODALS = ':modal, [aria-modal="true"]';
+
 /**
  * Follows the three ways an app leaves the page a test declared outcomes on:
  * the page navigates, another page opens from it, or a modal dialog covers it.
@@ -31,8 +33,10 @@ export async function elsewhere(page: Page): Promise<Elsewhere> {
       opened = true;
     }
   };
-  const modals = page.locator(':modal');
-  const before = await modals.count();
+  // A modal is `:modal` or marked `aria-modal`, as component libraries draw
+  // one, and is new when it was not open before: the document surface's rule.
+  const modals = page.locator(MODALS);
+  const before = await modals.elementHandles();
   page.on('framenavigated', navigated);
   page.on('popup', popup);
   page.context().on('request', asked);
@@ -40,12 +44,17 @@ export async function elsewhere(page: Page): Promise<Elsewhere> {
     left: async () => {
       if (went !== undefined) return `the page went to ${went}`;
       if (opened) return 'a new page opened';
-      return (await modals.count()) > before ? 'a modal dialog opened' : undefined;
+      const opens = await page.evaluate(
+        ([query, ...open]) => [...document.querySelectorAll(query)].some((each) => !open.includes(each)),
+        [MODALS, ...before] as const,
+      );
+      return opens ? 'a modal dialog opened' : undefined;
     },
     stop: () => {
       page.off('framenavigated', navigated);
       page.off('popup', popup);
       page.context().off('request', asked);
+      for (const each of before) void each.dispose().catch(() => undefined);
     },
   };
 }

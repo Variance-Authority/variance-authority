@@ -46,8 +46,11 @@ export interface Elsewhere {
 export interface Surface<Native = unknown, Handle = unknown> {
   readonly native: Native;
   find(query: Query): Target<Handle>;
-  /** Resolves `arrived` once any target is visible, and `late` when none is within `ms`. */
-  arrival(targets: readonly Target<Handle>[], ms: number): Promise<'arrived' | 'late'>;
+  /**
+   * Resolves `arrived` once any target is visible, and `late` when none is
+   * within `ms` or `done` is aborted: the action has answered, and looks no more.
+   */
+  arrival(targets: readonly Target<Handle>[], ms: number, done: AbortSignal): Promise<'arrived' | 'late'>;
   /** Quiet once no work the surface can see has been pending for `period` ms. */
   quiet(period: number): Quiet;
   elsewhere(): Promise<Elsewhere>;

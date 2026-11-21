@@ -44,6 +44,12 @@ const CHECKOUT = `<!doctype html>
       if (part === 'slowWindow') window.open('/slow');
       if (part === 'frame') document.body.appendChild(document.createElement('iframe')).src = '/checkout/frame';
       if (part === 'help') document.body.appendChild(document.createElement('dialog')).showModal();
+      if (part === 'overlay') {
+        const overlay = document.body.appendChild(document.createElement('div'));
+        overlay.setAttribute('role', 'dialog');
+        overlay.setAttribute('aria-modal', 'true');
+        overlay.textContent = 'Need help?';
+      }
     }
   };
   show(query.get('open') ?? '');
@@ -218,6 +224,7 @@ chromium_('an action over a page that announces nothing', () => {
     ['elsewhere', 'the page went to /checkout/elsewhere'],
     ['window', 'a new page opened'],
     ['help', 'a modal dialog opened'],
+    ['overlay', 'a modal dialog opened'],
   ])('fails, and does not report staying, when the app answered with %s, which is not declared', async (answer, where) => {
     const submit = quick('submit', { to: { ...outcomes, refused: stay } }, click);
     await open(`answer=${answer}&after=50`);

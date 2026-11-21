@@ -127,6 +127,31 @@ describe('page-broker over a document', () => {
     second.stop();
   });
 
+  it('looks for no outcome once the action has answered', async () => {
+    checkout('nothing');
+    const on = surface(document);
+    let looks = 0;
+    const counted = {
+      ...on,
+      find: (query: Parameters<typeof on.find>[0]) => {
+        const target = on.find(query);
+        return {
+          ...target,
+          visible: async () => {
+            looks += 1;
+            return target.visible();
+          },
+        };
+      },
+    };
+
+    await expect(submit(counted)).resolves.toMatchObject({ outcome: 'invalid' });
+    const answered = looks;
+    await new Promise((done) => setTimeout(done, 300));
+
+    expect(looks).toBe(answered);
+  });
+
   it('declares through the default means too', () => {
     expect(action('noop', { to: { idle: stay } }, async () => undefined).declared.to).toEqual({ idle: stay });
   });

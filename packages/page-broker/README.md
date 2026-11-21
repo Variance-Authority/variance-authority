@@ -37,7 +37,7 @@ which of their declared destinations the app took, not a framework: your runner,
 ## Requirements
 
 Node 22 or newer and an ESM project. Over a document, `@testing-library/dom`
-10.4 or newer; over a browser, `playwright-core` 1.55 or newer, which
+10.4 or newer and `@testing-library/user-event` 14.6 or newer; over a browser, `playwright-core` 1.55 or newer, which
 `@playwright/test` already brings.
 
 ```bash
@@ -143,9 +143,11 @@ the page going quiet — every region is looked at once.
 - **None, and never quiet**: the action fails at the timeout too, naming what
   was still pending. Time running out is not staying: the answer is not in.
 
-A failure is an `Unreached` error carrying the action, its outcomes, a `reason`
+An action refused or reaching no outcome fails with an `Unreached` error
+carrying the action, its outcomes, a `reason`
 — `start`, `expected`, `both`, `elsewhere`, `late` or `unquiet` — and, where it
-is known, `went`: where the app went or what kept it busy.
+is known, `went`: where the app went or what kept it busy. An error the act
+itself throws reaches you as it was thrown.
 
 The timeout starts when the act has finished, so a slow act does not spend it.
 
@@ -164,8 +166,11 @@ Both surfaces answer the same questions from what each can see.
 Over a document, `fetch`, `XMLHttpRequest` and `window.open` are wrapped while
 an action runs, so its work and where it went can be seen, and put back when the
 last action overlapping it has finished. A document has no layout, so an
-element drawn off screen or covered still reads as visible there. jsdom has no `:modal`, so a modal dialog is one marked
-`aria-modal="true"`.
+element drawn off screen or covered still reads as visible there.
+
+On both, a modal dialog is one `:modal` matches or one marked
+`aria-modal="true"`, as component libraries draw them; jsdom has no `:modal`,
+so there only the mark counts.
 
 ## What it does not do
 

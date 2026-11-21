@@ -30,7 +30,7 @@ export function surface(page: Page): PageSurface {
   return {
     native: page,
     find,
-    arrival: (targets, ms) => arrival(targets as readonly Found[], ms),
+    arrival: (targets, ms, done) => arrival(targets as readonly Found[], ms, done),
     quiet: (period) => requests(period)(page),
     elsewhere: () => elsewhere(page),
     click: (query) => locate(page, query).click(),
@@ -55,8 +55,13 @@ function locate(page: Page, query: Query): Locator {
   return page.locator(query.css);
 }
 
-/** Playwright's own wait for any target, or `late` when none came in the time left. */
-async function arrival(targets: readonly Found[], left: number): Promise<'arrived' | 'late'> {
+/**
+ * Playwright's own wait for any target, or `late` when none came in the time
+ * left. Playwright's wait takes no signal, so one the action has answered
+ * before runs on in the browser to its deadline, and is told to nobody.
+ */
+async function arrival(targets: readonly Found[], left: number, done: AbortSignal): Promise<'arrived' | 'late'> {
+  if (done.aborted) return 'late';
   const any = targets
     .map((target) => target.locator)
     .reduce<Locator | undefined>((joined, at) => (joined === undefined ? at : joined.or(at)), undefined);

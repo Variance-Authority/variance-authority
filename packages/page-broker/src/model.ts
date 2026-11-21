@@ -204,6 +204,7 @@ async function perform<Name extends string, Handle>(
   const quiet = surface.quiet(means.quiet);
   let gone: Elsewhere | undefined;
   let out: ReturnType<typeof setTimeout> | undefined;
+  const answered = new AbortController();
   try {
     gone = await surface.elsewhere();
     await act();
@@ -217,19 +218,23 @@ async function perform<Name extends string, Handle>(
     // An action with nowhere to rest still hears the first quiet, to tell an
     // app gone somewhere undeclared; quiet anywhere else is no answer to it.
     let hearing = true;
+    // One wait for an arrival at a time, kept across a quiet that woke first,
+    // and ended when the action answers.
+    let arrival: Promise<'arrived' | 'late'> | undefined;
     for (;;) {
       const waits: Promise<'arrived' | 'late' | 'quiet'>[] = [late];
       if (targets.length > 0) {
-        const arrived = surface.arrival(targets, deadline - Date.now());
-        // A wait that loses the race ends on its own deadline, and has nobody left to tell.
-        arrived.catch(() => undefined);
-        waits.push(arrived);
+        arrival ??= surface.arrival(targets, deadline - Date.now(), answered.signal);
+        // A wait ended after the action answered has nobody left to tell.
+        arrival.catch(() => undefined);
+        waits.push(arrival);
       }
       // Asked for again on every pass: a quiet that ended before an arrival
       // woke the wait says nothing of what has begun since.
       if (rests || hearing) waits.push(quiet.settled());
       const woke = await Promise.race(waits);
       if (woke === 'late') break;
+      if (woke === 'arrived') arrival = undefined;
       const arrived = await look(arriving);
       if (arrived.length > 1) {
         const both = arrived.map((part) => part.name).join(' and ');
@@ -259,6 +264,7 @@ async function perform<Name extends string, Handle>(
       held,
     );
   } finally {
+    answered.abort();
     clearTimeout(out);
     quiet.stop();
     gone?.stop();

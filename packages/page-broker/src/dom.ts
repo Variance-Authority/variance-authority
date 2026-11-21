@@ -35,7 +35,7 @@ export function surface(document: Document): DocumentSurface {
   return {
     native: document,
     find,
-    arrival: (targets, ms) => arrival(document, targets, ms),
+    arrival: (targets, ms, done) => arrival(document, targets, ms, done),
     quiet: (period) => pending(document, period),
     elsewhere: async () => away(document),
     click: async (query) => user.click(await one(query)),
@@ -111,18 +111,24 @@ function shown(element: Element): boolean {
  * every `POLL` ms besides, for what no mutation announces, such as a style
  * sheet.
  */
-async function arrival(document: Document, targets: readonly Target<Element>[], ms: number): Promise<'arrived' | 'late'> {
+async function arrival(
+  document: Document,
+  targets: readonly Target<Element>[],
+  ms: number,
+  done: AbortSignal,
+): Promise<'arrived' | 'late'> {
   const any = async (): Promise<boolean> => (await Promise.all(targets.map((each) => each.visible()))).some(Boolean);
   if (await any()) return 'arrived';
   if (ms <= 0) return 'late';
   try {
+    // `waitFor` takes no signal: an answered action ends it at its next look.
     await waitFor(
       async () => {
-        if (!(await any())) throw new Error('no outcome yet');
+        if (!done.aborted && !(await any())) throw new Error('no outcome yet');
       },
       { container: document.documentElement, timeout: ms, interval: POLL },
     );
-    return 'arrived';
+    return done.aborted ? 'late' : 'arrived';
   } catch {
     return 'late';
   }

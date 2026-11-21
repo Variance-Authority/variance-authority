@@ -101,7 +101,7 @@ export function pending(document: Document, period: number): Quiet {
       hook(prototype, 'send', started, (original: XMLHttpRequest['send'], followers) =>
         function (this: XMLHttpRequest, body?: Document | XMLHttpRequestBodyInit | null): void {
           const request = opened.get(this);
-          // A request never opened is refused by the send itself: nothing is in flight.
+          // Opened before the follow began, or never: not followed, and a send of one never opened is refused anyway.
           if (request === undefined) return original.call(this, body);
           const ends = [...followers].map((each) => each(...request));
           this.addEventListener(
