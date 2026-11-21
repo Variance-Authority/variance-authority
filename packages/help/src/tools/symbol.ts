@@ -19,6 +19,7 @@ import { type PublishedDeclaration, publishedDeclarations, publishingFiles, uses
 import { declarationKey, localNames, renamedSites } from './renamed.js';
 import { exportedIn, exportedNamed } from './rows.js';
 import { symbolAtLine } from './symbol-line.js';
+import { eachAnswer, eachDeclared, joinedFiles } from './symbol-names.js';
 
 /** Installed declarations shown when the question says no `limit`. */
 const INSTALLED_CAP = 100;
@@ -36,7 +37,7 @@ const INSTALLED_CAP = 100;
 export const symbol: Tool<Help> = {
   name: 'docs_symbol',
   description:
-    'Everything known about one name: what it is, the import line that reaches it, the ' +
+    'Everything known about one name, or each of several said as a comma list: what it is, the import line that reaches it, the ' +
     'file and line that declares it, its full signature, its documentation — or, where nothing is ' +
     'written above it, the README passage that names it — which packages import it, where an import ' +
     'renames it, and the members an interface, a type alias or a class declares, one line each. An export ' +
@@ -51,7 +52,7 @@ export const symbol: Tool<Help> = {
   inputSchema: {
     type: 'object',
     properties: {
-      name: { type: 'string', description: 'The name, matched exactly; `Container.member` asks for that container\'s member.' },
+      name: { type: 'string', description: 'The name, matched exactly; `Container.member` asks for that container\'s member. Several names, comma separated, are each answered as one is, in the order given.' },
       package: { type: 'string', description: 'Only answer from this package, by name or by specifier. Optional.' },
       from: {
         ...START_POINT_SCHEMA.from,
@@ -75,127 +76,133 @@ export const symbol: Tool<Help> = {
     additionalProperties: false,
   },
 
+  // Several names are each answered as one is, in the order asked.
   run(help, input, invocation) {
-    const spell = spellingOf(invocation);
-    // Refused before `line` is read, which orders the declarations whole and hands `limit` on to the answer without it.
-    const limit = limitOf(input, DECLARED_CAP, spell);
-    if (input['line'] !== undefined) return symbolAtLine(help, input, invocation, symbol, declaredInCheckout);
-    const installed = limitOf(input, INSTALLED_CAP, spell);
-    const name = stringArg(input, 'name');
-    const from = input['package'];
-    const wanted = typeof from === 'string' && from !== '' ? from : undefined;
-
-    // The door the workspace imports a declaration by leads it. Every adapter
-    // that re-exports a core publishes the same declaration, and the first one
-    // read is an alphabetical accident whose own count is usually nothing.
-    const found = publishedDeclarations(help, invocation?.root, name, wanted);
-
-    // Declared in a file and exported by none: still the workspace's
-    // own name, and where it is written says who can reach it. Another file's
-    // export of the same name is another thing, so it never stands for this one.
-    const at = startPointArg(input, 'from');
-    const paths = at === undefined ? undefined : typeof at === 'string' ? [at] : [...at];
-    const { blocks: declared } = declaredBlocks(help, invocation?.root, name, wanted, spell, limit, paths);
-
-    // A name no entry publishes, that another package imports by the path of
-    // the file exporting it, is used here — and that import is what says so.
-    // An import by path of `default` out of a file whose default has a name is that declaration's, not the slot's.
-    const byPath = (found.length === 0 ? sitesByPath(help, name, wanted) : []).filter(
-      (site) => name !== SLOT || site.held.to === undefined || answers(help, invocation?.root, { at: site.held.to, name }, name),
-    );
-    // A name an import binds to an export of another name: the import, and the export it names.
-    const local = localNames(help, invocation?.root, name, wanted).blocks;
-
-    // Exported for a neighbour and never published: the workspace's own name,
-    // said first. An installed name it matches is said after it, since a file
-    // that passes an installed binding on exports it without declaring it.
-    // A published namesake is another declaration, so it never hides this one.
-    const exported = unpublishedExports(help, invocation?.root, name, wanted, found.map((one) => [one.at, one.declared] as const));
-    // A local name of a declaration answered above says it by its line, not again whole.
-    const above = new Set([...found.map((one) => `${one.at}\0${one.declared}`), ...exported.map((held) => declarationKey(help, invocation?.root, held))]);
-    const aliased = local.map((one) => (one.brief !== undefined && above.has(one.brief.key) ? one.brief.text : one.text));
-    const others = exported.length > 0 ? [exportedOnly(help, name, exported, invocation?.root, spell)] : [];
-    // A member of an interface, a type literal or a class is the workspace's
-    // own declaration too, which no import names and the scan records. It
-    // stands beside what a file's top level declares, never under it.
-    const members = membersOf(help, invocation?.root, name, wanted);
-    const beside = memberBlocks(name, members, spell, limit);
-    if (byPath.length > 0) {
-      const imported = new Set(byPath.flatMap((site) => [site.held.to ?? site.held.specifier, declaration(help, name, site)?.at ?? '']));
-      const rest = exported.filter((held) => !imported.has(held.at));
-      return [importedByPath(help, invocation?.root, name, byPath), ...(rest.length > 0 ? [exportedOnly(help, name, rest, invocation?.root, spell)] : []), ...declared, ...aliased, ...beside].join('\n\n');
-    }
-    const kept = [
-      ...(found.length === 0 ? others : []),
-      ...(found.length === 0 ? [...declared, ...aliased] : []),
-    ];
-    // A name declared only as a member names the files whose declarations were
-    // not read, since one may declare it at its top level; the declarations beside a member already did.
-    const read = kept.length === 0 && beside.length > 0 ? declarationsNamed(help, invocation?.root, name) : undefined;
-    const alone = read === undefined || 'refused' in read ? [] : unreadLine(read.unread);
-    // A published declaration is answered below, and the members after it.
-    const own = found.length === 0 ? [...kept, ...beside, ...alone] : [];
-    // Nothing in the workspace answered, so the name may be declared in a file
-    // whose declarations were not read: the installed answers below say so.
-    const asked = found.length === 0 && own.length === 0 ? declarationsNamed(help, invocation?.root, name) : undefined;
-    const unread = asked === undefined || 'refused' in asked ? [] : unreadLine(asked.unread);
-
-    if (found.length === 0 && invocation?.root !== undefined) {
-      const everywhere = queryDependencyLexicon(invocation.root, name, undefined, true, wanted, installed);
-      // No lexicon of installed names says nothing against the workspace's own export.
-      if (everywhere === undefined && own.length > 0) return own.join('\n\n');
-      // Without it, what the workspace holds is still an answer: the
-      // dependencies are the part of it not checked.
-      if (everywhere === undefined) {
-        throw new FoundNothing(nowhere(help, name, wanted, invocation.root, members, 'Whether an installed dependency publishes it is not known: the dependency lexicon is not published, and the `variance index` command publishes it.', spell, limit));
-      }
-      const here = paths === undefined ? everywhere : queryDependencyLexicon(invocation.root, name, paths, true, wanted, installed);
-      const shown = here ?? everywhere;
-      // A door that declares nothing is a fallback for a package silent about
-      // the name; the lexicon leaves out one whose installed copy declares it
-      // elsewhere. Another copy of the same version answers nothing for it.
-      const silent = silentBlocks(invocation.root, name, shown.silent ?? [], wanted !== undefined);
-      const cut = (matches: LexiconMatches): readonly string[] =>
-        notShownPast(matches.total, matches.shown.length, spell, { one: 'match', many: 'matches' });
-      if (paths !== undefined && here !== undefined && here.total === 0 && everywhere.total > 0) {
-        // Not usable at the path is a fact with an answer: the workspaces that do offer it, each with its own version.
-        const owner = here.scope.location?.join(', ') ?? 'the manifest that owns it';
-        const where = paths.join(', ');
-        return [
-          ...own,
-          `\`${name}\` is not usable from ${where}: ${owner} does not declare or import it. It is offered under:`,
-          ...everywhere.shown.map(thirdBlock),
-          ...cut(everywhere),
-          ...unread,
-        ].join('\n\n');
-      }
-      if (shown.total > 0 || silent.length > 0) return [...own, ...shown.shown.map(thirdBlock), ...cut(shown), ...silent, ...unread].join('\n\n');
-    }
-    if (own.length > 0) return own.join('\n\n');
-    if (found.length === 0) {
-      // The lexicon was asked of the package named, when one was, and of no other.
-      const checked = invocation?.root === undefined
-        ? undefined
-        : `No installed dependency${wanted === undefined ? '' : ` named \`${wanted}\``} publishes it either.`;
-      throw new FoundNothing(nowhere(help, name, wanted, invocation?.root, members, checked, spell, limit));
-    }
-
-    return [
-      ...found.map((one) => publishedBlock(help, input, invocation?.root, spell, one)),
-      ...others,
-      ...declared,
-      ...aliased,
-      ...beside,
-    ].join('\n\n');
+    return eachAnswer(input, (one) => answerOf(help, one, invocation));
   },
 
-  // The files of this checkout that declare the name, each at its line, by the
+  // The files of this checkout that declare the names, each at its line, by the
   // same readings `run` answers from; an installed declaration is
   // not a file of the checkout, so a name only a dependency declares is unfound.
   files(help, input, invocation): FileSet {
-    return declaredInCheckout(help, input, invocation);
+    return joinedFiles(eachDeclared(input, (one) => declaredInCheckout(help, one, invocation)));
   },
 };
+
+/** {@link symbol}'s answer about one name. */
+function answerOf(help: Help, input: Readonly<Record<string, unknown>>, invocation: ToolInvocation<Help> | undefined): string {
+  const spell = spellingOf(invocation);
+  // Refused before `line` is read, which orders the declarations whole and hands `limit` on to the answer without it.
+  const limit = limitOf(input, DECLARED_CAP, spell);
+  if (input['line'] !== undefined) return symbolAtLine(help, input, invocation, symbol, declaredInCheckout);
+  const installed = limitOf(input, INSTALLED_CAP, spell);
+  const name = stringArg(input, 'name');
+  const from = input['package'];
+  const wanted = typeof from === 'string' && from !== '' ? from : undefined;
+
+  // The door the workspace imports a declaration by leads it. Every adapter
+  // that re-exports a core publishes the same declaration, and the first one
+  // read is an alphabetical accident whose own count is usually nothing.
+  const found = publishedDeclarations(help, invocation?.root, name, wanted);
+
+  // Declared in a file and exported by none: still the workspace's
+  // own name, and where it is written says who can reach it. Another file's
+  // export of the same name is another thing, so it never stands for this one.
+  const at = startPointArg(input, 'from');
+  const paths = at === undefined ? undefined : typeof at === 'string' ? [at] : [...at];
+  const { blocks: declared } = declaredBlocks(help, invocation?.root, name, wanted, spell, limit, paths);
+
+  // A name no entry publishes, that another package imports by the path of
+  // the file exporting it, is used here — and that import is what says so.
+  // An import by path of `default` out of a file whose default has a name is that declaration's, not the slot's.
+  const byPath = (found.length === 0 ? sitesByPath(help, name, wanted) : []).filter(
+    (site) => name !== SLOT || site.held.to === undefined || answers(help, invocation?.root, { at: site.held.to, name }, name),
+  );
+  // A name an import binds to an export of another name: the import, and the export it names.
+  const local = localNames(help, invocation?.root, name, wanted).blocks;
+
+  // Exported for a neighbour and never published: the workspace's own name,
+  // said first. An installed name it matches is said after it, since a file
+  // that passes an installed binding on exports it without declaring it.
+  // A published namesake is another declaration, so it never hides this one.
+  const exported = unpublishedExports(help, invocation?.root, name, wanted, found.map((one) => [one.at, one.declared] as const));
+  // A local name of a declaration answered above says it by its line, not again whole.
+  const above = new Set([...found.map((one) => `${one.at}\0${one.declared}`), ...exported.map((held) => declarationKey(help, invocation?.root, held))]);
+  const aliased = local.map((one) => (one.brief !== undefined && above.has(one.brief.key) ? one.brief.text : one.text));
+  const others = exported.length > 0 ? [exportedOnly(help, name, exported, invocation?.root, spell)] : [];
+  // A member of an interface, a type literal or a class is the workspace's
+  // own declaration too, which no import names and the scan records. It
+  // stands beside what a file's top level declares, never under it.
+  const members = membersOf(help, invocation?.root, name, wanted);
+  const beside = memberBlocks(name, members, spell, limit);
+  if (byPath.length > 0) {
+    const imported = new Set(byPath.flatMap((site) => [site.held.to ?? site.held.specifier, declaration(help, name, site)?.at ?? '']));
+    const rest = exported.filter((held) => !imported.has(held.at));
+    return [importedByPath(help, invocation?.root, name, byPath), ...(rest.length > 0 ? [exportedOnly(help, name, rest, invocation?.root, spell)] : []), ...declared, ...aliased, ...beside].join('\n\n');
+  }
+  const kept = [
+    ...(found.length === 0 ? others : []),
+    ...(found.length === 0 ? [...declared, ...aliased] : []),
+  ];
+  // A name declared only as a member names the files whose declarations were
+  // not read, since one may declare it at its top level; the declarations beside a member already did.
+  const read = kept.length === 0 && beside.length > 0 ? declarationsNamed(help, invocation?.root, name) : undefined;
+  const alone = read === undefined || 'refused' in read ? [] : unreadLine(read.unread);
+  // A published declaration is answered below, and the members after it.
+  const own = found.length === 0 ? [...kept, ...beside, ...alone] : [];
+  // Nothing in the workspace answered, so the name may be declared in a file
+  // whose declarations were not read: the installed answers below say so.
+  const asked = found.length === 0 && own.length === 0 ? declarationsNamed(help, invocation?.root, name) : undefined;
+  const unread = asked === undefined || 'refused' in asked ? [] : unreadLine(asked.unread);
+
+  if (found.length === 0 && invocation?.root !== undefined) {
+    const everywhere = queryDependencyLexicon(invocation.root, name, undefined, true, wanted, installed);
+    // No lexicon of installed names says nothing against the workspace's own export.
+    if (everywhere === undefined && own.length > 0) return own.join('\n\n');
+    // Without it, what the workspace holds is still an answer: the
+    // dependencies are the part of it not checked.
+    if (everywhere === undefined) {
+      throw new FoundNothing(nowhere(help, name, wanted, invocation.root, members, 'Whether an installed dependency publishes it is not known: the dependency lexicon is not published, and the `variance index` command publishes it.', spell, limit));
+    }
+    const here = paths === undefined ? everywhere : queryDependencyLexicon(invocation.root, name, paths, true, wanted, installed);
+    const shown = here ?? everywhere;
+    // A door that declares nothing is a fallback for a package silent about
+    // the name; the lexicon leaves out one whose installed copy declares it
+    // elsewhere. Another copy of the same version answers nothing for it.
+    const silent = silentBlocks(invocation.root, name, shown.silent ?? [], wanted !== undefined);
+    const cut = (matches: LexiconMatches): readonly string[] =>
+      notShownPast(matches.total, matches.shown.length, spell, { one: 'match', many: 'matches' });
+    if (paths !== undefined && here !== undefined && here.total === 0 && everywhere.total > 0) {
+      // Not usable at the path is a fact with an answer: the workspaces that do offer it, each with its own version.
+      const owner = here.scope.location?.join(', ') ?? 'the manifest that owns it';
+      const where = paths.join(', ');
+      return [
+        ...own,
+        `\`${name}\` is not usable from ${where}: ${owner} does not declare or import it. It is offered under:`,
+        ...everywhere.shown.map(thirdBlock),
+        ...cut(everywhere),
+        ...unread,
+      ].join('\n\n');
+    }
+    if (shown.total > 0 || silent.length > 0) return [...own, ...shown.shown.map(thirdBlock), ...cut(shown), ...silent, ...unread].join('\n\n');
+  }
+  if (own.length > 0) return own.join('\n\n');
+  if (found.length === 0) {
+    // The lexicon was asked of the package named, when one was, and of no other.
+    const checked = invocation?.root === undefined
+      ? undefined
+      : `No installed dependency${wanted === undefined ? '' : ` named \`${wanted}\``} publishes it either.`;
+    throw new FoundNothing(nowhere(help, name, wanted, invocation?.root, members, checked, spell, limit));
+  }
+
+  return [
+    ...found.map((one) => publishedBlock(help, input, invocation?.root, spell, one)),
+    ...others,
+    ...declared,
+    ...aliased,
+    ...beside,
+  ].join('\n\n');
+}
 
 /** {@link symbol}'s `files`, with the names each declaration is written by. */
 export function declaredInCheckout(help: Help, input: Readonly<Record<string, unknown>>, invocation: ToolInvocation<Help> | undefined): Declared {
@@ -218,7 +225,7 @@ export interface Declared extends FileSet {
  * adds stats and no reading.
  */
 export function restsOn(help: Help, input: Readonly<Record<string, unknown>>, invocation?: ToolInvocation<Help>): Iterable<string> {
-  return [...declaredIn(help, input, invocation, (exported) => exported).files.keys(), ...publishingEntries(help, input, invocation)];
+  return eachDeclared(input, (one) => [...declaredIn(help, one, invocation, (exported) => exported).files.keys(), ...publishingEntries(help, one, invocation)]).flat();
 }
 
 /** {@link restsOn} for `uses`, which says nothing of a name bound by `as`, and so rests on no such binding. */
