@@ -45,7 +45,7 @@ function outline(file: FileDeclarations): readonly string[] {
 function left(file: FileDeclarations): string | undefined {
   const cut = [
     ...(file.more > 0 ? [plural(file.more, 'more top-level declaration')] : []),
-    ...(file.moreMembers > 0 ? [plural(file.moreMembers, 'more member')] : []),
+    ...(file.moreMembers > 0 ? [plural(file.moreMembers, 'more member line')] : []),
   ];
   return cut.length === 0 ? undefined : `    ${cut.join(' and ')} not shown.`;
 }

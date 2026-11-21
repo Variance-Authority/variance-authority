@@ -78,7 +78,7 @@ export interface FileDeclarations {
   readonly declarations: readonly FileDeclaration[];
   /** The top-level declarations the budget left out. */
   readonly more: number;
-  /** The members the budget left out, those of a declaration it cut included. */
+  /** The member lines the budget left out, those of a declaration it cut included; a line that declares several members is one. */
   readonly moreMembers: number;
 }
 

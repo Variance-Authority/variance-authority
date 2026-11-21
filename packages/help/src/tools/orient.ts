@@ -100,8 +100,7 @@ export const orient: Tool<unknown> = {
       },
       declarations: {
         type: 'boolean',
-        description:
-          'With files, print every manifest declaration entry for each listed external dependency; otherwise the first three and a remaining count.',
+        description: 'With files, print every declaration entry for each listed external dependency; otherwise the first three and a remaining count.',
       },
     },
     additionalProperties: false,

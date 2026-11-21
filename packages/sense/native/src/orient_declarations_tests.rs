@@ -76,3 +76,19 @@ fn a_member_on_its_container_line_is_listed_as_symbol_lists_it() {
     let found = declarations_of(&layers, &["src/id.ts".to_owned()], 40);
     assert_eq!(rows(&found[0]), vec!["1 type Id Some(true)", "  1 id", "  1 at"]);
 }
+
+#[test]
+fn the_budget_spends_one_line_on_members_that_share_a_line_and_counts_the_lines_it_cut() {
+    let source = "export type Id = { id: string; at: number };\nexport interface Box {\n  a: string; b: string; c: string;\n  d: number;\n}\n";
+    let (records, parses) = chain(&[("src/box.ts", "git:c", source)]);
+    let layers = [Layer::open(&records).unwrap(), Layer::open(&parses).unwrap()];
+    let cut = |budget: usize| {
+        let found = declarations_of(&layers, &["src/box.ts".to_owned()], budget).remove(0);
+        (rows(&found).len(), found.more, found.more_members)
+    };
+    // Two declarations and three member lines: five lines fit five.
+    assert_eq!(cut(5), (8, 0, 0), "every member is shown and nothing is counted as cut");
+    assert_eq!(cut(4), (7, 0, 1), "the last member line is the one cut");
+    // Two lines cut, four members on them, counted as the two lines.
+    assert_eq!(cut(3), (4, 0, 2));
+}

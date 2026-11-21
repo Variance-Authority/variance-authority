@@ -9,9 +9,10 @@
 //!
 //! An outline is bounded by lines, not names: a file of four hundred exports
 //! would otherwise print four hundred lines before the graph the reader asked
-//! for. Top-level declarations are shown first, then members in line order
-//! while lines are left; the declarations and the members cut are each counted
-//! once for the file, so the counts add no line per container.
+//! for. Top-level declarations are shown first, then member lines in line order
+//! while lines are left, a line that declares several members spending one;
+//! the declarations and the member lines cut are each counted once for the
+//! file, so the counts add no line per container.
 
 // compass: variance-authority.reach.relations
 
@@ -50,7 +51,8 @@ pub struct FileDeclarations {
     pub declarations: Vec<FileDeclaration>,
     /// The top-level declarations the budget left out.
     pub more: u32,
-    /// The members the budget left out, those of a declaration it cut included.
+    /// The member lines the budget left out, those of a declaration it cut
+    /// included; a line that declares several members is one.
     pub more_members: u32,
 }
 
@@ -103,16 +105,25 @@ fn outline(layers: &[Layer], crossing: &Crossing, budget: usize) -> FileDeclarat
     drop(holder);
     let more = declarations.len().saturating_sub(budget) as u32;
     declarations.truncate(budget);
-    members.sort_by_key(|(on, member)| (declarations.get(*on).map(|on| on.line), member.line));
+    // The budget is spent by the line shown, as `symbol`'s rule shows one row
+    // for a line that declares several members: a member on a line its
+    // declaration already shows costs nothing, and a line cut is counted once.
+    members.sort_by_key(|(on, member)| (*on, member.line));
     let mut left = budget - declarations.len();
-    let mut more_members = 0;
+    let (mut more_members, mut last) = (0, None);
     for (on, member) in members {
+        let fresh = last != Some((on, member.line));
+        last = Some((on, member.line));
         match declarations.get_mut(on) {
-            Some(declaration) if left > 0 => {
+            Some(declaration) if !fresh && declaration.members.last().is_some_and(|shown| shown.line == member.line) => {
+                declaration.members.push(member);
+            }
+            Some(declaration) if fresh && left > 0 => {
                 left -= 1;
                 declaration.members.push(member);
             }
-            _ => more_members += 1,
+            _ if fresh => more_members += 1,
+            _ => {}
         }
     }
     FileDeclarations { file: crossing.file.to_owned(), read: true, declarations, more, more_members }

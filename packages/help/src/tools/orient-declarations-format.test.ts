@@ -38,7 +38,7 @@ describe('the declarations part of an orientation', () => {
       '  src/basket.ts',
       '     9  exported class Basket',
       '        12  add(line: string): void {',
-      '    2 more top-level declarations and 4 more members not shown.',
+      '    2 more top-level declarations and 4 more member lines not shown.',
     ]);
   });
 
