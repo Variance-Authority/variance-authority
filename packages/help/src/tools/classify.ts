@@ -1,9 +1,11 @@
 // compass: variance-authority.report.agent-surface
 
-import type { Tool } from '@variance-authority/mcp/tools';
+import { relative } from 'node:path';
+import { START_POINT_SCHEMA, saysStartPoint, startPointArg, type Tool, type ToolInvocation } from '@variance-authority/mcp/tools';
 import type { Help } from '@variance-authority/package/help';
 import { describedWordsNative, packageLayers, sourceIndexPath, trackedPaths } from '@variance-authority/sense';
 import { searchIndexOf } from '../snapshot.js';
+import { areaLine, areaOf } from './area.js';
 import { rankedAreas, type Declared } from './classify-areas.js';
 import { classifyWords, formatClassified, type CodeMapPlaces } from './classify-words.js';
 import { noCodeMap, unfoldedCodeMap } from './code-map-format.js';
@@ -67,6 +69,27 @@ function declaredOf(help: Help, query: string): Declared {
 }
 
 /**
+ * The tracked paths a start point reaches along the imports, with the line
+ * that says which; every tracked path when none was said. The walk names files
+ * from the graph's root, which a nested workspace sits below the checkout's.
+ */
+function scopedPaths(
+  paths: readonly string[],
+  input: Readonly<Record<string, unknown>>,
+  invocation: ToolInvocation<unknown> | undefined,
+): { readonly paths: readonly string[]; readonly line?: string } {
+  const from = startPointArg(input, 'from');
+  const to = startPointArg(input, 'to');
+  if (from === undefined && to === undefined) return { paths };
+  const tree = invocation?.tree;
+  const area = areaOf(from, to, tree);
+  if (area.refused !== undefined || tree === undefined) throw new Error(`\`classify\` ranked nothing: ${areaLine(area)}`);
+  const within = tree.graphRoot === undefined ? '' : relative(tree.root, tree.graphRoot).replaceAll('\\', '/');
+  const reached = new Set(within === '' ? area.files : [...area.files].map((file) => `${within}/${file}`));
+  return { paths: paths.filter((path) => reached.has(path)), line: areaLine(area) };
+}
+
+/**
  * `docs_classify` — which words of the asker's own sentence are names this
  * workspace publishes, each placed on the code map.
  *
@@ -87,15 +110,20 @@ export const classify: Tool<Help> = {
     'what it names, its package\'s area and dependency layer on the code map as docs_orient numbers them, then the ' +
     'words that name nothing on one line. Then the areas of the tree the words point to, ten at most, best first: a directory of at ' +
     'most 500 tracked files, scored by the request\'s words, by stem, that its path, its files\' names and the exported names its files ' +
-    'declare hold, a word held by fewer areas counting for more. Ask it first when holding a request in words and no name.',
+    'declare hold, a word held by fewer areas counting for more. With `from` or `to`, only the files that start point reaches along the ' +
+    'imports are ranked: a product\'s folder and the shared code it imports. Ask it first when holding a request in words and no name.',
   inputSchema: {
     type: 'object',
     properties: {
       query: { type: 'string', description: 'The request, in the asker\'s own words.' },
+      from: START_POINT_SCHEMA.from,
+      to: START_POINT_SCHEMA.to,
     },
     required: ['query'],
     additionalProperties: false,
   },
+
+  wants: saysStartPoint,
 
   run(help, input, invocation) {
     const query = typeof input['query'] === 'string' ? input['query'] : '';
@@ -109,8 +137,10 @@ export const classify: Tool<Help> = {
     if (typeof places === 'string') return places;
     // The tree the words point to, read from what git tracks; a checkout git
     // cannot list ranks no area, and the entities are answered all the same.
-    const paths = trackedPaths(root);
-    const areas = 'unread' in paths ? [] : rankedAreas(query, paths, declaredOf(help, query));
-    return formatClassified(classifyWords(query, help, places.packages.keys()), places, areas);
+    const tracked = trackedPaths(root);
+    const scoped = 'unread' in tracked ? { paths: [] } : scopedPaths(tracked, input, invocation);
+    const areas = scoped.paths.length === 0 ? [] : rankedAreas(query, scoped.paths, declaredOf(help, query));
+    const answer = formatClassified(classifyWords(query, help, places.packages.keys()), places, areas);
+    return scoped.line === undefined ? answer : `${scoped.line}\n\n${answer}`;
   },
 };

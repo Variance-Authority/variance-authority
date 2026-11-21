@@ -118,6 +118,7 @@ export {
   entryPoints,
   pathsOf,
   refusalFor,
+  saysStartPoint,
   startPointArg,
   START_POINT_SCHEMA,
   type EntryPoints,

@@ -162,9 +162,12 @@ export function formatClassified(
     return area === undefined ? [] : [`variance ask orient --area ${shell(area.id)}`];
   }));
   // `search` takes the words of one name, so the best area is asked for the
-  // two that weigh most there.
+  // two that weigh most there; the root is no start point, so it is asked whole.
   const best = areas[0];
-  if (best !== undefined) asks.push(`variance ask search --query ${shell(best.words.slice(0, 2).join(' '))} --from ${shell(best.path)}`);
+  if (best !== undefined) {
+    const from = best.path === '.' ? '' : ` --from ${shell(best.path)}`;
+    asks.push(`variance ask search --query ${shell(best.words.slice(0, 2).join(' '))}${from}`);
+  }
   lines.push(...narrower([...new Set(asks)]));
   if (!current) lines.push('', STALE_MAP);
   return lines.join('\n');

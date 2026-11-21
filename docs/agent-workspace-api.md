@@ -452,7 +452,9 @@ areas of the tree the request's words point to, best first — a directory of at
 most 500 tracked files, scored by the words its path, its files' names and the
 exported names its files declare hold, a rare word counting for more — and asks
 `search` (`docs_search`) from the best one. A request that names nothing still
-gets its areas.
+gets its areas. Given `from` or `to`, it ranks only the files that start point
+reaches along the imports, so a product's folder ranks that product and the
+shared code it imports.
 
 Called with a specifier, `docs_entrypoint` lists the names it opens, ranked by
 how many workspace packages import them. Called with a package's name, it lists

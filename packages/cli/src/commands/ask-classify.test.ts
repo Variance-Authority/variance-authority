@@ -96,4 +96,16 @@ describe('variance ask classify', () => {
     expect(asked.out).toMatch(/^case-runner — package @t\/case-runner · (area \S+ .+|in no area) · layer 2$/m);
     expect(asked.out).not.toContain('variance ask entrypoint --package @t/case-runner');
   });
+
+  it('ranks only the files a start point reaches along the imports, and says which', async () => {
+    families();
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const asked = await run(['ask', 'classify', '--query', 'shop admin', '--from', 'packages/shop/shop-4/src/index.ts']);
+
+    expect(asked.code).toBe(EXIT_CLEAN);
+    expect(asked.out).toContain('In 5 file(s) reachable from `packages/shop/shop-4/src/index.ts` along the imports');
+    expect(asked.out).toMatch(/^ {2}\. — 5 files · holds shop$/m);
+    expect(asked.out).toContain("variance ask search --query shop\n");
+  });
 });

@@ -15,7 +15,7 @@ import { askedFor, STOPLIST } from './question.js';
 import { renderOrientation } from './place.js';
 import { render } from './locate-print.js';
 import { scopeOf, type Scope } from './scope.js';
-import { startPointArg, START_POINT_SCHEMA } from './start-point.js';
+import { saysStartPoint, startPointArg, START_POINT_SCHEMA } from './start-point.js';
 import { heldWeight, rarity as rarityOf } from './rarity.js';
 import type { Tree } from './tree.js';
 
@@ -180,7 +180,7 @@ export const locate: Tool = {
     additionalProperties: false,
   },
 
-  wants: (input) => startPointArg(input, 'from') !== undefined || startPointArg(input, 'to') !== undefined,
+  wants: saysStartPoint,
 
   run(report, input, invocation) {
     const query = stringArg(input, 'query');

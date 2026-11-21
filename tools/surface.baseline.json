@@ -1572,6 +1572,7 @@
         "rarity": "function",
         "readTree": "function",
         "refusalFor": "function",
+        "saysStartPoint": "function",
         "scenarioToolByName": "function",
         "spellingOf": "function",
         "startPointArg": "function",

@@ -210,6 +210,14 @@ export function startPointArg(
 }
 
 /**
+ * Whether the call said a start point, `from` or `to`: what a tool taking one
+ * answers as `wants`, so the tree is read only when a path was said.
+ */
+export function saysStartPoint(input: Readonly<Record<string, unknown>>): boolean {
+  return startPointArg(input, 'from') !== undefined || startPointArg(input, 'to') !== undefined;
+}
+
+/**
  * What a tool says about `from` and `to` in its own schema.
  *
  * One rule about what a path means, said once. Two servers that each wrote

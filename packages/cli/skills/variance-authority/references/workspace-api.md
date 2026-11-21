@@ -206,8 +206,13 @@ the fewer areas hold it. Each area is listed with its file count and the
 request's words it holds, the one weighing most there first, and the best one
 is asked `search --from` for its two weightiest words. A request that names
 nothing still points somewhere: `Fix task manager claiming tasks twice` ranks
-the task manager plugin first in Kibana. It reads the code map `variance index`
-folds, and without one it says so and classifies nothing.
+the task manager plugin first in Kibana. In a monorepo of many products, pass
+`--from` with the product's folder: only the files it reaches along the imports
+are ranked, its own and the shared code it imports, and a word rare inside the
+product counts for more there. `--to` ranks the files that import a path. The
+answer then opens with the start point's line, as `grep`'s does. It reads the
+code map `variance index` folds, and without one it says so and classifies
+nothing.
 
 ### `entrypoint`
 
