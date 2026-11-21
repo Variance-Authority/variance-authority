@@ -70,14 +70,68 @@ export function unenteredSentence(region: Unentered): string {
   return `no case entered the ${region.kind} on ${lines}${whyUnentered(region.stopped)}`;
 }
 
+/** A sentence a file says about the regions no case entered, with the cases that stopped short of a hole. */
+export interface UnenteredSaid {
+  readonly sentence: string;
+  readonly stopped?: readonly ExecutionTest[];
+}
+
+/**
+ * What a file says once about the regions no case entered on any of its
+ * ranges. A region is on every range that opens or closes on its lines, so it
+ * is named once; the ones with the same reason and no stopped case to name
+ * share one sentence, by kind, and each hole keeps its own, with the cases that
+ * stopped short of it. In source order of the first region each sentence names.
+ */
+export function unenteredSaid(regions: readonly Unentered[]): readonly UnenteredSaid[] {
+  const once = new Map<string, Unentered>();
+  for (const region of regions) once.set(`${region.kind}\0${region.name}\0${region.path}\0${region.startLine}\0${region.endLine}`, region);
+  const ordered = [...once.values()].sort((a, b) => a.startLine - b.startLine || a.endLine - b.endLine);
+  const said: (UnenteredSaid & { readonly at: number })[] = [];
+  for (const region of ordered) {
+    if (region.stopped !== undefined && region.stopped.length > 0) said.push({ at: region.startLine, sentence: capital(unenteredSentence(region)), stopped: region.stopped });
+  }
+  for (const why of [[] as const, undefined]) {
+    const group = ordered.filter((region) => why === undefined ? region.stopped === undefined : region.stopped?.length === 0);
+    if (group.length === 0) continue;
+    const sentence = group.length === 1 ? unenteredSentence(group[0]!) : `no case entered ${byKind(group)}${whyUnentered(why, 'them')}`;
+    said.push({ at: group[0]!.startLine, sentence: capital(sentence) });
+  }
+  return said.sort((a, b) => a.at - b.at).map(({ at: _, ...rest }) => rest);
+}
+
+/** `the functions on lines 60-69 and 95, or the branch on line 134`: each kind once, in the order it first stands. */
+function byKind(regions: readonly Unentered[]): string {
+  const kinds = new Map<string, Unentered[]>();
+  for (const region of regions) kinds.set(region.kind, [...kinds.get(region.kind) ?? [], region]);
+  const named = [...kinds].map(([kind, of]) => {
+    const spans = of.map((region) => region.startLine === region.endLine ? `${region.startLine}` : `${region.startLine}-${region.endLine}`);
+    const single = of.length === 1 && of[0]!.startLine === of[0]!.endLine;
+    return `the ${of.length === 1 ? kind : plural(kind)} on ${single ? 'line' : 'lines'} ${listed(spans, 'and')}`;
+  });
+  return listed(named, 'or', ',');
+}
+
+function listed(items: readonly string[], last: string, before = ''): string {
+  return items.length === 1 ? items[0]! : `${items.slice(0, -1).join(', ')}${before} ${last} ${items.at(-1)!}`;
+}
+
+function plural(kind: string): string {
+  return /(?:s|x|ch|sh)$/.test(kind) ? `${kind}es` : `${kind}s`;
+}
+
+function capital(sentence: string): string {
+  return `${sentence.charAt(0).toUpperCase()}${sentence.slice(1)}`;
+}
+
 /**
  * Why nobody entered, closing the sentence that said so: a hole, unwalked, or
  * a record that cannot tell them apart. A case that stopped recorded where it
  * went and nothing past that, so the absence of its name is not evidence, and a
  * bare *nobody entered* over a hole would read as permission to delete the code.
  */
-export function whyUnentered(stopped: readonly ExecutionTest[] | undefined): string {
+export function whyUnentered(stopped: readonly ExecutionTest[] | undefined, it: 'it' | 'them' = 'it'): string {
   if (stopped === undefined) return '.';
-  if (stopped.length === 0) return ', and every case that could have reached it finished: unwalked.';
+  if (stopped.length === 0) return `, and every case that could have reached ${it} finished: unwalked.`;
   return ` — a hole: ${stopped.length === 1 ? 'a case' : `${stopped.length} cases`} that could have reached it stopped first, so the record cannot see it.`;
 }

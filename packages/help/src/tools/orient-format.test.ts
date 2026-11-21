@@ -205,10 +205,11 @@ describe('an orientation, said', () => {
       ...READING,
       external: {
         index: '/cache/source-index.bin',
+        declarationsQuestion: "variance ask orient --files 'packages/checkout/src/total.ts,packages/cart/src/price.ts,README.md,test/total.test.ts' --declarations",
         orientation: {
           dependencies: [{
             package: 'state-kit', files: 1, imports: 1, moreSites: 0,
-            declaredIn: ['root package.json'],
+            declaredIn: ['root package.json', 'packages/a/package.json', 'packages/b/package.json', 'packages/b/package.json (development)', 'packages/c/package.json'],
             sites: [{ file: 'packages/checkout/src/total.ts', line: 4, specifier: 'state-kit', kind: 'imports', names: ['createStore'], distance: 0 }],
           }],
           more: 0, reached: 2, unread: 1, stale: 0, missing: [],
@@ -217,7 +218,10 @@ describe('an orientation, said', () => {
       },
     });
     expect(text).toContain('External packages requested along local imports from these files (2 source files reached):');
-    expect(text).toContain('state-kit — 1 file, 1 request; declared in root package.json');
+    expect(text).toContain('state-kit — 1 file, 1 request; declared in root package.json, packages/a/package.json, packages/b/package.json; 2 more declaration entries');
+    expect(text).not.toContain('packages/b/package.json (development)');
+    expect(text).not.toContain('packages/c/package.json');
+    expect(text).toContain("variance ask orient --files 'packages/checkout/src/total.ts,packages/cart/src/price.ts,README.md,test/total.test.ts' --declarations");
     expect(text).toContain('packages/checkout/src/total.ts:4  state-kit (createStore; 0 local imports away)');
     expect(text).toContain('Declared locally without import evidence along this path: other-kit.');
     expect(text).toContain('Incomplete reading: 1 unread');

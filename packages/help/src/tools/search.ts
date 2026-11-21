@@ -1,5 +1,5 @@
 import type { FileSet, Spelling, Tool, ToolInvocation, Tree } from '@variance-authority/mcp/tools';
-import { limitOf, notShownPast, START_POINT_SCHEMA, spellingOf, startPointArg, stringArg } from '@variance-authority/mcp/tools';
+import { limitOf, notShownPast, START_POINT_SCHEMA, saysStartPoint, spellingOf, startPointArg, stringArg } from '@variance-authority/mcp/tools';
 import type { Help } from '@variance-authority/package/help';
 import type { SearchIndex } from '../search-index.js';
 import { searchIndexOf } from '../snapshot.js';
@@ -411,7 +411,7 @@ export const search: Tool<Help> = {
 
   // The tree is a walk of the repository, so it is read when a question names a
   // path and never on the way past.
-  wants: (input) => startPointArg(input, 'from') !== undefined || startPointArg(input, 'to') !== undefined,
+  wants: saysStartPoint,
 
   run: (help, input, invocation) =>
     spoken(searchedOnce(help, input, invocation), searchQuestionOf(input, spellingOf(invocation)), invocation?.root, spellingOf(invocation)),

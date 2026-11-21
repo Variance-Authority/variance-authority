@@ -141,7 +141,7 @@ describe('variance ask about a name declared and not exported', () => {
     ]);
     expect(err).toBe('');
     expect(code).toBe(EXIT_CLEAN);
-    expect(out).toContain('1 file in all of them.');
+    expect(out).toContain('1 file in all of them:');
     expect(out).toContain('packages/kit/src/money/restart.ts — 1: line 4 · 2: the file');
   });
 
@@ -190,7 +190,7 @@ describe('variance ask about a name declared and not exported', () => {
 
     const both = await run(['ask', 'intersection', 'uses --name tally', 'discover --from packages/kit/src/money/b.ts']);
     expect(both.err).toBe('');
-    expect(both.out).toContain('1 file in all of them.');
+    expect(both.out).toContain('1 file in all of them:');
     // Line 1 calls the `tally` its own file declares on line 3, so `uses` puts both lines in.
     expect(both.out).toContain('packages/kit/src/money/b.ts — 1: lines 1, 3 · 2: the file');
   });
@@ -295,7 +295,7 @@ describe('variance ask about a name declared and not exported', () => {
     const { out } = await run(['ask', 'uses', '--name', 'walk']);
     expect(out).toContain('it is exported at packages/kit/src/walk.rs:1');
     const [exported, kept] = out.split('`walk` [module]');
-    expect(exported).toContain('packages/kit/src/lib.rs:3 — @acme/kit');
+    expect(exported).toContain('packages/kit/src/lib.rs:3');
     expect(kept).not.toContain('lib.rs:3');
     expect(out).toContain('`walk` [module] is declared, not exported, at packages/kit/src/lib.rs:1, so only its module and the modules inside it can name it.');
   });

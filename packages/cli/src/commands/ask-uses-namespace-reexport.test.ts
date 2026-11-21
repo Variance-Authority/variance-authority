@@ -78,8 +78,8 @@ describe('variance ask uses through an `export * as` namespace', () => {
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
 
     const greet = await uses('greet');
-    expect(greet).toMatch(/^packages\/lib\/src\/use-bar\.ts:2 — @acme\/lib \(namespace, line 1\)$/m);
-    expect(greet).toMatch(/^packages\/lib\/src\/star-bar\.ts:2 — @acme\/lib \(namespace, line 1\)$/m);
+    expect(greet).toMatch(/^packages\/lib\/src\/use-bar\.ts:2 \(namespace, line 1\)$/m);
+    expect(greet).toMatch(/^packages\/lib\/src\/star-bar\.ts:2 \(namespace, line 1\)$/m);
     // The barrel passes the namespace on; it reads nothing off it.
     expect(greet).not.toMatch(/^packages\/lib\/src\/bar\.ts/m);
   });

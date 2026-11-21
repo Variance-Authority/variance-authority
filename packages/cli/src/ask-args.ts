@@ -1,5 +1,5 @@
 import { resolve } from 'node:path';
-import { countOf, type Flags, type Unknown } from './args.js';
+import { countOf, offsetOf, type Flags, type Unknown } from './args.js';
 import { OperatorError } from './exit.js';
 
 /**
@@ -102,6 +102,8 @@ export interface ParsedAsk extends Crossing {
   readonly files?: readonly string[];
   /** `--area <id>`: the page of the code map `orient` prints, as its id (`4.1`). */
   readonly area?: string;
+  /** `--declarations`: every reached declaration entry in file orientation. */
+  readonly declarations?: boolean;
   /** `--name <name>`: an exported name, matched exactly, for `symbol` and `uses`; a test's name or a word of it, for `test-composition`. */
   readonly name?: string;
   /** `--line <file>:<line>`: a line that uses the name, for `symbol` to order its declarations by the tests that ran it. */
@@ -201,11 +203,7 @@ export function parseAskArgs(flags: Flags, config: string): ParsedAsk {
   const taintFile = flags.values.get('--taint-file');
   const story = flags.present.has('--story');
   const limit = countOf(flags.values.get('--limit'), 'rows to show');
-  const said = flags.values.get('--offset');
-  if (said !== undefined && !/^(0|[1-9][0-9]*)$/.test(said)) {
-    throw new OperatorError(`--offset is how many rows to skip and must be a whole number, not \`${said}\``);
-  }
-  const offset = said === undefined ? undefined : Number(said);
+  const offset = offsetOf(flags.values.get('--offset'));
   const at = flags.values.get('--at');
   const format = flags.values.get('--format') ?? 'text';
   if (format !== 'text' && format !== 'json') {
@@ -232,6 +230,7 @@ export function parseAskArgs(flags: Flags, config: string): ParsedAsk {
     ...(file !== undefined ? { file } : {}),
     ...(files.length > 0 ? { files } : {}),
     ...(area !== undefined ? { area } : {}),
+    ...(flags.present.has('--declarations') ? { declarations: true } : {}),
     ...(name !== undefined ? { name } : {}),
     ...(line !== undefined ? { line } : {}),
     ...(pkg !== undefined ? { package: pkg } : {}),

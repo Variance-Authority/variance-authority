@@ -143,22 +143,22 @@ describe('discover crosses whole sets', () => {
     expect(text).toContain('6 files reached from `src/TopNav.tsx`');
     expect(text).toContain('4 files importing `createContext` from `react`');
     expect(text).toContain('4 files declaring a name matching /theme|user|account/i');
-    expect(text).toContain('2 files in all of them, nearest first.');
+    expect(text.split('\n')[0]).toBe('2 files in all of them, nearest first:');
     expect(text.indexOf('src/state/theme.ts')).toBeLessThan(text.indexOf('src/state/user.ts'));
     for (const outside of ['cart.ts', 'account.ts', 'legacy.ts']) expect(text).not.toContain(outside);
   });
 
   it('says why each file is in every set, at the line that says so', () => {
     const text = ask(CONTEXTS);
-    expect(text).toContain('src/state/user.ts\n  2 imports from src/TopNav.tsx\n  1  imports createContext from react\n  2  declares UserContext');
-    expect(text).toContain('2 imports from src/TopNav.tsx');
+    expect(text).toContain('\n2 src/state/user.ts\n  1: imports createContext from react\n  2: declares UserContext');
+    expect(text).not.toContain('imports from src/TopNav.tsx');
   });
 
   it('finds where a name seen in a file is declared, among every file declaring it', () => {
     const text = ask({ declares: '^selectBalance$', from: 'src/Wallet.tsx' });
     expect(text).toContain('2 files declaring a name matching /^selectBalance$/i');
     expect(text).toContain('1 file in all of them');
-    expect(text).toContain('src/store/selectors.ts\n  1 import from src/Wallet.tsx\n  3  declares selectBalance');
+    expect(text).toContain('\n1 src/store/selectors.ts\n  3: declares selectBalance');
     expect(text).not.toContain('src/old/selectors.ts');
   });
 
@@ -172,7 +172,7 @@ describe('discover crosses whole sets', () => {
 
   it('matches an import by the file it resolved to, as well as by what was written', () => {
     const text = ask({ imports: 'src/store/selectors.ts' });
-    expect(text).toContain('src/Wallet.tsx\n  1  imports selectBalance from ./store/selectors as balance');
+    expect(text).toContain('src/Wallet.tsx\n  1: imports selectBalance from ./store/selectors as balance');
   });
 
   it('counts the files the tree holds and whose names were not read, so a missing one is not a file declaring nothing', () => {
@@ -180,8 +180,8 @@ describe('discover crosses whole sets', () => {
     index.unread = ['src/old/selectors.ts', 'src/gone.ts'];
     try {
       const text = ask({ declares: '^selectBalance$', imports: 'react' });
-      expect(text).toContain('1 file declaring a name matching /^selectBalance$/i — the names of 1 file were not read');
-      expect(text).toContain('4 files importing `react` — the names of 1 file were not read');
+      expect(text).toContain('1 file declaring a name matching /^selectBalance$/i\n');
+      expect(text.split('\nnote: the names of 1 file were not read')).toHaveLength(2);
     } finally {
       index.names = NAMES;
       index.unread = [];
@@ -240,7 +240,8 @@ describe('discover crosses whole sets', () => {
   });
 
   it('says so when nothing is in all of them', () => {
-    expect(ask({ ...CONTEXTS, path: '^src/old/' })).toContain('No file is in all of them.');
+    // The answer leads, and the sets it crossed follow it.
+    expect(ask({ ...CONTEXTS, path: '^src/old/' }).split('\n')[0]).toBe('No file is in all of them:');
   });
 
   it('counts every file and shows the nearest', () => {
@@ -264,15 +265,26 @@ describe('discover crosses whole sets', () => {
 describe('discover says how a file reaches what it was asked of', () => {
   it('gives each file one shortest chain of imports to the subject, with the kind of each import that is not plain', () => {
     const text = ask({ to: 'src/chain/base.ts' });
-    expect(text).toContain('2 imports to src/chain/base.ts: src/chain/view.ts → src/chain/model.ts (type import) → src/chain/base.ts');
-    expect(text).toContain('2 imports to src/chain/base.ts: src/chain/shell.ts → src/chain/model.ts (type import) → src/chain/base.ts');
-    expect(text).toContain('3 imports to src/chain/base.ts: src/chain/page.ts → src/chain/view.ts → src/chain/model.ts (type import) → src/chain/base.ts');
-    expect(text).toContain('1 import to src/chain/base.ts');
+    // One walk is still named, so the number leading each row says what it counts.
+    expect(text).toContain('\neach row: imports reaching `src/chain/base.ts`\n');
+    expect(text).toContain('\nchains end: src/chain/model.ts (type import) → src/chain/base.ts\n');
+    expect(text).toContain('\n2 src/chain/view.ts → …\n');
+    expect(text).toContain('\n2 src/chain/shell.ts → …\n');
+    expect(text).toContain('\n3 src/chain/page.ts → src/chain/view.ts → …\n');
+    expect(text).toContain('\n1 src/chain/model.ts\n');
+    expect(text.match(/src\/chain\/model\.ts \(type import\)/gu)).toHaveLength(1);
   });
 
   it('names the files it did not reach that import something unresolved, which may reach the subject through it', () => {
     expect(ask({ to: 'src/chain/base.ts' })).toContain(
-      '5 files reaching `src/chain/base.ts` — 1 other file imports something the scan could not resolve, and may reach it: src/chain/blind.ts',
+      '\nnote: 1 other file imports something the scan could not resolve, and may be reaching `src/chain/base.ts`: src/chain/blind.ts',
+    );
+  });
+
+  it('says which set a note is about, and that a set taken out is taken out', () => {
+    const text = ask({ from: 'src/chain/page.ts', exceptTo: 'src/chain/base.ts' });
+    expect(text).toContain(
+      '\nnote: 1 other file imports something the scan could not resolve, and may be reaching `src/chain/base.ts`, which is taken out: src/chain/blind.ts',
     );
   });
 
@@ -280,7 +292,7 @@ describe('discover says how a file reaches what it was asked of', () => {
     const app = join(root, 'app');
     const nested = treeOf([reads('app/base.ts'), reads('app/page.ts', 'app/base.ts'), { file: 'app/blind.ts', unknown: 'an import nobody resolved' }], root, app);
     expect(discover.run(undefined, { to: 'base.ts' }, { tree: nested, names: NAMES, root: app })).toContain(
-      '1 other file imports something the scan could not resolve, and may reach it: app/blind.ts',
+      'note: 1 other file imports something the scan could not resolve, and may be reaching `base.ts`: app/blind.ts',
     );
   });
 
@@ -317,8 +329,8 @@ describe('discover says how a file reaches what it was asked of', () => {
 describe('text, inside the files the other operands kept', () => {
   it('answers only files with a matching line', () => {
     const text = ask({ ...CONTEXTS, text: 'dark' });
-    expect(text).toContain("  2  export const ThemeContext = createContext('dark');");
-    expect(text).toContain('\nsrc/state/theme.ts\n');
+    expect(text).toContain("  2: export const ThemeContext = createContext('dark');");
+    expect(text).toContain(' src/state/theme.ts\n');
     expect(text).toContain('1 file in all of them');
     expect(text).not.toContain('src/state/user.ts');
   });

@@ -42,6 +42,8 @@ async function workspace(): Promise<string> {
     'packages/beta/src/kind-relay.ts': "export type { Kind as Sort } from './kinds.js';\n",
     'packages/beta/src/kind-own.ts':
       "import type { Kind as Ilk } from './kinds.js';\nexport type { Kind as Ilk } from './kinds.js';\nexport type Own = Ilk;\n",
+    'packages/beta/src/twice.ts': 'export const twin = (count: number): number => count * 2;\nexport { twin as Twin };\n',
+    'packages/beta/src/twin-user.ts': "import { twin as Twin } from './twice.js';\nexport const doubled = Twin(2);\n",
   };
   for (const [path, value] of Object.entries(files)) {
     mkdirSync(dirname(join(root, path)), { recursive: true });
@@ -107,4 +109,12 @@ it('follows the original of a local name that a file only passes on to its decla
   expect(out).not.toContain('export const inner');
   const { files } = symbol.files!(readHelp(root), { name: 'echo' }, { root });
   expect(Object.fromEntries(files)).toEqual({ 'packages/beta/src/echo.ts': [1], 'packages/beta/src/inner.ts': [1], 'packages/beta/src/relay.ts': [1] });
+});
+
+it('says once the declaration a local name binds when the answer above already shows it', async () => {
+  const root = await workspace();
+  const out = symbol.run(readHelp(root), { name: 'Twin' }, { root });
+  expect(out).toContain("`Twin` is a local name: packages/beta/src/twin-user.ts:1 imports `twin` as `Twin` from './twice.js'.");
+  expect(out.split('(count: number): number').length - 1).toBe(1);
+  expect(out).toContain('Its declaration, at packages/beta/src/twice.ts:1, is answered above.');
 });

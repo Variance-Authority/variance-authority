@@ -106,6 +106,8 @@ export async function uses(name: string): Promise<UsesAnswer> {
   let into = found;
   let section: Section | 'member-declarations' | undefined;
   let container: string | undefined;
+  // A file's own lines are listed under a heading naming it, each row the line alone.
+  let ownFile = '';
   for (const line of out.split('\n')) {
     let m: RegExpExecArray | null;
     if ((m = new RegExp(`^\`[\\w$]+\` is .* at ${AT} as well, which is another declaration\\.$`, 'u').exec(line))) {
@@ -115,14 +117,19 @@ export async function uses(name: string): Promise<UsesAnswer> {
     } else if (/^Tests(?:, from other packages|, inside \S+)?:$/u.test(line)) section = 'tests';
     else if (/^Source(?:, from other packages|, inside \S+)?:$/u.test(line)) section = 'source';
     else if (line === 'Member declarations:') section = 'member-declarations';
-    else if (/^Used in \S+, which declares it:$/u.test(line)) section = 'own-file';
+    else if ((m = /^Used in (\S+)(?: — \S+)?, which declares it:$/u.exec(line))) {
+      section = 'own-file';
+      ownFile = m[1]!;
+    } else if (section === 'own-file' && /^ {2}\d+(?: |$)/u.test(line)) {
+      into.push({ file: ownFile, section, container: undefined, typeOnly: false, dynamic: false, as: undefined, passedOnWhole: false, access: undefined });
+    }
     else if ((m = /^`([\w$]+)\.[\w$]+`, declared at \S+, is used in/u.exec(line))) {
       section = 'member';
       container = m[1];
     } else if (section === 'member-declarations' && (m = new RegExp(`^${AT} — ([\\w$]+)$`, 'u').exec(line))) memberOf.push(m[3]!);
     else if (section === 'member' && (m = new RegExp(`^${AT} — \\S+, (read|write)$`, 'u').exec(line))) {
       into.push({ file: m[1]!, section, container, typeOnly: false, dynamic: false, as: undefined, passedOnWhole: false, access: m[3] as 'read' | 'write' });
-    } else if (section !== undefined && section !== 'member-declarations' && (m = new RegExp(`^${AT} — [^\\s,;]+(?:, [^(;]+)?(?: \\((.+?)\\))?(?:; used on lines? [\\d, ]+(?: and \\d+ more)?)?$`, 'u').exec(line))) {
+    } else if (section !== undefined && section !== 'member-declarations' && (m = new RegExp(`^${AT}(?: — [^\\s,;]+)?(?:, [^(;]+)?(?: \\((.+?)\\))?(?:; used on lines? [\\d, ]+(?: and \\d+ more)?)?$`, 'u').exec(line))) {
       const notes = m[3] ?? '';
       into.push({
         file: m[1]!,

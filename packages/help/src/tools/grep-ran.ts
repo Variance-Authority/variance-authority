@@ -20,6 +20,7 @@
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import { linesThen, passedAt, testsRan, type RanRegion, type TestRan } from '@variance-authority/sense';
 import { nextPage, pageAt, paged, type Page, type Spelling } from '@variance-authority/mcp/tools';
+import { byFile } from './format.js';
 import { ripgrep, type Hit } from './ripgrep.js';
 
 /** One suite's matching lines, split by whether the test ran them. */
@@ -99,40 +100,32 @@ function within<Row>(rows: readonly Row[], start: number, page: Page): readonly 
 function formatSuite(query: string, { suite, ran, taken, passed, written, notes, errors }: Marked, page: Page, spell: Spelling): string {
   const test = ran.test!;
   const entered = ran.modules.length;
-  const lines = [
-    `${ofSuite(suite)}${test.file}  ${test.name} entered ${entered} recorded ${entered === 1 ? 'file' : 'files'}; ` +
-      'files no recording instruments were not searched.',
+  const searched = `${entered === 1 ? 'the 1 recorded file' : `the ${entered} recorded files`} ${ofSuite(suite)}${test.file}  ${test.name} entered`;
+  // What bounds the rows is said after them, once the answer is read.
+  const noted = [
+    'note: files no recording instruments were not searched.',
+    ...(errors.length === 0 ? [] : [`note: ripgrep reported ${errors.length} ${errors.length === 1 ? 'error' : 'errors'} reading them; the first: ${errors[0]}`]),
+    ...notes.map((note) => `note: ${note}`),
   ];
-  if (errors.length > 0) lines.push('', `ripgrep reported ${errors.length} ${errors.length === 1 ? 'error' : 'errors'} reading them; the first: ${errors[0]}`);
-  if (notes.length > 0) lines.push('', ...notes);
   const total = taken.length + passed.length + written.length;
-  if (total === 0) return [...lines, '', `Nothing in those files matches \`${query}\`.`].join('\n');
+  if (total === 0) return [`Nothing in ${searched} matches \`${query}\`.`, ...noted].join('\n');
   const matched = new Set([...taken, ...passed.map(({ hit }) => hit), ...written].map((hit) => hit.file)).size;
-  lines.push('', `${total} matching ${total === 1 ? 'line' : 'lines'} in ${matched} ${matched === 1 ? 'file' : 'files'}.`, ...pageAt(page, total, spell));
+  const lines = [`${total} matching ${total === 1 ? 'line' : 'lines'} in ${matched} of ${searched}:`, ...pageAt(page, total, spell)];
   const ranShown = within(taken, 0, page);
-  if (ranShown.length > 0) {
-    lines.push('', 'Ran:');
-    for (const hit of ranShown) lines.push(`${hit.file}:${hit.line}:${hit.text}`);
-  }
+  if (ranShown.length > 0) lines.push('Ran:', ...byFile(ranShown));
   const passedShown = within(passed, taken.length, page);
   if (passedShown.length > 0) {
-    lines.push('', 'Not taken:');
-    for (const { hit, by, partly } of passedShown) {
-      lines.push(`${hit.file}:${hit.line}:${hit.text}`, `  in ${region(hit.file, by)}, which it did not enter${partly ? '; the rest of the line ran' : ''}`);
-    }
+    const rows = passedShown.map(({ hit, by, partly }) => ({ ...hit, note: `in ${region(by)}, which it did not enter${partly ? '; the rest of the line ran' : ''}` }));
+    lines.push('Not taken:', ...byFile(rows));
   }
   const writtenShown = within(written, taken.length + passed.length, page);
-  if (writtenShown.length > 0) {
-    lines.push('', 'Written since the recording, so no test has run it:');
-    for (const hit of writtenShown) lines.push(`${hit.file}:${hit.line}:${hit.text}`);
-  }
-  for (const next of nextPage(page, total, spell)) lines.push('', next);
-  return lines.join('\n');
+  if (writtenShown.length > 0) lines.push('Written since the recording, so no test has run it:', ...byFile(writtenShown));
+  return [...lines, ...noted, ...nextPage(page, total, spell)].join('\n');
 }
 
-/** `branch src/order.ts:5-7 of pay`, or `function pay src/order.ts:1-8`. */
-function region(file: string, { kind, line, end, function: of }: RanRegion): string {
+/** `branch 5-7 of pay`, or `function pay 1-8`, under a row that names the file. */
+function region({ kind, line, end, function: of }: RanRegion): string {
   const named = of === undefined || of === null ? '' : of;
-  if (kind === 'function') return `function ${named === '' ? '' : `${named} `}${file}:${line}-${end}`;
-  return `${kind} ${file}:${line}-${end}${named === '' ? '' : ` of ${named}`}`;
+  if (kind === 'function') return `function ${named === '' ? '' : `${named} `}${line}-${end}`;
+  return `${kind} ${line}-${end}${named === '' ? '' : ` of ${named}`}`;
 }

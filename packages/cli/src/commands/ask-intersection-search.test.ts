@@ -101,7 +101,7 @@ describe('the same search alone and as an intersection operand', () => {
     expect(alone).not.toContain(path);
     if (query === 'publicNeedle') expect(alone).toContain('42 published matches');
     const together = await cross(`search --query '${query}'`, path);
-    expect(together).toContain('1 file in all of them.');
+    expect(together).toContain('1 file in all of them:');
     expect(together).toContain(`${path} — 1: ${lines} · 2: the file`);
   });
 

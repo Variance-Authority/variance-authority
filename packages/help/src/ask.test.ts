@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { treeOf, type FileRecord } from '@variance-authority/mcp/tools';
 import { readHelp } from './walk.js';
-import { verbOf } from '@variance-authority/mcp/tools';
+import { spellingOf, verbOf } from '@variance-authority/mcp/tools';
 import { ask, inputFrom, invocationOf, toolNamed, verbs } from './ask.js';
 import { HELP_TOOLS } from './tools.js';
 
@@ -67,6 +67,13 @@ describe('arguments, read off the schema the tool already publishes', () => {
 
   it('refuses a flag given no value', () => {
     expect(() => inputFrom(toolNamed('uses'), ['--from'])).toThrow(/given no value/);
+  });
+
+  it('takes a boolean property as a switch without consuming the next argument', () => {
+    expect(inputFrom(toolNamed('orient'), ['--declarations', '--files', 'src/page.ts'])).toEqual({ declarations: true, files: 'src/page.ts' });
+    const spell = spellingOf({ shell: 'variance-authority-help' });
+    expect(spell.question(toolNamed('orient'), { files: ['src/page.ts'], declarations: true })).toBe('`variance-authority-help orient --files src/page.ts --declarations`');
+    expect(spell.question(toolNamed('orient'), { files: ['src/page.ts'], declarations: false })).toBe('`variance-authority-help orient --files src/page.ts`');
   });
 
   it('refuses an argument to a verb that takes none', () => {

@@ -13,10 +13,12 @@
 // compass: variance-authority.report.agent-surface
 
 import { membersOn } from '@variance-authority/sense';
+import { byFile, type Located } from './format.js';
 
 /**
  * `Members:` and one row per line that declares a member of the container
- * `on` in `at`, the file relative to `root`, each as the index recorded the
+ * `on` in `at`, the file relative to `root`, said once above them as
+ * {@link byFile} groups rows, each as the index recorded the
  * line, and by its name when the index kept no text of it; a line the
  * declaration at `line` already shows is not shown again.
  * Nothing when the name declares no members or no index is published; why,
@@ -32,11 +34,11 @@ export function memberRows(root: string | undefined, at: string, on: string, lin
   }
   if (found === undefined || found.length === 0) return [];
   const shown = new Set([line]);
-  const rows: string[] = [];
+  const rows: Located[] = [];
   for (const member of found) {
     if (shown.has(member.line)) continue;
     shown.add(member.line);
-    rows.push(`${at}:${member.line} — ${member.text?.trim() ?? member.name}`);
+    rows.push({ file: at, line: member.line, text: member.text?.trim() ?? member.name });
   }
-  return rows.length === 0 ? [] : ['', 'Members:', ...rows];
+  return rows.length === 0 ? [] : ['', 'Members:', ...byFile(rows)];
 }

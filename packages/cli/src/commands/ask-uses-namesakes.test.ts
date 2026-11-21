@@ -65,7 +65,7 @@ describe('variance ask uses after `variance index` ran again', () => {
 
     const [first, second, third] = await afterEachIndex();
     expect(first).toContain('`Reach` is exported, without being published, at packages/h/src/reach.ts:2 as well, which is another declaration.');
-    expect(first).toMatch(/^packages\/h\/src\/index\.ts:2 — @acme\/h \(type only\); used on line 3$/m);
+    expect(first).toMatch(/^packages\/h\/src\/index\.ts:2 \(type only\); used on line 3$/m);
     expect(first).toContain('`--file`, the file one of them is declared in, answers for that declaration alone.');
     expect(second).toBe(first);
     expect(third).toBe(first);
@@ -136,7 +136,7 @@ describe('variance ask uses over a name several files declare', () => {
     const out = await uses();
     const namesake = paragraph(out, /^`greet` is exported, without being published, at packages\/lib\/src\/other\.ts:1/);
     expect(namesake).toMatch(/^Imported in 1 place, inside @acme\/lib\.$/m);
-    expect(out).toMatch(/^packages\/lib\/src\/unrelated\.ts:1 — @acme\/lib; used on line 2$/m);
+    expect(out).toMatch(/^packages\/lib\/src\/unrelated\.ts:1; used on line 2$/m);
   });
 
   it('lists the imports of a published namesake apart, counted as the declaration answered first is', async () => {
@@ -220,7 +220,7 @@ describe('variance ask uses over a name several files declare', () => {
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
 
     const out = await uses('--file', 'packages/lib/src/other.ts');
-    expect(out).toMatch(/^packages\/lib\/src\/unrelated\.ts:1 — @acme\/lib; used on line 2$/m);
+    expect(out).toMatch(/^packages\/lib\/src\/unrelated\.ts:1; used on line 2$/m);
     expect(out).not.toMatch(/hello\.ts|kept\.ts/);
   });
 
@@ -230,7 +230,7 @@ describe('variance ask uses over a name several files declare', () => {
 
     const out = await uses('--file', 'packages/lib/src/kept.ts');
     expect(out).toMatch(/^`greet` \[function\] is declared, not exported, at packages\/lib\/src\/kept\.ts:1/m);
-    expect(out).toMatch(/^packages\/lib\/src\/kept\.ts:4 — @acme\/lib$/m);
+    expect(out).toMatch(/^Used in packages\/lib\/src\/kept\.ts — @acme\/lib, which declares it:\n\n {2}4$/m);
     expect(out).not.toMatch(/hello\.ts|other\.ts|unrelated\.ts/);
   });
 

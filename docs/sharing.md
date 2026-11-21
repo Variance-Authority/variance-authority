@@ -652,7 +652,8 @@ moves onto it: every test file you did not run reads the newer record, and a
 file you ran keeps your rows if it ran at that commit or after it. A newer
 record of a commit your branch does not contain changes nothing, so long work
 keeps the record it started from until you merge or rebase. The answer names
-both:
+both, the latest state your runs landed over by name and the earlier ones as
+one count, so the line stays one line however long the checkout has run:
 
 ```text
 record of "unit": read from this checkout's own, over mainline main at 3f1c9a2…, 4 commit(s) before HEAD; 2 test file(s) ran here, every other is the mainline's: test/cart.test.ts, test/total.test.ts at 8e01b44…

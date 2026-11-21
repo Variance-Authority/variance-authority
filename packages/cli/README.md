@@ -163,13 +163,13 @@ variance index   [--no-git] [--wait | --follow-ups]
 variance select  [--since <ref> [--ran-at <commit>]] [--execution <journey-file> [--diff <patch>|-] | --suite <name>] [--at-distance <hops>] [--local] [--format plain|json|vitest|jest|explain] [--no-git]
 variance shards  [--setup <seconds>] [--budget <seconds>] [--max <n>] [--workers <n>] [--since <ref> [--ran-at <commit>] [--collected <file>]] [--at-distance <hops>] [--suite <name>] [--unrecorded <n>] [--format text|json]
 variance reach   --since <ref> [--format plain|json] [--whole-files] [--no-git]
-variance covering --file <path> [--line <n>|<a>-<b>] [--function <name>] [--at-distance <hops>] [--in-package] [--hops] [--text <path>|-] | --since <ref> [--against <record>] [--cases last|<test file>] [--where <name>[=<value>]]... [--read <name>[=<value>]]... [--execution <path> | --suite <name>] [--root <path>] [--format text|refs|json]
+variance covering --file <path> [--line <n>|<a>-<b>] [--function <name>] [--at-distance <hops>] [--in-package] [--hops] [--text <path>|-] | --since <ref> [--against <record>] [--cases last|<test file>] [--where <name>[=<value>]]... [--read <name>[=<value>]]... [--execution <path> | --suite <name>] [--root <path>] [--format text|refs|json] [--limit <n>] [--offset <n>]
 variance coverage [--suite <name> [--against <record>]] [--from <dir> | --packages] [--at-distance <hops>] [--fan-in] [--session <name>=<path>]... [--served <dir>] [--root <path>] [--format text|markdown|json|badge]
 variance layers  [--against <index>] [--package <name>]... [--root <path>] [--format text|markdown|json]
 variance restrictions [--root <path>] [--format text|json]
 variance review  [--since <ref>] [--against <record>] [--suite <name>] [--coverage] [--fail-on-uncovered] [--fail-on-lost] [--out <dir>] | --from-run <run id or URL> [--artifact <name>] [--root <path>] [--format text|markdown|json|handover]
 variance report  [--config <path>] [--format text|json|html [--embed-images]] [--subject <id>] [--exit-zero-on-changes] [<report>...]
-variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--build <id>] [--file <path>] [--files <path>[,...]] [--area <id>] [--name <name>] [--line <file>:<line>] [--package <name>] [--subpath <subpath>] [--query <words>] [--under|--above|--inside|--beside|--left-of|--right-of <words>] [--on <words>] [--from <path>] [--to <path>] [--imports <import>] [--declares <regex>] [--path <regex>] [--text <pattern>] [--except-from|--except-to|--except-imports|--except-declares|--except-path <value>] [--changed-file <path>] [--taint-file <path>] [--story] [--over <time>] [--after <date>] [--limit <n>] [--offset <n>] [--at <address>] [--format text|json] [<report>...]
+variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--build <id>] [--file <path>] [--files <path>[,...]] [--area <id>] [--declarations] [--name <name>] [--line <file>:<line>] [--package <name>] [--subpath <subpath>] [--query <words>] [--under|--above|--inside|--beside|--left-of|--right-of <words>] [--on <words>] [--from <path>] [--to <path>] [--imports <import>] [--declares <regex>] [--path <regex>] [--text <pattern>] [--except-from|--except-to|--except-imports|--except-declares|--except-path <value>] [--changed-file <path>] [--taint-file <path>] [--story] [--over <time>] [--after <date>] [--limit <n>] [--offset <n>] [--at <address>] [--format text|json] [<report>...]
 variance distill [--test <name>] [--file <path> | --from <dir>] [--execution <path> | --suite <name>] [--root <path>] [--format text|json|jsonl]
 variance story   [--file <path>] [--name <name>]... [--project <name>] [--label <label>] [--in <file> | --package <name> | --around <step> | --whole | --page <text> | --compare last|outcome|<a>,<b>,…] [--root <path>] [--format text|json]
 variance watch
@@ -447,8 +447,9 @@ file, and the answer says so.
 
 Over a whole file, a region no case entered on a line the function around it
 also charges, such as a one-line branch or the line that opens a longer one,
-gets a range of its own and a line saying no case entered it, and whether that
-is unwalked or a hole; `--format json` lists it under the range's `unentered`.
+gets a range of its own, and the answer says once for the file which regions
+no case entered, and whether each is unwalked or a hole; `--format json` lists
+them under the range's `unentered`.
 A narrowed answer and a file edited since the run say the same, at the line the
 region stands on now.
 
@@ -477,18 +478,28 @@ reaches, is said to be one rather than met by each test file:
 native/src/lib.rs is not instrumented: the suite declares it a precondition of every one of the 212 test files these cases come from, so no case is recorded entering any line of it, and a change to it selects all of them.
 ```
 
-Over a whole module that many test files import, each range names the cases
-that ran it and counts the rest, the ones that ran it only while their file
-imported the module:
+Over a whole module, each test file whose cases called into it is named once,
+the most cases first, with how many of its cases called in out of how many the
+record holds for it (`3/5`). The cases that ran it only while their file
+imported the module are counted, not named:
 
 ```text
-src/format/index.ts — 3 recorded ranges, 4 named tests, and 180 more that ran it only while their file imported it
-lines 1-40
-  src/format/index.test.ts
+src/format/index.ts — 3 recorded ranges, 4 named tests in 2 test files, and 180 more that ran it only while their file imported it
+  src/format/index.test.ts — 3/5
     formats a total
-  and 180 cases in 96 test files ran it only while their file imported the module
-…
+    formats a refund
+    rounds half up
+  src/format/currency.test.ts — 1/4
+    formats yen
+lines 41-48 — loaded
+  12 cases in 9 test files ran it only while their file imported the module
 ```
+
+The text shows ten test files and three cases under each, counts the rest, and
+ends with the question that asks the next page, spelled whole with its
+`--offset`, and its `--suite` when several suites answered; `--limit` and
+`--offset` page it as they page every `ask` listing, and `--format json` names
+every case and range.
 
 A record cut under probes this build does not place still answers: what ran,
 and which cases ran it, is read from the record as it holds it, at its own
@@ -630,9 +641,10 @@ does not, and writes zero into every crossing, so a depth column here was a
 constant dressed as a measurement. *How far away is this test* is an import
 count, and it is the two flags above.
 
-Given `--file` alone the answer is per range rather than per test: the recorded
-regions of the file, each with the tests shared by every line in it, which is
-where an unclaimed region shows up as one.
+Given `--file` alone the answer names each test file once and then the ranges
+with something of their own to say, which is where an unclaimed region shows
+up: a range no case called into, a range an edit moved, and a region on a range
+no case entered. `--format json` holds every range with its cases.
 
 Each range, and the answer about one line, also carries the one word an editor
 paints it with:
@@ -665,7 +677,9 @@ variance covering --file src/checkout/total.ts --cases src/checkout/total.test.t
 
 ```text
 Read from the 3 cases of the last run at 8a72c74b1e03, not the whole suite.
-src/checkout/total.ts — 4 recorded ranges, 3 named tests
+src/checkout/total.ts — 4 recorded ranges, 3 named tests in 1 test file
+  src/checkout/total.test.ts — 3/3
+…
 ```
 
 `last` is the run that wrote the index last, which is the run you just made. A

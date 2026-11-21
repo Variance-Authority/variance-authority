@@ -23,12 +23,13 @@ import {
   type DeclaredSuite,
   type SuiteKind,
 } from '@variance-authority/sense/test-selection';
-import type { CoveringQuestion, ParsedCovering } from '../covering-args.js';
+import type { Page } from '@variance-authority/mcp/tools';
+import { FIRST_PAGE, type CoveringQuestion, type ParsedCovering } from '../covering-args.js';
 import { OperatorError, type RefusalKind } from '../exit.js';
 import { heldText } from './covering-frame.js';
 import { listedChange } from './covering-since.js';
 import { covering, type Covering, type CoveringFormat } from './covering.js';
-import { formatCovering } from './covering-text.js';
+import { coveringText, formatCovering } from './covering-text.js';
 import { graphOnce, type Graph } from './gap-selection.js';
 import { marksOf, type GutterMark } from './covering-marks.js';
 import { evidenceGapText, GapRefusal, type EvidenceGap } from './evidence-gap.js';
@@ -151,35 +152,40 @@ async function askSuite(request: CoveringQuestion, suite: DeclaredSuite, graph: 
 }
 
 /**
- * Say either answer in the shape the caller asked for.
- *
- * Once any suite answered, the answers come first. A suite that has never run
- * follows them, and one that never loaded the file is named on the closing line
- * without its record's path or size: the reader came for the answer, and a
- * suite that tests other code is the common case, not a finding. Every other
- * refusal keeps its place and its whole sentence. When no suite answered,
- * every refusal is printed in full, since a wrong path is then the likely
- * cause. JSON carries every refusal whole either way. Under `refs` no gap is
- * said: the list is for a runner, and {@link answerGaps} hands the gaps to the
- * caller for the person. Each record is dated against `now`, in ms.
+ * Say either answer in the shape the caller asked for, each record dated
+ * against `now`, in ms. Answers come before refusals, and the text ends with
+ * each suite's next page, spelled from `asked`. JSON carries every refusal whole.
  */
-export function formatCoveringAnswer(answer: Covering | CoveringSuites, format: CoveringFormat, now: number): string {
-  if (!('suites' in answer)) return formatCovering(answer, format, now);
+export function formatCoveringAnswer(
+  answer: Covering | CoveringSuites,
+  format: CoveringFormat,
+  now: number,
+  page?: Page,
+  asked?: readonly string[],
+): string {
+  if (!('suites' in answer)) return formatCovering(answer, format, now, page, asked);
   if (format === 'json') return `${JSON.stringify(answer, undefined, 2)}\n`;
 
   const named = (one: SuiteAnswer): string => `${one.suite} (${one.kind})`;
+  const next: string[] = [];
   const say = (one: SuiteAnswer): string => {
     const head = `${named(one)}:`;
+    // Under `refs` no gap is said: the list is for a runner, and answerGaps hands the gaps to the caller.
     const gap = one.gap === undefined || format === 'refs' ? '' : `${evidenceGapText(one.gap).replace(/^/gmu, '  ')}\n`;
     if ('reason' in one) return `${head} ${one.reason}\n${gap}`;
-    const body = formatCovering(one, format, now);
-    return `${head}\n${format === 'refs' ? body : body.replace(/^(?=.)/gmu, '  ')}`;
+    if (format === 'refs') return `${head}\n${formatCovering(one, format, now)}`;
+    const said = coveringText(one, now, page ?? FIRST_PAGE, asked === undefined ? undefined : withSuite(asked, one.suite));
+    next.push(...said.next.map((line) => `${head} ${line}`));
+    return `${head}\n${said.lines.map((line) => line.replace(/^(?=.)/gmu, '  ')).join('\n')}\n`;
   };
+  // When no suite answered, every refusal is said in full: a wrong path is then the likely cause.
   if (answer.suites.every((one) => 'reason' in one)) return answer.suites.map(say).join('\n');
 
   const unrecorded = (one: SuiteAnswer): boolean => 'reason' in one && one.refused === 'unrecorded';
   const away = (one: SuiteAnswer): boolean =>
     'reason' in one && one.refused === 'unloaded';
+  // A suite that never ran follows the answers; one that never loaded the file is named on one closing line,
+  // since a suite that tests other code is the common case, not a finding. Every other refusal keeps its place.
   const said = [
     ...answer.suites.filter((one) => !unrecorded(one) && !away(one)),
     ...answer.suites.filter(unrecorded),
@@ -191,5 +197,11 @@ export function formatCoveringAnswer(answer: Covering | CoveringSuites, format: 
         'which is not the same as no test covering it.\n',
     );
   }
+  if (next.length > 0) said.push(`${next.join('\n')}\n`);
   return said.join('\n');
+}
+
+/** The asked flags with the suite named, so the next page reads the one suite whose rows ran past this one. */
+function withSuite(asked: readonly string[], suite: string): readonly string[] {
+  return asked.includes('--suite') ? asked : [...asked, '--suite', suite];
 }

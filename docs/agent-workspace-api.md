@@ -448,7 +448,15 @@ and ends with the question each one takes next, written as the `variance ask`
 command whatever the caller: `symbol` (`docs_symbol`) for an exported name,
 `entrypoint` (`docs_entrypoint`) for a published package or entrypoint, and
 `orient --area` (`docs_orient`) for a package that publishes nothing, or no
-question when the map placed it in no area.
+question when the map placed it in no area. After the entities it ranks the
+areas of the tree the request's words point to, best first — a directory of at
+most 500 tracked files, scored by the words its path, its files' names and the
+top-level names its files declare, exported or not, hold, a rare word counting for more, each
+with the package it sits in and that package's place on the code map — and asks
+`search` (`docs_search`) from the best one. A request that names nothing still
+gets its areas. Given `from` or `to`, it ranks only the files that start point
+reaches along the imports, so a product's folder ranks that product and the
+shared code it imports.
 
 Called with a specifier, `docs_entrypoint` lists the names it opens, ranked by
 how many workspace packages import them. Called with a package's name, it lists
@@ -557,8 +565,9 @@ says it is not exported, when the name or its documentation holds the query, and
 only when its file is in the area `from` or `to` names.
 
 The file that declares a name uses it without importing it, so `docs_uses` lists
-those lines too, after the imports, under `Used in <file>, which declares it`,
-one heading for each file that declares it:
+those lines too, after the imports, under `Used in <file> — <package>, which
+declares it`, one heading for each file that declares it, each line under it
+by its number alone:
 a call, a read, a type, a Rust `self::name` path or a test module's
 `use super::*`, in a TypeScript, JavaScript or Rust file, for a name it exports
 and for one it keeps. The lines follow the language's scope, so a parameter, a

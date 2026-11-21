@@ -82,6 +82,7 @@ function questionFrom(text: string, at: number): { question: string; input: Reco
  */
 export function inputFrom(tool: Tool<Help>, args: readonly string[]): Record<string, unknown> {
   const taken = propertiesOf(tool);
+  const properties = (tool.inputSchema['properties'] ?? {}) as Record<string, { type?: unknown }>;
   const input: Record<string, unknown> = {};
   const questions = questionsProperty(tool);
 
@@ -111,6 +112,10 @@ export function inputFrom(tool: Tool<Help>, args: readonly string[]): Record<str
       throw new Error(`\`${verbOf(tool)}\` takes no \`--${name}\`; it takes: ${known}`);
     }
 
+    if (properties[name]?.type === 'boolean') {
+      input[name] = true;
+      continue;
+    }
     const value = args[at + 1];
     if (value === undefined) throw new Error(`\`--${name}\` was given no value`);
     input[name] = value;

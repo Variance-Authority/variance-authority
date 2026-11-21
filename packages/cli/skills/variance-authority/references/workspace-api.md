@@ -196,8 +196,24 @@ exported name, an `entrypoint` question per published package or entrypoint,
 and an `orient --area` question per package that publishes nothing, or none
 when the map placed that package in no area. A word the
 request spells another way — a plural, two words for a hyphenated name, a
-domain word no name carries — is not recognised: ask `search` for it. It reads
-the code map `variance index` folds, and without one it says so and classifies
+domain word no name carries — is not an entity.
+
+Then it ranks the areas of the tree the request's words point to, ten at
+most, best first: a directory of at most 500 tracked files, a larger one read
+as its children. An area's words are its path's, its files' names and the
+top-level names its files declare, exported or not, compared by stem, and a word counts for more
+the fewer areas hold it. Each area is listed with its file count, the
+request's words it holds, the one weighing most there first, and the package
+on the code map nearest at or above it, with that package's area and layer on
+the code map. The best one
+is asked `search --from` for its two weightiest words. A request that names
+nothing still points somewhere: `Fix task manager claiming tasks twice` ranks
+the task manager plugin first in Kibana. In a monorepo of many products, pass
+`--from` with the product's folder: only the files it reaches along the imports
+are ranked, its own and the shared code it imports, and a word rare inside the
+product counts for more there. `--to` ranks the files that import a path. The
+answer then opens with the start point's line, as `grep`'s does. It reads the
+code map `variance index` folds, and without one it says so and classifies
 nothing.
 
 ### `entrypoint`
@@ -311,7 +327,11 @@ names is not known, and the answer says so.
 An interface, a type alias or a class is followed by `Members:`, one row per
 line that declares a member, as the checkout holds it. A member of a type
 literal inside it belongs to the literal and is not listed, and a line the
-signature already shows is not repeated.
+signature already shows is not repeated. The rows read as `grep`'s do: a file
+with one row is `path:line: text`, and a file with several is its path, then
+each row indented as `line: text`. A local name whose declaration the answer
+already gave is not answered twice: it says `Its declaration, at <file>:<line>,
+is answered above.`
 
 A name a file only passes on with `export … from`, renamed, type-only, through
 `export *` or as an import it exports again, is followed to the file that
@@ -363,6 +383,22 @@ the source index:
 
 ```
 apps/app/src/hello.ts:1 — @acme/app; used on line 2
+```
+
+A site from another package names its package after the line. Under `Source,
+inside <package>:` the heading already names it, so the row leaves it off:
+
+```
+src/shapes/use.ts:6; used on line 9
+```
+
+Under `Used in <file> — <package>, which declares it:` the heading names the
+file and its package, so each row is the line alone, indented:
+
+```
+Used in src/shapes/area.ts — @acme/shapes, which declares it:
+
+  14
 ```
 
 The imports within the name's own package come from the source index: every
@@ -611,14 +647,22 @@ A file outside the source is never searched, and a path that holds only such
 files is refused as not found: run `rg` on it. The query is a ripgrep regular expression: to match a literal, escape each of
 `\.+*?()|[]{}^$` with a backslash, as `--query 'a\(b'` matches `a(b`.
 
-Lines come grouped by how many imports away from the start point their
-file is, then by path and line, each as `path:line:text`. The imports are the
+The answer opens with how many lines matched in how many files. Lines come
+grouped by how many imports away from the start point their file is, then by
+path and line. A file with one matching line is `path:line: text`; a file with
+several is its path, then each line indented as `line: text`. The area it
+searched follows as a trailing `note:` line. The imports are the
 ones `variance index` resolved, so the answer names its generation; it is asked
 again of the checkout as it is when a file of the area changed since. A file
 written since, under a folder it starts from or importing into its area, waits
 for the next `variance index`. It shows 200 lines and counts the rest; the last
-line names the `--offset` of the next page. With `--test`, a suite's ran, not
-taken and written lines are one list, paged the same way.
+line names the `--offset` of the next page. With `--test`, the answer opens
+with how many lines match in how many of the files the test entered, then lists
+them under `Ran:`, `Not taken:` and `Written since the recording, so no test has
+run it:`, in the same row grammar. A line not taken carries, indented under it,
+the branch or function it sits in, which the test did not enter. The files the
+recording did not instrument, and anything that bounds the reading, follow as
+trailing `note:` lines; the three lists are paged as one.
 
 ### `discover`
 
@@ -658,19 +702,25 @@ variance ask discover --from src/Wallet.tsx --declares '^selectBalance$'
 variance ask discover --to src/store/selectors.ts#selectBalance
 ```
 
-The answer counts each set first, then lists the files in all of them, nearest
-the `--from` or `--to` paths first, each with the line that put it in each
-set; `--path` puts it in by its name, with no line. Each file is a heading;
-its evidence below starts with the source line number when known, followed by
-the evidence text. A file two or more imports
-away from a `--to` path carries one shortest chain of imports to it, a step
-that is not a plain import marked — `src/Page.ts → src/Model.ts (type import) →
-src/store/selectors.ts` — and for `file#name` the chain ends at the line that
-imports the name. The `--to` header names the files it did not reach that
-import something the scan could not resolve, since they may reach the path
-through it. It shows 50, and the count is always of all of them; when more
-remain, the answer ends with how many and the `--offset` that shows the next
-page. A source file whose names the scan did not hand over is counted in the
+The answer opens with how many files are in all of the sets, then one `- `
+line per set with its count. One file is one row, nearest the `--from` or `--to`
+paths first. A row that sits some imports from a `--from` or `--to` path starts
+with that count, one per path, in the order the `each row:` line names them;
+the lines that put the file in a set follow the row, indented as
+`  <line>: <text>`; `--path` puts a file in by its name, with no line. A file
+two or more imports away from a `--to` path carries one shortest chain of
+imports to it, a step that is not a plain import marked — `src/Page.ts →
+src/Model.ts (type import) → src/store/selectors.ts` — and for `file#name` the
+chain ends at the line that imports the name. The tail every chain shares is
+said once, on a `chains end:` line, and each row ends its chain with `→ …`
+there. The files the `--to` walk did not reach that import something the scan
+could not resolve, since they may reach the path through it, follow on a
+trailing `note:` line that names the set they may reach, and says when that set
+is one taken out. An error ripgrep reported is a `note:` line too. When no file
+is in all of them, the answer opens with `No file is in all of them:`, then the
+sets and the notes. It shows 50, and the count is always of all of them;
+when more remain, the answer ends with how many and the `--offset` that shows
+the next page. A source file whose names the scan did not hand over is counted in the
 `--imports` and `--declares` headers, since it is unknown rather than a file with no names; a README or a
 manifest has none to read.
 Over MCP, `docs_discover` answers `from`, `to`, `path` and `--imports` of a
@@ -699,9 +749,11 @@ recorded test names, and described or loose candidates when those sections
 run. Every matching file of a grouped name participates. Loose matches remain
 candidates; composition does not make them exact. Installed dependency names
 identify no workspace file. The query's area and fallback rules still apply. The
-answer counts each question's files first, then lists the files in all of
-them, each with the lines that put it in each question, or `the file` when a
-question answers a file without a line. It shows 50, and the count is always
+answer opens with how many files are in all of them, `N files in all of them:`,
+then counts each question's files, then lists one row per file: its path, then
+the lines that put it in each question, numbered by question and split by `·`,
+or `the file` when a question answers a file without a line, as in
+`src/Wallet.tsx — 1: line 4 · 2: the file`. It shows 50, and the count is always
 of all of them; `--offset` shows the next page, as its last line names.
 `--changed-file` and `--taint-file` are said once, after `intersection`,
 outside the quotes: every question is answered over one reading.

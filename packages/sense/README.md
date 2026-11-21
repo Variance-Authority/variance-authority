@@ -2426,8 +2426,10 @@ throws.
 what is left, so a boundary still marks where the claim on the code changes. A
 range that names cases lists under `unentered` the regions on it no case
 entered, such as a one-line branch whose line the function around it also
-charges. `unenteredSentence(region)` says that in the sentence `variance covering`
-prints, closed by `whyUnentered(stopped)`: unwalked, a hole, or
+charges. `unenteredSaid(regions)` says it once for a file, as `variance covering`
+prints it: a region several ranges hold is named once, the ones with the same
+reason share a sentence by kind, and each hole keeps its own with the cases that
+stopped short of it. `whyUnentered(stopped)` closes each: unwalked, a hole, or
 neither when the record cannot tell.
 
 Every seam here writes an `ExecutionIndex` into its snapshot. In the snapshot

@@ -1,5 +1,5 @@
 import { codeUnitOrder } from '@variance-authority/core/segment';
-import { heldWeight, rarity } from '@variance-authority/mcp/tools';
+import { heldWeight, rarity, saturation } from '@variance-authority/mcp/tools';
 import { declaredDescribedOf, describedWordsNative, nearOfNative, type DescribedFile } from '@variance-authority/sense';
 import type { SearchIndex } from '../search-index.js';
 import { holdersOf, representedBy } from './carried.js';
@@ -422,7 +422,7 @@ const FIELD_WEIGHTS = { name: 3, doc: 2, signature: 0.5 } as const;
  * The weight of what a row holds of the question: each word's {@link rarity}
  * among `population`, by what each holds anywhere, times what the place it holds it in counts — its name
  * its {@link FIELD_WEIGHTS} weight in thousandths, its doc its weight times
- * the doc's {@link lengthCount}, never more than a doc of the mean length, its
+ * the doc's {@link saturation} for a word held once, never more than a doc of the mean length, its
  * signature alone its weight, a quarter of a mean doc's and as much as a doc
  * eight times the mean length counts —
  * summed by {@link heldWeight}, times the rarities of the words held summed
@@ -449,26 +449,13 @@ function weightOf(population: readonly Counted[]): Weight {
     // A doc longer than most counts less than one of the mean length, and a
     // shorter one as much: a doc's word, never a name's. An unmeasured doc is
     // not an empty one, so it counts as one of the mean length.
-    const counted = key.docLength === undefined ? 1000 : Math.min(1000, lengthCount(key.docLength, docBytes, docs));
+    const counted = key.docLength === undefined ? 1000 : Math.min(1000, saturation(1, key.docLength, docBytes, docs));
     const doc = FIELD_WEIGHTS.doc * counted;
     // How much of the question it holds, wherever: a coordination factor by rarity.
     const covered = heldWeight(key.words, (word) => rare.get(word) ?? 0, () => 1);
     const field = (word: string): number => (key.named.includes(word) ? name : key.signed?.includes(word) === true ? signature : doc);
     return covered * heldWeight(key.words, (word) => rare.get(word) ?? 0, field);
   };
-}
-
-/**
- * BM25's length term for a word held once, in thousandths: how much a word
- * held in a text of `bytes` counts, against the mean of `docs` docs of
- * `docBytes` in all. With `k1` six fifths and `b` three quarters,
- * `1000 (k1 + 1) / (1 + k1 (1 - b) + k1 b L / A)` is `22000 A / (13 A + 9 L)`,
- * here with `A` as `docBytes / docs` multiplied through: a doc of the mean
- * length counts 1000, an empty one 1692, ten times the mean 213. With no doc
- * to measure against, every doc counts 1000.
- */
-function lengthCount(bytes: number, docBytes: number, docs: number): number {
-  return docBytes === 0 ? 1000 : Math.floor((22000 * docBytes) / (13 * docBytes + 9 * bytes * docs));
 }
 
 /** Weight, then words in the name: the keys that order a row before its phrase is counted. */

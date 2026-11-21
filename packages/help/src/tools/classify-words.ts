@@ -20,6 +20,7 @@
 import { everyEntry, type Help } from '@variance-authority/package/help';
 import { STALE_MAP, unscoped } from './code-map-format.js';
 import { specifierOf } from './find.js';
+import type { RankedArea } from './classify-areas.js';
 import { narrower, plural, shell } from './format.js';
 
 /** What one word names: a package, one of its entrypoints, or a name it exports. */
@@ -49,6 +50,8 @@ export interface Classified {
 export interface Placed {
   readonly area?: { readonly id: string; readonly name: string };
   readonly layer: number;
+  /** Its directory from the workspace, as the map's scan drew it; empty for the root. */
+  readonly directory: string;
 }
 
 /** Every package on the code map, placed, and whether the map was folded from the source index as it stands. */
@@ -128,8 +131,41 @@ function where(placed: Placed | undefined): string {
   return `${area} · layer ${placed.layer}`;
 }
 
-/** The entities, one line per thing each names with its place on the code map, then the plain words on one line. */
-export function formatClassified({ entities, plain }: Classified, { current, packages }: CodeMapPlaces): string {
+/** An area of the tree, with the package it sits in when a manifest at or above it names one. */
+export type PlacedArea = RankedArea & { readonly package?: string };
+
+/**
+ * Each area in the map package whose directory is nearest at or above it,
+ * under the name the map gives that package; an area above every package on
+ * the map is in none.
+ */
+export function placedAreas(areas: readonly RankedArea[], packages: ReadonlyMap<string, Placed>): readonly PlacedArea[] {
+  const owners = [...packages].map(([name, { directory }]) => ({ name, directory: directory === '.' ? '' : directory }));
+  return areas.map((area) => {
+    const path = area.path === '.' ? '' : area.path;
+    let owner: { readonly name: string; readonly directory: string } | undefined;
+    for (const held of owners) {
+      const above = held.directory === '' || path === held.directory || path.startsWith(`${held.directory}/`);
+      if (above && (owner === undefined || held.directory.length > owner.directory.length)) owner = held;
+    }
+    return owner === undefined ? area : { ...area, package: owner.name };
+  });
+}
+
+/** The start point the asker said, by the flag that said it. */
+export type StartPoint = { readonly from?: readonly string[]; readonly to?: readonly string[] };
+
+/**
+ * The entities, one line per thing each names with its place on the code map,
+ * then the plain words on one line, then the areas of the tree the words point
+ * to, best first, each with its package and that package's place on the map.
+ */
+export function formatClassified(
+  { entities, plain }: Classified,
+  { current, packages }: CodeMapPlaces,
+  areas: readonly PlacedArea[] = [],
+  said: StartPoint = {},
+): string {
   const lines = [
     entities.length === 0
       ? 'No word names a package on the code map, an entrypoint or an exported name.'
@@ -139,6 +175,13 @@ export function formatClassified({ entities, plain }: Classified, { current, pac
     ),
   ];
   if (plain.length > 0) lines.push(`Not entities: ${plain.join(' ')}`);
+  if (areas.length > 0) {
+    lines.push('', 'Areas its words point to, best first:');
+    for (const area of areas) {
+      const placed = area.package === undefined ? '' : ` · in ${area.package}${where(packages.get(area.package))}`;
+      lines.push(`  ${area.path} — ${plural(area.files, 'file')} · holds ${area.words.join(' ')}${placed}`);
+    }
+  }
   // What each entity is asked next: an exported name is read by `symbol`, a
   // published package or entrypoint counted by `entrypoint`, and a package that
   // publishes nothing placed by `orient` on its area, if one took it.
@@ -148,6 +191,17 @@ export function formatClassified({ entities, plain }: Classified, { current, pac
     const area = packages.get(named.package)?.area;
     return area === undefined ? [] : [`variance ask orient --area ${shell(area.id)}`];
   }));
+  // `search` takes the words of one name, so the best area is asked for the
+  // two that weigh most there. A start point the asker said is kept, as the
+  // area's directory may hold files it never reached; otherwise the search
+  // starts in the area, unless that is the root or declares no name, which is
+  // no start point the source tree holds, and then it runs whole.
+  const best = areas.find((area) => area.declares) ?? areas[0];
+  if (best !== undefined) {
+    const flags = Object.entries(said).flatMap(([which, paths]) => (paths ?? []).map((path) => ` --${which} ${shell(path)}`));
+    const from = flags.length > 0 || best.path === '.' || !best.declares ? flags.join('') : ` --from ${shell(best.path)}`;
+    asks.push(`variance ask search --query ${shell(best.words.slice(0, 2).join(' '))}${from}`);
+  }
   lines.push(...narrower([...new Set(asks)]));
   if (!current) lines.push('', STALE_MAP);
   return lines.join('\n');
