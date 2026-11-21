@@ -16,6 +16,7 @@ import { changedLines } from './diff-lines.js';
 import { hunksOf, type Hunk } from './patch.js';
 import { ignoredBy, withoutPaths } from './route.js';
 
+/** A change: the lines it moved in each file it names, and the hunks that move them, in the record's coordinates. */
 export interface Change {
   /**
    * The old-side lines each changed file moved, in the coordinates the record

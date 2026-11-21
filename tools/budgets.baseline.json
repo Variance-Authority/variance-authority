@@ -713,8 +713,7 @@
   ],
   "packages/cli/src/commands/select-command.ts block": [
     14,
-    10,
-    6
+    10
   ],
   "packages/cli/src/commands/select-command.ts overview": [
     30
@@ -3015,10 +3014,10 @@
   ],
   "packages/sense/src/test-selection/stands.ts docblock": [
     18,
-    12
+    11
   ],
   "packages/sense/src/test-selection/stands.ts overview": [
-    37
+    33
   ],
   "packages/sense/src/test-selection/subject-recorder.ts block": [
     11

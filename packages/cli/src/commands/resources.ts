@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path';
 import type { HistoryStore } from '@variance-authority/history';
 import type { PngDecoder } from '@variance-authority/png';
 import {
+  type Change,
   type ExecutionNarrowing,
   type Stand,
   type StandQuestion,
@@ -177,7 +178,7 @@ export async function suiteJourney(
  */
 export async function recordAgainst(
   root: string,
-  diff: string,
+  diff: string | Change,
   options: {
     readonly relations?: Relations | undefined;
     readonly at?: string | undefined;
@@ -206,7 +207,7 @@ export async function recordAgainst(
   const selection = await import('@variance-authority/sense/test-selection');
   // FIXME: reads what this machine holds, not the record `select` reads, so a new worktree answers from a stale record (#962).
   const file = at ?? (await suiteRecord(root));
-  const sourceAt = selection.textAtRecording(root, selection.changedLines(diff).keys());
+  const sourceAt = selection.textAtRecording(root, (typeof diff === 'string' ? selection.changedLines(diff) : diff.lines).keys());
   const asked = {
     sourceAt,
     ...(options.keptTexts === false

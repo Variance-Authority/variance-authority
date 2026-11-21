@@ -4,15 +4,15 @@ import { askPerStand, type StandQuestion } from './stands.js';
 
 /**
  * A suite's `ignore` is applied by each answer a stand gives, and the files it
- * ignored are named by the selection as a whole: a file changed only between
- * an older stand and the snapshot's commit is ignored in that stand's answer
- * alone, and is still a file the selection ignored.
+ * ignored are named by the selection as a whole: a file changed only since an
+ * older stand is ignored in that stand's answer alone, and is still a file the
+ * selection ignored.
  */
 describe('the files a selection over stands ignored', () => {
   it('are every answer’s, not the snapshot commit’s alone', async () => {
     const stands = [{ commit: 'older', tests: ['test/old.test.ts'], changed: ['src/old.css'], whole: [] }];
     const answer = (question: StandQuestion) => ({
-      narrowing: narrowing(question.read === 'stand' ? ['src/old.css'] : question.at === undefined ? [] : ['src/new.css']),
+      narrowing: narrowing(question.read === 'stand' ? ['src/old.css'] : ['src/new.css']),
     });
 
     const { narrowing: asked } = await askPerStand(stands, async (question) => answer(question));

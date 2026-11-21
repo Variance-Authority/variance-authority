@@ -215,8 +215,8 @@ async function untested(request: SuiteRequest): Promise<SuiteReading> {
   // The journal's commit is the commit of its latest run, and a partial run —
   // a runner handed the last skip list — leaves every test it did not run on the
   // text it last ran on. The runs recorded beside the journal say where each
-  // one stands, and what changed from there to the journal's commit is read
-  // for it from both texts. A test the runs do not place is read from the journal's
+  // one stands, and it is charged what changed from there to the tree, read in
+  // the journal's lines. A test the runs do not place is read from the journal's
   // commit, or from where its runs started, and a note says so. A patch handed
   // in is the whole change, so it is read for every test alike, and a note says
   // when some test last ran before the journal's commit.
@@ -235,14 +235,7 @@ async function untested(request: SuiteRequest): Promise<SuiteReading> {
     ...(gap === undefined ? [] : [probesNote(gap, undefined, '--execution').replace(/\.$/, '')]),
     ...(stood === undefined ? [] : 'unread' in stood ? [stood.unread] : handed ? handedNotes(stood.reading, commit!) : standingNotes(stood.reading, commit!)),
   ];
-  // A test placed at a stand is charged with what differs from its stand to the
-  // tree, never through the journal's commit: a file the tree holds as the stand
-  // had it is no change for it, however far the journal's commit moved it. Only
-  // a file that moved between the two commits can be one, and `git diff <stand>`
-  // against the tree says which still differ; a file it lists stays charged.
-  const placed = handed || stood === undefined || 'unread' in stood ? [] : stood.stands;
-  const unchanged = new Map(placed.map((stand) => [stand.commit, unchangedSince(here, stand)] as const));
-  const stands = placed.map((stand) => ({ ...stand, changed: stand.changed.filter((file) => !unchanged.get(stand.commit)!.includes(file)) }));
+  const stands = handed || stood === undefined || 'unread' in stood ? [] : stood.stands;
   const standsChanged = stands.flatMap((stand) => stand.changed);
   const recorded = { at, ...(commit === undefined ? {} : { commit }), ...(standing.length === 0 ? {} : { standing }) };
   if (!handed && reading?.widened !== undefined) {
@@ -323,22 +316,25 @@ async function untested(request: SuiteRequest): Promise<SuiteReading> {
   const notes = unkept.size === 0 ? {} : { standing: [...(recorded.standing ?? []), ...unkept] };
   const rested = { ...recorded, ...notes, ...rest, ...(install === undefined ? {} : { install }) };
   if (whole !== undefined) return said({ ...rested, ground: { kind: 'before', whole: whole.says, rests: whole.rests } }, { changed: moved, relations });
-  // Each group is charged the install that moved since it ran, and the files
-  // a stand reads whole leave the hunk diff, so none is also read by its hunks.
-  // What changed between a stand and the journal's commit is the diff between
-  // the two commits, read from both texts like the tree's. Its new side is the
-  // stand, never the tree, so a module the landing kept a text for is charged
-  // whole there: the kept text is not what the tree holds.
+  // Each group is charged the install that moved since it ran. A placed test is
+  // charged one change, from its stand to the tree, in the journal's lines
+  // (`standChange`); the files a whole stand reads leave the hunk diff.
   const options = { relations, at, checkout: request.root, unmeasured: selection.unmeasuredOf(declared), ignore: declared?.ignore, precision: declared?.precision, distances: request.atDistance !== undefined };
-  const ask = (question: StandQuestion) =>
+  const inRecord = stands.some((stand) => stand.whole.length === 0) ? diffSince(base, [], commit, { cwd: here, unified: 0 }) : undefined;
+  // A diff git could not write charges every file the stand or the tree moved whole, which selects more and never skips.
+  const standChange = async (stand: string, record: string | undefined, installed: readonly string[]) => {
+    const since = record === undefined ? undefined : await diffSince(base, [], stand, { cwd: here, unified: 0 });
+    const change = since === undefined
+      ? selection.changeOfFiles([...changed, ...stands.find((one) => one.commit === stand)!.changed])
+      : selection.standChange(record!, since);
+    return { lines: new Map([...change.lines, ...installed.map((file) => [file, []] as const)]), hunks: change.hunks };
+  };
+  const ask = async (question: StandQuestion) =>
     question.read === 'stand'
-      ? recordAgainst(here, selection.withoutFiles(selection.standDiff(gitIn(here), commit!, question.at), unchanged.get(question.at) ?? []), { ...options, keptTexts: false })
+      ? recordAgainst(here, await standChange(question.at, await inRecord, beyond.get(question.at)!.files), options)
       : recordAgainst(
           here,
-          withWhole(
-            [selection.withoutFiles(diff, [...question.whole, ...(question.at === undefined ? [] : unchanged.get(question.at) ?? [])]), ...question.whole.map(selection.wholeEntry)].join('\n'),
-            beyond.get(question.at)!.files,
-          ),
+          withWhole([selection.withoutFiles(diff, question.whole), ...question.whole.map(selection.wholeEntry)].join('\n'), beyond.get(question.at)!.files),
           handed ? { ...options, undone: false } : options,
         );
   const charged = stands.length === 0 ? await ask({ read: 'tree', at: undefined, whole: [] }) : await recordPerStand(stands, ask);
@@ -410,23 +406,15 @@ async function standsOf(
   return reading === undefined ? undefined : { reading, stands: reading.stands };
 }
 
-/**
- * The files `stand` names as changed between it and the journal's commit that
- * the tree in `repository` holds exactly as the stand did.
- */
-function unchangedSince(repository: string, stand: Stand): readonly string[] {
-  if (stand.changed.length === 0) return [];
-  const differ = new Set(gitIn(repository)('diff', '--name-only', '-z', '--no-renames', stand.commit).split('\0').filter((file) => file !== ''));
-  return stand.changed.filter((file) => !differ.has(file));
-}
-
 /** What the journal says about where its tests last ran, as notes after the verdict. */
 function standingNotes(reading: StandReading, commit: string): readonly string[] {
   const notes = reading.stands.map(
     (stand) =>
       `${many(stand.tests.length, 'test file')} last ran at ${stand.commit.slice(0, 12)}, before the journal's commit ` +
-      `${commit.slice(0, 12)}, so the ${many(stand.changed.length, 'file')} changed between the two ` +
-      `${stand.changed.length === 1 ? 'is' : 'are'} read from both texts for ${stand.tests.length === 1 ? 'it' : 'them'}`,
+      `${commit.slice(0, 12)}, so ${stand.tests.length === 1 ? 'it is' : 'they are'} ` +
+      (stand.whole.length === 0
+        ? `charged what changed from ${stand.commit.slice(0, 12)} to the tree, read in the journal's lines`
+        : `charged the ${many(stand.whole.length, 'file')} changed between the two whole`),
   );
   if (reading.widened !== undefined) notes.push(reading.widened);
   if (reading.assumed !== undefined) notes.push(reading.assumed);

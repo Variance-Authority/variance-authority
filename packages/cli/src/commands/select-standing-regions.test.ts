@@ -10,9 +10,9 @@ import { selectOutput } from './select-command.js';
 
 /**
  * A test a partial run left out stands on the text it last ran, and its rows
- * are carried onto the text the run recorded. What changed between the two is
- * read from both texts for it, as the change in the tree is: it is charged the
- * regions it entered that differ, and nothing else in a file it loaded. These
+ * are carried onto the text the run recorded. What changed from its text to the
+ * tree is mapped into the recorded text's lines and charged to it: the regions
+ * it entered that differ, and nothing else in a file it loaded. These
  * cases record real regions, a function each test runs, through `landRun`, the
  * way the seam does, and read them through `variance select`.
  */

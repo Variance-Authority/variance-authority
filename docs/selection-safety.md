@@ -103,7 +103,7 @@ against that text before it is compared with your diff.
 | The diff moves a file the suite declares in `before` | every test file | `` the suite <name> rests on <files> before any test imports it, through its `before` entry `<entry>`, and this diff moves it `` / `what a suite rests on runs before every test in it, so every test file runs` |
 | A changed module was recorded from a text nobody kept | every test that ran any region of it | `N changed modules were recorded from a text the journal's own commit does not hold and the cache did not keep, so every region of them was charged rather than read` |
 | The record names no commit, and `--since` names the base | every test that ran a changed module | `the journal names no commit, so none of its line ranges could be checked against the text they were cut from; every changed module with a row was charged whole` |
-| Some test files last ran at an earlier commit | those files are read against both texts | `N test files last ran at <commit>, before the journal's commit <commit>, so the K files changed between the two are read from both texts for them` |
+| Some test files last ran at an earlier commit | those files are charged what changed from their commit to the tree | `N test files last ran at <commit>, before the journal's commit <commit>, so they are charged what changed from <commit> to the tree, read in the journal's lines` |
 
 A package bump is not by itself a doubt. When the lockfile can be compared, the
 files that import a moved package are read as changed whole, and a note names

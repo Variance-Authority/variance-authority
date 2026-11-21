@@ -3657,6 +3657,7 @@
         "sharedPreconditions": "function",
         "sharedRecord": "function",
         "sourceCut": "function",
+        "standChange": "function",
         "standDiff": "const",
         "standsAt": "function",
         "stateOf": "function",

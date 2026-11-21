@@ -14,7 +14,7 @@ import { selectOutput } from './select-command.js';
  * one the near leg was cut from.
  *
  * The landing moves the tests the near leg ran to `HEAD`, and every other test
- * is read from where it last ran, from both texts. That reading charges what
+ * is charged what changed from where it last ran to the tree. That charges what
  * the edit wrote with the crossings of the region around it, so it enters a
  * test the near leg's reading did not: one that loaded the edited module and
  * entered none of its functions, one hop from the change.
