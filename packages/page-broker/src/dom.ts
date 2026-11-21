@@ -131,12 +131,13 @@ async function actable(document: Document, query: Query): Promise<Element> {
     () => {
       const found = all(document, query).filter(shown);
       const ready = found.filter((each) => !(each as HTMLButtonElement).disabled);
-      if (ready.length === 1) return ready[0]!;
-      // More than one is no wait: it is an error now, and stays one.
+      // More than one is no wait: it is an error now, and stays one, though
+      // all but one are disabled, as Playwright's strict locator has it.
       if (found.length > 1) {
         many = found.length;
         return undefined;
       }
+      if (ready.length === 1) return ready[0]!;
       throw new Error(`${describe(query)} is ${found.length === 0 ? 'not on the page' : 'disabled'} after ${ACTABLE} ms`);
     },
     { container: document.documentElement, timeout: ACTABLE, interval: POLL, onTimeout: (error) => error },

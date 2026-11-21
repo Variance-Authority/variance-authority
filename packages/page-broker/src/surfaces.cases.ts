@@ -12,7 +12,7 @@ import type { Surface } from './surface.js';
  * fixture's `show` draws it; answers joined by a comma happen together.
  */
 export type Checkout = (
-  answer: 'payment' | 'signIn' | 'help' | 'helpShown' | 'next' | 'next,help' | 'gone' | 'nothing' | 'alert' | 'link' | 'blank' | 'hash' | 'post' | 'window',
+  answer: 'payment' | 'signIn' | 'help' | 'helpShown' | 'tipsShown' | 'next' | 'next,help' | 'gone' | 'nothing' | 'alert' | 'link' | 'blank' | 'hash' | 'post' | 'window',
   after: number,
 ) => Promise<Surface>;
 
@@ -129,8 +129,8 @@ export function cases(checkout: Checkout): void {
     });
   });
 
-  it('fails on a modal dialog that was on the page hidden and is shown by the action', async () => {
-    const billing = await Billing.on(await checkout('helpShown', 20));
+  it.each(['helpShown', 'tipsShown'] as const)('fails on a modal dialog that was on the page hidden and is shown by the action: %s', async (answer) => {
+    const billing = await Billing.on(await checkout(answer, 20));
 
     await expect(billing.submit()).rejects.toMatchObject({ reason: 'elsewhere', went: 'a modal dialog opened' });
   });

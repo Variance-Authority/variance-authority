@@ -20,8 +20,8 @@ const ORIGIN = 'https://shop.test';
 /**
  * A checkout that announces nothing. `?answer=` picks where Continue ends —
  * `elsewhere`, `window` and `help`: another document, a new page and a modal
- * dialog, no case declares; `gone` hides the form; `helpShown` shows a hidden
- * dialog; `frame` moves a frame; `next` a new address for the same document.
+ * dialog, no case declares; `gone` hides the form; `helpShown` and `tipsShown`
+ * show a hidden dialog; `frame` moves a frame; `next` a new address for the same document.
  * `?after=` is the server's delay, `?open=` what is on the page first,
  * `?stream` a stream and a picture that never end, `?then=` asks `?second=` later.
  */
@@ -37,6 +37,7 @@ const CHECKOUT = `<!doctype html>
   <form aria-label="Payment" hidden><p>Card number</p></form>
   <dialog aria-label="Sign in"><p>Who are you?</p></dialog>
   <div role="dialog" aria-modal="true" aria-label="Help" hidden><p>Need help?</p></div>
+  <div role="dialog" aria-modal="true" aria-label="Tips" style="visibility: hidden"><p>Tip</p></div>
 </main>
 <script>
   const query = new URLSearchParams(location.search);
@@ -67,6 +68,7 @@ const CHECKOUT = `<!doctype html>
       if (part === 'slowWindow') window.open('/slow');
       if (part === 'frame') document.body.appendChild(document.createElement('iframe')).src = '/checkout/frame';
       if (part === 'helpShown') document.querySelector('[aria-label=Help]').hidden = false;
+      if (part === 'tipsShown') document.querySelector('[aria-label=Tips]').style.visibility = 'visible';
       if (part === 'help') document.body.appendChild(document.createElement('dialog')).showModal();
       if (part === 'overlay') {
         const overlay = document.body.appendChild(document.createElement('div'));
@@ -99,9 +101,7 @@ const CHECKOUT = `<!doctype html>
   });
 </script>`;
 
-let browser: Browser | undefined;
-let page: Page;
-let context: BrowserContext;
+let browser: Browser | undefined, context: BrowserContext, page: Page;
 
 const Payment = broker('payment', { probe: { role: 'form', name: 'Payment' } });
 const SignIn = broker('signIn', { probe: { role: 'dialog', name: 'Sign in' } });
@@ -125,9 +125,7 @@ function looking(query: Query, look: (visible: () => Promise<unknown>) => Promis
     find: (asked) => {
       const found = base.find(asked);
       if (asked !== query) return found;
-      return Object.assign(Object.create(found) as typeof found, {
-        visible: () => look(() => found.visible()),
-      });
+      return Object.assign(Object.create(found) as typeof found, { visible: () => look(() => found.visible()) });
     },
   };
 }

@@ -20,7 +20,8 @@ function checkout(answer: string, after = 20): void {
     </form>
     <form aria-label="Payment" hidden><p>Card number</p></form>
     <div role="dialog" aria-label="Sign in" hidden><p>Who are you?</p></div>
-    <div role="dialog" aria-modal="true" aria-label="Help" hidden><p>Need help?</p></div>`;
+    <div role="dialog" aria-modal="true" aria-label="Help" hidden><p>Need help?</p></div>
+    <div role="dialog" aria-modal="true" aria-label="Tips" style="visibility: hidden"><p>Tip</p></div>`;
   vi.stubGlobal('fetch', async (input: string) => {
     // A request the server never answers.
     if (input.endsWith('?hang')) await new Promise(() => undefined);
@@ -60,6 +61,7 @@ function checkout(answer: string, after = 20): void {
       if (said === 'payment') (document.querySelector('[aria-label=Payment]') as HTMLElement).hidden = false;
       if (said === 'signIn') (document.querySelector('[role=dialog]') as HTMLElement).hidden = false;
       if (said === 'helpShown') (document.querySelector('[aria-label=Help]') as HTMLElement).hidden = false;
+      if (said === 'tipsShown') (document.querySelector('[aria-label=Tips]') as HTMLElement).style.visibility = 'visible';
       if (said === 'help') {
         const help = document.body.appendChild(document.createElement('div'));
         help.setAttribute('role', 'dialog');
@@ -222,6 +224,11 @@ describe('page-broker over a document', () => {
 
     await expect(on.select({ label: /Delivery/ }, 'overnight')).rejects.toThrow('{"label":"/Delivery/"} has no option overnight');
     await expect(on.click({ css: 'label' })).rejects.toThrow('{"css":"label"} matches 3 elements, and an act is for one');
+    // A disabled second match is still a second: which one was meant is not the act's to guess.
+    document.querySelector('form')!.appendChild(Object.assign(document.createElement('button'), { textContent: 'Continue', disabled: true }));
+    await expect(on.click({ role: 'button', name: 'Continue' })).rejects.toThrow(
+      '{"role":"button","name":"Continue"} matches 2 elements, and an act is for one',
+    );
   });
 
   it('acts on nothing that is not on the page or is disabled, once a person would have given up', async () => {

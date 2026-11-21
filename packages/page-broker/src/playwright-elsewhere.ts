@@ -38,9 +38,10 @@ export async function elsewhere(page: Page): Promise<Elsewhere> {
   };
   // A modal is `:modal` or marked `aria-modal`, as component libraries draw
   // one, and is new when it is visible and was not before, so one mounted
-  // hidden and then shown counts: the document surface's rule.
+  // hidden and then shown counts: the document surface's rule, which also
+  // reads `visibility`, as `checkVisibility` does only when asked.
   const before = await page.evaluateHandle(
-    (query) => [...document.querySelectorAll(query)].filter((each) => each.checkVisibility()),
+    (query) => [...document.querySelectorAll(query)].filter((each) => each.checkVisibility({ visibilityProperty: true })),
     MODALS,
   );
   page.on('framenavigated', navigated);
@@ -58,7 +59,7 @@ export async function elsewhere(page: Page): Promise<Elsewhere> {
       try {
         opens = await page.evaluate(
           ([query, open]) =>
-            [...document.querySelectorAll(query)].some((each) => each.checkVisibility() && !open.includes(each)),
+            [...document.querySelectorAll(query)].some((each) => each.checkVisibility({ visibilityProperty: true }) && !open.includes(each)),
           [MODALS, before] as const,
         );
       } catch (error) {
