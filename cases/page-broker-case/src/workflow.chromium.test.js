@@ -41,11 +41,11 @@ function freePort() {
   });
 }
 
-function playwright(results, port) {
+function playwright(results, env, ...flags) {
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [cli, 'test', '--config=src/playwright.config.mjs'], {
+    const child = spawn(process.execPath, [cli, 'test', '--config=src/declared.config.mjs', ...flags], {
       cwd: root,
-      env: { ...process.env, VA_PORT: port, VA_RESULTS: results },
+      env: { ...process.env, ...env, VA_RESULTS: results },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
     let output = '';
@@ -60,15 +60,40 @@ function playwright(results, port) {
   });
 }
 
-live('page broker spike', () => {
-  it('passes every rule its README pins in src/spec', async () => {
+// The build `cases/storybook-case` makes: `yarn workspace @variance-authority/case-storybook build-storybook`.
+const STORYBOOK_BUILT = existsSync(join(root, '..', 'storybook-case', 'storybook-static', 'index.json'));
+
+if (BROWSER_AVAILABLE && !STORYBOOK_BUILT) {
+  unbuilt(
+    '\ncases/page-broker-case: Storybook\'s manager skipped.' +
+      '\n  no build — yarn workspace @variance-authority/case-storybook build-storybook\n',
+  );
+}
+
+live('@variance-authority/page-broker over apps that announce nothing', () => {
+  async function declared(project, ...flags) {
     const results = await mkdtemp(join(tmpdir(), 'variance-page-broker-'));
     try {
-      const run = await playwright(results, await freePort());
-      expect(run, run.output).toMatchObject({ code: 0 });
-      expect(run.output).toMatch(/\d+ passed/);
+      const env = { VA_PORT: await freePort(), VA_STORYBOOK_PORT: await freePort() };
+      return await playwright(results, env, `--project=${project}`, ...flags);
     } finally {
       await rm(results, { recursive: true, force: true });
     }
-  }, 300_000);
+  }
+
+  it('reaches the outcomes of a shop that announces nothing', async () => {
+    const run = await declared('shop');
+    expect(run, run.output).toMatchObject({ code: 0 });
+    expect(run.output).toMatch(/5 passed/);
+  }, 120_000);
+
+  (STORYBOOK_BUILT ? it : it.skip)(
+    'tells where a search in Storybook\'s manager ended, thirty runs in a row',
+    async () => {
+      const run = await declared('storybook', '--repeat-each=30');
+      expect(run, run.output).toMatchObject({ code: 0 });
+      expect(run.output).toMatch(/120 passed/);
+    },
+    300_000,
+  );
 });

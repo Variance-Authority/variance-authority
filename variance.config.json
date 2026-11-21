@@ -144,6 +144,9 @@
       "src/help.ts",
       "src/index.ts"
     ],
+    "packages/page-broker": [
+      "src/index.ts"
+    ],
     "packages/playwright": [
       "src/agent.ts",
       "src/engines.ts",

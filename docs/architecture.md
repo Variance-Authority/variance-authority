@@ -218,6 +218,7 @@ before anything else.**
 | `presentation` | a browser capture; its Playwright entrypoint additionally needs a live browser | one subject's presentation graph, independent ARIA evidence, relationship findings, and removable diagnostic paint |
 | `playwright` | a browser | the persistent harness, and a renderer |
 | `playwright-test` | a browser, and a Playwright test run | additive observation and assertion helpers; optional unbound fixture and matcher parts |
+| `page-broker` | a document or a Playwright page | where an action in a test ended: one of the outcomes the test declared for it, by name |
 | `unit-test` | a live DOM, and a writable artifact directory | resource-closed capture archives and a CLI collector for a later render process |
 | `vitest-browser` | a Vitest browser-mode run, and a browser for the deferred paint | one observation per mounted component, read in the tab and judged in the runner's own process |
 | `png` | a runtime with `Buffer` — Node, not a browser | decoding, comparison, the diff image |

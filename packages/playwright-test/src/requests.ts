@@ -15,7 +15,7 @@
 // TODO: the browser modes of Vitest and Rstest and Storybook have no runner
 // beside the page, so no line of theirs names a request; the page's own half is #1447.
 import type { BrowserContext, Request, Response } from '@playwright/test';
-import { awaitedRequest } from '@variance-authority/playwright';
+import { awaitedRequest } from '@variance-authority/core';
 
 /** One test's requests, across every context it adopted. */
 export interface HeardRequests {

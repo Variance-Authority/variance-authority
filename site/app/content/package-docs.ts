@@ -14,6 +14,7 @@ import mcp from "../../../packages/mcp/README.md?raw";
 import observe from "../../../packages/observe/README.md?raw";
 import packageSurface from "../../../packages/package/README.md?raw";
 import playwrightTest from "../../../packages/playwright-test/README.md?raw";
+import pageBroker from "../../../packages/page-broker/README.md?raw";
 import playwright from "../../../packages/playwright/README.md?raw";
 import pngSharp from "../../../packages/png-sharp/README.md?raw";
 import png from "../../../packages/png/README.md?raw";
@@ -59,6 +60,7 @@ const packages = [
   ["mcp", mcp],
   ["observe", observe],
   ["package", packageSurface],
+  ["page-broker", pageBroker],
   ["playwright", playwright],
   ["playwright-test", playwrightTest],
   ["png", png],

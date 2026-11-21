@@ -296,6 +296,16 @@
   },
   {
     "idiom": "timer",
+    "at": "packages/page-broker/src/broker.ts",
+    "count": 1
+  },
+  {
+    "idiom": "timer",
+    "at": "packages/page-broker/src/quiet-period.ts",
+    "count": 1
+  },
+  {
+    "idiom": "timer",
     "at": "packages/playwright-test/src/documents.ts",
     "count": 1
   },
@@ -656,38 +666,13 @@
   },
   {
     "idiom": "fresh-page",
-    "at": "cases/page-broker-case/src/spec/arrival.spec.ts",
-    "count": 20
+    "at": "cases/page-broker-case/src/declared/shop.spec.ts",
+    "count": 2
   },
   {
     "idiom": "fresh-page",
-    "at": "cases/page-broker-case/src/spec/broker.spec.ts",
-    "count": 28
-  },
-  {
-    "idiom": "fresh-page",
-    "at": "cases/page-broker-case/src/spec/naive.spec.ts",
-    "count": 4
-  },
-  {
-    "idiom": "fresh-page",
-    "at": "cases/page-broker-case/src/spec/reentry.spec.ts",
-    "count": 11
-  },
-  {
-    "idiom": "fresh-page",
-    "at": "cases/page-broker-case/src/spec/unmoved.spec.ts",
-    "count": 3
-  },
-  {
-    "idiom": "timer",
-    "at": "cases/page-broker-case/src/spec/unmoved.spec.ts",
+    "at": "cases/page-broker-case/src/declared/storybook.spec.ts",
     "count": 1
-  },
-  {
-    "idiom": "fresh-page",
-    "at": "cases/page-broker-case/src/spec/whole.spec.ts",
-    "count": 13
   },
   {
     "idiom": "fresh-page",
@@ -818,6 +803,21 @@
     "idiom": "timer",
     "at": "packages/isolator/src/timers.test.ts",
     "count": 2
+  },
+  {
+    "idiom": "timer",
+    "at": "packages/page-broker/src/dom.test.ts",
+    "count": 4
+  },
+  {
+    "idiom": "fresh-page",
+    "at": "packages/page-broker/src/playwright.chromium.test.ts",
+    "count": 4
+  },
+  {
+    "idiom": "timer",
+    "at": "packages/page-broker/src/playwright.chromium.test.ts",
+    "count": 3
   },
   {
     "idiom": "fresh-page",
