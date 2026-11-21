@@ -103,6 +103,8 @@ export interface AskRequest extends Crossing {
   readonly files?: readonly string[];
   /** `--area <id>`: the page of the code map `orient` prints. */
   readonly area?: string;
+  /** `--declarations`: expand external dependency declarations for `orient --files`. */
+  readonly declarations?: boolean;
   /** `--name <name>`, `--package <name>`, `--subpath <subpath>`: what the source questions take. */
   readonly name?: string;
   /** `--line <file>:<line>`: the line `symbol` orders the declarations by. */

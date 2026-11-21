@@ -41,7 +41,7 @@ export function flagOf(property: string): string {
 /** A value as one shell word, a list joined by commas: quoted only when a word would not survive. */
 function wordOf(value: unknown): string {
   const text = Array.isArray(value) ? value.join(',') : String(value);
-  return text !== '' && /^[\w./:@^,+=%#-]+$/.test(text) ? text : `'${text.replace(/'/g, `'\\''`)}'`;
+  return text !== '' && !text.startsWith('#') && /^[\w./:@^,+=%#-]+$/.test(text) ? text : `'${text.replace(/'/g, `'\\''`)}'`;
 }
 
 /** The inputs, tools and questions of one surface, written as its reader types them. */
@@ -68,7 +68,9 @@ export interface Spelling {
 const wired = (value: unknown): string => (typeof value === 'string' ? value : JSON.stringify(value));
 
 const asShell = (verb: string, input: Readonly<Record<string, unknown>>): string =>
-  [verb, ...Object.entries(input).map(([property, value]) => `${flagOf(property)} ${wordOf(value)}`)].join(' ');
+  [verb, ...Object.entries(input).flatMap(([property, value]) =>
+    value === false ? [] : [value === true ? flagOf(property) : `${flagOf(property)} ${wordOf(value)}`],
+  )].join(' ');
 
 /** The wire's spelling: every name as the schemas publish it. */
 const WIRE: Spelling = {

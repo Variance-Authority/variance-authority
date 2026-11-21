@@ -130,6 +130,14 @@ async function run(argv: readonly string[]): Promise<{ code: number; out: string
 }
 
 describe('variance ask orient', () => {
+  it('refuses a declaration expansion without files instead of printing the unrelated code map', async () => {
+    checkout();
+    const answered = await run(['ask', 'orient', '--declarations']);
+    expect(answered.code).toBe(EXIT_OPERATOR);
+    expect(answered.out).toBe('');
+    expect(answered.err).toContain('`--declarations` needs `--files`');
+  });
+
   it('without files and before `variance index`, says no code map is kept and names the command that builds one', async () => {
     const root = checkout();
 

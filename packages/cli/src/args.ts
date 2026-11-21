@@ -94,6 +94,7 @@ export const BOOLEAN = new Set([
   '--local',
   '--as-base',
   '--story',
+  '--declarations',
 ]);
 
 /**

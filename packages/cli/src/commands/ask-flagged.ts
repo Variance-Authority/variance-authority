@@ -4,7 +4,7 @@ import type { AskRequest } from './ask.js';
 /** The flags every question is spelled with, whichever subject answers it. */
 export type Flagged = Crossing & Pick<
   AskRequest,
-  | 'subject' | 'subjects' | 'component' | 'rule' | 'shape' | 'test' | 'state' | 'build' | 'file' | 'files' | 'area'
+  | 'subject' | 'subjects' | 'component' | 'rule' | 'shape' | 'test' | 'state' | 'build' | 'file' | 'files' | 'area' | 'declarations'
   | 'name' | 'line' | 'package' | 'subpath' | 'query'
   | 'under' | 'above' | 'inside' | 'beside' | 'leftOf' | 'rightOf' | 'on'
   | 'from' | 'to' | 'over' | 'after' | 'limit' | 'offset' | 'story' | 'claims'
@@ -30,6 +30,7 @@ export function flagged(request: Flagged): Readonly<Record<string, unknown>> {
     file: request.file,
     files: request.files,
     area: request.area,
+    declarations: request.declarations,
     name: request.name,
     line: request.line,
     package: request.package,
