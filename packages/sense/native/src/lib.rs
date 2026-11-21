@@ -145,6 +145,7 @@ mod parse_columns;
 mod parse_origin;
 mod parse_store;
 mod path;
+mod rarity;
 mod source_trees;
 mod promisor;
 mod read;

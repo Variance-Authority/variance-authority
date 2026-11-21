@@ -297,8 +297,8 @@ pub(crate) fn rank<'a>(asked: &'a BTreeMap<String, String>, paths: &[&'a str], d
                 .held
                 .iter()
                 .map(|(&stem, &held)| {
-                    let rarity = rarity(population, holders.get(stem).copied().unwrap_or(0) as f64);
-                    (stem, ((rarity * saturation(held as f64, area.length as f64, length, population)) / 1000.0).floor())
+                    let rarity = crate::rarity::rarity(population, holders.get(stem).copied().unwrap_or(0) as f64);
+                    (stem, ((rarity * crate::rarity::saturation(held as f64, area.length as f64, length, population)) / 1000.0).floor())
                 })
                 .collect();
             let score = weighs.values().sum::<f64>();
@@ -317,21 +317,6 @@ pub(crate) fn rank<'a>(asked: &'a BTreeMap<String, String>, paths: &[&'a str], d
     ranked.sort_by(|a, b| b.score.cmp(&a.score).then_with(|| crate::order::code_unit(&a.path, &b.path)));
     ranked.truncate(AREAS_SHOWN);
     ranked
-}
-
-/// How few of `population` areas hold a stem `holders` hold, as `rarity` in
-/// `packages/mcp/src/tools/rarity.ts` says it, in the same float operations.
-fn rarity(population: f64, holders: f64) -> f64 {
-    ((1000.0 * (population - holders + 1.0)) / (population + 1.0)).floor()
-}
-
-/// `saturation` in `packages/mcp/src/tools/rarity.ts`, in the same float operations.
-fn saturation(held: f64, length: f64, total: f64, rows: f64) -> f64 {
-    if total == 0.0 {
-        ((22000.0 * held) / (10.0 * held + 12.0)).floor()
-    } else {
-        ((22000.0 * held * total) / (10.0 * held * total + 3.0 * total + 9.0 * length * rows)).floor()
-    }
 }
 
 /// How many of `paths` each directory holds, at any depth; the root is `""`.
