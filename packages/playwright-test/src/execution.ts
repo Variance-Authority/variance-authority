@@ -468,6 +468,7 @@ export function createExecutionRecorder(
         ? {}
         : { preconditions: recording.preconditions }),
       ...(cases.size === 0 ? {} : { cases: observedCases() }),
+      ...(process.env.TEST_WORKER_INDEX === undefined ? {} : { partial: true as const }),
     });
     if (!record.recorded) {
       process.stderr.write(`variance-authority: recorded no test execution — ${record.because}\n`);

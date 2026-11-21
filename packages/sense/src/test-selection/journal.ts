@@ -208,6 +208,12 @@ export interface RecordExecutionOptions {
    * with whoever pays for the file.
    */
   readonly cases?: readonly ObservedCase[];
+  /**
+   * The cases are only this process's share of the run, as a Playwright worker
+   * recording without its reporter holds. No checks are kept from them: the
+   * last share to land would replace what the others' cases entered.
+   */
+  readonly partial?: true;
 }
 
 /** What a run learned, or why it learned nothing. */
@@ -410,7 +416,7 @@ export async function recordExecution(
   const observed = options.cases ?? [];
   const eyes = eyesOfCases(observed);
   const attempts = attemptsOfCases(observed, root);
-  const checks = observed.length === 0 ? undefined : checksOf(root, observed.map((one) => ({
+  const checks = observed.length === 0 || options.partial === true ? undefined : checksOf(root, observed.map((one) => ({
     file: one.file,
     name: one.name,
     ...(one.project === undefined ? {} : { project: one.project }),

@@ -100,6 +100,24 @@ describe.runIf(BROWSER_AVAILABLE)('a Playwright case that passes without enterin
     expect(read).not.toContain('did not execute');
   }, 120_000);
 
+  it('reads a run killed before any reporter could end it as unfinished, not as the run before it', async () => {
+    const coverageFile = await freshRecord();
+    await run(coverageFile, {});
+    await run(coverageFile, { DROP_TITLE: '1', STALL: 'SIGKILL' });
+    const read = readingOf(coverageFile);
+    expect(read).toContain('did not land');
+    expect(read).not.toContain('declared check(s) entered');
+  }, 180_000);
+
+  it('reads a killed run that collected no declaring case as unfinished, not as the run before it', async () => {
+    const coverageFile = await freshRecord();
+    await run(coverageFile, { DROP_TITLE: '1' });
+    await run(coverageFile, { DROP_TITLE: '1', STALL: 'SIGKILL' }, ['--grep', 'lists events']);
+    const read = readingOf(coverageFile);
+    expect(read).toContain('did not land');
+    expect(read).not.toContain('did not execute');
+  }, 180_000);
+
   it('reads a later run that collected no case, not the run before it', async () => {
     const coverageFile = await freshRecord();
     await run(coverageFile, { DROP_TITLE: '1' });

@@ -30,6 +30,12 @@ function told(suite: RecordedChecks, named: string): string[] {
         'A run keeps them when a case it ran declares one with `checked(id, fn)`.',
     ];
   }
+  if ('unfinished' in suite) {
+    return [
+      `${named}: none named; a run began after these checks landed and did not land, stopped before its runner ended it ` +
+        `or still running (it last wrote ${suite.unfinished}), so the checks of what it ran are not known.`,
+    ];
+  }
   return [
     ...(suite.missing.length === 0
       ? [`${named}: none.`]
@@ -55,7 +61,8 @@ export const notRun: Tool<unknown> = {
     'an attempt of it passed without executing, as `expected check <id> did not execute in case <name>`, with the ' +
     'file and line declaring the case, the line calling the check, its project, and the attempt when it ran more than once — ' +
     'a case can pass without its check. Then how many declared checks were entered, and the test files whose ' +
-    'recording stopped before their runner ended them, which name no check missing. A record whose run kept no checks is said ' +
+    'recording stopped before their runner ended them, which name no check missing. A run that began after the checks landed and ' +
+    'did not land, killed or still running, names none either. A record whose run kept no checks is said ' +
     'to be that, never that every check ran. A case declares a check by calling `checked(id, fn)` from ' +
     '`@variance-authority/sense/checked` in its body, or in a helper of its file it calls; an id built at run time declares nothing. ' +
     'Reads the recording a test run with test selection published; runs nothing itself.',

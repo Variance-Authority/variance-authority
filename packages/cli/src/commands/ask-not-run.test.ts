@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { commitRunsFile, encodeExecutionIndex, testCoverageFile, withCaseSections, writeTestCoverage } from '@variance-authority/sense/test-selection';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import '../bin.fixture.js';
@@ -108,6 +108,21 @@ describe('variance ask not-run', () => {
       '0 declared check(s) entered.',
       'Incomplete, stopped before their runner ended them, so none of their checks is named: tests/create-event.spec.ts.',
     ].join('\n'));
+  });
+
+  it('names no check while a run that began after the checks landed has not landed its own', async () => {
+    const at = await recorded({
+      incomplete: [],
+      cases: [{ ...SUBMITS, attempts: [{ attempt: 1, ended: 'passed', entered: [] }] }],
+    });
+    mkdirSync(join(dirname(at), '.run-1-killed-cases'));
+
+    const { out } = await run(['ask', 'not-run']);
+    expect(out).toContain(
+      'Declared checks not executed: none named; a run began after these checks landed and did not land, ' +
+        'stopped before its runner ended it or still running',
+    );
+    expect(out).not.toContain('did not execute in case');
   });
 
   it('says of each declared suite that recorded nothing that nothing was read, and why', async () => {

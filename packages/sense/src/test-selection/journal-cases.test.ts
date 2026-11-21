@@ -22,7 +22,7 @@ import { coveringChange, coveringTests, ranWhileLoading, type ExecutionIndex } f
 import { decodeExecutionIndex } from './execution-format.js';
 import { openSetExecutionIndex } from './execution-set-format.js';
 import { NO_OWNER } from './format-layout.js';
-import { caseIndexOf } from './case-record.js';
+import { caseIndexOf, recordedChecksAt } from './case-record.js';
 import preconditions from './case-preconditions.cjs';
 import { rowOf } from './case-said.js';
 import {
@@ -90,6 +90,42 @@ describe('a driver that can tell its cases apart', () => {
       expect([around(PREMIUM_LINE), around(PLAIN_LINE)].map((owner) => price!.blocks[owner]?.name)).toEqual(['price', 'price']);
       // A selection reader opens the same record and reads it as it did.
       expect((await readTestCoverage(coverageFile))?.tests.map((test) => test.file)).toEqual(['e2e/price.spec.ts']);
+    });
+  });
+
+  it('keeps no checks from a process that recorded only its own cases', async () => {
+    await inRoot(async (root) => {
+      const cacheRoot = resolve(root, 'cache');
+      const coverageFile = resolve(root, 'coverage.bin');
+      const run = twoCases(root);
+      await run.write();
+      await mkdir(resolve(root, 'e2e'), { recursive: true });
+      await writeFile(resolve(root, 'e2e/price.spec.ts'), [
+        "import { checked } from '@variance-authority/sense/checked';",
+        "test('charges twice above ten', async () => {",
+        "  await checked('price/doubled', async () => {});",
+        '});',
+        '',
+      ].join('\n'));
+
+      const share = {
+        root,
+        cacheRoot,
+        coverageFile,
+        subjects: [{ owner: 'e2e/price.spec.ts', journal: run.premium }],
+        cases: [{
+          file: 'e2e/price.spec.ts', name: 'charges twice above ten', id: 'a', journal: run.premium,
+          attempts: [{ attempt: 1, ended: 'passed' as const }], checks: [],
+        }],
+      };
+
+      await recordExecution(share);
+      expect(recordedChecksAt(coverageFile)).toBeDefined();
+      // Each Playwright worker without the reporter records alone, so the last
+      // to land would replace the checks the others' cases entered.
+      await recordExecution({ ...share, partial: true });
+      expect(await caseIndexOf(coverageFile)).toBeDefined();
+      expect(recordedChecksAt(coverageFile)).toBeUndefined();
     });
   });
 

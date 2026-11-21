@@ -46,9 +46,10 @@ test.describe('create-event', () => {
     await page.click('button');
     await expect(page.locator('#phase')).toHaveText('saved');
     const sent = await page.evaluate(() => (globalThis as { sent?: { title?: string } }).sent);
-    if (process.env['STALL'] === '1') {
-      // Ctrl+C at the runner while this case is still running, before its check.
-      process.kill(process.ppid, 'SIGINT');
+    if (process.env['STALL'] !== undefined) {
+      // A signal at the runner while this case is still running, before its
+      // check: Ctrl+C is `1`, and a kill no reporter outlives is the signal's own name.
+      process.kill(process.ppid, process.env['STALL'] === '1' ? 'SIGINT' : process.env['STALL']);
       await page.waitForTimeout(60_000);
     }
     // The check runs only when a title was sent, so a form that drops it passes unchecked.
@@ -60,6 +61,10 @@ test.describe('create-event', () => {
   test('lists events', async ({ page }) => {
     await page.setContent(`${collector}<script>entered.add(2)</script><ul><li>Launch</li></ul>`);
     await expect(page.locator('li')).toHaveText('Launch');
+    if (process.env['STALL'] !== undefined && process.env['STALL'] !== '1') {
+      process.kill(process.ppid, process.env['STALL']);
+      await page.waitForTimeout(60_000);
+    }
   });
 });
 

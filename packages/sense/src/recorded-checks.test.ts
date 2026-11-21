@@ -1,6 +1,6 @@
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { checksAt } from './recorded-checks.js';
 import { recordOfCases } from './test-selection/case-record.js';
@@ -49,6 +49,27 @@ describe('checksAt', () => {
     const read = checksAt(recording);
     expect(read).toMatchObject({ commit: 'c'.repeat(40), missing: [{ check: 'event/titled' }] });
     expect(Date.parse((read as { landed: string }).landed)).toBeGreaterThanOrEqual(before);
+  });
+
+  it('reads a run that began after the checks landed and never landed as unfinished', async () => {
+    const recording = record();
+    await landChecks(recording, landedChecks(section, 'c'.repeat(40)));
+    // What a run killed outright leaves, under every runner: its directories
+    // beside the record, which only its fold removes.
+    mkdirSync(join(dirname(recording), `.run-1-${'a'.repeat(8)}-cases`));
+
+    expect(checksAt(recording)).toMatchObject({ unfinished: expect.any(String), commit: 'c'.repeat(40) });
+  });
+
+  it('leaves a run stopped before the checks landed to the run that landed them', async () => {
+    const recording = record();
+    const stopped = join(dirname(recording), `.run-1-${'a'.repeat(8)}-cases`);
+    mkdirSync(stopped);
+    const hourAgo = new Date(Date.now() - 3_600_000);
+    utimesSync(stopped, hourAgo, hourAgo);
+    await landChecks(recording, landedChecks(section, 'c'.repeat(40)));
+
+    expect(checksAt(recording)).toMatchObject({ missing: [{ check: 'event/titled' }] });
   });
 
   it('keeps no checks of the run before one that measured nothing and declared none', async () => {
