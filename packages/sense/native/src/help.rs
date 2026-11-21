@@ -5,6 +5,8 @@
 
 // compass: variance-authority.report.agent-surface
 
+#[path = "classify_areas.rs"]
+pub(crate) mod classify_areas;
 #[path = "help_aliases.rs"]
 pub(crate) mod help_aliases;
 #[path = "help_declared.rs"]

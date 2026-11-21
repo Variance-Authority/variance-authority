@@ -512,10 +512,6 @@
     "count": 1
   },
   {
-    "at": "packages/sense/src/commit-changes.ts trackedFiles",
-    "count": 1
-  },
-  {
     "at": "packages/sense/src/parse-store.ts rewritesParsed",
     "count": 2
   },

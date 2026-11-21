@@ -91,7 +91,8 @@ export { inIndexTurn, indexTurnPath, type IndexTurnHolder } from './index-turn.j
 export type { SourceIndexState } from './source-index-file.js';
 export { SOURCE_INDEX_VERSION } from './source-index-format.js';
 
-export { firstParentChanges, firstParentChangesBetween, trackedFiles, type CommitChange, type CommitChanges } from './commit-changes.js';
+export { firstParentChanges, firstParentChangesBetween, type CommitChange, type CommitChanges } from './commit-changes.js';
+export { classifiedAreas, sourceTrees, type AreasAsked, type ClassifiedAreas, type RankedArea } from './classified-areas.js';
 export { packageOwner } from './package-owner.js';
 export { isTestPath } from './test-path.js';
 export { fileSizes, matchesGlob, sourceScope, type FileSize, type SourceScope } from './source-scope.js';

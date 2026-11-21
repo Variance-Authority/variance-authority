@@ -237,6 +237,11 @@ export async function publishStore(index: string, store: Uint8Array, tree: Uint8
   return help;
 }
 
+/** The help store's bytes `help` was read from, for a question the addon answers over the store itself; absent for a value read from no store. */
+export function storeBytesOf(help: Help): Uint8Array | undefined {
+  return stores.get(help);
+}
+
 /**
  * The search over one Help value, and the rows of it a question names: the
  * one the store it was read from or published to holds, or one encoded in

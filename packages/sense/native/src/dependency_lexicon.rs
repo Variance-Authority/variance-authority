@@ -24,7 +24,7 @@ mod query;
 #[path = "dependency_stack.rs"]
 mod stack;
 #[path = "dependency_described.rs"]
-mod describing;
+pub(crate) mod describing;
 #[path = "dependency_purpose.rs"]
 pub(crate) mod purposes;
 use purposes::Purpose;

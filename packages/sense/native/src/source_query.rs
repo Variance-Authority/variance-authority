@@ -10,6 +10,7 @@
 
 // compass: variance-authority.reach.source-index
 
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use napi::bindgen_prelude::{AsyncTask, Buffer};
@@ -353,6 +354,18 @@ impl SourceWalk {
             })
             .collect()
     }
+}
+
+/// Each file `walks` reached together, below the graph root, with whether its
+/// imports could not all be read: the union a start point said both ways scopes.
+pub(crate) fn reached_by<'a>(walks: &[&'a SourceWalk]) -> HashMap<&'a str, bool> {
+    let mut reached = HashMap::new();
+    for walk in walks {
+        for id in walk.reached() {
+            reached.insert(walk.graph.path(id), walk.graph.unknown[id as usize]);
+        }
+    }
+    reached
 }
 
 impl SourceWalk {

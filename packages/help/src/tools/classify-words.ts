@@ -20,7 +20,7 @@
 import { everyEntry, type Help } from '@variance-authority/package/help';
 import { STALE_MAP, unscoped } from './code-map-format.js';
 import { specifierOf } from './find.js';
-import type { RankedArea } from './classify-areas.js';
+import type { RankedArea } from '@variance-authority/sense';
 import { narrower, plural, shell } from './format.js';
 
 /** What one word names: a package, one of its entrypoints, or a name it exports. */

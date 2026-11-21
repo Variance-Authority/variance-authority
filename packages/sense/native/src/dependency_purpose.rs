@@ -63,7 +63,7 @@ const DESCRIPTION: &[&str] = &["use", "using", "used", "library", "package", "mo
 /// A stem is the lowered word with endings cut off, so it is always a prefix of
 /// that word: the name table's candidates find a stem as a substring of a doc's
 /// words, and a rewrite that changes a letter would drop answers there.
-pub(super) fn stem(word: &str) -> String {
+pub(crate) fn stem(word: &str) -> String {
     let mut stem = word.to_lowercase();
     for suffix in ["ings", "ing", "ies", "ed", "es", "s"] {
         if let Some(rest) = stem.strip_suffix(suffix) {

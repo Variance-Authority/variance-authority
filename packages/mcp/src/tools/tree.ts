@@ -1,5 +1,5 @@
 import type { EdgeKind, FileRecord } from '@variance-authority/core/relate';
-import { openSourceTree, sourceTreeOf, updateSourceIndex, type SourceTree } from '@variance-authority/sense';
+import { openSourceTree, sourceTreeOf, updateSourceIndex, type SourceTree, type SourceWalk } from '@variance-authority/sense';
 import { relative } from 'node:path';
 import { encodeSourceTree } from './source-tree-format.js';
 
@@ -47,6 +47,12 @@ export interface Tree {
    * walk against the arrows, under the same rules.
    */
   reaching(seeds: Iterable<string>): ReadonlySet<string>;
+  /**
+   * The walk itself, held by the addon, from these along the imports or, when
+   * `against`, against them: a question the addon answers over every file it
+   * reached hands it this, and nothing the walk's size crosses here.
+   */
+  walk(seeds: Iterable<string>, against: boolean): SourceWalk;
   /** Minimum import distance from the seeds to every reachable file: a seed is at zero and every arrow adds one. */
   distanceFrom(seeds: Iterable<string>): ReadonlyMap<string, number>;
   /** The same minimum distance against the arrows. */
@@ -121,6 +127,7 @@ function treeAt(native: SourceTree, root: string, graphRoot?: string): Tree {
       for (let from = 0; from < native.size; from += PAGE) yield* native.paths(from, PAGE);
     },
     entries: (said, width) => native.entries(said, width),
+    walk,
     reachedFrom: (seeds) => new Set(walk(seeds, false).files()),
     reaching: (seeds) => new Set(walk(seeds, true).files()),
     distanceFrom: (seeds) => distances(walk(seeds, false)),

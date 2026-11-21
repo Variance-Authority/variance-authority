@@ -18,8 +18,8 @@ import { CODE_EXTENSIONS, isTestPath, packageOwner, type CommitChange } from '@v
 
 const BOT = /\[bot\]|[-_ ]bot$|^(renovate|dependabot|github-actions)$/iu;
 
-/** Code the index does not parse: a commit changes it all the same. */
-const SOURCE_EXTENSIONS = new Set([...CODE_EXTENSIONS, '.go', '.rb', '.php', '.vue', '.svelte', '.cs', '.c', '.cc', '.cpp', '.h', '.scala']);
+/** What counts as source: the code the index parses, and code it does not, which a commit changes all the same. */
+export const SOURCE_EXTENSIONS: ReadonlySet<string> = new Set([...CODE_EXTENSIONS, '.go', '.rb', '.php', '.vue', '.svelte', '.cs', '.c', '.cc', '.cpp', '.h', '.scala']);
 
 /** A count and what it is out of. */
 export interface Share {
@@ -64,8 +64,12 @@ interface Touched {
   readonly inTree: boolean;
 }
 
-/** Counts `commits`, with each path's package taken from `packages`, and `tracked` saying which hold source. */
-export function countContainment(commits: readonly CommitChange[], tracked: readonly string[], packages: readonly string[]): ContainmentCount {
+/**
+ * Counts `commits`, with each path's package taken from `packages`, and
+ * `holdingSource` saying which of them and which top folders hold source now:
+ * a tree holding a file with one of {@link SOURCE_EXTENSIONS} that is no test.
+ */
+export function countContainment(commits: readonly CommitChange[], holdingSource: ReadonlySet<string>, packages: readonly string[]): ContainmentCount {
   const ownerOf = packageOwner(packages);
   const inside = (file: string): string => {
     const owner = ownerOf(file);
@@ -79,7 +83,6 @@ export function countContainment(commits: readonly CommitChange[], tracked: read
     const slash = file.indexOf('/');
     return owner !== '.' || slash === -1 ? owner : file.slice(0, slash);
   };
-  const holdingSource = new Set(tracked.filter(isSource).map(treeOf));
   const isPackage = (owner: string): boolean => owner !== '.' && holdingSource.has(owner);
   const inTestOnlyTree = (file: string): boolean => treeOf(file) !== '.' && !holdingSource.has(treeOf(file));
 

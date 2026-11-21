@@ -205,6 +205,46 @@ pub(crate) fn declared_terms(layers: &[Layer], files: Option<&[String]>) -> Vec<
     terms.into_iter().collect()
 }
 
+/// One harvested file's search-term count for the top-level names no export
+/// binds. A file without a harvested parse has no row, rather than zero words.
+pub(crate) struct PrivateWords {
+    pub(crate) at: String,
+    pub(crate) words: u32,
+}
+
+/// The private half of each file's declaration vocabulary, for normalization
+/// beside the exported names held by the search index. Count each local name
+/// once, including names unrelated to a question, and never read source files.
+pub(crate) fn private_words(layers: &[Layer]) -> Vec<PrivateWords> {
+    let folded = fold(layers);
+    crossings(layers, &folded, None)
+        .par_iter()
+        .filter_map(|crossing| {
+            let (layer, row) = crossing.parse?;
+            let (text, parses) = (&layers[layer].stored, &layers[layer].parses);
+            if parses.harvested[row] != 1 { return None }
+            let own = exported_locals(&layers[layer], row);
+            let names: BTreeSet<&str> = parses.symbols.range(row)
+                .map(|symbol| text.text(parses.symbol_name.at(symbol)))
+                .filter(|name| !own.contains(name))
+                .collect();
+            let words = names.iter().map(|name| crate::help_search::name_terms(name).len() as u32).sum();
+            Some(PrivateWords { at: crossing.file.to_owned(), words })
+        })
+        .collect()
+}
+
+/// Local names bound by an export, including renamed exports. Both private
+/// matching and private vocabulary counts use this boundary.
+fn exported_locals<'a>(layer: &'a Layer<'a>, row: usize) -> BTreeSet<&'a str> {
+    let (text, parses) = (&layer.stored, &layer.parses);
+    if parses.exports_present[row] != 1 { return BTreeSet::new() }
+    parses.exports.range(row)
+        .filter(|&export| text.optional(parses.export_from.at(export)).is_none())
+        .filter_map(|export| text.optional(parses.export_local.at(export)))
+        .collect()
+}
+
 /// Every top-level declaration on the chain, every one in a Rust inline
 /// module, and, asked `Exact` or `Containing`, every function a function's body
 /// declares, and asked `Containing`, every member, whose name `matching` admits for `query`, or whose doc does when it
@@ -260,14 +300,7 @@ pub(crate) fn declared(root: &str, layers: &[Layer], query: &str, matching: Matc
             };
             if parses.harvested[row] != 1 { return (Vec::new(), Some(crossing.file), file) }
             if !picked.parse(row) { return (Vec::new(), None, file) }
-            let own: Vec<&str> = if parses.exports_present[row] == 1 {
-                parses.exports.range(row)
-                    .filter(|&export| text.optional(parses.export_from.at(export)).is_none())
-                    .filter_map(|export| text.optional(parses.export_local.at(export)))
-                    .collect()
-            } else {
-                Vec::new()
-            };
+            let own = exported_locals(&layers[layer], row);
             let doc_holds = |said: Option<Said>| {
                 let Some(mut said) = said else { return false };
                 if said.words.contains(query) { return true }

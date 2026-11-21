@@ -211,7 +211,9 @@ Then it ranks the areas of the tree the request's words point to, ten at
 most, best first: a directory of at most 500 tracked files, a larger one read
 as its children. An area's words are its path's, its files' names and the
 top-level names its files declare, exported or not, compared by stem, and a word counts for more
-the fewer areas hold it. Each area is listed with its file count, the
+the fewer areas hold it. An area's length counts every word its declared names
+hold, exported or not and asked or not, each name once per file, so changing
+a name's export visibility alone does not move an area. Each area is listed with its file count, the
 request's words it holds, the one weighing most there first, and the package
 on the code map nearest at or above it, with that package's area and layer on
 the code map. The best one

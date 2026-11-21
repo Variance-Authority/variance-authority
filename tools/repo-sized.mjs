@@ -14,20 +14,8 @@ import { ROOT } from './owners.mjs';
  * question — a top-N, a page with a limit, a count, one file, or a set the
  * caller scoped by name.
  *
- * Two places can break that, and this reads both out of their source:
- *
- * - a napi export (`#[napi]` in `packages/sense/native/src`) that takes or
- *   returns a collection — `Vec`, a map or set, a typed array, or a
- *   `#[napi(object)]` holding one;
- * - TypeScript in `packages/*\/src` that lists files itself: `git ls-files`,
- *   `git ls-tree`, a glob, a recursive `readdir`, or a function that reads a
- *   directory and calls itself.
- *
- * Each is allowed when its source says what bounds it, on a `bound:` line in
- * the comment right above (`/// bound: …` in Rust, `// bound: …` in
- * TypeScript). A bound names the limit, never the hope: "at most `limit`
- * rows", "the files the asker named", "the chain's segments". "Small in
- * practice" is the reason this file exists.
+ * A napi export and shipped TypeScript are the two places that can break it;
+ * each is allowed when a `bound:` line above it says what bounds it.
  *
  * What was unbounded when the rule came in is recorded in the baseline, which
  * only shrinks. `yarn repo-sized` prints what is unbounded; `--write` records it.
@@ -49,7 +37,13 @@ function filesUnder(directory, keep) {
     .sort(codeUnitOrder);
 }
 
-/** The `bound:` line in the comment block that ends right above `line`, if there is one. */
+/**
+ * The `bound:` line in the comment block that ends right above `line`, if
+ * there is one: `/// bound: …` in Rust, `// bound: …` in TypeScript. A bound
+ * names the limit, never the hope: "at most `limit` rows", "the files the
+ * asker named", "the chain's segments". "Small in practice" is the reason
+ * this file exists.
+ */
 function boundAbove(lines, line, comment) {
   for (let at = line - 1; at >= 0; at -= 1) {
     const text = lines[at].trim();
@@ -83,7 +77,11 @@ function holdsCollection(type, objects, seen = new Set()) {
   return false;
 }
 
-/** Every napi export that takes or returns a collection, with its bound when it says one. */
+/**
+ * Every napi export (`#[napi]` in `packages/sense/native/src`) that takes or
+ * returns a collection — `Vec`, a map or set, a typed array, or a
+ * `#[napi(object)]` holding one — with its bound when it says one.
+ */
 export function nativeCrossings() {
   const files = filesUnder(NATIVE, (file) => file.endsWith('.rs') && !file.endsWith('_tests.rs'));
   const texts = new Map(files.map((file) => [file, readFileSync(file, 'utf8')]));
@@ -95,7 +93,7 @@ export function nativeCrossings() {
     for (let line = 0; line < lines.length; line += 1) {
       const impl = /^impl(?:<[^>]*>)?\s+(\w+)/u.exec(lines[line]);
       if (impl) owner = impl[1];
-      if (/^(?:pub )?fn |^\}/u.test(lines[line])) owner = /^\}/u.test(lines[line]) ? '' : owner;
+      if (/^(?:pub )?fn /u.test(lines[line]) || lines[line].startsWith('}')) owner = lines[line].startsWith('}') ? '' : owner;
       if (!/^\s*#\[napi(?:\]|\((?!object|constructor)[^)]*\)\])/u.test(lines[line])) continue;
       let at = line + 1;
       while (at < lines.length && /^\s*(?:#\[|\/\/)/u.test(lines[at])) at += 1;
@@ -129,14 +127,18 @@ function enclosing(lines, line) {
     if (!named) continue;
     const name = named[1] ?? named[2];
     let end = at + 1;
-    while (end < lines.length && !/^\}/u.test(lines[end]) && !/^\S/u.test(lines[end])) end += 1;
+    while (end < lines.length && !lines[end].startsWith('}') && !/^\S/u.test(lines[end])) end += 1;
     const body = lines.slice(at + 1, end + 1).join('\n');
     return { name, recurses: new RegExp(`\\b${name}\\(`, 'u').test(body) && /\breaddir(?:Sync)?\(/u.test(body) };
   }
   return { name: '(top level)', recurses: false };
 }
 
-/** Every place shipped TypeScript lists files itself, with its bound when it says one. */
+/**
+ * Every place TypeScript in `packages/*\/src` lists files itself — `git
+ * ls-files`, `git ls-tree`, a glob, a recursive `readdir`, or a function that
+ * reads a directory and calls itself — with its bound when it says one.
+ */
 export function scriptListings() {
   const packages = readdirSync(PACKAGES, { withFileTypes: true }).filter((entry) => entry.isDirectory());
   const files = packages.flatMap((entry) => {
