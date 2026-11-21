@@ -19,7 +19,7 @@ question that fits what you hold; each is one command:
 
 | You hold | Ask | Example |
 |---|---|---|
-| The task's words | which packages, entrypoints and folders they point to | `variance ask classify --query "checkout payment retry"` |
+| The task's words | which of them name a package, an entrypoint or an export, and the folders they point to | `variance ask classify --query "checkout payment retry"` |
 | Nothing yet | the map: packages, areas, layers | `variance ask orient` |
 | A file | its place on that map | `variance ask orient --files src/billing/invoice.ts` |
 | What a thing does | the names that do it | `variance ask search --query "retry payment" --from src/billing/` |
