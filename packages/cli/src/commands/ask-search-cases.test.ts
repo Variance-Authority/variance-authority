@@ -66,6 +66,12 @@ describe('variance ask search about the name a test ran under', () => {
     expect(answer).toContain('1 recorded test case holds every word, as the last run wrote it:');
   });
 
+  it('ends an answer of a recorded case alone with the question about its test file', async () => {
+    await record([[ALONE, 'alone > qqzzq']]);
+
+    expect(await searched('--query', 'qqzzq')).toMatch(new RegExp(`\\n\\nNext: \`variance ask orient --files ${ALONE.replaceAll('.', '\\.')}\`\\n`, 'u'));
+  });
+
   it('leaves out the unread language of an answer a case gave, in JSON as in text', async () => {
     checkout({ ...FILES, 'packages/kit/Cargo.toml': '[package]\nname = "kit"\nversion = "0.1.0"\n', 'packages/kit/src/lib.rs': 'pub fn restart() {}\n' });
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);

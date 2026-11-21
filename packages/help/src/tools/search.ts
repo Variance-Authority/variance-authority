@@ -307,7 +307,7 @@ function spoken({ answer, area }: Searched, root: string | undefined, spell: Spe
   // published row by its specifier, or what surrounds the first file this
   // repository answered with; nothing when it answered with no row.
   const first = found.shown[0];
-  const at = [rest, declared, inside, aliases, held, answer.loose].map((list) => list?.shown[0]?.at).find((file) => file !== undefined);
+  const at = [rest, declared, inside, tests, aliases, held, answer.loose].map((list) => list?.shown[0]?.at).find((file) => file !== undefined);
   const next = first !== undefined
     ? ['', `Next: \`variance ask symbol --name ${shell(first.name)} --package ${shell(first.specifier)}\``]
     : at === undefined ? [] : ['', `Next: \`variance ask orient --files ${shell(at)}\``];
