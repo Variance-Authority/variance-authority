@@ -245,6 +245,34 @@ describe('a test that did not run at the journal commit', () => {
     expect(said.err).toContain(`1 test file last ran at ${S.slice(0, 12)}`);
   });
 
+  it('charges nothing for a file HEAD holds as it was where a test last ran, after merging the stand that is no ancestor of the journal', async () => {
+    // `far` last ran at M, on main, where `src/far.ts` changed after the branch
+    // point B. The branch commits J off B and runs only `near` there, so the
+    // journal's commit is J and M is no ancestor of it. HEAD then merges main,
+    // so `src/far.ts` at HEAD is M's text: nothing changed for `far`.
+    const repo = checkout();
+    const B = repo.commit(sources(1, NAMES), 'B');
+    const M = repo.commit({ 'src/far.ts': sources(2, NAMES)['src/far.ts']! }, 'M');
+    await landRun(repo.file, run(repo.root, M, NAMES), repo.root);
+    repo.git('checkout', '--quiet', '-b', 'side', B);
+    const J = repo.commit({ 'notes.txt': 'unrelated\n' }, 'J');
+    await landRun(repo.file, run(repo.root, J, ['near']), repo.root);
+    repo.git('merge', '--quiet', '--no-edit', 'main');
+    expect((await readCommitRuns(repo.file))?.standing).toMatchObject([{ commit: M, files: ['test/far.test.ts'] }]);
+    expect(repo.git('merge-base', M, J)).toBe(B);
+    expect(repo.git('diff', M, 'HEAD', '--', 'src/far.ts')).toBe('');
+
+    await repo.select();
+    const said = await selectOutput({ cwd: repo.root, format: 'json' });
+
+    // `src/far.ts` changed from B to M and from J to HEAD, and is equal at M
+    // and HEAD, so it is no change for `far`, the only test that loads it.
+    // `far` still runs, held in part since the landing at J re-cut its module.
+    const answer = JSON.parse(said.out) as { selected: unknown[]; incomplete: string[] };
+    expect(answer.incomplete).toEqual(['test/far.test.ts']);
+    expect(answer.selected).toEqual([]);
+  });
+
   it('names the stand git cannot read, not the oldest one', async () => {
     const { root, file, P } = await partialRun();
     const gone = 'e'.repeat(40);
