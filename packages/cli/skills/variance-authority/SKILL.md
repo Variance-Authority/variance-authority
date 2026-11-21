@@ -196,7 +196,7 @@ when it spells a name or a phrase: `node id` finds `NodeId`.
 source index takes `rg` or `git grep`, as the workspace reference explains.
 
 **Say where you are standing.** On a large repository a common word matches
-everywhere the product uses its own name. On `search`, `grep` and `classify`,
+everywhere the product uses its own name. On `search` and `grep`,
 `--from <path>` narrows to what that path imports, at any depth; `--to <path>`
 to what imports it. Give both and the two areas are combined. `discover`
 intersects its operands instead. A path has three widths and no others:
