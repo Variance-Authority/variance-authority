@@ -106,14 +106,14 @@ import { byPublishedPath, named, plural, shell } from './format.js';
  * did not type and can never reach a file they ruled out.
  */
 
+/** Whether a row of any list is a published one, asked by its specifier. */
+const isPublished = (row: { readonly at: string }): row is PublishedMatch => (row as { readonly source?: string }).source === 'published';
+
 /**
  * Who imports a published match, each count saying what it counts: the places
  * and the packages they sit in, as `uses` counts them; or, given without the
  * Help value, the imports from other packages by a published specifier.
  */
-/** Whether a row of any list is a published one, asked by its specifier. */
-const isPublished = (row: { readonly at: string }): row is PublishedMatch => (row as { readonly source?: string }).source === 'published';
-
 function importedLine(match: PublishedMatch): string {
   const { importedIn } = match;
   if (importedIn !== undefined) {

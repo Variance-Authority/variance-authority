@@ -9,7 +9,7 @@ use rayon::prelude::*;
 use rustc_hash::FxHashMap;
 
 use crate::help_store::{flags, DeepRef, EntryRef, StoreRef, UseRef, NONE, USE_KINDS};
-use crate::help_search::{headed, joined, postings, terms_of, Pool, Runs, SPLIT};
+use crate::help_search::{doc_terms, headed, joined, postings, terms_of, Pool, Runs, SPLIT};
 use crate::help_usage::NamedExport;
 use crate::order::code_unit;
 use crate::segment::{u32s, u8s, Column};
@@ -232,7 +232,7 @@ pub(crate) fn body_of<'a>(input: &'a StoreRef<'a>, exported: &'a [NamedExport]) 
             }
             pkg_open_off.push(open_subpath.len() as u32);
         }
-        found.add(&mut doc_pairs, &entries, row, |(entry, _)| entry.doc.map(|doc| terms_of(split, doc)).unwrap_or_default());
+        found.add(&mut doc_pairs, &entries, row, |(entry, _)| entry.doc.map(|doc| doc_terms(split, doc)).unwrap_or_default());
         found.add(&mut sig_pairs, &entries, row, |(entry, _)| {
             headed(entry.kind).then_some(entry.signature).flatten().map(|signature| terms_of(split, signature)).unwrap_or_default()
         });
@@ -295,7 +295,7 @@ pub(crate) fn body_of<'a>(input: &'a StoreRef<'a>, exported: &'a [NamedExport]) 
     let held = [
         found.pairs(&names.values, |name| terms_of(split, name)),
         doc_pairs,
-        found.pairs(exported, |named| named.doc.as_deref().map(|doc| terms_of(split, doc)).unwrap_or_default()),
+        found.pairs(exported, |named| named.doc.as_deref().map(|doc| doc_terms(split, doc)).unwrap_or_default()),
         sig_pairs,
         found.pairs(exported, |named| {
             let signature = named.declaration.as_deref().is_none_or(headed).then_some(named.signature.as_deref()).flatten();

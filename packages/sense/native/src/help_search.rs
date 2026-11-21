@@ -61,6 +61,33 @@ pub(crate) fn terms_of(split: &Regex, text: &str) -> HashSet<String> {
     found
 }
 
+/// A doc's terms by `terms_of`, less the name of each inline doc tag: `code`
+/// in `{@code x}` is markup, as `each_word` reads it, and no term of the doc.
+pub(crate) fn doc_terms(split: &Regex, doc: &str) -> HashSet<String> {
+    terms_of(split, &INLINE_TAG.replace_all(doc, "{"))
+}
+
+/// An inline doc tag's opening and its name: `{@code`, `{@link`, `{@inheritDoc`.
+static INLINE_TAG: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\{@[\p{L}\p{N}]+").expect("the pattern is fixed"));
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn an_inline_tag_is_no_term_of_the_doc() {
+        // Javadoc's `{@code <layer>/coverage.bin}` writes `layer`, not `code`.
+        let terms = doc_terms(&SPLIT, "Goes to {@code <layer>/coverage.bin}, see {@link Sink sink} and {@inheritDoc}.");
+        for markup in ["code", "link", "inheritdoc", "inherit"] {
+            assert!(!terms.contains(markup), "{markup} is a term");
+        }
+        for word in ["layer", "coverage", "sink"] {
+            assert!(terms.contains(word), "{word} is no term");
+        }
+        assert!(doc_terms(&SPLIT, "The code of it.").contains("code"));
+    }
+}
+
 /// What a token ends at: a line break, a space, a punctuation mark, a backtick,
 /// which is a symbol (`Sk`) and a code span's delimiter, never a word's, or a
 /// math symbol (`Sm`), which a type writes between names: `Promise<Node>`, `A | B`.
