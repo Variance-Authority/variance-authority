@@ -2771,6 +2771,10 @@
           "types": "./dist/test-selection/page.d.ts",
           "default": "./dist/test-selection/page.js"
         },
+        "./checked": {
+          "types": "./dist/test-selection/checked.d.ts",
+          "default": "./dist/test-selection/checked.js"
+        },
         "./precondition": {
           "types": "./dist/test-selection/precondition.d.ts",
           "default": "./dist/test-selection/precondition.js"
@@ -2845,7 +2849,6 @@
         "ChainViolation": "interface",
         "CheckoutListing": "type",
         "CheckoutPath": "type",
-        "ChecksScope": "interface",
         "CodeMapAnswer": "interface",
         "CodeMapMade": "interface",
         "CodeMapPage": "interface",
@@ -3691,9 +3694,8 @@
       "./journal": {
         "AfterHook": "type",
         "CasePrecondition": "interface",
-        "CheckedAttempt": "interface",
-        "ChecksScope": "interface",
         "EXECUTION_GLOBAL": "const",
+        "EnteredCheck": "interface",
         "EnteredModules": "interface",
         "EvaluatingPage": "interface",
         "ExecutedModule": "interface",
@@ -3744,7 +3746,6 @@
         "openStage": "function",
         "preconditionOf": "function",
         "preconditionText": "function",
-        "recordChecks": "function",
         "recordExecution": "function",
         "saidAcross": "function",
         "stageExecution": "function",
@@ -3779,6 +3780,9 @@
       },
       "./page": {
         "reportPage": "function"
+      },
+      "./checked": {
+        "checked": "function"
       },
       "./precondition": {
         "variancePrecondition": "function"
