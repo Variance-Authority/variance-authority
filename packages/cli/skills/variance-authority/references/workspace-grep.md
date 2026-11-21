@@ -8,6 +8,8 @@ you are working in, or a top folder at the widest. The root is no start point.
 A file outside the source is never searched, and a path that holds only such
 files is refused as not found: run `rg` on it. The query is a ripgrep regular expression: to match a literal, escape each of
 `\.+*?()|[]{}^$` with a backslash, as `--query 'a\(b'` matches `a(b`.
+Binary files contribute no text matches; BOM-encoded text is decoded by
+ripgrep's search engine before matching.
 
 The answer opens with how many lines matched in how many files. Lines come
 grouped by how many imports away from the start point their file is, then by
