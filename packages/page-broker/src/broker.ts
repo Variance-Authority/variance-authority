@@ -139,15 +139,8 @@ export const leads = by({ timeout: 5000, quiet: 500 });
  * members. Read it as data with `declared`; reach it on a page with `on`.
  *
  * @example
- * const Billing = broker('billing', {
- *   probe: { role: 'form', name: 'Billing' },
- *   actions: {
- *     street: (on, words: string) => on.fill({ label: 'Street' }, words),
- *     submit: leads({ payment: Payment, invalid: stay }, (on) => on.click({ role: 'button', name: 'Continue' })),
- *   },
- * });
- * const billing = await Billing.on(surface(page));
- * await billing.submit().to('payment'); // or: billing.submit: expected payment, reached invalid
+ * const Billing = broker('billing', { probe: { role: 'form', name: 'Billing' }, actions: { submit } });
+ * await (await Billing.on(surface(page))).submit().to('payment');
  */
 export function broker<const Name extends string, const M extends Members = Record<never, never>>(
   name: Name,

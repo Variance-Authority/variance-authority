@@ -296,7 +296,7 @@
   },
   {
     "idiom": "timer",
-    "at": "packages/page-broker/src/model.ts",
+    "at": "packages/page-broker/src/broker.ts",
     "count": 1
   },
   {
