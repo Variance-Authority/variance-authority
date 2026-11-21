@@ -96,3 +96,18 @@ describe('variance ask search --limit', () => {
     expect(plain.out).not.toContain('"limit"');
   });
 });
+
+/** What an answer past every cap may cost: 2411 bytes when measured, and a little room for a reworded line, never for another row. */
+const BUDGET = 2600;
+
+describe('the size of a variance ask search answer', () => {
+  it('stays within its budget when every list is past its cap', async () => {
+    checkout(VERSIONS);
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const { code, out, err } = await run(['ask', 'search', '--query', 'version']);
+    expect(err).toBe('');
+    expect(code).toBe(EXIT_CLEAN);
+    expect(Buffer.byteLength(out)).toBeLessThanOrEqual(BUDGET);
+  });
+});

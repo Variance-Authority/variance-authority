@@ -124,8 +124,6 @@ describe('ask symbol, the text it prints of a doc, a signature and a member', ()
       ",
         "No export, top-level declaration or member of a class, an interface or a type in this repository, nor the doc of one, nor a function inside a function, writes \`marks pair\`. The nearest follow.
 
-      No recorded case was read: no run kept its cases there.
-
       Near matches, not exact: 1 holds most of \`marks pair\`:
 
       opened — @acme/kit · packages/kit/src/cut.ts:8 — Opens the door. door.open() * Led by two marks Wears 😀 a pair [holds: marks, pair]
@@ -138,8 +136,6 @@ describe('ask symbol, the text it prints of a doc, a signature and a member', ()
       1 more name is exported somewhere in the repository without being published:
 
       declaredRate — @acme/kit · packages/kit/src/cut.ts:13 — Rated, and declared only.
-
-      No recorded case was read: no run kept its cases there.
 
       Next: \`variance ask orient --files packages/kit/src/cut.ts\`
       Snapshot

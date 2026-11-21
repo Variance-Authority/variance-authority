@@ -128,6 +128,6 @@ describe('the flow from words to orient', () => {
   it('ends an answer that located a published name with the question for its declaration', () => {
     const hit = searchNames(INDEX, { query: 'e' }).published?.shown[0];
     expect(hit, 'the fixture publishes a name holding the query').toBeDefined();
-    expect(answerSearch(INDEX, { query: 'e' }).endsWith(`\n\nNext: \`variance ask symbol --name ${hit!.name} --package ${hit!.specifier}\``)).toBe(true);
+    expect(answerSearch(INDEX, { query: 'e' }).endsWith(`\n\nNext: \`docs_symbol\` with \`name\` \`${hit!.name}\` and \`package\` \`${hit!.specifier}\``)).toBe(true);
   });
 });

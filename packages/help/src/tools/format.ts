@@ -96,10 +96,10 @@ export function shell(value: string): string {
 /** At most this many names on the one line that stands for a list the repository's own answer outranks. */
 const NAMED = 5;
 
-/** A list on one line, after a blank one: its head, then up to five of its names, and how many more it holds. */
-export function named(head: string, names: readonly string[], total: number): readonly string[] {
+/** A list on one line, after a blank one: its head, up to five of its names, how many more it holds, and `whole`, what shows it all. */
+export function named(head: string, names: readonly string[], total: number, whole: string): readonly string[] {
   const shown = names.slice(0, NAMED);
-  return ['', `${head}: ${shown.join(', ')}${total > shown.length ? ` and ${total - shown.length} more` : ''}.`];
+  return ['', `${head}: ${shown.join(', ')}${total > shown.length ? ` and ${total - shown.length} more` : ''}. ${whole}`];
 }
 
 /** The commands that take an answer further, after a blank line and a heading; nothing when there are none. */

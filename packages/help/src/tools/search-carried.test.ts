@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { treeOf } from '@variance-authority/mcp/tools';
+import { spellingOf, treeOf } from '@variance-authority/mcp/tools';
 import { readHelp } from '../walk.js';
 import { INVENTED_PACKAGES } from '../__fixtures__/invented-packages.js';
 import { inventedWorkspace } from '../__fixtures__/invented-workspace.js';
@@ -18,9 +18,10 @@ afterEach(() => {
   else process.env['VARIANCE_AUTHORITY_CACHE'] = before;
 });
 
-const ask = async (files: Record<string, string>, query: string, from?: string): Promise<string> => {
+const ask = async (files: Record<string, string>, query: string, from?: string, shell?: string): Promise<string> => {
   const root = await inventedWorkspace(INVENTED_PACKAGES, ['react'], files);
-  return answerSearch(searchIndexOf(readHelp(root)), { query, ...(from === undefined ? {} : { from }) }, treeOf(from === undefined ? [] : [{ file: from }], root), root);
+  const tree = treeOf(from === undefined ? [] : [{ file: from }], root);
+  return answerSearch(searchIndexOf(readHelp(root)), { query, ...(from === undefined ? {} : { from }) }, tree, root, undefined, spellingOf(shell === undefined ? undefined : { shell }));
 };
 
 /** `count` declarations, each written by `line`. */
@@ -61,12 +62,13 @@ describe('a question whose words are not equally rare', () => {
   });
 
   it('ends an answer of near matches alone with the question about the first one\'s file', async () => {
-    expect(await ask(FIXTURE, 'xylophone file')).toMatch(/\n\nNext: `variance ask orient --files src\/rare\.ts`$/u);
+    expect(await ask(FIXTURE, 'xylophone file')).toMatch(/\n\nNext: `docs_orient` with `files` `\["src\/rare\.ts"\]`$/u);
   });
 
-  it('ends an answer of a name kept to its file with the question about that file', async () => {
-    const said = await ask({ 'src/kept file.ts': 'const xylophoneTuner = 1;\nexport const used = xylophoneTuner;\n' }, 'xylophoneTuner');
-    expect(said).toMatch(/\n\nNext: `variance ask orient --files 'src\/kept file\.ts'`$/u);
+  it('ends an answer of a name kept to its file with the question about that file, spelled as it was asked', async () => {
+    const kept = { 'src/kept file.ts': 'const xylophoneTuner = 1;\nexport const used = xylophoneTuner;\n' };
+    expect(await ask(kept, 'xylophoneTuner')).toMatch(/\n\nNext: `docs_orient` with `files` `\["src\/kept file\.ts"\]`$/u);
+    expect(await ask(kept, 'xylophoneTuner', undefined, 'variance ask')).toMatch(/\n\nNext: `variance ask orient --files 'src\/kept file\.ts'`$/u);
   });
 
   it('keeps a row lacking one rare word when the rest of the question outweighs it', async () => {

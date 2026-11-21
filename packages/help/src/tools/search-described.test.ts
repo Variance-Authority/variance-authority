@@ -55,9 +55,13 @@ it('answers a description with the repository\'s own names first, and the packag
   // Neither the phrase nor every word is in the name, so only the words held answer it.
   expect(said).toMatch(/managedFor .*\[holds: management, state\]/);
   // The repository answered, so the package that describes it is named on one line after its rows.
-  expect(said).toMatch(/^1 package describes `state management`: react\.$/mu);
+  expect(said).toMatch(/^1 package describes `state management`: react\. `docs_search` with `query` `state management` and `limit` `1` lists them in full\.$/mu);
   expect(said).not.toContain('react @1.0.0');
   expect(said.indexOf('managedFor')).toBeLessThan(said.indexOf('describes `state management`'));
+
+  // A limit said is a reader asking for the rows: every list shows them.
+  const limited = answerSearch(searchIndexOf(readHelp(root)), { query: 'state management', limit: 10 }, treeOf([], root), root);
+  expect(limited).toContain('react @1.0.0 · dependency in package.json');
 });
 
 it('answers from a catalogue of the version before, names the described packages it cannot compare, and rebuilds it at refresh', async () => {

@@ -189,14 +189,14 @@ describe('an empty answer about a recorded case', () => {
 });
 
 describe('an answer of names, with no record to read', () => {
-  it('says no recorded case was read under the names', async () => {
+  it('does not say under the names that no recorded case was read: the names answered', async () => {
     checkout(FILES);
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
 
     const answer = await searched('--query', 'route');
 
     expect(answer).toContain('packages/kit/src/route.ts');
-    expect(answer).toContain('No recorded case was read: no run kept its cases there.');
+    expect(answer).not.toContain('No recorded case');
   });
 });
 

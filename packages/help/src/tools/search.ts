@@ -11,7 +11,9 @@ import { aliasLine, declaredLine, heldLine, unreadLine } from './declared.js';
 import { unreadStop } from './members.js';
 import { CAP, ELSEWHERE_CAP, LOOSE_CAP, NEAR_CAP, searched, searchedFiles } from './search-answer.js';
 import { type ImportingOf, importingOf } from './published-match.js';
-import { byPublishedPath, named, plural, shell } from './format.js';
+import { byPublishedPath, named, plural } from './format.js';
+import { orient } from './orient.js';
+import { symbol } from './symbol.js';
 
 /**
  * `docs_search` — the name for a thing somebody can only describe.
@@ -152,15 +154,21 @@ const testLine = (match: TestMatch): string => `${match.name} [test] — ${match
 
 /**
  * What was left unread of the recorded cases, one line to each reason, and only
- * when no case was found: a case found answers the question, and a suite left
- * unread can change the conclusion only of an answer that found none.
+ * when the repository answered with no row: a row found answers the question,
+ * and a suite left unread can change the conclusion only of an answer that
+ * found none. An unnamed suite keeps its own line, so its reason is never
+ * said of the named ones.
  */
-function casesUnder(tests: RecordedTests | undefined): readonly string[] {
-  if (tests === undefined || tests.total > 0) return [];
-  // A suite is named only where the root config declares suites, so no reason holds a named and an unnamed one.
-  const suitesBy = new Map<string, string[]>();
-  for (const { suite, why } of tests.unread) suitesBy.set(why, [...(suitesBy.get(why) ?? []), ...(suite === undefined ? [] : [`\`${suite}\``])]);
-  const left = [...suitesBy].map(([why, suites]) => `No recorded case${suites.length === 0 ? '' : ` of ${suites.join(', ')}`} was read: ${why}.`);
+function casesUnder(tests: RecordedTests | undefined, ownFound: boolean): readonly string[] {
+  if (tests === undefined || ownFound) return [];
+  const suitesBy = new Map<string, { readonly why: string; readonly suites: string[] }>();
+  for (const { suite, why } of tests.unread) {
+    const key = JSON.stringify([suite === undefined, why]);
+    const line = suitesBy.get(key) ?? { why, suites: [] };
+    if (suite !== undefined) line.suites.push(`\`${suite}\``);
+    suitesBy.set(key, line);
+  }
+  const left = [...suitesBy.values()].map(({ why, suites }) => `No recorded case${suites.length === 0 ? '' : ` of ${suites.join(', ')}`} was read: ${why}.`);
   return left.length === 0 ? [] : ['', ...left];
 }
 
@@ -197,7 +205,8 @@ export function answerSearch(
   importing?: ImportingOf,
   spell: Spelling = spellingOf(undefined),
 ): string {
-  return spoken(searched(index, searchQuestionOf(input, spell), tree, root, importing), root, spell);
+  const question = searchQuestionOf(input, spell);
+  return spoken(searched(index, question, tree, root, importing), question, root, spell);
 }
 
 /** The line a list cut at what it shows ends with, set apart from its rows; nothing when it shows all `total`. */
@@ -211,8 +220,17 @@ function section<Row>(head: string, found: Matches<Row>, line: (row: Row) => str
   return ['', head, '', ...found.shown.map(line), ...cut(found.total, found.shown.length, spell)];
 }
 
-/** What a search says of what it found. */
-function spoken({ answer, area }: Searched, root: string | undefined, spell: Spelling): string {
+/**
+ * The question that lists `total` rows of a section in full: `asked` again,
+ * with a `limit` that shows them all, spelled as the asker asks.
+ */
+function inFull(asked: SearchQuestion, total: number, spell: Spelling): string {
+  const where = { ...(asked.from === undefined ? {} : { from: asked.from }), ...(asked.to === undefined ? {} : { to: asked.to }) };
+  return `${spell.question(search, { query: asked.query, ...where, limit: total })} lists them in full.`;
+}
+
+/** What a search says of what it found, to `asked`. */
+function spoken({ answer, area }: Searched, asked: SearchQuestion, root: string | undefined, spell: Spelling): string {
   const { query } = answer;
   if (area?.refused !== undefined) return areaLine(area);
 
@@ -225,17 +243,19 @@ function spoken({ answer, area }: Searched, root: string | undefined, spell: Spe
   const unreadImports = answer.importsUnread === undefined ? [] : ['', `Imports that do not name a package path are not counted: ${answer.importsUnread}.`];
   const missing = [...unreadImports, ...lexicon];
   // The repository's own rows are the answer whenever there are any: then what
-  // is installed is named on one line, and what was not found there is not said.
+  // is installed is named on one line, with the question that lists it, and
+  // what was not found there is not said. A `limit` asks for the lists in full.
   const ownFound = [answer.published, answer.exported, answer.declared, answer.held, answer.tests, answer.aliases, answer.described, answer.loose].some(
     (list) => (list?.total ?? 0) > 0,
   );
+  const collapse = ownFound && asked.limit === undefined;
   const thirdHead = (total: number): string => `${total} third-party ${total === 1 ? 'name matches' : 'names match'} \`${query}\``;
   const thirdSection = third === undefined
     ? []
     : third.total === 0
     ? ownFound ? [] : ['', `No third-party name matches \`${query}\`. ${thirdScope(third.scope)}`]
-    : ownFound
-    ? named(thirdHead(third.total), third.shown.map((match) => `${match.specifier} · ${match.name}`), third.total)
+    : collapse
+    ? named(thirdHead(third.total), third.shown.map((match) => `${match.specifier} · ${match.name}`), third.total, inFull(asked, third.total, spell))
     : [
     '',
     `${thirdHead(third.total)}, ` +
@@ -252,8 +272,8 @@ function spoken({ answer, area }: Searched, root: string | undefined, spell: Spe
       ? ['', `${third.describedUnread}, so no package was asked whether it describes \`${query}\`; \`variance index\` rebuilds it.`]
       : described.length === 0
       ? []
-      : ownFound
-      ? named(describedHead, described.map((hit) => hit.specifier), describing)
+      : collapse
+      ? named(describedHead, described.map((hit) => hit.specifier), describing, inFull(asked, describing, spell))
       : [
           '',
           `${describedHead} in their own words or the words of their names, best first:`,
@@ -304,21 +324,21 @@ function spoken({ answer, area }: Searched, root: string | undefined, spell: Spe
   const namesSection = [...section(`${declared.total} more ${declared.total === 1 ? 'name is' : 'names are'} declared ${place} without being exported:`, declared, declaredLine, spell), ...unread];
   const tests = answer.tests ?? { total: 0, shown: [] };
   const testSection = section(`${tests.total} recorded test ${tests.total === 1 ? 'case holds' : 'cases hold'} every word, as the last run wrote it:`, tests, testLine, spell);
-  const declaredSection = [...namesSection, ...insideSection, ...testSection, ...casesUnder(answer.tests), ...aliasSection];
+  const declaredSection = [...namesSection, ...insideSection, ...testSection, ...casesUnder(answer.tests, ownFound), ...aliasSection];
 
   // Last, so the answer ends on what to run, about its first declaration in
   // the order shown, and a recorded case only when no declaration answered: a
   // case says where the code was tested, not where it is. A published row is
-  // asked by its specifier, any other by what surrounds its file; nothing when
-  // the repository answered with no row.
+  // asked by its specifier, any other by what surrounds its file, each spelled
+  // as the asker asks; nothing when the repository answered with no row.
   const lead = [found, rest, declared, inside, aliases, held, answer.loose, tests]
     .map((list): { readonly at: string } | undefined => list?.shown[0])
     .find((row) => row !== undefined);
   const next = lead === undefined
     ? []
     : isPublished(lead)
-      ? ['', `Next: \`variance ask symbol --name ${shell(lead.name)} --package ${shell(lead.specifier)}\``]
-      : ['', `Next: \`variance ask orient --files ${shell(lead.at)}\``];
+      ? ['', `Next: ${spell.question(symbol, { name: lead.name, package: lead.specifier })}`]
+      : ['', `Next: ${spell.question(orient, { files: [lead.at] })}`];
 
   if (found.total === 0 && rest.total === 0 && declared.total === 0 && inside.total === 0 && tests.total === 0 && aliases.total === 0 && (third?.total ?? 0) === 0) {
     // It names what the substring read, and no more: a local that is no function
@@ -405,14 +425,14 @@ export const search: Tool<Help> = {
     'functions inside a function under what holds them, the recorded test cases whose names hold every word, as each suite\'s last run wrote them, so a case added since is not among them and one removed since still is, and the imports that bind the name as a local one. Installed third-party ' +
     'names appear separately when the third-party API catalogue is published, followed by the installed ' +
     'packages that describe your words — in their own description, keywords and README headings, or in ' +
-    'the words of their names — so a job reaches a package by what it does; when the repository answers, each of the two is one line naming up to five. Near matches follow, ' +
+    'the words of their names — so a job reaches a package by what it does; when the repository answers and no `limit` is said, each of the two is one line naming up to five and the question that lists them in full. Near matches follow, ' +
     'headed as near, not exact: this repository\'s own names and files holding most of your words, the rarer ' +
     'counting for more, read by stem, before any installed package, a file by its name and the doc it opens with, best ' +
     'first by the words held, then by the words in the name, then by how much of your phrase its doc writes, ' +
     `each labelled with the words it holds. After a question of two words or more answered as written, at most ${NEAR_CAP} ` +
     'of them follow the answer, so you learn the repository\'s own wording; when nothing holds the question ' +
     'as written they lead, and names that match loosely — your words apart, or within a ' +
-    'character of the ones written, exported or kept to their file — follow them. Neither is mixed into the sections above. An answer holding a row of this repository ends with `Next:` and the command to run on its first declaration, or on its first recorded case when no declaration answered. On a large ' +
+    'character of the ones written, exported or kept to their file — follow them. Neither is mixed into the sections above. An answer holding a row of this repository ends with `Next:` and the question to ask, spelled as you ask, about its first declaration, or on its first recorded case when no declaration answered. On a large ' +
     'repository a substring alone matches everywhere a product says its own name, so say where ' +
     'you are standing. Carry a path the editor, ticket or stack trace already supplied: `from` ' +
     'answers with published names imported by the files that path reaches; `to` does the same ' +
@@ -461,7 +481,8 @@ export const search: Tool<Help> = {
   // path and never on the way past.
   wants: (input) => startPointArg(input, 'from') !== undefined || startPointArg(input, 'to') !== undefined,
 
-  run: (help, input, invocation) => spoken(searchedOnce(help, input, invocation), invocation?.root, spellingOf(invocation)),
+  run: (help, input, invocation) =>
+    spoken(searchedOnce(help, input, invocation), searchQuestionOf(input, spellingOf(invocation)), invocation?.root, spellingOf(invocation)),
 
   files: (help, input, invocation): FileSet => ({
     files: searchedFiles(searchIndexOf(help), searchQuestionOf(input, spellingOf(invocation)), invocation?.tree, invocation?.root),
