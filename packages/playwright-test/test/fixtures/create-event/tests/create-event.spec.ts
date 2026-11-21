@@ -1,7 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { test as base, expect } from '@playwright/test';
-import { varianceFixtures, type VarianceFixtures, type VarianceWorkerFixtures } from '@variance-authority/playwright-test';
-import { checked } from '@variance-authority/sense/checked';
+import { checked, varianceFixtures, type VarianceFixtures, type VarianceWorkerFixtures } from '@variance-authority/playwright-test';
 import { moduleId } from '@variance-authority/sense/journal';
 
 const test = base.extend<VarianceFixtures, VarianceWorkerFixtures>(varianceFixtures);

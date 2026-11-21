@@ -9,6 +9,7 @@ export type {
 export type { SnapshotCase } from './arranged.js';
 export type { Evidence, Observed } from './evidence.js';
 export { varianceFixtures } from './fixture.js';
+export { checked } from '@variance-authority/sense/checked';
 export type { VarianceFixtures, VarianceRuntime, VarianceWorkerFixtures } from './fixture.js';
 export { DEFAULT_STABILIZE } from '@variance-authority/core/format';
 export { driveBeforeTest } from './drive.js';

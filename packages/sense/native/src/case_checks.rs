@@ -17,8 +17,9 @@ use rayon::prelude::*;
 use crate::journeys_parse::{self, Parsed};
 use crate::journeys_roots::{body_hint, describe};
 
-/// The entry `checked` ships from.
-const ENTRY: &str = "@variance-authority/sense/checked";
+/// The entries `checked` ships from: its own, and the Playwright surface that
+/// re-exports it, so a Playwright test imports it from the package it already uses.
+const ENTRIES: [&str; 2] = ["@variance-authority/sense/checked", "@variance-authority/playwright-test"];
 
 /// A case, by the file it is declared in and the name its runner gave it.
 #[napi(object)]
@@ -44,10 +45,9 @@ pub struct DeclaredChecks {
 }
 
 /// The checks each case declares, in the order asked; `None` for a case that
-/// declares none the source spells: its file cannot be read or does not name
-/// the entry, or its body is not found by its name or holds no check. Each
+/// declares none the source spells: its file cannot be read or names no entry, or its body is not found by its name or holds no check. Each
 /// distinct file is read once, the files on every core, and parsed only when
-/// its text names the entry.
+/// its text names an entry.
 #[napi(catch_unwind)]
 pub fn declared_checks(root: String, cases: Vec<CheckedCaseAsk>) -> Vec<Option<DeclaredChecks>> {
     let files: HashSet<&str> = cases.iter().map(|case| case.file.as_str()).collect();
@@ -56,7 +56,7 @@ pub fn declared_checks(root: String, cases: Vec<CheckedCaseAsk>) -> Vec<Option<D
         .filter_map(|file| {
             let text = std::fs::read_to_string(Path::new(&root).join(file)).ok()?;
             // Most test files call no check: their text is not parsed for one.
-            if !text.contains(ENTRY) {
+            if !ENTRIES.iter().any(|entry| text.contains(entry)) {
                 return None;
             }
             Some((file, journeys_parse::parse(file, &text)?))
@@ -81,7 +81,7 @@ fn declared(parsed: &Parsed, name: &str) -> Option<(u32, Vec<(String, u32)>)> {
     let callees: HashSet<&str> = parsed
         .imports
         .iter()
-        .filter(|(_, import)| import.spec == ENTRY)
+        .filter(|(_, import)| ENTRIES.contains(&import.spec.as_str()))
         .filter_map(|(local, import)| match import.name.as_str() {
             "checked" => Some(local.as_str()),
             "*" => Some("checked"),
@@ -204,5 +204,7 @@ it('retries', { retry: 1 }, () => {
         assert_eq!(read(&unimported, "form > sends"), None);
         let renamed = SOURCE.replacen("{ checked }", "{ checked as check }", 1).replace("  checked(", "  check(");
         assert_eq!(read(&renamed, "retries").map(|(_, checks)| checks.len()), Some(1));
+        let surface = SOURCE.replacen("@variance-authority/sense/checked", "@variance-authority/playwright-test", 1);
+        assert_eq!(read(&surface, "form > sends"), read(SOURCE, "form > sends"));
     }
 }
