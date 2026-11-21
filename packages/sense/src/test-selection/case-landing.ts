@@ -14,7 +14,7 @@ import { codeUnitOrder } from '@variance-authority/core/segment';
 import { layerBefore, layerCaseIndex } from './case-layer.js';
 import { landAttempts, layAttempts, readableAttempts, type RecordedAttempt, type ShardAttempts } from './attempts-record.js';
 import { inputsIn, layReadings } from './case-readings.js';
-import { caseSectionsAt, type CaseSections } from './case-record.js';
+import { caseSectionsAt, withoutChecks, type CaseSections } from './case-record.js';
 import { decodeExecutionIndex, decodeExecutionTests } from './execution-format.js';
 import { encodeAsSetExecutionIndex, openSetExecutionIndex } from './execution-set-format.js';
 import { layEyes, readableEyes, type EyesSection } from './eyes-record.js';
@@ -366,14 +366,13 @@ export function unansweredOver(
 }
 
 /**
- * The case sections of `record` once a landing lays its shards' cases into it,
- * and what that did. Each shard is laid over `previous`, the sections the record
- * held, as the run it was, in the order the shards were named; their attempts
- * are laid once, as one run's ({@link landAttempts}). Nothing is written here: the landing writes the sections under the record's lock.
+ * The case sections of `record` once a landing lays its shards' cases into it, and what that did. Each shard is laid over the sections
+ * the record held but its last run's checks, which a landing never carries, as the run it was, in the order the shards were named; their
+ * attempts are laid once, as one run's ({@link landAttempts}). Nothing is written here: the landing writes the sections under the record's lock.
  */
 export function landCases(
   record: string,
-  previous: CaseSections,
+  standing: CaseSections,
   root: string,
   shards: readonly LandedShard[],
   held?: ModuleTexts,
@@ -381,6 +380,7 @@ export function landCases(
   cacheRoot?: string,
   snapshot?: readonly { readonly file: string }[],
 ): { readonly landing: CaseLanding; readonly sections: CaseSections } {
+  const previous = withoutChecks(standing);
   let sections = previous;
   // `held` is the text each module of `previous`'s index was cut from. A shard
   // laid moves the modules it recorded to its own text; the next is laid over that.

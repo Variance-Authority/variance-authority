@@ -13,7 +13,7 @@
 import type { Tool } from '@variance-authority/mcp/tools';
 import { recordedAttempts, type RecordedAttempts, type RetriedCase } from '@variance-authority/sense';
 import { limitOf, spellingOf } from '@variance-authority/mcp/tools';
-import { recordLine, spent } from './slowest-format.js';
+import { eachSuite, spent } from './slowest-format.js';
 
 /** Cases listed per suite when the question names no limit. */
 export const RETRIED = 10;
@@ -28,12 +28,7 @@ const UNSAID = 'ended unreported';
 
 /** The answer, from what each suite's recording said, read at `now`. */
 export function formatRetried(suites: readonly RecordedAttempts[], now: number): string {
-  return suites
-    .map((suite) => {
-      const named = `${NAMED}${suite.suite === undefined ? '' : `, suite ${suite.suite}`}`;
-      return [...recordLine(suite, now).flatMap((line) => [line, '']), ...told(suite, named)].join('\n');
-    })
-    .join('\n\n');
+  return eachSuite(suites, now, NAMED, told);
 }
 
 function told(suite: RecordedAttempts, named: string): string[] {

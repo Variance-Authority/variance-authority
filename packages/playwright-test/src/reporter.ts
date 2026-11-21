@@ -31,13 +31,16 @@
  * and a configuration that names this reporter without it is not refused.
  */
 
-import type { FullConfig, FullResult, Reporter, Suite, TestError } from '@playwright/test/reporter';
+import type { FullConfig, FullProject, FullResult, Reporter, Suite, TestCase, TestError, TestResult, TestStep } from '@playwright/test/reporter';
 import {
   closeStage,
   foldStage,
   openStage,
+  recordChecks,
   recordExecution,
   stagingDirectory,
+  type CheckedAttempt,
+  type ChecksScope,
   type InstrumentMode,
 } from '@variance-authority/sense/journal';
 import {
@@ -47,10 +50,25 @@ import {
   selectedLines,
 } from '@variance-authority/sense/test-selection';
 import { fileSelection, keptFiles } from './file-selection.js';
-import { fileOwner } from './test-coordinate.js';
+import { commandLineGrep, grepOf } from './run-scope.js';
+import { fileOwner, testCaseOf } from './test-coordinate.js';
 import { dirname, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { placeWholeFiles, type Preprocess } from './whole-file-shard.js';
+import { codeUnitOrder } from '@variance-authority/core/segment';
+
+/** The annotation a case declares a check by; its description is the check's id, and the case enters it as a step of that title. */
+const CHECK = 'variance:check';
+
+/** A collected case that declares checks, and what each of its attempts entered. */
+interface Checked {
+  readonly file: string;
+  readonly line: number;
+  readonly name: string;
+  readonly project?: string;
+  readonly declared: readonly string[];
+  readonly attempts: Map<number, { ended?: string; readonly entered: Set<string> }>;
+}
 
 /**
  * Where the folded record goes. The same values the fixtures were given.
@@ -111,6 +129,13 @@ export default class implements Reporter {
   readonly #errors: TestError[] = [];
   /** The run's configuration, from `onBegin`, which Playwright calls before `onEnd` even when it found nothing. */
   #config: FullConfig | undefined;
+  #projects: readonly FullProject[] = [];
+  /** The collected cases that declare checks. */
+  readonly #checked = new Map<TestCase, Checked>();
+  /** Whether the runner ended the run itself, from `onEnd`. */
+  #complete = false;
+  /** The write that marks the record's checks incomplete until this run ends them. */
+  #opened: Promise<void> | undefined;
 
   constructor(options: ExecutionReporterOptions = {}) {
     this.#options = options;
@@ -143,13 +168,54 @@ export default class implements Reporter {
 
   onBegin(config: FullConfig, suite: Suite): void {
     this.#config = config;
+    // The projects it collected from: `--project` narrows these, never `config.projects`.
+    this.#projects = suite.suites.flatMap((child) => child.project() ?? []);
     this.#tellSelected(suite);
+    for (const test of suite.allTests()) {
+      const declared = test.annotations.flatMap(({ type, description }) =>
+        type === CHECK && description !== undefined ? [description] : []);
+      if (declared.length === 0) continue;
+      const { name, project } = testCaseOf(test);
+      this.#checked.set(test, {
+        file: fileOwner(this.#root, test.location.file),
+        line: test.location.line,
+        name,
+        ...(project === undefined ? {} : { project }),
+        declared: [...new Set(declared)].sort(codeUnitOrder),
+        attempts: new Map(),
+      });
+    }
     // Before the first worker is forked, because a worker inherits the
     // environment as it stood when it started and has no other way to be told.
     // Beside the snapshot, so a suite that redirected its index redirects this
     // too and two projects sharing a checkout do not share a directory.
     this.#directory = resolve(dirname(this.#snapshot), `.run-${process.pid}-${randomUUID()}`);
     openStage(this.#directory);
+    // A run killed before `onEnd` would leave the run before it answering, so
+    // the record reads incomplete from here until this run says otherwise.
+    if (this.#checked.size > 0) {
+      const cases = [...this.#checked.values()].map((one) => caseOf({ ...one, attempts: new Map() }));
+      this.#opened = recordChecks(this.#where(), { complete: false, scope: this.#scope(), cases }).catch((error: unknown) => {
+        process.stderr.write(`variance-authority: could not mark the record's checks incomplete — ${error instanceof Error ? error.message : String(error)}\n`);
+      });
+    }
+  }
+
+  onTestBegin(test: TestCase, result: TestResult): void {
+    this.#checked.get(test)?.attempts.set(result.retry + 1, { entered: new Set() });
+  }
+
+  /** At its end, because `test.step.skip` and `step.skip()` begin a step and only mark it skipped later. */
+  onStepEnd(test: TestCase, result: TestResult, step: TestStep): void {
+    const checked = this.#checked.get(test);
+    if (step.category !== 'test.step' || !checked?.declared.includes(step.title)) return;
+    if (step.annotations.some(({ type }) => type === 'skip')) return;
+    checked.attempts.get(result.retry + 1)?.entered.add(step.title);
+  }
+
+  onTestEnd(test: TestCase, result: TestResult): void {
+    const attempt = this.#checked.get(test)?.attempts.get(result.retry + 1);
+    if (attempt !== undefined) attempt.ended = result.status;
   }
 
   onError(error: TestError): void {
@@ -157,6 +223,8 @@ export default class implements Reporter {
   }
 
   async onEnd(result?: FullResult): Promise<{ status?: FullResult['status'] } | undefined> {
+    // A run stopped by a signal or its global timeout cut its last attempts short.
+    this.#complete = result?.status === 'passed' || result?.status === 'failed';
     await this.#fold();
     // A selection that skips every spec file is an answer, the change reached
     // no test the record holds, and the run passes; Playwright has no setting
@@ -194,12 +262,49 @@ export default class implements Reporter {
     asked.told = true;
   }
 
+  /** What the run covered: the projects it collected, their greps, its shard and the files a selection skipped. File filters are not kept. */
+  #scope(): ChecksScope {
+    const config = this.#config;
+    if (config === undefined) return { projects: [] };
+    // The runner's snapshot of its command line; a Playwright older than 1.64 hands none, and runs in this process.
+    const argv = (config as { argv?: readonly string[] }).argv ?? process.argv;
+    const skipped = fileSelection()?.dropped.size ?? 0;
+    return {
+      projects: this.#projects.map((project) => ({
+        name: project.name,
+        ...grepOf('grep', project.grep),
+        ...grepOf('grepInvert', project.grepInvert ?? undefined),
+      })),
+      // Playwright keeps the command line's greps from every reporter, as
+      // options of the run rather than of its configuration: its arguments are
+      // the one place that still says them.
+      ...commandLineGrep('grep', ['--grep', '-g'], argv),
+      ...commandLineGrep('grepInvert', ['--grep-invert', '-G'], argv),
+      ...(config.shard === null ? {} : { shard: { current: config.shard.current, total: config.shard.total } }),
+      ...(skipped === 0 ? {} : { skipped }),
+    };
+  }
+
+  /** The record this run's checks go into. */
+  #where(): Parameters<typeof recordChecks>[0] {
+    return {
+      root: this.#root,
+      ...(this.#coverageFile === undefined ? {} : { coverageFile: this.#coverageFile }),
+      ...(this.#options.suite === undefined ? {} : { suite: this.#options.suite }),
+    };
+  }
+
   async #fold(): Promise<void> {
     const directory = this.#directory ?? stagingDirectory();
     if (directory === undefined) return;
     try {
       const staged = await foldStage(directory);
-      if (staged.subjects.length === 0) return;
+      const checks = { complete: this.#complete, scope: this.#scope(), cases: [...this.#checked.values()].map(caseOf) };
+      const where = this.#where();
+      await this.#opened;
+      // A run that staged nothing — a grep or a selection that left no case —
+      // still replaces the checks, or the run before it would answer for it.
+      if (staged.subjects.length === 0) return await recordChecks(where, checks);
       const record = await recordExecution({
         root: this.#root,
         subjects: staged.subjects,
@@ -213,11 +318,13 @@ export default class implements Reporter {
         ...(staged.cases !== undefined && staged.cases.length > 0
           ? { cases: staged.cases }
           : {}),
+        checks,
       });
       if (!record.recorded) {
         process.stderr.write(
           `variance-authority: recorded no test execution — ${record.because}\n`,
         );
+        await recordChecks(where, checks);
       }
     } catch (error) {
       // The run is over and every verdict is already decided, so the expensive
@@ -233,4 +340,16 @@ export default class implements Reporter {
       await closeStage(directory);
     }
   }
+}
+
+/** One case's checks as the record keeps them, its attempts in order. */
+function caseOf({ attempts, ...rest }: Checked): { readonly attempts: readonly CheckedAttempt[] } & Omit<Checked, 'attempts'> {
+  return {
+    ...rest,
+    attempts: [...attempts].sort(([a], [b]) => a - b).map(([attempt, { ended, entered }]) => ({
+      attempt,
+      ...(ended === undefined ? {} : { ended }),
+      entered: [...entered].sort(codeUnitOrder),
+    })),
+  };
 }

@@ -74,6 +74,21 @@ export function recordLine(suite: RecordRead, now: number): string[] {
   return [`${named} ${WHOSE[suite.origin]}${takenAt(suite, now)}, ${suite.recording}.`];
 }
 
+/** One answer per suite: the record it read, then what `told` says of it under `title` and the suite's name. */
+export function eachSuite<S extends RecordRead & { readonly suite?: string }>(
+  suites: readonly S[],
+  now: number,
+  title: string,
+  told: (suite: S, named: string) => string[],
+): string {
+  return suites
+    .map((suite) => {
+      const named = `${title}${suite.suite === undefined ? '' : `, suite ${suite.suite}`}`;
+      return [...recordLine(suite, now).flatMap((line) => [line, '']), ...told(suite, named)].join('\n');
+    })
+    .join('\n\n');
+}
+
 function takenAt({ commit, landed }: { readonly commit?: string; readonly landed?: string }, now: number): string {
   const at = commit === undefined ? ', which names no commit' : ` at ${commit.slice(0, COMMIT_WIDTH)}`;
   if (landed !== undefined) return `${at}, landed ${ago(landed, now)}`;

@@ -17,6 +17,7 @@ the answer. Run them from the checkout you are asking about.
 | a place, and the question of what it may import | `stack --from <path>` |
 | a suite that is slow, or cases near their limit | `slowest-tests`, scoped with `--from` or `--to`, `--over 3s` for cases that ran at least 3s |
 | a suite whose runner retries, and the question of which passes failed first | `retried-tests` |
+| tests that declare checks, and the question of which passes skipped theirs | `not-run` |
 
 ## `orient`
 
@@ -215,3 +216,20 @@ the record holds that the answer lacks was not reported as retried in that run;
 a case the record does not hold, as every case of a file recorded as a whole,
 is unknown. A record that kept no attempts says so: read that as unknown, not
 as no retries. `--limit` lists more cases.
+
+## `not-run`
+
+A case that passed says only that nothing it ran failed. A Playwright test
+declares the check it is there for with the annotation `variance:check` and runs
+it as a step of the same title; the answer names each declared check an attempt
+passed without executing, as `expected check <id> did not execute in case <name>`,
+with the file and line declaring the case and its project. A case named here
+passed without its check: read the branch or the early return
+that skipped the step before trusting the pass.
+
+It counts the checks entered and prints the scope the run covered — projects,
+`grep`, shard — and a case outside it was not asked about. A step skipped with
+`test.step.skip` did not execute. A run stopped before its runner ended it, or
+killed outright, names no check, because the attempts it cut short could not
+reach theirs. A record that kept no checks says so: read that as unknown, not as
+every check executed.

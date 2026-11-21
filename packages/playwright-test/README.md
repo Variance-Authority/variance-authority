@@ -757,6 +757,43 @@ down after that one, is not in the attempt's row: a test that only such a
 failure sent to a retry reads as passed twice, and `variance ask retried-tests`
 does not list it.
 
+### Declare what a test checks
+
+A test that passes says only that nothing it ran failed. When a test is there to
+check one thing, name the check: annotate the test with `variance:check` and the
+check's id, and run the check as a step titled with that id.
+
+```ts
+test('submits the form', {
+  annotation: { type: 'variance:check', description: 'create-event/submitted-title' },
+}, async ({ page }) => {
+  await page.getByRole('button', { name: 'Create' }).click();
+  await test.step('create-event/submitted-title', async () => {
+    await expect(page.getByRole('heading')).toHaveText('Launch');
+  });
+});
+```
+
+The reporter records which declared checks each attempt entered, and the scope
+the run covered: the projects it collected, the `grep` and `grep-invert` of each
+project and of the command line, the shard, and how many spec files a test
+selection skipped. `variance ask not-run` names each check
+an attempt passed without entering:
+
+```text
+Declared checks not executed:
+  expected check create-event/submitted-title did not execute in case create event > submits the form (tests/create-event.spec.ts:42, project chromium), which passed
+0 declared check(s) entered.
+Scope: project chromium; a case outside it was not asked about.
+```
+
+A test that branches past its check, returns before it, or skips its step with
+`test.step.skip`, passes and is named here. A case outside the scope was not
+asked about and is not named. A run interrupted, stopped by `globalTimeout` or
+killed outright before Playwright ended it reads as incomplete and names no
+check, because the attempts it cut short could not reach theirs. A test's files
+and line filters on the command line are not in the scope.
+
 ### Read what a snapshot was taken under
 
 A snapshot taken with `variance(locator)` names the case it was taken in: the

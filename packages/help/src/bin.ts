@@ -10,7 +10,7 @@ import { generationSourceIndex, readNamedTree } from './names-read.js';
 import { readSearchForAnswer } from './search-read.js';
 import { containment, containmentOf, formatContainment } from './tools/containment.js';
 import { discover } from './tools/discover.js';
-import { intersection, journeyMapTool, namesWanted, orient, retriedTests, slowestTests, testCompositionTool } from './tools.js';
+import { intersection, namesWanted, RECORDED } from './tools.js';
 import { search, searchQuestionOf } from './tools/search.js';
 import { serveWorkspace } from './server.js';
 import { writePages } from './write.js';
@@ -63,9 +63,6 @@ interface Answering {
   readonly answer: () => string;
   readonly at: string | undefined;
 }
-
-/** The verbs that open the recording a run published and nothing else, so no generation is read for them, as `variance ask` reads none. */
-const RECORDED = [orient, slowestTests, retriedTests, journeyMapTool, testCompositionTool];
 
 /** The longest verb and a gap, so a verb added later never runs into its description. */
 const VERB_WIDTH = Math.max(...verbs().map(([verb]) => verb.length)) + 1;

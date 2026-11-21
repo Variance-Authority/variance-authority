@@ -49,6 +49,7 @@ import { digestString } from '../digest.js';
 import { instrumentationId, type InstrumentMode, type ModuleId } from '../instrument/index.js';
 import { ownedExecutionIndexFrom } from './cases.js';
 import { attemptsOfCases } from './attempts-record.js';
+import { encodeChecks, type ChecksSection } from './checks-record.js';
 import { eyesOfCases } from './eyes-record.js';
 import { encodeOwnedSetExecutionIndex } from './execution-set-format.js';
 import {
@@ -59,7 +60,7 @@ import {
 } from './observed.js';
 import { commitOf } from './commit.js';
 import { noteAnEmptyRecord } from './finished-files.js';
-import { laidProbes, landRun } from './commit-runs.js';
+import { landChecks, laidProbes, landRun } from './commit-runs.js';
 import { markCheckout } from './cache-layers.js';
 import { repositoryRoot } from './repository-root.js';
 import { busyIndex, withIndexLock } from './index-lock.js';
@@ -121,6 +122,7 @@ export {
 } from './observed.js';
 export type { ObservedEyes } from './eyes-record.js';
 export type { ObservedAttempt } from './attempts-record.js';
+export type { CheckedAttempt, ChecksScope } from './checks-record.js';
 export { listenForPreconditions, type PreconditionListener, type PreconditionStanding } from './precondition-listener.js';
 export { preconditionText, saidAcross, type CasePrecondition, type Said } from './case-said.js';
 export {
@@ -206,6 +208,12 @@ export interface RecordExecutionOptions {
    * with whoever pays for the file.
    */
   readonly cases?: readonly ObservedCase[];
+  /**
+   * Which declared checks the run's cases entered, and the scope it ran in
+   * (`checks-record.ts`). It replaces the record's whole; absent, the record
+   * keeps none, because a run that declared no check names none missing.
+   */
+  readonly checks?: ChecksSection;
 }
 
 /** What a run learned, or why it learned nothing. */
@@ -217,6 +225,20 @@ export interface ExecutionRecord {
   readonly subjects: number;
   /** How many cases the run laid into the record, for a run that was asked for them. */
   readonly cases?: number;
+}
+
+/**
+ * Lay a run's checks over the record it would have landed in, when the run
+ * staged nothing else to land: the record then says this run's scope and
+ * checks, never the run's before it. Under the same lock as {@link recordExecution}.
+ */
+export async function recordChecks(
+  options: Pick<RecordExecutionOptions, 'root' | 'coverageFile' | 'suite'>,
+  checks: ChecksSection,
+): Promise<void> {
+  const root = resolve(options.root);
+  const coverageFile = recordFileFor(root, root, options);
+  await withIndexLock(coverageFile, () => landChecks(coverageFile, encodeChecks(checks)));
 }
 
 /**
@@ -426,7 +448,7 @@ export async function recordExecution(
     // A worktree layers onto the repository's months of recording rather than
     // onto nothing. A no-op here and after the first run.
     await prepareRecord(lock, root, laidProbes(current), { cacheRoot: options.cacheRoot });
-    await landRun(coverageFile, current, root, options.cacheRoot, cases);
+    await landRun(coverageFile, current, root, options.cacheRoot, cases, options.checks === undefined ? undefined : encodeChecks(options.checks));
     markCheckout(repositoryRoot(root), options.cacheRoot);
   });
   if (!merged.held) {
