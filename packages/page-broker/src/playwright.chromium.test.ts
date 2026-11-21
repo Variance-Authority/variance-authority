@@ -42,7 +42,6 @@ const CHECKOUT = `<!doctype html>
       if (part === 'elsewhere') location.assign('/checkout/elsewhere');
       if (part === 'window') window.open('about:blank');
       if (part === 'slowWindow') window.open('/slow');
-      if (part === 'framed') document.body.appendChild(document.createElement('iframe')).srcdoc = '<form aria-label="Payment">Card number</form>';
       if (part === 'frame') document.body.appendChild(document.createElement('iframe')).src = '/checkout/frame';
       if (part === 'help') document.body.appendChild(document.createElement('dialog')).showModal();
     }
@@ -262,14 +261,6 @@ chromium_('an action over a page that announces nothing', () => {
     await expect(submit(surface(page))).rejects.toThrow(
       'submit: reached none of payment, signIn, and a new page opened, which no outcome declares',
     );
-  });
-
-  it('reaches an outcome inside a frame, declared beside one in the page', async () => {
-    const framed = region('payment', { role: 'form', name: 'Payment', frame: 'iframe' });
-    const submit = quick('submit', { to: { payment: framed, signIn } }, click);
-    await open('answer=framed');
-
-    await expect(submit(surface(page))).resolves.toMatchObject({ outcome: 'payment' });
   });
 
   it('reaches a declared outcome on another document', async () => {

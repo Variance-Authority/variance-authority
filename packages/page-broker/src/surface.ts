@@ -4,15 +4,13 @@
  * A part of the page, named the way a person finds it. Each surface asks its
  * own engine for it, so one declaration holds over a document and a browser.
  * A string `name`, `text` or `label` matches whole; a pattern matches within.
- * `frame` is the CSS of the iframe the part is inside, when it is inside one.
  */
-export type Query = (
+export type Query =
   | { readonly role: string; readonly name?: string | RegExp }
   | { readonly text: string | RegExp }
   | { readonly label: string | RegExp }
   | { readonly testId: string }
-  | { readonly css: string }
-) & { readonly frame?: string };
+  | { readonly css: string };
 
 /** A query asked of one surface. `visible` answers with what was found, and nothing while none of it shows. */
 export interface Target<Handle = unknown> {

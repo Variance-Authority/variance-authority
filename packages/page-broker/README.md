@@ -82,8 +82,7 @@ expect(await page.getByRole('alert').count()).toBe(1);
 
 `region(name, query)` names a part of the page once. A query finds it the way a
 person does: `{ role, name? }`, `{ text }`, `{ label }`, `{ testId }` or
-`{ css }`, with `frame` set to an iframe's CSS when the part is inside one. A
-string matches whole and a pattern within.
+`{ css }`. A string matches whole and a pattern within.
 
 `action(name, { from?, to }, act)` takes:
 

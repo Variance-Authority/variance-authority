@@ -1,5 +1,5 @@
 // compass: variance-authority.harness
-import type { FrameLocator, Locator, Page } from 'playwright-core';
+import type { Locator, Page } from 'playwright-core';
 import { elsewhere } from './playwright-elsewhere.js';
 import { requests } from './playwright-quiet.js';
 import type { Query, Surface, Target } from './surface.js';
@@ -44,16 +44,15 @@ export function surface(page: Page): PageSurface {
 }
 
 function locate(page: Page, query: Query): Locator {
-  const base: Page | FrameLocator = query.frame === undefined ? page : page.frameLocator(query.frame);
   // A string matches whole, as it does over a document; a pattern matches within.
   if ('role' in query) {
     const role = query.role as Parameters<Page['getByRole']>[0];
-    return query.name === undefined ? base.getByRole(role) : base.getByRole(role, { name: query.name, exact: true });
+    return query.name === undefined ? page.getByRole(role) : page.getByRole(role, { name: query.name, exact: true });
   }
-  if ('text' in query) return base.getByText(query.text, { exact: true });
-  if ('label' in query) return base.getByLabel(query.label, { exact: true });
-  if ('testId' in query) return base.getByTestId(query.testId);
-  return base.locator(query.css);
+  if ('text' in query) return page.getByText(query.text, { exact: true });
+  if ('label' in query) return page.getByLabel(query.label, { exact: true });
+  if ('testId' in query) return page.getByTestId(query.testId);
+  return page.locator(query.css);
 }
 
 /** Playwright's own wait for any target, or `late` when none came in the time left. */

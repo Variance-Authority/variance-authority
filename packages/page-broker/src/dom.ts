@@ -79,18 +79,17 @@ function keys(key: string): string {
   return parts.map((held) => `{${held}>}`).join('') + pressed + parts.reverse().map((held) => `{/${held}}`).join('');
 }
 
-/** Every element the query matches, shown or not. A frame not yet there holds none. */
+/** Every element the query matches, shown or not. */
 function all(document: Document, query: Query): Element[] {
-  const root = query.frame === undefined ? document : document.querySelector<HTMLIFrameElement>(query.frame)?.contentDocument;
-  if (root === null || root === undefined || root.body === null) return [];
-  const body = root.body;
+  const { body } = document;
+  if (body === null) return [];
   if ('role' in query) {
     return queryAllByRole(body, query.role, query.name === undefined ? {} : { name: query.name });
   }
   if ('text' in query) return queryAllByText(body, query.text);
   if ('label' in query) return queryAllByLabelText(body, query.label);
   if ('testId' in query) return queryAllByTestId(body, query.testId);
-  return [...root.querySelectorAll(query.css)];
+  return [...body.querySelectorAll(query.css)];
 }
 
 /**
@@ -109,8 +108,8 @@ function shown(element: Element): boolean {
 
 /**
  * Waits by Testing Library's `waitFor`, which looks again on every mutation and
- * every `POLL` ms besides, for what no mutation announces: a frame's document,
- * a style sheet.
+ * every `POLL` ms besides, for what no mutation announces, such as a style
+ * sheet.
  */
 async function arrival(document: Document, targets: readonly Target<Element>[], ms: number): Promise<'arrived' | 'late'> {
   const any = async (): Promise<boolean> => (await Promise.all(targets.map((each) => each.visible()))).some(Boolean);
@@ -151,6 +150,5 @@ async function actable(document: Document, query: Query): Promise<Element> {
 }
 
 function describe(query: Query): string {
-  const { frame, ...rest } = query;
-  return `${JSON.stringify(rest, (_, value: unknown) => (value instanceof RegExp ? String(value) : value))}${frame === undefined ? '' : ` in ${frame}`}`;
+  return JSON.stringify(query, (_, value: unknown) => (value instanceof RegExp ? String(value) : value));
 }
