@@ -61,7 +61,7 @@ the section is one line naming up to five of them and the question that lists
 them all:
 
 ```text
-2 packages describe `env files`: dotenv, env-paths. `variance ask search --query 'env files' --limit 2` lists them in full.
+2 packages describe `env files`: dotenv, env-paths. `variance ask search --query 'env files' --limit 20` lists them in full.
 ```
 
 Run that question, or ask in a repository whose code writes neither word, and
