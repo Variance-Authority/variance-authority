@@ -52,6 +52,8 @@ pub(crate) struct Func {
     /// The first argument of the call it is handed to, when that is a string:
     /// a test's or a suite's title. A template's holes are `*`.
     pub title: Option<String>,
+    /// The title is a template with a hole, so a `*` in it is not spelled by the source.
+    pub templated: bool,
     pub parent: Option<u32>,
     pub start: u32,
     pub params: Vec<Option<String>>,
@@ -171,6 +173,7 @@ struct Site {
 struct Pending {
     hint: Option<String>,
     title: Option<String>,
+    templated: bool,
     site: Option<Site>,
 }
 
@@ -232,6 +235,7 @@ impl Walker {
             end_line: self.line(span.end),
             hint: id.or(pending.hint),
             title: pending.title,
+            templated: pending.templated,
             parent,
             start: span.start,
             params,
@@ -273,6 +277,7 @@ impl Walker {
     }
 
     fn arguments(&mut self, span: Span, arguments: &[Argument<'_>], via: Option<String>, own: u32, titled: bool) {
+        let templated = titled && matches!(arguments.first(), Some(Argument::TemplateLiteral(it)) if !it.expressions.is_empty());
         let title = if titled {
             match arguments.first() {
                 Some(Argument::StringLiteral(it)) => it.value.as_str().map(str::to_owned),
@@ -291,6 +296,7 @@ impl Walker {
                 self.pending = Some(Pending {
                     hint: Some(format!("{}.arg{at}", via.as_deref().unwrap_or("?"))),
                     title: title.clone(),
+                    templated,
                     site: Some(Site { line, col: span.end as u64 * 4 - 2, guard: own }),
                 });
             }

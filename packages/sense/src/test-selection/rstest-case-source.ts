@@ -100,7 +100,7 @@ export function attendingSource(api: string): string {
   const attended = globalThis[Symbol.for(${JSON.stringify(CASE_SCOPE_KEY)})];
   if (typeof attended?.begin === 'function') {
     ${api}.beforeEach((context) => {
-      attended.begin();
+      attended.begin(undefined, context.task.retryCount + 1);
       context.onTestFinished(() => attended.leave());
     });
   }

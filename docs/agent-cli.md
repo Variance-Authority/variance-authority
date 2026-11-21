@@ -395,23 +395,23 @@ record does not hold has none, as every case of a file recorded as a whole.
 variance ask not-run
 ```
 
-A test that passed says only that nothing it ran failed. A Playwright test that
-declares its check with the annotation `variance:check` and runs it as a step of
-the same title is recorded with the checks each attempt entered, as
-[Declare what a test checks](../packages/playwright-test/README.md#declare-what-a-test-checks)
-sets up, and `not-run` names each one an attempt passed without:
+A test that passed says only that nothing it ran failed. A case under any
+runner that runs its check as `checked(id, fn)`, as
+[Name the check a case is there for](../packages/sense/README.md#name-the-check-a-case-is-there-for)
+sets up, is recorded with the checks each attempt entered, and `not-run` names
+each one a passing attempt did not enter:
 
 ```text
 Declared checks not executed:
-  expected check create-event/submitted-title did not execute in case create event > submits the form (tests/create-event.spec.ts:42, project chromium), which passed
+  expected check create-event/submitted-title did not execute in case create-event > submits the form (case tests/create-event.spec.ts:12, check line 18), which passed
 0 declared check(s) entered.
-Scope: project chromium; a case outside it was not asked about.
 ```
 
-The scope is what the run covered: its projects, `grep` and shard. A case
-outside it was not asked about and is not named. A run stopped before its runner
-ended it names no check, and a record that kept no checks says so rather than
-that every check ran.
+The case's line is where its body is registered, and the check's is where the
+body calls `checked`, or calls the helper of its file that does. A retried case
+is named with the attempt that passed without its check. A file where the
+runner did not end an attempt it began is listed as incomplete and names no
+check. A record that kept no checks says so rather than that every check ran.
 
 ## Find where the suite's time goes
 

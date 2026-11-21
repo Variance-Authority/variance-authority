@@ -421,7 +421,7 @@ function scoped(
     cuts?.time(bucket);
     if (inFlight.size > 0) crowded = true;
     inFlight.add(bucket);
-    attention?.entered(key);
+    attention.entered(key);
     const carried = trace;
     const run = carried === undefined
       ? body
@@ -435,24 +435,23 @@ function scoped(
     const key = running();
     return key === undefined ? undefined : journeyOf(key);
   };
-  // A tangled file writes no case frame, so it keeps no journal either.
-  const attention = root === undefined
-    ? undefined
-    : eyesFrames.attending(root, () => (tangled ? null : running()), (frame) => frames.push(frame));
+  // A tangled file writes no case frame, so it keeps no journal or check either;
+  // a check is kept with or without a checkout, a journal only with one.
+  const attention = eyesFrames.attending(root, () => (tangled ? null : running()), (frame) => frames.push(frame));
   const { phase, within, where } = recorder;
   // One edge starts an attempt for both: what a `beforeEach` said for a case
   // that never ran is forgotten, and Eyes attends the attempt from here. One
   // the runner never said was over ends as the next begins.
-  const begin = (token?: unknown): void => {
+  const begin = (token?: unknown, attempt?: number): void => {
     attempted();
     ended();
     owed = [];
     recorder.begin(token);
-    attention?.scope.begin();
+    attention.scope.begin(attempt);
   };
-  const leave = (): void => { givenUp(); ended(); attention?.scope.leave(); };
+  const leave = (): void => { givenUp(); ended(); attention.scope.leave(); };
   (holder as { [CASE_SCOPE]?: unknown })[CASE_SCOPE] = {
-    enter, journey, phase, within, where, ...attention?.scope, begin, leave,
+    enter, journey, phase, within, where, ...attention.scope, begin, leave,
   };
 
   const ambientKey = (testFile: string): string => caseOwner.packCase(testFile, '', '');

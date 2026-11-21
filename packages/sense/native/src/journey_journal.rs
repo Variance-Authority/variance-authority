@@ -85,6 +85,10 @@ pub struct CaseDetail {
     /// The cases that watched through Eyes, in the order they first did, each
     /// with the attempts and journal text it handed over.
     pub looked: Vec<(u32, Vec<(f64, String)>)>,
+    /// The checks each case's attempts entered, as `checked` told its scope:
+    /// row, attempt and check id, in the order they arrived. A check names no
+    /// case of its own: one whose case wrote no frame is dropped.
+    pub checked: Vec<(u32, f64, String)>,
 }
 
 /// What [`CaseDetail`] gathers of one case before the cases are ordered.
@@ -153,6 +157,7 @@ fn inspect_with(directory: &Path, root: &Path, parts: &[String], detailed: bool)
         scanning: Scanning::Nothing,
         cut_files: HashSet::new(),
         looked: Vec::new(),
+        checked: Vec::new(),
     };
     replay(&paths, &mut visitor)?;
     let mut order: Vec<usize> = (0..visitor.coordinates.len()).collect();
@@ -180,6 +185,11 @@ fn inspect_with(directory: &Path, root: &Path, parts: &[String], detailed: bool)
             times: Vec::with_capacity(ordered.len()),
             lined: lined.contains(&true).then_some(lined),
             looked: visitor.looked.into_iter().map(|(at, rows)| (row_of[at], rows)).collect(),
+            checked: visitor
+                .checked
+                .into_iter()
+                .filter_map(|(key, attempt, check)| visitor.at.get(&key).map(|&at| (row_of[at], attempt, check)))
+                .collect(),
         }
     });
 
@@ -345,6 +355,8 @@ struct InspectVisitor<'a> {
     cut_files: HashSet<String>,
     /// What Eyes handed each case, by coordinate, in the order it arrived.
     looked: Vec<(usize, Vec<(f64, String)>)>,
+    /// The checks the cases entered, by key, attempt and id, in the order they arrived.
+    checked: Vec<(Key, f64, String)>,
 }
 
 enum Scanning {
@@ -413,10 +425,18 @@ impl Visitor for InspectVisitor<'_> {
         if !self.detailed {
             return Ok(());
         }
-        // A case that watched is a case, whether or not it crossed anything.
-        let (packed, attempt, journal) = journal_scan::eyes_of(frame)?;
+        let (packed, attempt, said) = journal_scan::eyes_of(frame)?;
         let (file, name, id, _) = unpack_case(&packed);
         let key = (project_path(self.root, file), name.to_owned(), id.to_owned(), project_of(&packed).map(str::to_owned));
+        let journal = match said {
+            journal_scan::Said::Check(check) => {
+                self.checked.push((key, attempt, check));
+                return Ok(());
+            }
+            journal_scan::Said::Journal(journal) => Some(journal),
+            journal_scan::Said::Watched => None,
+        };
+        // A case that watched is a case, whether or not it crossed anything.
         let (at, _) = self.held(key, UNSETTLED);
         let row = *self.coordinates[at].detail.looked.get_or_insert_with(|| {
             self.looked.push((at, Vec::new()));

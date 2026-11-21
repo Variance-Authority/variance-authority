@@ -343,13 +343,19 @@ function startedAt(pid: number): Promise<number | undefined> {
   });
 }
 
+/** The process a run's scratch directory belongs to, from its `.run-<pid>-` name; `null` when the name is no run's. */
+export function runPid(name: string): number | null {
+  const run = /^\.run-(\d+)-/u.exec(name);
+  return run === null ? null : Number(run[1]);
+}
+
 /**
  * The process a scratch name belongs to: a number, `undefined` when the name is
  * scratch but carries no process, `null` when it is not scratch at all.
  */
 export function scratchPid(name: string): number | undefined | null {
-  const run = /^\.run-(\d+)-/u.exec(name);
-  if (run !== null) return Number(run[1]);
+  const run = runPid(name);
+  if (run !== null) return run;
   const temporary = /\.(\d+)[-.][^.]*\.tmp$/u.exec(name);
   if (temporary !== null) return Number(temporary[1]);
   const seed = /\.([0-9a-f]+)\.seed$/u.exec(name);

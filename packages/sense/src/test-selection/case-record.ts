@@ -33,7 +33,7 @@ export interface CaseSections {
   readonly base?: Uint8Array;
   /** `cases.readings`: the earlier readings of cases run again over the code they read before, as bytes (`readings-bytes.ts`). */
   readonly readings?: Uint8Array;
-  /** `run.checks`: which declared checks the last run entered, and its scope (`checks-record.ts`); absent, it kept none. */
+  /** `run.checks`: which declared checks each attempt of the last run entered (`checks-record.ts`); absent, it kept none. */
   readonly checks?: Uint8Array;
 }
 

@@ -1,4 +1,4 @@
-import type { FreshCases, LaidRun } from './case-landing.js';
+import type { LaidRun } from './case-landing.js';
 import type { ModuleId } from '../instrument/index.js';
 import { native } from '../addon.js';
 import type { CapturedModule } from './instrumented-modules.js';
@@ -7,8 +7,21 @@ import type { RecordedAttempt } from './attempts-record.js';
 import { triedAttempts, type CaseAttempts } from './case-attempts.js';
 import { UNLIMITED, UNTIMED, type CaseDurations, type CaseLimits } from './case-durations.js';
 import type { EyesSection } from './eyes-record.js';
+import type { EnteredCheck, RanCase } from './case-checks.js';
+import { checksOfSource } from './source-checks.js';
+import type { ChecksSection } from './checks-record.js';
 import { nativeModule, whyAbsent } from './native-modules.js';
 import type { Reading } from './readings.js';
+
+/** One run's own case index, and what the run tells the index about its files. */
+export interface FreshCases {
+  readonly fresh: Uint8Array;
+  readonly run: LaidRun;
+  /** The cases that opened Eyes journals and the journals they handed over; absent when no case composed Eyes. */
+  readonly eyes?: EyesSection;
+  /** The checks the run's cases declare and what each attempt entered; absent when no case declares one, and then the record keeps none. */
+  readonly checks?: ChecksSection;
+}
 
 /** A run's case journals, folded into the case index's bytes. */
 export interface CaseFold {
@@ -23,6 +36,8 @@ export interface CaseFold {
   readonly eyes?: EyesSection;
   /** How each attempt of a retried case ended; absent when the runner's report counted no attempts. */
   readonly attempts?: readonly RecordedAttempt[];
+  /** The checks the cases declare and what each attempt entered (`checks-record.ts`); absent when no case declares one. */
+  readonly checks?: ChecksSection;
 }
 
 /** What the runner reported beside the journals, and how much of the relation one slice holds. */
@@ -80,6 +95,7 @@ export function foldCases(
   }));
   const ids = new Map(coordinates.map((coordinate, at) => [caseKey(coordinate), cases[at]!.id]));
   const attempts = triedAttempts(coordinates, ids, options.tried, root);
+  const checks = checksOfSource(root, ranCases(cases, coordinates, options.tried, journals.checks()));
   const looked = journals.eyes();
   const eyes: EyesSection | undefined = looked === null ? undefined : {
     watched: looked.watched,
@@ -92,7 +108,30 @@ export function foldCases(
     cases: cases.length,
     ...(eyes === undefined ? {} : { eyes }),
     ...(attempts === undefined ? {} : { attempts }),
+    ...(checks === undefined ? {} : { checks }),
   };
+}
+
+/** The fold's cases as the checks section reads them: how the runner says each attempt ended, and the checks its scope was told of. */
+function ranCases(
+  cases: readonly { readonly id: string }[],
+  coordinates: readonly CaseCoordinate[],
+  tried: CaseAttempts | undefined,
+  told: readonly { readonly case: string; readonly attempt: number; readonly check: string }[] | null,
+): RanCase[] {
+  const entered = new Map<string, EnteredCheck[]>();
+  for (const row of told ?? []) {
+    const rows = entered.get(row.case) ?? [];
+    rows.push({ attempt: row.attempt, check: row.check });
+    entered.set(row.case, rows);
+  }
+  return coordinates.map((coordinate, at) => ({
+    file: coordinate.file,
+    name: coordinate.name,
+    ...(coordinate.project === undefined ? {} : { project: coordinate.project }),
+    attempts: tried?.(coordinate.file, coordinate.name, coordinate.id),
+    entered: entered.get(cases[at]!.id) ?? [],
+  }));
 }
 
 /**
@@ -142,6 +181,7 @@ export async function freshCases(
       ...(folded.attempts === undefined ? {} : { attempts: folded.attempts }),
     },
     ...(folded.eyes === undefined ? {} : { eyes: folded.eyes }),
+    ...(folded.checks === undefined ? {} : { checks: folded.checks }),
   };
 }
 

@@ -1,6 +1,6 @@
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { checksAt } from './recorded-checks.js';
 import { recordOfCases } from './test-selection/case-record.js';
@@ -11,9 +11,8 @@ import { encodeTestCoverage } from './test-selection/format.js';
 import type { TestCoverage } from './test-selection/index.js';
 
 const section: ChecksSection = {
-  complete: true,
-  scope: { projects: [{ name: 'chromium' }] },
-  cases: [{ file: 'tests/event.spec.ts', line: 4, name: 'event > submits', declared: ['event/titled'], attempts: [{ attempt: 1, ended: 'passed', entered: [] }] }],
+  incomplete: [],
+  cases: [{ file: 'tests/event.spec.ts', line: 4, name: 'event > submits', declared: [{ id: 'event/titled', line: 6 }], attempts: [{ attempt: 1, ended: 'passed', entered: [] }] }],
 };
 
 const made: string[] = [];
@@ -29,14 +28,14 @@ describe('checksAt', () => {
     const recording = record();
     writeFileSync(recording, recordOfCases({ checks: encodeChecks(section) }));
 
-    expect(checksAt(recording)).toMatchObject({ complete: true, missing: [{ check: 'event/titled' }] });
+    expect(checksAt(recording)).toMatchObject({ incomplete: [], missing: [{ check: 'event/titled', line: 6 }] });
   });
 
   it('reads the checks a run laid where no record stood before it', async () => {
     const recording = record();
     await landChecks(recording, encodeChecks(section));
 
-    expect(checksAt(recording)).toMatchObject({ complete: true, missing: [{ check: 'event/titled' }] });
+    expect(checksAt(recording)).toMatchObject({ incomplete: [], missing: [{ check: 'event/titled', line: 6 }] });
   });
 
   it('names the commit and landing of the run that laid the checks, not the coverage an earlier run left', async () => {
@@ -50,6 +49,42 @@ describe('checksAt', () => {
     const read = checksAt(recording);
     expect(read).toMatchObject({ commit: 'c'.repeat(40), missing: [{ check: 'event/titled' }] });
     expect(Date.parse((read as { landed: string }).landed)).toBeGreaterThanOrEqual(before);
+  });
+
+  it('reads a run that began after the checks landed and never landed as unfinished', async () => {
+    const recording = record();
+    await landChecks(recording, landedChecks(section, 'c'.repeat(40)));
+    // What a run killed outright leaves, under every runner: its directories
+    // beside the record, which only its fold removes.
+    mkdirSync(join(dirname(recording), `.run-1-${'a'.repeat(8)}-cases`));
+
+    expect(checksAt(recording)).toMatchObject({ unfinished: expect.any(String), commit: 'c'.repeat(40) });
+  });
+
+  it("reads a run as unfinished when the file system's clock, which stamps its directory, lags the clock that stamped the landing", async () => {
+    // Linux stamps files from a coarse clock that runs up to a tick behind the
+    // one \`Date\` reads, so a run that began just after the landing can bear
+    // an earlier time than the landing names; it is still after the record.
+    const recording = record();
+    await landChecks(recording, landedChecks(section, 'c'.repeat(40)));
+    const landed = Date.parse((checksAt(recording) as { landed: string }).landed);
+    utimesSync(recording, new Date(landed - 8), new Date(landed - 8));
+    const began = join(dirname(recording), `.run-1-${'a'.repeat(8)}-cases`);
+    mkdirSync(began);
+    utimesSync(began, new Date(landed - 3), new Date(landed - 3));
+
+    expect(checksAt(recording)).toMatchObject({ unfinished: expect.any(String), commit: 'c'.repeat(40) });
+  });
+
+  it('leaves a run stopped before the checks landed to the run that landed them', async () => {
+    const recording = record();
+    const stopped = join(dirname(recording), `.run-1-${'a'.repeat(8)}-cases`);
+    mkdirSync(stopped);
+    const hourAgo = new Date(Date.now() - 3_600_000);
+    utimesSync(stopped, hourAgo, hourAgo);
+    await landChecks(recording, landedChecks(section, 'c'.repeat(40)));
+
+    expect(checksAt(recording)).toMatchObject({ missing: [{ check: 'event/titled' }] });
   });
 
   it('keeps no checks of the run before one that measured nothing and declared none', async () => {

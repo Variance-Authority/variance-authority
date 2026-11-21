@@ -1,8 +1,9 @@
 /**
  * Which declared checks the last run entered, case by case and attempt by
- * attempt, and the scope it ran in. A case declares a check by id; the run
- * enters it when the case executes the step of that id. A check a case declared
- * and no attempt of it entered did not run, whatever the case's verdict.
+ * attempt. A case declares a check by writing `checked(id, fn)` in its body,
+ * read from its test file, not from the run (`case-checks.ts`); an attempt enters
+ * it when the call runs, told by the case scope every runner opens. A check a
+ * passing attempt declared and did not enter passed without it.
  *
  * One run's account, replaced whole by the next run's: a case the next run did
  * not collect is not carried, because what it entered then says nothing of the
@@ -13,49 +14,36 @@
  * No selection reads it and no digest a selection compares takes it in.
  */
 
-/** What the run was asked to run: a case outside it was not collected, and no check of it is missing. */
-export interface ChecksScope {
-  /** Each project the run collected from, with the filters its runner narrowed it by, spelled as the runner prints them. */
-  readonly projects: readonly {
-    readonly name: string;
-    /** The pattern a case's title had to match; absent, every title matched. */
-    readonly grep?: string;
-    /** The pattern a case's title must not match; absent, none was excluded. */
-    readonly grepInvert?: string;
-  }[];
-  /** The command line's `--grep` as typed, over each project's own; absent, it named none. */
-  readonly grep?: string;
-  /** The command line's `--grep-invert` as typed; absent, it named none. */
-  readonly grepInvert?: string;
-  /** The part of the suite this run was, `current` of `total`; absent, the whole. */
-  readonly shard?: { readonly current: number; readonly total: number };
-  /** How many spec files a test selection left out of the run; absent, it left out none. */
-  readonly skipped?: number;
+/** A check a case declares: its id, and where the body declares it. */
+export interface DeclaredCheck {
+  readonly id: string;
+  /** The line of its `checked` call, or of the body's call of the helper that holds it. */
+  readonly line: number;
 }
 
 /** One attempt of a case that declares checks. */
 export interface CheckedAttempt {
   /** Counted from 1; a retry is attempt 2. */
   readonly attempt: number;
-  /** How the attempt ended, in the runner's word; absent, it never ended. */
+  /** How the attempt ended, in the runner's word; absent, the runner did not say. */
   readonly ended?: string;
   /** The declared checks the attempt entered, each once, in code-unit order. */
   readonly entered: readonly string[];
 }
 
-/** A collected case that declares checks. */
+/** A case of the run that declares checks. */
 export interface CheckedCase {
   /** The test file, repository-relative. */
   readonly file: string;
-  /** The line the case is declared on. */
+  /** The line of the call that registers its body. */
   readonly line: number;
   /** The declaration path inside the file, as the case index spells it. */
   readonly name: string;
-  /** The project that collected it; absent for an unnamed one. */
+  /** The project that ran it; absent for an unnamed one. */
   readonly project?: string;
-  /** The checks it declares, each once, in code-unit order. */
-  readonly declared: readonly string[];
-  /** Its attempts in order; none when it was collected and never started. */
+  /** The checks it declares, each once, by line. */
+  readonly declared: readonly DeclaredCheck[];
+  /** Its attempts in order. */
   readonly attempts: readonly CheckedAttempt[];
 }
 
@@ -65,33 +53,36 @@ export interface ChecksSection {
   readonly commit?: string;
   /** When the run's checks landed, as ISO 8601; absent before they land. */
   readonly landed?: string;
-  /** Whether the runner ended the run itself; a run it was stopped short of names no check missing. */
-  readonly complete: boolean;
-  readonly scope: ChecksScope;
+  /** The test files of `cases` where the runner did not end an attempt it began, in code-unit order; their cases are not judged. */
+  readonly incomplete: readonly string[];
   readonly cases: readonly CheckedCase[];
 }
 
 /** A declared check an attempt of its case passed without entering. */
 export interface MissingCheck {
   readonly check: string;
+  /** Where the case declares it: {@link DeclaredCheck.line}. */
+  readonly line: number;
   readonly case: CheckedCase;
   /** The attempt that passed without it, when the case ran more than once; absent, its only attempt did. */
   readonly attempt?: number;
 }
 
-/** What a run's checks say: what each case that ran left out. */
+/** What a run's checks say: what each passing attempt left out. */
 export interface ChecksReading {
-  readonly complete: boolean;
-  readonly scope: ChecksScope;
-  /** Declared checks an attempt passed without entering; none for a run that did not complete. */
+  /** Declared checks a passing attempt did not enter. */
   readonly missing: readonly MissingCheck[];
-  /** Declared checks some attempt of their case entered, each counted once. */
+  /** Declared checks some attempt of their case entered, each counted once, in the files that ran to the end. */
   readonly entered: number;
+  /** The test files where the runner did not end an attempt it began: no check of theirs is named missing. */
+  readonly incomplete: readonly string[];
 }
+
+const VERSION = 2;
 
 /** The section bytes for `section`. */
 export function encodeChecks(section: ChecksSection): Uint8Array {
-  return Buffer.from(`${JSON.stringify({ version: 1, ...section })}\n`);
+  return Buffer.from(`${JSON.stringify({ version: VERSION, ...section })}\n`);
 }
 
 /** The section bytes for `section`, as the run at `commit` lands them now. */
@@ -108,39 +99,49 @@ export function decodeChecks(bytes: Uint8Array): ChecksSection {
     throw new Error('the record\'s checks section is not JSON');
   }
   const candidate = section as Partial<ChecksSection & { version: number }> | null;
-  if (typeof candidate !== 'object' || candidate === null || candidate.version !== 1 ||
-    typeof candidate.complete !== 'boolean' || typeof candidate.scope !== 'object' || !Array.isArray(candidate.cases) ||
+  if (typeof candidate !== 'object' || candidate === null || candidate.version !== VERSION ||
+    !Array.isArray(candidate.incomplete) || !Array.isArray(candidate.cases) ||
     !['string', 'undefined'].includes(typeof candidate.commit) || !['string', 'undefined'].includes(typeof candidate.landed)) {
-    throw new Error('the record\'s checks section is not version 1');
+    throw new Error(`the record's checks section is not version ${VERSION}`);
   }
   const { commit, landed } = candidate;
-  return { ...(commit === undefined ? {} : { commit }), ...(landed === undefined ? {} : { landed }), complete: candidate.complete, scope: candidate.scope!, cases: candidate.cases };
+  return {
+    ...(commit === undefined ? {} : { commit }),
+    ...(landed === undefined ? {} : { landed }),
+    incomplete: candidate.incomplete,
+    cases: candidate.cases,
+  };
 }
 
 /**
  * What a run's checks say. An attempt that passed without entering a declared
- * check names it, once per attempt: one that failed, timed out or was skipped
- * already says it did not pass. A run the runner did not end names none,
- * because its last attempts were stopped before they could.
+ * check names it, once per attempt, and only from what that attempt entered: a
+ * failed attempt that entered the check says nothing of the retry that passed.
+ * One that failed, timed out or was skipped already says it did not pass. A
+ * file where the runner did not end an attempt it began names none: that
+ * attempt may have been stopped before it could enter one.
  */
 export function readChecks(section: ChecksSection): ChecksReading {
+  const incomplete = new Set(section.incomplete);
   const missing: MissingCheck[] = [];
   let entered = 0;
   for (const one of section.cases) {
+    if (incomplete.has(one.file)) continue;
     const any = new Set(one.attempts.flatMap((attempt) => attempt.entered));
-    entered += one.declared.filter((check) => any.has(check)).length;
+    entered += one.declared.filter((check) => any.has(check.id)).length;
     for (const attempt of one.attempts) {
+      if (attempt.ended !== 'passed') continue;
       const done = new Set(attempt.entered);
-      if (!section.complete || attempt.ended !== 'passed') continue;
       for (const check of one.declared) {
-        if (done.has(check)) continue;
+        if (done.has(check.id)) continue;
         missing.push({
-          check,
+          check: check.id,
+          line: check.line,
           case: one,
           ...(one.attempts.length > 1 ? { attempt: attempt.attempt } : {}),
         });
       }
     }
   }
-  return { complete: section.complete, scope: section.scope, missing, entered };
+  return { missing, entered, incomplete: section.incomplete };
 }

@@ -1,6 +1,6 @@
 /**
  * The case a worker is running, for a party in the worker that has something
- * to hand it.
+ * to hand it: Eyes its journal, `checked` the check the case entered.
  *
  * Eyes closes one journal per test and has no way to name the test that the
  * record would join: the runner's `testId` is not the case id, and a title is
@@ -29,6 +29,8 @@ interface CaseScope {
   readonly eyes: (journal: Readonly<Record<string, unknown>>) => boolean;
   /** Say the running case opened a journal, so a case that hands none over is told apart from one that opened none. */
   readonly watch: () => void;
+  /** Say the running case's attempt entered the check `id`, as `checked` from `@variance-authority/sense/checked` does. */
+  readonly checked: (id: string) => void;
 }
 
 type Holder = { [CASE_SCOPE]?: unknown };
@@ -51,6 +53,7 @@ export function enterCase(recorder: ExecutionRecorder, testInfo: TestInfo): () =
       return true;
     },
     watch: () => recorder.eyes(owner, subject, attempt),
+    checked: (id) => recorder.checked(owner, subject, attempt, id),
   };
   const before = holder[CASE_SCOPE];
   holder[CASE_SCOPE] = scope;

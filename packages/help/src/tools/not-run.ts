@@ -1,17 +1,18 @@
 /**
  * `docs_not_run` — the declared checks a recorded run did not execute, each
- * named with the case that passed without it and where the case is declared.
+ * named with the case whose attempt passed without it, where the case is
+ * declared and where it calls the check.
  *
- * Nothing here runs a test: `recordedChecks` owns what the run declared and
- * entered. A case whose check did not run can still pass, and its verdict then
- * stands for less than it declared; here the two are told apart. The reading
- * speaks of the run's own scope, which it names, and of nothing it left out.
+ * Nothing here runs a test: `recordedChecks` owns what the cases declared and
+ * each attempt entered. A case whose check did not run can still pass, and its
+ * verdict then stands for less than it declared; here the two are told apart.
+ * The reading speaks of the cases the run ran, under whichever runner ran them.
  */
 
 // compass: variance-authority.report.agent-surface
 
 import type { Tool } from '@variance-authority/mcp/tools';
-import { recordedChecks, type ChecksScope, type RecordedChecks } from '@variance-authority/sense';
+import { recordedChecks, type RecordedChecks } from '@variance-authority/sense';
 import { eachSuite } from './slowest-format.js';
 
 const NAMED = 'Declared checks not executed';
@@ -26,14 +27,13 @@ function told(suite: RecordedChecks, named: string): string[] {
   if ('unkept' in suite) {
     return [
       `${named}: checks were not kept in ${suite.recording}, so it does not say whether a declared check ran. ` +
-        'A run keeps them when its runner reports the steps each case entered.',
+        'A run keeps them when a case it ran declares one with `checked(id, fn)`.',
     ];
   }
-  const scope = `Scope: ${scopeOf(suite.scope)}; a case outside it was not asked about.`;
-  if (!suite.complete) {
+  if ('unfinished' in suite) {
     return [
-      `${named}: none named; the run is incomplete, stopped before its runner ended it, so a case it cut short was not done.`,
-      scope,
+      `${named}: none named; a run began after these checks landed and did not land, stopped before its runner ended it ` +
+        `or still running (it last wrote ${suite.unfinished}), so the checks of what it ran are not known.`,
     ];
   }
   return [
@@ -41,29 +41,16 @@ function told(suite: RecordedChecks, named: string): string[] {
       ? [`${named}: none.`]
       : [
           `${named}:`,
-          ...suite.missing.map(({ check, case: one, attempt }) =>
+          ...suite.missing.map(({ check, line, case: one, attempt }) =>
             `  expected check ${check} did not execute in case ${one.name} ` +
-            `(${one.file}:${one.line}${one.project === undefined ? '' : `, project ${one.project}`}` +
+            `(case ${one.file}:${one.line}, check line ${line}${one.project === undefined ? '' : `, project ${one.project}`}` +
             `${attempt === undefined ? '' : `, attempt ${attempt}`}), which passed`),
         ]),
     `${suite.entered} declared check(s) entered.`,
-    scope,
+    ...(suite.incomplete.length === 0
+      ? []
+      : [`Incomplete, stopped before their runner ended them, so none of their checks is named: ${suite.incomplete.join(', ')}.`]),
   ];
-}
-
-/** The projects the run collected, their greps, the shard it was cut to and what a selection skipped. */
-function scopeOf({ projects, grep, grepInvert, shard, skipped }: ChecksScope): string {
-  const named = projects.map(({ name, grep, grepInvert }) =>
-    [`project ${name === '' ? '(unnamed)' : name}`, grep === undefined ? undefined : `grep ${grep}`, grepInvert === undefined ? undefined : `grep-invert ${grepInvert}`]
-      .filter((part) => part !== undefined)
-      .join(', '));
-  return [
-    ...named,
-    ...(grep === undefined ? [] : [`--grep ${JSON.stringify(grep)}`]),
-    ...(grepInvert === undefined ? [] : [`--grep-invert ${JSON.stringify(grepInvert)}`]),
-    ...(shard === undefined ? [] : [`shard ${shard.current} of ${shard.total}`]),
-    ...(skipped === undefined ? [] : [`${skipped} spec file(s) a test selection skipped`]),
-  ].join('; ') || 'every case';
 }
 
 /** Typed over nothing, like `docs_retried_tests`: the checkout is the one the host names on the call. */
@@ -72,12 +59,13 @@ export const notRun: Tool<unknown> = {
   description:
     'Which record it read, whose run, at which commit and how old; then each check a test case declared that ' +
     'an attempt of it passed without executing, as `expected check <id> did not execute in case <name>`, with the ' +
-    'file and line declaring the case, its project, and the attempt when it ran more than once — ' +
-    'a case can pass without its check. Then how many declared checks were entered, the scope the run covered ' +
-    '(projects, grep, shard, files a selection skipped). A run stopped before its ' +
-    'runner ended it reads as incomplete and names no check missing. A record whose run kept no checks is said ' +
-    'to be that, never that every check ran. A case declares a check with the annotation `variance:check` and ' +
-    'executes it as a step of the same title. Reads the recording a test run with test selection published; runs nothing itself.',
+    'file and line declaring the case, the line calling the check, its project, and the attempt when it ran more than once — ' +
+    'a case can pass without its check. Then how many declared checks were entered, and the test files whose ' +
+    'recording stopped before their runner ended them, which name no check missing. A run that began after the checks landed and ' +
+    'did not land, killed or still running, names none either. A record whose run kept no checks is said ' +
+    'to be that, never that every check ran. A case declares a check by calling `checked(id, fn)` from ' +
+    '`@variance-authority/sense/checked` in its body, or in a helper of its file it calls; an id built at run time declares nothing. ' +
+    'Reads the recording a test run with test selection published; runs nothing itself.',
   inputSchema: { type: 'object', properties: {}, additionalProperties: false },
 
   run: (_subject, _input, invocation) => {

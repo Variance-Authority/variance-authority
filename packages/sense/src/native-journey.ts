@@ -125,6 +125,8 @@ export interface NativeCaseJournals {
   cases(): { id: string; file: string; name: string; runner: string; project?: string | null }[];
   /** What Eyes handed the cases that watched, each journal as JSON text; `null` when none did. */
   eyes(): { watched: string[]; journals: { case: string; attempt: number; journal: string }[] } | null;
+  /** The checks the cases' attempts entered, in the order they did; `null` when none entered one. */
+  checks(): { case: string; attempt: number; check: string }[] | null;
   /**
    * The case index's bytes over `modules`. `ordinals` holds each module's
    * region ordinals; `readings` join a reading into its file's record, a land

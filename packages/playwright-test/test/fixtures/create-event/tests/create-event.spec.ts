@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { test as base, expect } from '@playwright/test';
 import { varianceFixtures, type VarianceFixtures, type VarianceWorkerFixtures } from '@variance-authority/playwright-test';
+import { checked } from '@variance-authority/sense/checked';
 import { moduleId } from '@variance-authority/sense/journal';
 
 const test = base.extend<VarianceFixtures, VarianceWorkerFixtures>(varianceFixtures);
@@ -39,28 +40,41 @@ addEventListener('DOMContentLoaded', () => {
 <form id="form"><input id="title"><button>Create</button></form><p id="phase"></p>`;
 
 test.describe('create-event', () => {
-  test('submits the form', { annotation: { type: 'variance:check', description: 'create-event/submitted-title' } }, async ({ page }) => {
+  test('submits the form', async ({ page }) => { // bypassing case
     await page.setContent(form);
     await page.fill('#title', 'Launch');
     await page.click('button');
     await expect(page.locator('#phase')).toHaveText('saved');
     const sent = await page.evaluate(() => (globalThis as { sent?: { title?: string } }).sent);
+    if (process.env['STALL'] !== undefined) {
+      // A signal at the runner while this case is still running, before its
+      // check: Ctrl+C is `1`, and a kill no reporter outlives is the signal's own name.
+      process.kill(process.ppid, process.env['STALL'] === '1' ? 'SIGINT' : process.env['STALL']);
+      await page.waitForTimeout(60_000);
+    }
     // The check runs only when a title was sent, so a form that drops it passes unchecked.
     if (sent?.title !== undefined) {
-      await test.step('create-event/submitted-title', () => expect(sent.title).toBe('Launch'));
+      checked('create-event/submitted-title', () => expect(sent.title).toBe('Launch')); // bypassed check
     }
-    // A step skipped by its title is begun and never run: the check did not execute.
-    if (process.env['SKIP_STEP'] === '1') await test.step.skip('create-event/submitted-title', () => {});
   });
 
   test('lists events', async ({ page }) => {
     await page.setContent(`${collector}<script>entered.add(2)</script><ul><li>Launch</li></ul>`);
     await expect(page.locator('li')).toHaveText('Launch');
-    if (process.env['STALL'] !== undefined) {
-      // A signal at the runner while this case is still running: Ctrl+C is `1`,
-      // and a kill no reporter outlives is the signal's own name.
-      process.kill(process.ppid, process.env['STALL'] === '1' ? 'SIGINT' : process.env['STALL']);
+    if (process.env['STALL'] !== undefined && process.env['STALL'] !== '1') {
+      process.kill(process.ppid, process.env['STALL']);
       await page.waitForTimeout(60_000);
+    }
+  });
+});
+
+test.describe('retries', () => {
+  test.describe.configure({ retries: 1 });
+
+  // The first attempt enters its check and fails; the retry passes without it.
+  test('passes the retry without its check', () => { // retried case
+    if (test.info().retry === 0) {
+      checked('create-event/retried-title', () => expect('').toBe('Launch')); // retried check
     }
   });
 });

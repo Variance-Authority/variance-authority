@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { commitRunsFile, encodeExecutionIndex, testCoverageFile, withCaseSections, writeTestCoverage } from '@variance-authority/sense/test-selection';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import '../bin.fixture.js';
@@ -13,10 +13,11 @@ import { landedChecks, type ChecksSection } from '../../../sense/src/test-select
 import { commitRunsText } from '../../../sense/src/test-selection/commit-runs-text.js';
 
 /**
- * `variance ask not-run`, through the command a person types: a case that
- * passed without executing the check it declared is named with the check, its
- * file and line, and the scope the run was asked for; a record older than
- * checks is told apart from a run that missed none.
+ * `variance ask not-run`, through the command a person types: a case whose
+ * attempt passed without executing the check it declared is named with the
+ * check, the case's file and line and the check's line; a file whose recording
+ * did not finish names none and is named itself; a record older than checks is
+ * told apart from a run that missed none.
  */
 
 const cwd = process.cwd();
@@ -53,14 +54,19 @@ async function run(argv: readonly string[]): Promise<{ code: number; out: string
   return { code, out, err };
 }
 
-const SUBMITS = { file: 'tests/create-event.spec.ts', line: 42, name: 'create event > submits the form', project: 'chromium', declared: ['create-event/submitted-title'] };
+const SUBMITS = {
+  file: 'tests/create-event.spec.ts',
+  line: 42,
+  name: 'create event > submits the form',
+  project: 'chromium',
+  declared: [{ id: 'create-event/submitted-title', line: 44 }],
+};
 
 describe('variance ask not-run', () => {
-  it('names a declared check a passing case did not execute, with its file, line and the run\'s scope', async () => {
+  it('names a declared check a passing attempt did not execute, with the case\'s file and line and the check\'s line', async () => {
     const at = await recorded({
-      complete: true,
-      scope: { projects: [{ name: 'chromium' }] },
-      cases: [{ ...SUBMITS, attempts: [{ attempt: 1, ended: 'passed', entered: [] }] }],
+      incomplete: [],
+      cases: [{ ...SUBMITS, attempts: [{ attempt: 1, ended: 'failed', entered: ['create-event/submitted-title'] }, { attempt: 2, ended: 'passed', entered: [] }] }],
     });
 
     expect(await run(['ask', 'not-run'])).toEqual({
@@ -70,9 +76,9 @@ describe('variance ask not-run', () => {
         `Read this checkout's record at ffffffffffff, landed under a minute ago, ${at}.`,
         '',
         'Declared checks not executed:',
-        '  expected check create-event/submitted-title did not execute in case create event > submits the form (tests/create-event.spec.ts:42, project chromium), which passed',
-        '0 declared check(s) entered.',
-        'Scope: project chromium; a case outside it was not asked about.',
+        '  expected check create-event/submitted-title did not execute in case create event > submits the form ' +
+          '(case tests/create-event.spec.ts:42, check line 44, project chromium, attempt 2), which passed',
+        '1 declared check(s) entered.',
         '',
       ].join('\n'),
     });
@@ -85,11 +91,38 @@ describe('variance ask not-run', () => {
     );
 
     await recorded({
-      complete: true,
-      scope: { projects: [{ name: 'chromium' }] },
+      incomplete: [],
       cases: [{ ...SUBMITS, attempts: [{ attempt: 1, ended: 'passed', entered: ['create-event/submitted-title'] }] }],
     });
     expect((await run(['ask', 'not-run'])).out).toContain('Declared checks not executed: none.\n1 declared check(s) entered.');
+  });
+
+  it('names no check of a file whose recording did not finish, and names the file', async () => {
+    await recorded({
+      incomplete: ['tests/create-event.spec.ts'],
+      cases: [{ ...SUBMITS, attempts: [{ attempt: 1, ended: 'passed', entered: [] }] }],
+    });
+
+    expect((await run(['ask', 'not-run'])).out).toContain([
+      'Declared checks not executed: none.',
+      '0 declared check(s) entered.',
+      'Incomplete, stopped before their runner ended them, so none of their checks is named: tests/create-event.spec.ts.',
+    ].join('\n'));
+  });
+
+  it('names no check while a run that began after the checks landed has not landed its own', async () => {
+    const at = await recorded({
+      incomplete: [],
+      cases: [{ ...SUBMITS, attempts: [{ attempt: 1, ended: 'passed', entered: [] }] }],
+    });
+    mkdirSync(join(dirname(at), '.run-1-killed-cases'));
+
+    const { out } = await run(['ask', 'not-run']);
+    expect(out).toContain(
+      'Declared checks not executed: none named; a run began after these checks landed and did not land, ' +
+        'stopped before its runner ended it or still running',
+    );
+    expect(out).not.toContain('did not execute in case');
   });
 
   it('says of each declared suite that recorded nothing that nothing was read, and why', async () => {

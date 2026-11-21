@@ -55,6 +55,14 @@ pub struct CaseEyes {
     pub journals: Vec<EyesJournal>,
 }
 
+/// A check one attempt of a case entered.
+#[napi(object)]
+pub struct CaseCheck {
+    pub case: String,
+    pub attempt: f64,
+    pub check: String,
+}
+
 #[napi(object)]
 pub struct CaseIndexFold {
     pub bytes: Buffer,
@@ -111,6 +119,23 @@ impl CaseJournals {
                 .flat_map(|(row, rows)| rows.iter().map(move |(attempt, journal)| (*row, *attempt, journal)))
                 .map(|(row, attempt, journal)| EyesJournal { case: id(row), attempt, journal: journal.clone() })
                 .collect(),
+        })
+    }
+
+    /// The checks the cases' attempts entered, in the order they did; `None`
+    /// where none entered one.
+    #[napi(catch_unwind)]
+    pub fn checks(&self) -> Option<Vec<CaseCheck>> {
+        let checked = &self.detail().checked;
+        (!checked.is_empty()).then(|| {
+            checked
+                .iter()
+                .map(|(row, attempt, check)| CaseCheck {
+                    case: self.run.tests[*row as usize].id.clone(),
+                    attempt: *attempt,
+                    check: check.clone(),
+                })
+                .collect()
         })
     }
 

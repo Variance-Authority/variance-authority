@@ -52,14 +52,6 @@ export function textsIn(coverage: TestCoverageView): ModuleTexts {
   return new Map(Array.from(path, (file, module) => [coverage.string(file), coverage.string(source[module]!)]));
 }
 
-/** One run's own case index, and what the run tells the index about its files. */
-export interface FreshCases {
-  readonly fresh: Uint8Array;
-  readonly run: LaidRun;
-  /** The cases that opened Eyes journals and the journals they handed over; absent when no case composed Eyes. */
-  readonly eyes?: EyesSection;
-}
-
 /**
  * The run that wrote the case index last. Its cases are in the index itself,
  * as that run left them, so this names them and holds nothing else.

@@ -84,3 +84,18 @@ fn hands_an_eyes_frame_over_whole() {
     scan_journal(&raw, &mut seen).unwrap();
     assert_eq!(seen.eyes, 1);
 }
+
+#[test]
+fn reads_what_an_eyes_frame_says_of_its_attempt() {
+    let read = |json: &str| {
+        let mut raw = EYES_MAGIC.to_vec();
+        raw.extend_from_slice(json.as_bytes());
+        eyes_of(&raw)
+    };
+    assert_eq!(read(r#"{"case":"c","attempt":2}"#), Ok(("c".to_owned(), 2.0, Said::Watched)));
+    assert_eq!(read(r#"{"case":"c","attempt":1,"journal":{"b":1,"a":2}}"#), Ok(("c".to_owned(), 1.0, Said::Journal(r#"{"b":1,"a":2}"#.to_owned()))));
+    assert_eq!(read(r#"{"case":"c","attempt":1,"check":"form/title"}"#), Ok(("c".to_owned(), 1.0, Said::Check("form/title".to_owned()))));
+    for refused in [r#"{"case":"c","attempt":1,"check":1}"#, r#"{"case":"c","attempt":1,"check":"x","journal":{}}"#, r#"{"case":"c","attempt":1,"journal":[]}"#] {
+        assert!(read(refused).is_err(), "{refused}");
+    }
+}

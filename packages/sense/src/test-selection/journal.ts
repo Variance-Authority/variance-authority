@@ -49,7 +49,7 @@ import { digestString } from '../digest.js';
 import { instrumentationId, type InstrumentMode, type ModuleId } from '../instrument/index.js';
 import { ownedExecutionIndexFrom } from './cases.js';
 import { attemptsOfCases } from './attempts-record.js';
-import { landedChecks, type ChecksSection } from './checks-record.js';
+import { checksOfSource } from './source-checks.js';
 import { eyesOfCases } from './eyes-record.js';
 import { encodeOwnedSetExecutionIndex } from './execution-set-format.js';
 import {
@@ -122,7 +122,7 @@ export {
 } from './observed.js';
 export type { ObservedEyes } from './eyes-record.js';
 export type { ObservedAttempt } from './attempts-record.js';
-export type { CheckedAttempt, ChecksScope } from './checks-record.js';
+export type { EnteredCheck } from './case-checks.js';
 export { listenForPreconditions, type PreconditionListener, type PreconditionStanding } from './precondition-listener.js';
 export { preconditionText, saidAcross, type CasePrecondition, type Said } from './case-said.js';
 export {
@@ -209,11 +209,11 @@ export interface RecordExecutionOptions {
    */
   readonly cases?: readonly ObservedCase[];
   /**
-   * Which declared checks the run's cases entered, and the scope it ran in
-   * (`checks-record.ts`). It replaces the record's whole; absent, the record
-   * keeps none, because a run that declared no check names none missing.
+   * The cases are only this process's share of the run, as a Playwright worker
+   * recording without its reporter holds. No checks are kept from them: the
+   * last share to land would replace what the others' cases entered.
    */
-  readonly checks?: ChecksSection;
+  readonly partial?: true;
 }
 
 /** What a run learned, or why it learned nothing. */
@@ -226,8 +226,6 @@ export interface ExecutionRecord {
   /** How many cases the run laid into the record, for a run that was asked for them. */
   readonly cases?: number;
 }
-
-export { recordChecks } from './checks-landing.js';
 
 /**
  * Join drained journals to the modules they name and merge them into the index.
@@ -418,6 +416,13 @@ export async function recordExecution(
   const observed = options.cases ?? [];
   const eyes = eyesOfCases(observed);
   const attempts = attemptsOfCases(observed, root);
+  const checks = observed.length === 0 || options.partial === true ? undefined : checksOfSource(root, observed.map((one) => ({
+    file: one.file,
+    name: one.name,
+    ...(one.project === undefined ? {} : { project: one.project }),
+    attempts: one.attempts,
+    entered: one.checks ?? [],
+  })));
   const owned = observed.length === 0 ? undefined : ownedExecutionIndexFrom(caseJournals(observed), byId);
   const cases =
     owned === undefined
@@ -426,6 +431,7 @@ export async function recordExecution(
           fresh: encodeOwnedSetExecutionIndex(owned.index, owned.owners, owned.lines),
           run: { tests, ...(commit === undefined ? {} : { commit }), ...(attempts === undefined ? {} : { attempts }) },
           ...(eyes === undefined ? {} : { eyes }),
+          ...(checks === undefined ? {} : { checks }),
         };
   // Read-modify-write, and more than one process does it. A Playwright suite
   // runs its workers as separate processes over one index, so the exclusion is
@@ -436,7 +442,7 @@ export async function recordExecution(
     // A worktree layers onto the repository's months of recording rather than
     // onto nothing. A no-op here and after the first run.
     await prepareRecord(lock, root, laidProbes(current), { cacheRoot: options.cacheRoot });
-    await landRun(coverageFile, current, root, options.cacheRoot, cases, options.checks === undefined ? undefined : landedChecks(options.checks, commit));
+    await landRun(coverageFile, current, root, options.cacheRoot, cases);
     markCheckout(repositoryRoot(root), options.cacheRoot);
   });
   if (!merged.held) {

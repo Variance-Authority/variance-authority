@@ -1,44 +1,52 @@
 /**
- * The declared checks the latest run did not execute, case by case.
+ * The declared checks the latest run did not enter, case by case.
  *
- * A case declares the checks it stands for; a run enters one when the case
- * executes the step of its id (`test-selection/checks-record.ts`). A case that
- * passed without entering a declared check passed without the check: the
- * verdict and the check part there. Read from what the run left in the record,
- * the way `recordedAttempts` reads how retried cases ended: the nearest layer
- * holding a record answers, for each suite the root config declares. Nothing
- * here runs a test, and it speaks of one recorded run in the scope it ran in.
+ * A case declares a check by calling `checked(id, fn)` in its body, read from
+ * its test file before the run; an attempt enters it when the call runs
+ * (`test-selection/checks-record.ts`). An attempt that passed without entering
+ * a declared check passed without the check: the verdict and the check part
+ * there. Read from what the run left in the record, the way `recordedAttempts`
+ * reads how retried cases ended: the nearest layer holding a record answers,
+ * for each suite the root config declares. Nothing here runs a test, and it
+ * speaks of one recorded run, under whichever runner ran it.
  *
- * A run the runner did not end itself names no check missing, and a record
- * whose run kept no checks is answered as that, never as nothing missing.
+ * A file whose recording did not run to the end names no check missing, and a
+ * record whose run kept no checks is answered as that, never as nothing missing.
+ * Nor does a run that began after the checks landed and never landed its own: a
+ * run killed outright, under any runner, leaves its `.run-*` directories beside
+ * the record, and only its fold removes them.
  */
 
 // compass: variance-authority.reach
 
-import { existsSync } from 'node:fs';
+import { existsSync, readdirSync, statSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { readChecks, type ChecksReading } from './test-selection/checks-record.js';
 import { recordedChecksAt } from './test-selection/case-record.js';
+import { runPid } from './test-selection/prune.js';
 import { nearestRecord, type RecordOrigin } from './test-selection/record-location.js';
 import { declaredSuites } from './test-selection/suites.js';
 
+/** The run that landed a record's checks. */
+interface ChecksRun {
+  /** The commit the checks' own run stood at; absent where it named none. */
+  readonly commit?: string;
+  /** When the checks' own run landed them, as ISO 8601; absent where they do not say. */
+  readonly landed?: string;
+}
+
 /** What one record says of its run's declared checks, or why it does not say. */
 export type CheckedRun =
-  | ({
-      /** The commit the checks' own run stood at; absent where it named none. */
-      readonly commit?: string;
-      /** When the checks' own run landed them, as ISO 8601; absent where they do not say. */
-      readonly landed?: string;
-    } & ChecksReading)
-  /** The record's latest run kept no checks: none of its cases declared one, its runner does not report them, or a build older than them wrote it. */
+  | (ChecksRun & ChecksReading)
+  /** A later run began beside the record and did not land: it was stopped before its runner ended it, or it is still running. When it last wrote, as ISO 8601. */
+  | (ChecksRun & { readonly unfinished: string })
+  /** The record's latest run kept no checks: none of the cases it ran declared one, or a build older than them wrote it. */
   | { readonly unkept: true }
   | { readonly unread: string };
 
 /** One suite's checks, and the record that answered. */
 export type RecordedChecks = { readonly suite?: string; readonly recording: string; readonly origin: RecordOrigin } & CheckedRun;
 
-// TODO: only the Playwright reporter keeps checks. Vitest, Jest and Rstest
-// report no step a case entered — Vitest has annotations and no steps, Jest
-// neither — so their records read as checks not kept until one does.
 /** For each suite the root config declares, or the one record of a repository that declares none: what its latest run's checks say. */
 export function recordedChecks(root: string): readonly RecordedChecks[] {
   const suites = declaredSuites(root)?.map((suite) => suite.name) ?? [undefined];
@@ -57,8 +65,25 @@ export function checksAt(recording: string): CheckedRun {
     const section = recordedChecksAt(recording);
     if (section === undefined) return { unkept: true };
     const { commit, landed } = section;
-    return { ...(commit === undefined ? {} : { commit }), ...(landed === undefined ? {} : { landed }), ...readChecks(section) };
+    const run = { ...(commit === undefined ? {} : { commit }), ...(landed === undefined ? {} : { landed }) };
+    // The landing is stamped from the clock \`Date\` reads and a run's
+    // directories from the file system's, which on Linux lags it by up to a
+    // tick; the record was written after the landing, by the second clock, so
+    // the earlier of the two is a bound both clocks agree a later run passed.
+    const written = statSync(recording).mtimeMs;
+    const unfinished = unlandedSince(recording, landed === undefined ? written : Math.min(Date.parse(landed), written));
+    return unfinished === undefined ? { ...run, ...readChecks(section) } : { ...run, unfinished };
   } catch (error) {
     return { unread: error instanceof Error ? error.message : String(error) };
   }
+}
+
+/** When a run that began beside `recording` no earlier than `since` and has not landed last wrote, as ISO 8601; `undefined` when none did. */
+function unlandedSince(recording: string, since: number): string | undefined {
+  const directory = dirname(recording);
+  const latest = Math.max(-Infinity, ...readdirSync(directory)
+    .filter((name) => runPid(name) !== null)
+    .map((name) => statSync(join(directory, name), { throwIfNoEntry: false })?.mtimeMs ?? -Infinity)
+    .filter((at) => at >= since));
+  return latest === -Infinity ? undefined : new Date(latest).toISOString();
 }
