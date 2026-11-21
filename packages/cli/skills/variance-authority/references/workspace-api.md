@@ -370,11 +370,19 @@ apps/app/src/hello.ts:1 — @acme/app; used on line 2
 ```
 
 A site from another package names its package after the line. Under `Source,
-inside <package>:` and under `Used in <file>, which declares it:` the heading
-already names it, so the row leaves it off:
+inside <package>:` the heading already names it, so the row leaves it off:
 
 ```
 src/shapes/use.ts:6; used on line 9
+```
+
+Under `Used in <file> — <package>, which declares it:` the heading names the
+file and its package, so each row is the line alone, indented:
+
+```
+Used in src/shapes/area.ts — @acme/shapes, which declares it:
+
+  14
 ```
 
 The imports within the name's own package come from the source index: every
@@ -624,8 +632,13 @@ ones `variance index` resolved, so the answer names its generation; it is asked
 again of the checkout as it is when a file of the area changed since. A file
 written since, under a folder it starts from or importing into its area, waits
 for the next `variance index`. It shows 200 lines and counts the rest; the last
-line names the `--offset` of the next page. With `--test`, a suite's ran, not
-taken and written lines are one list, paged the same way.
+line names the `--offset` of the next page. With `--test`, the answer opens
+with how many lines match in how many of the files the test entered, then lists
+them under `Ran:`, `Not taken:` and `Written since the recording, so no test has
+run it:`, in the same row grammar. A line not taken carries, indented under it,
+the branch or function it sits in, which the test did not enter. The files the
+recording did not instrument, and anything that bounds the reading, follow as
+trailing `note:` lines; the three lists are paged as one.
 
 ### `discover`
 
@@ -678,7 +691,10 @@ chain ends at the line that imports the name. The tail every chain shares is
 said once, on a `chains end:` line, and each row ends its chain with `→ …`
 there. The files the `--to` walk did not reach that import something the scan
 could not resolve, since they may reach the path through it, follow on a
-trailing `note:` line. It shows 50, and the count is always of all of them;
+trailing `note:` line that names the set they may reach, and says when that set
+is one taken out. An error ripgrep reported is a `note:` line too. When no file
+is in all of them, the answer opens with `No file is in all of them:`, then the
+sets and the notes. It shows 50, and the count is always of all of them;
 when more remain, the answer ends with how many and the `--offset` that shows
 the next page. A source file whose names the scan did not hand over is counted in the
 `--imports` and `--declares` headers, since it is unknown rather than a file with no names; a README or a

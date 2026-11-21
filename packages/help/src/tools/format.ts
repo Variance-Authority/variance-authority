@@ -170,6 +170,8 @@ export interface Located {
   readonly file: string;
   readonly line: number;
   readonly text: string;
+  /** What the row adds about that line, said on the line below it. */
+  readonly note?: string;
 }
 
 /** `12: text`, the line and what stands on it, under a file already named. */
@@ -178,7 +180,7 @@ export const atLine = (line: number, text: string): string => `${line}: ${text.t
 /**
  * Rows in their order, a run of one file's rows said under that file once:
  * a file with one row is `file:line: text`, a file with several is the file,
- * then `  line: text` per row.
+ * then `  line: text` per row. A row's note follows it, one step deeper.
  */
 export function byFile(rows: readonly Located[]): readonly string[] {
   const lines: string[] = [];
@@ -186,10 +188,18 @@ export function byFile(rows: readonly Located[]): readonly string[] {
     const file = rows[at]!.file;
     let end = at;
     while (end < rows.length && rows[end]!.file === file) end++;
-    if (end - at === 1) lines.push(`${file}:${atLine(rows[at]!.line, rows[at]!.text)}`);
-    else {
+    const said = (row: Located, indent: string): void => {
+      if (row.note !== undefined) lines.push(`${indent}  ${row.note}`);
+    };
+    if (end - at === 1) {
+      lines.push(`${file}:${atLine(rows[at]!.line, rows[at]!.text)}`);
+      said(rows[at]!, '');
+    } else {
       lines.push(file);
-      for (let row = at; row < end; row++) lines.push(`  ${atLine(rows[row]!.line, rows[row]!.text)}`);
+      for (let row = at; row < end; row++) {
+        lines.push(`  ${atLine(rows[row]!.line, rows[row]!.text)}`);
+        said(rows[row]!, '  ');
+      }
     }
     at = end;
   }

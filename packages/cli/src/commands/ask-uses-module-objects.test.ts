@@ -93,7 +93,7 @@ describe('variance ask uses over a module object', () => {
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
 
     const recorder = await uses('recorder');
-    expect(recorder).toMatch(/^packages\/kit\/src\/preconditions\.cts:7$/m);
+    expect(recorder).toMatch(/^Used in packages\/kit\/src\/preconditions\.cts — @acme\/kit, which declares it:\n\n {2}7$/m);
     expect(recorder).not.toMatch(/preconditions\.cts:10 /);
     expect(await uses('scoped')).not.toMatch(/preconditions\.cts:10 /);
   });

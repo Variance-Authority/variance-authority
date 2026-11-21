@@ -240,7 +240,8 @@ describe('discover crosses whole sets', () => {
   });
 
   it('says so when nothing is in all of them', () => {
-    expect(ask({ ...CONTEXTS, path: '^src/old/' })).toContain('No file is in all of them.');
+    // The answer leads, and the sets it crossed follow it.
+    expect(ask({ ...CONTEXTS, path: '^src/old/' }).split('\n')[0]).toBe('No file is in all of them:');
   });
 
   it('counts every file and shows the nearest', () => {
@@ -276,7 +277,14 @@ describe('discover says how a file reaches what it was asked of', () => {
 
   it('names the files it did not reach that import something unresolved, which may reach the subject through it', () => {
     expect(ask({ to: 'src/chain/base.ts' })).toContain(
-      '\nnote: 1 other file imports something the scan could not resolve, and may reach it: src/chain/blind.ts',
+      '\nnote: 1 other file imports something the scan could not resolve, and may be reaching `src/chain/base.ts`: src/chain/blind.ts',
+    );
+  });
+
+  it('says which set a note is about, and that a set taken out is taken out', () => {
+    const text = ask({ from: 'src/chain/page.ts', exceptTo: 'src/chain/base.ts' });
+    expect(text).toContain(
+      '\nnote: 1 other file imports something the scan could not resolve, and may be reaching `src/chain/base.ts`, which is taken out: src/chain/blind.ts',
     );
   });
 
@@ -284,7 +292,7 @@ describe('discover says how a file reaches what it was asked of', () => {
     const app = join(root, 'app');
     const nested = treeOf([reads('app/base.ts'), reads('app/page.ts', 'app/base.ts'), { file: 'app/blind.ts', unknown: 'an import nobody resolved' }], root, app);
     expect(discover.run(undefined, { to: 'base.ts' }, { tree: nested, names: NAMES, root: app })).toContain(
-      'note: 1 other file imports something the scan could not resolve, and may reach it: app/blind.ts',
+      'note: 1 other file imports something the scan could not resolve, and may be reaching `base.ts`: app/blind.ts',
     );
   });
 

@@ -124,9 +124,11 @@ function order(sites: readonly Site[], from: string | undefined): readonly Site[
  * The first `limit` sites of `name` under `heading`, each marked with the name
  * its file knows it by when that is another: the one its import binds it to
  * with `as`, or else the one a re-export renamed it to. A site in `home`, the
- * package the heading already names, leaves that package off its row.
+ * package the heading already names, leaves that package off its row, and a
+ * site in `file`, the file the heading names, leaves the file off: its row is
+ * the line, indented under the heading.
  */
-function listed(sites: readonly Site[], heading: string, name: string, shown: Shown, home?: string): readonly string[] {
+function listed(sites: readonly Site[], heading: string, name: string, shown: Shown, home?: string, file?: string): readonly string[] {
   if (sites.length === 0) return [];
 
   const cut = sites.slice(0, shown.limit);
@@ -140,7 +142,7 @@ function listed(sites: readonly Site[], heading: string, name: string, shown: Sh
     '',
     heading,
     '',
-    ...cut.map((use) => `${use.at}:${use.line}${by(use)}${use.how ?? ''}${renamed(use)}${use.type ? ' (type only)' : ''}${held(use)}${usedOn(use.lines, shown)}`),
+    ...cut.map((use) => `${use.at === file ? '  ' : `${use.at}:`}${use.line}${by(use)}${use.how ?? ''}${renamed(use)}${use.type ? ' (type only)' : ''}${held(use)}${usedOn(use.lines, shown)}`),
     ...(rest > 0 ? [`… ${notShown(rest, shown.spell)}`] : []),
   ];
 }
@@ -343,7 +345,7 @@ function mayRead({ certain, off, whole }: Counted, name: string): string {
 /**
  * The lines of each file declaring the name that use it there, which no import
  * names, under that file: a line of one declaring file is another file's name.
- * The heading names the file, so its rows leave off the package that holds it.
+ * The heading names the file and its package, so its rows are the lines alone.
  */
 function ownLines(inFile: readonly Use[], name: string, shown: Shown): readonly string[] {
   const byFile = new Map<string, Use[]>();
@@ -352,7 +354,10 @@ function ownLines(inFile: readonly Use[], name: string, shown: Shown): readonly 
     if (lines === undefined) byFile.set(use.at, [use]);
     else lines.push(use);
   }
-  return [...byFile].flatMap(([at, uses]) => listed(uses, `Used in ${at}, which declares it:`, name, shown, uses[0]?.by));
+  return [...byFile].flatMap(([at, uses]) => {
+    const home = uses[0]?.by;
+    return listed(uses, `Used in ${at}${home ? ` — ${home}` : ''}, which declares it:`, name, shown, home, at);
+  });
 }
 
 /**

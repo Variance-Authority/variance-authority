@@ -147,7 +147,7 @@ function holesOf(tree: Tree, files: ReadonlySet<string>, along: boolean, said: s
   const rest = unseen.length > NAMED ? ` and ${unseen.length - NAMED} more` : '';
   return (
     `${unseen.length} other ${unseen.length === 1 ? 'file imports' : 'files import'} something the scan could not resolve, ` +
-    `and may reach it: ${unseen.slice(0, NAMED).join(', ')}${rest}`
+    `and may be ${said}: ${unseen.slice(0, NAMED).join(', ')}${rest}`
   );
 }
 
@@ -156,10 +156,10 @@ function holesOf(tree: Tree, files: ReadonlySet<string>, along: boolean, said: s
  * Against the imports, `file#name` for a file the tree holds starts at the
  * imports of that name rather than at the file.
  */
-function reach(term: string, tree: Tree, along: boolean, root: string | undefined): Operand {
+function reach(term: string, tree: Tree, along: boolean, root: string | undefined, out: boolean): Operand {
   if (!along) {
     const named = nameOf(term);
-    if (named.name !== undefined && tree.has(named.spec)) return reachingName(term, named.spec, named.name, tree, root);
+    if (named.name !== undefined && tree.has(named.spec)) return reachingName(term, named.spec, named.name, tree, root, out);
   }
   const seeds = entryPoints([term], tree);
   const refused = refusalFor(seeds.unmatched, tree.root);
@@ -174,7 +174,7 @@ function reach(term: string, tree: Tree, along: boolean, root: string | undefine
   const distance = chains?.distance ?? tree.distanceFrom(seeds.files);
   const files = new Set(distance.keys());
   const said = `${along ? 'reached from' : 'reaching'} \`${term}\``;
-  const holes = holesOf(tree, files, along, said);
+  const holes = holesOf(tree, files, along, out ? `${said}, which is taken out` : said);
   return {
     header: `${counted(files.size)} ${said}`,
     said,
@@ -198,7 +198,7 @@ function reach(term: string, tree: Tree, along: boolean, root: string | undefine
  * import the name the walk is by file, since an import of a file is an import
  * of all of it.
  */
-function reachingName(term: string, file: string, name: string, tree: Tree, root: string | undefined): Operand {
+function reachingName(term: string, file: string, name: string, tree: Tree, root: string | undefined, out: boolean): Operand {
   const read = importersOf(root, [file], name);
   if ('unread' in read) {
     throw new Error(`\`discover\` ran nothing: what imports \`${name}\` from \`${file}\` is read from the source index, and ${read.unread}.`);
@@ -209,7 +209,7 @@ function reachingName(term: string, file: string, name: string, tree: Tree, root
   for (const [at, hops] of chains.distance) if (!distance.has(at)) distance.set(at, hops + 1);
   const files = new Set(distance.keys());
   const said = `reaching \`${name}\` from \`${file}\`${passedOn(read.through)}`;
-  const holes = holesOf(tree, files, false, said);
+  const holes = holesOf(tree, files, false, out ? `${said}, which is taken out` : said);
   return {
     header: `${counted(files.size)} ${said}`,
     said,
@@ -328,8 +328,8 @@ function operandsOf(input: Readonly<Record<string, unknown>>, tree: Tree, invoca
   const read = (prefix: '' | 'except'): Operand[] => {
     const key = (name: string): string => (prefix === '' ? name : `${prefix}${name[0]!.toUpperCase()}${name.slice(1)}`);
     const operands: Operand[] = [];
-    for (const term of listArg(input, key('from'))) operands.push(reach(term, tree, true, root));
-    for (const term of listArg(input, key('to'))) operands.push(reach(term, tree, false, root));
+    for (const term of listArg(input, key('from'))) operands.push(reach(term, tree, true, root, prefix !== ''));
+    for (const term of listArg(input, key('to'))) operands.push(reach(term, tree, false, root, prefix !== ''));
     for (const written of listArg(input, key('imports'))) operands.push(importsOf(written, tree, found, root));
     const declares = textArg(input, key('declares'));
     if (declares !== undefined) operands.push(declaresOf(declares, tree, found()));
@@ -381,7 +381,7 @@ export const discover: Tool<unknown> = {
     const page = pageOf(input, SHOWN, spell);
     const { kept, header, answer, matched, notes } = answered(input, invocation);
     const noted = notes.map((note) => `note: ${note}`);
-    if (answer.length === 0) return [...header, '', 'No file is in all of them.', ...noted].join('\n');
+    if (answer.length === 0) return ['No file is in all of them:', ...header.map((said) => `- ${said}`), ...noted].join('\n');
     return [...rowsOf(kept, header, answer, matched, page, spell), ...noted, ...nextPage(page, answer.length, spell)].join('\n');
   },
 
@@ -435,7 +435,9 @@ function answered(input: Readonly<Record<string, unknown>>, invocation: ToolInvo
   answer.sort((left, right) => distance.get(left)! - distance.get(right)! || codeUnitOrder(left, right));
 
   const header = [...kept.map((operand) => operand.header), ...out.map((operand) => `${operand.header}, taken out`)];
-  const unread = [...kept, ...out].flatMap((operand) => (operand.unread === undefined ? [] : [operand.unread]));
+  // One index answers every name set, so a note two sets share is said once.
+  const notes = [...new Set([...kept, ...out].flatMap((operand) => (operand.unread === undefined ? [] : [operand.unread])))];
+  const unread = [...notes];
 
   const matched = new Map<string, Evidence[]>();
   if (text !== undefined && answer.length > 0) {
@@ -446,12 +448,10 @@ function answered(input: Readonly<Record<string, unknown>>, invocation: ToolInvo
       matched.set(hit.file, list);
     }
     header.push(`\`${text}\` matches a line in ${matched.size} of the ${answer.length === 1 ? 'one file' : counted(answer.length)} the other sets kept`);
-    if (errors.length > 0) header.push(`ripgrep reported ${errors.length} ${errors.length === 1 ? 'error' : 'errors'}; the first: ${errors[0]}`);
+    if (errors.length > 0) notes.push(`ripgrep reported ${errors.length} ${errors.length === 1 ? 'error' : 'errors'}; the first: ${errors[0]}`);
     unread.push(...errors.map((error) => `ripgrep: ${error}`));
     answer = answer.filter((file) => matched.has(file));
   }
-  // One index answers every name set, so its unread files are said once, not per set.
-  const notes = [...new Set([...kept, ...out].flatMap((operand) => (operand.unread === undefined ? [] : [operand.unread])))];
   return { kept, header, answer, matched, unread, notes };
 }
 

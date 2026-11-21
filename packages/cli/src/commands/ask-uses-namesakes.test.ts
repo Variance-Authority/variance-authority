@@ -230,7 +230,7 @@ describe('variance ask uses over a name several files declare', () => {
 
     const out = await uses('--file', 'packages/lib/src/kept.ts');
     expect(out).toMatch(/^`greet` \[function\] is declared, not exported, at packages\/lib\/src\/kept\.ts:1/m);
-    expect(out).toMatch(/^packages\/lib\/src\/kept\.ts:4$/m);
+    expect(out).toMatch(/^Used in packages\/lib\/src\/kept\.ts — @acme\/lib, which declares it:\n\n {2}4$/m);
     expect(out).not.toMatch(/hello\.ts|other\.ts|unrelated\.ts/);
   });
 

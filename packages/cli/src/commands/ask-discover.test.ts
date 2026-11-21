@@ -134,7 +134,7 @@ describe('ask discover over a checkout', () => {
     const text = asked({ imports: ['node:module'], exceptImports: ['./legacy.cjs'] });
     expect(text).toContain('3 files importing `node:module`');
     expect(text).toContain('3 files importing `./legacy.cjs`, taken out');
-    expect(text).toContain('No file is in all of them.');
+    expect(text.split('\n')[0]).toBe('No file is in all of them:');
   });
 
   it('asks the source index for no names when every import set names a name out of a repository file, which its edges answer', async () => {
