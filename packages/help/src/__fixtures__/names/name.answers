@@ -33,8 +33,9 @@ interface Clock
 A source of the time.
 
 Members:
-packages/kit/src/clock.ts:4 — now(): number;
-packages/kit/src/clock.ts:5 — zone: string;
+packages/kit/src/clock.ts
+  4: now(): number;
+  5: zone: string;
 
 `variance-authority-help uses` names the 1 place that imports this, from another package, nearest to a file you name first.
 Snapshot <masked>
