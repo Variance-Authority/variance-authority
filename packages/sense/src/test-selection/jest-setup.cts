@@ -248,7 +248,7 @@ function cutIn(file: string): Record<string, readonly string[]> {
 /** What jest-circus hands a handler: the case, with the body about to be called. */
 interface CircusEvent {
   readonly name: string;
-  readonly test?: { fn?: unknown; name?: unknown; timeout?: number } | undefined;
+  readonly test?: { fn?: unknown; name?: unknown; timeout?: number; invocations?: number } | undefined;
   readonly hook?: { readonly type: string; readonly parent: CircusBlock } | undefined;
 }
 
@@ -300,7 +300,8 @@ function bracketEveryCase(nextId: () => string): void {
     placeCalls(event);
     if (event.name === 'test_start') {
       attempting = true;
-      attempt('begin');
+      // jest-circus counted the attempt in `invocations` as the event began.
+      attempt('begin', event.test?.invocations);
     }
     if (event.name === 'test_done' || event.name === 'test_skip' || event.name === 'test_todo') {
       attempting = false;
@@ -321,11 +322,11 @@ function bracketEveryCase(nextId: () => string): void {
 let attempting = false;
 
 /** Open or close the attending bracket, where the realm's case scope keeps one. */
-function attempt(edge: 'begin' | 'leave'): void {
-  const scope = (globalThis as { [key: symbol]: Partial<Record<'begin' | 'leave', () => void>> | undefined })[
+function attempt(edge: 'begin' | 'leave', ordinal?: number): void {
+  const scope = (globalThis as { [key: symbol]: Partial<Record<'begin' | 'leave', (token?: unknown, ordinal?: number) => void>> | undefined })[
     Symbol.for('variance-authority.test-selection.cases')
   ];
-  scope?.[edge]?.();
+  scope?.[edge]?.(undefined, ordinal);
 }
 
 /**

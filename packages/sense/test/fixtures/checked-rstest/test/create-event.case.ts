@@ -33,3 +33,14 @@ it('retries', { retry: 1 }, () => { // retried case
   checked('create-event/retried-title', () => expect(attempts).toBe(1)); // retried check
   expect(attempts).toBe(2); // first attempt fails
 });
+
+describe('setup', () => {
+  let setups = 0;
+  beforeEach(() => {
+    setups += 1;
+    if (setups === 1) throw new Error('the first setup fails');
+  });
+  it('retries past its setup', { retry: 1 }, () => {
+    checked('create-event/setup-title', () => expect(setups).toBe(2)); // setup check
+  });
+});

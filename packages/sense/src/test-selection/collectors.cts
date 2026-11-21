@@ -442,12 +442,12 @@ function scoped(
   // One edge starts an attempt for both: what a `beforeEach` said for a case
   // that never ran is forgotten, and Eyes attends the attempt from here. One
   // the runner never said was over ends as the next begins.
-  const begin = (token?: unknown): void => {
+  const begin = (token?: unknown, attempt?: number): void => {
     attempted();
     ended();
     owed = [];
     recorder.begin(token);
-    attention.scope.begin();
+    attention.scope.begin(attempt);
   };
   const leave = (): void => { givenUp(); ended(); attention.scope.leave(); };
   (holder as { [CASE_SCOPE]?: unknown })[CASE_SCOPE] = {

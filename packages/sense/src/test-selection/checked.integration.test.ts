@@ -10,8 +10,9 @@ import { checksAt, type CheckedRun } from '../recorded-checks.js';
 // One test file per runner holds the same cases: one that passes on the branch
 // that bypasses its check, one that enters it, one that bypasses a check a
 // helper of the file holds, and one retried case whose failed first attempt
-// entered its check and whose passing second did not. Jest's retry is a file
-// of its own, because `jest.retryTimes` is.
+// entered its check and whose passing second did not, and one whose first
+// attempt failed in `beforeEach` and whose retry entered its check. Jest's
+// retries are a file of their own, because `jest.retryTimes` is.
 
 const execute = promisify(execFile);
 const here = dirname(fileURLToPath(import.meta.url));
@@ -124,12 +125,16 @@ describe.each(Object.entries(runners))('a %s case that passes without entering a
     });
   });
 
+  it('counts an attempt its `beforeEach` failed, so the retry that entered its check entered it', () => {
+    expect(missing().map((one) => one.check)).not.toContain('create-event/setup-title');
+  });
+
   it('names no check a passing case entered, and nothing else', () => {
     expect(missing().map((one) => one.check).sort()).toEqual([
       'create-event/helper-title',
       'create-event/retried-title',
       'create-event/submitted-title',
     ]);
-    expect(run).toMatchObject({ entered: 2, incomplete: [] });
+    expect(run).toMatchObject({ entered: 3, incomplete: [] });
   });
 });

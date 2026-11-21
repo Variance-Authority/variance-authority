@@ -68,12 +68,19 @@ interface Attending {
     readonly watch?: () => void;
     /** The attempt entered the check `id`; `false` where no case runs. */
     readonly checked: (id: string) => boolean;
-    /** The runner starts an attempt: its hooks and its body follow. */
-    readonly begin: () => void;
+    /**
+     * The runner starts an attempt, its hooks and its body to follow, and says
+     * which of the case's attempts it is: one whose `beforeEach` fails never
+     * enters the body, and is an attempt all the same.
+     */
+    readonly begin: (attempt?: number) => void;
     /** The attempt's hooks are done. */
     readonly leave: () => void;
   };
-  /** A case's body is entered, under `key`. */
+  /**
+   * A case's body is entered, under `key`, as the attempt `begin` named; as the
+   * case's next where no runner named one.
+   */
   readonly entered: (key: string) => void;
 }
 
@@ -93,6 +100,8 @@ function attending(
 ): Attending {
   const attempts = new Map<string, number>();
   let trying = false;
+  // Which of its case's attempts the runner said this one is.
+  let named: number | undefined;
   // The case the current attempt entered, kept until its hooks are done.
   let attended: string | undefined;
   // A journal opened in `beforeEach`, before the attempt has named its case.
@@ -128,19 +137,21 @@ function attending(
         write(key, { check });
         return true;
       },
-      begin() {
+      begin(attempt) {
         trying = true;
+        named = attempt;
         attended = undefined;
         watching = false;
       },
       leave() {
         trying = false;
+        named = undefined;
         attended = undefined;
         watching = false;
       },
     },
     entered(key) {
-      attempts.set(key, (attempts.get(key) ?? 0) + 1);
+      attempts.set(key, named ?? (attempts.get(key) ?? 0) + 1);
       if (!trying) return;
       attended = key;
       if (!watching) return;

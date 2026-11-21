@@ -310,6 +310,9 @@ const caseKey = (test) => {
 // suite starts, each knowing its depth and, for a \`beforeEach\`, the case it
 // runs for. A \`beforeAll\` or an \`afterAll\` runs for no one case, and a call
 // in one throws, as a call while the file collects does.
+// How many tries each test has begun: Vitest reports a repeat as an attempt
+// like a retry, numbered by the try.
+const tries = new WeakMap();
 const WRAPPED = Symbol('variance-authority.wrapped-hook');
 const hookAt = (kind, depth, args) => {
   if (kind === 'afterEach') return { kind: 'after' };
@@ -374,7 +377,9 @@ export default class extends VitestTestRunner {
     await super.onBeforeTryTask?.(test, options);
     const scope = globalThis[Symbol.for('variance-authority.test-selection.cases')];
     if (typeof scope?.begin !== 'function') return;
-    scope.begin();
+    const tried = (tries.get(test) ?? 0) + 1;
+    tries.set(test, tried);
+    scope.begin(undefined, tried);
     (test.onFinished ??= []).push(() => scope.leave());
   }
 
