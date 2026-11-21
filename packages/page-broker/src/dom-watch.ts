@@ -13,6 +13,46 @@ function hosts(document: Document): Host[] {
   return [...new Set<Host>([globalThis as Host, ...(document.defaultView === null ? [] : [document.defaultView as Host])])];
 }
 
+interface Hook {
+  original: unknown;
+  wrapper: unknown;
+  followers: Set<unknown>;
+}
+
+const hooks = new WeakMap<object, Map<PropertyKey, Hook>>();
+
+/**
+ * Puts one wrapper on `owner[key]` however many actions follow it at once, so
+ * each sees every call, and the original back when the last of them stops.
+ * Stop only what was started: a value somebody put there since is theirs, and
+ * the next action wraps it afresh.
+ */
+function hook<F>(owner: object, key: PropertyKey, follower: F, wrap: (original: never, followers: ReadonlySet<F>) => unknown): () => void {
+  const slot = owner as Record<PropertyKey, unknown>;
+  let keys = hooks.get(owner);
+  if (keys === undefined) hooks.set(owner, (keys = new Map()));
+  let found = keys.get(key);
+  if (found === undefined || slot[key] !== found.wrapper) {
+    const followers = new Set<unknown>();
+    found = { original: slot[key], wrapper: wrap(slot[key] as never, followers as Set<F>), followers };
+    slot[key] = found.wrapper;
+    keys.set(key, found);
+  }
+  const hooked = found;
+  hooked.followers.add(follower);
+  return () => {
+    hooked.followers.delete(follower);
+    if (hooked.followers.size > 0) return;
+    if (keys.get(key) === hooked) keys.delete(key);
+    if (slot[key] === hooked.wrapper) slot[key] = hooked.original;
+  };
+}
+
+/** What a request was opened with, for the requests opened while any action followed them. */
+const opened = new WeakMap<XMLHttpRequest, [string, string | URL]>();
+
+type Started = (method: string, url: RequestInfo | URL) => () => void;
+
 /**
  * Quiet in a document: no request made with `fetch` or `XMLHttpRequest` in
  * flight and no change to the document for `period` ms. Followed from before
@@ -23,49 +63,58 @@ export function pending(document: Document, period: number): Quiet {
   const flying = new Map<object, string>();
   const clock = quietPeriod(period, () => flying.size);
   let changed = 0;
-  const began = (key: object, what: string): void => {
-    flying.set(key, what);
+  const started: Started = (method, url) => {
+    const key = {};
+    flying.set(key, `${method.toUpperCase()} ${path(url, document)}`);
     clock.began();
-  };
-  const ended = (key: object): void => {
-    if (flying.delete(key)) clock.ended();
+    return () => {
+      if (flying.delete(key)) clock.ended();
+    };
   };
   const undo: (() => void)[] = [];
+  const prototypes = new Set<XMLHttpRequest>();
   for (const host of hosts(document)) {
-    const original = host.fetch;
-    if (original !== undefined) {
-      const followed: typeof fetch = function (this: unknown, input, init) {
-        const key = {};
-        began(key, `${init?.method ?? (input instanceof Request ? input.method : 'GET')} ${path(input, document)}`);
-        return original.call(this, input, init).finally(() => ended(key));
-      };
-      host.fetch = followed;
-      // Stop only what was started: a fetch somebody put there since is theirs.
-      undo.push(() => {
-        if (host.fetch === followed) host.fetch = original;
-      });
+    if (host.fetch !== undefined) {
+      undo.push(
+        hook(host, 'fetch', started, (original: typeof fetch, followers) =>
+          function (this: unknown, input: RequestInfo | URL, init?: RequestInit) {
+            const method = init?.method ?? (input instanceof Request ? input.method : 'GET');
+            const ends = [...followers].map((each) => each(method, input));
+            return original.call(this, input, init).finally(() => {
+              for (const end of ends) end();
+            });
+          },
+        ),
+      );
     }
-    const prototype = host.XMLHttpRequest?.prototype;
-    if (prototype !== undefined) {
-      const open = prototype.open;
-      const send = prototype.send;
-      const opened = new WeakMap<XMLHttpRequest, string>();
-      const following = function (this: XMLHttpRequest, method: string, url: string | URL, ...rest: unknown[]): void {
-        opened.set(this, `${method.toUpperCase()} ${path(url, document)}`);
-        (open as (...args: unknown[]) => void).call(this, method, url, ...rest);
-      };
-      const sending = function (this: XMLHttpRequest, body?: Document | XMLHttpRequestBodyInit | null): void {
-        began(this, opened.get(this) ?? 'a request');
-        this.addEventListener('loadend', () => ended(this), { once: true });
-        send.call(this, body);
-      };
-      prototype.open = following as typeof open;
-      prototype.send = sending;
-      undo.push(() => {
-        if (prototype.open === following) prototype.open = open;
-        if (prototype.send === sending) prototype.send = send;
-      });
-    }
+    if (host.XMLHttpRequest !== undefined) prototypes.add(host.XMLHttpRequest.prototype);
+  }
+  // One prototype may serve both globals: it is wrapped once.
+  for (const prototype of prototypes) {
+    undo.push(
+      hook(prototype, 'open', started, (original: XMLHttpRequest['open']) =>
+        function (this: XMLHttpRequest, method: string, url: string | URL, ...rest: unknown[]): void {
+          opened.set(this, [method, url]);
+          (original as (...args: unknown[]) => void).call(this, method, url, ...rest);
+        },
+      ),
+      hook(prototype, 'send', started, (original: XMLHttpRequest['send'], followers) =>
+        function (this: XMLHttpRequest, body?: Document | XMLHttpRequestBodyInit | null): void {
+          const request = opened.get(this);
+          // A request never opened is refused by the send itself: nothing is in flight.
+          if (request === undefined) return original.call(this, body);
+          const ends = [...followers].map((each) => each(...request));
+          this.addEventListener(
+            'loadend',
+            () => {
+              for (const end of ends) end();
+            },
+            { once: true },
+          );
+          original.call(this, body);
+        },
+      ),
+    );
   }
   const observer = new (document.defaultView!.MutationObserver)(() => {
     changed = Date.now();
@@ -97,18 +146,20 @@ export function away(document: Document): Elsewhere {
   const href = document.location.href;
   const before = modals(document);
   let opened = false;
+  const follower = (): void => {
+    opened = true;
+  };
   const undo: (() => void)[] = [];
   for (const host of hosts(document)) {
-    const original = host.open;
-    if (original === undefined) continue;
-    const following = function (this: unknown, ...args: Parameters<Window['open']>): Window | null {
-      opened = true;
-      return original.apply(this, args);
-    };
-    host.open = following;
-    undo.push(() => {
-      if (host.open === following) host.open = original;
-    });
+    if (host.open === undefined) continue;
+    undo.push(
+      hook(host, 'open', follower, (original: Window['open'], followers) =>
+        function (this: unknown, ...args: Parameters<Window['open']>): Window | null {
+          for (const each of followers) each();
+          return original.apply(this, args);
+        },
+      ),
+    );
   }
   return {
     left: async () => {

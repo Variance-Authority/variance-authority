@@ -92,6 +92,37 @@ describe('page-broker over a document', () => {
     await expect(typing(surface(document))).rejects.toThrow('type: billing is on the page before the action, and idle stays');
   });
 
+  it('puts back every global it followed, however many actions overlap on the document', async () => {
+    const { open, send } = XMLHttpRequest.prototype;
+    const { fetch: fetching } = globalThis;
+    const opening = window.open;
+    const on = surface(document);
+
+    const first = [on.quiet(100), await on.elsewhere()];
+    const second = [on.quiet(100), await on.elsewhere()];
+    for (const each of first) each.stop();
+    for (const each of second) each.stop();
+
+    expect(XMLHttpRequest.prototype.open).toBe(open);
+    expect(XMLHttpRequest.prototype.send).toBe(send);
+    expect(globalThis.fetch).toBe(fetching);
+    expect(window.open).toBe(opening);
+  });
+
+  it('follows a request on behalf of every action overlapping it', async () => {
+    checkout('payment', 50);
+    const on = surface(document);
+    const first = on.quiet(100);
+    const second = on.quiet(100);
+
+    void fetch('/api/billing');
+
+    expect(first.held()).toBe('GET /api/billing still in flight');
+    expect(second.held()).toBe('GET /api/billing still in flight');
+    first.stop();
+    second.stop();
+  });
+
   it('declares through the default means too', () => {
     expect(action('noop', { to: { idle: stay } }, async () => undefined).declared.outcomes).toEqual(['idle']);
   });
