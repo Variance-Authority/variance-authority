@@ -69,6 +69,8 @@ function fencedCode(text: string): string {
  */
 const REACH_THROUGH_DEBT: Readonly<Record<string, readonly string[]>> = {
   'examples/agent-claim/collector/index.mjs': ['@variance-authority/playwright', '@variance-authority/sense'],
+  // The same gap: it renders the two revisions of its own pricing page.
+  'examples/visual-review-case/collector/index.mjs': ['@variance-authority/playwright', '@variance-authority/sense'],
   // `provenanceOf`, `wiringOf` and `holdingOf` are optional capture callbacks
   // that only a React adopter passes, and `unit-test` declares no React
   // dependency. Re-exporting them would mean depending on `react` to forward

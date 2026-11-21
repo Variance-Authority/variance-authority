@@ -25,7 +25,7 @@ function write(file: string, text: string): void {
   writeFileSync(join(root, file), text);
 }
 
-beforeAll(() => {
+beforeAll(async () => {
   root = mkdtempSync(join(tmpdir(), 'ask-intersection-'));
   write('package.json', '{"name":"ask-intersection-fixture","private":true}\n');
   write('src/Wallet.ts', "import { selectBalance } from './store';\nexport const balance = selectBalance;\n");
@@ -37,6 +37,8 @@ beforeAll(() => {
   commit('add', '.');
   commit('-c', 'user.name=fixture', '-c', 'user.email=fixture@example.com', 'commit', '--quiet', '-m', 'fixture');
   process.chdir(root);
+  // A question reads the generation `variance index` published, and never the checkout.
+  expect(await main(['index'], { out: () => {}, err: () => {} })).toBe(EXIT_CLEAN);
 });
 
 afterAll(() => {
@@ -50,28 +52,28 @@ describe('ask intersection over a checkout', () => {
   it('finds the declaration of a name among every one, by what a file reaches', async () => {
     const text = await ask('symbol --name selectBalance', 'discover --from src/Wallet.ts');
     expect(text).toContain('1. `symbol --name selectBalance`: 2 files');
-    expect(text).toContain('1 file in all of them.');
+    expect(text).toContain('1 file in all of them:');
     expect(text).toContain('src/store/selectors.ts — 1: line 1 · 2: the file');
     expect(text).not.toContain('src/old/selectors.ts —');
   });
 
   it('crosses the files that import a name, at the lines that do', async () => {
     const text = await ask('uses --name selectBalance', 'discover --path ^src/Wallet');
-    expect(text).toContain('1 file in all of them.');
+    expect(text).toContain('1 file in all of them:');
     expect(text).toContain('src/Wallet.ts — 1: line 1 · 2: the file');
   });
 
   it('crosses the files a search finds, and spells each question back so it can be pasted', async () => {
     const text = await ask('search --query balance', "discover --path '^src/' --except-path old");
     expect(text).toContain('2. `discover --path ^src/ --except-path old`: 3 files');
-    expect(text).toContain('3 files in all of them.');
+    expect(text).toContain('3 files in all of them:');
     expect(text).toContain('src/store/selectors.ts — 1: line 1 · 2: the file');
     expect(text).not.toContain('src/old/selectors.ts —');
   });
 
   it('reads the names a question needs, and the tree another needs', async () => {
     const text = await ask("discover --declares '^selectBalance$'", 'grep --query state --from src/Wallet.ts');
-    expect(text).toContain('1 file in all of them.');
+    expect(text).toContain('1 file in all of them:');
     expect(text).toContain('src/store/selectors.ts — 1: line 1 · 2: line 1');
   });
 
@@ -88,14 +90,20 @@ describe('ask intersection over a checkout', () => {
       reports: ["discover --declares '^selectBalance$'", 'discover --from src/Wallet.ts'],
       taintFile,
     });
-    expect(text).toContain('2 files in all of them.');
+    expect(text).toContain('2 files in all of them:');
     expect(text).toContain('src/old/selectors.ts — 1: line 1 · 2: the file');
   });
 
   it('takes `--limit` for itself', async () => {
     const text = await askSource({ question: 'intersection', reports: ['discover --path ^src/', 'discover --path selectors'], limit: 1 });
-    expect(text).toContain('2 files in all of them.');
-    expect(text).toContain('1 more not shown');
+    expect(text).toContain('2 files in all of them:');
+    expect(text).toContain('1 more not shown; `--offset` 1 shows the next 1.');
+  });
+
+  it('takes `--offset` for itself, and shows the page it names', async () => {
+    const text = await askSource({ question: 'intersection', reports: ['discover --path ^src/', 'discover --path selectors'], limit: 1, offset: 1 });
+    expect(text).toContain('Rows 2–2 of 2.');
+    expect(text).not.toContain('more not shown');
   });
 });
 
@@ -135,8 +143,16 @@ describe('ask intersection refuses what it cannot cross', () => {
     await expect(ask('packages', 'symbol --name selectBalance')).rejects.toThrow(/`packages` answers no set of files; the questions that do: symbol, uses, search, grep, discover$/);
   });
 
-  it('refuses a flag the question does not take, saying which question', async () => {
-    await expect(ask('symbol --name selectBalance', 'discover --form src/Wallet.ts')).rejects.toThrow(/question 2, `discover --form src\/Wallet.ts`: .*`--form`/);
+  it('answers past a flag a question does not take, naming it and which question', async () => {
+    const warned: string[] = [];
+    const reports = ['symbol --name selectBalance', 'discover --from src/Wallet.ts --component Wallet --form x'];
+    const text = await askSource({ question: 'intersection', reports, warn: (line) => { warned.push(line); } });
+
+    expect(text).toBe(await ask('symbol --name selectBalance', 'discover --from src/Wallet.ts'));
+    expect(warned).toEqual([
+      expect.stringMatching(/^variance: question 2, `discover --from .*`: `--form x` is not an argument `variance ask discover` takes, so the answer is what it is without it; it takes .*\.\nDid you mean `--from`\?$/),
+      expect.stringMatching(/^variance: question 2, .*: `--component` is not an argument `variance ask discover` takes, so the answer is what it is without it/),
+    ]);
   });
 
   it('refuses a word left over inside a question', async () => {
@@ -147,7 +163,7 @@ describe('ask intersection refuses what it cannot cross', () => {
     await expect(ask("intersection 'symbol --name a' 'symbol --name b'", 'symbol --name selectBalance')).rejects.toThrow(/question 1, .*`intersection` answers no set of files/);
   });
 
-  it.each(['--changed-file', '--taint-file', '--just-answer', '--format', '--at', '--claims', '--config'])(
+  it.each(['--changed-file', '--taint-file', '--format', '--at', '--claims', '--config'])(
     'refuses `%s` inside a question, which is said once for the reading',
     async (flag) => {
       await expect(ask(`symbol --name selectBalance ${flag} x`, 'discover --from src/Wallet.ts')).rejects.toThrow(

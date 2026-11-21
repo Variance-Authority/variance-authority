@@ -166,7 +166,6 @@ fn a_replace_ref_even_packed_keeps_the_store_shut() {
 
     assert!(Store::open(&root).is_none());
     assert!(super::Objects::open(&root).is_none(), "the scan's reader refuses it too");
-    assert!(super::head(&root).is_some_and(|head| head.blobs.is_none()), "the listing leaves it to `ls-tree`");
 }
 
 #[test]
@@ -176,7 +175,6 @@ fn a_loose_replace_ref_seen_from_a_linked_worktree_keeps_the_store_shut() {
     let _ = std::fs::remove_dir_all(&linked);
     git(&root, &["worktree", "add", "-q", "--detach", linked.to_str().unwrap()]);
     assert!(super::Objects::open(&linked).is_some());
-    assert!(super::head(&linked).is_some_and(|head| head.blobs.is_some()));
 
     let a = git(&root, &["rev-parse", "HEAD:a.ts"]);
     let b = git(&root, &["rev-parse", "HEAD:b.ts"]);
@@ -184,7 +182,6 @@ fn a_loose_replace_ref_seen_from_a_linked_worktree_keeps_the_store_shut() {
 
     assert!(Store::open(&linked).is_none());
     assert!(super::Objects::open(&linked).is_none());
-    assert!(super::head(&linked).is_some_and(|head| head.blobs.is_none()));
     std::fs::remove_dir_all(&linked).unwrap();
 }
 
@@ -309,54 +306,4 @@ fn any_git_call_that_failed_keeps_the_store_shut() {
         }
         assert!(Store::answered(&root, answers).is_none(), "{failed}");
     }
-}
-
-/// `ls-tree -r -z HEAD -- .` run in `at`, as `(path, object, mode)` with the path from `at`.
-fn ls_tree(at: &std::path::Path) -> Vec<(Vec<u8>, String, String)> {
-    let out = Command::new("git").args(["ls-tree", "-r", "-z", "HEAD", "--", "."]).current_dir(at).output().unwrap().stdout;
-    out.split(|byte| *byte == 0)
-        .filter(|entry| !entry.is_empty())
-        .filter_map(|entry| {
-            let tab = entry.iter().position(|byte| *byte == b'\t')?;
-            let head = String::from_utf8_lossy(&entry[..tab]).into_owned();
-            let mut fields = head.split(' ');
-            let (mode, kind, object) = (fields.next()?.to_owned(), fields.next()?, fields.next()?.to_owned());
-            (kind == "blob").then(|| (entry[tab + 1..].to_vec(), object, mode))
-        })
-        .collect()
-}
-
-#[test]
-fn the_blobs_of_head_are_listed_as_ls_tree_lists_them_from_the_root() {
-    let root = repository(
-        "git-store-head-blobs",
-        &[("apps/x/a.ts", A), ("apps/x/a.b", A), ("apps/x/a/c.ts", A), ("apps/x/deep/er/d.ts", A), ("apps/y/e.ts", A), ("top.ts", A)],
-    );
-    std::os::unix::fs::symlink("a.ts", root.join("apps/x/link.ts")).unwrap();
-    std::fs::set_permissions(root.join("apps/x/a.b"), std::os::unix::fs::PermissionsExt::from_mode(0o755)).unwrap();
-    commit(&root);
-    // A gitlink is a commit in the tree, not a blob, and neither lister descends into it.
-    let commit_id = git(&root, &["rev-parse", "HEAD"]);
-    git(&root, &["update-index", "--add", "--cacheinfo", &format!("160000,{},apps/x/sub", commit_id.trim())]);
-    git(&root, &["commit", "--quiet", "-m", "gitlink"]);
-
-    for at in [root.clone(), root.join("apps/x"), root.join("apps/x/deep")] {
-        let listed = super::head(&at).and_then(|head| head.blobs).expect("a tree HEAD holds is listed");
-        let ours: Vec<(Vec<u8>, String, String)> = listed
-            .into_iter()
-            .map(|(path, id, link)| (path, id.to_string(), if link { "120000".to_owned() } else { String::new() }))
-            .collect();
-        let theirs: Vec<(Vec<u8>, String, String)> =
-            ls_tree(&at).into_iter().map(|(path, id, mode)| (path, id, if mode == "120000" { mode } else { String::new() })).collect();
-        assert_eq!(ours, theirs, "from {}", at.display());
-    }
-}
-
-#[test]
-fn a_root_head_does_not_hold_lists_nothing() {
-    let root = repository("git-store-head-absent", &[("a.ts", A)]);
-    write(&root, "new/b.ts", A);
-
-    let at = root.join("new");
-    assert_eq!(super::head(&at).and_then(|head| head.blobs), Some(Vec::new()));
 }

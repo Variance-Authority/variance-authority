@@ -1,0 +1,22 @@
+name: zigbuild
+description: The linker build.mjs links a Linux scanner at its glibc floor with.
+
+# The versions are `LINKER` in packages/sense/native/targets.mjs, which the
+# native cache key and the scanner's stamp name too, so a new linker is a new
+# binary in a pull request as at release.
+runs:
+  using: composite
+  steps:
+    - id: pins
+      shell: bash
+      run: |
+        node --input-type=module -e '
+          import { LINKER } from "./packages/sense/native/targets.mjs";
+          process.stdout.write(`zig=${LINKER.zig}\nzigbuild=${LINKER.zigbuild}\n`);
+        ' >> "$GITHUB_OUTPUT"
+    - uses: mlugg/setup-zig@v2
+      with:
+        version: ${{ steps.pins.outputs.zig }}
+    - uses: taiki-e/install-action@v2
+      with:
+        tool: cargo-zigbuild@${{ steps.pins.outputs.zigbuild }}

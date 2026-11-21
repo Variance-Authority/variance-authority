@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, expect, it } from 'vitest';
-import { readHelp } from '@variance-authority/package/help';
+import { readHelp } from '../walk.js';
 import { updateSourceIndex } from '@variance-authority/sense';
 import { refreshDependencyLexicon } from '../dependency-lexicon.js';
 import { symbol } from './symbol.js';
@@ -72,6 +72,21 @@ it('resolves the version and signature from the owning workspace, and says where
     expect(gamma).toContain('shared-kit@2.0.0');
   }
   expect(ask()).toContain('shared-kit@2.0.0');
+});
+
+// Only a dependency declares the name, so no recorded function can be one of
+// its declarations, and a line answers as `symbol` does without it.
+it('answers a name only a dependency declares at a line as it does without one', async () => {
+  const root = await fixture();
+  const answer = symbol.run(readHelp(root), { name: 'sharedName', line: 'packages/beta/src/x.ts:2' }, { root });
+  expect(answer).toContain('shared-kit@2.0.0');
+  expect(answer).toContain('b: number');
+});
+
+it('refuses a line when the host names no checkout to read its recording from', async () => {
+  const root = await fixture();
+  expect(() => symbol.run(readHelp(root), { name: 'sharedName', line: 'packages/beta/src/x.ts:2' }, undefined))
+    .toThrow('`symbol --line` reads what a checkout recorded, and this host named no checkout to read');
 });
 
 // The workspace answers nothing for the name, so it may be declared in a file

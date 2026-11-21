@@ -1,0 +1,11 @@
+{
+  "project": "visual-review-case",
+  "profile": "chromium",
+  "viewport": { "width": 480, "height": 440, "deviceScaleFactor": 1, "colorScheme": "light" },
+  "retention": "durable",
+  "subjects": { "kind": "collector", "collector": "collector/index.mjs" },
+  "baselines": { "kind": "directory", "root": ".variance/baselines" },
+  "fonts": ["Arial/400/normal/system", "Arial/600/normal/system"],
+  "report": ".variance/run.json",
+  "images": ".variance/images"
+}

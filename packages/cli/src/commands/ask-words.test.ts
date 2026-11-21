@@ -6,10 +6,12 @@ import { describe, expect, it } from 'vitest';
 import '../bin.fixture.js';
 import { main } from '../bin.js';
 import { EXIT_OPERATOR } from '../exit.js';
+import { parseArgs } from '../parse.js';
 
 /**
- * A word after a question about the code is refused, as a flag it does not
- * take is refused.
+ * A word after a question about the code is refused, where a flag it does not
+ * take is named and answered past: a word is read as a report, and a report
+ * changes what the question means.
  *
  * Every word after the question is a report path, and a question about the
  * checkout reads no report. `ask packages @kbn/does-not-exist` read as a
@@ -37,13 +39,45 @@ describe('a word a question about the code does not take', () => {
     }
   });
 
-  it('is refused the way the flag is, with the same exit and the same list', async () => {
+  it('is refused where the flag is answered past, each naming what the question takes', async () => {
     const flag = await run(['ask', 'packages', '--package', '@kbn/does-not-exist']);
     const word = await run(['ask', 'packages', '@kbn/does-not-exist']);
 
-    expect(word.code).toBe(flag.code);
-    expect(flag.err).toContain('`--package` is not an argument `variance ask packages` takes; it takes none.');
+    // The flag is named and passed over before the checkout is read; with no
+    // index here, what follows is the answer's own failure, not a refusal of it.
+    expect(word.code).toBe(EXIT_OPERATOR);
+    expect(flag.err).not.toContain('takes; it takes none');
+    expect(flag.err).toContain(
+      '`--package` is not an argument `variance ask packages` takes, so the answer is what it is without it; it takes none.',
+    );
     expect(word.err).toContain('`@kbn/does-not-exist` is not an argument `variance ask packages` takes; it takes none.');
+  });
+
+  it('is taken as the value of an unknown flag before it, which is named with it', async () => {
+    const { err } = await run(['ask', 'packages', '--limt', '5']);
+
+    expect(err).not.toContain('`5` is not an argument');
+    expect(err).toContain('`--limt 5` is not an argument `variance ask packages` takes, so the answer is what it is without it; it takes none.');
+  });
+
+  it('names `--claims` at a question about the source, and never opens its file', async () => {
+    const { err } = await run(['ask', 'packages', '--claims', 'missing.json']);
+
+    expect(err).not.toContain('missing.json');
+    expect(err).toContain('`--claims` is not an argument `variance ask packages` takes, so the answer is what it is without it; it takes none.');
+  });
+
+  it('is not the value of an unknown flag when it asks for help', () => {
+    // The help scan must not hand an unknown flag a value the lexer would not.
+    expect(parseArgs(['ask', 'packages', '--verbose', '--help'])).toEqual({ command: 'help', topic: 'ask' });
+  });
+
+  it('is named beside the list of questions when no question was asked', async () => {
+    const { code, out, err } = await run(['ask', '--verbose']);
+
+    expect(code).toBe(0);
+    expect(out).toContain('ABOUT THE LAST RUN');
+    expect(err).toContain('variance: `--verbose` is not an argument `variance ask` takes, so the list of questions is what it is without it; a flag goes after its question.');
   });
 
   it('is refused after a flag value that ran on past one word, naming what the question takes', async () => {
@@ -75,11 +109,15 @@ describe('a word a question about a running suite does not take', () => {
     try {
       const word = await run(['ask', 'run-signals', 'bogus', '--config', config]);
       const corrected = await run(['ask', 'run-signals', '--config', config]);
+      const flag = await run(['ask', 'run-signals', '--verbose', '--config', config]);
 
       expect(word.code).toBe(EXIT_OPERATOR);
       expect(word.err).toContain('`bogus` is not an argument `variance ask run-signals` takes; it takes');
       expect(corrected.code).toBe(EXIT_OPERATOR);
       expect(corrected.err).toContain('needs a watcher to ask');
+      // A flag is named, and the question goes on to the watcher it needs.
+      expect(flag.err).toContain('variance: `--verbose` is not an argument `variance ask run-signals` takes');
+      expect(flag.err).toContain('needs a watcher to ask');
     } finally {
       if (exported !== undefined) process.env[VANTAGE_VARIABLE] = exported;
     }

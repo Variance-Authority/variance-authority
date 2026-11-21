@@ -18,6 +18,9 @@ import { decodeExecutionIndex } from '@variance-authority/sense/test-selection';
 const INSTRUMENTATION = 'sense:instrument/presence-v6';
 const SOURCE = ['export function price(amount) {', '  return amount * 2;', '}'].join('\n');
 
+/** A run that collected no case, as Playwright hands one to `onBegin`. */
+const nothing = { allTests: () => [], suites: [] } as unknown as Suite;
+
 async function inRoot(run: (root: string) => Promise<void>): Promise<void> {
   const root = await mkdtemp(resolve(tmpdir(), 'variance-playwright-reporter-'));
   try {
@@ -45,7 +48,7 @@ describe('the reporter that folds what the workers recorded', () => {
       const cacheRoot = await instrumented(root);
       const reporter = new ExecutionReporter({ root, cacheRoot, coverageFile });
 
-      reporter.onBegin();
+      reporter.onBegin({ projects: [], shard: null } as unknown as FullConfig, nothing);
       const directory = stagingDirectory()!;
       expect(directory).toBeDefined();
 
@@ -83,7 +86,7 @@ describe('the reporter that folds what the workers recorded', () => {
       const cacheRoot = await instrumented(root);
       const reporter = new ExecutionReporter({ root, cacheRoot, coverageFile });
 
-      reporter.onBegin();
+      reporter.onBegin({ projects: [], shard: null } as unknown as FullConfig, nothing);
       await reporter.onEnd();
 
       await expect(readTestCoverage(coverageFile)).rejects.toThrow();
@@ -107,7 +110,7 @@ describe('the reporter that folds what the workers recorded', () => {
         coverageFile: 'coverage.bin',
       });
 
-      reporter.onBegin();
+      reporter.onBegin({ projects: [], shard: null } as unknown as FullConfig, nothing);
       const directory = stagingDirectory()!;
       expect(directory.startsWith(`${root}/`)).toBe(true);
       const walked: ExecutionJournal = {
@@ -133,8 +136,7 @@ describe('the reporter that folds what the workers recorded', () => {
 });
 
 describe('the verdict on a run that found no tests', () => {
-  const config = { projects: [{ testMatch: '**/*.spec.ts' }] } as unknown as FullConfig;
-  const nothing = { allTests: () => [] } as unknown as Suite;
+  const config = { projects: [{ testMatch: '**/*.spec.ts' }], shard: null } as unknown as FullConfig;
   const noTests = { message: 'Error: No tests found.' };
 
   afterEach(() => {

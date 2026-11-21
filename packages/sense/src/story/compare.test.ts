@@ -116,6 +116,20 @@ describe('two sides of a case', () => {
     expect(comparison.unsteady.said).toBe(1);
   });
 
+  it('are told apart by a change to the page that lands a commit later, and not by one every run shares', () => {
+    const main = 'dom + main in App at commit 1';
+    const toast = (commit: number): [number, string] => [1, `dom + div role="status" "Saved" in Toast at commit ${commit}`];
+    const comparison = compareLoaded(ROOT, [
+      passed(reading([1, 4], [[1, main], toast(2)]), reading([1, 4], [[1, main], toast(2)])),
+      threw(reading([1, 4], [[1, main], toast(3)], true), reading([1, 4], [[1, main], toast(3)], true)),
+    ]);
+
+    expect(comparison.only.map((only) => [only.sides, only.said])).toEqual([
+      [['passed'], ['dom + div role="status" "Saved" in Toast at commit 2']],
+      [['threw'], ['dom + div role="status" "Saved" in Toast at commit 3']],
+    ]);
+  });
+
   it('are not told apart by what the browser painted, held or moved, nor by where it said so', () => {
     const comparison = compareLoaded(ROOT, [
       passed(reading([1, 4], [[0, 'first paint'], [1, 'largest paint: img.hero']]), reading([1, 4], [[2, 'first paint'], [2, 'held a frame (61 ms)']])),

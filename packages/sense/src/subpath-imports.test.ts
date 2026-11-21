@@ -4,7 +4,7 @@ import { dirname, join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { native, nativeAvailable } from './addon.js';
 import { realPath, resolveTo, resolversFor } from './resolve.js';
-import { scanRelations } from './scan.js';
+import { scanRelations } from './test-support/scan.js';
 import { packageOf, requestOf } from './specifier.js';
 
 /**
@@ -57,7 +57,6 @@ function oracle(root: string, value: string): string | undefined {
     root,
     from: join(root, IMPORTER),
     request: requestOf(value)!,
-    language: 'module',
   });
 }
 

@@ -6,6 +6,8 @@
 
 // compass: variance-authority.reach.source-index
 
+import type { SourceTree } from './source-tree.js';
+
 export interface NativeSourceIndexes {
   /**
    * A source-index generation as bytes, from the JSON documents
@@ -20,16 +22,49 @@ export interface NativeSourceIndexes {
    * Why the layers were not written, or `null` when they are.
    */
   appendSourceIndex(path: string, read: string[], legacy: boolean, layers: Uint8Array[]): string | null;
+  /**
+   * The source-index chain `segments` holds, oldest first, opened once
+   * (`native/src/index_reader.rs`): the one reader of the format. The reader
+   * holds the buffers rather than copying them, so none may change or be
+   * transferred while it is open.
+   */
+  openSourceIndexReader(segments: Uint8Array[]): NativeSourceIndexReader;
   /** Drop what no chain in `chains` names from the parse store at `store`, past `graceMs`; how many parses went (`native/src/parse_store.rs`). */
   pruneParseStore(store: string, chains: string[], graceMs: number): number;
   /** The index turn at `path`, `holder` written beside it; `null` while another process holds it (`native/src/index_turn.rs`). */
   takeIndexTurn(path: string, holder: string): { release(): void } | null;
+  /** The source tree in `bytes`, as the workspace `workspace` below its root sees it (`native/src/source_query.rs`). */
+  openSourceTree(bytes: Uint8Array, workspace: string): SourceTree;
+  /** The source tree drawn from the source index at `index`; `null` when none was published (`native/src/source_query.rs`). */
+  sourceTreeOf(root: string, index: string, tsconfig: string | boolean | null, code: string[]): Promise<SourceTree | null>;
 }
 
-/** What a listing of a checkout knows of the parses its reads made: which were of the blob git names the file by (`native/src/parse_origin.rs`). */
-export interface NativeParseOrigins {
-  /** Tell the listing of a parse made in JavaScript of `file`, from `contents`. */
-  parsedFrom(file: string, contents: string): void;
-  /** Add to the first of `stores` every parse the chain at `chain` holds, no store does, and this listing read only as that blob; how many went in. */
-  fillParseStore(stores: string[], chain: string): number;
+
+/**
+ * One opened chain. A question about keys or counts decodes no row; a row
+ * crosses as JSON shaped as JavaScript holds it, and `null` is absent.
+ */
+export interface NativeSourceIndexReader {
+  /** Let the segments go now, rather than when the reader is collected; every question after this throws. */
+  close(): void;
+  /** How many of the chain's oldest segments read; the rest are dropped. */
+  kept(): number;
+  /** The format version of the segment that stopped the read, when another release wrote it. */
+  written(): number | null;
+  /** The newest kept layer's configuration. */
+  config(): string | null;
+  /** Every directory and its digest, flattened: path, digest, path, … */
+  directories(): string[];
+  parseCount(): number;
+  parseKeys(): string[];
+  hasParse(key: string): boolean;
+  parse(key: string): string | null;
+  /** `[key, parse]` pairs from `start`, at most `count` of them, as one JSON array. */
+  parses(start: number, count: number): string;
+  recordCount(): number;
+  recordFiles(): string[];
+  hasRecord(file: string): boolean;
+  record(file: string): string | null;
+  /** `[file, record]` pairs from `start`, at most `count` of them, as one JSON array. */
+  records(start: number, count: number): string;
 }

@@ -137,7 +137,32 @@ describe.runIf(BROWSER_AVAILABLE)('a Playwright case run in a page', () => {
       'test line leaves',
       "handed item='jam'",
       'console.log chose jam',
+      'page navigated http://shop.test/checkout',
       'holds open=ref1 function open, choose=ref2 function choose, pay=ref3 function pay',
+      'test line pays',
+      'handed amount=20',
+    ]);
+  }, 120_000);
+
+  it('names a reload the page made itself on the statement it happened during', async () => {
+    const { byName } = await storiesWritten();
+    const story = byName.get('reads across a reload the page made itself')!;
+
+    const requests = /^(sent |still out |GET \/)/;
+    expect((await toldIn('reloads-itself.spec.ts', story)).filter((told) => !requests.test(told))).toEqual([
+      'test line opens',
+      'holds open=ref1 function open, choose=ref2 function choose, pay=ref3 function pay',
+      'test line chooses',
+      "handed item='tea'",
+      'console.log chose tea',
+      'test line restarts',
+      'console.log server connection lost',
+      'test line reads',
+      'console.log reloading now',
+      'page reloaded http://reloading.test/',
+      'holds open=ref1 function open, choose=ref2 function choose, pay=ref3 function pay',
+      'test line says',
+      'console.log lost: Error: page.evaluate: Execution context was destroyed, most likely because of a navigation.',
       'test line pays',
       'handed amount=20',
     ]);
@@ -152,6 +177,7 @@ describe.runIf(BROWSER_AVAILABLE)('a Playwright case run in a page', () => {
       'test line opens',
       'holds open=ref1 function open, choose=ref2 function choose, pay=ref3 function pay',
       'test line adds',
+      'dom + p id="added" "Added"',
       'page +1 −0 nodes, 0 attributes, 0 text',
       // The line that read the page did nothing a story tells, so it is not told.
       'test line adds again',
@@ -167,6 +193,7 @@ describe.runIf(BROWSER_AVAILABLE)('a Playwright case run in a page', () => {
       'test line opens',
       'holds open=ref1 function open, choose=ref2 function choose, pay=ref3 function pay',
       'test line adds',
+      'dom + p id="added" "Added"',
       // The cleanup's own click is no line of the spec's.
       'page +1 −0 nodes, 0 attributes, 0 text',
     ]);
@@ -230,6 +257,7 @@ describe.runIf(BROWSER_AVAILABLE)('a Playwright case run in a page', () => {
       'console.log chose cake',
       'held a frame (N ms)',
       'test line pushes',
+      'dom + div',
       'page +1 −0 nodes, 0 attributes, 0 text',
       'layout moved 0.NN',
     ]);

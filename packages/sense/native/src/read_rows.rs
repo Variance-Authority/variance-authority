@@ -13,10 +13,12 @@ pub enum Kind {
     Dynamic,
     Type,
     Depends,
+    /// What a stylesheet names: a file it pulls in, not a module it imports.
+    Asset,
 }
 
 impl Kind {
-    pub const ALL: [Kind; 5] = [Kind::Imports, Kind::Reexports, Kind::Dynamic, Kind::Type, Kind::Depends];
+    pub const ALL: [Kind; 6] = [Kind::Imports, Kind::Reexports, Kind::Dynamic, Kind::Type, Kind::Depends, Kind::Asset];
     pub fn code(self) -> u8 {
         self as u8
     }
@@ -27,11 +29,12 @@ impl Kind {
             Self::Dynamic => "dynamic",
             Self::Type => "type",
             Self::Depends => "depends",
+            Self::Asset => "asset",
         }
     }
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct Binding {
     pub(crate) imported: String,
     pub(crate) local: String,
@@ -40,7 +43,7 @@ pub struct Binding {
     pub(crate) line: u32,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct Request {
     pub value: String,
     pub kind: Kind,
@@ -52,9 +55,15 @@ pub struct Request {
     /// `import type`.
     #[serde(skip_serializing_if = "is_false")]
     pub(crate) republishes: bool,
+    /// A tree-sitter reader's guess, recorded only where it lands: `guessed` in `read.ts`.
+    #[serde(skip_serializing_if = "is_false")]
+    pub(crate) guessed: bool,
+    /// A Rust path asked for as an item past its modules: `item` in `read.ts`.
+    #[serde(skip_serializing_if = "is_false")]
+    pub(crate) item: bool,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct Export {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) exported: Option<String>,

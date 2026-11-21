@@ -126,7 +126,7 @@ pub(crate) fn owners<'a>(root: &str, paths: &'a [String]) -> Owners<'a> {
     let manifests: Vec<&str> = paths
         .iter()
         .map(String::as_str)
-        .filter(|path| path.rsplit('/').next() == Some("package.json") && is_package(path))
+        .filter(|path| is_manifest(path))
         .collect();
     // A manifest that cannot be read or does not parse names nothing, which is
     // what `ownership` makes of it too: the directory defers to its parent.
@@ -156,6 +156,12 @@ pub(crate) fn owners<'a>(root: &str, paths: &'a [String]) -> Owners<'a> {
         files.insert(path.as_str(), (owner, at as u32));
     }
     Owners { packages: named, files }
+}
+
+/// Whether `path` is a `package.json` that may name a package, by its path
+/// alone: what is read to learn its name.
+pub(crate) fn is_manifest(path: &str) -> bool {
+    path.rsplit('/').next() == Some("package.json") && is_package(path)
 }
 
 /// Whether a `package.json` at `path` may name a package: no directory above

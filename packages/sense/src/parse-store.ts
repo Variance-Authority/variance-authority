@@ -10,13 +10,13 @@
 
 // compass: variance-authority.reach.source-index
 
-import { execFileSync } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { extname, join } from 'node:path';
 import { native as addon } from './addon.js';
 import type { ParseCache, Parsed } from './cache.js';
 import { READABLE } from './language.js';
 import type { NativeBuilt, NativeGitTree } from './native.js';
-import { decodeSourceIndex } from './source-index-format.js';
+import { readSourceIndexSegment } from './source-index-reader.js';
 import { cacheRootFor, directoriesIn, primaryCacheRoot, workDirectory } from './test-selection/cache-layers.js';
 import { repositoryRoot } from './test-selection/repository-root.js';
 
@@ -33,10 +33,10 @@ export function parseStorePath(cacheRoot: string): string {
  * to, then the primary checkout's when that cache is another one. None where
  * git rewrites the bytes of a file the store parses.
  */
-export function parseStoresFor(root: string): readonly string[] | undefined {
+export async function parseStoresFor(root: string): Promise<readonly string[] | undefined> {
   // The top, not `root`: only it holds the `.git` that names a worktree's primary.
   const repository = repositoryRoot(root);
-  if (rewritesParsed(repository)) return undefined;
+  if (await rewritesParsed(repository)) return undefined;
   const own = cacheRootFor(repository);
   const primary = primaryCacheRoot(repository);
   return primary === own ? [parseStorePath(own)] : [parseStorePath(own), parseStorePath(primary)];
@@ -54,12 +54,14 @@ export function parseStoresFor(root: string): readonly string[] | undefined {
  * this gate still guards the reading side, where it would take a parse of the
  * blob for bytes git rewrote. The `FIXME` in `scan.ts` asks the same of one index.
  */
-function rewritesParsed(repository: string): boolean {
-  const git = (...args: string[]) => execFileSync('git', args, { cwd: repository, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+async function rewritesParsed(repository: string): Promise<boolean> {
+  const git = (...args: string[]) => new Promise<string>((done, fail) => {
+    execFile('git', args, { cwd: repository, encoding: 'utf8' }, (error, stdout) => (error === null ? done(stdout) : fail(error)));
+  });
   const config = new Map<string, string>();
   try {
     // Git spells a boolean `true` however it was set (`yes`, `2`, a bare key) and keeps `input` and `crlf` as they are.
-    for (const line of git('config', '--type=bool-or-str', '--get-regexp', '^core\\.(autocrlf|eol)$').split('\n')) {
+    for (const line of (await git('config', '--type=bool-or-str', '--get-regexp', '^core\\.(autocrlf|eol)$')).split('\n')) {
       const [key, value = ''] = line.trim().toLowerCase().split(/\s+/);
       if (key) config.set(key, value);
     }
@@ -71,29 +73,14 @@ function rewritesParsed(repository: string): boolean {
   const eol = config.get('core.eol') ?? 'native';
   const crlf = autocrlf !== 'input' && (eol === 'crlf' || (eol === 'native' && process.platform === 'win32'));
   try {
-    const rewritten = [
+    // Each asks git for the attributes of every file; neither waits on the other.
+    const rewritten = await Promise.all([
       git('ls-files', '-z', '--', ':(top,attr:eol=crlf)', ...(crlf ? [':(top,attr:text)', ':(top,attr:text=auto)', ':(top,attr:crlf)'] : [])),
       git('ls-files', '-z', '--', ':(top)', ':(top,exclude,attr:!filter !ident !working-tree-encoding)'),
-    ];
+    ]);
     return rewritten.join('\0').split('\0').some((file) => READABLE.has(extname(file)));
   } catch {
     return true;
-  }
-}
-
-/**
- * Add to the first of `stores` what the published chain at `chain` holds, no
- * store does, and `listing` read only as the blob git names it by. A parse of
- * other bytes — a file edited under `--assume-unchanged`, or after the
- * listing — stays in its own index, and so does a module read under
- * `packs: false`, whose bytes the listing never saw. A store that cannot be
- * written costs a later root its reparse and nothing else, so it is not an error here.
- */
-export function fillParseStore(listing: NativeGitTree | undefined, stores: readonly string[], chain: string): number {
-  try {
-    return listing?.fillParseStore([...stores], chain) ?? 0;
-  } catch {
-    return 0;
   }
 }
 
@@ -145,7 +132,7 @@ export function handOverKept(
 ): void {
   if (rows.length === 0 || stores === undefined) return;
   const digests = rows.map((row) => row.fresh.record.digest!);
-  const parses = decodeSourceIndex(tree.keptParses([...stores], rows.map((row) => row.file), digests)).parses;
+  const parses = readSourceIndexSegment(tree.keptParses([...stores], rows.map((row) => row.file), digests)).parses;
   for (const { file, key, fresh } of rows) {
     const parse = parses.get(key);
     if (parse !== undefined) cache.set(key, parse);

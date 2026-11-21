@@ -9,12 +9,12 @@
 // compass: variance-authority.report.agent-surface
 
 use std::collections::{BTreeSet, HashMap};
-use std::fs;
 use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
 use super::{Identity, Name};
+use crate::help_search::without_inline_tags;
 
 /// Headings kept per package: the first ones say what it is; a long tail is a table of contents.
 const HEADINGS: usize = 24;
@@ -86,8 +86,10 @@ pub(super) fn stem(word: &str) -> String {
 
 /// Each word of `text` with the paragraph it is in, split at punctuation, space
 /// and camelCase. A possessive `'s` is part of the word before it, and a blank
-/// line — a newline, spaces or tabs, a newline — starts the next paragraph.
+/// line — a newline, spaces or tabs, a newline — starts the next paragraph. The
+/// text is read `without_inline_tags`: a tag's name is no word and holds no place.
 fn each_word(text: &str, mut visit: impl FnMut(&str, u32)) {
+    let text = without_inline_tags(text);
     let mut word = String::new();
     let (mut last_lower, mut paragraph, mut blank_line, mut broke) = (false, 0u32, false, false);
     let mut chars = text.chars().peekable();
@@ -226,17 +228,17 @@ fn headings(text: &str) -> Vec<String> {
 }
 
 /// The words the runtime package (or, failing that, its declarations) publishes about itself.
-pub(super) fn purpose(root: &Path, runtime: &Option<Identity>, declarations: &Option<Identity>, names: Option<&[Name]>) -> Option<Purpose> {
+pub(super) fn purpose(root: &Path, runtime: &Option<Identity>, declarations: &Option<Identity>, names: Option<&[Name]>, files: &super::files::Files) -> Option<Purpose> {
     let identity = runtime.as_ref().or(declarations.as_ref())?;
     let manifest = root.join(&identity.manifest);
-    let value: serde_json::Value = serde_json::from_slice(&fs::read(&manifest).ok()?).ok()?;
+    let value = files.manifest(&manifest)?;
     let description = value.get("description").and_then(|text| text.as_str())
         .map(|text| text.split_whitespace().collect::<Vec<_>>().join(" "))
         .filter(|text| !text.is_empty() && text.chars().count() <= LONGEST * 2);
     let keywords = value.get("keywords").and_then(|list| list.as_array()).map(|list|
         list.iter().filter_map(|word| word.as_str()).map(str::to_owned).collect()).unwrap_or_default();
     let headings = manifest.parent().map(|directory| directory.join("README.md"))
-        .and_then(|path| fs::read_to_string(path).ok()).map(|text| headings(&text)).unwrap_or_default();
+        .and_then(|path| files.read(&path).ok()).and_then(|file| file.text().ok().map(|text| headings(&text))).unwrap_or_default();
     let mut said = stems(&identity.name);
     for text in description.iter().chain(&keywords).chain(&headings) { said.extend(stems(text)); }
     let mut named = Vec::new();
@@ -309,6 +311,14 @@ mod tests {
     fn a_blank_line_in_the_question_is_no_break_in_its_run() {
         assert_eq!(phrase("the a page\n\nsink", "The page sink."), Some(0));
         assert_eq!(near("the a page\n\nsink", "The page sink."), 1);
+    }
+
+    #[test]
+    fn an_inline_tag_is_markup_not_a_word_of_the_doc() {
+        // Javadoc's `{@code <layer>/coverage.bin}` says `layer`, not `code layer`.
+        assert_eq!(phrase("code layers", "Goes to {@code <layer>/coverage.bin} by default."), None);
+        assert_eq!(phrase("inherit doc", "{@inheritDoc}"), None);
+        assert_eq!(phrase("page sink", "The page {@link Sink sink} of it."), Some(0));
     }
 
     #[test]

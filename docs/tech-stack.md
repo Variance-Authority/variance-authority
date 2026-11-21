@@ -31,7 +31,6 @@ variance ask stack --from src/env.ts
 ```text
 2 packages usable from src/env.ts, under package.json: 1 imported, 1 declared and not imported, 0 with imports not read.
 1 package ships agent skills, each listed under its package with its SKILL.md.
-Rows 1–2.
 
 Imported here:
   dotenv@17.4.2 · runtime · dependency in package.json · imported 1× (first src/env.ts:1)
@@ -40,8 +39,6 @@ Imported here:
 
 Declared, not imported here:
   picocolors@1.1.1 · runtime · dependency in package.json · not imported
-
-No more rows.
 ```
 
 The list comes from the manifest that owns the path, so in a monorepo it is the
@@ -59,13 +56,22 @@ a separate section lists the installed packages whose own words describe the
 query: the `description` and `keywords` in their `package.json`, the headings
 of their README, and the words inside their exported names. Words are matched by stem, so `encrypt`
 finds `encrypted`. A package is listed when it has at least half of the query's
-words, best first.
+words, best first. When your own code answers too, which is the usual case,
+the section is one line naming up to five of them and the question that lists
+them all:
+
+```text
+2 packages describe `env files`: dotenv, env-paths. `variance ask search --query 'env files' --limit 20` lists them in full.
+```
+
+Run that question, or ask in a repository whose code writes neither word, and
+each package gets its row:
 
 ```text
 dotenv @17.4.2 · dependency in package.json · imported 1× (first src/env.ts:1) — Loads environment variables from .env file [holds: env, files]
 ```
 
-That is the first line of the answer to `--query "env files"`. The
+The
 words in brackets are the ones the package has. Pass `--from` with a path and the
 third-party section keeps only the packages the workspaces around that path can
 import. There is no model and no synonym list: a package that never writes your

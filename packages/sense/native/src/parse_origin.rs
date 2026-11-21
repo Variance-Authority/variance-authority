@@ -9,13 +9,11 @@
 use std::collections::HashMap;
 use std::sync::{Mutex, PoisonError};
 
-use napi_derive::napi;
 use sha1::{Digest, Sha1};
 
 use crate::git::{self, Oid};
 use crate::index::way;
 use crate::parse_store::key;
-use crate::GitTree;
 
 /// Whether `bytes` are the blob Git names `oid`.
 // TODO: an object name is twenty bytes here (`git::Oid`), so a SHA-256
@@ -47,18 +45,6 @@ impl FromBlob {
     /// does not list is, or one whose key this tree read, and only as the blob.
     pub(crate) fn shares(&self, identity: &str, way: &str) -> bool {
         !identity.starts_with("git:") || self.0.lock().unwrap_or_else(PoisonError::into_inner).get(&key(identity, way)) == Some(&true)
-    }
-}
-
-#[napi]
-impl GitTree {
-    /// Tell the tree that a parse of `file` was made in JavaScript from `contents`.
-    #[napi(catch_unwind)]
-    pub fn parsed_from(&self, file: String, contents: String) {
-        if let Some(index) = self.at.get(&file) {
-            let oid = &self.oids[*index as usize];
-            self.from_blob.saw(oid, &file, names(oid, contents.as_bytes()));
-        }
     }
 }
 

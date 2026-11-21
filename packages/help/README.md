@@ -40,26 +40,26 @@ names; the rest run ripgrep over the files a path imports, cross whole sets of
 files — what a path reaches, who imports or declares a name — start from the words
 of a task before you know any name, list the third-party packages a location
 can already use, map the code the recorded tests ran around one file, and list
-the test files the latest recorded run spent longest in. It reads JavaScript and TypeScript, Python, Rust, Java, Kotlin and Swift;
-the two verbs that answer for a *published* specifier read a `package.json`, so
+the test files the latest recorded run spent longest in. It reads JavaScript and TypeScript, Python, Rust, Java, Kotlin and Swift.
+It does not yet read framework file formats or bundler-only aliases: not a Vue
+or Svelte single-file component, not the files an Angular component names in
+`templateUrl` and `styleUrls`, and not an alias declared only in a bundler's
+configuration, where one declared as `paths` in a `tsconfig` resolves. [The
+source scan's limits](https://variance-authority.dev/docs/source#limits) say
+what each leaves out.
+The two verbs that answer for a *published* specifier read a `package.json`, so
 in a repository with none they answer out of what the files themselves export.
 The repository itself does not have to be built and no API site is required.
 Point it at any checkout with `--root`.
 
-Producing a generation scans the checkout; answering one does not. Ordinary
-commands reuse a generation for one hour before refreshing it. A name a reused
-generation does not hold is answered from it, and the answer says the checkout
-was not compared with it: a function written since is reported missing until
-`variance index` runs. A `symbol` or `uses` whose files, the ones that declare the name, the entry
-that publishes it and each row `uses` lists, or a server's `docs_search` whose
-printed files or the entry and barrels publishing them, changed after the generation is asked again of one made now, so a renamed export or a moved
-declaration is not answered from its old lines.
-`--just-answer` uses the last published generation regardless of age, and every
-answer and refusal says when it was produced and that the checkout was not
-compared with it. It performs no Git status or refresh, and refuses if there is
-no generation to read. `search` opens a published search at any age, with or
-without the flag. When none is published it reads the checkout and publishes
-one, unless you passed `--just-answer`: then it refuses and names that flag. The detailed cost model, including why Git's packed objects
+Producing a generation scans the checkout; answering one does not. A question
+on the command line answers from the generation `variance index` last
+published, at any age, and does nothing else: no Git status, no look at the
+files an answer rests on, no index written. So after you edit, run `variance
+index`, then ask. Every answer and refusal says when its generation was produced
+and that the checkout was not compared with it, and with no generation the
+question refuses in one line that names `variance index`. The server keeps its
+own expiry, below. The detailed cost model, including why Git's packed objects
 beat opening hundreds of thousands of small files, is in [find code through the workspace
 index](https://variance-authority.dev/agents/workspace-api#choose-the-cheapest-entrance).
 
@@ -89,12 +89,12 @@ through your package manager:
 ```bash
 npm install --save-dev @variance-authority/help
 variance-authority-help search viewport
-variance-authority-help search viewport --from packages/app/ --just-answer
+variance-authority-help search viewport --from packages/app/
 ```
 
 The verbs each take the same arguments as the tool of the same name below:
 `packages`, `entrypoint`, `symbol`, `uses`, `search`, `grep`, `discover`,
-`intersection`, `orient`, `slowest-tests`, `retried-tests`, `journey-map`, `test-composition`, `containment`, `stack`, `gaps`. An entrypoint is
+`intersection`, `orient`, `slowest-tests`, `retried-tests`, `not-run`, `journey-map`, `test-composition`, `containment`, `stack`, `gaps`. An entrypoint is
 one import specifier a package's `exports` map opens — `@scope/pkg` and
 `@scope/pkg/deep` are two of them. Add `--root <dir>` when you are not standing
 in the repository you are asking about.
@@ -183,11 +183,12 @@ and the rows on a page are reordered by that label.
 | `uses` / `docs_uses` | a name, optionally the file you are in | every place that imports it, stories and tests listed apart, nearest first: an import from another package by its published path, and every import the source index resolved to the file that declares it, or to a file that passes it on with `export … from`, within its own package as well, each marked `(as x)` where it knows the name as `x`. For a name a file exports and no entry publishes, the imports the source index resolved, and the declaration an `export … from` passes on. Then the lines of a TypeScript, JavaScript or Rust file that use a name it declares, by its scope rules. Twelve rows of each list, unless `limit` says more |
 | `search` / `docs_search` | a string, optionally a path to answer from | candidates, not every match: published names whose name or doc contains it, or whose name is written in its words, then the names exported without being published, matched by the same rule, then the names and files holding most of its words by stem, the rarer words counting for more, and the names only a looser reading finds |
 | `grep` / `docs_grep` | a pattern, and a path to answer from | the lines ripgrep matches in the files that path imports, or that import it, nearest first |
-| `discover` / `docs_discover` | two or more sets of files: what paths reach (`from`) or what reaches them (`to`, also `file#name` for what rests on one name, starting at its imports), who imports a `module#name`, who declares a name matching a pattern, a path pattern, each also as `except…` to take it out; optionally a `text` pattern | the files in every set, each read whole, nearest the paths first, with the line that put each file in each set, and for `to` one shortest chain of imports, each step that is not a plain import marked; `text` keeps the files with a line ripgrep matches. Over MCP, `declares`, and `imports` of anything but a name out of a repository file, are refused: the reading an MCP host serves holds no names |
+| `discover` / `docs_discover` | two or more sets of files: what paths reach (`from`) or what reaches them (`to`, also `file#name` for what rests on one name, starting at its imports), who imports a `module#name`, who declares a name matching a pattern, a path pattern, each also as `except…` to take it out; optionally a `text` pattern | the files in every set, each read whole, nearest the paths first, with the line that put each file in each set, and for `to` one shortest chain of imports, each step that is not a plain import marked; `text` keeps the files with a line ripgrep matches |
 | `intersection` / `docs_intersection` | two or more whole questions whose answers are sets of files — `symbol`, `uses`, `search`, `grep`, `discover` — each with its own input; on a shell, each one quoted word | the files every question answers, each question read whole, with the lines that put each file in each question |
 | `orient` / `docs_orient` | nothing, an area id, or files you already have as paths from the root | with no files, the code map `variance index` keeps beside the source index: areas of packages with their size, dependency layers, most-imported packages and the areas they import from. With files, the package each file is in with the names it imports from other packages and the names they import from it, the recorded test cases that ran each file, the functions in other files that call into it and those it calls, with how each call is known, the [package flows](https://variance-authority.dev/docs/orientation#choose-the-entrance-from-what-you-have) those cases take through it, and the narrower questions to ask next; `path:line` narrows the calls to the function holding that line |
 | `slowest-tests` / `docs_slowest_tests` | optionally test paths to keep (`from`), code paths the tests must have run (`to`), a time the cases ran at least (`over`), and how many rows to list | the record it read, whose run, at which commit and how old; the cases closest to their limit, each as its run and its limit; then the test files and cases that run spent longest in, a file by what running it cost before and during its cases, and how many recorded files and cases have no duration or limit; with `over`, cases alone |
 | `retried-tests` / `docs_retried_tests` | optionally how many cases to list (`limit`) | the record it read, whose run, at which commit and how old; the cases the runner retried whose attempts ended differently, each with its limit and every attempt: how it ended as its runner said and, where the runner says them, how long it ran and, for one that did not pass, the frame inside the checkout and the message; how many retried cases ended the same way every attempt; a record that kept no attempts says so, which is not that no case was retried |
+| `not-run` / `docs_not_run` | nothing | the record it read, whose run, at which commit and how old; each check a case declared with the `variance:check` annotation that an attempt passed without executing as a step, with the file and line declaring the case, its project, and the attempt when it ran more than once; how many declared checks were entered; the scope the run covered. A run stopped before its runner ended it is incomplete and names no check; a record that kept no checks says so, which is not that every check ran |
 | `journey-map` / `docs_journey_map` | one file, optionally words of the task | how many recorded tests entered that file, the paths through each of its functions, then the code beyond it those tests entered, nearest first |
 | `test-composition` / `docs_test_composition` | a test file, optionally the test's name or a word of it | the smaller tests whose recorded regions sit inside this test's (its pieces), the larger tests holding it (its wholes), and the regions no piece entered: modules only it enters, and paths through a piece's modules only it takes. Regions more than half the suite entered are counted apart as structure. [Ask what one test is made of](https://variance-authority.dev/docs/own-fewer-tests#ask-what-one-test-is-made-of) |
 | `containment` / `docs_containment` | optionally the first day counted (`after`), two weeks ago when left out | from `git log` and the workspace list: the share of source-changing commits that touched one package, that edited a test in another package, among commits that did and did not edit their own tests, and that edited a test in a test-only tree, each as a count over its denominator, with what was left out counted by reason |
@@ -206,15 +207,15 @@ Every answer ends with the UTC time of the generation it used. A generation is
 manifests and module records, not a compilation, and the module records come
 from the source index
 [`@variance-authority/sense`](https://variance-authority.dev/reference/packages/sense)
-keeps. In ordinary mode a generation less than one hour old is reused; after
-that the next question refreshes it. Run the binary or server with
-`--just-answer` when a watcher or CI step owns production and a question must do
-no freshness work. On `variance ask`, `--changed-file` belongs to the producer
-side: it supplies an authoritative newline-delimited file of scan-root-relative
-changed paths and cannot be combined with `--just-answer`. An empty file states
-that nothing changed. A listed file gives its names at the lines it holds now. A file left off is unchanged for that request, and the
-next question without a list looks. With no generation to refresh, the read is
-whole and the list is not used.
+keeps. A question on the command line reads that generation at any age. The
+server reuses a generation less than one hour old, and after that the next call
+refreshes it; start it with `--just-answer` when a watcher or CI step owns
+production and a call must do no freshness work. On `variance ask`,
+`--changed-file` belongs to the producer side: it supplies an authoritative
+newline-delimited file of scan-root-relative changed paths, and is the one way a
+question has the index updated. An empty file states that nothing changed. A
+listed file gives its names at the lines it holds now. With no generation to
+refresh, the read is whole and the list is not used.
 
 ### Say where you are standing
 
@@ -273,12 +274,11 @@ first, as a miss of the text you typed rather than of the code:
 ```
 No export, top-level declaration or member of a class, an interface or a type in this repository, nor the doc of one, nor a function inside a function, writes `meesure`. The nearest follow.
 
-No recorded case was read: no run kept its cases there.
-
-1 more name matches loosely — your words apart, or within a character of the
-ones written. Nothing above was reordered by this.
+1 more name matches loosely, the words apart or a character off:
 
 alpha · measure [function] imported in 1 place in 1 package — Measures the thing, and says how much of it there was.
+
+Next: `variance-authority-help symbol --name measure --package alpha`
 ```
 
 It may only add. Nothing the two sections above answered is scored, reordered,
@@ -294,7 +294,8 @@ whose full name holds every word, as a word, the start of one or its stem, print
 as `<name> [test] — <file>`. They are what ran, not what the source spells, so a
 title is found however it was registered. A case added since that run is missing
 and one removed since is still listed, until a run of that suite writes its
-record; a suite with no record is named under the answer, with the reason.
+record; when nothing in the repository answered, a suite with no record is
+named under the answer, with the reason.
 
 Inside it the order is the order above — by the other packages that import the
 name by a published path, then within the page by the places and packages its
@@ -400,7 +401,7 @@ variance-authority-help .
 ```
 
 The tools are named `docs_packages`, `docs_entrypoint`, `docs_symbol`,
-`docs_uses`, `docs_search`, `docs_grep`, `docs_discover`, `docs_intersection`, `docs_orient`, `docs_slowest_tests`, `docs_retried_tests`,
+`docs_uses`, `docs_search`, `docs_grep`, `docs_discover`, `docs_intersection`, `docs_orient`, `docs_slowest_tests`, `docs_retried_tests`, `docs_not_run`,
 `docs_journey_map`, `docs_test_composition`, `docs_containment`, `docs_stack` and `docs_gaps`, and they answer in the same
 words as the verbs above. `docs_orient` with no files needs the code map `variance
 index` makes, so install the CLI beside this package: [connect your

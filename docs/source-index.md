@@ -71,7 +71,9 @@ questions: published at <cache>/test-selection/<digest>/source-index.bin.help.bi
 - **The last two lines.** What `variance ask` answers from: the third-party dependencies the checkout declares, and the
   value `ask search` and the other source questions read without scanning.
   Either one prints `not prepared` or `not published`, with the reason, when it
-  could not be written.
+  could not be written. With the index and the manifests unchanged, the
+  questions published last are kept, and their line prints
+  `questions: kept at <time>` with the reason.
 
 On your machine the command returns once the index is written. The code map,
 the journeys and the last two lines are made by a process it starts for them,
@@ -89,9 +91,10 @@ while the process brings the index up to date and folds its working layer into
 its base, the two things the process does before it starts on the four. A process that ended before it finished is not
 waited on: the next command that reads what it left makes it and prints the
 lines. `variance index
---wait` makes them before it returns, which is what it always does in CI: a
-step's log is where its lines are read, and nothing may outlive the step that
-saves the cache.
+--wait` waits for that process before it returns, and prints its lines, which
+is what it always does in CI: a step's log is where its lines are read, and
+nothing may outlive the step that saves the cache. The four are made in a
+process of their own either way, so their memory never adds to the index's.
 
 The checkouts of one repository, its primary checkout and its worktrees, index
 one at a time. The update and the follow-ups each use every core, so two
@@ -127,6 +130,7 @@ These commands read what `variance index` published, and do not scan:
 variance select --since <ref>
 variance reach --since <ref>
 variance covering --since <ref>
+variance ask symbol --name <name>
 # With `source: { dirs: ["src"], relations: true }` in variance.config.json.
 variance run --since <ref>
 variance run --against <ref>
@@ -180,10 +184,10 @@ write them one per line and hand the file to a source question:
 variance ask search --query button --from src/issue-view.tsx --changed-file /tmp/changed-paths
 ```
 
-The paths are relative to the scan root. The file is authoritative, including
-when it is empty; a rename writes both its old and new path. Git still supplies
-the committed path set and the named paths are hashed from disk, but `git
-status` is not run to rediscover them.
+The paths are relative to the scan root. The file asks for a new generation
+now, whatever the age of the last; an empty file says nothing changed and keeps
+the generation as it stands. A list does not narrow the read: the source index
+finds what moved from Git and reads those files again, listed or not.
 
 Declarative loaders can be supplied beside that list as a
 [Sense taint table](../packages/sense/README.md):
@@ -222,8 +226,15 @@ printf %s "$(pwd -P)" | shasum -a 256 | cut -c1-32
 A git worktree keeps its own index under
 `test-selection/<primary digest>/.work/<digest>/` in its own cache, where
 `<primary digest>` names the checkout it was cut from. Its first `variance
-index` builds that index from nothing. It reads every file, and parses only the
-ones whose parse the checkout it was cut from has not already put in the cache's
+index` starts from the index of another checkout of the repository, its primary
+checkout's first, and reads only the files that differ from it, as an update
+would, and says which index it started from. A record that holds a parse stands
+only where the cache's parse store holds the same parse of the blob, so a file
+the other checkout edited without telling git is read again here. An index that
+is damaged, or that another release wrote, starts the same way, unless reading
+it crashed the update: then no index is trusted, and every file is read. With
+no index in any checkout, the first `variance index` reads
+every file, and parses only the ones whose parse is not already in the cache's
 parse store.
 `sourceIndexPath(root)` returns the path for a checkout. Cache the whole
 `<cache>` directory and you do not need to compute either.
@@ -235,9 +246,10 @@ together. The file alone names segments that are not there, and a chain whose
 members are missing is rejected whole — a cold scan, not a wrong answer.
 
 To force a cold scan, delete the two and run `variance index`. That is the
-whole recovery procedure. The cache's parse store still answers for the files it holds, in a worktree
-as in any checkout, so the scan reads every file and parses only what the store
-does not hold. The directory also holds test-selection recordings,
+whole recovery procedure. In a checkout whose repository has another checkout
+with an index, the scan starts from that one instead and reads what differs;
+delete each checkout's to read every file. The cache's parse store still answers
+for the files it holds, so the scan parses only what the store does not hold. The directory also holds test-selection recordings,
 so delete the index and not the directory:
 
 ```bash
@@ -282,9 +294,6 @@ directory, `node_modules/.cache/variance-authority` unless your repository names
       variance-index-${{ runner.os }}-${{ runner.arch }}-
 ```
 
-**Do not move an index between hosts of different endianness.** See
-[the bytes](#the-bytes) for what the reader does with one that arrives anyway.
-
 ## How large it gets
 
 Measured on public checkouts, as the bytes on disk after a full scan:
@@ -328,22 +337,18 @@ scan and an unchanged run.
 | --- | --- |
 | a file's contents | everything except that file's record, and its parse when no path in any branch has ever had those bytes |
 | a file added, moved or deleted | every record except those whose specifiers could have been answered from the directory that moved |
-| a manifest, a lock file, any `tsconfig*.json` or `jsconfig.json` | the parses. Every record is rebuilt: one `paths` entry can redirect every bare specifier in the repository |
+| a manifest, a lock file, any `tsconfig*.json` or `jsconfig.json` | everything except that file's own record. The files refactored to use a new mapping are edited, and rebuilt as edits |
 | the checkout's absolute path | the parses, for the same reason |
 | which directories you scan | everything. Which directories a scan visits decides which records it produces, never what any record contains, so a narrow scan reuses a wide scan's work |
 
-One case removes the per-directory bound and makes every run cold. To establish
-that an added file cannot change where a bare specifier lands, the scan reads
-`paths` and `baseUrl` out of every tracked `tsconfig*.json` and `jsconfig.json`,
-and out of every base each one `extends`, following a package name through its
-`node_modules` link the way the resolver does. A config it cannot follow — not
-valid JSON, or an `extends` that does not land on a `tsconfig*.json` or
-`jsconfig.json` your repository tracks, such as a base installed from a registry
-— leaves the whole tree unbounded, and then every record is rebuilt whenever any
-tracked file appears or disappears. The symptom is a warm run that costs what a
-cold one does. [Source index
-structures](source-structures.md#a-tsconfig-the-scan-cannot-follow) names every
-such `extends`, the two other cases like it, and what to change.
+To know which directories a bare specifier could land in, the scan uses the
+`paths` and `baseUrl` of the configuration that governs the importing file,
+including its inherited mappings. It keeps the candidate directories even when
+the target does not exist, so adding that target rebuilds the importing record.
+Configurations that govern other files contribute no candidates for this one.
+When TypeScript configuration resolution is disabled, it contributes none.
+[Source index structures](source-structures.md#a-tsconfig-the-scan-cannot-follow)
+explains what happens when the resolver cannot read a required configuration.
 
 ## Reading it
 
@@ -351,8 +356,8 @@ The index is a private cache, not an interchange format, and no command prints
 it: the layout belongs to the version that wrote it, and the reader refuses
 anything it does not recognise. To read the graph, call `readPublishedSources`,
 which returns the published records and opens nothing but the index. To build
-it, call `updateSourceIndex`, which runs [`scanRelations`](source.md) over the
-index. To fix an index, delete it.
+it, call [`updateSourceIndex`](source.md), which reads the checkout into the
+index, re-reading only the files whose content changed. To fix an index, delete it.
 
 An index another release wrote is named as such rather than as damaged, and
 `variance index` rebuilds it. `select`, `review` and the other commands that
@@ -366,8 +371,8 @@ what ran as over a text not known.
 `state: 'other-version'` and the version that wrote it in `written`.
 `ask orient --files` refuses it, naming both versions and `variance index`.
 
-`openSourceIndex` returns the parse cache, the record cache and a `save`
-operation together. Point reads query segments newest to oldest and stop at the
+`updateSourceIndex` holds the parse cache and the record cache open together
+while it reads, and saves them once. Point reads query segments newest to oldest and stop at the
 first value or tombstone; iteration materializes them oldest to newest. `save`
 keeps only the rows the scan used or wrote, compares them with what is
 committed, and writes the smallest segment that connects the two. A save
@@ -401,30 +406,21 @@ an offset range cannot distinguish a fact that is absent from a list that is
 known to be empty.
 
 Rows are sorted and the dictionary is sorted, so two logically equal segments
-encode to equal bytes. The reader rejects duplicate section names, overlapping
-or out-of-bounds sections, invalid widths, unaligned offsets, malformed column
-lengths and invalid references.
+encode to equal bytes. The reader checks a segment whole when
+it opens it, before any row is read: it rejects duplicate section names,
+overlapping or out-of-bounds sections, invalid widths, unaligned offsets,
+malformed column lengths, a text heap that is not UTF-8, a dictionary out of
+code-unit order, keys that do not ascend, a key the segment both puts and deletes, a package column that names
+anything but a package, and any row that names a string, a text or a request the segment does
+not hold. A segment it rejects ends the chain there: the index is damaged, and
+`variance index` rebuilds it.
 
 ### Byte order
 
-The two length prefixes above are written little-endian explicitly and parse the
-same way on any host. The four-byte data columns are not: they are written as
-the writing host's native words and read as the reading host's, and nothing in
-the file records which order that was. So a byte-order mismatch is not
-detected as such.
-
-What an index written on the other endianness meets instead is the validation
-every read performs before it believes a column. An offset column must begin at
-zero, end exactly at the length of the data it points into, and never run
-backwards; every string id must land inside the dictionary; every reference must
-name a row that exists. A byte-swapped column fails that on its first non-zero
-value, and the chain is rejected whole — the reader reports no index and the
-scan runs cold.
-
-That outcome is a consequence of bounds checking rather than a check for byte
-order, so treat an index as belonging to the architecture that wrote it. Where a
-cache is shared across runners, key it by the runner architecture along with the
-operating system.
+Every number in the file is little-endian: the length prefixes above and every
+four-byte data column alike, written with Rust's `to_le_bytes` and read with
+`from_le_bytes`. An index reads the same on any host, whatever order that
+host's own words take.
 
 ---
 

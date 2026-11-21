@@ -19,7 +19,8 @@
 
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import { linesThen, passedAt, testsRan, type RanRegion, type TestRan } from '@variance-authority/sense';
-import { notShown, type Spelling } from '@variance-authority/mcp/tools';
+import { nextPage, pageAt, paged, type Page, type Spelling } from '@variance-authority/mcp/tools';
+import { byFile } from './format.js';
 import { ripgrep, type Hit } from './ripgrep.js';
 
 /** One suite's matching lines, split by whether the test ran them. */
@@ -42,7 +43,8 @@ export interface GrepRan {
   readonly refused: readonly string[];
 }
 
-const ofSuite = (suite: string | undefined): string => (suite === undefined ? '' : `suite ${suite}: `);
+/** `suite x: ` before a suite's answer, nothing for the one suite a recording names no name for. */
+export const ofSuite = (suite: string | undefined): string => (suite === undefined ? '' : `suite ${suite}: `);
 
 /** Each suite's matching lines for the chosen test, or the refusals when no suite holds it. */
 export function grepRan(root: string, query: string, file: string, name: string | undefined): GrepRan {
@@ -80,48 +82,50 @@ export function grepRan(root: string, query: string, file: string, name: string 
   return { answered, refused };
 }
 
-/** The answer, ran lines first, then the lines in regions the test passed by. */
-export function formatGrepRan(query: string, { answered, refused }: GrepRan, limit: number, spell: Spelling): string {
-  return [...answered.map((marked) => formatSuite(query, marked, limit, spell)), ...refused].join('\n\n');
+/**
+ * The answer, ran lines first, then the lines in regions the test passed by.
+ * Each suite's lines are one ordered list, so `page` counts across its
+ * sections, and every suite shows the same rows of its own list.
+ */
+export function formatGrepRan(query: string, { answered, refused }: GrepRan, page: Page, spell: Spelling): string {
+  return [...answered.map((marked) => formatSuite(query, marked, page, spell)), ...refused].join('\n\n');
 }
 
-function formatSuite(query: string, { suite, ran, taken, passed, written, notes, errors }: Marked, limit: number, spell: Spelling): string {
+/** The rows of `page` that fall in a section starting at `start` of the suite's list. */
+function within<Row>(rows: readonly Row[], start: number, page: Page): readonly Row[] {
+  const from = Math.max(0, page.offset - start);
+  return paged(rows, { offset: from, limit: Math.max(0, page.offset + page.limit - start - from) });
+}
+
+function formatSuite(query: string, { suite, ran, taken, passed, written, notes, errors }: Marked, page: Page, spell: Spelling): string {
   const test = ran.test!;
   const entered = ran.modules.length;
-  const lines = [
-    `${ofSuite(suite)}${test.file}  ${test.name} entered ${entered} recorded ${entered === 1 ? 'file' : 'files'}; ` +
-      'files no recording instruments were not searched.',
+  const searched = `${entered === 1 ? 'the 1 recorded file' : `the ${entered} recorded files`} ${ofSuite(suite)}${test.file}  ${test.name} entered`;
+  // What bounds the rows is said after them, once the answer is read.
+  const noted = [
+    'note: files no recording instruments were not searched.',
+    ...(errors.length === 0 ? [] : [`note: ripgrep reported ${errors.length} ${errors.length === 1 ? 'error' : 'errors'} reading them; the first: ${errors[0]}`]),
+    ...notes.map((note) => `note: ${note}`),
   ];
-  if (errors.length > 0) lines.push('', `ripgrep reported ${errors.length} ${errors.length === 1 ? 'error' : 'errors'} reading them; the first: ${errors[0]}`);
-  if (notes.length > 0) lines.push('', ...notes);
   const total = taken.length + passed.length + written.length;
-  if (total === 0) return [...lines, '', `Nothing in those files matches \`${query}\`.`].join('\n');
+  if (total === 0) return [`Nothing in ${searched} matches \`${query}\`.`, ...noted].join('\n');
   const matched = new Set([...taken, ...passed.map(({ hit }) => hit), ...written].map((hit) => hit.file)).size;
-  lines.push('', `${total} matching ${total === 1 ? 'line' : 'lines'} in ${matched} ${matched === 1 ? 'file' : 'files'}.`);
-  let left = limit;
-  if (taken.length > 0 && left > 0) {
-    lines.push('', 'Ran:');
-    for (const hit of taken.slice(0, left)) lines.push(`${hit.file}:${hit.line}:${hit.text}`);
-    left -= Math.min(left, taken.length);
+  const lines = [`${total} matching ${total === 1 ? 'line' : 'lines'} in ${matched} of ${searched}:`, ...pageAt(page, total, spell)];
+  const ranShown = within(taken, 0, page);
+  if (ranShown.length > 0) lines.push('Ran:', ...byFile(ranShown));
+  const passedShown = within(passed, taken.length, page);
+  if (passedShown.length > 0) {
+    const rows = passedShown.map(({ hit, by, partly }) => ({ ...hit, note: `in ${region(by)}, which it did not enter${partly ? '; the rest of the line ran' : ''}` }));
+    lines.push('Not taken:', ...byFile(rows));
   }
-  if (passed.length > 0 && left > 0) {
-    lines.push('', 'Not taken:');
-    for (const { hit, by, partly } of passed.slice(0, left)) {
-      lines.push(`${hit.file}:${hit.line}:${hit.text}`, `  in ${region(hit.file, by)}, which it did not enter${partly ? '; the rest of the line ran' : ''}`);
-    }
-    left -= Math.min(left, passed.length);
-  }
-  if (written.length > 0 && left > 0) {
-    lines.push('', 'Written since the recording, so no test has run it:');
-    for (const hit of written.slice(0, left)) lines.push(`${hit.file}:${hit.line}:${hit.text}`);
-  }
-  if (total > limit) lines.push('', notShown(total - limit, spell));
-  return lines.join('\n');
+  const writtenShown = within(written, taken.length + passed.length, page);
+  if (writtenShown.length > 0) lines.push('Written since the recording, so no test has run it:', ...byFile(writtenShown));
+  return [...lines, ...noted, ...nextPage(page, total, spell)].join('\n');
 }
 
-/** `branch src/order.ts:5-7 of pay`, or `function pay src/order.ts:1-8`. */
-function region(file: string, { kind, line, end, function: of }: RanRegion): string {
+/** `branch 5-7 of pay`, or `function pay 1-8`, under a row that names the file. */
+function region({ kind, line, end, function: of }: RanRegion): string {
   const named = of === undefined || of === null ? '' : of;
-  if (kind === 'function') return `function ${named === '' ? '' : `${named} `}${file}:${line}-${end}`;
-  return `${kind} ${file}:${line}-${end}${named === '' ? '' : ` of ${named}`}`;
+  if (kind === 'function') return `function ${named === '' ? '' : `${named} `}${line}-${end}`;
+  return `${kind} ${line}-${end}${named === '' ? '' : ` of ${named}`}`;
 }

@@ -172,13 +172,13 @@ pub(crate) fn splice(source: &str, program: &Program, mut walker: Walker, keep: 
 ///
 /// oxc's own converter is behind its `serialize` feature, which brings serde
 /// into every AST type; this is the part of it this file needs.
-pub(crate) struct Utf16 {
+pub struct Utf16 {
     /// `(byte offset after a character, code units saved before it)`, in order.
     steps: Vec<(u32, u32)>,
 }
 
 impl Utf16 {
-    pub(crate) fn new(source: &str) -> Self {
+    pub fn new(source: &str) -> Self {
         let mut steps = Vec::new();
         let mut saved = 0u32;
         for (at, character) in source.char_indices() {
@@ -191,7 +191,7 @@ impl Utf16 {
         Self { steps }
     }
 
-    pub(crate) fn at(&self, offset: u32) -> u32 {
+    pub fn at(&self, offset: u32) -> u32 {
         let passed = self.steps.partition_point(|&(end, _)| end <= offset);
         offset - if passed == 0 { 0 } else { self.steps[passed - 1].1 }
     }
@@ -244,7 +244,7 @@ fn typescript_start(program: &Program) -> u32 {
 }
 
 /// Hash the source one region owns, not the source nested regions own.
-fn own_digests(source: &str, blocks: &[Block]) -> Vec<String> {
+pub fn own_digests(source: &str, blocks: &[Block]) -> Vec<String> {
     let mut children: Vec<Vec<usize>> = vec![Vec::new(); blocks.len()];
     for (index, block) in blocks.iter().enumerate() {
         if let Some(owner) = block.owner {

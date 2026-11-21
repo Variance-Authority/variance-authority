@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import type { FileRecord } from '@variance-authority/mcp/tools';
 import { treeOf } from '@variance-authority/mcp/tools';
-import { readHelp } from '@variance-authority/package/help';
+import { readHelp } from '../walk.js';
 import { searchNames } from '../tools.js';
 import { answerSearch } from './search.js';
 import { searchIndexOf } from '../snapshot.js';
@@ -125,9 +125,9 @@ describe('searchNames', () => {
 });
 
 describe('the flow from words to orient', () => {
-  it('ends an answer that located a file with the orient question for that file', () => {
-    const hit = searchNames(INDEX, { query: 'e' }).exported?.shown[0];
-    expect(hit, 'the fixture exports a name it does not publish').toBeDefined();
-    expect(answerSearch(INDEX, { query: 'e' })).toContain(`variance ask orient --files ${hit!.at}`);
+  it('ends an answer that located a published name with the question for its declaration', () => {
+    const hit = searchNames(INDEX, { query: 'e' }).published?.shown[0];
+    expect(hit, 'the fixture publishes a name holding the query').toBeDefined();
+    expect(answerSearch(INDEX, { query: 'e' }).endsWith(`\n\nNext: \`docs_symbol\` with \`name\` \`${hit!.name}\` and \`package\` \`${hit!.specifier}\``)).toBe(true);
   });
 });

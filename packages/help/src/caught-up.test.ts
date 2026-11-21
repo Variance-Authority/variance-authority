@@ -344,13 +344,8 @@ describe('refusalFooter', () => {
   const at = '2026-01-02T03:04:05.000Z';
 
   it('dates a refusal only when the checkout was not compared with what it came from', () => {
-    expect(refusalFooter(undefined, at, false)).toBeUndefined();
-    expect(refusalFooter({ subject: 'read' }, at, false)).toBeUndefined();
-    expect(refusalFooter(undefined, at, true)).toMatch(UNCOMPARED);
-  });
-
-  it('says why when the look found its file moved during the read', () => {
-    expect(refusalFooter({ subject: 'read', unseen: 'it moved' }, at, false)).toBe(snapshotLine(at, 'it moved'));
+    expect(refusalFooter(at, false)).toBeUndefined();
+    expect(refusalFooter(at, true)).toMatch(UNCOMPARED);
   });
 });
 
@@ -463,5 +458,14 @@ describe('madeBefore', () => {
     expect(madeBefore('2026-11-14T07:59:59.999Z', started)).toBe(true);
     expect(madeBefore('2026-11-14T08:00:00.000Z', started)).toBe(false);
     expect(madeBefore(undefined, started)).toBe(false);
+  });
+});
+
+describe('a name set asked of the server', () => {
+  it('reads the published source index the server answers from, as `variance ask` does', async () => {
+    const root = await fixture.published();
+    const { text, isError } = await asked(root, true, 'docs_discover', { declares: 'taxOf' });
+    expect({ text, isError }).toMatchObject({ text: expect.stringContaining('packages/kit/src/tax.ts') });
+    expect(isError).toBeUndefined();
   });
 });

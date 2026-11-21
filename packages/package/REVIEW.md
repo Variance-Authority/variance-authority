@@ -13,7 +13,7 @@
 - **A missing manifest is an answer.** Pinned by
   [manifest.test.ts](src/manifest.test.ts).
 - **Uncertain use is unknown, never unused.** Pinned by
-  [write.test.ts](src/write.test.ts).
+  [walk-pages.test.ts](../help/src/walk-pages.test.ts).
 - **Deep means past what the manifest promised.** Pinned by
   [entry.test.ts](src/entry.test.ts).
 - **One workspace, one answer.** Pinned by

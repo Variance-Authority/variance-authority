@@ -40,7 +40,22 @@ export async function checkoutRead(
   if (elsewhere === undefined) return `${head}, ${over}${moved}; this checkout has run no test of it itself`;
   const offHead = await elsewhere;
   return `${head}, ${over}${moved}; ${String(tests)} test file(s) ran here, every other is the mainline's: ` +
-    layer.ran.map((state) => stateRead(state, offHead)).join('; ');
+    statesRead(layer.ran, offHead);
+}
+
+/**
+ * The latest state by name, and the earlier ones as one count: a ledger gains
+ * a state each time a run lands over another commit or tree, so the note stays
+ * one bounded line however long this checkout has run.
+ */
+function statesRead(ran: readonly OwnState[], offHead: ReadonlySet<string>): string {
+  const latest = ran.at(-1)!;
+  const earlier = ran.slice(0, -1);
+  if (earlier.length === 0) return stateRead(latest, offHead);
+  const files = new Set(earlier.flatMap((state) => state.files)).size;
+  const away = earlier.filter((state) => offHead.has(state.commit)).length;
+  return `${stateRead(latest, offHead)}; and ${String(files)} test file(s) over ${String(earlier.length)} earlier state(s)` +
+    (away === 0 ? '' : `, ${String(away)} of them not on this branch`);
 }
 
 function stateRead(state: OwnState, offHead: ReadonlySet<string>): string {

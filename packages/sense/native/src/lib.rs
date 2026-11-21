@@ -69,12 +69,15 @@ mod harvest;
 mod chain_lookup;
 mod change_tree;
 mod held;
+mod file_stamp;
 #[cfg(unix)]
 mod held_listing;
 mod help;
 use help::*;
 mod index;
 mod index_chain;
+mod index_reader;
+mod breadth_first;
 mod index_turn;
 mod instrument;
 mod journey;
@@ -93,6 +96,7 @@ mod journey_output;
 mod journey_paths;
 mod journey_query;
 mod journey_read;
+mod journey_resonance;
 mod journey_record;
 mod journey_select;
 mod journey_stitch;
@@ -110,6 +114,7 @@ mod journeys_walk;
 #[cfg(feature = "grammars")]
 mod languages;
 mod lfs;
+mod listing;
 mod loads;
 mod log;
 mod louvain;
@@ -142,6 +147,7 @@ mod parse_store;
 mod path;
 mod promisor;
 mod read;
+mod read_any;
 mod read_napi;
 mod read_rows;
 mod span_text;
@@ -163,22 +169,34 @@ mod record_parts;
 mod record_start;
 mod resolve;
 mod resolve_export;
+mod resolve_jvm;
+mod resolve_python;
+mod resolve_rust;
+mod resolve_swift;
+mod source_roots;
 mod seed;
 mod segment;
 mod side_effects;
 mod source_size;
+mod source_query;
 mod source_tree;
 mod source_update;
+mod stages;
 mod specifier;
 mod stored;
+mod style;
 mod text_cut;
+#[cfg(feature = "grammars")]
+mod rust_cut;
+#[cfg(feature = "grammars")]
+mod rust_coverage;
 mod text_digests;
 mod top_level;
 mod tree;
 #[cfg(unix)]
 mod watchman;
 mod witness;
-mod witness_aliases;
+mod world;
 
 pub use seed::seed_files;
 

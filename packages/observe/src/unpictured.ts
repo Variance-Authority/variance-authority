@@ -3,7 +3,7 @@ import { mergeDiagnostics, pictured, type Raster } from '@variance-authority/cor
 import { attributionOf } from './attribution.js';
 import type { BeforeSide } from './because.js';
 import { accessibilityBetween, decide } from './decide.js';
-import type { CompareInputs, Observation } from './observe.js';
+import type { CompareInputs, Observation } from './observation.js';
 
 /**
  * The tier for a subject that was never photographed.

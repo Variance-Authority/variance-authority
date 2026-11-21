@@ -2,6 +2,8 @@
 
 **Partly built.** An update over a checkout a running Watchman watches reads
 the listing it held, and runs no git, when nothing moved but paths git ignores.
+When files moved, it compares only those against git's index, and the held
+listing answers for the rest.
 **Missing:** an update of the source index that starts from the generation it
 updates and asks what moved since it. Every `variance select` brings the index
 up to the checkout before it reads the graph, and today that update rebuilds
@@ -218,6 +220,13 @@ another root or another server, `is_fresh_instance`, a recrawl, a socket error
 — is answered by the git source, and the progress line names the reason. A
 worktree's first update reads a generation seeded from the primary checkout,
 whose clock is for another root, and takes the git source once.
+
+No question to Watchman waits longer than `SETTLED` (1 s) for its sync or its
+lock, plus 2 s of socket slack. A watch still crawling, or catching up after a
+switch, fails within that bound: the update lists with the git source, asks
+Watchman nothing more that run, and keeps a clock only when a bounded synced
+`clock` asked beside git's listing answers. The progress line names this
+fallback no more than the others: the line Watchman's answer prints is absent.
 
 ## 4. Declared, not discovered
 

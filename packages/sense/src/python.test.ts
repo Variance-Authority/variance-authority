@@ -3,10 +3,8 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { native } from './addon.js';
-import { pythonRootsOf, resolvePython } from './python.js';
 import type { Read } from './read.js';
-import { scanRelations } from './scan.js';
-import { worldIn } from './world.js';
+import { scanRelations } from './test-support/scan.js';
 
 /**
  * What a Python import statement says, and what it only implies.
@@ -23,7 +21,7 @@ import { worldIn } from './world.js';
 
 describe('what a Python file asks for', () => {
   it('separates the module a statement writes from the ones it implies', () => {
-    const read = readPython('t.py', 'from a.b import c, d as e\n');
+    const read = readPython('from a.b import c, d as e\n');
     const asked = new Map(read.requests.map((request) => [request.value, request]));
 
     // Written, so a failure to resolve it is a real one.
@@ -41,8 +39,8 @@ describe('what a Python file asks for', () => {
   });
 
   it('keeps the dots, because the dot count is the resolution', () => {
-    const here = readPython('t.py', 'from . import x\n');
-    const above = readPython('t.py', 'from .. import x\n');
+    const here = readPython('from . import x\n');
+    const above = readPython('from .. import x\n');
 
     expect(here.requests.map((request) => request.value)).toContain('.');
     expect(above.requests.map((request) => request.value)).toContain('..');
@@ -53,7 +51,6 @@ describe('what a Python file asks for', () => {
 
   it('reads `if TYPE_CHECKING:` as a type import and its `else:` as a real one', () => {
     const read = readPython(
-      't.py',
       'from typing import TYPE_CHECKING\nif TYPE_CHECKING:\n    from a import x\nelse:\n    from b import y\n',
     );
     const asked = new Map(read.requests.map((request) => [request.value, request]));
@@ -66,7 +63,6 @@ describe('what a Python file asks for', () => {
 
   it('publishes what it binds, and what it re-imports, and says when it cannot', () => {
     const read = readPython(
-      'p/__init__.py',
       'from .create import Create\nimport os\n\n\nclass Widget:\n    pass\n\n\ndef _hidden():\n    pass\n\n\nvalue = 1\n',
     );
     const published = new Set((read.exports ?? []).map((held) => held.exported));
@@ -80,7 +76,7 @@ describe('what a Python file asks for', () => {
   });
 
   it('answers `from x import *` with a set it does not name', () => {
-    const read = readPython('t.py', 'from .colors import *\n');
+    const read = readPython('from .colors import *\n');
     const opaque = (read.exports ?? []).find((held) => held.exported === undefined);
 
     // Absent is not empty: a consumer asking whether this file publishes `Red`
@@ -89,14 +85,14 @@ describe('what a Python file asks for', () => {
   });
 
   it('lets `__all__` narrow the published set', () => {
-    const read = readPython('t.py', "def a():\n    pass\n\n\ndef b():\n    pass\n\n\n__all__ = ['a']\n");
+    const read = readPython("def a():\n    pass\n\n\ndef b():\n    pass\n\n\n__all__ = ['a']\n");
 
     expect((read.exports ?? []).map((held) => held.exported)).toEqual(['a']);
   });
 
   it('reads a literal dynamic import and refuses a computed one', () => {
-    const literal = readPython('t.py', "import importlib\nm = importlib.import_module('a.b')\n");
-    const computed = readPython('t.py', 'import importlib\n\n\ndef load(name):\n    return importlib.import_module(name)\n');
+    const literal = readPython("import importlib\nm = importlib.import_module('a.b')\n");
+    const computed = readPython('import importlib\n\n\ndef load(name):\n    return importlib.import_module(name)\n');
 
     expect(literal.requests.find((request) => request.value === 'a.b')?.kind).toBe('dynamic');
     expect(literal.unknown).toBeUndefined();
@@ -105,48 +101,7 @@ describe('what a Python file asks for', () => {
   });
 
   it('says so when the parser stopped at an error', () => {
-    expect(readPython('t.py', 'def broken(:\n').unknown).toContain('error');
-  });
-});
-
-describe('where a Python specifier lands', () => {
-  const tree = [
-    'pyproject.toml',
-    'a/pyproject.toml',
-    'a/src/pkg/__init__.py',
-    'a/src/pkg/one.py',
-    'b/pyproject.toml',
-    'b/src/pkg/two.py',
-    'b/src/pkg/deep/three.py',
-  ];
-  const world = worldIn(tree);
-
-  it('takes a source root from every manifest, and from `src` under each', () => {
-    // Nineteen roots in a real monorepo; here, the two `src` directories a
-    // manifest sits above, plus the repository itself.
-    expect(pythonRootsOf(tree)).toEqual(['', 'a/src', 'a', 'b/src', 'b']);
-  });
-
-  it('unions the source roots, because one package can be spread across them', () => {
-    // `pkg` has no single home: `pkg.one` is under `a/src` and `pkg.two` under
-    // `b/src`, and only their union resolves both. A walk up from the importing
-    // file finds one of the two.
-    expect(resolvePython({ from: 'a/src/pkg/one.py', request: 'pkg.two', world }))
-      .toEqual(['b/src/pkg/two.py']);
-    expect(resolvePython({ from: 'b/src/pkg/two.py', request: 'pkg.one', world }))
-      .toEqual(['a/src/pkg/one.py']);
-  });
-
-  it('counts the leading dots as the number of packages to climb', () => {
-    expect(resolvePython({ from: 'b/src/pkg/deep/three.py', request: '.three', world }))
-      .toEqual(['b/src/pkg/deep/three.py']);
-    expect(resolvePython({ from: 'b/src/pkg/deep/three.py', request: '..two', world }))
-      .toEqual(['b/src/pkg/two.py']);
-  });
-
-  it('prefers the module to the package of the same name', () => {
-    expect(resolvePython({ from: 'a/src/pkg/one.py', request: 'pkg', world }))
-      .toEqual(['a/src/pkg/__init__.py']);
+    expect(readPython('def broken(:\n').unknown).toContain('error');
   });
 });
 
@@ -199,6 +154,28 @@ describe('a Python tree, scanned', () => {
   });
 });
 
+describe('a repository of its own, asked for', () => {
+  // A walk steps over a checkout inside a checkout, but one the caller names is
+  // the subject: what its files import resolves among its files.
+  it('resolves what its Python files import among its own files', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'variance-python-nested-'));
+    try {
+      await write(root, 'nested/.git/HEAD', 'ref: refs/heads/main\n');
+      await write(root, 'nested/pyproject.toml', '[project]\nname = "nested"\n');
+      await write(root, 'nested/src/pkg/__init__.py', '');
+      await write(root, 'nested/src/pkg/a.py', 'import pkg.b\n');
+      await write(root, 'nested/src/pkg/b.py', 'VALUE = 1\n');
+
+      const records = await scanRelations({ root, dirs: ['nested'], digests: false });
+      const a = records.find((record) => record.file === 'nested/src/pkg/a.py');
+
+      expect((a?.edges ?? []).map((edge) => edge.to)).toContain('nested/src/pkg/b.py');
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+});
+
 async function write(root: string, path: string, contents: string): Promise<void> {
   const file = join(root, path);
   await mkdir(dirname(file), { recursive: true });
@@ -220,7 +197,7 @@ describe('what a Python file declares', () => {
       'LIMIT = 5',
       '',
     ].join('\n');
-    const read = readPython('pkg/mod.py', contents);
+    const read = readPython(contents);
 
     expect(spelled(contents, read)).toEqual([
       { name: '_relaunch', kind: 'function', line: 2, signature: 'def _relaunch(argv)', doc: 'Start again, in a process of its own.' },
@@ -230,7 +207,7 @@ describe('what a Python file declares', () => {
   });
 
   it('says what keeps a name out of `from … import *`: `__all__` when it is written, else a leading underscore', () => {
-    const reach = (contents: string) => readPython('pkg/mod.py', contents).symbols?.map(({ name, reach }) => [name, reach]);
+    const reach = (contents: string) => readPython(contents).symbols?.map(({ name, reach }) => [name, reach]);
     expect(reach('def _relaunch():\n    pass\n\ndef start():\n    pass\n')).toEqual([['_relaunch', 'underscore'], ['start', undefined]]);
     expect(reach("__all__ = ['start']\n\ndef start():\n    pass\n\ndef stop():\n    pass\n")).toEqual([['start', 'all'], ['stop', 'all']]);
     expect(reach('__all__ = names()\n\ndef _relaunch():\n    pass\n')).toEqual([['_relaunch', 'underscore']]);
@@ -244,8 +221,8 @@ function spelled(contents: string, read: Read) {
 }
 
 /** What the addon's Python reader answers, which is the only reader there is. */
-function readPython(file: string, contents: string): Read {
-  const answer = native()?.readLanguage('python', file, contents);
+function readPython(contents: string): Read {
+  const answer = native()?.readLanguage('python', contents);
   if (answer == null) throw new Error('these tests read Python through the native addon, built with its grammars');
   return JSON.parse(answer) as Read;
 }

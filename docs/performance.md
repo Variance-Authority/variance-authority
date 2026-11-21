@@ -394,10 +394,11 @@ object store — packed, for everything that arrived with the clone.
 
 So stop asking the filesystem for them and ask git.
 
-The address is already in hand. A scan takes its digests from `ls-tree` — a
-blob's name is the hash of its contents, which is what spares it hashing the
-repository itself — and that name is also where the bytes sit in the pack. The
-key carried to decide whether a file needs reading is the key that fetches it.
+The address is already in hand. Git's index supplies each tracked path and its
+blob id; the scan overlays local changes. A blob's name is the hash of its
+contents, which spares the scan hashing unchanged files, and that name is also
+where the bytes sit in the pack. The key used to decide whether a file needs
+reading is the key that fetches it.
 Every `open` in the sections above took the long way round to bytes that a
 process one pipe away had indexed under an id the scan was already holding.
 
@@ -623,16 +624,13 @@ names straight onto directories inside it, `@kbn/i18n` onto
 beside that directory would be what `@kbn/i18n` resolves to. So every record
 that imports one of those packages watches the directory, 35% of the index.
 
-One repository shape removes the per-directory bound: a `tsconfig` the scan
-cannot follow, because it is not valid JSON or because its `extends` does not
-land on a `tsconfig*.json` or `jsconfig.json` your repository tracks — a base
-installed from a registry, say, rather than one of your workspace's own
-packages. A bare specifier is bounded by the `paths` a configuration declares, so
-a configuration that cannot be read is no bound at all, and there every added
-path invalidates every record. The symptom is a warm run that costs what a cold
-one does. [A `tsconfig` the scan cannot
-follow](source-structures.md#a-tsconfig-the-scan-cannot-follow) lists every such
-`extends`.
+One repository shape removes the per-directory bound for one config's patterns:
+a `tsconfig` the scan cannot read, because it or a base it `extends` is not
+valid JSON. A bare specifier only it maps is then bounded only by the directory
+its answer sits in; every other config's patterns still bound their own. That costs
+nothing — no run turns cold — but an import through a pattern keeps its answer
+until the importing file is edited. [A `tsconfig` the scan cannot
+follow](source-structures.md#a-tsconfig-the-scan-cannot-follow) lists the cases.
 
 ### Where the third of a second is
 
@@ -666,8 +664,15 @@ base.
 ### git, and the two accelerators
 
 Everything Variance Authority knows about a working tree comes from git.
-`ls-tree` reads the commit and does not grow with the checkout. `status` reads
-the working tree and does, so it is the row that matters, and git ships two
+Reading the commit's tree does not grow with the checkout, and `variance index`
+reads it only where it changed: it keeps the tree beside the index by the tree
+id of every package, so an unchanged `HEAD` reads no tree. A commit, a pull or a
+branch switch compares each changed package's old tree with its new one in git's
+object store and reads only the trees on the changed paths. With `HEAD`
+unchanged, that part falls from about 80 ms to about 20 ms on Kibana and from
+about 1.1 s to about 50 ms on Firefox, and the run as a whole does not move on
+either, because the tree is read while the working tree is walked. `status` reads the
+working tree and grows with it, so it is the row that matters, and git ships two
 accelerators for it that are off by default:
 
 | Asking git for `status` | Material UI | Kibana |
@@ -707,20 +712,46 @@ container boundary. When it is, git recomputes.
 ### A Watchman that already watches the checkout
 
 When a Watchman server already watches your checkout, an update asks it which
-files changed since the last update, and asks git only when one did. The update
+files changed since the last update, and compares only those. The update
 keeps, beside the index it writes, the listing git made and the Watchman clock
 taken before git made it. Next time, when the same server reports no change since
 that clock, and none of git's own files changed — `HEAD`, the index, a ref, an
 exclude or configuration file — the update reads the listing it kept and runs
 no git at all. When all it reports are paths git ignores — a tool's cache, a
-build's output — the update asks git only `check-ignore` about them. On Material
+build's output — the update asks git only `check-ignore` about them. A watch that ignores
+directories itself, such as `node_modules` or `dist`, vouches the same way:
+what it ignores is out of the source. On Material
 UI's 41,171 paths an update that runs no git takes 22 ms against 121 ms with git.
 
-Anything else lists with git, as above: a change Watchman reports, a server
-that restarted, a checkout no server watches, a machine with no Watchman. Nothing
-starts a server or adds a watch. Under a watch, an update that lists with git
-costs 5 ms more when only git's files changed, and 29 ms more when a tracked file
-did: the Watchman round trips that found the change. The watch is yours to add:
+When files did change, through an edit, a branch switch, a reset or a commit,
+the same server names every file that moved since the kept listing's clock. The
+update reads git's index, but compares only those files, and the files the
+kept listing did not hold clean, against the working tree; the kept listing answers for every other path. The
+files git does not track are the kept listing's and the moved ones, less those
+git ignores. A directory whose `.gitignore` moved is walked again, since a
+changed rule may show a file no listing held. So a switch costs what it moved,
+not the size of the checkout. Under a watch, a switch one commit away and back
+takes the listing from about 0.66 s to about 0.23 s on Kibana, and from about
+2.2 s to about 0.67 s on Firefox, where the run as a whole falls from about
+5.9 s to about 4.4 s. A switch 60 commits away on Firefox, 308 files, costs the
+same as one commit away. On Kibana, 200 commits away moves 4,039 files and the
+root `.gitignore`, so every directory is walked again for untracked files.
+
+Git answers first, and Watchman only skips work. Each question an update asks
+the server waits no longer than a settled watch takes to answer, about a second. A watch that is
+still crawling a fresh worktree, or still catching up after a large switch, is
+no answer, and the update lists with git at git's speed. The question whether
+the watch has caught up runs beside git's listing, not before it, and only a
+watch that has caught up gives the next update its clock. On Firefox, a fresh
+worktree under a crawling watch takes the same time as one with no watch, about
+15 s for the run. On Kibana, the switch 200 commits away is still being reported
+when the update asks, so the update waits that second, lists with git, and
+takes about 6 s for the run.
+
+Anything else lists with git, as above: an exclude or configuration file that
+changed, a server that restarted, a checkout no server watches, a machine with
+no Watchman. Nothing starts a server or adds a watch. The watch is yours to
+add:
 
 ```bash
 watchman watch-project .

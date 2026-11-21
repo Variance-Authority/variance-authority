@@ -1,22 +1,20 @@
 import { execFileSync } from 'node:child_process';
-import { cp, mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { openImmutableLog } from './immutable-log.js';
-import { decodeSourceIndex } from './source-index-format.js';
+import { readSourceIndexSegment } from './source-index-reader.js';
 import { openSourceIndexFile } from './source-index-file.js';
 import { updateNatively } from './native-update.js';
 import { readySourceIndex } from './ready-index.js';
 import { updateSourceIndex } from './published.js';
 import { realPath } from './resolve.js';
-import { gitTreeOf } from './tree.js';
 
 /**
- * The addon's warm update and the JavaScript one are asked the same thing from
- * the same chain, and what they publish is compared record for record, each
- * parse with the declarations it harvested: `symbol` and `uses` read those
- * for a changed file off the working layer.
+ * A warm update of a published chain and a cold build of the same tree are
+ * compared record for record, each parse with the declarations it harvested:
+ * `symbol` and `uses` read those for a changed file off the working layer.
  */
 describe('the native warm update', () => {
   let root: string;
@@ -65,36 +63,25 @@ describe('the native warm update', () => {
     return { records: sorted(file.stored.records), parses: sorted(file.stored.parses), directories: sorted(file.stored.directories) };
   }
 
+  /** A warm update of the chain published before `change`, against a cold build of the tree after it. */
   async function agree(change: () => Promise<void>): Promise<void> {
     const start = await both();
-    const twin = join(work, `twin-${step}`, 'index.bin');
-    await mkdir(dirname(twin), { recursive: true });
-    await cp(start, twin);
-    await cp(`${start}.segments`, `${twin}.segments`, { recursive: true });
     await change();
-    const native = await updateNatively(root, start);
-    expect(native).toBeDefined();
-    // The addon is refused for the twin by holding the same tree without the entry.
-    const tree = (await gitTreeOf(root, ['.']))!.native!;
-    const proto = Object.getPrototypeOf(tree) as { updateIndex?: unknown };
-    const entry = proto.updateIndex;
-    proto.updateIndex = undefined;
-    try {
-      await updateSourceIndex(root, { index: twin });
-    } finally {
-      proto.updateIndex = entry;
-    }
-    expect(await held(start)).toEqual(await held(twin));
+    expect(await updateNatively(root, start)).toBeDefined();
+    const cold = join(work, `cold-${step}`, 'index.bin');
+    await mkdir(dirname(cold), { recursive: true });
+    await updateSourceIndex(root, { index: cold });
+    expect(await held(start)).toEqual(await held(cold));
   }
 
-  it('publishes what the JavaScript update publishes after an edit', async () => {
+  it('publishes what a cold build publishes after an edit', async () => {
     await agree(async () => {
       await write('lib/unit.ts', 'export const unit = 3;\nexport const more = 4;\n');
     });
     git('checkout', '--', 'lib/unit.ts');
   });
 
-  it('publishes what the JavaScript update publishes after a file is added and imported', async () => {
+  it('publishes what a cold build publishes after a file is added and imported', async () => {
     await agree(async () => {
       await write('lib/added.ts', 'export const added = 5;\n');
       await write('lib/alone.ts', "import { added } from './added.js';\nexport const alone = added;\n");
@@ -105,7 +92,7 @@ describe('the native warm update', () => {
     await rm(join(root, 'lib/added.ts'));
   });
 
-  it('publishes what the JavaScript update publishes after a file is deleted', async () => {
+  it('publishes what a cold build publishes after a file is deleted', async () => {
     await agree(async () => {
       await rm(join(root, 'lib/alone.ts'));
     });
@@ -117,6 +104,14 @@ describe('the native warm update', () => {
     const manifest = JSON.parse((await readFile(index)).subarray(12).toString('utf8')) as { segments: unknown[]; working?: number };
     return { segments: manifest.segments.length, working: manifest.working ?? 0 };
   }
+
+  it('writes a first update as the base, leaving readying nothing to fold', async () => {
+    const start = join(work, `first-${step++}`, 'index.bin');
+    await mkdir(dirname(start), { recursive: true });
+    expect(await updateNatively(root, start, undefined, ['.'], Promise.resolve([]))).toBeDefined();
+    expect(await chain(start)).toEqual({ segments: 1, working: 0 });
+    expect(await readySourceIndex(start)).toBe(false);
+  });
 
   it('rewrites one working layer over the base, keeping what an earlier update deleted, and readying folds it in', async () => {
     const start = await both();
@@ -146,7 +141,7 @@ describe('the native warm update', () => {
     git('checkout', '--', 'lib/unit.ts');
     await updateNatively(root, start);
     expect(await chain(start)).toEqual({ segments: base + 1, working: 1 });
-    const working = decodeSourceIndex((await openImmutableLog(start)).segments.at(-1)!);
+    const working = readSourceIndexSegment((await openImmutableLog(start)).segments.at(-1)!);
     expect([...working.records.keys()]).toEqual([]);
     // Its parse too: the base already holds the same harvested parse under that key.
     expect([...working.parses.keys()]).toEqual([]);
@@ -193,7 +188,61 @@ describe('the native warm update', () => {
     expect(await held(start)).toEqual(before);
   });
 
-  it('declines an index nobody published, leaving it to the JavaScript update', async () => {
-    expect(await updateNatively(root, join(work, 'never', 'index.bin'))).toBeUndefined();
+  it('publishes what a cold build publishes after edits in every language it resolves', async () => {
+    const mixed: Record<string, string> = {
+      'styles/base.css': '.base { color: red; }\n',
+      'styles/main.css': "@import './base.css';\n.main { color: blue; }\n",
+      'py/pkg/__init__.py': '',
+      'py/pkg/other.py': 'VALUE = 1\n',
+      'py/pkg/mod.py': 'from pkg.other import VALUE\n',
+      'crates/core/Cargo.toml': '[package]\nname = "core"\nversion = "0.0.0"\n',
+      'crates/core/src/lib.rs': 'mod util;\npub fn run() { util::help(); }\n',
+      'crates/core/src/util.rs': 'pub fn help() {}\n',
+      'Package.swift': 'let package = Package(name: "Kit", targets: [.target(name: "Core"), .target(name: "App")])\n',
+      'Sources/Core/Core.swift': 'public struct Core {}\n',
+      'Sources/App/main.swift': 'import Core\nlet core = Core()\n',
+      'jvm/src/main/java/a/b/Thing.java': 'package a.b;\npublic class Thing {}\n',
+      'jvm/src/main/kotlin/a/b/helpers.kt': 'package a.b\n\nfun parse() {}\n',
+      'jvm/src/main/java/a/c/Far.java': 'package a.c;\nimport a.b.Thing;\nclass Far {}\n',
+      'jvm/src/main/kotlin/a/c/near.kt': 'package a.c\n\nimport a.b.parse\n\nfun near() = parse()\n',
+    };
+    for (const [file, text] of Object.entries(mixed)) await write(file, text);
+    git('add', '.');
+    git('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '--quiet', '-m', 'mixed');
+    await agree(async () => {
+      await write('styles/main.css', "@import './base.css';\n.main { color: green; }\n");
+      await write('py/pkg/mod.py', 'from pkg.other import VALUE\nfrom . import other\n');
+      await write('crates/core/src/lib.rs', 'mod util;\npub fn run() { util::help(); util::help(); }\n');
+      await write('Sources/App/main.swift', 'import Core\nlet core = Core()\nlet again = Core()\n');
+      await write('jvm/src/main/java/a/c/Far.java', 'package a.c;\nimport a.b.*;\nclass Far {}\n');
+      await write('jvm/src/main/kotlin/a/c/near.kt', 'package a.c\n\nimport a.b.parse\nimport a.b.Thing\n\nfun near() = parse()\n');
+    });
+    git('checkout', '--', '.');
+  });
+
+  it('builds an index nobody published from the tree', async () => {
+    const never = join(work, 'never', 'index.bin');
+    await mkdir(dirname(never), { recursive: true });
+    const built = await updateNatively(root, never);
+    expect(built.files).toBeGreaterThan(0);
+    expect(await chain(never)).toEqual({ segments: 1, working: 0 });
+  });
+
+  it('indexes a directory git does not list from the disk, with no listing to hand on', async () => {
+    const loose = realPath(await mkdtemp(join(tmpdir(), 'variance-native-update-loose-')));
+    try {
+      await writeFile(join(loose, 'a.ts'), "import { b } from './b';\nexport const a = b;\n");
+      await writeFile(join(loose, 'b.ts'), 'export const b = 1;\n');
+      const index = join(work, `loose-${step++}`, 'index.bin');
+      await mkdir(dirname(index), { recursive: true });
+      const built = await updateNatively(loose, index);
+      expect(built.files).toBe(2);
+      expect(built.listing).toBeUndefined();
+      expect(await chain(index)).toEqual({ segments: 1, working: 0 });
+      const again = await updateNatively(loose, index);
+      expect(again.files).toBe(2);
+    } finally {
+      await rm(loose, { recursive: true, force: true });
+    }
   });
 });

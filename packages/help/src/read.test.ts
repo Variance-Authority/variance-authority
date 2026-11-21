@@ -5,7 +5,8 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { treeOf, type FileRecord, type Tree } from '@variance-authority/mcp/tools';
-import { readHelp, type Help } from '@variance-authority/package/help';
+import { type Help } from '@variance-authority/package/help';
+import { readHelp } from './walk.js';
 import { restampHelpStore } from '@variance-authority/sense';
 import { taintTable } from '@variance-authority/sense/taint';
 import { publishedHead, readWorkspaceSnapshot, workspaceGeneration, workspaceReadStarted, workspaceSnapshotPath } from './snapshot.js';
@@ -164,12 +165,12 @@ describe('reading a workspace through the source index', () => {
       expect(entryNamed(recorded, 'measure')?.doc).toContain('Measures the thing');
       expect(entryNamed(recorded, 'measure')?.doc).not.toContain('Changed later');
       expect(records.length).toBeGreaterThan(0);
-      expect(tree?.files).toEqual(treeOf(records, root).files);
+      expect([...(tree?.files() ?? [])]).toEqual([...treeOf(records, root).files()]);
       expect(workspaceGeneration(recorded)).toMatch(/^\d{4}-\d{2}-\d{2}T/);
       const tool = HELP.tools.find((candidate) => candidate.name === 'docs_search')!;
       expect(tool.run(recorded, { query: 'measure' })).toContain('\nSnapshot ');
 
-      const digest = publishedHead(at)?.graphDigest;
+      const digest = publishedHead(root, at)?.graphDigest;
       expect(digest).toBeDefined();
       if (digest === undefined) throw new Error('snapshot did not name its graph');
       await writeFile(`${at}.help-tree.${digest}.bin`, new Uint8Array([0]));
@@ -234,7 +235,7 @@ describe('reading a workspace through the source index', () => {
 
       expect(republished).toEqual(first);
       expect(workspaceGeneration(republished)).not.toBe('2000-01-01T00:00:00.000Z');
-      expect(publishedHead(at)?.generatedAt).toBe(workspaceGeneration(republished));
+      expect(publishedHead(root, at)?.generatedAt).toBe(workspaceGeneration(republished));
     } finally {
       await rm(temporary, { recursive: true, force: true });
     }

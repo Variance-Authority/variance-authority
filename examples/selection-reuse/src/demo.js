@@ -3,7 +3,7 @@ import { access, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:f
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { RUNTIME_EDGES, affectedBy, relationsOfFiles } from '@variance-authority/core/relate';
-import { openSourceIndex, scanRelations } from '@variance-authority/sense';
+import { readPublishedSources, sourcesWithin, updateSourceIndex } from '@variance-authority/sense';
 
 const NOISE_FILES = 300;
 
@@ -51,47 +51,14 @@ function decision(records) {
 }
 
 async function scan(root, cacheRoot) {
-  const source = await openSourceIndex(join(cacheRoot, 'source-index.bin'));
-  const parsed = meter(source.cache);
-  const records = meter(source.reuse);
+  const index = join(cacheRoot, 'source-index.bin');
   const started = performance.now();
-  const graph = await scanRelations({ root, dirs: ['src'], cache: parsed.cache, reuse: records.cache });
+  const update = await updateSourceIndex(root, { index, dirs: ['src'] });
+  if (update.refused !== undefined) throw new Error(update.refused);
+  const { records } = await readPublishedSources(update.path);
+  const graph = sourcesWithin(records, root, ['src']);
   const elapsedMs = performance.now() - started;
-  await source.save();
-  return { elapsedMs, decision: decision(graph), parsed: parsed.stats, records: records.stats };
-}
-
-/** Count the work a cache prevented without changing the cache's behaviour. */
-function meter(cache) {
-  const stats = { lookups: 0, hits: 0, writes: 0 };
-
-  // Delegation rather than a list of forwarded methods. A wrapper that
-  // enumerates what it passes through silently drops whatever the interface
-  // grows next, and the scan sees a cache missing a method rather than a
-  // counter missing a case.
-  const counted = Object.create(cache);
-
-  // Both reads are counted into one pair of numbers because they are one
-  // question asked twice over: `get` wants the record, `getIndexed` wants the
-  // record and what resolved it. A scan asks whichever it needs, and what this
-  // demo reports is how often the cache answered.
-  const reading = (name) => (...args) => {
-    stats.lookups += 1;
-    const value = cache[name](...args);
-    if (value !== undefined) stats.hits += 1;
-
-    return value;
-  };
-
-  counted.get = reading('get');
-  if (cache.getIndexed !== undefined) counted.getIndexed = reading('getIndexed');
-  counted.set = (...args) => {
-    stats.writes += 1;
-
-    return cache.set(...args);
-  };
-
-  return { stats, cache: counted };
+  return { elapsedMs, decision: decision(graph), work: { files: update.files, reread: update.reread, parsed: update.parsed } };
 }
 
 export async function runDemo() {
@@ -118,9 +85,9 @@ export async function runDemo() {
       warm: warm.decision,
       afterEdit: afterEdit.decision,
       work: {
-        cold: { parsed: cold.parsed, records: cold.records },
-        warm: { parsed: warm.parsed, records: warm.records },
-        afterEdit: { parsed: afterEdit.parsed, records: afterEdit.records },
+        cold: cold.work,
+        warm: warm.work,
+        afterEdit: afterEdit.work,
       },
       cacheAfterCold,
       cacheMagic: (await readFile(join(cacheRoot, 'source-index.bin'))).subarray(0, 8).toString('utf8'),
@@ -148,7 +115,7 @@ export function print(result) {
       `  warm scan:       ${result.warmMs.toFixed(1)} ms`,
       `  after token edit: ${result.afterEditMs.toFixed(1)} ms`,
       `  speedup:         ${speedup.toFixed(1)}×`,
-      `  warm reuse:      ${result.work.warm.records.hits} records reused, ${result.work.warm.records.writes} rebuilt`,
+      `  warm reuse:      ${result.work.warm.files} files, ${result.work.warm.reread} reread, ${result.work.warm.parsed} parsed`,
       `  selection agrees: ${JSON.stringify(result.cold) === JSON.stringify(result.warm) ? 'yes' : 'no'}`,
       '',
     ].join('\n'),

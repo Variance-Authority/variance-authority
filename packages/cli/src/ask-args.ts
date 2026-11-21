@@ -1,5 +1,5 @@
 import { resolve } from 'node:path';
-import { countOf, type Flags } from './args.js';
+import { countOf, offsetOf, type Flags, type Unknown } from './args.js';
 import { OperatorError } from './exit.js';
 
 /**
@@ -82,6 +82,8 @@ export interface ParsedAsk extends Crossing {
    * that reads like the sentence somebody meant.
    */
   readonly question?: string;
+  /** Each flag no question takes, named beside the answer by the question it was typed at. */
+  readonly unknown?: readonly Unknown[];
   readonly subject?: string;
   /** `--subjects <id>[,...]`: the plural argument `changelog` takes, not `--subject`. */
   readonly subjects?: readonly string[];
@@ -100,8 +102,12 @@ export interface ParsedAsk extends Crossing {
   readonly files?: readonly string[];
   /** `--area <id>`: the page of the code map `orient` prints, as its id (`4.1`). */
   readonly area?: string;
+  /** `--declarations`: every reached declaration entry in file orientation. */
+  readonly declarations?: boolean;
   /** `--name <name>`: an exported name, matched exactly, for `symbol` and `uses`; a test's name or a word of it, for `test-composition`. */
   readonly name?: string;
+  /** `--line <file>:<line>`: a line that uses the name, for `symbol` to order its declarations by the tests that ran it. */
+  readonly line?: string;
   /** `--package <name>`: a workspace package, for `entrypoint` and to narrow `symbol` and `uses`. */
   readonly package?: string;
   /** `--subpath <subpath>`: one import specifier a package's `exports` map opens, for `entrypoint`. */
@@ -128,12 +134,10 @@ export interface ParsedAsk extends Crossing {
   readonly from?: string;
   /** `--to <path>`: a path to arrive at. Answers what reaches it, the other way along the imports. */
   readonly to?: string;
-  /** `--changed-file <path>`: authoritative scan-root-relative paths, one per line. */
+  /** `--changed-file <path>`: scan-root-relative paths, one per line, that ask for a new generation now. */
   readonly changedFile?: string;
   /** `--taint-file <path>`: addition-only declarative module edges. */
   readonly taintFile?: string;
-  /** Use the last published source generation without inspecting the checkout. */
-  readonly justAnswer?: boolean;
   /** `--story`: what each execution's functions were handed, for `ran`. */
   readonly story?: boolean;
   readonly limit?: number;
@@ -187,6 +191,7 @@ export function parseAskArgs(flags: Flags, config: string): ParsedAsk {
     .filter((value) => value !== '');
   const area = flags.values.get('--area');
   const name = flags.values.get('--name');
+  const line = flags.values.get('--line');
   const pkg = flags.values.get('--package');
   const subpath = flags.values.get('--subpath');
   const query = flags.values.get('--query');
@@ -196,14 +201,9 @@ export function parseAskArgs(flags: Flags, config: string): ParsedAsk {
   const to = flags.values.get('--to');
   const changedFile = flags.values.get('--changed-file');
   const taintFile = flags.values.get('--taint-file');
-  const justAnswer = flags.present.has('--just-answer');
   const story = flags.present.has('--story');
   const limit = countOf(flags.values.get('--limit'), 'rows to show');
-  const said = flags.values.get('--offset');
-  if (said !== undefined && !/^(0|[1-9][0-9]*)$/.test(said)) {
-    throw new OperatorError(`--offset is how many rows to skip and must be a whole number, not \`${said}\``);
-  }
-  const offset = said === undefined ? undefined : Number(said);
+  const offset = offsetOf(flags.values.get('--offset'));
   const at = flags.values.get('--at');
   const format = flags.values.get('--format') ?? 'text';
   if (format !== 'text' && format !== 'json') {
@@ -214,6 +214,10 @@ export function parseAskArgs(flags: Flags, config: string): ParsedAsk {
     command: 'ask',
     config,
     ...(question !== undefined ? { question } : {}),
+    // `next` counts the question among the positionals; here it counts reports.
+    ...(flags.unknown.length > 0
+      ? { unknown: flags.unknown.map((entry) => (entry.next === undefined ? entry : { ...entry, next: entry.next - 1 })) }
+      : {}),
     ...(subject !== undefined ? { subject } : {}),
     ...(subjects.length > 0 ? { subjects } : {}),
     ...(component !== undefined ? { component } : {}),
@@ -226,7 +230,9 @@ export function parseAskArgs(flags: Flags, config: string): ParsedAsk {
     ...(file !== undefined ? { file } : {}),
     ...(files.length > 0 ? { files } : {}),
     ...(area !== undefined ? { area } : {}),
+    ...(flags.present.has('--declarations') ? { declarations: true } : {}),
     ...(name !== undefined ? { name } : {}),
+    ...(line !== undefined ? { line } : {}),
     ...(pkg !== undefined ? { package: pkg } : {}),
     ...(subpath !== undefined ? { subpath } : {}),
     ...(query !== undefined ? { query } : {}),
@@ -238,7 +244,6 @@ export function parseAskArgs(flags: Flags, config: string): ParsedAsk {
     ...carried(flags, CROSSING),
     ...(changedFile !== undefined ? { changedFile: resolve(changedFile) } : {}),
     ...(taintFile !== undefined ? { taintFile: resolve(taintFile) } : {}),
-    ...(justAnswer ? { justAnswer: true as const } : {}),
     ...(story ? { story: true as const } : {}),
     ...(limit !== undefined ? { limit } : {}),
     ...(offset !== undefined ? { offset } : {}),

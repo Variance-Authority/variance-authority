@@ -31,7 +31,6 @@ import { stat } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
 import { promisify } from 'node:util';
 import { codeUnitOrder } from '@variance-authority/core/segment';
-import { digestString } from './digest.js';
 import type { Digest } from '@variance-authority/core/format';
 import type { NativeGitTree } from './native.js';
 import { native } from './addon.js';
@@ -233,14 +232,13 @@ function blob(object: string): Digest {
  * The path set, as the questions a scan actually asks of it.
  *
  * A scan does not want the listing. It wants one digest at a time, the handful
- * of paths that decide how resolution is configured, one digest per directory,
- * and one digest over the whole set for the case where nothing bounds a bare
- * specifier. Four questions, three of them folds — and a fold whose input is
- * four hundred thousand paths is the reason a cold scan spends its first
- * seconds building `Map`s before a file has been opened.
+ * of configuration files, and one digest per directory. Three questions, two of
+ * them folds — and a fold whose input is four hundred thousand paths is the
+ * reason a cold scan spends its first seconds building `Map`s before a file has
+ * been opened.
  *
  * So the path set is an interface rather than a `Map`. The native implementation
- * answers all four without the listing crossing into JavaScript at all; the
+ * answers all three without the listing crossing into JavaScript at all; the
  * JavaScript one answers them over a `Map` and is what a caller supplying its
  * own digests gets. Both are the same answers — `tree.test.ts` compares them.
  */
@@ -261,17 +259,6 @@ export interface Tree {
   named(names: readonly string[]): readonly string[];
   /** Every directory in the tree, named by the entries it holds. */
   directories(): ReadonlyMap<string, Digest>;
-  /**
-   * The configuration digest: these header lines, then the tree's own part.
-   *
-   * `aliasesUnknown` folds in every path, which is what `reuse.ts` falls back to
-   * when no configuration bounds where a bare specifier could land.
-   */
-  configDigest(
-    header: readonly string[],
-    names: readonly string[],
-    aliasesUnknown: boolean,
-  ): Digest;
 }
 
 /**
@@ -330,16 +317,6 @@ export function treeOf(digests: ReadonlyMap<string, Digest>): Tree {
     paths,
     named: (names) => paths().filter((path) => isNamed(path, names)),
     directories: () => directoriesOf(paths()),
-    configDigest: (header, names, aliasesUnknown) =>
-      digestString(
-        [
-          ...header,
-          ...paths()
-            .filter((path) => isNamed(path, names))
-            .map((path) => `${path} ${digests.get(path)}`),
-          ...(aliasesUnknown ? ['aliases unknown', ...paths()] : []),
-        ].join('\n'),
-      ),
   };
 }
 
@@ -356,8 +333,6 @@ function nativeTree(held: NativeGitTree): Tree {
     paths: () => held.paths(),
     named: (names) => held.named([...names]),
     directories: () => new Map(Object.entries(held.directories())),
-    configDigest: (header, names, aliasesUnknown) =>
-      held.configDigest([...header], [...names], aliasesUnknown),
   };
 }
 

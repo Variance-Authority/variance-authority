@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { notRun } from './tools/not-run.js';
 import { orient } from './tools/orient.js';
 import { slowestTests } from './tools/slowest-tests.js';
 
@@ -65,6 +66,7 @@ describe('a tool that reads a checkout', () => {
   it('refuses a call whose host named no checkout, rather than reading the working directory', () => {
     expect(() => slowestTests.run(undefined, {})).toThrow(/named no checkout/);
     expect(() => orient.run(undefined, { files: ['a.ts'] })).toThrow(/named no checkout/);
+    expect(() => notRun.run(undefined, {})).toThrow(/named no checkout/);
   });
 });
 

@@ -151,6 +151,7 @@ subject. Abridged to the fields most reports use:
           "width": 60,
           "height": 18,
           "pixels": 180,
+          "grade": 4,
           "component": "Button",
           "file": "src/ui/Button.tsx",
           "fingerprint": "v1:9f2c41ab8d0e5573",

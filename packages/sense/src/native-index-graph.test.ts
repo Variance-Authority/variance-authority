@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
@@ -10,14 +10,13 @@ import { keyFor, parseWay } from './files.js';
 import { nativeGraph, type NativeGitTree } from './native.js';
 import { native, nativeAvailable } from './addon.js';
 import { graphRecords, nativeIndexGraph } from './native-index-graph.js';
-import { parseStorePath } from './parse-store.js';
 import { updateSourceIndex } from './published.js';
 import { MODULE_EXTENSIONS } from './read.js';
 import { shapeOf } from './reuse.js';
-import { memoryParseCache } from './cache.js';
-import { LARGEST_FILE, scanCount } from './scan.js';
+import { LARGEST_FILE } from './record.js';
 import { openSourceIndexFile } from './source-index-file.js';
-import { type IndexedRecord, type StoredSourceIndex, decodeSourceIndex } from './source-index-format.js';
+import type { IndexedRecord, StoredSourceIndex } from './source-index-format.js';
+import { readSourceIndexSegment } from './source-index-reader.js';
 import { CACHE_VARIABLE } from './test-selection/cache-layers.js';
 import { gitTreeOf } from './tree.js';
 
@@ -38,16 +37,46 @@ const available = nativeAvailable();
 const root = resolve(import.meta.dirname, '../../..');
 
 describe('a cold closure held by the addon', () => {
+  it.runIf(available)('stores only the importing configuration’s alias witnesses under default settings', async () => {
+    const directory = await realpath(await mkdtemp(join(tmpdir(), 'variance-governing-witness-')));
+    try {
+      await mkdir(join(directory, 'src'));
+      await writeFile(join(directory, 'tsconfig.json'), '{ "compilerOptions": { "paths": { "@app/*": ["src/*"] } } }');
+      await writeFile(join(directory, 'src/app.ts'), 'import "@app/button";\n');
+      await writeFile(join(directory, 'src/button.ts'), 'export const button = 1;\n');
+      for (let index = 0; index < 32; index += 1) {
+        const path = join(directory, `unrelated-${index}`);
+        await mkdir(path);
+        await writeFile(join(path, 'tsconfig.json'), '{ "compilerOptions": { "baseUrl": ".", "paths": { "@app/*": ["other/*"] } } }');
+      }
+      await run('git', ['init', '--quiet'], { cwd: directory });
+      await run('git', ['add', '.'], { cwd: directory });
+      await run('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '--quiet', '-m', 'fixture'], { cwd: directory });
+      const tree = (await gitTreeOf(directory))!;
+      const { shape } = await shapeOf({ root: directory, tree });
+      const held = nativeIndexGraph(tree.native!, {
+        root: directory, seeds: ['src/app.ts'], largestFile: LARGEST_FILE,
+        remembering: true, directories: shape.directories,
+      });
+      const path = join(directory, 'index.bin');
+      expect(held.publish(path, [])).toBeNull();
+      const indexed = (await openSourceIndexFile(path)).stored.records.get('src/app.ts');
+      expect(indexed?.record.edges).toEqual([{ to: 'src/button.ts', kind: 'imports' }]);
+      expect(indexed?.witnesses).toEqual(['src']);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
   it.runIf(available)('publishes the index a save of the handed-over records publishes, byte for byte', async () => {
     const seeds = await modules('packages/sense/src/');
     const tree = (await gitTreeOf(root, ['packages/sense/src']))!;
-    const { shape, aliases } = await shapeOf({ root, tree });
+    const { shape } = await shapeOf({ root, tree });
     const request = {
       root,
       seeds,
       largestFile: LARGEST_FILE,
       remembering: true,
-      aliases,
       directories: shape.directories,
     };
     const held = nativeIndexGraph(tree.native!, request)!;
@@ -132,17 +161,16 @@ describe('a cold closure held by the addon', () => {
   it.runIf(available)('publishes the declarations of every module it parses', async () => {
     const seeds = ['packages/sense/src/source-index.ts'];
     const tree = (await gitTreeOf(root, ['packages/sense/src']))!;
-    const { shape, aliases } = await shapeOf({ root, tree });
+    const { shape } = await shapeOf({ root, tree });
     const held = nativeIndexGraph(tree.native!, {
       root,
       seeds,
       largestFile: LARGEST_FILE,
       remembering: true,
-      aliases,
       directories: shape.directories,
     })!;
     const read = graphRecords(held).find((record) => record.file === seeds[0])!;
-    const { parses } = decodeSourceIndex(held.parseSegment());
+    const { parses } = readSourceIndexSegment(held.parseSegment());
     const parsed = parses.get(keyFor(read.digest!, parseWay(read.file)));
     expect(parsed?.harvested).toBe(true);
     expect(parsed?.symbols?.map((symbol) => symbol.name)).toContain('nativeParses');
@@ -151,20 +179,20 @@ describe('a cold closure held by the addon', () => {
     expect([...parses.values()].filter((each) => each.harvested !== true)).toEqual([]);
   });
 
-  // `scanCount` reports what the closure parsed: a module it declined for its
+  // A closure reports what it parsed: a module it declined for its
   // size holds a record but was never parsed.
   it.runIf(available)('counts the modules it parsed, not the ones it declined', async () => {
     const seeds = ['packages/sense/src/source-index.ts'];
     const tree = (await gitTreeOf(root, ['packages/sense/src']))!;
-    const { shape, aliases } = await shapeOf({ root, tree });
+    const { shape } = await shapeOf({ root, tree });
     const closure = (largestFile: number) => nativeIndexGraph(tree.native!, {
-      root, seeds, largestFile, remembering: true, aliases, directories: shape.directories,
+      root, seeds, largestFile, remembering: true, directories: shape.directories,
     })!;
     const declined = closure(1);
     expect(declined.size).toBe(1);
     expect(declined.parsed).toBe(0);
     const read = closure(LARGEST_FILE);
-    expect(read.parsed).toBe(decodeSourceIndex(read.parseSegment()).parses.size);
+    expect(read.parsed).toBe(readSourceIndexSegment(read.parseSegment()).parses.size);
   });
 
   // Ten thousand modules is where a scan hands its closure to the addon to hold.
@@ -185,23 +213,28 @@ describe('a cold closure held by the addon', () => {
     return directory;
   }
 
-  it.runIf(available)('counts, through a scan, every module the closure holds and only the ones it parsed', async () => {
-    const counted = await scanCount({ root: await many(), dirs: ['src'], cache: memoryParseCache() });
-    expect(counted).toMatchObject({ files: closureSize + 1, parsed: closureSize });
-  }, 120_000);
-
-  it.runIf(available)('parses none of a closure it holds whose modules a store kept from another root', async () => {
+  async function withCache<T>(body: () => Promise<T>): Promise<T> {
     const before = process.env[CACHE_VARIABLE];
-    const cache = await mkdtemp(join(tmpdir(), 'variance-scan-store-'));
-    process.env[CACHE_VARIABLE] = cache;
+    process.env[CACHE_VARIABLE] = await mkdtemp(join(tmpdir(), 'variance-scan-store-'));
     try {
-      await updateSourceIndex(await many());
-      const counted = await scanCount({ root: await many(), dirs: ['src'], cache: memoryParseCache(), stores: [parseStorePath(cache)] });
-      expect(counted).toMatchObject({ files: closureSize + 1, parsed: 0 });
+      return await body();
     } finally {
       if (before === undefined) delete process.env[CACHE_VARIABLE];
       else process.env[CACHE_VARIABLE] = before;
     }
+  }
+
+  it.runIf(available)('counts, through an update, every module the closure holds and only the ones it parsed', async () => {
+    const updated = await withCache(async () => updateSourceIndex(await many()));
+    expect(updated).toMatchObject({ files: closureSize + 1, parsed: closureSize });
+  }, 120_000);
+
+  it.runIf(available)('parses none of a closure it holds whose modules a store kept from another root', async () => {
+    const updated = await withCache(async () => {
+      await updateSourceIndex(await many());
+      return updateSourceIndex(await many());
+    });
+    expect(updated).toMatchObject({ files: closureSize + 1, parsed: 0 });
   }, 240_000);
 
   it('throws a closure the addon failed to build to the scan that asked for it', () => {
@@ -215,7 +248,6 @@ describe('a cold closure held by the addon', () => {
       seeds: ['a.ts'],
       largestFile: LARGEST_FILE,
       remembering: false,
-      aliases: undefined,
       directories: new Map(),
     })).toThrow('source index: "x" was never collected into the dictionary');
   });

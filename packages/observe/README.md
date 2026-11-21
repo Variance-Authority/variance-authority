@@ -84,7 +84,7 @@ the right:
 
 ```
 changed
-ios:checkout: changed — 192 pixels differ across 2 regions
+ios:checkout: changed — 192 pixels differ across 2 regions, each changed in shape
 ```
 
 and the `Observation` behind it, abridged — the comparison mask is a
@@ -94,7 +94,7 @@ and the `Observation` behind it, abridged — the comparison mask is a
 {
   subject: 'ios:checkout',
   verdict: 'changed',
-  because: '192 pixels differ across 2 regions',
+  because: '192 pixels differ across 2 regions, each changed in shape',
   rendered: false,               // nothing was painted; both images arrived
   missingFonts: [],
   regions: [],                   // see below
@@ -111,7 +111,8 @@ and the `Observation` behind it, abridged — the comparison mask is a
 `regions` is empty and that is the ceiling of this entrypoint: an image has no
 structure, so there is nothing to attribute the 192 pixels to. The two
 regions the sentence counts are clusters of adjacent changed pixels, found by
-geometry alone. To get components and file lines instead of coordinates, take
+geometry alone. Each says whether its drawing changed or only its colour: the
+box moved, so both changed in shape. To get components and file lines instead of coordinates, take
 the baseline path below and supply a snapshot.
 
 Change one of the two painter strings and the same call still compares the
@@ -120,7 +121,7 @@ pixels, and names the painter that moved as the cause before the diff:
 ```
 ios:checkout: changed — the before image and the after image were painted under
 different identities (renderer, engine, platform declared:ios-simulator-17.4 →
-declared:figma-export); 192 pixels differ across 2 regions
+declared:figma-export); 192 pixels differ across 2 regions, each changed in shape
 ```
 
 The observation carries the same cause as `signals.identity: 'machine'` and

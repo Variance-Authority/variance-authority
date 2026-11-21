@@ -2,13 +2,14 @@
 //! opened again for the one reader on this side, the compaction
 //! (`compact.rs`).
 //!
-//! What a column *means* is `decodeSourceIndex`'s to say, in
-//! `source-index-format.ts`, and this side refuses what it refuses. A segment
-//! is opened by its length, not its digest, so a damaged segment of the right
-//! length reaches here. This checks framing and bounds — enough that a bad
-//! offset is a refusal with a name rather than a read past the end — and the
-//! range of every one-byte code column, so a damaged flag is refused rather
-//! than read as false.
+//! What a column *means* is this side's to say: the addon is the one reader of
+//! the format (`index_reader.rs`), and JavaScript reads only the rows it asks
+//! that reader for. A segment is opened by its length, not its digest, so a
+//! damaged segment of the right length reaches here. This checks framing and
+//! bounds — enough that a bad offset is a refusal with a name rather than a
+//! read past the end — and the range of every one-byte code column, so a
+//! damaged flag is refused rather than read as false. Every column is
+//! little-endian, as `to_le_bytes` writes it.
 
 // compass: variance-authority.reach.source-index
 
@@ -56,6 +57,27 @@ impl U32s<'_> {
         (at < self.len() && self.at(at) == value).then_some(at)
     }
 
+    /// Whether `test` holds of every entry. One pass without an early exit or
+    /// a bounds check per entry, so a test of a comparison or two vectorises:
+    /// every id column of a segment is checked this way at open.
+    pub fn every(&self, test: impl Fn(u32) -> bool) -> bool {
+        self.0.chunks_exact(4).fold(true, |every, word| every & test(u32::from_le_bytes([word[0], word[1], word[2], word[3]])))
+    }
+
+    /// Whether no entry is below the one before it. One pass without an
+    /// early exit or a bounds check per entry, so it vectorises: every
+    /// segment's offset columns are checked at open.
+    fn never_back(&self) -> bool {
+        let mut words = self.0.chunks_exact(4).map(|word| u32::from_le_bytes([word[0], word[1], word[2], word[3]]));
+        let Some(mut before) = words.next() else { return true };
+        let mut forward = true;
+        for word in words {
+            forward &= before <= word;
+            before = word;
+        }
+        forward
+    }
+
     /// The children of `row`, from an offset column already checked by
     /// [`Stored::offsets`].
     pub fn range(&self, row: usize) -> Range<usize> {
@@ -65,10 +87,27 @@ impl U32s<'_> {
 
 pub struct Stored<'a> {
     bytes: &'a [u8],
-    sections: HashMap<String, (usize, usize, u8)>,
+    /// Each section's start, length, width and place in the header.
+    sections: HashMap<String, (usize, usize, u8, usize)>,
     strings: Vec<&'a str>,
-    /// The text heap, `texts.blob` and `texts.off`, when the segment has one.
+    /// The text heap, `texts.blob` and `texts.off`, when the segment has one:
+    /// UTF-8, its offsets running forward and each on a character boundary.
     texts: Option<(&'a str, U32s<'a>)>,
+}
+
+/// The format version another release wrote these bytes in: none when they are
+/// this release's, or do not read as a segment at all.
+pub fn written(bytes: &[u8]) -> Option<u32> {
+    version_of(bytes).filter(|version| *version != u32::from(VERSION))
+}
+
+/// The format version a source index segment's header names, any release's:
+/// none when `bytes` do not start with a whole header of one.
+pub fn version_of(bytes: &[u8]) -> Option<u32> {
+    let length = u32::from_le_bytes(bytes.get(..4)?.try_into().ok()?) as usize;
+    let header = std::str::from_utf8(bytes.get(4..4 + length)?).ok()?;
+    let header: Header = serde_json::from_str(header.trim_end_matches('\0')).ok()?;
+    (header.format == FORMAT).then_some(header.version)
 }
 
 impl<'a> Stored<'a> {
@@ -95,7 +134,7 @@ impl<'a> Stored<'a> {
         if header.format != format {
             return Err(format!("{} version {}, not {format} version {version}", header.format, header.version));
         }
-        // Another release wrote it: told apart from bytes that do not read, as the TypeScript reader tells them.
+        // Another release wrote it: told apart from bytes that do not read.
         let Some(written) = u8::try_from(header.version).ok().filter(|written| (oldest..=version).contains(written)) else {
             return Err(format!(
                 "a {format} written in format version {}, and this release reads version {version}; `variance index` rebuilds it",
@@ -105,14 +144,14 @@ impl<'a> Stored<'a> {
         let base = 4 + length;
         let body = bytes.len() - base;
         let mut sections = HashMap::with_capacity(header.sections.len());
-        for section in header.sections {
+        for (place, section) in header.sections.into_iter().enumerate() {
             let fits = section.offset % ALIGNMENT == 0
                 && section.offset.checked_add(section.length).is_some_and(|end| end <= body)
                 && (section.width == 1 || (section.width == 4 && section.length % 4 == 0));
             if !fits {
                 return Err(format!("section {} lies outside the segment", section.name));
             }
-            if sections.insert(section.name.clone(), (base + section.offset, section.length, section.width)).is_some() {
+            if sections.insert(section.name.clone(), (base + section.offset, section.length, section.width, place)).is_some() {
                 return Err(format!("section {} is named twice", section.name));
             }
         }
@@ -127,12 +166,17 @@ impl<'a> Stored<'a> {
             .collect::<Option<_>>()
             .ok_or("a dictionary entry that is not a string")?;
         if let Some(blob) = stored.section("texts.blob", 1)? {
-            let blob = std::str::from_utf8(blob).map_err(|_| "a text heap that is not UTF-8")?;
             let off = stored.u32s("texts.off")?;
-            if off.len() == 0 || off.at(0) != 0 || off.at(off.len() - 1) as usize != blob.len() {
+            if off.len() == 0 || off.at(0) != 0 || off.at(off.len() - 1) as usize != blob.len() || !off.never_back() {
                 return Err("a text heap whose offsets do not span it".to_owned());
             }
-            stored.texts = Some((blob, off));
+            // Whole, once: measured at 0.3 ms on a 24 MB segment, against a
+            // check per text that every reader would then have to make.
+            let heap = std::str::from_utf8(blob).map_err(|_| "a text heap that is not UTF-8")?;
+            if !off.every(|at| heap.is_char_boundary(at as usize)) {
+                return Err("a text heap whose offsets cut a character".to_owned());
+            }
+            stored.texts = Some((heap, off));
         }
         Ok((stored, written))
     }
@@ -140,14 +184,17 @@ impl<'a> Stored<'a> {
     fn section(&self, name: &str, width: u8) -> Result<Option<&'a [u8]>, String> {
         match self.sections.get(name) {
             None => Ok(None),
-            Some(&(start, length, found)) if found == width => Ok(Some(&self.bytes[start..start + length])),
+            Some(&(start, length, found, _)) if found == width => Ok(Some(&self.bytes[start..start + length])),
             Some(_) => Err(format!("section {name} is not {width} bytes wide")),
         }
     }
 
-    /// Every section as written — name, width and bytes — in the order the segment lays them out.
+    /// Every section as written — name, width and bytes — in the order the
+    /// header names them, which is the order the segment lays them out. Empty
+    /// sections share an offset, so the offset alone left their order to the
+    /// map's hash.
     pub fn columns(&self) -> Vec<(&str, u8, &'a [u8])> {
-        let mut columns: Vec<_> = self.sections.iter().map(|(name, &(start, length, width))| (start, name.as_str(), width, &self.bytes[start..start + length])).collect();
+        let mut columns: Vec<_> = self.sections.iter().map(|(name, &(start, length, width, place))| (place, name.as_str(), width, &self.bytes[start..start + length])).collect();
         columns.sort_by_key(|column| column.0);
         columns.into_iter().map(|(_, name, width, bytes)| (name, width, bytes)).collect()
     }
@@ -162,9 +209,8 @@ impl<'a> Stored<'a> {
     }
 
     /// A one-byte column of codes from zero to `most`, as a flag (`most` one)
-    /// or an enumeration: the TypeScript reader refuses the segment for one
-    /// code past it anywhere, so this side refuses it at open, not when a row
-    /// is read. A segment is read by its length, not its digest, so a damaged
+    /// or an enumeration: a segment with one code past it anywhere is refused
+    /// at open, not when a row is read. A segment is read by its length, not its digest, so a damaged
     /// byte reaches here. One pass of a byte maximum, which vectorises.
     pub fn codes(&self, name: &str, most: u8) -> Result<&'a [u8], String> {
         let column = self.u8s(name)?;
@@ -185,10 +231,7 @@ impl<'a> Stored<'a> {
     /// ending at `end`, and never going back.
     pub fn offsets(&self, name: &str, rows: usize, end: usize) -> Result<U32s<'a>, String> {
         let column = self.u32s(name)?;
-        let spans = column.len() == rows + 1
-            && column.at(0) == 0
-            && column.at(rows) as usize == end
-            && (1..=rows).all(|at| column.at(at - 1) <= column.at(at));
+        let spans = column.len() == rows + 1 && column.at(0) == 0 && column.at(rows) as usize == end && column.never_back();
         if spans { Ok(column) } else { Err(format!("offsets {name} do not span their {end} entries")) }
     }
 
@@ -202,19 +245,44 @@ impl<'a> Stored<'a> {
         }
     }
 
+    /// Whether the dictionary holds a string under `id`, so [`Self::text`] reads it.
+    pub fn holds(&self, id: u32) -> bool {
+        (id as usize) < self.strings.len()
+    }
+
+    /// How many strings the dictionary holds.
+    pub fn string_count(&self) -> usize {
+        self.strings.len()
+    }
+
+    /// Whether the segment carries a text heap: the reader of the format refuses one that does not.
+    pub fn has_texts(&self) -> bool {
+        self.texts.is_some()
+    }
+
+    /// How many texts the heap holds; none without a heap.
+    pub fn text_count(&self) -> usize {
+        self.texts.map_or(0, |(_, off)| off.len() - 1)
+    }
+
+    /// The text the heap holds under `id`, its offsets checked at open.
+    fn heap_text(&self, id: u32) -> Option<&'a str> {
+        let (heap, off) = self.texts?;
+        let at = id as usize;
+        (at + 1 < off.len()).then(|| &heap[off.at(at) as usize..off.at(at + 1) as usize])
+    }
+
     pub fn optional(&self, id: u32) -> Option<&'a str> {
         (id != NONE).then(|| self.text(id))
     }
 
     /// A text the heap keeps under `id`, absent for `NONE`. An id past the
-    /// heap, or offsets that cut a character, panic as [`Self::text`] does.
+    /// heap panics as [`Self::text`] does.
     pub fn kept(&self, id: u32) -> Option<&'a str> {
         if id == NONE {
             return None;
         }
-        let at = id as usize;
-        let text = self.texts.and_then(|(blob, off)| (at + 1 < off.len()).then(|| blob.get(off.at(at) as usize..off.at(at + 1) as usize)).flatten());
-        match text {
+        match self.heap_text(id) {
             Some(text) => Some(text),
             None => panic!("source index: text {id} is not one the heap holds"),
         }

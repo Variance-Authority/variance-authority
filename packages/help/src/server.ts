@@ -3,6 +3,7 @@ import { serve } from '@variance-authority/mcp';
 import type { Tree } from '@variance-authority/mcp/tools';
 import { readOfferings, type Help } from '@variance-authority/package/help';
 import { caughtUp, foundNothingAnswer, madeBefore, outlived } from './caught-up.js';
+import { generationSourceIndex } from './names-read.js';
 import { readWorkspaceForAnswer, type AnsweringOptions } from './read.js';
 import { readAgain, workspaceGeneration } from './snapshot.js';
 import { containment, HELP, UNCOMPARED_HELP } from './tools.js';
@@ -18,7 +19,8 @@ import { containment, HELP, UNCOMPARED_HELP } from './tools.js';
  * and a `justAnswer` answer says it was not compared with the checkout. A
  * refusal from a reused generation, or an answer whose named files changed
  * since it, is asked again of one read now, as {@link caughtUp} decides for
- * every surface that asks a source question.
+ * this server and `variance serve`; `variance ask` and the binary answer from
+ * the published generation and never ask again.
  *
  * `tools/surface.check.ts` holds the shape of what is served to the recorded
  * surface. No prose in this file reaches a client — `initialize` sends a name
@@ -67,10 +69,6 @@ export function serveWorkspace(root: string, options: WorkspaceOptions = {}): ()
   // questions name no path, and a reading where nothing moved hands back the
   // same array, so an unchanged checkout folds the graph once however many
   // paths are asked about it.
-  // FIXME: no names are handed to `discover` here. The reading may come
-  // from the published snapshot, which holds no parses, so its `declares`, and
-  // `imports` of anything but a name out of a repository file, are refused over
-  // MCP and answered by `variance ask`.
   let tree: Tree | undefined;
 
   const readNow = async (after: number): Promise<Help> => {
@@ -93,6 +91,8 @@ export function serveWorkspace(root: string, options: WorkspaceOptions = {}): ()
     output: output ?? process.stdout,
     served: justAnswer ? UNCOMPARED_HELP : HELP,
     tree: () => tree,
+    // The index the reading opened, so a question that names a name reads the generation it answers from.
+    sourceIndex: (subject: Help) => generationSourceIndex(subject, root, reading.index),
     root,
     // `justAnswer` reads nothing but what was published, so its answer stands.
     ...(justAnswer ? {} : {

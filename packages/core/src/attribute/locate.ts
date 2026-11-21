@@ -16,7 +16,7 @@ import type { NodePath, SemanticNode } from '../format/snapshot.js';
  *
  * So a location is built from the things a user would use to describe where they
  * are: the landmark they are in, the named region or dialog, and their position
- * in a list. `main → region "Todos" → list → item 2 of 3` is a sentence someone
+ * in a list. `main → region "Todos" → list item 2 of 3` is a sentence someone
  * can follow without opening a screenshot.
  */
 
@@ -39,7 +39,7 @@ export interface Location {
   readonly steps: readonly LocationStep[];
   /** The nearest landmark, for grouping. Spec §6.3's "right panel". */
   readonly region?: string;
-  /** One phrase: `main → region "Todos" → item 2 of 3`. */
+  /** One phrase: `main → region "Todos" → list item 2 of 3`. */
   readonly where: string;
 }
 

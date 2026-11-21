@@ -3,7 +3,7 @@
 //!
 //! Two encoders write this framing — the parse half the graph walk produces
 //! (`index.rs`) and the whole generation a cold build publishes
-//! (`generation.rs`) — and the TypeScript reader is the one that decides
+//! (`generation.rs`) — and `index_reader.rs` is the one that decides
 //! whether either is believed. So the framing lives once, here, mirroring
 //! `encodeSegment` in `core/segment`: the header is the same JSON in the same
 //! key order, its length is padded so the first column starts on the
@@ -22,16 +22,25 @@ use serde::Serialize;
 /// The id an optional string column writes for "absent".
 pub const NONE: u32 = u32::MAX;
 pub(crate) const ALIGNMENT: usize = 8;
-/// `FORMAT` in `source-index-format.ts`.
+/// The format the source index's segments name in their header.
 pub(crate) const FORMAT: &str = "variance-authority-source-index";
-/// `VERSION` in `source-index-format.ts`: a layer the reader refuses is a layer
-/// thrown away, which `native-read.test.ts` catches.
-pub(crate) const VERSION: u8 = 47;
+/// `SOURCE_INDEX_VERSION` in `source-index-format.ts`: a layer the reader
+/// refuses is a layer thrown away, which `native-read.test.ts` catches.
+pub(crate) const VERSION: u8 = 49;
 
+/// One section's bytes, held in the parts they were written in: a column
+/// written in runs side by side is not copied into one buffer only to be
+/// copied again into the segment.
 pub struct Column {
     name: Cow<'static, str>,
     width: u8,
-    bytes: Vec<u8>,
+    parts: Vec<Vec<u8>>,
+}
+
+impl Column {
+    fn len(&self) -> usize {
+        self.parts.iter().map(Vec::len).sum()
+    }
 }
 
 #[derive(Serialize)]
@@ -50,12 +59,17 @@ struct Header<'f> {
 }
 
 pub fn u8s(name: &'static str, bytes: Vec<u8>) -> Column {
-    Column { name: Cow::Borrowed(name), width: 1, bytes }
+    u8_parts(name, vec![bytes])
+}
+
+/// A byte column written in parts, its bytes the parts in order.
+pub fn u8_parts(name: &'static str, parts: Vec<Vec<u8>>) -> Column {
+    Column { name: Cow::Borrowed(name), width: 1, parts }
 }
 
 /// A column read back from a segment, under the name and width it was written with.
 pub fn column(name: String, width: u8, bytes: Vec<u8>) -> Column {
-    Column { name: Cow::Owned(name), width, bytes }
+    Column { name: Cow::Owned(name), width, parts: vec![bytes] }
 }
 
 pub fn u32s(name: &'static str, values: Vec<u32>) -> Column {
@@ -63,7 +77,7 @@ pub fn u32s(name: &'static str, values: Vec<u32>) -> Column {
     for value in values {
         bytes.extend_from_slice(&value.to_le_bytes());
     }
-    Column { name: Cow::Borrowed(name), width: 4, bytes }
+    Column { name: Cow::Borrowed(name), width: 4, parts: vec![bytes] }
 }
 
 fn aligned(value: usize) -> usize {
@@ -85,10 +99,10 @@ pub fn encode_as(format: &str, version: u8, columns: Vec<Column>) -> Vec<u8> {
             let section = Section {
                 name: &column.name,
                 offset,
-                length: column.bytes.len(),
+                length: column.len(),
                 width: column.width,
             };
-            offset = aligned(offset + column.bytes.len());
+            offset = aligned(offset + column.len());
             section
         })
         .collect();
@@ -103,8 +117,12 @@ pub fn encode_as(format: &str, version: u8, columns: Vec<Column>) -> Vec<u8> {
     out.extend_from_slice(&(header_length as u32).to_le_bytes());
     out.extend_from_slice(&header);
     out.resize(4 + header_length, 0);
+    // Each part is freed once copied, so the segment and its columns are
+    // never both held whole.
     for column in columns {
-        out.extend_from_slice(&column.bytes);
+        for part in column.parts {
+            out.extend_from_slice(&part);
+        }
         out.resize(aligned(out.len()), 0);
     }
     out

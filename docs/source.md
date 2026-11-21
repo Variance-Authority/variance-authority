@@ -29,15 +29,19 @@ regions a test actually covered.
 npm install --save-dev @variance-authority/sense
 ```
 
-`scanRelations` reads the checkout and returns the records;
-`relationsOfFiles` and `affectedBy` from `@variance-authority/core` turn them into
-an answer about one change.
+`updateSourceIndex` brings the checkout's [source index](source-index.md) up to
+date, `readPublishedSources` returns its records, and `sourcesWithin` keeps what
+your directories hold and reach. `relationsOfFiles` and `affectedBy` from
+`@variance-authority/core` turn them into an answer about one change.
 
 ```ts
 import { affectedBy, relationsOfFiles } from '@variance-authority/core/relate';
-import { scanRelations } from '@variance-authority/sense';
+import { readPublishedSources, sourcesWithin, updateSourceIndex } from '@variance-authority/sense';
 
-const records = await scanRelations({ root: '.', dirs: ['src'] });
+const root = process.cwd();
+const update = await updateSourceIndex(root);
+if (update.refused !== undefined) throw new Error(update.refused);
+const records = sourcesWithin((await readPublishedSources(update.path)).records, root, ['src']);
 // records[0] ->
 // {
 //   file: 'src/components/Button.tsx',
@@ -53,20 +57,20 @@ affected.components; // component names declared in any of them
 affected.missing;    // changed paths the graph does not hold
 ```
 
-`scanRelations(options)` returns `Promise<readonly FileRecord[]>`.
-`readModule(file, contents)` and `readStyle(file, contents)` are exported from
-`@variance-authority/sense/read` when you already have the source text: they
-read requests and names without resolving anything or opening the checkout.
+`readPublishedSources(path)` returns the published sources; their `records` are `readonly FileRecord[]`.
+`readModule(file, contents)` is exported from `@variance-authority/sense/read`
+when you already have a module's source text: it reads requests and names
+without resolving anything or opening the checkout.
 
 ## Lookup map
 
 | Need | Contract |
 |---|---|
-| Read a checkout | [`scanRelations`](#scan-inputs) |
+| Read a checkout | [`updateSourceIndex`](#scan-inputs) |
 | Check whether a file extension is read | [Extensions](#extensions) |
 | Reach a workspace package's source instead of its `dist` | [Workspace packages](#workspace-packages) |
 | Resolve a `@/…` alias | [Resolution](#resolution) |
-| Read source text an editor, VFS or build already has | [`readModule` and `readStyle`](#install-and-call) |
+| Read source text an editor, VFS or build already has | [`readModule`](#install-and-call) |
 | Interpret one returned file | [`FileRecord`](#file-records) |
 | Distinguish a missing package from an incomplete edge list | [Unresolved and unknown](#unresolved-and-unknown) |
 | Ask which edge kinds a runtime walk follows | [Graph handoff](#graph-handoff) |
@@ -76,22 +80,29 @@ read requests and names without resolving anything or opening the checkout.
 
 ## Scan inputs
 
+`updateSourceIndex(root, options)` reads the checkout into the index; its
+options say what is read and where it is stored:
+
 | Option | Default | Contract |
 |---|---|---|
-| `root` | required | Repository root. Every returned path is relative to its real path. |
-| `dirs` | required | Directories from which traversal starts. They are seeds, not a traversal boundary. |
-| `tsconfig` | `"auto"` | A specific configuration, or nearest-config discovery per importing file. |
-| `conditionNames` | `source, import, require, default` | Export conditions, in resolution order. |
-| `digests` | Git digests when available | Your own digest map; `false` reads and hashes files directly and disables record reuse. |
-| `cache` | in memory | Parse cache, keyed by content and the parse settings the filename selects. |
-| `reuse` | off | Record cache. It is consulted only when content digests are available. |
-| `largestFile` | 1 MiB | Maximum file size the scan opens. Larger files become unknown rather than being parsed. |
-| `parsed` | absent | Receives the repository-relative path and cached parse once per readable file, including reused records when their parse remains available. |
+| `root` | required argument | Repository root. Every path in the index is relative to its real path. |
+| `dirs` | the whole checkout | Directories from which traversal starts. They are seeds, not a traversal boundary. |
+| `index` | `sourceIndexPath(root)` | Where the index is stored. |
+| `packs` | `true` | `false` reads each file's bytes from the working tree; Git still lists the tree. |
+| `progress` | absent | Told each step as it starts and ends. |
+
+Resolution uses the `typescript.tsconfig` that `variance.config.json` names, or
+else nearest-config `tsconfig` discovery per importing file, and the
+export conditions `source, import, require, default`, in that order. A file
+larger than one mebibyte is not parsed.
+
+`sourcesWithin(records, root, dirs)` narrows a whole-checkout read to what
+`dirs` hold and reach, the same walk an index seeded from `dirs` makes, so one
+index answers every scope.
 
 The prerequisites are a readable checkout, installed dependencies for bare
-specifier resolution, and any path mappings the source relies on. Persistence
-is optional: without it the returned records are the same and the scan repeats
-more work.
+specifier resolution, any path mappings the source relies on, and the native
+addon.
 
 ### Extensions
 
@@ -114,6 +125,11 @@ the syntax that imports it, so `import './App.vue'`, `import './icon.svg'` and
 `import data from './data.json'` each record an `asset` edge to a repository
 path. Editing that path marks its importers; nothing continues from the far
 side, because there is no record there to continue from.
+
+An Angular component's own template and stylesheets get no edge at all.
+`templateUrl`, `styleUrl` and `styleUrls` are strings in a decorator, not
+requests, so the scan does not link those files to the component, and an edit
+to one does not reach the component or the tests that import it.
 
 `.json` is also tried during extensionless resolution, after every module and
 stylesheet extension: `./config` finds `src/config.json` when nothing else
@@ -195,6 +211,14 @@ edge to `src/components/Button.tsx`. Discovery walks up from the importing file,
 so an alias table declared once at the repository root and inherited through
 `extends` in each package needs nothing configured on the scan.
 
+An alias declared only in a bundler's configuration, such as webpack's or
+Vite's `resolve.alias`, is not read. Its specifier — `~/lib/api`,
+`helpers/format` — is spelled like a package name, so it stays under
+`unresolved` as a package request and the importing file is not marked unknown:
+an edit to the aliased file does not reach that importer, and nothing says so.
+Declare the same alias as `paths` in the `tsconfig` that governs the importer,
+and the request records an `imports` edge like the one above.
+
 Every accepted target is canonicalized to the spelling on disk. A case-only
 match is rejected on a case-insensitive filesystem, preventing a graph that
 names a path no case-sensitive checkout contains.
@@ -209,8 +233,7 @@ scan declines are fixed: `node_modules`, `dist`, `tsDist`, `build`, `coverage`,
 `build` and no other: a file Git lists under a `build/` directory is source, so
 the scan reads it and your imports of it become edges. A `build/` your
 `.gitignore` covers stays declined, and the rest stay declined whatever Git
-tracks. A scan with `digests: false` does not run Git, so it declines every
-`build/`.
+tracks.
 
 Traversal stops at the repository edge. Builtins, installed dependencies, and
 paths above `root` cannot be named by a diff in this repository, so they do not
@@ -253,9 +276,8 @@ does not choose one. A config that sets `noEmit` writes nothing, so it is
 skipped: a package that type-checks with `tsconfig.json` and builds with
 `tsconfig.build.json` is read through the second. A config that sets
 `emitDeclarationOnly` writes declarations and no code, so its `.d.ts` files map
-and the code beside them, which a bundler wrote, is read as it is. When the scan
-takes the tree's layout from Git, a config Git ignores is not read; a scan that
-reads the checkout directly, such as one with `digests: false`, reads it. A
+and the code beside them, which a bundler wrote, is read as it is. The scan
+takes the tree's layout from Git, so a config Git ignores is not read. A
 package under `node_modules` is never read this way, because its source is not
 in your repository.
 
@@ -333,8 +355,8 @@ An unreadable file still receives a record, with the edges that could be read
 and an `unknown` sentence naming what could not. The walk uses the edges; the
 edge behind the sentence is the [execution record](execution-record.md)'s to
 answer, since a module that loads under a test is recorded however it was
-named. A file above `largestFile` behaves the same way and prints
-both its size and the configured cap.
+named. A file above the one-mebibyte cap behaves the same way and prints
+both its size and the cap.
 
 ### Component declarations
 
@@ -431,9 +453,11 @@ answer it.
 ### Content digests
 
 Git can name tracked and unignored untracked contents without the scan opening
-every file. The committed tree supplies blob ids; working-tree status identifies
-paths that must be re-hashed from disk. A file edited back to its committed
-contents returns to the committed digest.
+every file. Git's index supplies tracked paths and blob ids; local changes are
+compared against the same loaded index to identify paths that need hashing from
+disk. Git handles monitors, untracked caches and sparse checkouts, and expands
+sparse indexes with `ls-files`. A file edited back to its indexed contents
+returns to the indexed digest.
 
 Git object ids start with `git:` and scan-computed digests with `v1:`. They are
 different schemes and never compare as though they were interchangeable.
@@ -456,7 +480,7 @@ A resolved record depends on four things:
 |---|---|
 | File bytes | Content digest. |
 | File position | Repository-relative path. |
-| Resolution configuration | Digest of manifests, lockfiles, `tsconfig` and `jsconfig` contents, requested `tsconfig`, and condition names. |
+| Resolution configuration | Digest of the resolver options the caller chose: the requested `tsconfig`, condition names and the size limit. No file's contents. |
 | Paths that could have answered this file's requests | The directories a request looked in, answered or not. |
 
 The fourth input counts directories a request looked in even when nothing
@@ -464,16 +488,18 @@ answered. A request for `./button` counts the importing directory and a possible
 `button` directory while both are empty, because adding a file there turns that
 absence into an edge without changing the importing file's bytes.
 
-So: change a `tsconfig`, a manifest or a lockfile and every resolved record is
-rebuilt, while the content-keyed parses stay reusable. Add or remove a file and
-only the records that looked in that directory are rebuilt. When the
-configuration cannot be read, every record is rebuilt on any path change.
+So: a `tsconfig`, a manifest or a lockfile is a file, and its edit rebuilds its
+own record. The code a configuration edit redirects is edited with it — a new
+`paths` entry arrives with the files refactored to use it — and those files are
+rebuilt as edits. Add or remove a file and only the records that looked in that
+directory are rebuilt. A configuration that cannot be read rebuilds nothing
+beyond its own record either.
 
 The configured seed directories are not part of either reuse key. They decide
 which records a scan requests, not what any one record means, so a narrow scan
 can reuse records from a wider one.
 
-Parse and record layers may persist together through `openSourceIndex`. The
+Parse and record layers persist together in the source index. The
 versioned binary generation, immutable segments and publication rules are
 defined in [`source-index.md`](source-index.md). With warm state, edits rebuild
 their changed records and path additions rebuild records watching the affected
@@ -494,8 +520,7 @@ record as build equivalence.
 tree's layout from Git, and Git does not report ignored files. A generated file
 your `.gitignore` covers can appear or disappear without the scan
 noticing, even though it changes which path a request resolves to, and a reused
-record then names the wrong target. Track the file, or pass `digests: false`,
-which reads and hashes the checkout directly and turns record reuse off.
+record then names the wrong target. Track the file.
 
 **Package edges are conditional.** Built output that the package's `tsconfig`
 maps to a source file, a `source` export condition, a `source` main field or a
@@ -505,9 +530,16 @@ supplies that boundary at project granularity. Under an excluded directory such
 unmapped output produces no edge, and under one that is not, such as `lib/`, the
 edge lands on the build. See [Workspace packages](#workspace-packages).
 
-**Large files become unknown.** The default one-megabyte cap prevents generated
-barrels and bundles from consuming a scan's memory budget. Raising
-`largestFile` accepts that cost for a file you want read anyway.
+**Large files become unknown.** The one-mebibyte cap prevents generated
+barrels and bundles from consuming a scan's memory budget.
+
+**Framework file formats and bundler-only aliases are not read yet.**
+Single-file `.vue` and `.svelte` components get no record, the files an Angular
+component names in `templateUrl` and `styleUrls` are not linked to it, and an
+alias only a bundler's configuration declares does not resolve. Each leaves an
+edge out of the graph without marking any file unknown, so `variance reach`
+leaves out a test that reaches a changed file only through that edge;
+[Extensions](#extensions) and [Resolution](#resolution) say what each one costs.
 
 **Components are React's, and only where the source names them.** On another
 framework `declares` is empty; on React, a component that never has a

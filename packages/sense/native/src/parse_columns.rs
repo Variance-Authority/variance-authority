@@ -1,9 +1,7 @@
-//! The parse half of a source-index segment, as columns: the part of
-//! `encodeSourceIndex` from `parses.key` to `declares.name`, with the harvest,
-//! mock, member, member-declaration, member-use, own-use, nested and
-//! binding-member columns `source-index-harvest.ts`, `-mocks.ts`,
-//! `-members.ts`, `-member-declarations.ts`, `-member-uses.ts`,
-//! `-own-uses.ts`, `-nested.ts` and `-binding-members.ts` add.
+//! The parse half of a source-index segment, as columns: `parses.key` to
+//! `declares.name`, with the harvest, mock, member, member-declaration,
+//! member-use, own-use, nested and binding-member columns, as
+//! `index_reader.rs` reads them back.
 //!
 //! Two kinds of row are written into it. The graph walk's own reads
 //! (`index.rs`), whose absences are empty lists, and the parses JavaScript
@@ -21,7 +19,7 @@ use crate::segment::{u32s, u8s, Collected, Column, Strings, NONE};
 use crate::source_size::Size;
 
 /// One parse row, as the encoder asks for it.
-pub trait ParseRow {
+pub trait ParseRow: Sync {
     /// Every string the row's columns will name, the key's two parts excluded.
     fn strings<'s>(&'s self, into: &mut Collected<'s>);
     /// The row's columns. `row` has already been called for it.
@@ -45,35 +43,6 @@ pub trait ParseRow {
 /// A text span's two ends and the text it holds, when the row kept it; absent
 /// when there is no span.
 pub type Span<'t> = Option<(u32, u32, Option<&'t str>)>;
-
-/// The text heap: the signatures, docs and lines the parse cut, each where
-/// its row put it. Not the dictionary: these are long, mostly unique and
-/// never looked up by value, and sorting them into it was most of what they
-/// cost to write.
-#[derive(Default)]
-struct Heap {
-    blob: Vec<u8>,
-    ends: Vec<u32>,
-}
-
-impl Heap {
-    /// The id of `text` once appended, or `NONE` when there is none.
-    fn push(&mut self, text: Option<&str>) -> u32 {
-        let Some(text) = text else { return NONE };
-        self.blob.extend_from_slice(text.as_bytes());
-        self.ends.push(self.blob.len() as u32);
-        self.ends.len() as u32 - 1
-    }
-
-    /// `texts.blob` and `texts.off`: the `id`-th text runs from offset `id`
-    /// to offset `id + 1`, and the first offset is 0.
-    fn columns(self) -> [Column; 2] {
-        let mut off = Vec::with_capacity(self.ends.len() + 1);
-        off.push(0);
-        off.extend(self.ends);
-        [u8s("texts.blob", self.blob), u32s("texts.off", off)]
-    }
-}
 
 /// What [`ParseRow::words`] answers of a doc: absent when there is no span,
 /// unknown when the span has no text, else the words of its cut.
@@ -178,8 +147,14 @@ fn span(into: &mut [Vec<u32>; 3], texts: &mut Heap, value: Span) {
 }
 
 impl ParseColumns {
-    /// Every row, keyed and sorted by the caller, written in that order.
+    /// Every row, keyed and sorted by the caller, written in that order. Runs
+    /// of rows are written side by side and joined: the bytes are the ones one
+    /// pass in order writes.
     pub fn of<P: ParseRow>(rows: &[(&str, &P)], strings: &Strings) -> Self {
+        Self::in_runs(rows, strings, rows.len().div_ceil(rayon::current_num_threads() * 4).max(1024))
+    }
+
+    fn run<P: ParseRow>(rows: &[(&str, &P)], strings: &Strings) -> Self {
         let mut columns = Self { request_bindings: vec![0], binding_member_within: vec![0], ..Self::default() };
         for (key, row) in rows {
             let (digest, way) = key.split_once('\0').unwrap_or((key, ""));
@@ -466,3 +441,16 @@ impl ParseColumns {
 pub fn request_flags(guessed: bool, item: bool) -> u8 {
     u8::from(guessed) | (u8::from(item) << 1)
 }
+
+#[path = "parse_columns_heap.rs"]
+mod heap;
+use heap::Heap;
+#[cfg(test)]
+use heap::PART;
+
+#[path = "parse_columns_runs.rs"]
+mod runs;
+
+#[cfg(test)]
+#[path = "parse_columns_tests.rs"]
+mod tests;

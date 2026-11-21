@@ -14,7 +14,7 @@ import { readWorkspace, readWorkspaceForAnswer } from './read.js';
 import { questionsOf } from '../../../tools/name-questions.mjs';
 
 /**
- * The name questions, asked as `ask --just-answer` asks them of the store and
+ * The name questions, asked as `variance ask` asks them of the store and
  * the source index a workspace publishes, answer what
  * they answered when `__fixtures__/names/name.answers` was kept: a name in each
  * way one is exported, a member, a nested one and one nobody declares, then the

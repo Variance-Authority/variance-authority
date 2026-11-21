@@ -1,10 +1,11 @@
-import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import type { RenderIdentity } from '@variance-authority/core/format';
 import type { VantageState } from '@variance-authority/vantage';
 import type { VantageReading } from '@variance-authority/vantage/attach';
+import { readHelp } from '@variance-authority/help';
 import { HELP_TOOLS, type Help } from '@variance-authority/help/tools';
 import { TOOLS, VANTAGE_TOOLS, toolByName, vantageToolByName, verbOf } from '@variance-authority/mcp/tools';
 import { ask, askSource, type Sourced } from './ask.js';
@@ -95,46 +96,31 @@ describe('the questions', () => {
   });
 });
 
-/** A workspace with one published name, read by nothing on disk. */
-const WORKSPACE: Help = {
-  packages: [
-    {
-      name: '@example/alpha',
-      declared: {},
-      entry: true,
-      openings: [
-        {
-          subpath: '.',
-          source: 'packages/alpha/src/index.ts',
-          entries: [
-            {
-              name: 'viewport',
-              declared: 'viewport',
-              kind: 'function',
-              at: 'packages/alpha/src/viewport.ts',
-              line: 7,
-              signature: 'function viewport(width: number): Viewport',
-              doc: 'The box a subject is rendered in.',
-              usedBy: ['@example/beta'],
-              uses: 1,
-              sites: [],
-              throughDefault: [],
-            },
-          ],
-          whole: [],
-        },
-      ],
-    },
-  ],
-  deep: [],
-  unfollowed: [],
-  byPath: [],
-  exported: [],
-  unreadable: [],
-};
+/**
+ * A workspace with one published name, read the way every answer is: its
+ * files written to a checkout and read into a store, which holds the search.
+ */
+async function workspace(): Promise<Help> {
+  const root = await directory();
+  const files: Record<string, string> = {
+    'package.json': JSON.stringify({ name: 'fixture', private: true, workspaces: ['packages/*'] }),
+    'packages/alpha/package.json': JSON.stringify({ name: '@example/alpha', version: '1.0.0', main: 'src/index.ts' }),
+    'packages/alpha/src/index.ts': "export { viewport } from './viewport.js';\n",
+    'packages/alpha/src/viewport.ts':
+      'export interface Viewport { readonly width: number }\n\n/** The box a subject is rendered in. */\nexport function viewport(width: number): Viewport {\n  return { width };\n}\n',
+    'packages/beta/package.json': JSON.stringify({ name: '@example/beta', version: '1.0.0', main: 'src/index.ts', dependencies: { '@example/alpha': '1.0.0' } }),
+    'packages/beta/src/index.ts': "import { viewport } from '@example/alpha';\n\nexport const wide = viewport(1280);\n",
+  };
+  for (const [path, text] of Object.entries(files)) {
+    await mkdir(dirname(join(root, path)), { recursive: true });
+    await writeFile(join(root, path), text);
+  }
+  return readHelp(root);
+}
 
 describe('a question about the code', () => {
-  const sourced = (): Promise<Sourced> => Promise.resolve({ help: WORKSPACE });
+  let held: Promise<Help> | undefined;
+  const sourced = async (): Promise<Sourced> => ({ help: await (held ??= workspace()) });
 
   it('is answered from the checkout, with no report read at all', async () => {
     // The report reader is a trap here: a source question that touched it would
@@ -166,24 +152,16 @@ describe('a question about the code', () => {
     expect(received).toEqual(['src/button.tsx', 'src/theme.ts']);
   });
 
-  it('hands just-answer to the source reader without manufacturing changed paths', async () => {
+  it('asks the source reader for the published generation alone when no changed path or taint is named', async () => {
     let received: { readonly justAnswer?: boolean; readonly changed?: readonly string[] } | undefined;
     const source = (_root: string, options?: typeof received): Promise<Sourced> => {
       received = options;
       return sourced();
     };
 
-    await askSource({ question: 'search', query: 'box', justAnswer: true, source });
+    await askSource({ question: 'search', query: 'box', source });
 
     expect(received).toEqual({ justAnswer: true });
-  });
-
-  it('refuses refresh inputs in just-answer mode', async () => {
-    const changedFile = join(await directory(), 'changed.txt');
-    await writeFile(changedFile, 'src/button.tsx\n');
-    await expect(
-      askSource({ question: 'search', query: 'box', justAnswer: true, changedFile, source: sourced }),
-    ).rejects.toThrow('cannot be combined');
   });
 
   it('hands an addition-only taint table to the source reader', async () => {
@@ -210,13 +188,21 @@ describe('a question about the code', () => {
       .rejects.toThrow('can only be used with a source question');
   });
 
-  it('refuses the arguments of the other subjects by name', async () => {
-    await expect(askSource({ question: 'search', query: 'box', source: sourced, name: 'x' } as never)).rejects.toThrow(
-      '`--name` is not an argument `variance ask search` takes',
-    );
-    await expect(
-      ask(asking('/nowhere/report.json', 'search', { query: 'box', subject: 'story:toggle', source: sourced })),
-    ).rejects.toThrow('`--subject` is not an argument');
+  it('answers without the arguments of the other subjects, and names each one it ignored', async () => {
+    // A question reads and writes nothing, so a flag it does not take costs a
+    // line on stderr rather than a second round trip to ask again without it.
+    const warned: string[] = [];
+    const warn = (line: string): void => { warned.push(line); };
+    const plain = await askSource({ question: 'search', query: 'box', source: sourced });
+
+    expect(await askSource({ question: 'search', query: 'box', source: sourced, name: 'x', warn } as never)).toBe(plain);
+    expect(
+      await ask(asking('/nowhere/report.json', 'search', { query: 'box', subject: 'story:toggle', source: sourced, warn })),
+    ).toBe(plain);
+    expect(warned).toEqual([
+      expect.stringContaining('`--name` is not an argument `variance ask search` takes, so the answer is what it is without it'),
+      expect.stringContaining('`--subject` is not an argument `variance ask search` takes, so the answer is what it is without it'),
+    ]);
   });
 
   it('answers `search` as data when asked for json', async () => {
@@ -259,17 +245,52 @@ describe('an answer', () => {
     expect(await ask(asking(path, 'describe', { subject: 'story:toggle' }))).toBe(`${expected}\n`);
   });
 
-  it('refuses a flag the question has no argument for, and names the ones it takes', async () => {
-    // Ignoring it would answer about the whole suite while the operator reads
-    // their own shell history and sees the subject they asked about.
+  it('answers past a flag the question has no argument for, and names it and the ones it takes', async () => {
+    // The answer covers the whole suite, so the line says it is what it is without the flag:
+    // whoever typed `--subject` reads that beside the answer, not after it.
     const path = join(await directory(), 'report.json');
+    const warned: string[] = [];
+    const warn = (line: string): void => { warned.push(line); };
 
-    await expect(ask(asking(path, 'summary', { subject: 'story:toggle' }))).rejects.toThrow(
-      '`--subject` is not an argument `variance ask summary` takes; it takes none',
-    );
-    await expect(ask(asking(path, 'findings', { component: 'Toggle' }))).rejects.toThrow(
-      'it takes --rule',
-    );
+    expect(await ask(asking(path, 'summary', { subject: 'story:toggle', warn }))).toBe(await ask(asking(path, 'summary')));
+    expect(await ask(asking(path, 'findings', { component: 'Toggle', warn }))).toBe(await ask(asking(path, 'findings')));
+    expect(warned).toEqual([
+      'variance: `--subject` is not an argument `variance ask summary` takes, so the answer is what it is without it; it takes none.',
+      expect.stringMatching(/^variance: `--component` is not an argument `variance ask findings` takes, .*; it takes --rule/),
+    ]);
+  });
+
+  it('reads the word after an unknown flag as the report it is, where the question reads reports', async () => {
+    // `summary --verbose report.json`: the word is the report, not the flag's value.
+    const path = join(await directory(), 'report.json');
+    const warned: string[] = [];
+    const warn = (line: string): void => { warned.push(line); };
+    const unknown = [{ flag: '--verbose', typed: '--verbose', next: 0 }];
+
+    expect(await ask(asking(path, 'summary', { unknown, reports: ['shard.json'], warn }))).toBe(await ask(asking(path, 'summary')));
+    expect(warned).toEqual([
+      'variance: `--verbose` is not an argument `variance ask summary` takes, so the answer is what it is without it; it takes none.',
+    ]);
+  });
+
+  it('answers past `--claims` at a question that takes none, without reading the file', async () => {
+    const path = join(await directory(), 'report.json');
+    const warned: string[] = [];
+    const warn = (line: string): void => { warned.push(line); };
+
+    expect(await ask(asking(path, 'summary', { claims: join(path, '..', 'missing.json'), warn }))).toBe(await ask(asking(path, 'summary')));
+    expect(warned).toEqual([
+      'variance: `--claims` is not an argument `variance ask summary` takes, so the answer is what it is without it; it takes none.',
+    ]);
+  });
+
+  it('still refuses a missing required argument, having named the flag it ignored', async () => {
+    const path = join(await directory(), 'report.json');
+    const warned: string[] = [];
+
+    await expect(ask(asking(path, 'describe', { component: 'Toggle', warn: (line: string) => { warned.push(line); } })))
+      .rejects.toThrow('`variance ask describe` needs --subject');
+    expect(warned).toEqual([expect.stringContaining('`--component` is not an argument `variance ask describe` takes')]);
   });
 
   it('refuses a missing required argument before it reads anything', async () => {

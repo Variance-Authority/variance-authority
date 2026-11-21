@@ -1,7 +1,8 @@
 import type { FileSet, Tool, ToolInvocation } from '@variance-authority/mcp/tools';
-import { START_POINT_SCHEMA, limitOf, notShown, spellingOf, startPointArg, stringArg } from '@variance-authority/mcp/tools';
+import { START_POINT_SCHEMA, nextPage, pageAt, pageOf, paged, saysStartPoint, spellingOf, startPointArg, stringArg } from '@variance-authority/mcp/tools';
 import { testsRan } from '@variance-authority/sense';
 import { areaLine, areaOf, startPointNeeded } from './area.js';
+import { byFile } from './format.js';
 import { formatGrepRan, grepRan } from './grep-ran.js';
 import { ripgrep, type Hit } from './ripgrep.js';
 
@@ -60,47 +61,50 @@ export const grep: Tool<unknown> = {
         type: 'integer',
         description: `Matching lines to show. ${SHOWN} when not said; the rest are counted.`,
       },
+      offset: {
+        type: 'integer',
+        minimum: 0,
+        description: 'Rows to skip before the first shown; an answer with more names the next. 0 when not said.',
+      },
     },
     required: ['query'],
     additionalProperties: false,
   },
 
-  wants: (input) => startPointArg(input, 'from') !== undefined || startPointArg(input, 'to') !== undefined,
+  wants: saysStartPoint,
 
   run: (_help, input, invocation) => {
     const spell = spellingOf(invocation);
-    const limit = limitOf(input, SHOWN, spell);
+    const page = pageOf(input, SHOWN, spell);
     const test = testOf(input, invocation);
-    if (test !== undefined) return formatGrepRan(test.query, grepRan(test.root, test.query, test.file, test.name), limit, spell);
+    if (test !== undefined) return formatGrepRan(test.query, grepRan(test.root, test.query, test.file, test.name), page, spell);
     const { query, area, hits, errors, distanceOf } = grepped(input, invocation);
 
-    const header = [areaLine(area)];
     const unread =
-      errors.length === 0
-        ? []
-        : ['', `ripgrep reported ${errors.length} ${errors.length === 1 ? 'error' : 'errors'} reading them; the first: ${errors[0]}`];
+      errors.length === 0 ? [] : [`ripgrep reported ${errors.length} ${errors.length === 1 ? 'error' : 'errors'} reading them; the first: ${errors[0]}`];
 
     if (hits.length === 0) {
-      return [...header, ...unread, '', `Nothing in those files matches \`${query}\`.`].join('\n');
+      return [areaLine(area), ...unread.flatMap((line) => ['', line]), '', `Nothing in those files matches \`${query}\`.`].join('\n');
     }
 
     const matched = new Set(hits.map((hit) => hit.file)).size;
     const lines = [
-      ...header,
-      ...unread,
-      '',
-      `${hits.length} matching ${hits.length === 1 ? 'line' : 'lines'} in ${matched} ${matched === 1 ? 'file' : 'files'}, nearest first.`,
+      `${hits.length} matching ${hits.length === 1 ? 'line' : 'lines'} in ${matched} ${matched === 1 ? 'file' : 'files'}, nearest first:`,
+      ...pageAt(page, hits.length, spell),
     ];
-    let heading: number | undefined;
-    for (const hit of hits.slice(0, limit)) {
-      const distance = distanceOf(hit.file);
-      if (distance !== heading) {
-        heading = distance;
-        lines.push('', `${distance} ${distance === 1 ? 'import' : 'imports'} away:`);
-      }
-      lines.push(`${hit.file}:${hit.line}:${hit.text}`);
+    // A heading per distance, and under it the rows of one file said under its path once.
+    const shown = paged(hits, page);
+    for (let at = 0; at < shown.length; ) {
+      const distance = distanceOf(shown[at]!.file);
+      let end = at;
+      while (end < shown.length && distanceOf(shown[end]!.file) === distance) end++;
+      lines.push(`${distance} ${distance === 1 ? 'import' : 'imports'} away:`, ...byFile(shown.slice(at, end)));
+      at = end;
     }
-    if (hits.length > limit) lines.push('', notShown(hits.length - limit, spell));
+    // The area searched bounds every count above, so it is said after them, whole or not.
+    lines.push(`note: ${areaLine(area)}`);
+    for (const line of unread) lines.push(`note: ${line}`);
+    lines.push(...nextPage(page, hits.length, spell));
     return lines.join('\n');
   },
 

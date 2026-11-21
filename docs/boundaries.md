@@ -115,12 +115,24 @@ You can still say yes; no layer is wrong by itself. The reviewer sees what the
 edit did to the structure, and the author sees it too. The command always
 exits 0 and prints nothing in `--format markdown` when no package changed layer
 or what it imports, so a CI job can post the answer as a pull-request comment and clear the comment
-when there is nothing to say. Run without `--against`, it lists every package's
-layer, lowest first.
+when there is nothing to say.
 
 The base index is one that `variance index` built at the base commit. A base
 with no package layers, built before the code map recorded them, is refused with
 a message that says so.
+
+With neither `--against` nor `--package`, the command lists every package's
+layer, lowest first. To list an application's entry packages and the repository
+packages they depend on, repeat `--package`:
+
+```bash
+variance layers --package @app/spa --package @app/ssr
+```
+
+The answer includes shared dependencies outside the entry packages' directories,
+counts each package once, and keeps the repository's layer numbers. Installed
+packages are excluded. The heading names the selected roots and counts their
+packages and dependency layers.
 
 ## Tiers say how much code a package pulls in
 

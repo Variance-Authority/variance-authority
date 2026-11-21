@@ -8,6 +8,7 @@ import {
   type Observation,
 } from '@variance-authority/observe';
 import { settle, type BaselineKey, type Settlement } from '@variance-authority/raster';
+import type { ComparedPixels } from '@variance-authority/png';
 import { again } from './again.js';
 import { alone } from './alone.js';
 import { keyFor, type Collected, type PlannedSubject } from './collector.js';
@@ -211,8 +212,15 @@ export async function observeOne(
     };
   }
 
+  // The pair the comparison decoded, for the pictures `images` draws from it.
+  let compared: ComparedPixels | undefined;
   const observation = await located(
-    await observeAgainstBaseline(collected.document, key, observeOptions),
+    await observeAgainstBaseline(collected.document, key, {
+      ...observeOptions,
+      keep: (pixels) => {
+        compared = pixels;
+      },
+    }),
     collected,
     context,
   );
@@ -229,7 +237,7 @@ export async function observeOne(
       // two renders from one run and stores neither, so it has nowhere to place.
       ...baselineKeyOf(key),
       ...(await timeOn(context.steps, 'write', async () =>
-        images(id, observation, collected.document, renderer, config, deps, key, collected.snapshot, marks),
+        images(id, observation, collected.document, renderer, config, deps, key, collected.snapshot, marks, compared),
       )),
       diagnostics,
       // Crossed against the marks the baseline recorded, from the sidecar this

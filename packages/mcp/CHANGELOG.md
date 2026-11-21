@@ -1,5 +1,43 @@
 # @variance-authority/mcp
 
+## 0.34.0
+
+### Patch Changes
+
+- 5d71e42: A changed region is graded by how much its pixels changed in colour: the mask byte is the grade, from 1 for a pixel past the policy's threshold to `SEVERITY_LEVELS.length` for one past 0.2 or a row with no partner, and each `DiffRegion` carries its highest `grade`. The verdict names regions at `STRONG_GRADE` first and counts the rest as faint, so a repaint by a few levels no longer reads like the change beside it. A mask byte is no longer always `1`: test it for non-zero. Regions the 32-region cap leaves out are counted as more regions, not smaller ones, since the faintest go first.
+
+## 0.33.0
+
+### Minor Changes
+
+- 08f6331: `variance ask ran --story` shows what each function of a live execution was handed
+
+  A server head started with `VARIANCE_AUTHORITY_STORY=1`, beside `VARIANCE_AUTHORITY_JOURNEYS` and a watcher, now tapes each execution it reports to the watcher and sends its story with the account: the functions entered in order, their branches, and `» handed name=value` for the arguments each was handed, spelled as a test story spells them. It shows arguments only, never a local or module variable. Two requests that run at once are taped apart, and a request whose promises run on after it settled is told again with only what it ran since. Without the variable nothing is taped and nothing changes.
+
+  `variance ask ran --story` (`variance_ran` with `story: true`) prints those stories in place of each execution's regions, a step drawn as `variance story` draws it, with what the tape lost said above it. Asked of heads that told none, it says no head was started with `VARIANCE_AUTHORITY_STORY=1` and lists the regions as before.
+
+  `variance ask` takes a true-or-false tool argument as a bare flag. The watcher keeps the first 8 stories a head sent of an execution, up to 1 MiB, as `stories` on that head, and counts the rest as `untold`. `@variance-authority/sense/story` exports the reading `variance story` draws a route by, so both draw a step the same way.
+- 77bdb72: A name not found, and every other refusal of a source question, is answered from the generation the question read. It no longer rescans the checkout, rebuilds the dependency lexicon, or publishes a new snapshot first. Before this change, `variance ask symbol` or `ask uses` for an absent name took about ten seconds on a checkout of a hundred thousand files, and now takes about as long as a name it finds. When that generation was made before the question, the answer's last line says the checkout was not compared with it. A function written since then is reported missing until `variance index` runs or `--changed-file` names its file. A found answer whose files changed since its generation is still asked again of one made now, as before. This holds on `variance ask`, `variance serve`, `variance-authority-help` and its server. A server holding a generation, `variance serve` or `variance-authority-help`'s, reads the generation `variance index` published since on its next call, on the same connection and under `--just-answer` too, so the name is found without restarting it; seeing that one was published costs a read of the published value's head.
+
+  `caughtUp` no longer takes a lexicon root, and its `again` reads a generation made now with no argument. `madeBefore` says whether a refusal's generation predates the question, and `readAgain` whether a server reads the workspace again before a call: when it holds nothing, a newer generation was published, or, without `justAnswer`, the one it holds has expired. In `@variance-authority/mcp`, `serve` hands `again` only an answer that `outlived` flags, never a refused call, and `answered` receives when the request started.
+- b6f75d6: `ask grep --from` and `--to` walk the imports `variance index` resolved
+
+  A scoped `ask grep` drew the import graph of the whole checkout at question time: every tsconfig and manifest read, every specifier resolved, every mock of every test resolved, to search the few thousand files a start point reaches. It now walks the source tree `variance index` publishes, and only ripgrep's search costs the area. On Kibana a search from one file whose area holds 14,686 files went from 10 s to 0.6 s.
+
+  The published tree carries the modules a test loads for real beside its mocks (`vi.importActual`, `jest.requireActual`, a factory's `require`), resolved when the tree is published, so `ask uses`, `ask symbol` and `docs_search` with a start point reach them too, as `ask grep` did. Its format version moves to 2, and a tree published by an earlier version is read again.
+
+  A `grep` answer now names the generation it was read from, and is asked again of the checkout as it is when a file of its area changed since; a file that just began importing into its area, or was written under a folder it starts from, waits for `variance index` or the hour.
+- 68df956: `ask uses` answers from the imports the index resolved, and guesses nothing else
+
+  `variance ask uses`, `ask symbol` and `docs_uses` no longer end with the files
+  whose import the source index resolved to no file and that "could take the
+  name", nor, for a name no file here declares, with the packages outside the
+  workspace it is imported from and a `discover --imports` question. An import
+  the index resolved to no file resolves to none when the question is asked
+  either, so both lines were a guess at question time; the answer now lists the
+  resolved uses alone. Breaking: `outsideSourcesOf` is gone from
+  `@variance-authority/sense`, and `importersOf` no longer returns `unresolved`.
+
 ## 0.32.1
 
 Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.

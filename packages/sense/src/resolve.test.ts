@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { realPath, resolveTo, resolversFor } from './resolve.js';
-import { scanRelations } from './scan.js';
+import { scanRelations } from './test-support/scan.js';
 
 /**
  * Which project a file belongs to, decided from the file rather than the
@@ -122,7 +122,6 @@ describe('two files in one directory under configs that disagree', () => {
         root: real,
         from: join(real, file),
         request: '@fixture/target',
-        style: false,
       });
 
     // A resolver with an empty memo is the only ground truth available — it

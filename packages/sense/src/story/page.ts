@@ -15,6 +15,7 @@
  * runner's to say, and a runner that drains between cases says it exactly.
  */
 
+import { navigationNote } from '@variance-authority/core/format';
 import storyFrames from '../instrument/story-frames.cjs';
 import storyListen from '../instrument/story-listen.cjs';
 import storyParts from '../instrument/story-parts.cjs';
@@ -53,9 +54,23 @@ realm[Symbol.for(${JSON.stringify(PAGE_STORY)})] = (engine) => {
   // What has the page watch say a line's changes, kept so a runner whose test
   // lines run outside the page can open and close them.
   let turn = () => {};
-  watchPage({ note: (text) => tap.note(text), drainWith: (given) => { tap.drainWith(given); turn = given; } }, realm);
+  watchPage({ note: (text) => tap.note(text), notePage: (text) => tap.notePage(text), drainWith: (given) => { tap.drainWith(given); turn = given; } }, realm);
   realm[NOTE] = (text) => tap.note(String(text));
   const frames = watchFrames(tap, realm);
+  // The engine's entry for the navigation that loaded this document, read once:
+  // it never changes. Its address drops the query and fragment, and is cut a
+  // character past what a note holds, so the runner still sees it was cut.
+  let loaded;
+  const loadedBy = () => {
+    if (loaded !== undefined) return loaded;
+    let top = false;
+    try { top = realm.top === realm; } catch {}
+    const entry = top ? realm.performance?.getEntriesByType?.('navigation')?.[0] : undefined;
+    loaded = entry !== undefined && typeof entry.name === 'string'
+      ? { url: entry.name.split(/[?#]/)[0].slice(0, NOTE_LENGTH + 1), reload: entry.type === 'reload' }
+      : null;
+    return loaded;
+  };
   // The runner takes a case's tape after its hooks and before the next case:
   // settled first, so the last line hears what it changed. A runner that drains
   // before each statement says whether the next one is a test line.
@@ -78,6 +93,12 @@ realm[Symbol.for(${JSON.stringify(PAGE_STORY)})] = (engine) => {
         held: Array.from(read.held),
         rows: { ids: read.rows.ids.slice(), counts: read.rows.counts.slice(), bases: read.rows.bases.slice() },
       };
+      // The navigation that loaded the top document, so a runner that lays it after the one it replaced can name it.
+      const by = loadedBy();
+      if (by !== null) {
+        story.url = by.url;
+        if (by.reload) story.reload = true;
+      }
       tap.reset();
       return story;
   };
@@ -205,6 +226,18 @@ export function pageStories(directory: string): PageStories {
     } else if (replaced) known.document = tape.documents += 1;
     return [known.frame, known.document];
   };
+  // A note at the end of the story so far, bounded as a tap bounds one.
+  const say = (tape: CaseTape, text: string): void => {
+    if (tape.notes.length >= storyTap.NOTE_LIMIT) {
+      tape.unnoted += 1;
+      return;
+    }
+    tape.notes.push([tape.entries.length, text.length > storyTap.NOTE_LENGTH ? `${text.slice(0, storyTap.NOTE_LENGTH - 1)}…` : text]);
+  };
+  // The navigation that loaded a document, named where it begins.
+  const navigated = (tape: CaseTape, loaded: PageStory): void => {
+    if (loaded.url !== undefined) say(tape, navigationNote(loaded.url, loaded.reload === true));
+  };
   const stories: PageStories = {
     // FIXME: a drain that reaches the runner after the next line is cut lays
     // what the page did before it under that later line.
@@ -220,7 +253,8 @@ export function pageStories(directory: string): PageStories {
     },
     add(subject, story, frame) {
       // What the documents this page replaced ran comes first, as they ran it,
-      // each a document of its own in the same frame.
+      // each a document of its own in the same frame; the document after them
+      // opens on the navigation that loaded it.
       const replaced = story.before ?? [];
       for (const [index, before] of replaced.entries()) {
         if (frame !== undefined) enter(tapeOf(subject), ...documentOf(tapeOf(subject), frame, index > 0));
@@ -228,6 +262,7 @@ export function pageStories(directory: string): PageStories {
       }
       const tape = tapeOf(subject);
       if (frame !== undefined) enter(tape, ...documentOf(tape, frame, replaced.length > 0));
+      if (replaced.length > 0) navigated(tape, story);
       const offset = tape.entries.length;
       const { bases } = story.rows;
       // A page's row is the story's row for the same module and count: two
@@ -259,12 +294,7 @@ export function pageStories(directory: string): PageStories {
     note(subject, text) {
       const tape = tapeOf(subject);
       if (tape.parts.length > 0) enter(tape, 0, 0);
-      if (tape.notes.length >= storyTap.NOTE_LIMIT) {
-        tape.unnoted += 1;
-        return;
-      }
-      const line = text.length > storyTap.NOTE_LENGTH ? `${text.slice(0, storyTap.NOTE_LENGTH - 1)}…` : text;
-      tape.notes.push([tape.entries.length, line]);
+      say(tape, text);
     },
     write(subject, stopped, lost) {
       const key = keyOf(subject);

@@ -90,7 +90,7 @@ fn folded(name: &str) -> (Fixture, Read) {
     let layers: Vec<Layer> = chain.segments.iter().map(|bytes| Layer::open(bytes).unwrap()).collect();
     let mut paths: Vec<String> = FILES.iter().map(|(path, _, _)| (*path).to_owned()).collect();
     paths.sort_by(|a, b| crate::order::code_unit(a, b));
-    let read = read(&root.to_string_lossy(), &layers, Some(&paths), crate::resolve::Tsconfig::Auto, HashSet::new);
+    let read = read(&root.to_string_lossy(), &layers, Some(&paths), &crate::resolve::Resolvers::new(crate::resolve::Tsconfig::Auto, None), HashSet::new);
     (Fixture(root), read)
 }
 
@@ -144,4 +144,62 @@ fn a_subpath_pattern_offers_every_file_a_substitution_reaches() {
     // The closure starts at the one index and loads its helper; the file nothing loads is left out of it.
     assert_eq!(package(&read, "@t/patterned"), (2, 2, false, shipped.map(str::to_owned).to_vec()));
     assert_eq!(package(&read, "@t/emitted"), (1, 1, false, vec!["packages/emitted/src/a/b.ts".to_owned()]));
+}
+
+#[test]
+fn a_wildcard_through_a_directory_symlink_keeps_the_counted_source_entry() {
+    let root = std::env::temp_dir().join(format!("sense-orient-linked-pattern-{}", std::process::id()));
+    std::fs::create_dir_all(root.join("src")).unwrap();
+    let fixture = Fixture(root.clone());
+    std::fs::write(root.join("package.json"), r#"{"name":"linked"}"#).unwrap();
+    std::fs::write(root.join("src/entry.ts"), "export const value = 1;").unwrap();
+    std::os::unix::fs::symlink("src", root.join("linked")).unwrap();
+    let package = crate::package_owners::Package { directory: String::new(), name: "linked".to_owned(), depends: Vec::new(), develops: Vec::new(), offers: vec!["./linked/*.ts".to_owned()] };
+    let counted = std::collections::HashMap::from([("src/entry.ts", 0)]);
+    let resolvers = crate::resolve::Resolvers::new(crate::resolve::Tsconfig::Auto, None);
+    assert_eq!(super::declared(&fixture.0.to_string_lossy(), &[&package], &counted, &[0], &resolvers), vec![vec![0]]);
+}
+
+#[test]
+fn a_wildcard_keeps_a_directory_symlink_inside_its_substitution() {
+    let root = std::env::temp_dir().join(format!("sense-orient-inner-link-{}", std::process::id()));
+    std::fs::create_dir_all(root.join("src")).unwrap();
+    std::fs::create_dir_all(root.join("links")).unwrap();
+    let fixture = Fixture(root.clone());
+    std::fs::write(root.join("package.json"), r#"{"name":"linked"}"#).unwrap();
+    std::fs::write(root.join("src/entry.ts"), "export const value = 1;").unwrap();
+    std::os::unix::fs::symlink("../src", root.join("links/src")).unwrap();
+    let package = crate::package_owners::Package { directory: String::new(), name: "linked".to_owned(), depends: Vec::new(), develops: Vec::new(), offers: vec!["./links/*/entry.ts".to_owned()] };
+    let counted = std::collections::HashMap::from([("src/entry.ts", 0)]);
+    let resolvers = crate::resolve::Resolvers::new(crate::resolve::Tsconfig::Auto, None);
+    assert_eq!(super::declared(&fixture.0.to_string_lossy(), &[&package], &counted, &[0], &resolvers), vec![vec![0]]);
+}
+
+#[test]
+fn a_wildcard_keeps_output_declared_above_its_package() {
+    let root = std::env::temp_dir().join(format!("sense-orient-ancestor-output-{}", std::process::id()));
+    std::fs::create_dir_all(root.join("packages/a/src")).unwrap();
+    let fixture = Fixture(root.clone());
+    std::fs::write(root.join("package.json"), r#"{"private":true}"#).unwrap();
+    std::fs::write(root.join("tsconfig.json"), r#"{"compilerOptions":{"rootDir":"./packages/a/src","outDir":"./packages/a/dist"}}"#).unwrap();
+    std::fs::write(root.join("packages/a/package.json"), r#"{"name":"a"}"#).unwrap();
+    std::fs::write(root.join("packages/a/src/foo.ts"), "export const value = 1;").unwrap();
+    let package = crate::package_owners::Package { directory: "packages/a".to_owned(), name: "a".to_owned(), depends: Vec::new(), develops: Vec::new(), offers: vec!["./dist/*.js".to_owned()] };
+    let counted = std::collections::HashMap::from([("packages/a/src/foo.ts", 0)]);
+    let resolvers = crate::resolve::Resolvers::new(crate::resolve::Tsconfig::Auto, None);
+    assert_eq!(super::declared(&fixture.0.to_string_lossy(), &[&package], &counted, &[0], &resolvers), vec![vec![0]]);
+}
+
+#[test]
+fn a_wildcard_keeps_a_root_dirs_redirect_through_a_missing_parent() {
+    let root = std::env::temp_dir().join(format!("sense-orient-root-dirs-{}", std::process::id()));
+    std::fs::create_dir_all(root.join("src")).unwrap();
+    let fixture = Fixture(root.clone());
+    std::fs::write(root.join("package.json"), r#"{"name":"redirected"}"#).unwrap();
+    std::fs::write(root.join("tsconfig.json"), r#"{"compilerOptions":{"rootDirs":["missing","src"]}}"#).unwrap();
+    std::fs::write(root.join("src/foo.ts"), "export const value = 1;").unwrap();
+    let package = crate::package_owners::Package { directory: String::new(), name: "redirected".to_owned(), depends: Vec::new(), develops: Vec::new(), offers: vec!["./missing/*.ts".to_owned()] };
+    let counted = std::collections::HashMap::from([("src/foo.ts", 0)]);
+    let resolvers = crate::resolve::Resolvers::new(crate::resolve::Tsconfig::Named(root.join("tsconfig.json")), None);
+    assert_eq!(super::declared(&fixture.0.to_string_lossy(), &[&package], &counted, &[0], &resolvers), vec![vec![0]]);
 }

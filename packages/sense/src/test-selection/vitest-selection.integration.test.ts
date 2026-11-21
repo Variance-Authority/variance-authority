@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -114,6 +114,32 @@ describe('a Vitest run handed the cases to skip in a file it runs', () => {
     expect(recorded.map(({ file, complete }) => ({ file, complete }))).toEqual([
       { file: at('unit/unit.case.ts'), complete: false },
     ]);
+  });
+
+  // No case runner reads a cut in a run that records nothing, so none is written.
+  it('runs that file whole and writes nothing beside the record, when it records nothing', async () => {
+    const name = 'cut-quiet';
+    const report = resolve(directory, `${name}.json`);
+    await execute(process.execPath, [
+      vitest, 'run', '--config', 'vitest.config.ts', '--reporter', 'json', '--outputFile', report,
+    ], {
+      cwd: fixture,
+      env: environment(name, {
+        FIXTURE_SKIP: JSON.stringify([at('dom/dom.case.ts')]),
+        FIXTURE_CASES: JSON.stringify({ [at('unit/unit.case.ts')]: ['adds nothing under the unit project'] }),
+        FIXTURE_RECORD: 'off',
+      }),
+    });
+    const { testResults } = JSON.parse(await readFile(report, 'utf8')) as {
+      testResults: { assertionResults: { title: string; status: string }[] }[];
+    };
+
+    expect(testResults.flatMap((file) => file.assertionResults.map(({ title, status }) => [title, status]))).toEqual([
+      ['adds under the unit project', 'passed'],
+      ['adds nothing under the unit project', 'passed'],
+    ]);
+    expect(existsSync(resolve(directory, `${name}.bin`))).toBe(false);
+    expect((await readdir(directory)).filter((entry) => entry.endsWith('-cut.json'))).toEqual([]);
   });
 });
 
@@ -254,6 +280,32 @@ describe('a Vitest run under --shard, in a cache holding a fetched mainline', ()
     expect(far.ran).toEqual([at('dom/dom.case.ts'), at('unit/unit.case.ts')]);
     expect(far.layer?.pinned).toBeUndefined();
     expect(far.read).toBe(true);
+  });
+
+  // A second run of the same selection under another configuration, as the
+  // shared-modules run follows a pull request's unit waves: its part stays what the waves ran.
+  it('runs what its selection kept and leaves its part as the waves landed it, when it records nothing', async () => {
+    await shard(1, true, [], { skip: [at('dom/dom.case.ts')] }, 'quiet');
+    const coverageFile = testCoverageFile(repository, { cacheRoot: resolve(directory, 'quiet'), suite: 'unit' });
+    const landed = await readFile(coverageFile);
+    const { VARIANCE_AUTHORITY_SINCE: _since, VARIANCE_AUTHORITY_AT_DISTANCE: _distance, ...inherited } = process.env;
+
+    const { stdout, stderr } = await execute(process.execPath, [vitest, 'run', '--config', 'vitest.config.ts', '--shard', '1/2'], {
+      cwd: fixture,
+      env: {
+        ...inherited,
+        VARIANCE_AUTHORITY_COVERAGE: coverageFile,
+        VARIANCE_AUTHORITY_CACHE: resolve(directory, 'quiet'),
+        FIXTURE_SKIP: JSON.stringify([at('unit/unit.case.ts')]),
+        FIXTURE_RECORD: 'off',
+      },
+    });
+
+    expect(stdout).toContain('dom.case.ts');
+    expect(stdout).not.toContain('unit.case.ts');
+    expect(stderr).toContain('variance-authority: selected 1 of 2');
+    expect((await readFile(coverageFile)).equals(landed)).toBe(true);
+    expect((await readdir(dirname(coverageFile))).filter((entry) => entry.startsWith('.run-'))).toEqual([]);
   });
 
   it('leaves no part when it is killed after it selected and before it landed, so the fold is the one without it', async () => {

@@ -717,8 +717,8 @@ to touch.
 
 `beforeReach`, `changedBefore`, `BeforeReach`; `before` at the top of the
 operator's config and beside a suite's kind, `beforeOf` where `select` reads
-them, `restsOf` where it answers, `ScanOptions.before` where those files are
-seeded
+them, `restsOf` where it answers, `sourcesWithin`'s `before` where those files
+are seeded
 
 ## **Journey**
 

@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -10,7 +10,8 @@ import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
 
 /**
  * Every source question asked of a checkout nothing has indexed yet, through
- * the command a person types. Each one answers or refuses with a code; none
+ * the command a person types. A question reads only what `variance index`
+ * published, so each one answers or refuses with a code; none
  * reaches the "does not have a code for" arm, which is a defect in the tool.
  */
 
@@ -59,47 +60,25 @@ function answeredOrRefused(answered: { code: number; err: string }): void {
 }
 
 describe('variance ask on a checkout with no index', () => {
-  it('search reads the checkout when nothing is published, and does not call that reading uncompared', async () => {
-    cold();
+  it('search refuses with a code and names `variance index` when nothing is published, and reads no checkout', async () => {
+    const root = cold();
     const answered = await run(['ask', 'search', '--query', 'shim']);
-    expect(answered.err).toBe('');
-    expect(answered.code).toBe(EXIT_CLEAN);
-    expect(answered.out).toContain('shim');
-    expect(answered.out).toContain('\nSnapshot ');
-    expect(answered.out).not.toContain('not compared with the checkout');
+    answeredOrRefused(answered);
+    expect(answered.code).toBe(EXIT_OPERATOR);
+    expect(answered.out).toBe('');
+    expect(answered.err).toContain('Run `variance index`');
+    expect(existsSync(`${sourceIndexPath(root)}.help.bin`)).toBe(false);
   });
 
-  it('search says which published value did not open, and that it read the checkout instead', async () => {
+  it('search says which published value did not open, and names `variance index`', async () => {
     const root = cold();
     const at = `${sourceIndexPath(root)}.help.bin`;
     mkdirSync(dirname(at), { recursive: true });
     writeFileSync(at, 'not a store');
     const answered = await run(['ask', 'search', '--query', 'shim']);
-    expect(answered.code).toBe(EXIT_CLEAN);
-    expect(answered.out).toContain(`The published value at ${at} did not open (`);
-    expect(answered.out).toContain('the checkout was read instead.');
-
-    writeFileSync(at, 'not a store');
-    const json = JSON.parse((await run(['ask', 'search', '--query', 'shim', '--format', 'json'])).out) as { unopened?: readonly { at: string }[] };
-    expect(json.unopened?.map((one) => one.at)).toEqual([at]);
-  });
-
-  it('search --format json from a read of the checkout carries its generation without `compared: false`', async () => {
-    cold();
-    const answered = await run(['ask', 'search', '--query', 'shim', '--format', 'json']);
-    expect(answered.code).toBe(EXIT_CLEAN);
-    const data = JSON.parse(answered.out) as { generatedAt?: string; compared?: boolean };
-    expect(data.generatedAt).toBeDefined();
-    expect(data.compared).toBeUndefined();
-  });
-
-  it('search --just-answer refuses with a code, names the flag it was given and `variance index` as the remedy', async () => {
-    cold();
-    const answered = await run(['ask', 'search', '--query', 'shim', '--just-answer']);
-    answeredOrRefused(answered);
     expect(answered.code).toBe(EXIT_OPERATOR);
+    expect(answered.err).toContain(`the published value at ${at} did not open (`);
     expect(answered.err).toContain('Run `variance index`');
-    expect(answered.err).toContain('asked with `--just-answer`');
   });
 
   it('search answers once `variance index` has published the generation, and says it opened it uncompared', async () => {
@@ -127,9 +106,9 @@ describe('variance ask on a checkout with no index', () => {
     answeredOrRefused(await run(['ask', 'symbol', '--name', 'shim']));
   });
 
-  it('symbol --just-answer refuses with a code and names `variance index` as the remedy', async () => {
+  it('symbol refuses with a code and names `variance index` as the remedy', async () => {
     cold();
-    const answered = await run(['ask', 'symbol', '--name', 'shim', '--just-answer']);
+    const answered = await run(['ask', 'symbol', '--name', 'shim']);
     answeredOrRefused(answered);
     expect(answered.code).toBe(EXIT_OPERATOR);
     expect(answered.err).toContain('Run `variance index`');

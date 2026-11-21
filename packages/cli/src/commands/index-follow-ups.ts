@@ -29,7 +29,7 @@
 
 import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { sourceIndexPath } from '@variance-authority/sense';
+import { processAlive, sourceIndexPath } from '@variance-authority/sense';
 import type { Parsed } from '../parse.js';
 import { logHeartbeat } from './step-progress.js';
 
@@ -42,14 +42,42 @@ export interface FollowUpsLock {
   readonly readied?: true;
   /**
    * The process finished, and git could not read what these walks needed. Its
-   * exit reaches nobody, so the next command that reads the follow-ups tells
-   * each reason and exits as the operator's; `--wait` carries the walk in its own exit.
+   * exit reaches nobody but a run that waits on it, so the next command that
+   * reads the follow-ups tells each reason and exits as the operator's. A
+   * process a run waits on writes them here too: its channel reaches that run
+   * alone, and a command waiting beside it would read a release as whole.
    */
   readonly failed?: readonly string[];
 }
 
 /** Relaunch this program with `argv`, its output written to `log`; the process id. */
 export type Detach = (argv: readonly string[], log: string) => number | undefined;
+
+/**
+ * Relaunch this program with `argv` as a process this one waits for, its lines
+ * written to `log` as a detached one's are; undefined when it could not start.
+ */
+export type Apart = (argv: readonly string[], log: string) => Running | undefined;
+
+/**
+ * What a process `Apart` started hands back to the run waiting on it, over a
+ * channel only that run reads: the follow-ups' lines, the index turns it went
+ * without, and the walks git could not read.
+ */
+export interface Handed {
+  readonly lines: readonly string[];
+  readonly alone: readonly string[];
+  readonly failed: readonly string[];
+}
+
+/** Hand the follow-ups back to the run waiting on this process. */
+export type HandBack = (handed: Handed) => Promise<void>;
+
+/** A process `Apart` started, and how it ended: what it handed back, if it got that far, then its exit code or the signal that ended it. */
+export interface Running {
+  readonly pid: number;
+  readonly ended: Promise<{ readonly handed?: Handed; readonly code: number | null; readonly signal: NodeJS.Signals | null }>;
+}
 
 export const followUpsLockPath = (index: string): string => `${index}.follow-ups`;
 export const followUpsLogPath = (index: string): string => `${index}.follow-ups.log`;
@@ -126,21 +154,11 @@ export async function awaitFollowUps(index: string, waiting: (lock: FollowUpsLoc
     if (lock === undefined) return waited === undefined ? { held: false } : { held: true, lock: waited, finished: true };
     // A lock marked failed is the last thing its process writes: it is done.
     if (lock.failed !== undefined) return { held: true, lock, finished: true };
-    if (!alive(lock.pid)) return { held: true, lock, finished: false };
+    if (!processAlive(lock.pid)) return { held: true, lock, finished: false };
     if (until === 'readied' && lock.readied === true) return { held: true, lock, finished: true };
     if (waited === undefined) waiting(lock);
     waited = lock;
     await new Promise((resolve) => setTimeout(resolve, 20));
-  }
-}
-
-function alive(pid: number): boolean {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (error) {
-    // Somebody else's process under a reused id is still a process.
-    return (error as NodeJS.ErrnoException).code === 'EPERM';
   }
 }
 

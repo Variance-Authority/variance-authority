@@ -23,7 +23,6 @@
 
 // compass: variance-authority.reach
 
-export { scanRelations, type ScanOptions } from './scan.js';
 export { refreshDependencyLexiconNative, queryDependencyLexiconNative, dependencyStackNative, describedWordsNative, nearOfNative, phraseOfNative, wordStemsNative } from './dependency-lexicon.js';
 
 /**
@@ -44,10 +43,8 @@ export { indexDeclarations } from './declarations.js';
 
 export {
   memoryParseCache,
-  openParseCache,
   type Parsed,
   type ParseCache,
-  type PersistentParseCache,
   type SourceSize,
 } from './cache.js';
 export type { SourceSymbol, SourceSymbolKind, SourceSymbolReach, TextSpan } from './harvest.js';
@@ -55,18 +52,12 @@ export type { SourceSymbol, SourceSymbolKind, SourceSymbolReach, TextSpan } from
 export {
   decidesResolution,
   treeShapeOf,
-  memoryRecordCache,
-  openRecordCache,
-  type RecordCache,
-  type PersistentRecordCache,
   type TreeShape,
 } from './reuse.js';
 
 export {
-  openSourceIndex,
   readSourceRecords,
   sourceIndexPath,
-  type PersistentSourceIndex,
 } from './source-index.js';
 
 export {
@@ -75,16 +66,30 @@ export {
   sourcesWithin,
   updateSourceIndex,
   SourceIndexUnpublished,
+  type IndexedFile,
   type PublishedSources,
   type PublishedSourcesOptions,
+  type SourceFetch,
   type SourceUpdate,
   type SourceUpdateOptions,
 } from './published.js';
+export {
+  carriedSourceIndex,
+  type CarriedSourceIndex,
+  fetchedSourceIndexPath,
+  placeSourceIndex,
+  SOURCE_INDEX_PIECE,
+  sourceIndexChain,
+  sourceIndexWrittenIn,
+  type SourceIndexChain,
+} from './source-index-copy.js';
+export { processAlive } from './process-alive.js';
 export { publishedNames, readPublishedNames, type PublishedNames } from './published-names.js';
 export { placesOf, stepped, type Progress } from './progress.js';
 export { readySourceIndex } from './ready-index.js';
 export { inIndexTurn, indexTurnPath, type IndexTurnHolder } from './index-turn.js';
 export type { SourceIndexState } from './source-index-file.js';
+export { SOURCE_INDEX_VERSION } from './source-index-format.js';
 
 export { firstParentChanges, firstParentChangesBetween, trackedFiles, type CommitChange, type CommitChanges } from './commit-changes.js';
 export { packageOwner } from './package-owner.js';
@@ -121,6 +126,8 @@ export {
   type TimedTestFile,
 } from './recorded-durations.js';
 export { recordedAttempts, type RecordedAttempts, type RetriedCase } from './recorded-attempts.js';
+export { recordedChecks, type RecordedChecks } from './recorded-checks.js';
+export type { ChecksScope } from './test-selection/checks-record.js';
 export { type DurationScope, type ScopeCounts } from './recorded-scope.js';
 export { type RecordOrigin } from './test-selection/record-location.js';
 export { layerMoves, type LayerCause, type LayerHeld, type LayerMoves, type LayerPresence } from './layer-moves.js';
@@ -180,15 +187,18 @@ export {
   passedAt,
   pathsThrough,
   prepareJourneys,
+  resonance,
   testCompositions,
   testsRan,
   type SuiteJourneyMap,
   type JourneysAround,
   type PreparedJourneys,
+  type SuiteResonance,
   type SuiteTestComposition,
   type SuiteTestRan,
 } from './journeys.js';
 export {
+  type NativeDeclaration as Declaration,
   type NativeForksBetween as ForksBetween,
   type NativeJourneyBlock as JourneyBlock,
   type NativeJourneyCase as JourneyCase,
@@ -216,6 +226,8 @@ export {
   type NativeJourneysPrepared as JourneysPrepared,
   type NativeJourneysRegion as JourneysRegion,
   type NativeLinesThen as LinesThen,
+  type NativeResonance as Resonance,
+  type NativeResonant as Resonant,
   type NativeRanModule as RanModule,
   type NativeRanRegion as RanRegion,
   type NativeTestComposition as TestComposition,
@@ -244,6 +256,7 @@ export {
   importersOf,
   memberDeclarationsOf,
   membersOn,
+  namesFilterOf,
   readHelp,
   restampHelpStore,
   ripgrepNative,
@@ -252,14 +265,17 @@ export {
   type EncodedStore,
   type ExportedDeclaration,
   type Grepped,
-  type HelpEncode,
   type HelpEncoded,
+  type HelpPublish,
   type HelpEntry,
   type HelpReading,
+  type ImportAsked,
   type MemberDeclarations,
   type MemberSite,
-  type PublishedName,
-  type ReachedDeclaration,
+  type NameHit,
+  type NamesFound,
+  type PublishOpening,
+  type PublishPackage,
   type HelpStore,
   type StoreDeep,
   type StoreEntry,
@@ -267,6 +283,22 @@ export {
   type StorePackage,
   type StoreUse,
 } from './help-reading.js';
+export {
+  openSourceTree,
+  sourceTreeOf,
+  type SourceLink,
+  type SourceTree,
+  type SourceWalk,
+} from './source-tree.js';
+export {
+  joinWalkedHelp,
+  readmeMention,
+  type Mention,
+  type NameUse,
+  type PublishedName,
+  type ReachedDeclaration,
+  type WalkedHelp,
+} from './help-walked.js';
 
 export {
   taintFile,

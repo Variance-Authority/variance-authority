@@ -26,21 +26,7 @@ const REGULAR: &str = "listing.regular";
 const UNHASHED: &str = "listing.unhashed";
 const META: &str = "listing.meta";
 
-/// What a file looked like when the listing was taken; `None` is a file not there.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub(crate) struct Stamp {
-    size: u64,
-    modified: i64,
-    nanos: i64,
-    changed: i64,
-    inode: u64,
-}
-
-fn stamp(path: &Path) -> Option<Stamp> {
-    use std::os::unix::fs::MetadataExt;
-    let metadata = std::fs::metadata(path).ok()?;
-    Some(Stamp { size: metadata.size(), modified: metadata.mtime(), nanos: metadata.mtime_nsec(), changed: metadata.ctime_nsec() + metadata.ctime() * 1_000_000_000, inode: metadata.ino() })
-}
+use crate::file_stamp::{stamp, Stamp};
 
 /// When a held listing still stands, beside it.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -48,7 +34,7 @@ pub(crate) struct Meta {
     pub watch: Watch,
     /// The roots the seeds were taken from.
     pub dirs: Vec<String>,
-    /// Each file git reads to answer `ls-tree HEAD` and `status`, and how it looked.
+    /// Each file git reads to answer the index and `status`, and how it looked.
     pub inputs: Vec<(String, Option<Stamp>)>,
     /// Git's own directories: what moves in them is git's, and the inputs say whether it matters.
     pub git: Vec<String>,
@@ -63,6 +49,8 @@ pub(crate) enum Change {
     Vouched(Meta, Vec<u8>),
     /// Listed by git under a watch, to be carried by what the update writes.
     Listed(Meta),
+    /// Listed as `Listed`, from the listing the chain held and what Watchman reports moved since it.
+    Followed(Meta),
 }
 
 /// Git's directories, and the files whose change moves what git lists: HEAD
@@ -147,10 +135,29 @@ fn ignores_all(root: &str, paths: &[String]) -> bool {
 
 /// Whether a held listing can still be vouched for, before Watchman is asked:
 /// the same checkout, server and roots, a watch that hides none of its paths, and git's inputs as they were.
+/// A watch that ignores directories still vouches: what it ignores is out of the source, whatever git lists there.
 fn stands(meta: &Meta, paths: &[String], root: &str, socket: &str, dirs: &[String], stamp: impl Fn(&str) -> Option<Stamp>) -> bool {
+    stands_but(meta, paths, root, socket, dirs, stamp, |_| false)
+}
+
+/// Whether a held listing can be followed through what moved since it: as
+/// `stands`, but for where git records which commit the checkout is at and
+/// what it staged, which a switch, a commit or a reset moves without a file
+/// event. Every other input still stands: an ignore rule or an attribute that
+/// moved changes what a file no event names lists as.
+fn follows(meta: &Meta, paths: &[String], root: &str, socket: &str, dirs: &[String], stamp: impl Fn(&str) -> Option<Stamp>) -> bool {
+    let moves = |input: &str| {
+        meta.git.iter().any(|dir| {
+            input.strip_prefix(dir.as_str()).and_then(|rest| rest.strip_prefix('/')).is_some_and(|rest| matches!(rest, "HEAD" | "index" | "packed-refs") || rest.starts_with("refs/"))
+        })
+    };
+    stands_but(meta, paths, root, socket, dirs, stamp, moves)
+}
+
+fn stands_but(meta: &Meta, paths: &[String], root: &str, socket: &str, dirs: &[String], stamp: impl Fn(&str) -> Option<Stamp>, moves: impl Fn(&str) -> bool) -> bool {
     // An index shared across checkouts holds another's listing, watch and stamps: none of them speaks for this one.
     let made = meta.watch.relative.as_ref().map_or_else(|| PathBuf::from(&meta.watch.watched), |relative| Path::new(&meta.watch.watched).join(relative));
-    made == Path::new(root) && meta.watch.socket == socket && meta.dirs == dirs && meta.watch.ignored.is_empty() && !hides(&meta.watch, paths) && meta.inputs.iter().all(|(input, was)| stamp(input) == *was)
+    made == Path::new(root) && meta.watch.socket == socket && meta.dirs == dirs && !hides(&meta.watch, paths) && meta.inputs.iter().all(|(input, was)| moves(input) || stamp(input) == *was)
 }
 
 /// Whether the watch's `ignore_vcs` directories, which Watchman never reports into,
@@ -170,31 +177,70 @@ fn hides(watch: &Watch, paths: &[String]) -> bool {
 /// The tree under `root` for an update of the index at `index`: the held one when
 /// Watchman vouches for it, else git's, with what makes it carried when a watch covers `root`.
 pub(crate) fn change_tree(root: &str, index: &str, dirs: &[String]) -> Option<(Snapshot, Option<Change>)> {
-    let held = held(index);
-    let socket = watchman::socket(Path::new(&format!("{index}.watchman.json")));
+    let (held, socket) = crate::stages::summed(crate::stages::Sum::Held, || (held(index), watchman::socket(Path::new(&format!("{index}.watchman.json")))));
     // What the update writes, and what git writes as it answers, are left out of what Watchman is asked.
     let below = |dir: &Path| dir.strip_prefix(root).ok().map(|dir| dir.to_string_lossy().into_owned()).filter(|dir| !dir.is_empty());
     let index_dir = Path::new(index).parent().and_then(below);
-    if let (Some(socket), Some((snapshot, meta, manifest))) = (&socket, held) {
+    let mut followed = None;
+    // A watch that could not answer now is asked nothing more this run: git lists, as with no watch.
+    let mut socket = socket;
+    if let (Some(asking), Some((snapshot, meta, manifest))) = (socket.clone(), held) {
         let excluded: Vec<String> = index_dir.iter().cloned().chain(meta.git.iter().filter_map(|dir| below(Path::new(dir)))).collect();
-        let stands = stands(&meta, &snapshot.paths, root, socket, dirs, |input| stamp(Path::new(input)));
-        if stands && watchman::since(&meta.watch, &excluded).is_some_and(|since| !since.fresh && ignores_all(root, &since.files)) {
+        let (vouched, unanswered) = crate::stages::summed(crate::stages::Sum::Held, || {
+            if !stands(&meta, &snapshot.paths, root, &asking, dirs, |input| stamp(Path::new(input))) {
+                return (false, false);
+            }
+            match watchman::since(&meta.watch, &excluded) {
+                Some(since) => (!since.fresh && ignores_all(root, &since.files), false),
+                None => (false, true),
+            }
+        });
+        if vouched {
             return Some((snapshot, Some(Change::Vouched(meta, manifest))));
+        }
+        if unanswered {
+            socket = None;
+        } else if follows(&meta, &snapshot.paths, root, &asking, dirs, |input| stamp(Path::new(input))) {
+            followed = Some((snapshot, meta.watch, excluded));
         }
     }
     // The clock and the stamps are taken before git lists, so whatever moves while it does is after them.
-    let (watch, inputs) = std::thread::scope(|scope| {
-        let inputs = scope.spawn(|| socket.as_ref().and_then(|_| inputs(root)));
-        (socket.as_deref().and_then(|socket| watchman::watch(socket, root)), inputs.join().ok().flatten())
+    let (watch, inputs) = crate::stages::summed(crate::stages::Sum::Held, || {
+        std::thread::scope(|scope| {
+            let inputs = scope.spawn(|| socket.as_ref().and_then(|_| inputs(root)));
+            (socket.as_deref().and_then(|socket| watchman::watch(socket, root)), inputs.join().ok().flatten())
+        })
     });
     let (git, inputs) = watch.as_ref().and(inputs).unzip();
     let before = inputs.as_deref().map(stamped);
-    let snapshot = git::snapshot(root)?;
+    // What moved since the held listing is asked after the clock the new one is taken at, so nothing between them is missed.
+    // An answer to it says the watch caught up past the new clock; none says it has not.
+    let since = followed.as_ref().zip(watch.as_ref()).and_then(|((_, held, excluded), watch)| {
+        let same = Watch { clock: held.clock.clone(), ..watch.clone() } == *held;
+        same.then(|| crate::stages::summed(crate::stages::Sum::Held, || watchman::since(held, excluded)))
+    });
+    let (snapshot, followed, settled) = match (&followed, since) {
+        (Some((listing, ..)), Some(Some(since))) if !since.fresh => {
+            let (snapshot, followed) = git::snapshot_since(root, &git::worktree_moved::Before { listing, moved: &since.files })?;
+            (snapshot, followed, true)
+        }
+        (_, Some(answer)) => (git::snapshot(root)?, false, answer.is_some()),
+        // Whether the watch caught up is asked beside git's listing, so git never waits on it; a
+        // listing faster than the answer waits for it, within `SETTLED`, to keep its clock.
+        (_, None) => {
+            let (snapshot, settled) = std::thread::scope(|scope| {
+                let settled = scope.spawn(|| watch.as_ref().is_some_and(watchman::settled));
+                (git::snapshot(root), settled.join().unwrap_or(false))
+            });
+            (snapshot?, false, settled)
+        }
+    };
     let after = inputs.as_deref().map(stamped);
-    let change = match (watch.zip(git), before) {
+    let change = match (watch.filter(|_| settled).zip(git), before) {
         // `status` refreshing the index while it listed is a listing nothing can vouch for yet.
         (Some((watch, git)), Some(before)) if Some(&before) == after.as_ref() => {
-            Some(Change::Listed(Meta { watch, dirs: dirs.to_vec(), inputs: before, git, config: None, files: 0 }))
+            let meta = Meta { watch, dirs: dirs.to_vec(), inputs: before, git, config: None, files: 0 };
+            Some(if followed { Change::Followed(meta) } else { Change::Listed(meta) })
         }
         _ => None,
     };

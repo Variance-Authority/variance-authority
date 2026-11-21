@@ -39,6 +39,8 @@ export const COMMANDS = [
   'doctor',
   'prune',
   'job',
+  'cargo',
+  'janus',
   'share',
   'collect',
   'carry',
@@ -86,6 +88,8 @@ export const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> =
     '--suite',
     '--root',
     '--format',
+    '--limit',
+    '--offset',
   ],
   report: ['--format', '--embed-images', '--subject', '--exit-zero-on-changes'],
   ask: [
@@ -101,7 +105,9 @@ export const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> =
     '--file',
     '--files',
     '--area',
+    '--declarations',
     '--name',
+    '--line',
     '--package',
     '--subpath',
     '--query',
@@ -125,7 +131,6 @@ export const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> =
     '--except-path',
     '--changed-file',
     '--taint-file',
-    '--just-answer',
     '--story',
     '--over',
     '--after',
@@ -135,14 +140,14 @@ export const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> =
     '--format',
   ],
   distill: ['--test', '--file', '--from', '--execution', '--suite', '--root', '--format'],
-  story: ['--file', '--name', '--project', '--label', '--in', '--package', '--around', '--whole', '--compare', '--root', '--format'],
+  story: ['--file', '--name', '--project', '--label', '--in', '--package', '--around', '--whole', '--page', '--compare', '--root', '--format'],
   watch: [],
   adjudicate: ['--claims', '--exit-zero-on-changes'],
   accept: ['--all', '--shape', '--by', '--message-file', '--message'],
   changelog: ['--component', '--subject', '--limit', '--since'],
   journeys: ['--all', '--file', '--limit', '--into', '--suite', '--format'],
-  coverage: ['--against', '--suite', '--from', '--packages', '--at-distance', '--fan-in', '--root', '--format'],
-  layers: ['--against', '--root', '--format'],
+  coverage: ['--against', '--suite', '--from', '--packages', '--at-distance', '--fan-in', '--session', '--served', '--root', '--format'],
+  layers: ['--against', '--package', '--root', '--format'],
   restrictions: ['--root', '--format'],
   review: ['--coverage', '--fail-on-uncovered', '--fail-on-lost', '--since', '--against', '--suite', '--out', '--from-run', '--artifact', '--root', '--format'],
   push: ['--run', '--commit', '--branch'],
@@ -150,6 +155,8 @@ export const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> =
   doctor: ['--baselines'],
   prune: [],
   job: ['--suite', '--complete-on'],
+  cargo: ['--suite'],
+  janus: ['--since', '--file'],
   share: ['--mainline', '--publish', '--suite', '--collected', '--from-queue', '--format', '--purge-older-than'],
   // `--config` by name: `carry` reads a project only when one is named, so it
   // is configless for the table below and still takes the flag.
@@ -163,15 +170,15 @@ export const USAGE = [
   'variance select  [--since <ref> [--ran-at <commit>]] [--execution <journey-file> [--diff <patch>|-] | --suite <name>] [--at-distance <hops>] [--local] [--format plain|json|vitest|jest|explain] [--no-git]',
   'variance shards  [--setup <seconds>] [--budget <seconds>] [--max <n>] [--workers <n>] [--since <ref> [--ran-at <commit>] [--collected <file>]] [--at-distance <hops>] [--suite <name>] [--unrecorded <n>] [--format text|json]',
   'variance reach   --since <ref> [--format plain|json] [--whole-files] [--no-git]',
-  'variance covering --file <path> [--line <n>|<a>-<b>] [--function <name>] [--at-distance <hops>] [--in-package] [--hops] [--text <path>|-] | --since <ref> [--against <record>] [--cases last|<test file>] [--where <name>[=<value>]]... [--read <name>[=<value>]]... [--execution <path> | --suite <name>] [--root <path>] [--format text|refs|json]',
-  'variance coverage [--suite <name> [--against <record>]] [--from <dir> | --packages] [--at-distance <hops>] [--fan-in] [--root <path>] [--format text|markdown|json|badge]',
-  'variance layers  [--against <index>] [--root <path>] [--format text|markdown|json]',
+  'variance covering --file <path> [--line <n>|<a>-<b>] [--function <name>] [--at-distance <hops>] [--in-package] [--hops] [--text <path>|-] | --since <ref> [--against <record>] [--cases last|<test file>] [--where <name>[=<value>]]... [--read <name>[=<value>]]... [--execution <path> | --suite <name>] [--root <path>] [--format text|refs|json] [--limit <n>] [--offset <n>]',
+  'variance coverage [--suite <name> [--against <record>]] [--from <dir> | --packages] [--at-distance <hops>] [--fan-in] [--session <name>=<path>]... [--served <dir>] [--root <path>] [--format text|markdown|json|badge]',
+  'variance layers  [--against <index>] [--package <name>]... [--root <path>] [--format text|markdown|json]',
   'variance restrictions [--root <path>] [--format text|json]',
   'variance review  [--since <ref>] [--against <record>] [--suite <name>] [--coverage] [--fail-on-uncovered] [--fail-on-lost] [--out <dir>] | --from-run <run id or URL> [--artifact <name>] [--root <path>] [--format text|markdown|json|handover]',
   'variance report  [--config <path>] [--format text|json|html [--embed-images]] [--subject <id>] [--exit-zero-on-changes] [<report>...]',
-  'variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--build <id>] [--file <path>] [--files <path>[,...]] [--area <id>] [--name <name>] [--package <name>] [--subpath <subpath>] [--query <words>] [--under|--above|--inside|--beside|--left-of|--right-of <words>] [--on <words>] [--from <path>] [--to <path>] [--imports <import>] [--declares <regex>] [--path <regex>] [--text <pattern>] [--except-from|--except-to|--except-imports|--except-declares|--except-path <value>] [--changed-file <path>] [--taint-file <path>] [--just-answer] [--story] [--over <time>] [--after <date>] [--limit <n>] [--offset <n>] [--at <address>] [--format text|json] [<report>...]',
+  'variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--build <id>] [--file <path>] [--files <path>[,...]] [--area <id>] [--declarations] [--name <name>] [--line <file>:<line>] [--package <name>] [--subpath <subpath>] [--query <words>] [--under|--above|--inside|--beside|--left-of|--right-of <words>] [--on <words>] [--from <path>] [--to <path>] [--imports <import>] [--declares <regex>] [--path <regex>] [--text <pattern>] [--except-from|--except-to|--except-imports|--except-declares|--except-path <value>] [--changed-file <path>] [--taint-file <path>] [--story] [--over <time>] [--after <date>] [--limit <n>] [--offset <n>] [--at <address>] [--format text|json] [<report>...]',
   'variance distill [--test <name>] [--file <path> | --from <dir>] [--execution <path> | --suite <name>] [--root <path>] [--format text|json|jsonl]',
-  'variance story   [--file <path>] [--name <name>]... [--project <name>] [--label <label>] [--in <file> | --package <name> | --around <step> | --whole | --compare last|outcome|<a>,<b>,…] [--root <path>] [--format text|json]',
+  'variance story   [--file <path>] [--name <name>]... [--project <name>] [--label <label>] [--in <file> | --package <name> | --around <step> | --whole | --page <text> | --compare last|outcome|<a>,<b>,…] [--root <path>] [--format text|json]',
   'variance watch',
   'variance adjudicate [--config <path>] --claims <path> [--exit-zero-on-changes] [<report>...]',
   'variance accept  [--config <path>] <subject>... | --all | --shape <fingerprint>[,...] [--by <name>] [--message-file <path> [--message <text>]]',
@@ -182,6 +189,8 @@ export const USAGE = [
   'variance doctor  [--config <path>] [--baselines]',
   'variance prune',
   'variance job     --suite <name> [--complete-on <exit>] -- <command>...',
+  'variance cargo   [--suite <name>] [-- <cargo test argument>...]',
+  'variance janus   --since <ref> --file <path>... -- <command>...',
   'variance share   [--config <path>] [--mainline <branch>] [--publish] [<report>...] | [--suite <name>] [--publish [--collected <path>] [--from-queue <artifact pattern>] | --format text|github] [<record>...] | --purge-older-than <days> [--mainline <branch>]',
   'variance collect [--config <path>] [--subjects <glob>] [--shard <k>/<n>] [--workers <n>] --out <part.json> | merge <part.json>... --out <suite.index>',
   'variance carry   restore [--transform jest [--shard <k>/<n>]] | save | take [<dir>] [--as-base] | keep [<dir>] | hand <dir> | receive <dir> | merge <commit> [--head <sha>] [--on-conflict stay|fail] [--expect <sha>] [--config <path>] [--format text|github]',
@@ -196,10 +205,10 @@ export const USAGE = [
  *
  * These read no project configuration: they hold a listener, read evidence a run
  * left behind, answer a repository whose tests another runner runs, or work from
- * the repository root, as `prune`, `job` and `carry` do. `carry` still names
+ * the repository root, as `prune`, `job`, `cargo` and `carry` do. `carry` still names
  * `--config`, and reads a project only when one is named.
  */
-const CONFIGLESS: readonly string[] = ['watch', 'distill', 'covering', 'coverage', 'layers', 'restrictions', 'review', 'story', 'index', 'select', 'shards', 'reach', 'prune', 'job', 'carry'];
+const CONFIGLESS: readonly string[] = ['watch', 'distill', 'covering', 'coverage', 'layers', 'restrictions', 'review', 'story', 'index', 'select', 'shards', 'reach', 'prune', 'job', 'cargo', 'janus', 'carry'];
 
 export function flagsFor(command: (typeof COMMANDS)[number]): readonly string[] {
   return CONFIGLESS.includes(command)
@@ -262,11 +271,14 @@ export function helpFor(command: (typeof COMMANDS)[number]): string {
   return [
     synopsisFor(command),
     '',
+    ...(command === 'layers'
+      ? ['Repeat --package to select entry packages and all their repository dependencies (installed packages excluded). Omit it for all packages. Cannot combine with --against.']
+      : []),
     ...(flags.includes('--no-git')
       ? ['--no-git: read file contents from the working tree, not Git\'s object store; the index is the same.']
       : []),
     ...(flags.includes('--wait')
-      ? ['--wait: make the code map, journeys, lexicon and questions before returning, rather than in a process of their own.']
+      ? ['--wait: return once the process making the code map, journeys, lexicon and questions has finished, with its lines and its exit.']
       : []),
     ...(flags.includes('--follow-ups')
       ? ['--follow-ups: what that process runs; lets go of the lock the other commands wait on when it is done.']

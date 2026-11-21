@@ -93,7 +93,7 @@ fn stored(name: &str) -> (Fixture, String, super::Stored) {
     publish(&index);
     let chain = read_chain(&index).unwrap().expect("a published chain");
     let layers: Vec<Layer> = chain.segments.iter().map(|bytes| Layer::open(bytes).unwrap()).collect();
-    let read = read(&root.0.to_string_lossy(), &layers, Some(&paths), crate::resolve::Tsconfig::Auto, HashSet::new);
+    let read = read(&root.0.to_string_lossy(), &layers, Some(&paths), &crate::resolve::Resolvers::new(crate::resolve::Tsconfig::Auto, None), HashSet::new);
     let (made, pages, placed) = fold(&read, false).ok().expect("named packages to fold");
     let digest = super::manifest_digest(&index).unwrap();
     let stored = super::Stored { format: super::FORMAT, index: digest, listed: None, workspaces: false, unmarked: false, made: Some(made), unmade: None, pages, placed };
@@ -185,7 +185,7 @@ fn outside_git_the_map_is_folded_from_the_indexed_files_and_the_manifests_beside
 fn every_package_reads_back_with_its_layer_and_what_it_takes() {
     let (_root, root, index) = indexed("placed");
     prepare_orient_map(&root, &index, Some(true), false, crate::resolve::Tsconfig::Auto).unwrap().expect("an index");
-    let answer = crate::orient_map_layers::orient_layers(index).unwrap().expect("a kept map");
+    let answer = crate::orient_map_layers::orient_layers(index.clone()).unwrap().expect("a kept map");
     assert!(answer.current && answer.unmade.is_none());
     let packages = answer.packages.expect("a folded map");
     let layer = |name: &str| packages.iter().find(|package| package.package == name).unwrap();
@@ -196,6 +196,12 @@ fn every_package_reads_back_with_its_layer_and_what_it_takes() {
     assert_eq!(layer("@t/server-0").takes, ["@t/ui-0"]);
     assert_eq!(layer("@t/server-0").layer, 2);
     assert_eq!(packages.iter().map(|package| package.layer).max(), Some(6));
+    // Each package reads back with the innermost area whose page lists it.
+    let area = |name: &str| layer(name).area.as_ref().map(|area| (area.id.clone(), area.name.clone())).expect("an area");
+    assert_eq!(area("@t/data-0"), area("@t/data-4"));
+    assert_ne!(area("@t/data-0"), area("@t/server-0"));
+    let page = orient_map_page(index, Some(area("@t/data-0").0)).unwrap().unwrap().page.unwrap();
+    assert!(page.list.contains(&"@t/data-0".to_owned()));
 }
 
 #[test]
@@ -243,25 +249,58 @@ fn in_git_an_unchanged_index_and_unchanged_manifests_keep_the_map_unfolded() {
     // The listing the scan took is carried; git is not asked again.
     let scanned = crate::git_tree(root.clone()).expect("a checkout");
     let first = carried(&scanned, &root, &index).unwrap().unwrap();
-    assert!(!first.walked && !first.relisted && first.map.is_some());
+    assert!(!first.walked && !first.relisted && !first.kept && first.map.is_some());
     let folded = inode(&map_path(&index));
+    // The key is the manifest and the listing, so a kept map reads no segment of the chain.
+    let segments = format!("{index}.segments");
+    let aside = format!("{index}.aside");
+    std::fs::rename(&segments, &aside).unwrap();
     let again = carried(&scanned, &root, &index).unwrap().unwrap();
+    std::fs::rename(&aside, &segments).unwrap();
     assert_eq!(inode(&map_path(&index)), folded, "nothing moved, so nothing was written");
+    assert!(again.kept);
     assert_eq!(again.map.map(|map| (map.packages, map.areas)), Some((20, 4)));
     // With no scan to carry, git lists the checkout for the map, and says so.
     let alone = prepare_orient_map(&root, &index, None, false, crate::resolve::Tsconfig::Auto).unwrap().unwrap();
-    assert!(alone.relisted && !alone.walked);
+    assert!(alone.relisted && !alone.walked && alone.kept);
     assert_eq!(inode(&map_path(&index)), folded);
     // A manifest git holds a new blob for folds the map again.
     std::fs::write(fixture.0.join("packages/ui/ui1/package.json"), r#"{"name": "@t/ui-1", "private": true}"#).unwrap();
     git(&root, &["add", "-A"]);
-    carried(&crate::git_tree(root.clone()).unwrap(), &root, &index).unwrap().unwrap();
+    assert!(!carried(&crate::git_tree(root.clone()).unwrap(), &root, &index).unwrap().unwrap().kept);
     let refolded = inode(&map_path(&index));
     assert_ne!(refolded, folded);
     // So does a new answer to whether the root declares workspaces, with nothing
     // git lists changed: the file that says so may be one git ignores.
     prepare_orient_map(&root, &index, None, true, crate::resolve::Tsconfig::Auto).unwrap().unwrap();
     assert_ne!(inode(&map_path(&index)), refolded);
+}
+
+#[test]
+fn in_git_an_index_published_again_folds_the_map_again_with_the_listing_and_the_workspaces_unchanged() {
+    let (_fixture, root, index) = indexed("moved");
+    git(&root, &["init", "-q"]);
+    git(&root, &["add", "-A"]);
+    let scanned = crate::git_tree(root.clone()).expect("a checkout");
+    assert!(!carried(&scanned, &root, &index).unwrap().unwrap().kept);
+    let folded = inode(&map_path(&index));
+    // The index is published again with one more segment: its manifest moves, and the listing carried does not.
+    let (references, _) = crate::index_chain::manifest_references(&index).expect("a published manifest");
+    let kept: Vec<crate::log::LogSegment> =
+        references.into_iter().map(|reference| crate::log::LogSegment { digest: reference.digest, length: reference.length as i64 }).collect();
+    let empty = r#"{"records": [], "parses": [], "deletedRecords": [], "deletedParses": []}"#.to_owned();
+    crate::log::publish(&index, &kept, &[&merged(&[], &Delta::of(vec![empty]).unwrap())], &[]).unwrap();
+    // The shipped list beside the map is made to name the new manifest, so the map's own key is what moves it.
+    let shipped = format!("{index}.shipped");
+    let mut list: serde_json::Value = serde_json::from_slice(&std::fs::read(&shipped).unwrap()).unwrap();
+    list["index"] = serde_json::Value::String(super::manifest_digest(&index).unwrap());
+    std::fs::write(&shipped, serde_json::to_vec(&list).unwrap()).unwrap();
+
+    let again = carried(&scanned, &root, &index).unwrap().unwrap();
+
+    assert!(!again.kept);
+    assert_ne!(inode(&map_path(&index)), folded, "the manifest moved, so the map was folded again");
+    assert_eq!(again.map.map(|map| (map.packages, map.areas)), Some((20, 4)));
 }
 
 #[test]
@@ -289,7 +328,7 @@ fn a_package_is_taken_for_what_its_importers_take_and_not_what_an_export_type_pa
     let layers = [Layer::open(&segment).unwrap()];
     let paths: Vec<String> = ["package.json", "packages/a/package.json", a, "packages/b/package.json", b].iter().map(|path| (*path).to_owned()).collect();
 
-    let read = read(&root.to_string_lossy(), &layers, Some(&paths), crate::resolve::Tsconfig::Auto, HashSet::new);
+    let read = read(&root.to_string_lossy(), &layers, Some(&paths), &crate::resolve::Resolvers::new(crate::resolve::Tsconfig::Auto, None), HashSet::new);
 
     let at = read.packages.iter().position(|package| package.name == "@t/a").unwrap();
     assert_eq!(read.head[at], ["make"]);
@@ -317,8 +356,30 @@ fn a_package_held_whole_is_taken_for_the_names_read_off_it_and_not_off_its_defau
     let layers = [Layer::open(&segment).unwrap()];
     let paths: Vec<String> = ["package.json", "packages/a/package.json", a, "packages/b/package.json", b].iter().map(|path| (*path).to_owned()).collect();
 
-    let read = read(&root.to_string_lossy(), &layers, Some(&paths), crate::resolve::Tsconfig::Auto, HashSet::new);
+    let read = read(&root.to_string_lossy(), &layers, Some(&paths), &crate::resolve::Resolvers::new(crate::resolve::Tsconfig::Auto, None), HashSet::new);
 
     let at = read.packages.iter().position(|package| package.name == "@t/a").unwrap();
     assert_eq!(read.head[at], ["default", "make"]);
+}
+
+#[test]
+fn in_git_a_config_git_ignores_in_a_listed_directory_declares_no_output_for_the_map() {
+    // `@t/ui-0` offers its build output, which only its `tsconfig.json` maps back to the source.
+    let declares = |name: &str, ignored: bool| {
+        let (fixture, root, index) = indexed(name);
+        let package = fixture.0.join("packages/ui/ui0");
+        std::fs::write(package.join("package.json"), r#"{"name": "@t/ui-0", "exports": {"./*": "./dist/*.js"}}"#).unwrap();
+        std::fs::write(package.join("tsconfig.json"), r#"{"compilerOptions": {"rootDir": "src", "outDir": "dist"}}"#).unwrap();
+        if ignored {
+            std::fs::write(package.join(".gitignore"), "tsconfig.json\n").unwrap();
+        }
+        git(&root, &["init", "-q"]);
+        git(&root, &["add", "-A"]);
+        carried(&crate::git_tree(root.clone()).unwrap(), &root, &index).unwrap().unwrap();
+        let packages = crate::orient_map_layers::orient_layers(index).unwrap().unwrap().packages.unwrap();
+        !packages.iter().find(|package| package.package == "@t/ui-0").unwrap().undeclared
+    };
+    assert!(declares("config-listed", false));
+    // The scan reads the same directory from the listing, so the map agrees with it.
+    assert!(!declares("config-ignored", true));
 }

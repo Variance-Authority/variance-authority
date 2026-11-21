@@ -413,8 +413,7 @@ ways to give the next job something to read:
   by the branch or the commit; the contents are content-addressed, so a record
   restored from another branch costs a slower run and cannot produce a wrong
   answer. [The source index](source-index.md) states the same four rules for the
-  other half of the cache, including the endianness limit on moving either file
-  between machines.
+  other half of the cache.
 - **Name the path yourself and upload it.** Pass `coverageFile` to the Vitest,
   Jest, Rstest or Playwright integration, or to the Storybook collector's
   [`tests` option](../packages/storybook-collector/README.md#skipping-stories-nothing-touched),

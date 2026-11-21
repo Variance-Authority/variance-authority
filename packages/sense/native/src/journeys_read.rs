@@ -257,9 +257,11 @@ pub struct LinesThen {
 }
 
 /// `file`'s `git diff -U0` against `commit`, empty when it has not changed; or
-/// why git could not say.
+/// why git could not say. The path is passed as a literal pathspec, so a file
+/// named `[id].ts` is not read as a pattern matching `i.ts`.
 fn diff_since(root: &str, commit: &str, file: &str) -> Result<String, String> {
-    let args = ["diff", "-U0", "--no-color", "--no-ext-diff", "--no-textconv", commit, "--", file];
+    let literal = format!(":(literal){file}");
+    let args = ["diff", "-U0", "--no-color", "--no-ext-diff", "--no-textconv", commit, "--", &literal];
     crate::git::git(root, &args, None)
         .map(|bytes| String::from_utf8_lossy(&bytes).into_owned())
         .ok_or_else(|| format!("git could not diff it against commit {}", crate::journeys_graph::short(commit)))
@@ -401,5 +403,16 @@ mod tests {
         assert_eq!(line_then(diff, 12), Some(11));
         assert_eq!(line_then(diff, 21), None);
         assert_eq!(line_then(diff, 30), Some(29));
+    }
+
+    #[test]
+    fn a_file_named_with_brackets_is_diffed_as_itself_and_not_as_a_pattern() {
+        use crate::git_fixture::{commit, git, repository, write};
+        let root = repository("lines-then-literal", &[("src/[id].ts", b"one\ntwo\n"), ("src/i.ts", b"a\n")]);
+        let then = git(&root, &["rev-parse", "HEAD"]);
+        write(&root, "src/i.ts", b"added\na\n");
+        commit(&root);
+        let answer = lines_then(root.to_string_lossy().into_owned(), then, "src/[id].ts".to_owned(), vec![1, 2]);
+        assert_eq!((answer.unplaced, answer.changed, answer.lines), (None, false, vec![Some(1), Some(2)]));
     }
 }

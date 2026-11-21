@@ -61,28 +61,47 @@ fn an_edited_file_keeps_its_digest_beside_paths_that_are_not_files() {
 
     assert_eq!(digest_of(&tree, "src/a.ts"), Some(git(&root, &["hash-object", "src/a.ts"])));
     assert_eq!(digest_of(&tree, "lib/x.ts"), Some(git(&root, &["rev-parse", "HEAD:lib/x.ts"])));
-    let mut unhashed = tree.unhashed.clone();
-    unhashed.sort();
-    assert_eq!(unhashed, ["dangling", "linked", "vendor/sub"]);
-    for path in &unhashed {
+    assert_eq!(tree.unhashed, ["dangling", "linked", "vendor/sub"]);
+    for path in &tree.unhashed {
         assert!(!tree.paths.contains(path), "{path} is listed with a digest");
+    }
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
+fn committed_links_are_unhashed_in_code_unit_order_on_every_listing() {
+    let root = checkout("links-in-order");
+    write(&root, "lib/x.ts", "export const x = 1;\n");
+    let names = ["b", "a", "skills/z", "skills/c", "Q", "d.d", "e", "f"];
+    for name in names {
+        std::fs::create_dir_all(root.join(name).parent().unwrap()).unwrap();
+        std::os::unix::fs::symlink(root.join("lib"), root.join(name)).unwrap();
+    }
+    git(&root, &["init", "--quiet"]);
+    git(&root, &["add", "-A"]);
+    git(&root, &["commit", "--quiet", "-m", "base"]);
+
+    let mut ordered: Vec<String> = names.iter().map(|name| (*name).to_owned()).collect();
+    ordered.sort_by(|a, b| crate::order::code_unit(a, b));
+    for _ in 0..4 {
+        assert_eq!(snapshot(root.to_str().unwrap()).unwrap().unhashed, ordered);
     }
     let _ = std::fs::remove_dir_all(&root);
 }
 
 /// Whether the working tree was compared in-process, rather than handed to `status`.
 fn compared(root: &Path) -> bool {
-    let head = crate::git_store::head(root).unwrap();
+    let head = crate::git_store::checkout(root).unwrap();
     let config = crate::git::worktree_status::config_of(&crate::git::git_porcelain::configured(root.to_str().unwrap()));
-    crate::git::worktree_status::changes(&head, head.blobs.as_deref().unwrap(), &config).is_some()
+    super::inventory::read(&head).and_then(|inventory| inventory.index).is_some_and(|index| crate::git::worktree_status::walk(&head, &config, &index).is_some())
 }
 
 /// The snapshot compared in-process is the one `status` answers, path for path.
 fn agrees(root: &Path) {
     let root = root.to_str().unwrap();
-    let (known, printed) = (snapshot_of(root, true).unwrap(), snapshot_of(root, false).unwrap());
-    let digests = |tree: &super::Snapshot| -> Vec<(String, String, bool)> {
-        tree.paths.iter().zip(&tree.oids).zip(&tree.regular).map(|((path, oid), regular)| (path.clone(), hex(oid), *regular)).collect()
+    let (known, printed) = (snapshot_of(root, true, None).unwrap().0, snapshot_of(root, false, None).unwrap().0);
+    let digests = |tree: &super::Snapshot| -> Vec<(String, String)> {
+        tree.paths.iter().zip(&tree.oids).map(|(path, oid)| (path.clone(), hex(oid))).collect()
     };
     assert_eq!(digests(&known), digests(&printed));
     let sorted = |tree: &super::Snapshot| {
@@ -239,7 +258,7 @@ fn an_empty_xdg_config_home_reads_the_excludes_under_home_as_git_does() {
         "HOME" => Some(std::ffi::OsString::from("/h")),
         _ => None,
     };
-    let read = |xdg| crate::git::worktree_status::user_excludes(&mut env(xdg));
+    let read = |xdg| crate::git::worktree_untracked::user_excludes(&mut env(xdg));
     assert_eq!(read(""), Some(std::path::PathBuf::from("/h/.config/git/ignore")));
     assert_eq!(read("/x"), Some(std::path::PathBuf::from("/x/git/ignore")));
 }
@@ -309,5 +328,102 @@ fn an_untracked_cache_hands_the_comparison_to_status() {
 
     assert!(!compared(&root));
     agrees(&root);
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
+fn a_staged_file_marked_assume_unchanged_still_names_the_working_bytes() {
+    let root = git_fixture::repository("index-assume-unchanged", &[("a.ts", b"before\n")]);
+    let before = git(&root, &["hash-object", "a.ts"]);
+    write(&root, "a.ts", "staged\n");
+    git(&root, &["add", "a.ts"]);
+    write(&root, "a.ts", "before\n");
+    git(&root, &["update-index", "--assume-unchanged", "a.ts"]);
+
+    let listed = snapshot(root.to_str().unwrap()).unwrap();
+    assert_eq!(digest_of(&listed, "a.ts"), Some(before));
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[test]
+fn an_intent_to_add_entry_names_the_working_bytes_instead_of_the_empty_blob() {
+    let root = git_fixture::repository("index-intent-to-add", &[("base.ts", b"base\n")]);
+    write(&root, "added.ts", "export const added = true;\n");
+    git(&root, &["add", "-N", "added.ts"]);
+    let working = git(&root, &["hash-object", "added.ts"]);
+    assert_ne!(working, git(&root, &["rev-parse", ":added.ts"]));
+
+    let listed = snapshot(root.to_str().unwrap()).unwrap();
+    assert_eq!(digest_of(&listed, "added.ts"), Some(working));
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[test]
+fn a_git_status_over_a_changed_index_never_keeps_the_old_inventory_digest() {
+    const CHILD: &str = "VARIANCE_AUTHORITY_TEST_INDEX_RACE";
+    if let Some(root) = std::env::var_os(CHILD) {
+        let root = PathBuf::from(root);
+        let working = git(&root, &["hash-object", "a.ts"]);
+        let listed = snapshot(root.to_str().unwrap());
+        assert!(root.join(".git/status-reset").is_file(), "the status wrapper did not reset the index");
+        assert!(listed.as_ref().is_none_or(|tree| digest_of(tree, "a.ts") == Some(working.clone())), "the old inventory survived a changed index: {:?}", listed.as_ref().and_then(|tree| digest_of(tree, "a.ts")));
+        return;
+    }
+    let root = git_fixture::repository("index-status-race", &[("a.ts", b"working\n")]);
+    write(&root, "a.ts", "staged\n");
+    git(&root, &["add", "a.ts"]);
+    write(&root, "a.ts", "working\n");
+    git(&root, &["update-index", "--assume-unchanged", "a.ts"]);
+    let bin = root.join(".git/bin");
+    std::fs::create_dir(&bin).unwrap();
+    let wrapper = bin.join("git");
+    std::fs::write(&wrapper, r#"#!/bin/sh
+for arg in "$@"; do
+    if [ "$arg" = status ]; then
+        "$VARIANCE_AUTHORITY_TEST_REAL_GIT" reset --quiet HEAD -- a.ts || exit $?
+        : > .git/status-reset
+    fi
+done
+exec "$VARIANCE_AUTHORITY_TEST_REAL_GIT" "$@"
+"#).unwrap();
+    std::fs::set_permissions(&wrapper, std::os::unix::fs::PermissionsExt::from_mode(0o755)).unwrap();
+    let real_git = Command::new("which").arg("git").output().unwrap();
+    assert!(real_git.status.success());
+    let mut paths = vec![bin];
+    paths.extend(std::env::split_paths(&std::env::var_os("PATH").unwrap_or_default()));
+    // Only this child sees the wrapper; parallel tests keep their own Git and environment.
+    let output = Command::new(std::env::current_exe().unwrap())
+        .args(["git::tests::a_git_status_over_a_changed_index_never_keeps_the_old_inventory_digest", "--exact", "--nocapture", "--test-threads=1"])
+        .env(CHILD, &root)
+        .env("VARIANCE_AUTHORITY_TEST_REAL_GIT", String::from_utf8(real_git.stdout).unwrap().trim())
+        .env("PATH", std::env::join_paths(paths).unwrap())
+        .output()
+        .unwrap();
+    let _ = std::fs::remove_dir_all(root);
+    assert!(output.status.success(), "{}\n{}", String::from_utf8_lossy(&output.stdout), String::from_utf8_lossy(&output.stderr));
+}
+
+#[test]
+fn the_inventory_takes_staged_paths_and_blobs_from_the_index_including_below_the_root() {
+    let root = git_fixture::repository("index-inventory", &[("src/a.ts", b"before\n"), ("gone.ts", b"gone\n")]);
+    write(&root, "src/a.ts", "staged\n");
+    write(&root, "src/new.ts", "new\n");
+    git(&root, &["add", "src"]);
+    git(&root, &["rm", "gone.ts"]);
+    // Inventory is independent of the working bytes; the overlay checks them later.
+    write(&root, "src/a.ts", "unstaged after staging\n");
+    write(&root, "src/untracked.ts", "untracked\n");
+    for at in [root.clone(), root.join("src")] {
+        let checkout = crate::git_store::checkout(&at).unwrap();
+        let inventory = super::inventory::read(&checkout).unwrap();
+        assert!(inventory.index.is_some(), "the native reader carries the index to its comparison");
+        let prefix = if at == root { "src/" } else { "" };
+        let expected = vec![
+            (format!("{prefix}a.ts").into_bytes(), git(&root, &["rev-parse", ":src/a.ts"]), false),
+            (format!("{prefix}new.ts").into_bytes(), git(&root, &["rev-parse", ":src/new.ts"]), false),
+        ];
+        let actual: Vec<_> = inventory.blobs.into_iter().map(|(path, id, link)| (path, id.to_string(), link)).collect();
+        assert_eq!(actual, expected);
+    }
     let _ = std::fs::remove_dir_all(&root);
 }

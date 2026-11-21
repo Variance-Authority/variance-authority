@@ -86,21 +86,22 @@ describe('a module every test file imports, asked whole', () => {
     const text = formatCovering(await covering(parse(['--file', 'src/hub.ts', '--root', root, '--execution', execution])), 'text', Date.now());
 
     expect(text).toBe([
-      'src/hub.ts — 1 recorded range, 1 named test, and 2 more that ran it only while their file imported it',
-      'lines 1-9',
-      '  a.test.ts',
+      'src/hub.ts — 1 recorded range, 1 named test in 1 test file, and 2 more that ran it only while their file imported it',
+      '  a.test.ts — 1/1',
       '    runs',
-      '  and 2 cases in 2 test files ran it only while their file imported the module',
       'The record does not say which text of src/hub.ts its lines are numbered in, so they are given as recorded.',
       'Where and when the 3 test files named here last ran is not known: the record names no commit.',
       '',
     ].join('\n'));
 
-    // A range run by the same cases as one already printed counts the named ones apart from the ones that only loaded the module.
+    // A test file whose cases called into two ranges is one row, and the range none of them called into is named apart.
     const split = join(execution, '..', 'split.json');
     await write([block(1, 3), { ...block(4, 5), crossings: [] }, block(6, 9)], split);
     const twice = formatCovering(await covering(parse(['--file', 'src/hub.ts', '--root', root, '--execution', split])), 'text', Date.now());
 
-    expect(twice).toContain('lines 6-9\n  the same named test, and 2 cases that only loaded the module, as lines 1-3');
+    expect(twice).toContain('src/hub.ts — 3 recorded ranges, 1 named test in 1 test file, and 2 more');
+    expect(twice).toContain('\n  a.test.ts — 1/1\n    runs\n');
+    expect(twice.split('a.test.ts').length - 1).toBe(1);
+    expect(twice).toContain('\nlines 4-5');
   });
 });

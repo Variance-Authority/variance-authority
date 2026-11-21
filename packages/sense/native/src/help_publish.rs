@@ -2,14 +2,19 @@
 //! saved without its export list, its imports by path or a parse row ever
 //! reaching JavaScript.
 //!
-//! `publishHelp` in `packages/help/src/refresh-native.ts` drives it. A reading
-//! holds what the chain says — the uses and the names each published entry
-//! hands out, which JavaScript joins into the documented surface, and the
-//! export list, the imports by path and the path graph it has nothing to add
-//! to — and encoding turns it into the two files written beside the index: the
-//! graph, and the store (`help_store.rs`).
+//! `publishHelp` in `packages/help/src/refresh-native.ts` drives it, and the
+//! walk with no index (`packages/help/src/walk.ts`) joins through
+//! `joinWalkedHelp` here too. A reading
+//! holds what the chain says — the uses, the names each published entry hands
+//! out, the export list, the imports by path and the path graph — and
+//! publishing joins the first two with the manifests JavaScript read and the
+//! READMEs (`help_join.rs`), then encodes it all into the two files written
+//! beside the index: the graph, and the store (`help_store.rs`). No name, use or
+//! declaration crosses into JavaScript.
 
 // compass: variance-authority.report.agent-surface
+
+use std::path::Path;
 
 use napi::bindgen_prelude::{AsyncTask, Buffer};
 use napi_derive::napi;
@@ -20,39 +25,60 @@ use crate::compact::Layer;
 use crate::help_aliases::{aliases, Alias};
 use crate::help_declared::{declared, declared_terms, Declared, Matching};
 use crate::off_thread::{off_thread, OffThread};
-use crate::help_store::{encode, DeepRef, StoreMeta, StorePackage, StoreRef};
+use crate::help_join::{mentions, Joined, OpeningSkeleton, Skeleton};
+use crate::help_store::{encode, DeepRef, StoreDeep, StoreMeta, StoreRef};
 use crate::help_members::{indexed_extensions, member_declarations, members_on, ContainerMember, MemberDeclarations};
 use crate::help_names::{published_names, HelpEntry, PublishedName};
+use crate::help_names_filter::{names_filter, ImportAsked, NamesFound};
 use crate::help_origin::{declaration_exported, export_line, ExportedDeclaration};
-use crate::help_usage::{importers, usage, Asked, DeepRequest, Importers, IndexedUsage, NamedExport};
+use crate::help_usage::{importers, usage, Asked, DeepRequest, Importers, NameUse, NamedExport};
 use crate::index_chain::read_chain;
 use crate::source_tree::{tree, Mocking};
 
-/// What the chain says for a Help value, held on this side, each part handed
-/// over once.
+/// What the chain says for a Help value, held on this side until it is published.
 #[napi]
 pub struct HelpReading {
-    /// What encoding reads; `None` once it was encoded.
+    /// What publishing reads; `None` once it was published.
     held: Option<Held>,
-    /// What `usage` hands over, with its export list and imports by path left empty.
-    usage: Option<IndexedUsage>,
-    /// What `names` hands over, or the first export the reading cannot say.
-    names: Option<Result<Vec<Vec<PublishedName>>, String>>,
 }
 
-/// What encoding reads, moved to the thread that encodes it.
+/// What publishing reads, moved to the thread that joins and encodes it.
 struct Held {
     exported: Vec<NamedExport>,
     /// The deep imports, those of packages that declare no entry, and those unfollowed.
     deep: [Vec<DeepRequest>; 3],
     /// `None` when the caller draws the tree it publishes.
     tree: Option<Vec<u8>>,
+    /// Every use through an opened key.
+    uses: Vec<NameUse>,
+    unreadable: Vec<String>,
+    /// The names each entry hands out, or the first export the reading cannot say.
+    names: Result<Vec<Vec<PublishedName>>, String>,
 }
 
-/// The value's own fields, joined by JavaScript: they are the documented
-/// surface and are small.
+/// One opening a package publishes, as its manifest names it.
 #[napi(object)]
-pub struct HelpEncode {
+pub struct PublishOpening {
+    pub subpath: String,
+    /// The file it opens, relative to the root of the value.
+    pub source: String,
+    /// The specifier a search line prints for it.
+    pub spec: String,
+}
+
+/// One package the manifests publish, and its openings in the order the
+/// entries were given to the reading.
+#[napi(object)]
+pub struct PublishPackage {
+    pub name: String,
+    pub entry: bool,
+    pub openings: Vec<PublishOpening>,
+}
+
+/// What the manifests say of the value, and what the store is stamped with;
+/// the reading joins the rest.
+#[napi(object)]
+pub struct HelpPublish {
     pub root: String,
     pub graph_root: String,
     pub generated_at: String,
@@ -62,10 +88,13 @@ pub struct HelpEncode {
     /// later refresh over the same manifest keeps the value by; absent when
     /// the value holds what no manifest says, such as a caller's taints.
     pub index_digest: Option<String>,
-    /// What `workspacePackagesDigest` states of the manifests the value was joined against.
+    /// What `packagesDigest` states of the manifests the value was joined against.
     pub packages_digest: String,
-    pub packages: Vec<StorePackage>,
+    /// The directory every recorded path is relative to, under which READMEs are read.
+    pub readme_root: String,
+    /// The manifests that did not read, before the files the reading could not.
     pub unreadable: Vec<String>,
+    pub packages: Vec<PublishPackage>,
     /// The digest of the tree the caller publishes, when the reading drew none.
     pub graph_digest: Option<String>,
 }
@@ -116,7 +145,7 @@ pub fn read_help(
             );
             let exported = std::mem::take(&mut read.exported);
             let deep = [std::mem::take(&mut read.deep), std::mem::take(&mut read.by_path), std::mem::take(&mut read.unfollowed)];
-            HelpReading { held: Some(Held { exported, deep, tree }), usage: Some(read), names: Some(names) }
+            HelpReading { held: Some(Held { exported, deep, tree, uses: read.names, unreadable: read.unreadable, names }) }
         })
     })
 }
@@ -197,6 +226,15 @@ pub fn declared_of(root: String, index: &OpenedIndex, query: String, containing:
 pub fn declared_described_of(root: String, index: &OpenedIndex, query: String, stems: Vec<String>, files: Option<Vec<String>>) -> napi::Result<Option<Declared>> {
     let matching = Matching::Described { stems, query };
     opened_chain(index, |layers| declared(&root, layers, "", matching, files.as_deref()))
+}
+
+/// The lines of every file the chain at `index` holds that answer each of
+/// `discover`'s name sets — `imports`, then `declares`, each a case-insensitive
+/// pattern — and the files with an extension in `readable` whose names it does
+/// not hold. `None` when there is no index.
+#[napi(catch_unwind)]
+pub fn names_filter_of(index: &OpenedIndex, imports: Vec<ImportAsked>, declares: Vec<String>, readable: Vec<String>) -> napi::Result<Option<NamesFound>> {
+    opened_chain(index, |layers| names_filter(layers, &imports, &declares, &readable))
 }
 
 /// The distinct search terms of the top-level names the chain at `index`
@@ -280,7 +318,7 @@ fn refused(index: &str, error: String) -> napi::Error {
 }
 
 /// The layers `opened` holds, handed to `read`; `None` when there is no index.
-fn opened_chain<T>(opened: &OpenedIndex, read: impl FnOnce(&[Layer]) -> T) -> napi::Result<Option<T>> {
+pub(crate) fn opened_chain<T>(opened: &OpenedIndex, read: impl FnOnce(&[Layer]) -> T) -> napi::Result<Option<T>> {
     if opened.closed {
         return Err(napi::Error::from_reason(format!("the source index at {} was opened for a question that has ended", opened.index)));
     }
@@ -289,43 +327,67 @@ fn opened_chain<T>(opened: &OpenedIndex, read: impl FnOnce(&[Layer]) -> T) -> na
 
 #[napi]
 impl HelpReading {
-    /// The uses and unreadable files, handed over once: the export list and
-    /// the imports by path are left empty, and stay here.
-    #[napi]
-    pub fn usage(&mut self) -> IndexedUsage {
-        self.usage.take().unwrap_or_else(|| IndexedUsage {
-            exported: Vec::new(), deep: Vec::new(), by_path: Vec::new(), unfollowed: Vec::new(), unreadable: Vec::new(), names: Vec::new(),
-        })
-    }
-
-    /// The names each entry hands out, in the order the entries were given,
-    /// handed over once; refused with the first export whose declaration the
-    /// reading cannot say.
-    #[napi]
-    pub fn names(&mut self) -> napi::Result<Vec<Vec<PublishedName>>> {
-        match self.names.take() {
-            Some(Ok(names)) => Ok(names),
-            Some(Err(refused)) => Err(napi::Error::from_reason(refused)),
-            None => Err(napi::Error::from_reason("the names of this reading were handed over already")),
-        }
-    }
-
-    /// The store's bytes and the tree's, once: the export list and the
-    /// imports by path go into the store from here.
+    /// The store's bytes and the tree's, once: the openings of `o.packages`
+    /// joined with their names, their uses and what a README says of them, and
+    /// encoded with the export list and the imports by path. Refused with the
+    /// first export whose declaration the reading cannot say.
     #[napi(ts_return_type = "Promise<HelpEncoded>")]
-    pub fn encode(&mut self, o: HelpEncode) -> napi::Result<AsyncTask<OffThread<HelpEncoded>>> {
-        let held = self.held.take().ok_or_else(|| napi::Error::from_reason("this reading was encoded already"))?;
-        Ok(off_thread(move || held.encode(o)))
+    pub fn publish(&mut self, o: HelpPublish) -> napi::Result<AsyncTask<OffThread<HelpEncoded>>> {
+        let held = self.held.take().ok_or_else(|| napi::Error::from_reason("this reading was published already"))?;
+        Ok(off_thread(move || held.publish(o)))
     }
 }
 
+/// What the walk with no index read: the manifests' packages, each opening's
+/// names flat in their order, every use through an opened key, the imports
+/// past an entry, by path and unfollowed, the export list, and what did not
+/// read.
+#[napi(object)]
+pub struct WalkedHelp {
+    /// Where the READMEs the mentions come from are read.
+    pub readme_root: String,
+    pub packages: Vec<PublishPackage>,
+    pub names: Vec<Vec<PublishedName>>,
+    pub uses: Vec<NameUse>,
+    pub deep: Vec<StoreDeep>,
+    pub by_path: Vec<StoreDeep>,
+    pub unfollowed: Vec<StoreDeep>,
+    pub exported: Vec<NamedExport>,
+    pub unreadable: Vec<String>,
+}
+
+/// The walk's whole store: its packages joined as the publish joins them,
+/// mentions read, beside its imports and export list, with no generation.
+#[napi(catch_unwind)]
+pub fn join_walked_help(walked: WalkedHelp) -> napi::Result<Buffer> {
+    let skeleton = skeleton_of(&walked.packages);
+    let mentions = mentions(Path::new(&walked.readme_root), &walked.names).map_err(napi::Error::from_reason)?;
+    let packages = Joined::new(skeleton, &walked.names, &walked.uses, &mentions).map_err(napi::Error::from_reason)?;
+    let deep = [&walked.deep, &walked.by_path, &walked.unfollowed].map(|held| held.iter().map(DeepRef::from).collect());
+    let input = StoreRef { packages: &packages, deep, unreadable: &walked.unreadable };
+    let (store, _) = encode(&input, &walked.exported, None, None);
+    Ok(store.into())
+}
+
+fn skeleton_of(packages: &[PublishPackage]) -> Vec<Skeleton<'_>> {
+    packages
+        .iter()
+        .map(|owner| Skeleton {
+            name: &owner.name,
+            entry: owner.entry,
+            openings: owner.openings.iter().map(|opening| OpeningSkeleton { subpath: &opening.subpath, source: &opening.source, spec: &opening.spec }).collect(),
+        })
+        .collect()
+}
+
 impl Held {
-    fn encode(self, o: HelpEncode) -> napi::Result<HelpEncoded> {
+    fn publish(self, o: HelpPublish) -> napi::Result<HelpEncoded> {
         let graph_digest = match (&self.tree, o.graph_digest) {
             (Some(tree), _) => Sha256::digest(tree).iter().map(|byte| format!("{byte:02x}")).collect(),
             (None, Some(digest)) => digest,
             (None, None) => return Err(napi::Error::from_reason("a reading that drew no tree is encoded under the digest of the caller's")),
         };
+        let names = self.names.as_ref().map_err(|refused| napi::Error::from_reason(refused.clone()))?;
         let meta = StoreMeta {
             root: o.root,
             graph_root: o.graph_root,
@@ -335,10 +397,20 @@ impl Held {
             index_digest: o.index_digest,
             packages_digest: Some(o.packages_digest),
         };
+        let skeleton = skeleton_of(&o.packages);
+        let mentions = mentions(Path::new(&o.readme_root), names).map_err(napi::Error::from_reason)?;
+        let packages = Joined::new(skeleton, names, &self.uses, &mentions).map_err(napi::Error::from_reason)?;
+        let unreadable: Vec<String> = o.unreadable.iter().chain(&self.unreadable).cloned().collect();
         let deep = [&self.deep[0], &self.deep[1], &self.deep[2]].map(|held| held.iter().map(DeepRef::from).collect());
-        let input = StoreRef { packages: &o.packages, deep, unreadable: &o.unreadable };
+        let input = StoreRef { packages: &packages, deep, unreadable: &unreadable };
         let (store, _) = encode(&input, &self.exported, Some(&meta), None);
-        Ok(HelpEncoded { store: store.into(), tree: self.tree.map(Buffer::from), graph_digest })
+        drop(input);
+        drop(packages);
+        drop(mentions);
+        let Held { exported, deep, tree, uses, names, .. } = self;
+        // Freeing the reading's rows is as long as a tenth of the encode, and nothing waits on it.
+        rayon::spawn(move || drop((exported, deep, uses, names)));
+        Ok(HelpEncoded { store: store.into(), tree: tree.map(Buffer::from), graph_digest })
     }
 }
 

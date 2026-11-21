@@ -1,6 +1,6 @@
 {
   "name": "@variance-authority/sense",
-  "version": "0.32.1",
+  "version": "0.34.0",
   "description": "Which components and tests a source change reaches: test selection and impact analysis from a versioned index of a checkout.",
   "keywords": [
     "variance-authority",
@@ -127,19 +127,18 @@
     "dist",
     "!dist/**/*.d.ts.map",
     "!dist/native",
+    "!dist/test-support",
     "mark.svg",
     "native/instrument/Cargo.toml",
     "native/instrument/build.rs",
     "native/instrument/src/*.rs",
     "record-layout.json",
-    "scripts/overhead.mjs",
     "scripts/probe-write.mjs"
   ],
   "scripts": {
     "build": "tsc --build && node native/build.mjs",
     "test:native": "cargo test --manifest-path native/Cargo.toml --workspace --lib --locked && node native/consumer.mjs",
     "storage": "node scripts/storage.mjs",
-    "overhead": "node scripts/overhead.mjs",
     "probe-write": "node scripts/probe-write.mjs",
     "coverage": "node scripts/coverage.mjs",
     "native": "node scripts/native.mjs",

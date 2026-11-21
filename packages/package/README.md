@@ -114,13 +114,15 @@ what kind of thing it is.
 
 ## Rank names and find undocumented exports
 
-`readHelp` is the same walk with two more readings taken: what was
+`readHelp`, in `@variance-authority/help`, is the same walk with two more
+readings taken, joined by the native addon the index publishes with: what was
 written above each name — its **doc**, the block comment attached to the
 declaration — and which packages import it. Names come back ordered by how
 many packages import them, so the ones most consumers depend on sort first.
 
 ```ts
-import { readHelp, undocumented } from '@variance-authority/package/help';
+import { readHelp } from '@variance-authority/help';
+import { undocumented } from '@variance-authority/package/help';
 
 const help = readHelp('.', { skip: ['fixtures'] });
 
@@ -221,7 +223,8 @@ gives you:
 
 ```ts
 import { readOfferings } from '@variance-authority/package';
-import { readHelp, readUsage } from '@variance-authority/package/help';
+import { readHelp } from '@variance-authority/help';
+import { readUsage } from '@variance-authority/package/help';
 
 const opened = new Set(
   readOfferings('.').flatMap((offering) =>

@@ -12,6 +12,7 @@ import {
   type RenderIdentity,
   type Viewport,
 } from '@variance-authority/core/format';
+import type { ComparedPixels } from '@variance-authority/png';
 import type { Renderer } from '@variance-authority/raster';
 import { createDurableStore } from '@variance-authority/store/durable';
 import { observeCaptureAgainstBaseline } from './capture.js';
@@ -174,6 +175,27 @@ describe('a durable observation above 1x', () => {
       moved: ['rasterization e5ed66c6 → 865368fe'],
     });
     expect(observation.because).toContain('rasterization e5ed66c6 → 865368fe');
+  });
+
+  it('hands the caller the pixels it decoded and how it paired their rows', async () => {
+    // The report draws its pictures from these, so it neither decodes nor
+    // pairs either side a second time.
+    const store = createDurableStore(root);
+    const before = fakeRenderer();
+    const after = fakeRenderer(MACHINE, DARK);
+    await store.put({ subject: 's' }, await keptRaster(await before.render(documentAt(1))));
+
+    const kept: ComparedPixels[] = [];
+    await observeAgainstBaseline(documentAt(1), { subject: 's' }, {
+      renderer: after,
+      store,
+      keep: (pixels) => kept.push(pixels),
+    });
+
+    expect(kept).toHaveLength(1);
+    expect(kept[0]!.before.data[0]).toBe(0xff);
+    expect(kept[0]!.after.data[0]).toBe(0x00);
+    expect(kept[0]!.after).toMatchObject({ width: 20, height: 20 });
   });
 
   it('gives every subject without a baseline the same reason, so a docket groups them', async () => {

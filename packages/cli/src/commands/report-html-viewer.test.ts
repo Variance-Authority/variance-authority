@@ -51,4 +51,14 @@ describe('the viewer shows the change a reviewer can read', () => {
 
     expect(html).toContain('data-box="4,4,16,16"');
   });
+
+  it('draws a faint region apart from a strong one', () => {
+    const [strong] = CHANGED.regions;
+    const faint = { ...strong!, x: 30, grade: 2, cause: false };
+    const html = reportHtml(reportOf({ observations: [{ ...CHANGED, regions: [{ ...strong!, grade: 4 }, faint] }] }));
+
+    expect(html).toContain('<tr data-region="0" data-box="4,4,16,16" class="cause">');
+    expect(html).toContain('<tr data-region="1" data-box="30,4,16,16" class="faint">');
+    expect(html).toMatch(/\.boxes b\.faint\{[^}]*border-style:dashed/);
+  });
 });

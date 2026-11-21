@@ -1,5 +1,6 @@
 import { resolve } from 'node:path';
-import { noPositionals, oneRecord, type Flags } from './args.js';
+import type { Page } from '@variance-authority/mcp/tools';
+import { countOf, noPositionals, offsetOf, oneRecord, type Flags } from './args.js';
 import { checkoutFile } from './checkout-file.js';
 import { OperatorError } from './exit.js';
 import type { CoveringFormat } from './commands/covering.js';
@@ -37,7 +38,23 @@ export interface CoveringSource {
   readonly suite?: string;
   /** The held text already read, by a caller that asks the same question of every suite. */
   readonly held?: string;
+  /**
+   * `--limit` and `--offset`: the test files the text answer shows, ten from
+   * the first when neither is said. Every row is still counted, and JSON
+   * carries every one.
+   */
+  readonly page?: Page;
+  /**
+   * The flags the text answer was asked with, as typed, every one but
+   * `--offset`: the next page is this question again at another offset, so
+   * the answer can end with it spelled whole. Absent under JSON and refs,
+   * which are not paged.
+   */
+  readonly asked?: readonly string[];
 }
+
+/** The test files a text answer shows when no page is asked: enough to pick from, few enough to read. */
+export const FIRST_PAGE: Page = { offset: 0, limit: 10 };
 
 /** One `--where` or `--read`: a name a case said or its code read, and the value it must have had, when one was given. */
 export interface WhereCondition {
@@ -129,7 +146,7 @@ function lineOrRange(raw: string): Pick<CoveringAt, 'line'> | Required<Pick<Cove
  * One of `--file` and `--since` is required and neither coordinate is, which is
  * the one place this parser is looser than its neighbours. A file alone is a
  * real question — *what does the suite claim about this module* — and it is
- * answered as ranges rather than as a list, so there is no shape in which the
+ * answered as one page of its test files, so there is no shape in which the
  * missing flag turns into a dump. A file is the question; a line narrows it.
  *
  * `--line` and `--function` are alternatives rather than a filter pair. Given
@@ -169,6 +186,13 @@ export function parseCoveringArgs(flags: Flags): ParsedCovering {
           'which is one origin and has one answer.',
       );
     }
+    for (const other of ['--limit', '--offset'] as const) {
+      if (flags.values.get(other) === undefined) continue;
+      throw new OperatorError(
+        `\`--since\` and \`${other}\` do not compose. A diff is answered per changed region, ` +
+          'not as a page of test files; ask a file or a line to page its test files.',
+      );
+    }
     const against = flags.values.get('--against');
     if (against === '') throw new OperatorError('`--against` takes the case index the base recorded.');
     return { ...executionAnd(flags), since, ...(against === undefined ? {} : { against }) };
@@ -205,8 +229,8 @@ export function parseCoveringArgs(flags: Flags): ParsedCovering {
   if (flags.present.has('--hops') && asked === undefined && functionName === undefined) {
     throw new OperatorError(
       '`--hops` measures how far each test file whose cases reached a line or function is from ' +
-        'it, so it takes `--line` or `--function`; a whole file is answered as ranges, one list of ' +
-        'test files per range.',
+        'it, so it takes `--line` or `--function`; a whole file is answered by its test files, ' +
+        'ranked by the cases that called into it.',
     );
   }
 
@@ -230,11 +254,19 @@ function executionAnd(flags: Flags): CoveringSource {
   if (format !== 'text' && format !== 'refs' && format !== 'json') {
     throw new OperatorError(`--format must be text, refs or json, not \`${format}\``);
   }
+  for (const other of ['--limit', '--offset'] as const) {
+    if (format === 'text' || flags.values.get(other) === undefined) continue;
+    throw new OperatorError(
+      `\`--format ${format}\` and \`${other}\` do not compose. It names every case, ` +
+        'not a page of test files; ask the text answer to page its test files.',
+    );
+  }
   const execution = flags.values.get('--execution');
   const cases = flags.values.get('--cases');
   if (cases === '') throw new OperatorError('`--cases` takes `last` or a test file.');
   const suite = flags.values.get('--suite');
   oneRecord(suite, execution, '--execution');
+  const page = pageFrom(flags);
   const where = (flags.repeated.get('--where') ?? []).map((raw) => whereOf(raw, '--where'));
   const read = (flags.repeated.get('--read') ?? []).map((raw) => whereOf(raw, '--read'));
   return {
@@ -244,9 +276,31 @@ function executionAnd(flags: Flags): CoveringSource {
     ...(cases === undefined ? {} : { cases }),
     ...(where.length === 0 ? {} : { where }),
     ...(read.length === 0 ? {} : { read }),
+    ...(page === undefined ? {} : { page }),
+    ...(format === 'text' ? { asked: askedFlags(flags) } : {}),
     root: resolve(flags.values.get('--root') ?? process.cwd()),
     format: format as CoveringFormat,
   };
+}
+
+/** Every flag given, in the order typed, with its values, `--offset` left out: the next page says its own. */
+function askedFlags(flags: Flags): readonly string[] {
+  return [...flags.present].filter((flag) => flag !== '--offset').flatMap((flag) => {
+    const values = flags.repeated.get(flag) ?? [flags.values.get(flag)];
+    return values.flatMap((value) => (value === undefined ? [flag] : [flag, value]));
+  });
+}
+
+/**
+ * `--limit` and `--offset` as every paged command reads them (`args.ts`),
+ * absent when neither is said. Not `pageOf`: this module loads with every
+ * command, and the paging owner's package must load only with `covering`.
+ */
+function pageFrom(flags: Flags): Page | undefined {
+  const limit = countOf(flags.values.get('--limit'), 'test files to show');
+  const offset = offsetOf(flags.values.get('--offset'));
+  if (limit === undefined && offset === undefined) return undefined;
+  return { offset: offset ?? FIRST_PAGE.offset, limit: limit ?? FIRST_PAGE.limit };
 }
 
 /**

@@ -1,9 +1,18 @@
 import { PNG } from 'pngjs';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { isolateRegions } from '@variance-authority/core/attribute';
-import { DEFAULT_POLICY, STRICT_POLICY } from '@variance-authority/raster';
-import { comparePngs } from './compare.js';
+import type { Raster } from '@variance-authority/core/format';
+import { DEFAULT_POLICY, SEVERITY_LEVELS, STRICT_POLICY } from '@variance-authority/raster';
+import { alignRows } from './align.js';
+import { changeImages } from './change.js';
+import { comparePngs, compareRasters, type ComparedPixels } from './compare.js';
 import { comparePixels } from './index.js';
+
+// The real pairing, counted: the report must not pair the rows again.
+vi.mock('./align.js', async (actual) => {
+  const module = await actual<typeof import('./align.js')>();
+  return { ...module, alignRows: vi.fn(module.alignRows) };
+});
 
 /**
  * Comparison, on images built pixel by pixel rather than rendered.
@@ -68,7 +77,7 @@ describe('comparing two rasters', () => {
     expect(comparison.mask.changed).toBe(25);
 
     const regions = isolateRegions(comparison.mask, { cell: 1 }).regions;
-    expect(regions).toEqual([{ x: 5, y: 5, width: 5, height: 5, pixels: 25, density: 1 }]);
+    expect(regions).toEqual([{ x: 5, y: 5, width: 5, height: 5, pixels: 25, density: 1, grade: SEVERITY_LEVELS.length }]);
   });
 
   it('reports both a forgiving and an exact policy', () => {
@@ -133,5 +142,67 @@ describe('comparing two rasters', () => {
     expect(() =>
       comparePngs(image, image, { policies: [DEFAULT_POLICY], isolateWith: STRICT_POLICY }),
     ).toThrow(/was not among the compared policies/);
+  });
+});
+
+describe('the pixels a comparison hands on', () => {
+  // Three rows go in at the top, so the rest moved: the case where the report
+  // would otherwise decode both sides and align them a second time.
+  const before = png(16, 12, (x, y) => (y === 4 ? [0, 0, 0] : [255, 255, 255]));
+  const after = png(16, 15, (x, y) => (y < 3 ? [200, 30, 30] : y === 7 ? [0, 0, 0] : [255, 255, 255]));
+  const raster = (bytes: Buffer, height: number) => ({ bytes: bytes.toString('base64'), width: 16, height }) as Raster;
+
+  it('decodes and pairs each side once, and gives the report what it decoded and how the rows paired', async () => {
+    vi.mocked(alignRows).mockClear();
+    let decoded = 0;
+    const decoder = {
+      decode: async (bytes: Buffer) => {
+        decoded += 1;
+        return PNG.sync.read(bytes);
+      },
+    };
+    let kept: ComparedPixels | undefined;
+    const comparison = await compareRasters(raster(before, 12), raster(after, 15), {
+      decoder,
+      keep: (pixels) => {
+        kept = pixels;
+      },
+    });
+
+    const reusedImages = changeImages(kept!.before, kept!.after, isolateRegions(comparison.mask).regions, undefined, {}, kept!.aligned);
+    expect(decoded).toBe(2);
+    expect(vi.mocked(alignRows)).toHaveBeenCalledTimes(1);
+    expect(reusedImages.diff.length).toBeGreaterThan(0);
+    expect([kept?.before.height, kept?.after.height]).toEqual([12, 15]);
+    expect(kept?.aligned?.inserted).toEqual(comparison.alignment?.inserted);
+
+    // What the report draws from the handed-on pixels is what it drew deciding
+    // them itself.
+    const regions = isolateRegions(comparison.mask).regions;
+    const own = changeImages(PNG.sync.read(before), PNG.sync.read(after), regions);
+    const reused = changeImages(kept!.before, kept!.after, regions, undefined, {}, kept!.aligned);
+    expect(reused.diff.equals(own.diff)).toBe(true);
+    expect(reused.change?.equals(own.change!)).toBe(true);
+  });
+
+  it('pairs under the policy the compared list names, not the default it shares an id with', async () => {
+    // A header shaded row by row and drawn one level lighter, beside an
+    // insertion lower down: a threshold of 0 keeps its copies one row off, and
+    // the default's 0.01 pairs it in place, so the two thresholds pair it apart.
+    // Content rows far apart in colour; the band's rows one level apart.
+    const [a, b, c, d, e, f, g, x, y] = [1, 2, 3, 4, 5, 6, 7, 10, 11].map((k) => k * 0x1000);
+    const band = (from: number) => Array.from({ length: 10 }, (_, k) => from + k);
+    const rows = [a, b, c, ...band(200), d, e, f, g];
+    const shaded = [a, b, c, ...band(201), d, e, x, y, f, g];
+    const paint = (values: readonly number[]) =>
+      png(4, values.length, (_, row) => [values[row]! & 0xff, (values[row]! >>> 8) & 0xff, 0x80]);
+    const exact = { ...DEFAULT_POLICY, threshold: 0 };
+    const options = { policies: [exact, STRICT_POLICY] };
+    const banded = (values: readonly number[]) => ({ bytes: paint(values).toString('base64'), width: 4, height: values.length }) as Raster;
+
+    const decoded = await compareRasters(banded(rows), banded(shaded), options);
+    const direct = comparePngs(paint(rows), paint(shaded), options);
+
+    expect(decoded.alignment).toEqual(direct.alignment);
   });
 });

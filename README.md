@@ -35,7 +35,7 @@ as the investigation grows.
 | Learn where an action in a browser test ended | [Declare the outcomes the action can reach](packages/page-broker/README.md) — the next page, a dialog, or staying put — and performing it names the one the app reached. It needs a Playwright test and nothing recorded, and it does not say when an action may start. |
 | Make one test smaller | [Find the modules loaded and components rendered that the test never used](docs/distill.md), try one substitution, and confirm it with the same test. |
 | Understand an interface | [Measure grouping, spacing, alignment, emphasis, and repetition](docs/presentation.md) on the live page, make an edit, and measure again. |
-| Explain what changed | [Keep text, accessibility, layout, styles, and pixels separate](docs/explain-variance.md), then trace a changed region to its component and source location. |
+| Explain what changed | [Keep text, accessibility, layout, styles, and pixels separate](docs/explain-variance.md), see which regions changed shape and which only colour, then trace a changed region to its component and source location, with strong changes named before a faint repaint. |
 | Check whether the work did what you intended | [Compare the intentions declared before an edit](docs/reasoning.md) with its observed effects: what landed, what did not, and what changed outside the declared scope. |
 
 ## Give your coding agent the same evidence
@@ -183,6 +183,13 @@ The scan that answers *what can this change reach* is not limited to the
 language the tool is written in. JavaScript and TypeScript in every dialect,
 stylesheets, Python, Rust, Java, Kotlin and Swift are read into one graph, and a
 diff that spans several of them is answered in one walk.
+
+Framework file formats and bundler-only aliases are not read yet. Vue and Svelte
+single-file components are not indexed, the template and stylesheet files an
+Angular component names in `templateUrl` and `styleUrls` are not linked to it,
+and an import alias declared only in a bundler's configuration does not resolve
+— one declared as `paths` in a `tsconfig` does. [The source scan's
+limits](docs/source.md#limits) say what each one leaves out.
 
 ```bash
 variance reach --since origin/main

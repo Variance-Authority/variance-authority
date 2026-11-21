@@ -265,7 +265,11 @@ impl ResolverImpl {
         let Some(dir) = path.parent() else {
             return Err(Self::invalid_resolve_file_path_error(path));
         };
-        let tsconfig = self.find_tsconfig(path)?;
+        // A tsconfig that fails to load governs nothing: the file resolves as
+        // if it had none, on every request alike, where an error would leave the
+        // caller's fallback to answer only until another resolver filled the
+        // shared cell with `None`.
+        let tsconfig = self.find_tsconfig(path).ok().flatten();
         self.resolve_tracing(dir, specifier, tsconfig.as_deref(), &mut ctx)
     }
 

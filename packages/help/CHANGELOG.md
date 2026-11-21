@@ -1,5 +1,169 @@
 # @variance-authority/help
 
+## 0.34.0
+
+### Minor Changes
+
+- 2794c66: `variance ask` and `variance-authority-help` answer a source question from the generation `variance index` last published, at any age, and do nothing else: they no longer look at the files an answer rests on, refresh a generation over an hour old, or build one when none is published. After an edit, run `variance index`, then ask. With no generation, a question refuses in one line that names `variance index`. `ask discover` and a report question's start point read the file tree and its names from that generation too, instead of scanning the checkout. On Kibana, `ask symbol --name HttpServer` after a one-line edit to the file that declares it went from about 6.6 s to the unedited time. `--just-answer` leaves both commands, since it is what they now always do; `variance serve` and the help server keep it and their one-hour reuse. `--changed-file` and `--taint-file` still ask for a new generation by name.
+
+  `refusalFooter` in `@variance-authority/help` takes `(at, unseen)`: its `caught` argument was always undefined once `ask` stopped looking again.
+
+  `readGenerationNames(help, root, index?)` in `@variance-authority/help` reads every file's names off the source index a published value was read from, spelled as its tree spells them, including a workspace whose members sit beside its directory.
+
+## 0.33.0
+
+### Minor Changes
+
+- 90114df: A case times its statements under Vitest, Jest and Rstest: every line of the
+  test its body ran keeps its time in microseconds on the real clock, with a
+  loop's runs summed and hooks left out. `variance ask slowest-tests` prints the
+  slowest of them under each case it lists, with its share of the case.
+  `cadence: false` turns it off, and a record written before it reads every case
+  as untimed.
+- ae9262c: `ask symbol --line <file>:<line>` ranks the declarations of a name by how closely the tests that entered each match the tests that ran the line. The ranking is overlap of recorded tests and does not establish which declaration the line called. Declarations entered by the same tests are marked tied. A line no recorded test ran, and a recording that cannot place the lines at the commit it ran at, say so and answer as without `--line`.
+- 77bdb72: A name not found, and every other refusal of a source question, is answered from the generation the question read. It no longer rescans the checkout, rebuilds the dependency lexicon, or publishes a new snapshot first. Before this change, `variance ask symbol` or `ask uses` for an absent name took about ten seconds on a checkout of a hundred thousand files, and now takes about as long as a name it finds. When that generation was made before the question, the answer's last line says the checkout was not compared with it. A function written since then is reported missing until `variance index` runs or `--changed-file` names its file. A found answer whose files changed since its generation is still asked again of one made now, as before. This holds on `variance ask`, `variance serve`, `variance-authority-help` and its server. A server holding a generation, `variance serve` or `variance-authority-help`'s, reads the generation `variance index` published since on its next call, on the same connection and under `--just-answer` too, so the name is found without restarting it; seeing that one was published costs a read of the published value's head.
+
+  `caughtUp` no longer takes a lexicon root, and its `again` reads a generation made now with no argument. `madeBefore` says whether a refusal's generation predates the question, and `readAgain` whether a server reads the workspace again before a call: when it holds nothing, a newer generation was published, or, without `justAnswer`, the one it holds has expired. In `@variance-authority/mcp`, `serve` hands `again` only an answer that `outlived` flags, never a refused call, and `answered` receives when the request started.
+- 5493b83: `ask grep`, `docs_grep` and `discover --text` answer with no `rg` on PATH
+
+  They ran the `rg` binary over the files a start point reaches, and a machine without it got an instruction to install ripgrep instead of an answer. The search now runs inside the native addon on ripgrep's own crates, so the pattern language, the BOM-sniffed encodings and the binary rules are ripgrep's as before. A ripgrep config file named by `RIPGREP_CONFIG_PATH` no longer applies, and a line that is not UTF-8 shows its text with replacement characters rather than `(not UTF-8)`.
+
+  `ripgrepNative(root, pattern, files)` returns the matching lines of the files, as columns, in the order the files were given, and one complaint per file it could not read.
+- b6f75d6: `ask grep --from` and `--to` walk the imports `variance index` resolved
+
+  A scoped `ask grep` drew the import graph of the whole checkout at question time: every tsconfig and manifest read, every specifier resolved, every mock of every test resolved, to search the few thousand files a start point reaches. It now walks the source tree `variance index` publishes, and only ripgrep's search costs the area. On Kibana a search from one file whose area holds 14,686 files went from 10 s to 0.6 s.
+
+  The published tree carries the modules a test loads for real beside its mocks (`vi.importActual`, `jest.requireActual`, a factory's `require`), resolved when the tree is published, so `ask uses`, `ask symbol` and `docs_search` with a start point reach them too, as `ask grep` did. Its format version moves to 2, and a tree published by an earlier version is read again.
+
+  A `grep` answer now names the generation it was read from, and is asked again of the checkout as it is when a file of its area changed since; a file that just began importing into its area, or was written under a folder it starts from, waits for `variance index` or the hour.
+- 734e044: `variance ask grep --test <file> [--name <words>]` searches only the files one recorded test entered, and marks each matching line as ran, or not taken with the branch or function the test did not enter. `testsRan` in `@variance-authority/sense` reads the same answer from the recording.
+- 2e0e535: The questions `variance index` publishes are one binary store
+
+  `variance index` and every question that publishes a generation now write one
+  file beside the source index, `source-index.bin.help.bin`, in place of the JSON
+  value `source-index.bin.help.json` and the search `source-index.bin.help-search.bin`
+  beside it. `ask symbol`, `uses`, `search`, `packages`, `entrypoint`, `gaps`, the
+  help server and `variance serve` open it in place and decode a name only when a
+  question reads it. A generation published before this release is not read: the
+  next question reads the checkout and publishes the store, and `--just-answer`
+  refuses until `variance index` runs.
+
+  A store that is there and does not open is named with the answer, as
+  `The published value at … did not open (…); the checkout was read instead.`
+  There is no longer a second file to fall back on, so the counts a search shows
+  then are the checkout's, not the counts by published path.
+
+  Breaking for code that reads the files itself. `@variance-authority/sense` drops
+  `encodeSearch`, `exportedDigest`, `EncodedSearch`, `PublishedRows` and
+  `SearchGeneration`, and exports `encodeHelpStore`, `restampHelpStore` and the
+  `HelpStore`, `StoreMeta` and `EncodedStore` shapes. `HelpReading.publish` takes
+  `packagesDigest`, and its usage no longer carries the imports by path, which
+  the addon writes. `@variance-authority/help` exports `publishedHead`, the
+  generation read off the store's head alone, and its `StoreHead`; an `Unopened`
+  is always `published: 'value'`. A package's
+  `Documented` in `@variance-authority/package/help` no longer carries `declared`:
+  whether the manifests moved is compared by the digest the store keeps.
+
+  `@variance-authority/core/segment` opens a segment's first bytes alone with
+  `openSegment(…, { prefix: true })`: a header or column past them throws
+  `SegmentCutShort` with the length that holds it. The store is a segment in that
+  framing, so its head is read off its first bytes without reading the rest.
+- a6b7aea: The record keeps how each attempt of a retried case ended. A runner that retries a failing case reports the last attempt, so a case that failed and then passed read as a pass. A recorded run under Vitest, Jest, Rstest or Playwright now writes one row per attempt of every case its runner reported more than one attempt of: how the attempt ended, in the runner's own word, and where the runner says them how long it ran and, for one that did not pass, the failure's message and its frame inside the checkout. Vitest 4.1 and Playwright say all of it; Jest and Rstest time no single attempt, and Jest names what an earlier attempt failed with only under `logErrorsBeforeRetry`. A case that ran once adds nothing, and its `stopped`, duration and limit are unchanged.
+
+  `variance ask retried-tests` (`docs_retried_tests`) lists the cases whose attempts ended differently in the recorded run, each with its attempts and its limit, under the record's origin, commit and age. A record whose run kept no attempts says that they were not kept, not that no case was retried.
+
+  A build older than this one refuses a record that holds the new `cases.attempts` section, as it refuses any section it does not know. No selection reads the section.
+- c19d8a4: The documented surface is read off the index by one native producer
+
+  Every publish of the questions — `variance index`, a first reading with nothing
+  published, a reading with `--changed-file` or taints — now reads the names each
+  entry hands out, the kinds they are declared as and the text of each
+  declaration from the source index, in the native addon, beside the uses and
+  the source tree. No parse row crosses into JavaScript, and the checkout is no
+  longer scanned a second time when nothing was published before. An index that
+  did not move still publishes nothing.
+
+  A reading now always saves the index it scanned, because the value is read from
+  it: `readWorkspace` drops its `save` and `saveIndex` options, and an index that
+  cannot be saved is thrown as an `UnsavedRead` rather than answered from memory.
+  `refreshWorkspace` reads the whole value again from the updated index instead
+  of keeping the signatures and comments of the reading it was handed.
+  `@variance-authority/sense` drops `sourceTreeOf` and `forwardsDigest`, and
+  `readHelp` takes the entries to document and whether to draw the tree; the
+  reading it returns hands over `names()` and encodes the store with `encode()`.
+  The unreadable files are listed as the manifests' first, then the index's, each
+  in path order.
+
+  A scan of a directory git cannot list now keeps a record of each file it read in
+  the index it is handed, under a shape no listed scan reuses, so the questions
+  and the code map are read off its index as off any other; `digests: false`
+  still keeps none.
+- 68df956: `ask uses` answers from the imports the index resolved, and guesses nothing else
+
+  `variance ask uses`, `ask symbol` and `docs_uses` no longer end with the files
+  whose import the source index resolved to no file and that "could take the
+  name", nor, for a name no file here declares, with the packages outside the
+  workspace it is imported from and a `discover --imports` question. An import
+  the index resolved to no file resolves to none when the question is asked
+  either, so both lines were a guess at question time; the answer now lists the
+  resolved uses alone. Breaking: `outsideSourcesOf` is gone from
+  `@variance-authority/sense`, and `importersOf` no longer returns `unresolved`.
+
+### Patch Changes
+
+- bafb60b: A source file is read once, by the parse that indexes it
+
+  The source index keeps the text of every doc comment, declaration head and
+  member and export line an answer prints, cut from the source the parse already
+  held, so reading a workspace and answering about it no longer open each file a
+  second and third time to cut those lines out. The doc and head rules run in one
+  place, the native index, and `@variance-authority/sense` exports `exportLine`
+  for the line an export is written on.
+  A file the parse could not read is recorded as unreadable rather than read again
+  from JavaScript.
+
+  An answer now prints a file's text as the index read it, also when the file was
+  written since: the date line still says the checkout was not compared, and
+  nothing of what the file holds today is mixed into it. The source index format
+  moves to version 47, so the first command after upgrading reads the checkout
+  once more.
+- f48cf4c: `variance story --name` explains a test no story was recorded for from the
+  record every run keeps: each line of its body in the order first reached, with
+  its source, its time and its share of the test, and the functions it was the
+  first to run, grouped by package, a hook's apart. It says when the test file
+  changed since the record was written. A test with a story recorded still
+  prints the story, as does an ask that names a `--project`.
+
+  `ask slowest-tests` gives a statement's share of its case as `variance story`
+  does, from the statement's microseconds, and prints its time to the nearest
+  millisecond.
+- 4417f78: `variance index` says when it kept the code map and the questions because the index and the manifests did not move, as it already did for the journeys and the dependency lexicon: `questions: kept at <time>, because …`. Each keep is checked before the read it would spare: the code map against the index's manifest alone, before any segment of the index is read, and the questions against the head of the store they were published to, before the store is opened. `publishWorkspaceFromIndex` returns `{ generation, kept }`, where it returned the generation. A store whose file is not the length its head declares, such as one cut short, is published again rather than kept. `publishedHead` takes the checkout's root before the index, and answers only for a store that root published and whose file is whole. An opened segment says the length its header declares.
+- b8eb2c1: The READMEs and the `variance-authority` skill say that the source index does
+  not yet read framework file formats or bundler-only aliases: Vue and Svelte
+  single-file components are not indexed, the files an Angular component names in
+  `templateUrl` and `styleUrls` are not linked to it, and an import alias declared
+  only in a bundler's configuration does not resolve, where one declared as
+  `paths` in a `tsconfig` does.
+- 64b5265: `symbol` and `uses` read the rows a name names. A question about one name used to turn every exported name of the workspace and every import written by path into objects before it kept a few dozen; it now asks the store's reader for the exports written under the name, the exports of the files they sit in, and the imports by path that take the name, and decodes those. On a workspace of 107,000 files `variance ask symbol --name mount --just-answer` answers in 0.72 s where it took 1.15 s, and `variance ask uses --name mount` in 0.55 s where it took 1.04 s. No answer changes.
+
+  `SearchIndex` gains `rows`, the reader those questions ask.
+- d1cd471: One question opens the source index once. `variance ask symbol` and `variance
+  ask search` about a name declared in many files read, checked and opened every
+  segment of the index again for each declaration they followed; they now do so
+  once per answer, however many readers the answer asks. On Kibana, `ask symbol
+  --name mount` drops from 5.3 s to 2.9 s, `ask search --query mount` from 1.1 s
+  to 0.56 s, and `docs_symbol` to a warm help server from 4.1 s to 2.0 s.
+- be24c9e: `ask symbol` reads who imports a name once for all the files that declare it
+  and that no entry publishes, default exports included, rather than once per
+  declaration, with the same answer.
+
+  `importersOf` in `@variance-authority/sense` now takes groups of
+  `{ file, name }` pairs in place of files and one name, and follows each group
+  as one question: its `uses` and `through` are in `groups`, one entry per group
+  in the order asked, where they were at the top of the answer. A caller that
+  passed `(root, files, name)` passes `(root, [files.map((file) => ({ file, name }))])`
+  and reads `groups[0]`.
+
 ## 0.32.1
 
 Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.

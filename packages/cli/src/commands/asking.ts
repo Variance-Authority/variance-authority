@@ -12,6 +12,7 @@ import {
   type Tool,
   type ToolInvocation,
 } from '@variance-authority/mcp/tools';
+import type { Unknown } from '../args.js';
 import { OperatorError } from '../exit.js';
 
 /**
@@ -136,6 +137,7 @@ const PLACEHOLDER: Readonly<Record<string, string>> = {
   file: '<path>',
   files: '<path>[,...]',
   name: '<name>',
+  line: '<file>:<line>',
   package: '<name>',
   subpath: '<subpath>',
   query: '<words>',
@@ -234,12 +236,14 @@ export function takes(tool: Asked): string {
 }
 
 /**
- * The arguments this question takes, refusing the ones it does not.
+ * The arguments this question takes, telling `ignore` of each one it does not.
  *
- * Refused rather than ignored, for the reason the flag parser refuses an unknown
- * flag: `variance ask summary --subject story:card` reads, to whoever typed it,
- * as a question about that subject, and answering the whole suite instead is the
- * failure that survives review because the output looks right.
+ * Told rather than refused: a question reads and writes nothing, and the line is
+ * printed beside the answer to whoever typed the flag. It says the answer was
+ * what it would be without it, because `variance ask summary --subject story:card` reads,
+ * to whoever typed it, as a question about that subject, and an answer about the
+ * whole suite looks right. A missing required argument is still refused: the
+ * question cannot be answered without it.
  *
  * `given` is keyed by property rather than by flag so the caller can resolve a
  * value however it needs to — one of these is a file that has to be read and
@@ -248,16 +252,20 @@ export function takes(tool: Asked): string {
 export function inputFor(
   tool: Asked,
   given: Readonly<Record<string, unknown>>,
+  ignore: (message: string) => void,
+  /** The flags no question takes, typed at this one. */
+  unknown: readonly Unknown[] = [],
 ): Readonly<Record<string, unknown>> {
   const accepted = argumentsOf(tool);
   const input: Record<string, unknown> = {};
 
+  for (const { flag, typed } of unknown) ignored(tool, flag, typed, ignore);
   for (const [property, value] of Object.entries(given)) {
     if (value === undefined) continue;
     const argument = accepted.find((entry) => entry.property === property);
     if (argument === undefined) {
-      const flags = accepted.map((entry) => entry.flag);
-      throw new OperatorError(`${notTaken(tool, `--${property}`)}.${didYouMean(`--${property}`, flags)}`);
+      ignored(tool, flagOf(property), flagOf(property), ignore);
+      continue;
     }
     // A list a tool declares is typed once, comma-separated, like `--files`.
     input[property] = argument.kind === 'list' && typeof value === 'string'
@@ -302,16 +310,53 @@ export function refuseWords(tool: Asked, words: readonly string[] | undefined): 
   const quoted = argumentsOf(tool).some((argument) => argument.kind === 'text')
     ? ' A value of more than one word is one argument, in quotes.'
     : '';
-  throw new OperatorError(`${notTaken(tool, word)}.${quoted}`);
+  throw new OperatorError(`${notTaken(tool, word)}; ${takesNow(tool)}.${quoted}`);
 }
 
-/** That a question does not take what was typed, and what it takes instead. */
+/**
+ * Refuse the words typed after a question that reads none of them, once each
+ * word typed right after a flag no question takes is given to that flag as its
+ * value. The flags come back named with their values, for `inputFor` to name:
+ * `--limt 5` is one flag answered past, not a flag and a stray `5`.
+ */
+export function wordless(tool: Asked, unknown: readonly Unknown[] = [], words: readonly string[] = []): readonly Unknown[] {
+  const taken = new Set<number>();
+  const valued = unknown.map(({ flag, typed, next }) => {
+    const value = next === undefined ? undefined : words[next];
+    if (value === undefined) return { flag, typed };
+    taken.add(next as number);
+    return { flag, typed: `${typed} ${value}` };
+  });
+  refuseWords(tool, words.filter((_, at) => !taken.has(at)));
+  return valued;
+}
+
+/**
+ * Tells `ignore` that a question answered without a flag it does not take, and
+ * the nearest of the ones it does. The one sentence for a flag the question
+ * lacks and for one no question has, its value included, so either reads alike.
+ */
+export function ignored(tool: Asked, flag: string, typed: string, ignore: (message: string) => void): void {
+  const flags = argumentsOf(tool).map((argument) => argument.flag);
+  ignore(`${notTaken(tool, typed)}, so the answer is what it is without it; ${takesNow(tool)}.${didYouMean(flag, flags)}`);
+}
+
+/** Tells `ignore` of a flag typed where no question was asked, beside the list of questions. */
+export function unasked(unknown: readonly Unknown[], ignore: (message: string) => void): void {
+  for (const { typed } of unknown) {
+    ignore(`\`${typed}\` is not an argument \`variance ask\` takes, so the list of questions is what it is without it; a flag goes after its question.`);
+  }
+}
+
+/** That a question does not take what was typed. */
 function notTaken(tool: Asked, typed: string): string {
+  return `\`${typed}\` is not an argument \`variance ask ${verbOf(tool)}\` takes`;
+}
+
+/** What a question takes instead, as the second half of a sentence. */
+function takesNow(tool: Asked): string {
   const flags = argumentsOf(tool).map(spelling);
-  return (
-    `\`${typed}\` is not an argument \`variance ask ${verbOf(tool)}\` takes; it ` +
-    `takes ${flags.length === 0 ? 'none' : flags.join(', ')}`
-  );
+  return `it takes ${flags.length === 0 ? 'none' : flags.join(', ')}`;
 }
 
 /** Greedy, on spaces, and nothing else. The descriptions are prose, not layout. */

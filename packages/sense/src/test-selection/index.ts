@@ -34,7 +34,7 @@ export {
 export { type SourceTestTarget } from './source-target.js';
 export { overwrittenIn, overwrittenOn, type OverwrittenOn } from './overwritten.js';
 export { anyStopped } from './stopped.js';
-export { unenteredSentence, whyUnentered, type Unentered } from './unentered.js';
+export { unenteredSaid, whyUnentered, type Unentered, type UnenteredSaid } from './unentered.js';
 export { blocksOfTarget, functionsUnder, innermostAt, lineGrain, marksLoadTime } from './source-target.js';
 export { NAME_BOUNDARY, NameGrammarError, nameIndex, parseNameGrammar, structuralParent } from './name-grammar.js';
 export type { AxisStep, GrammarAxis, NameGrammar, NameIndex, NamedAxis, StructuralLink, StructuralName } from './name-grammar.js';
@@ -101,6 +101,7 @@ export { readByInstall, shardsInstall, shardsTexts, type KeptInstall, type Shard
 // A text cut as a seam records it, so rows written by hand stand where a
 // landing that cuts the text again puts them.
 export { sourceCut } from './coverage-rows.js';
+export { sessionsAgainst, sessionSources, type NamedSession, type SessionFunction, type SessionMap, type SessionRead, type SessionScript, type SessionSource, type SessionState, type SessionsAgainst, type SessionsFile, type SessionsFunction, type SessionVerdict, type SourceRead, type V8Function, type V8Range } from './session.js';
 export { runsAsBefore, type RunsAsBefore } from './runs-as-before.js';
 export { kept, placed, selectedLines, type SuiteSelection, type SuiteTimes } from './suite-selection.js';
 export { askedSelection, landingTimes } from './selection-environment.js';
@@ -218,6 +219,8 @@ export { commitRunsAfter, commitRunsFile, heldCommitRuns, landRun, namedCommits,
 export { commitRunsIn } from './commit-runs-text.js';
 export { readJobWrites, type JobWrites } from './job-record.js';
 export { recordJob, type JobRun } from './job-recording.js';
+export { recordCargo, type CargoRun } from './cargo-recording.js';
+export { serveBase } from '../janus/serve-base.js';
 export { askPerStand, readingFrom, standDiff, standsAt, wholeEntry, withoutFiles, type Git, type Stand, type StandAnswer, type StandQuestion, type StandReading } from './stands.js';
 export { assumedOf, lastRunsOf, testPlaces, type CasesLastRan, type TestPlace } from './test-places.js';
 export { ago, whatLanded, type WhatLanded } from './landings.js';
@@ -290,6 +293,7 @@ interface CoverageRegion {
   readonly loadedBy?: readonly string[];
 }
 
+/** One module of a suite's record: its text's digest and the blocks it was cut into, each with the test files that entered it. */
 export interface CoverageModule {
   readonly file: string;
   /**

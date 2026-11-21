@@ -58,8 +58,8 @@ describe('search from its published store', () => {
     let searchTree: Tree | undefined;
     const { index: search } = await readSearchForAnswer(root, { index: at, justAnswer: true, tree: (drawn) => { searchTree = drawn; } });
 
-    expect([...(tree?.files ?? [])].length).toBeGreaterThan(0);
-    expect([...(searchTree?.files ?? [])]).toEqual([...(tree?.files ?? [])]);
+    expect([...(tree?.files() ?? [])].length).toBeGreaterThan(0);
+    expect([...(searchTree?.files() ?? [])]).toEqual([...(tree?.files() ?? [])]);
     expect(QUESTIONS.map((args) => askSearch(search, args, () => searchTree, false, undefined, importingOf(help, undefined)))).toEqual(expected);
     expect(expected[0]).toContain('\nSnapshot ');
   });
@@ -130,11 +130,11 @@ describe('search from its published store', () => {
     );
   });
 
-  it('refuses under `--just-answer` when nothing is published, names that flag, and publishes nothing', async () => {
+  it('refuses under `justAnswer` when nothing is published, names `variance index`, and publishes nothing', async () => {
     const empty = join(root, '.unpublished');
     const refused = readSearchForAnswer(root, { index: empty, justAnswer: true });
     await expect(refused).rejects.toThrow(/none is published/);
-    await expect(refused).rejects.toThrow(/asked with `--just-answer`/);
+    await expect(refused).rejects.toThrow(/Run `variance index` to publish one\.$/);
     await expect(access(empty)).rejects.toThrow();
     await expect(access(workspaceSnapshotPath(empty))).rejects.toThrow();
   });

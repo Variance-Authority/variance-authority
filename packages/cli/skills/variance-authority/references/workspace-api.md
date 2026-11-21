@@ -1,7 +1,7 @@
 # What a workspace publishes, and where a name is used
 
-Nine questions read a workspace's manifests and source: `packages`,
-`entrypoint`, `symbol`, `uses`, `search`, `grep`, `discover`, `intersection`
+Ten questions read a workspace's manifests and source: `packages`,
+`classify`, `entrypoint`, `symbol`, `uses`, `search`, `grep`, `discover`, `intersection`
 and `gaps`. Each answer
 read from a workspace generation names its UTC time; `variance ask discover`
 reads the checkout as it is, and names none. They describe source, not a
@@ -21,7 +21,7 @@ same questions are the `docs_*` tools in [MCP](mcp.md).
 ```bash
 variance ask search --query viewport
 variance-authority-help search viewport
-variance-authority-help search viewport --from packages/app/ --just-answer
+variance-authority-help search viewport --from packages/app/
 ```
 
 On `variance ask` every argument is a flag, and `variance ask` with no question
@@ -33,31 +33,32 @@ the first argument is positional.
 - **Node.** The version the installed package declares in `engines`.
 - **One of the two binaries.** `@variance-authority/cli` provides `variance ask`;
   `@variance-authority/help` provides `variance-authority-help`.
-- **No run, no config, no revision requirement.** Ordinary questions reuse a
-  published generation for up to one hour. A question that generation refuses,
-  a name not found among them, is answered from it, and says the checkout was not
-  compared with it: run `variance index`, which also builds the dependency
-  lexicon, when a name was written since; a server's next call, on the same
-  connection, reads the generation it published. A `symbol` or `uses`
-  whose files, the ones that declare the name or pass it on, the entry that publishes it and each
-  row `uses` lists, or a server's `docs_search` whose printed files or the entry and barrels publishing them, changed
-  after that generation is asked again of one made now, so it does not answer from old lines. One that could not be
-  read again or saved, or whose file was saved during the read that answers it, says the checkout
-  was not compared, and why, and gives a file written since as the generation read it:
-  its names and the text of them it kept. `--just-answer` uses the
-  last generation without inspecting the checkout and refuses when none exists;
-  its answers and refusals say the checkout was not compared, and JSON carries
-  `compared: false`. When no changed files are named, `search` reads a
-  published search that way, with or without the flag, and says so too. When
-  none is published it reads the checkout and publishes one; only
-  `--just-answer` refuses, and the refusal names that flag.
-- **Working directory.** `variance ask` reads the checkout under the working
-  directory, so run it from the workspace root; it refuses `--root`.
+- **A published generation.** `variance index` publishes one. Run it once
+  before the first question, and again after you edit files: edit, run
+  `variance index`, then ask. A question answers from the generation that is
+  published, at any age, and never reads the checkout to bring it up to date. It
+  does not check which files changed, and it writes no index. Every answer and
+  refusal says when that generation was made and that the checkout was not
+  compared with it; as JSON, `search` gives `compared: false`. With no
+  generation, a question refuses in one line that names `variance index`.
+  `--changed-file` and `--taint-file` are the one exception: they name the paths
+  a watcher already has, and the question updates the generation from them
+  before it answers.
+- **No run, no config, no revision requirement.**
+- **Working directory.** `variance ask` reads the index published for the
+  checkout under the working directory, so run it from the workspace root; it
+  refuses `--root`.
   `variance-authority-help` takes `--root <dir>`.
 
-Use `--just-answer` when CI, an editor or a watcher owns generation, or when an
-answer must include no freshness work. The timestamp is part of the answer;
-decide from it whether the producer needs to publish again.
+The timestamp is part of the answer. If you edited a file the answer names
+after that time, run `variance index` and ask again.
+
+The MCP server is different, because it stays up across your edits. It reuses
+a generation for up to one hour, reads one `variance index` published since,
+and asks a `symbol`, `uses` or `docs_search` again of a generation made now when
+a file that answer names changed after its generation. Start it with
+`--just-answer` when CI, an editor or a watcher publishes generations, so a
+call reads only the last one; [MCP](mcp.md) has the details.
 
 ## Two argument shapes on `variance-authority-help`
 
@@ -65,7 +66,7 @@ decide from it whether the producer needs to publish again.
 positional**:
 
 ```
-variance-authority-help <verb> [argument] [--root <dir>] [--just-answer]
+variance-authority-help <verb> [argument] [--root <dir>]
 variance-authority-help [root] [--just-answer]            # serve over MCP on stdio
 variance-authority-help write [root] [--out <dir>] [--base <url>]
 ```
@@ -105,6 +106,7 @@ Ask by what you hold:
 
 | You hold | Ask |
 |---|---|
+| A request, in the asker's words | `classify`, for which of its words are names |
 | A name | `symbol`, then `uses` |
 | A meaning, in words | `search`, with each likely spelling |
 | A local name, a string or a pattern in code | `grep --from <path>`, from where you are working |
@@ -118,10 +120,29 @@ JSON, Markdown or shell file nothing imports is outside the source, and an empty
 answer says nothing about it: search it with `rg` or `git grep` alongside
 `variance`, not after `variance` comes back empty.
 
+Framework file formats and bundler-only aliases are not read yet. A Vue or
+Svelte single-file component is not parsed, so nothing it declares or imports is
+answered: search it with `rg` too. The files an Angular component names in
+`templateUrl` and `styleUrls` are not linked to it, and an import through an
+alias declared only in a bundler's configuration, such as webpack's or Vite's
+`resolve.alias`, resolves to no file, where one declared as `paths` in a
+`tsconfig` does. [The source scan's
+limits](https://variance-authority.dev/docs/source#limits) say what each leaves
+out.
+
 `search` turns the words you have into candidate names. When the editor, ticket
-or stack trace already gives you a path, pass it on that first search as a start
-point (`--from`, `--to`; see `SKILL.md`). Then ask `symbol` for the chosen
-name's contract, and `uses` for its exact import sites and worked examples.
+or stack trace already gives you a path, pass it as a start point (`--from`,
+`--to`; see `SKILL.md`). Read a plausible owner's named lines before another
+search; ask `symbol` when you need its contract, or `uses` for its import sites.
+
+Directory membership, import reach and runtime loading answer different
+questions. `discover --path <regex>` selects paths; `--from` and `--to` follow
+imports, including type imports. Cross a graph operand with `--declares` to
+find a related responsibility, such as a mock reached by an example that
+imports a component. A loader naming a transform as a path string creates no
+import edge: ask scoped `grep` for that string. For a data-shape change, inspect
+the example or fixture representing the requested state as well as the code
+that consumes it. An import alone proves neither that state nor its behaviour.
 
 This is a module graph, not a call graph. A site is an import. Never turn it
 into a claim that one function calls another; open the file or ask a language
@@ -169,6 +190,41 @@ place of the names of a main entry.
 repository. The other verbs read the source and answer for every language: ask
 `search` or `symbol` for a Python, Rust, Java, Kotlin or Swift name.
 
+### `classify --query <words>`
+
+Ask it first when you hold a request and no name. It says which of the
+request's words are, whole, a package's name or that name without its scope, an
+entrypoint's specifier (both matched without case), or a published exported
+name (matched as spelled). A word that is only part of a name is not one:
+`check` names nothing beside `checkoutPath`, and `Check` does not match `check`.
+Each entity is listed with what it names, a package first, then its
+entrypoints, then the specifiers that export it, and each with its package's
+area and dependency layer as `orient` numbers them. The words that name
+nothing follow on one line, and the answer ends with a `symbol` question per
+exported name, an `entrypoint` question per published package or entrypoint,
+and an `orient --area` question per package that publishes nothing, or none
+when the map placed that package in no area. A word the
+request spells another way — a plural, two words for a hyphenated name, a
+domain word no name carries — is not an entity.
+
+Then it ranks the areas of the tree the request's words point to, ten at
+most, best first: a directory of at most 500 tracked files, a larger one read
+as its children. An area's words are its path's, its files' names and the
+top-level names its files declare, exported or not, compared by stem, and a word counts for more
+the fewer areas hold it. Each area is listed with its file count, the
+request's words it holds, the one weighing most there first, and the package
+on the code map nearest at or above it, with that package's area and layer on
+the code map. The best one
+is asked `search --from` for its two weightiest words. A request that names
+nothing still points somewhere: `Fix task manager claiming tasks twice` ranks
+the task manager plugin first in Kibana. In a monorepo of many products, pass
+`--from` with the product's folder: only the files it reaches along the imports
+are ranked, its own and the shared code it imports, and a word rare inside the
+product counts for more there. `--to` ranks the files that import a path. The
+answer then opens with the start point's line, as `grep`'s does. It reads the
+code map `variance index` folds, and without one it says so and classifies
+nothing.
+
 ### `entrypoint`
 
 `--package` takes the specifier as `packages` prints it, or the package name
@@ -186,18 +242,39 @@ has, if any: asked by a package, the first row's specifier and `uses` on the
 name the most files take through it; asked by a specifier, `uses` on its first
 name, which lists that name's import sites.
 
-### `symbol --name <name> [--package <name>] [--from <path>]`
+### `symbol --name <name> [--package <name>] [--from <path>] [--line <file>:<line>] [--limit <n>]`
 
 The name is matched **exactly**. `--package` takes a package name or a
 specifier, and only narrows: it answers from that package instead of from every
 specifier that publishes the name.
 
+`--line <file>:<line>` ranks the name's declarations by the tests that ran that
+line, reading the recording rather than the code. The rank is overlap of
+recorded tests, not proof of which declaration the line called. Each declaration is scored by Ochiai:
+the tests that both ran the line and entered it, over the geometric mean of the
+two counts, so one every test enters does not outrank one only the line's tests
+enter. The highest comes first and an equal score is marked `tied`. Declarations
+none of the line's tests entered are listed under `Not run with it:`, those
+written at a line no recorded function starts under `Not in the recording:`, and
+those written since the recording ran under `Written since the recording ran:`.
+A line no recorded test ran tells them apart by nothing, and a recording that
+names no commit, or whose commit the lines cannot be placed at, is not scored:
+the answer says so, then answers as without `--line`.
+
+```
+`useSessionId` at src/page.ts:3, by the 1 recorded test that ran the line:
+
+src/session.ts:1  1.00  1 of the 1 test that entered it ran the line
+
+Not run with it:
+src/legacy.ts:1  none of the 1 test that entered it ran the line
+```
+
 A name nothing declares is answered on stdout, exit `0`: what was read and
 declares nothing, and where else the name may be written. Over MCP it is the
 same text, as a result rather than an error. It is answered from the generation
-the question read, which `variance index` keeps current, and its last line says
-when that generation was made before the question and so not compared with the
-checkout:
+the question read, which `variance index` publishes, and its last line says
+when that generation was made and that it was not compared with the checkout:
 
 ```
 `NotAThing` is not published by this workspace, and no published name contains it; ask `search` with a word from its documentation. No file in this workspace declares `NotAThing`, at its top level or as a member. No installed dependency publishes it either. A name written only as text, in a string or a comment, declares nothing: a text search such as `rg` finds it.
@@ -259,7 +336,11 @@ names is not known, and the answer says so.
 An interface, a type alias or a class is followed by `Members:`, one row per
 line that declares a member, as the checkout holds it. A member of a type
 literal inside it belongs to the literal and is not listed, and a line the
-signature already shows is not repeated.
+signature already shows is not repeated. The rows read as `grep`'s do: a file
+with one row is `path:line: text`, and a file with several is its path, then
+each row indented as `line: text`. A local name whose declaration the answer
+already gave is not answered twice: it says `Its declaration, at <file>:<line>,
+is answered above.`
 
 A name a file only passes on with `export … from`, renamed, type-only, through
 `export *` or as an import it exports again, is followed to the file that
@@ -270,6 +351,14 @@ from`, then its stars, and no star passes `default`. Files that only pass the
 name to each other name no declaration, and neither do two stars that reach
 different declarations, a namespace (`export * as`, `import * as`), or a file
 the source index holds no export list of and that does not declare the name.
+
+`--limit <n>` sets how many rows of each list are shown: 5 declarations a file
+keeps to itself, 5 member declarations, 5 containers named when a member is
+not found, and 100 installed declarations when not said. The rest are counted,
+and the line that counts them names `--limit`. The files that import the name
+under another name are a list in one sentence, cut at 12, which `--limit` does
+not reach. Under `--line` the ranked list is
+never cut; `--limit` reaches the answer given without the line.
 
 `symbol` prints what a name is and how to call it. For why it exists and what it
 connects to, read [what is written about a name](written-about-a-name.md).
@@ -303,6 +392,22 @@ the source index:
 
 ```
 apps/app/src/hello.ts:1 — @acme/app; used on line 2
+```
+
+A site from another package names its package after the line. Under `Source,
+inside <package>:` the heading already names it, so the row leaves it off:
+
+```
+src/shapes/use.ts:6; used on line 9
+```
+
+Under `Used in <file> — <package>, which declares it:` the heading names the
+file and its package, so each row is the line alone, indented:
+
+```
+Used in src/shapes/area.ts — @acme/shapes, which declares it:
+
+  14
 ```
 
 The imports within the name's own package come from the source index: every
@@ -467,7 +572,9 @@ file as it is now.
 ### `search`
 
 **A list contains candidates, not every match.** Each list is capped and prints
-how many rows it did not show. Once any name matches, looser matches and members
+how many rows it did not show: 20 published names, 20 installed ones, 10 of each
+other kind, and 10 loose or described ones, unless `--limit <n>` sets one cap for every list; the
+JSON caps its lists the same way. Once any name matches, looser matches and members
 and functions inside a function that only contain your words are left out without
 a count. `git grep -i <word>` prints every tracked line that writes the word, and
 `discover --declares <regex> --limit <n>` lists every top-level name past a cap,
@@ -498,25 +605,36 @@ A file whose declarations were not read, such as one over the size a read
 opens, is named under the answer, since the name may be declared there.
 
 `variance index` also publishes a lexicon of the installed direct third-party
-packages, and `search` reads it. Once that lexicon exists, every answer has a
-third-party section, and prints a line when nothing in it matched. `symbol`
+packages, and `search` reads it. When nothing in the repository answers, the
+installed names and the packages that describe your words are listed in full, or
+a line says which manifests were searched. When the repository answers, each is
+one line naming up to five and the `--limit` that lists it in full, which a
+`--limit` you say does, and an empty one is not mentioned, nor a suite whose
+recorded cases were not read. An answer holding a row of this repository ends
+with `Next:` and the question for its first declaration, a recorded test case
+only when no declaration answered: `ask symbol --name --package` for a
+published row, `ask orient --files` for the file of any other, spelled as you
+asked, so over MCP it names the tool and its input. `symbol`
 matches installed third-party declarations from the same lexicon, which is
 `dependency-lexicon.bin` beside the source index. It is a binary file: ask
 `search` and `symbol` for what it holds.
 
 Nothing back means nothing matched, not that a ranking left it out. In a
-checkout that publishes nothing, that is the final answer. The two sections that
-follow an empty answer — names and files holding most of your words
-by stem, the rarer words counting for more, in any order, in the name or its doc, whether published, exported,
-declared and not exported, or a file by its name and the doc it opens with, the
-ones holding the most of your words first, then the ones holding more of them
-in the name, then the ones whose doc writes your phrase, every word any of
-them holds held by a row shown; then names your words
-reach loosely, exported or not, which takes a name holding less than most of your
-words when it reaches it by every one — are
-suggestions, printed before the installed
-packages: they never change the sections above them, and they do not find a word
-the repository never writes. For that, expand the query as
+checkout that publishes nothing, that is the final answer. Near matches follow
+the answer, under a heading that opens `Near matches, not exact:`. They are
+names and files holding most of your words by stem, the rarer words counting for
+more, in any order, in the name or its doc, whether published, exported,
+declared and not exported, or a file by its name and the doc it opens with. The
+ones holding the most of your words come first, then the ones holding more of
+them in the name, then the ones whose doc writes your phrase, and every word any
+of them holds is held by a row shown. Each is labelled with the words it holds.
+After a question of two words or more that matched as written, at most five of
+them follow, leaving out what the answer shows, so you learn the repository's
+own wording. After an empty answer they lead, and the names your words reach
+loosely follow them, exported or not; that section takes a name holding less
+than most of your words when it reaches it by every one. Both are suggestions,
+printed before the installed packages: they never change the sections above
+them, and they do not find a word the repository never writes. For that, expand the query as
 `SKILL.md` describes under *Matching is lexical*.
 
 **A start point removes names; it does not rank them down.** A path that
@@ -538,12 +656,22 @@ A file outside the source is never searched, and a path that holds only such
 files is refused as not found: run `rg` on it. The query is a ripgrep regular expression: to match a literal, escape each of
 `\.+*?()|[]{}^$` with a backslash, as `--query 'a\(b'` matches `a(b`.
 
-Lines come grouped by how many imports away from the start point their
-file is, then by path and line, each as `path:line:text`. The imports are the
+The answer opens with how many lines matched in how many files. Lines come
+grouped by how many imports away from the start point their file is, then by
+path and line. A file with one matching line is `path:line: text`; a file with
+several is its path, then each line indented as `line: text`. The area it
+searched follows as a trailing `note:` line. The imports are the
 ones `variance index` resolved, so the answer names its generation; it is asked
 again of the checkout as it is when a file of the area changed since. A file
 written since, under a folder it starts from or importing into its area, waits
-for the next `variance index`.
+for the next `variance index`. It shows 200 lines and counts the rest; the last
+line names the `--offset` of the next page. With `--test`, the answer opens
+with how many lines match in how many of the files the test entered, then lists
+them under `Ran:`, `Not taken:` and `Written since the recording, so no test has
+run it:`, in the same row grammar. A line not taken carries, indented under it,
+the branch or function it sits in, which the test did not enter. The files the
+recording did not instrument, and anything that bounds the reading, follow as
+trailing `note:` lines; the three lists are paged as one.
 
 ### `discover`
 
@@ -583,18 +711,26 @@ variance ask discover --from src/Wallet.tsx --declares '^selectBalance$'
 variance ask discover --to src/store/selectors.ts#selectBalance
 ```
 
-The answer counts each set first, then lists the files in all of them, nearest
-the `--from` or `--to` paths first, each with the line that put it in each
-set; `--path` puts it in by its name, with no line. A file two or more imports
-away from a `--to` path carries one shortest chain of imports to it, a step
-that is not a plain import marked — `src/Page.ts → src/Model.ts (type import) →
-src/store/selectors.ts` — and for `file#name` the chain ends at the line that
-imports the name. The `--to` header names the files it did not reach that
-import something the scan could not resolve, since they may reach the path
-through it. It shows 50; `--limit`
-shows more, and the count is always of all of them. A source file whose names
-the scan did not hand over is counted in the `--imports` and `--declares`
-headers, since it is unknown rather than a file with no names; a README or a
+The answer opens with how many files are in all of the sets, then one `- `
+line per set with its count. One file is one row, nearest the `--from` or `--to`
+paths first. A row that sits some imports from a `--from` or `--to` path starts
+with that count, one per path, in the order the `each row:` line names them;
+the lines that put the file in a set follow the row, indented as
+`  <line>: <text>`; `--path` puts a file in by its name, with no line. A file
+two or more imports away from a `--to` path carries one shortest chain of
+imports to it, a step that is not a plain import marked — `src/Page.ts →
+src/Model.ts (type import) → src/store/selectors.ts` — and for `file#name` the
+chain ends at the line that imports the name. The tail every chain shares is
+said once, on a `chains end:` line, and each row ends its chain with `→ …`
+there. The files the `--to` walk did not reach that import something the scan
+could not resolve, since they may reach the path through it, follow on a
+trailing `note:` line that names the set they may reach, and says when that set
+is one taken out. An error ripgrep reported is a `note:` line too. When no file
+is in all of them, the answer opens with `No file is in all of them:`, then the
+sets and the notes. It shows 50, and the count is always of all of them;
+when more remain, the answer ends with how many and the `--offset` that shows
+the next page. A source file whose names the scan did not hand over is counted in the
+`--imports` and `--declares` headers, since it is unknown rather than a file with no names; a README or a
 manifest has none to read.
 Over MCP, `docs_discover` answers `from`, `to`, `path` and `--imports` of a
 name out of a repo-relative file, and refuses `declares` and any other
@@ -615,14 +751,21 @@ variance ask intersection 'symbol --name selectBalance' 'discover --from src/Wal
 variance ask intersection "uses --name useTheme" "grep --query 'dark mode' --from src/App.tsx"
 ```
 
-Each question is read whole, never capped: asked alone, each prints its first
-fifty, and the file two questions agree on can sit past the cap of either. The
-answer counts each question's files first, then lists the files in all of
-them, each with the lines that put it in each question, or `the file` when a
-question answers a file without a line. It shows 50; `--limit` shows more, and
-the count is always of all of them. `--changed-file`, `--taint-file` and
-`--just-answer` are said once, after `intersection`, outside the quotes: every
-question is answered over one reading.
+Each question is read whole, before display caps: the file two questions agree
+on can sit past the cap of either. A `search` operand includes the same
+workspace candidates as the standalone search: declarations, import aliases,
+recorded test names, and described or loose candidates when those sections
+run. Every matching file of a grouped name participates. Loose matches remain
+candidates; composition does not make them exact. Installed dependency names
+identify no workspace file. The query's area and fallback rules still apply. The
+answer opens with how many files are in all of them, `N files in all of them:`,
+then counts each question's files, then lists one row per file: its path, then
+the lines that put it in each question, numbered by question and split by `·`,
+or `the file` when a question answers a file without a line, as in
+`src/Wallet.tsx — 1: line 4 · 2: the file`. It shows 50, and the count is always
+of all of them; `--offset` shows the next page, as its last line names.
+`--changed-file` and `--taint-file` are said once, after `intersection`,
+outside the quotes: every question is answered over one reading.
 
 A question about a name nothing declares answers no file: the answer says so
 beside that question, with what was read, and that no file is in all of them,
@@ -649,6 +792,6 @@ one name.
   evidence that anything ran.
 - Nothing here reads `dist`. A `types` target under an output directory is
   mapped back to the source it was compiled from.
-- `grep`, `discover` and `intersection` cap each list and print how many rows they did not show. A
+- `grep`, `discover`, `intersection`, `uses` and `symbol` cap each list and print how many rows they did not show. A
   list with no such line is the whole list. `search` caps and counts the same way, but a list with no
   such line can still leave out matches, as [`search`](#search) says.

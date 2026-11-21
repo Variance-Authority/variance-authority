@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { chromium, type Browser, type Page } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Viewport } from '@variance-authority/core/format';
-import { MAX_CAPTURE_PIXELS, captureSubject, outward } from './capture.js';
+import { MAX_CAPTURE_PIXELS, captureSubject } from './capture.js';
 
 /**
  * The fast capture path, held to the only bar that matters: the same bytes.
@@ -155,37 +155,5 @@ describe.skipIf(!BROWSER_AVAILABLE)('captureSubject', () => {
     await page.setContent(document_(`width:420px;height:${MAX_CAPTURE_PIXELS}px`));
     const { box } = await captureSubject(page, VIEWPORT, SHOT);
     expect(box?.height).toBe(MAX_CAPTURE_PIXELS);
-  });
-
-});
-
-describe('outward', () => {
-  it('snaps the near edge down and the far edge up', () => {
-    expect(outward({ x: 7.3, y: 10.4, width: 420, height: 300 })).toEqual({
-      x: 7,
-      y: 10,
-      width: 421,
-      height: 301,
-    });
-  });
-
-  it('leaves a box already on the grid alone', () => {
-    expect(outward({ x: 0, y: 0, width: 420, height: 300 })).toEqual({
-      x: 0,
-      y: 0,
-      width: 420,
-      height: 300,
-    });
-  });
-
-  /**
-   * The mistake this rule exists to avoid: rounding the extent rather than the
-   * far edge. A 420-wide box at x=7.3 spans 7.3 to 427.3 and touches 421 columns
-   * of pixels, not 420.
-   */
-  it('does not round the extent, which would lose a column', () => {
-    const snapped = outward({ x: 7.3, y: 0, width: 420, height: 300 });
-    expect(snapped.width).not.toBe(Math.round(420));
-    expect(snapped.width).toBe(421);
   });
 });

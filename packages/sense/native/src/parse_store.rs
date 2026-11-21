@@ -25,11 +25,11 @@ use std::time::{Duration, SystemTime};
 
 use napi_derive::napi;
 
-use crate::GitTree;
 use rayon::prelude::*;
 use rustc_hash::FxHashMap;
 use sha2::{Digest, Sha256};
 
+use crate::chain_lookup::parse_fold;
 use crate::compact::{compacted, Layer, ParseView};
 use crate::read::Read;
 use crate::segment::{Collected, Strings};
@@ -73,13 +73,7 @@ impl Stores {
     }
 
     pub(crate) fn open(&self) -> Opened<'_> {
-        let mut layers = Vec::new();
-        for (_, chain) in &self.chains {
-            let Held::Read(chain) = chain else { continue };
-            layers.extend(opened(chain));
-        }
-        let keys = folded(&layers);
-        Opened { layers, keys }
+        Opened::answering(Some(self), None)
     }
 
     /// Add `rows` to the first store, as one segment; the store as one when it
@@ -160,6 +154,20 @@ impl ParseRow for Parse<'_, '_, '_> {
 }
 
 impl<'c> Opened<'c> {
+    /// What a scan answers a parse from before it reads the file: `held`, a
+    /// parse-only segment of the caller's cache, ahead of the `stores`, as one
+    /// store whose last layer `held` is. A segment that does not open holds nothing.
+    pub(crate) fn answering(stores: Option<&'c Stores>, held: Option<&'c [u8]>) -> Self {
+        let mut layers = Vec::new();
+        for (_, chain) in stores.iter().flat_map(|stores| &stores.chains) {
+            let Held::Read(chain) = chain else { continue };
+            layers.extend(opened(chain));
+        }
+        layers.extend(held.and_then(|bytes| Layer::open(bytes).ok()));
+        let keys = parse_fold(&layers);
+        Opened { layers, keys }
+    }
+
     /// The row the stores hold under `digest` and `way`.
     pub(crate) fn view(&self, digest: &str, way: &str) -> Option<ParseView<'_, 'c>> {
         let &(layer, row) = self.keys.get(&(digest, way))?;
@@ -190,22 +198,6 @@ fn references(chain: &Chain) -> Vec<LogSegment> {
 /// it answers, as it ends a chain.
 fn opened(chain: &Chain) -> Vec<Layer<'_>> {
     chain.segments.iter().map_while(|bytes| Layer::open(bytes).ok()).collect()
-}
-
-/// Every parse key `layers` hold, as `(digest, way)`, to the layer and row that
-/// hold it: the last layer to put or delete a key decides.
-fn folded<'c>(layers: &[Layer<'c>]) -> FxHashMap<(&'c str, &'c str), (usize, usize)> {
-    let mut keys = FxHashMap::default();
-    for (at, layer) in layers.iter().enumerate() {
-        let (stored, parses) = (&layer.stored, &layer.parses);
-        for row in 0..parses.deleted.len() {
-            keys.remove(&(stored.text(parses.deleted.at(row)), stored.text(parses.deleted_way.at(row))));
-        }
-        for row in 0..parses.key.len() {
-            keys.insert((stored.text(parses.key.at(row)), stored.text(parses.way.at(row))), (at, row));
-        }
-    }
-    keys
 }
 
 /// When the segment named `digest` of the store at `path` was written.
@@ -245,51 +237,16 @@ impl<'r, 's, 'c> Parse<'r, 's, 'c> {
 }
 
 /// The row key the encoder writes for `digest` and `way`.
-pub(crate) fn key(digest: &str, way: &str) -> String {
-    if way.is_empty() { digest.to_owned() } else { format!("{digest}\0{way}") }
-}
+pub(crate) use crate::compact::joined as key;
 
 /// The parse keys the chain at `path` holds, as `(digest, way)`; `None` when it
 /// cannot be read, which says nothing of what it names. No chain names nothing.
 fn named(path: &str) -> Option<HashSet<(String, String)>> {
     match read_chain(path) {
-        Ok(Some(chain)) => Some(folded(&opened(&chain)).into_keys().map(|(digest, way)| (digest.to_owned(), way.to_owned())).collect()),
+        Ok(Some(chain)) => Some(parse_fold(&opened(&chain)).into_keys().map(|(digest, way)| (digest.to_owned(), way.to_owned())).collect()),
         Ok(None) => Some(HashSet::new()),
         Err(_) => None,
     }
-}
-
-#[napi]
-impl GitTree {
-    /// Add to the first of `stores` every parse the chain at `chain` holds, no
-    /// store does, and this tree read only as the blob it is kept under; how
-    /// many went in.
-    #[napi(catch_unwind)]
-    pub fn fill_parse_store(&self, stores: Vec<String>, chain: String) -> napi::Result<u32> {
-        fill(&stores, &chain, &self.from_blob)
-    }
-}
-
-/// Add to the first of `stores` every parse the chain at `chain` holds, no
-/// store does and `from_blob` shares; how many went in.
-fn fill(stores: &[String], chain: &str, from_blob: &crate::parse_origin::FromBlob) -> napi::Result<u32> {
-    let fail = |error: String| napi::Error::from_reason(format!("the parse store at {} was not filled: {error}", stores.first().map_or("", String::as_str)));
-    let Some(root) = read_chain(chain).map_err(fail)? else { return Ok(0) };
-    let layers = opened(&root);
-    let held = Stores::read(stores);
-    let store = held.open();
-    let mut rows: Vec<(String, ParseView)> = folded(&layers)
-        .into_iter()
-        .filter(|((digest, way), _)| !store.holds(digest, way) && from_blob.shares(digest, way))
-        .map(|((digest, way), (layer, row))| (key(digest, way), ParseView::of(&layers[layer], row)))
-        .collect();
-    if rows.is_empty() {
-        return Ok(0);
-    }
-    rows.sort_by(|left, right| code_unit(&left.0, &right.0));
-    let rows: Vec<(&str, &ParseView)> = rows.iter().map(|(key, view)| (key.as_str(), view)).collect();
-    let wrote = held.append(&rows).map_err(|error| fail(error.to_string()))?;
-    Ok(if wrote { rows.len() as u32 } else { 0 })
 }
 
 /// Drop from the store at `store` every key no chain in `chains` names, unless
@@ -319,7 +276,7 @@ pub fn prune_parse_store(store: String, chains: Vec<String>, grace_ms: f64) -> n
         .take(layers.len())
         .map(|reference| now.duration_since(written_at(&store, &reference.digest).unwrap_or(now)).unwrap_or_default() < grace)
         .collect();
-    let keys = folded(&layers);
+    let keys = parse_fold(&layers);
     let mut kept: Vec<(String, ParseView)> = Vec::new();
     for (&(digest, way), &(layer, row)) in &keys {
         if young[layer] || live.contains(&(digest.to_owned(), way.to_owned())) {

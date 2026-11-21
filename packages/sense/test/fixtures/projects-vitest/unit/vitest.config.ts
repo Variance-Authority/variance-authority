@@ -11,5 +11,6 @@ if (coverageFile === undefined) throw new Error('VARIANCE_AUTHORITY_COVERAGE is 
 
 export default withTestSelection(
   { test: { name: 'unit', include: ['*.case.ts'], setupFiles: ['./setup.ts'], testTimeout: timeout } },
-  { coverageFile, include: (file) => file.startsWith(source) },
+  // `FIXTURE_RECORD=off` runs the selection and records nothing, as the root does.
+  { coverageFile, include: (file) => file.startsWith(source), ...(process.env['FIXTURE_RECORD'] === 'off' ? { record: false } : {}) },
 );

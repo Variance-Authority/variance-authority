@@ -16,7 +16,6 @@
 
 import type { Help, Named, Taken, Use } from '@variance-authority/package/help';
 import { importersOf } from '@variance-authority/sense';
-import { useOf } from '../native-use.js';
 import { answering as answersTo, says } from './declaration-key.js';
 import { pathsWritten } from './rows.js';
 
@@ -113,8 +112,21 @@ function importers(root: string | undefined, asked: readonly (readonly Asked[])[
   return read ?? { unread: 'no source index is published; run `variance index`' };
 }
 
-function indexedUse(use: NonNullable<ReturnType<typeof importersOf>>['groups'][number]['uses'][number]): IndexedUse {
+type NativeUse = NonNullable<ReturnType<typeof importersOf>>['groups'][number]['uses'][number];
+
+function indexedUse(use: NativeUse): IndexedUse {
   return { name: use.name, specifier: use.key, ...useOf(use), ...(use.lines == null ? {} : { lines: use.lines }) };
+}
+
+/** A use as the addon hands it over: `through` flattened, and `null` for absent. */
+function useOf(use: NativeUse): Use {
+  return {
+    by: use.by, at: use.at, line: use.line, type: use.type, kind: use.kind,
+    ...(use.local === undefined || use.local === null ? {} : { local: use.local }),
+    ...(use.through === undefined || use.through === null ? {} : {
+      through: { kind: use.through, line: use.throughLine, ...(use.throughDefault ? { throughDefault: true } : {}), ...(use.whole ? { whole: true } : {}) },
+    }),
+  };
 }
 
 /** One file asked who imports a name out of it, and the name it exports it under. */

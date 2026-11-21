@@ -217,7 +217,7 @@ region with the component that drew it, the element it landed in, and the
 `file:line` that element was written at:
 
 ```
-save-button/disabled: changed — 612 pixels differ across 2 regions in Stack, Toggle
+save-button/disabled: changed — 612 pixels differ across 2 regions in Stack, Toggle, 1 changed in shape and 1 only in colour
 2 region(s), ordered by area — no causes were supplied, so this
 ordering measures displacement rather than blame:
   511px — Stack

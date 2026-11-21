@@ -45,7 +45,7 @@ describe('variance ask uses over an `import()` type', () => {
     const { code, out } = await run(['ask', 'uses', '--name', 'addTax']);
     expect(code).toBe(EXIT_CLEAN);
     expect(out).not.toContain('which loads the module when the call runs');
-    expect(out).toMatch(/^packages\/lib\/src\/internal\/rate\.ts:1 — @acme\/lib \(type only\) \(import\(\) on line 1\)$/m);
+    expect(out).toMatch(/^packages\/lib\/src\/internal\/rate\.ts:1 \(type only\) \(import\(\) on line 1\)$/m);
   });
 
   it('does not list the test whose mock factory passes the whole module type to a call, for any name', async () => {

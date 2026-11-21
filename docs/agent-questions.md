@@ -20,6 +20,7 @@ A missing domain is unavailable, never an empty measurement.
 | live watcher | Is this the watcher the suite connected to? | `variance ask self` | `variance_self` |
 | [execution index](execution-record.md) and the [Eyes](eyes.md) journals it keeps | What can this test be distilled to? | `variance distill --test <id> …` | `variance_distill` |
 | current workspace source | What is each package imported for, and which packages are imported past their entry? | `variance ask packages` | `docs_packages` on the workspace API server |
+| a request, in the asker's words | Which of these words name a package, an entrypoint or an exported name, where on the code map is each, and which areas of the tree do the words point to? | `variance ask classify --query <words> [--from <path>]` | `docs_classify` on the workspace API server |
 | current workspace source | What does this package publish, and what do other packages import from it? | `variance ask entrypoint --package <name>` | `docs_entrypoint` on the workspace API server |
 | current workspace source | Where is this symbol already used, and what shows how to call it? | `variance ask uses --name <name>` | `docs_uses` on the workspace API server |
 | current workspace source | What rests on this file or this name through imports, at any depth, and by which chain? | `variance ask discover --to <path>` or `--to <file>#<name>` | `docs_discover` on the workspace API server |
@@ -31,6 +32,7 @@ A missing domain is unavailable, never an empty measurement.
 | a recorded test run | Which lines that write this text did one test run, and in which branch or function did it go elsewhere from the others? | `variance ask grep --query <pattern> --test <file> [--name <words>]` | `docs_grep` with `test` on the workspace API server |
 | a recorded test run | Which test cases are closest to their limit, and which test files and cases did the runner spend longest in, under these tests or in the tests that ran this code? | `variance ask slowest-tests [--from <path>[,...]] [--to <path>[,...]] [--over <time>] [--limit <n>]` | `docs_slowest_tests` on the workspace API server |
 | a recorded test run | Which test cases did the runner retry in the recorded run, and which of them failed on one attempt and passed on another? | `variance ask retried-tests [--limit <n>]` | `docs_retried_tests` on the workspace API server |
+| a recorded test run | Which checks did a test declare and an attempt of it pass without executing? | `variance ask not-run` | `docs_not_run` on the workspace API server |
 
 For [source orientation](orientation.md), ask three questions in this order:
 
@@ -61,6 +63,15 @@ JavaScript, TypeScript, Python, Rust, Java, Kotlin and Swift. `symbol` answers a
 declaration of the name first, in any of those languages, then each container
 that declares it as a member, with the member's `file:line`, and points to
 `uses`. A dotted name, `Tree.has`, asks for the member `has` of `Tree` alone.
+
+Framework file formats and bundler-only aliases are not read yet: a Vue or
+Svelte single-file component is not indexed, so nothing it declares or imports
+is answered; the files an Angular component names in `templateUrl` and
+`styleUrls` are not linked to it; and an import through an alias declared only
+in a bundler's configuration resolves to no file, where one declared as `paths`
+in a `tsconfig` does. [The source scan's limits](source.md#limits) say what each
+leaves out.
+
 When the workspace also holds Python, Rust, Java, Kotlin or Swift files,
 an answer of `symbol` or `uses` that looked for members ends with a sentence
 that names those languages, whether or not it found one: a member of theirs
@@ -70,8 +81,8 @@ declarations, imports, the module graph and the recording, and the language's
 type checker for anything that needs a value's type.
 
 `variance ask` with no question lists every report, watcher and source question
-and its arguments. The source questions read the checkout under the working
-directory and need no `variance.config.json`; the same nine are on the
+and its arguments. The source questions read the index `variance index`
+published for the working directory and need no `variance.config.json`; the same nine are on the
 `variance-authority-help` binary for a workspace that installs nothing else. `variance_observability` inventories the domains supplied to a
 combined MCP connection before an agent asks from one of them. For every
 unavailable domain it also names the producer and integration guide.

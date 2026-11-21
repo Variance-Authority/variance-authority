@@ -17,6 +17,7 @@ the answer. Run them from the checkout you are asking about.
 | a place, and the question of what it may import | `stack --from <path>` |
 | a suite that is slow, or cases near their limit | `slowest-tests`, scoped with `--from` or `--to`, `--over 3s` for cases that ran at least 3s |
 | a suite whose runner retries, and the question of which passes failed first | `retried-tests` |
+| tests that declare checks, and the question of which passes skipped theirs | `not-run` |
 
 ## `orient`
 
@@ -47,6 +48,10 @@ Each file is answered in the order you gave. A `:<line>` after a path narrows
 the call journeys to the function that contains that line. The answer prints its
 own definitions. What you decide from it:
 
+- **External dependency declarations** show the first three entries per
+  listed dependency, followed by the count of the rest. Run the printed
+  `orient --files … --declarations` command for every entry, including
+  development declarations. Import sites and request counts are unchanged.
 - **`not recorded`** means the recording has no row for the file. It is no
   evidence about whether a test runs it. **`recorded, and no case ran it`** is a
   measurement.
@@ -113,6 +118,32 @@ selects on them. Packages are the ones the workspace lists now that hold source
 now, another package is one the commit changed no source in, and a test-only
 tree is a package or a top folder holding tests and no source. With none listed
 there are no figures.
+
+## `variance layers`: dependencies of entry packages
+
+Use `variance layers` for every repository package, or select exact package
+names with repeatable `--package` flags:
+
+```bash
+variance layers --package @app/spa
+variance layers --package @app/spa --package @app/ssr --package @app/dev-tools
+```
+
+The answer includes each selected package and all its transitive repository
+dependencies, including shared code outside the entry packages' directories.
+Shared dependencies and repeated roots appear once. An unknown or empty name
+is refused. Installed packages are excluded.
+
+The heading names the roots and counts packages and dependency layers. A package
+with no dependencies is in layer 1; each dependent package is one layer above
+its deepest dependency. Packages in a dependency cycle share a layer. These
+are dependency layers, not the recursive areas `orient` groups packages into.
+Selecting roots keeps each package's layer number.
+
+`--root <path>` selects the checkout. `--format text|markdown|json` selects the
+output; JSON adds `scope` with roots, package and layer counts, and the
+`repository` boundary when roots are given. `--against <index>` compares the
+whole repository with a saved base index and cannot be combined with `--package`.
 
 ## `stack`
 
@@ -189,3 +220,20 @@ the record holds that the answer lacks was not reported as retried in that run;
 a case the record does not hold, as every case of a file recorded as a whole,
 is unknown. A record that kept no attempts says so: read that as unknown, not
 as no retries. `--limit` lists more cases.
+
+## `not-run`
+
+A case that passed says only that nothing it ran failed. A Playwright test
+declares the check it is there for with the annotation `variance:check` and runs
+it as a step of the same title; the answer names each declared check an attempt
+passed without executing, as `expected check <id> did not execute in case <name>`,
+with the file and line declaring the case and its project. A case named here
+passed without its check: read the branch or the early return
+that skipped the step before trusting the pass.
+
+It counts the checks entered and prints the scope the run covered — projects,
+`grep`, shard — and a case outside it was not asked about. A step skipped with
+`test.step.skip` did not execute. A run stopped before its runner ended it, or
+killed outright, names no check, because the attempts it cut short could not
+reach theirs. A record that kept no checks says so: read that as unknown, not as
+every check executed.

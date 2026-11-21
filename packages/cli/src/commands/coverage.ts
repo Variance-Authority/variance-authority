@@ -53,6 +53,7 @@ import { mainlineBase, mainlineMissed } from './mainline-base.js';
 import type { textOver } from './coverage-over-text.js';
 import { runsOf } from './record-runs.js';
 import { indexNames, indexUpToCheckout, relationsFor } from './source-graph.js';
+import { coverageSessions, type CoverageSessions } from './coverage-sessions.js';
 import { asOperator, nothingRecorded } from './suite-record.js';
 
 /** One suite's record and its base, or why it has neither. */
@@ -105,6 +106,8 @@ export interface Coverage {
    * above.
    */
   readonly fanIn?: FanIn;
+  /** `--session`: the runs a person exported, set beside the records function by function. */
+  readonly sessions?: CoverageSessions;
   /**
    * With `--at-distance`, the band every count above was narrowed to: a region
    * counts as run only when the nearest test file that ran it, across every
@@ -179,6 +182,8 @@ export async function coverage(request: ParsedCoverage, over: typeof textOver | 
   // files, and what every test rests on. Unscoped, because `--from` narrows
   // the count, not what the suites load.
   const loaded = new Set<string>();
+  /** The records counted, for the sessions set beside them. */
+  const records: string[] = [];
   for (const one of counted) {
     const named = one === undefined ? {} : { suite: one.name, kind: one.kind };
     // The record and everything read beside it come from one cache layer: the
@@ -191,6 +196,7 @@ export async function coverage(request: ParsedCoverage, over: typeof textOver | 
       suites.push(named);
       continue;
     }
+    records.push(record);
     const whole = await readExecutionIndex(from);
     for (const module of whole.modules) loaded.add(module.file);
     for (const test of whole.tests) loaded.add(test.file);
@@ -251,6 +257,7 @@ export async function coverage(request: ParsedCoverage, over: typeof textOver | 
     ...(bases.length === now.length ? { base: countCoverage(bases) } : {}),
     ...(unloadedChange === undefined ? {} : { unloadedChange }),
     ...(request.fanIn === true ? { fanIn: coverageFanIn(now) } : {}),
+    ...(request.sessions === undefined ? {} : { sessions: await coverageSessions(request.root, request.sessions, request.served, records) }),
     ...(band === undefined ? {} : {
       atDistance: {
         from: band.from,

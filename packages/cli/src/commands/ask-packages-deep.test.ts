@@ -107,7 +107,7 @@ describe('variance ask over a private app that reaches into another package', ()
     const { code, out } = await run(['ask', 'uses', '--name', 'roundTax']);
     expect(code).toBe(EXIT_CLEAN);
     expect(out).toContain('`roundTax` [const] is imported in 1 place, inside @acme/lib, and no entry publishes it; it is exported at packages/lib/src/internal/math.ts:5.');
-    expect(out).toMatch(/^packages\/lib\/src\/internal\/rounded\.ts:1 — @acme\/lib; used on line 2$/m);
+    expect(out).toMatch(/^packages\/lib\/src\/internal\/rounded\.ts:1; used on line 2$/m);
   });
 
   it('answers `uses` for a name exported and not published that nothing imports, saying so', async () => {
@@ -153,7 +153,7 @@ describe('variance ask over a private app that reaches into another package', ()
     expect(uses.out).toMatch(/^`roundTax` \[const\] is exported, without being published, at packages\/kit\/src\/money\/round\.ts:1, and nothing in this workspace imports it;/m);
     const [, lib] = uses.out.split('`roundTax` is exported, without being published, at packages/lib/src/internal/math.ts:5 as well, which is another declaration.');
     expect(lib).toMatch(/^Imported in 1 place, inside @acme\/lib\.$/m);
-    expect(lib).toMatch(/^packages\/lib\/src\/internal\/rounded\.ts:1 — @acme\/lib; used on line 2$/m);
+    expect(lib).toMatch(/^packages\/lib\/src\/internal\/rounded\.ts:1; used on line 2$/m);
   });
 
   const TAXES = 'export const roundTax = (amount: number): number => amount;\nexport const rate = 1;\n';
@@ -215,7 +215,7 @@ describe('variance ask over a private app that reaches into another package', ()
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
     writeFileSync(join(root, 'packages/lib/src/internal/math.ts'), 'export function addTax(amount: number): number {\n  return amount;\n}\n\nexport const unrelated = 1;\n');
 
-    const { code, out } = await run(['ask', 'symbol', '--name', 'roundTax', '--just-answer']);
+    const { code, out } = await run(['ask', 'symbol', '--name', 'roundTax']);
     expect(code).toBe(EXIT_CLEAN);
     expect(out).toContain('exported, without being published, at packages/lib/src/internal/math.ts:5 by @acme/lib');
     expect(out).not.toContain('export const unrelated');
@@ -225,10 +225,10 @@ describe('variance ask over a private app that reaches into another package', ()
     const file = 'packages/lib/src/internal/passes.ts';
     const root = checkout({ [file]: "export { passedOn } from 'not-installed';\n" });
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
-    expect((await run(['ask', 'symbol', '--name', 'passedOn', '--just-answer'])).out).toContain("export { passedOn } from 'not-installed';");
+    expect((await run(['ask', 'symbol', '--name', 'passedOn'])).out).toContain("export { passedOn } from 'not-installed';");
     writeFileSync(join(root, file), '// passedOn went elsewhere\n');
 
-    const { code, out } = await run(['ask', 'symbol', '--name', 'passedOn', '--just-answer']);
+    const { code, out } = await run(['ask', 'symbol', '--name', 'passedOn']);
     expect(code).toBe(EXIT_CLEAN);
     expect(out).toContain(`exported, without being published, at ${file}:1 by @acme/lib`);
     expect(out).not.toContain('went elsewhere');

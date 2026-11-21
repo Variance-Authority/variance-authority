@@ -145,7 +145,7 @@
     18
   ],
   "docs/compare-visual-review.md lead": [
-    36
+    35
   ],
   "docs/composition.md lead": [
     27
@@ -542,9 +542,6 @@
     13,
     7,
     6
-  ],
-  "packages/cli/src/commands/index-command.ts overview": [
-    25
   ],
   "packages/cli/src/commands/index-follow-ups.ts overview": [
     21
@@ -1407,8 +1404,7 @@
     6
   ],
   "packages/help/src/read.ts docblock": [
-    12,
-    11
+    12
   ],
   "packages/help/src/read.ts overview": [
     25
@@ -1423,7 +1419,7 @@
     14
   ],
   "packages/help/src/server.ts block": [
-    14
+    10
   ],
   "packages/help/src/tools.ts docblock": [
     47
@@ -1463,9 +1459,6 @@
   ],
   "packages/help/src/tools/search.ts overview": [
     76
-  ],
-  "packages/help/src/tools/silent.ts docblock": [
-    11
   ],
   "packages/help/src/tools/uses.ts overview": [
     69
@@ -1579,9 +1572,6 @@
   "packages/mcp/src/tools/findings.ts docblock": [
     22
   ],
-  "packages/mcp/src/tools/hops.ts overview": [
-    67
-  ],
   "packages/mcp/src/tools/locate.test.ts block": [
     6
   ],
@@ -1642,9 +1632,6 @@
     14,
     11
   ],
-  "packages/mcp/src/tools/tree.ts overview": [
-    28
-  ],
   "packages/mcp/src/tools/variations.ts overview": [
     18
   ],
@@ -1673,9 +1660,6 @@
   "packages/observe/src/ignore.test.ts block": [
     7,
     6
-  ],
-  "packages/observe/src/observe.ts block": [
-    7
   ],
   "packages/observe/src/observe.ts docblock": [
     18
@@ -1714,9 +1698,6 @@
   "packages/package/src/help.ts docblock": [
     11
   ],
-  "packages/package/src/help.ts overview": [
-    21
-  ],
   "packages/package/src/manifest.ts block": [
     14
   ],
@@ -1725,9 +1706,6 @@
   ],
   "packages/package/src/members.ts docblock": [
     30
-  ],
-  "packages/package/src/mention.ts overview": [
-    20
   ],
   "packages/package/src/use.ts overview": [
     23
@@ -1902,11 +1880,6 @@
   "packages/png-sharp/src/index.ts docblock": [
     26
   ],
-  "packages/png/src/align.ts docblock": [
-    28,
-    15,
-    15
-  ],
   "packages/png/src/change.ts docblock": [
     19
   ],
@@ -1923,7 +1896,7 @@
     26
   ],
   "packages/png/src/mask.ts docblock": [
-    12
+    11
   ],
   "packages/presentation/src/analyze.ts docblock": [
     13
@@ -2278,7 +2251,6 @@
   "packages/route-collector/src/zero-config.chromium.test.ts block": [
     10,
     9,
-    7,
     7
   ],
   "packages/route-collector/src/zero-config.chromium.test.ts overview": [
@@ -2329,17 +2301,11 @@
   "packages/sense/scripts/native.mjs overview": [
     24
   ],
-  "packages/sense/scripts/overhead.mjs overview": [
-    28
-  ],
   "packages/sense/scripts/probe-write.mjs overview": [
     23
   ],
   "packages/sense/scripts/published-index.mjs overview": [
-    20
-  ],
-  "packages/sense/scripts/reach-probe.mjs overview": [
-    20
+    18
   ],
   "packages/sense/scripts/read-width.mjs overview": [
     27
@@ -2369,9 +2335,6 @@
   "packages/sense/scripts/snapshot-scale.mjs overview": [
     28
   ],
-  "packages/sense/scripts/source-index.mjs block": [
-    11
-  ],
   "packages/sense/scripts/source-index.mjs overview": [
     22
   ],
@@ -2380,9 +2343,6 @@
   ],
   "packages/sense/scripts/storage.mjs docblock": [
     11
-  ],
-  "packages/sense/scripts/tree-cost.mjs overview": [
-    16
   ],
   "packages/sense/scripts/tuned-cost.mjs overview": [
     32
@@ -2414,7 +2374,7 @@
     11
   ],
   "packages/sense/src/cache.ts docblock": [
-    21
+    19
   ],
   "packages/sense/src/cache.ts overview": [
     25
@@ -2463,14 +2423,11 @@
   "packages/sense/src/journeys-share.measure.ts overview": [
     21
   ],
-  "packages/sense/src/jvm.ts overview": [
-    43
-  ],
   "packages/sense/src/language.ts docblock": [
     13
   ],
   "packages/sense/src/language.ts overview": [
-    26
+    25
   ],
   "packages/sense/src/lock/index.ts overview": [
     18
@@ -2487,51 +2444,29 @@
   "packages/sense/src/lock/yarn.ts docblock": [
     11
   ],
-  "packages/sense/src/python.ts overview": [
-    36
-  ],
   "packages/sense/src/read.ts docblock": [
     14
   ],
   "packages/sense/src/read.ts overview": [
-    55
+    54
   ],
   "packages/sense/src/resolve.test.ts block": [
     8
   ],
   "packages/sense/src/resolve.ts block": [
     9,
-    9
+    8
   ],
   "packages/sense/src/resolve.ts docblock": [
     24,
     17,
-    16,
-    13
+    16
   ],
   "packages/sense/src/resolve.ts overview": [
     18
   ],
   "packages/sense/src/restrictions-transitive.ts overview": [
     17
-  ],
-  "packages/sense/src/reuse.ts overview": [
-    41
-  ],
-  "packages/sense/src/rust.ts overview": [
-    61
-  ],
-  "packages/sense/src/scan.ts block": [
-    8
-  ],
-  "packages/sense/src/scan.ts docblock": [
-    13,
-    12,
-    11,
-    11
-  ],
-  "packages/sense/src/scan.ts overview": [
-    34
   ],
   "packages/sense/src/sense.test.ts block": [
     6,
@@ -2564,20 +2499,11 @@
   "packages/sense/src/story/tree.ts overview": [
     19
   ],
-  "packages/sense/src/style.ts docblock": [
-    12
-  ],
-  "packages/sense/src/swift.ts overview": [
-    40
-  ],
   "packages/sense/src/taint/audit.ts overview": [
     22
   ],
   "packages/sense/src/taint/cache.ts overview": [
     27
-  ],
-  "packages/sense/src/taint/index.ts block": [
-    6
   ],
   "packages/sense/src/taint/index.ts overview": [
     66
@@ -3154,23 +3080,14 @@
     12,
     6
   ],
-  "packages/sense/src/tree.ts docblock": [
-    11
-  ],
   "packages/sense/src/tree.ts overview": [
     20
   ],
   "packages/sense/src/typescript-use.ts docblock": [
-    13
-  ],
-  "packages/sense/src/witness.ts overview": [
-    45
+    12
   ],
   "packages/sense/src/working-tree-changes.ts docblock": [
     14
-  ],
-  "packages/sense/src/world.ts overview": [
-    28
   ],
   "packages/server/README.md lead": [
     16

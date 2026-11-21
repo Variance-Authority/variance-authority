@@ -332,7 +332,7 @@ travels, so the repository has to be named when the server is started.
 | option | what it decides |
 |---|---|
 | `root` | the repository the run was made in. Without it, a question that names a start point is refused rather than answered from the paths the run happened to record |
-| `index` | where the scan keeps what it has already parsed, so a second question that names a path costs a map lookup per unchanged file instead of a parse |
+| `index` | the source index, brought up to date before the tree is read, so a question that names a path after a one-file edit reads that file again and no other. The checkout's own in the cache directory by default |
 
 `readTree(options)` is the same walk on its own, for a host that would rather
 read the tree itself and hand it to a call:
@@ -340,9 +340,8 @@ read the tree itself and hand it to a call:
 | option | what it decides |
 |---|---|
 | `root` | the repository. Every coordinate comes back relative to it |
-| `dirs` | where to start walking, relative to the root. The whole repository by default, because a start point may name any path in it and a narrower walk answers *not found* about a file that is plainly there |
-| `index` | the persistent scan index, as above |
-| `names` | called once the walk ends, with what each file declares and what it imports, by name, read off the same parse. Without it no names are kept |
+| `dirs` | where to start walking, relative to the root. The index covers the whole repository either way; these narrow it to what they hold and reach. The whole repository by default, because a start point may name any path in it and a narrower walk answers *not found* about a file that is plainly there |
+| `index` | the source index, as above. An index that could not be written throws, rather than answering from the tree before the edit |
 
 The walk happens once per session and only when a call needs it: most
 questions do not name a path, and a repository is not a thing to read before

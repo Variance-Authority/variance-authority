@@ -101,7 +101,12 @@ fn a_layer_whose_reverse_edge_names_a_row_it_does_not_hold_is_refused() {
 
 /// `FULL` with the first byte of the one-byte column `name` set to `value`.
 fn with_byte(name: &str, value: u8) -> Vec<u8> {
-    let good = encoded(FULL);
+    with_byte_of(FULL, name, value)
+}
+
+/// `document` encoded, with the first byte of the one-byte column `name` set to `value`.
+fn with_byte_of(document: &str, name: &str, value: u8) -> Vec<u8> {
+    let good = encoded(document);
     let stored = crate::stored::Stored::open(&good).unwrap();
     let columns = stored.columns().into_iter().map(|(column, width, bytes)| {
         let mut bytes = bytes.to_vec();
@@ -111,8 +116,95 @@ fn with_byte(name: &str, value: u8) -> Vec<u8> {
     crate::segment::encode(columns.collect())
 }
 
+/// `document` encoded, with the first entry of the four-byte column `name` set to `value`.
+fn with_u32_of(document: &str, name: &str, value: u32) -> Vec<u8> {
+    let good = encoded(document);
+    let stored = crate::stored::Stored::open(&good).unwrap();
+    let columns = stored.columns().into_iter().map(|(column, width, bytes)| {
+        let mut bytes = bytes.to_vec();
+        if column == name { bytes[..4].copy_from_slice(&value.to_le_bytes()); }
+        crate::segment::column(column.to_owned(), width, bytes)
+    });
+    crate::segment::encode(columns.collect())
+}
+
+// Whether a segment reads is `Layer::open`'s to say, for every reader alike:
+// the source-index reader keeps no rule of its own.
 #[test]
-fn a_layer_whose_flag_is_neither_zero_nor_one_is_refused_as_the_typescript_reader_refuses_it() {
+fn a_layer_whose_row_names_a_string_its_dictionary_does_not_hold_is_refused_at_open() {
+    for name in ["symbols.name", "members.name", "records.file", "edges.to", "targets.path"] {
+        assert!(crate::compact::Layer::open(&with_u32_of(FULL, name, 999_999)).is_err(), "{name} = 999999 was read");
+    }
+}
+
+#[test]
+fn a_layer_whose_member_names_a_request_its_parse_does_not_hold_is_refused_at_open() {
+    assert!(crate::compact::Layer::open(&with_u32_of(FULL, "members.request", 1)).is_err());
+    assert!(crate::compact::Layer::open(&with_u32_of(FULL, "members.request", 0)).is_ok());
+}
+
+/// `FULL` with its first two dictionary strings swapped: every row still names
+/// an id the dictionary holds, and the ids still ascend.
+fn with_dictionary_out_of_order() -> Vec<u8> {
+    let good = encoded(FULL);
+    let stored = crate::stored::Stored::open(&good).unwrap();
+    let mut strings: Vec<&str> = (0..stored.string_count() as u32).map(|id| stored.text(id)).collect();
+    strings.swap(0, 1);
+    let mut off = vec![0u32];
+    for string in &strings { off.push(off.last().unwrap() + string.len() as u32); }
+    let columns = stored.columns().into_iter().map(|(column, width, bytes)| match column {
+        "strings.blob" => crate::segment::column(column.to_owned(), width, strings.concat().into_bytes()),
+        "strings.off" => crate::segment::column(column.to_owned(), width, off.iter().flat_map(|at| at.to_le_bytes()).collect()),
+        _ => crate::segment::column(column.to_owned(), width, bytes.to_vec()),
+    });
+    crate::segment::encode(columns.collect())
+}
+
+// A key is found by binary search over the dictionary's text, so a dictionary
+// out of code-unit order holds keys a lookup misses.
+#[test]
+fn a_layer_whose_dictionary_does_not_ascend_is_refused_at_open() {
+    assert!(crate::stored::Stored::open(&with_dictionary_out_of_order()).is_ok(), "the swap broke the framing, not the order");
+    assert!(crate::compact::Layer::open(&with_dictionary_out_of_order()).is_err(), "a dictionary out of order was read");
+}
+
+#[test]
+fn a_layer_whose_record_files_do_not_ascend_is_refused_at_open() {
+    let good = encoded(FULL);
+    let second = crate::compact::Layer::open(&good).unwrap().records.file.at(1);
+    assert!(crate::compact::Layer::open(&with_u32_of(FULL, "records.file", second)).is_err());
+}
+
+#[test]
+fn a_layer_that_both_puts_and_deletes_one_key_is_refused_at_open() {
+    // No writer deletes a key in the segment that puts it: each one's deletes are
+    // what its puts do not hold. The encoder below drops a record so deleted, so
+    // the record case is made by pointing the delete at the put.
+    let parse = encoded(r#"{"parses": [["git:a", {"requests": []}]], "deletedParses": ["git:a"]}"#);
+    assert!(crate::compact::Layer::open(&parse).is_err(), "a parse both put and deleted was read");
+    let directory = encoded(r#"{"directories": [["src", "v1:d"]], "deletedDirectories": ["src"]}"#);
+    assert!(crate::compact::Layer::open(&directory).is_err(), "a directory both put and deleted was read");
+    let document = r#"{"records": [["src/a.ts", {"record": {"file": "src/a.ts"}, "witnesses": []}]], "deletedRecords": ["src/b.ts"]}"#;
+    let file = crate::compact::Layer::open(&encoded(document)).unwrap().records.file.at(0);
+    assert!(crate::compact::Layer::open(&with_u32_of(document, "records.deleted", file)).is_err(), "a record both put and deleted was read");
+}
+
+#[test]
+fn a_layer_whose_package_column_names_what_is_no_package_is_refused_at_open() {
+    let document = FULL.replace(r#"{"to": "react", "kind": "imports"}"#, r#"{"to": "zzzzzzzzzz", "kind": "imports"}"#);
+    assert_ne!(document, FULL);
+    let good = encoded(&document);
+    assert!(crate::compact::Layer::open(&good).is_ok());
+    let at = good.windows(10).position(|window| window == b"zzzzzzzzzz").unwrap();
+    for named in [&b"../exit.js"[..], b"@scope/a/b", b"react/jsx1", b"node:fs/x1"] {
+        let mut damaged = good.clone();
+        damaged[at..at + 10].copy_from_slice(named);
+        assert!(crate::compact::Layer::open(&damaged).is_err(), "{} was read as a package", String::from_utf8_lossy(named));
+    }
+}
+
+#[test]
+fn a_layer_whose_flag_is_neither_zero_nor_one_is_refused() {
     for name in ["records.edges-present", "parses.harvested", "bindings.type"] {
         let error = compacted(&[&with_byte(name, 3)]).err().unwrap_or_else(|| panic!("{name} = 3 was read"));
         assert!(error.contains(name), "{error}");
@@ -120,7 +212,20 @@ fn a_layer_whose_flag_is_neither_zero_nor_one_is_refused_as_the_typescript_reade
 }
 
 #[test]
-fn a_layer_whose_reach_is_past_the_reaches_known_is_refused_as_the_typescript_reader_refuses_it() {
+fn a_layer_whose_text_heap_is_not_utf8_is_refused_rather_than_read() {
+    // A span's text is one the heap keeps.
+    let document = FULL.replace(r#""line": 5, "signature": {"start": 10, "end": 20}}]"#, r#""line": 5, "signature": {"start": 10, "end": 20, "text": "a()"}}]"#);
+    assert_ne!(document, FULL);
+    let damaged = with_byte_of(&document, "texts.blob", 0xff);
+    let error = std::panic::catch_unwind(|| compacted(&[&damaged]))
+        .unwrap_or_else(|_| panic!("a heap that is not UTF-8 panicked the fold"))
+        .err()
+        .unwrap_or_else(|| panic!("a heap that is not UTF-8 was read"));
+    assert!(error.contains("not UTF-8"), "{error}");
+}
+
+#[test]
+fn a_layer_whose_reach_is_past_the_reaches_known_is_refused() {
     let past = crate::harvest::REACHES.len() as u8 + 1;
     let error = compacted(&[&with_byte("symbols.reach", past)]).err().unwrap_or_else(|| panic!("reach {past} was read"));
     assert!(error.contains("symbols.reach"), "{error}");

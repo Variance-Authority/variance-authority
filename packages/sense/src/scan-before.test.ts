@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { scanRelations } from './scan.js';
+import { scanRelations } from './test-support/scan.js';
 
 /**
  * Seeding the harness, which lives where no component scan would look.

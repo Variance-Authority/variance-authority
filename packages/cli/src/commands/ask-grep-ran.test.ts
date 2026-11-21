@@ -36,18 +36,15 @@ describe('variance ask grep --test', () => {
     const answered = await run(['ask', 'grep', '--query', 'give up', '--test', 'test/order.test.ts', '--name', 'pays']);
 
     expect([answered.code, answered.err]).toEqual([EXIT_CLEAN, '']);
-    // The line after the answer names the generation it was read from.
-    expect(answered.out.split('\n').slice(0, 10)).toEqual([
-      'test/order.test.ts  pays for an order entered 1 recorded file; files no recording instruments were not searched.',
-      '',
-      '2 matching lines in 1 file.',
-      '',
+    // The answer first, rows in the one grammar, and what bounds them in trailing notes.
+    expect(answered.out.split('\n').slice(0, 7)).toEqual([
+      '2 matching lines in 1 of the 1 recorded file test/order.test.ts  pays for an order entered:',
       'Ran:',
-      "src/order.ts:3:    log('give up later');",
-      '',
+      "src/order.ts:3: log('give up later');",
       'Not taken:',
-      "src/order.ts:6:    throw new Error('give up now');",
-      '  in branch src/order.ts:5-7 of pay, which it did not enter',
+      "src/order.ts:6: throw new Error('give up now');",
+      '  in branch 5-7 of pay, which it did not enter',
+      'note: files no recording instruments were not searched.',
     ]);
   });
 
@@ -57,18 +54,15 @@ describe('variance ask grep --test', () => {
     const answered = await run(['ask', 'grep', '--query', 'give up', '--test', 'test/refund.test.ts', '--name', 'refunds']);
 
     expect([answered.code, answered.err]).toEqual([EXIT_CLEAN, '']);
-    expect(answered.out.split('\n').slice(0, 11)).toEqual([
-      'test/refund.test.ts  refunds entered 2 recorded files; files no recording instruments were not searched.',
-      '',
-      '3 matching lines in 2 files.',
-      '',
+    expect(answered.out.split('\n').slice(0, 8)).toEqual([
+      '3 matching lines in 2 of the 2 recorded files test/refund.test.ts  refunds entered:',
       'Ran:',
-      "src/order.ts:6:    throw new Error('give up now');",
-      "src/refund.ts:1:export const refund = (paid: boolean): string => (paid ? 'give up refund' : 'keep');",
-      '',
+      "src/order.ts:6: throw new Error('give up now');",
+      "src/refund.ts:1: export const refund = (paid: boolean): string => (paid ? 'give up refund' : 'keep');",
       'Not taken:',
-      "src/order.ts:3:    log('give up later');",
-      '  in branch src/order.ts:2-4 of pay, which it did not enter',
+      "src/order.ts:3: log('give up later');",
+      '  in branch 2-4 of pay, which it did not enter',
+      'note: files no recording instruments were not searched.',
     ]);
   });
 
@@ -78,20 +72,19 @@ describe('variance ask grep --test', () => {
     const answered = await run(['ask', 'grep', '--query', 'give up', '--test', 'test/ship.test.ts']);
 
     expect([answered.code, answered.err]).toEqual([EXIT_CLEAN, '']);
-    expect(answered.out.split('\n').slice(0, 13)).toEqual([
-      'test/ship.test.ts  ships entered 1 recorded file; files no recording instruments were not searched.',
-      '',
-      '4 matching lines in 1 file.',
-      '',
+    expect(answered.out.split('\n').slice(0, 12)).toEqual([
+      '4 matching lines in 1 of the 1 recorded file test/ship.test.ts  ships entered:',
       'Ran:',
-      "src/ship.ts:4:  } else { note('give up slow');",
-      "src/ship.ts:10:export function told(): void { note('give up told'); } export function untold(): void {}",
-      '',
+      'src/ship.ts',
+      "  4: } else { note('give up slow');",
+      "  10: export function told(): void { note('give up told'); } export function untold(): void {}",
       'Not taken:',
-      "src/ship.ts:9:export function check(bad: boolean): void { if (bad) { throw new Error('give up guard'); } }",
-      '  in branch src/ship.ts:9-9 of check, which it did not enter; the rest of the line ran',
-      "src/ship.ts:11:export function stop(late: boolean): void { if (late) { note('give up stop'); } }",
-      '  in function stop src/ship.ts:11-11, which it did not enter',
+      'src/ship.ts',
+      "  9: export function check(bad: boolean): void { if (bad) { throw new Error('give up guard'); } }",
+      '    in branch 9-9 of check, which it did not enter; the rest of the line ran',
+      "  11: export function stop(late: boolean): void { if (late) { note('give up stop'); } }",
+      '    in function stop 11-11, which it did not enter',
+      'note: files no recording instruments were not searched.',
     ]);
   });
 
@@ -102,8 +95,8 @@ describe('variance ask grep --test', () => {
     const nowhere = await run(['ask', 'grep', '--query', 'nowhere', '--test', 'test/refund.test.ts']);
 
     expect([refund.code, refund.err, nowhere.code, nowhere.err]).toEqual([EXIT_CLEAN, '', EXIT_CLEAN, '']);
-    expect(refund.out).toContain('1 matching line in 1 file.');
-    expect(nowhere.out).toContain('Nothing in those files matches `nowhere`.');
+    expect(refund.out).toContain('1 matching line in 1 of the 2 recorded files test/refund.test.ts  refunds entered:');
+    expect(nowhere.out.split('\n')[0]).toBe('Nothing in the 2 recorded files test/refund.test.ts  refunds entered matches `nowhere`.');
   });
 
   it('counts the lines the limit leaves out', async () => {
@@ -112,9 +105,21 @@ describe('variance ask grep --test', () => {
     const answered = await run(['ask', 'grep', '--query', 'give up', '--test', 'test/ship.test.ts', '--limit', '1']);
 
     expect([answered.code, answered.err]).toEqual([EXIT_CLEAN, '']);
-    expect(answered.out).toContain("Ran:\nsrc/ship.ts:4:  } else { note('give up slow');\n\n");
+    expect(answered.out).toContain("Ran:\nsrc/ship.ts:4: } else { note('give up slow');\nnote: ");
     expect(answered.out).not.toContain('Not taken:');
-    expect(answered.out).toContain('3 more');
+    expect(answered.out).toContain('3 more not shown; `--offset` 1 shows the next 1.');
+  });
+
+  it('pages across its sections, so an offset past the ran lines starts in the ones not taken', async () => {
+    await recorded();
+
+    const answered = await run(['ask', 'grep', '--query', 'give up', '--test', 'test/ship.test.ts', '--limit', '1', '--offset', '2']);
+
+    expect([answered.code, answered.err]).toEqual([EXIT_CLEAN, '']);
+    expect(answered.out).toContain('Rows 3–3 of 4.');
+    expect(answered.out).not.toContain('Ran:');
+    expect(answered.out).toContain('Not taken:');
+    expect(answered.out).toContain('1 more not shown; `--offset` 3 shows the next 1.');
   });
 
   it('names a file it could not read, and a file git could not diff against the recorded commit', async () => {
@@ -126,8 +131,8 @@ describe('variance ask grep --test', () => {
     const answered = await run(['ask', 'grep', '--query', 'give up', '--test', 'test/refund.test.ts']);
 
     expect([answered.code, answered.err]).toEqual([EXIT_CLEAN, '']);
-    expect(answered.out).toContain('ripgrep reported 1 error reading them; the first: ');
-    expect(answered.out).toMatch(/^src\/order\.ts: .+, so each line is read where it stands now\.$/m);
+    expect(answered.out).toContain('\nnote: ripgrep reported 1 error reading them; the first: ');
+    expect(answered.out).toMatch(/^note: src\/order\.ts: .+, so each line is read where it stands now\.$/m);
   });
 
   it('answers a question intersected with another by the files the test entered', async () => {
@@ -135,7 +140,7 @@ describe('variance ask grep --test', () => {
 
     const text = await askSource({ question: 'intersection', reports: ['grep --query give --test test/refund.test.ts', 'grep --query give --test test/order.test.ts'] });
 
-    expect(text).toContain('1 file in all of them.');
+    expect(text).toContain('1 file in all of them:');
     expect(text).toContain('src/order.ts —');
     expect(text).not.toContain('src/refund.ts —');
   });
@@ -147,22 +152,17 @@ describe('variance ask grep --test', () => {
     const answered = await run(['ask', 'grep', '--query', 'give up', '--test', 'test/order.test.ts', '--name', 'pays']);
 
     expect([answered.code, answered.err]).toEqual([EXIT_CLEAN, '']);
-    expect(answered.out.split('\n').slice(0, 15)).toEqual([
-      'test/order.test.ts  pays for an order entered 1 recorded file; files no recording instruments were not searched.',
-      '',
-      'src/order.ts changed since the recorded commit: each line is read where it stood then, and a region is named by its lines then.',
-      '',
-      '3 matching lines in 1 file.',
-      '',
+    expect(answered.out.split('\n').slice(0, 10)).toEqual([
+      '3 matching lines in 1 of the 1 recorded file test/order.test.ts  pays for an order entered:',
       'Ran:',
-      "src/order.ts:5:    log('give up later');",
-      '',
+      "src/order.ts:5: log('give up later');",
       'Not taken:',
-      "src/order.ts:8:    throw new Error('give up now');",
-      '  in branch src/order.ts:5-7 of pay, which it did not enter',
-      '',
+      "src/order.ts:8: throw new Error('give up now');",
+      '  in branch 5-7 of pay, which it did not enter',
       'Written since the recording, so no test has run it:',
-      'src/order.ts:1:// give up: a note written since',
+      'src/order.ts:1: // give up: a note written since',
+      'note: files no recording instruments were not searched.',
+      'note: src/order.ts changed since the recorded commit: each line is read where it stood then, and a region is named by its lines then.',
     ]);
   });
 
@@ -179,6 +179,7 @@ describe('variance ask grep --test', () => {
     const bare = realpathSync(mkdtempSync(join(tmpdir(), 'va-grep-ran-bare-')));
     execFileSync('git', ['init', '--quiet'], { cwd: bare, stdio: 'pipe' });
     process.chdir(bare);
+    expect(await main(['index'], { out: () => {}, err: () => {} })).toBe(EXIT_CLEAN);
     const unrecorded = await run(['ask', 'grep', '--query', 'give up', '--test', 'test/order.test.ts']);
     await recorded();
     const outside = await run(['ask', 'grep', '--query', 'give up', '--test', '../elsewhere.test.ts']);
@@ -242,6 +243,8 @@ async function recorded(): Promise<string> {
   const git = (...args: string[]): string => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
   git('add', '.');
   git('-c', 'user.name=fixture', '-c', 'user.email=fixture@example.com', 'commit', '--quiet', '-m', 'recorded');
+  // A question reads the generation `variance index` published.
+  expect(await main(['index'], { out: () => {}, err: () => {} })).toBe(EXIT_CLEAN);
   const at = testCoverageFile(root);
   const files = ['test/order.test.ts', 'test/refund.test.ts', 'test/ship.test.ts'];
   const region = (kind: string, name: string, startLine: number, endLine: number, entered: readonly number[]) => ({

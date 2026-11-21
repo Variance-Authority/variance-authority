@@ -4,7 +4,7 @@ import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { native, nativeAvailable } from './addon.js';
 import { realPath, resolveTo, resolversFor } from './resolve.js';
-import { scanRelations } from './scan.js';
+import { scanRelations } from './test-support/scan.js';
 
 /**
  * A relative import whose only answer is a declaration file.
@@ -123,7 +123,7 @@ async function fixture(files: Readonly<Record<string, string>>): Promise<string>
 }
 
 function oracle(root: string, from: string, request: string): string | undefined {
-  return resolveTo({ resolvers: resolversFor({}), root, from: join(root, from), request, language: 'module' });
+  return resolveTo({ resolvers: resolversFor({}), root, from: join(root, from), request });
 }
 
 /** The scan, the resolver taint asks, and the native scanner, held to `expected`. */

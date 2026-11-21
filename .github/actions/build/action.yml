@@ -23,7 +23,7 @@ outputs:
     description: Git identity of all compiled native inputs.
     value: ${{ steps.native.outputs.inputs }}
   native-key:
-    description: Native inputs, resolved compiler, platform, architecture and libc identity.
+    description: Native inputs, resolved compiler, platform, architecture and the glibc it links against.
     value: ${{ steps.native.outputs.key }}
 
 runs:
@@ -63,11 +63,17 @@ runs:
           process.stdout.write(inputs.identity);
         ')
         libc=$(ldd --version 2>/dev/null | awk 'NR == 1 { print $NF }' || true)
+        # build.mjs links this host's binary at its target's glibc floor with
+        # the pinned linker, which makes it independent of the runner's glibc
+        # and names the linker, as the binary's stamp does.
+        floor=$(node --input-type=module -e 'import { hostTarget } from "./targets.mjs"; process.stdout.write(hostTarget()?.glibc ?? "")')
+        echo "floor=$floor" >> "$GITHUB_OUTPUT"
+        linked=$(FLOOR=$floor node --input-type=module -e 'import { linkedAt } from "./targets.mjs"; const f = process.env.FLOOR; process.stdout.write(f ? linkedAt(f).replaceAll(" ", "-") : "")')
         compiler=$(rustc -vV | sha256sum | cut -d ' ' -f 1)
         echo "toolchain=$(rustc --version | cut -d ' ' -f 2)" >> "$GITHUB_OUTPUT"
         rustup default "$(rustup show active-toolchain | cut -d ' ' -f 1)"
         echo "libc=${libc:-none}" >> "$GITHUB_OUTPUT"
-        echo "key=sense-native-v2-$PLATFORM-libc-${libc:-none}-$compiler-$inputs" >> "$GITHUB_OUTPUT"
+        echo "key=sense-native-v2-$PLATFORM-${linked:-libc-${libc:-none}}-$compiler-$inputs" >> "$GITHUB_OUTPUT"
 
     # A run hands its binary directly to compatible jobs. A different tree or
     # environment falls through to its own cache/build, never a guessed binary.
@@ -103,6 +109,19 @@ runs:
         shared-key: sense-${{ runner.os }}-${{ runner.arch }}-libc-${{ steps.native.outputs.libc }}-tests-${{ inputs.native-tests }}
         cache-on-failure: 'true'
         cache-bin: 'false'
+
+    # The linker for a target's glibc floor, which build.mjs refuses to build
+    # without in CI. Only when build.mjs says it will compile: it owns the
+    # stamp, and a binary an earlier lookup left on disk may not be current.
+    - name: will the native scanner compile
+      id: compiles
+      if: steps.native.outputs.floor != ''
+      shell: bash
+      run: echo "native=$(node packages/sense/native/build.mjs --compiles)" >> "$GITHUB_OUTPUT"
+
+    - name: a linker for the glibc floor
+      if: steps.compiles.outputs.native == 'true'
+      uses: ./.github/actions/zigbuild
 
     # build.mjs checks the restored binary's compiled-input stamp before skipping Cargo.
     - name: build

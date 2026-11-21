@@ -163,15 +163,15 @@ variance index   [--no-git] [--wait | --follow-ups]
 variance select  [--since <ref> [--ran-at <commit>]] [--execution <journey-file> [--diff <patch>|-] | --suite <name>] [--at-distance <hops>] [--local] [--format plain|json|vitest|jest|explain] [--no-git]
 variance shards  [--setup <seconds>] [--budget <seconds>] [--max <n>] [--workers <n>] [--since <ref> [--ran-at <commit>] [--collected <file>]] [--at-distance <hops>] [--suite <name>] [--unrecorded <n>] [--format text|json]
 variance reach   --since <ref> [--format plain|json] [--whole-files] [--no-git]
-variance covering --file <path> [--line <n>|<a>-<b>] [--function <name>] [--at-distance <hops>] [--in-package] [--hops] [--text <path>|-] | --since <ref> [--against <record>] [--cases last|<test file>] [--where <name>[=<value>]]... [--read <name>[=<value>]]... [--execution <path> | --suite <name>] [--root <path>] [--format text|refs|json]
-variance coverage [--suite <name> [--against <record>]] [--from <dir> | --packages] [--at-distance <hops>] [--fan-in] [--root <path>] [--format text|markdown|json|badge]
-variance layers  [--against <index>] [--root <path>] [--format text|markdown|json]
+variance covering --file <path> [--line <n>|<a>-<b>] [--function <name>] [--at-distance <hops>] [--in-package] [--hops] [--text <path>|-] | --since <ref> [--against <record>] [--cases last|<test file>] [--where <name>[=<value>]]... [--read <name>[=<value>]]... [--execution <path> | --suite <name>] [--root <path>] [--format text|refs|json] [--limit <n>] [--offset <n>]
+variance coverage [--suite <name> [--against <record>]] [--from <dir> | --packages] [--at-distance <hops>] [--fan-in] [--session <name>=<path>]... [--served <dir>] [--root <path>] [--format text|markdown|json|badge]
+variance layers  [--against <index>] [--package <name>]... [--root <path>] [--format text|markdown|json]
 variance restrictions [--root <path>] [--format text|json]
 variance review  [--since <ref>] [--against <record>] [--suite <name>] [--coverage] [--fail-on-uncovered] [--fail-on-lost] [--out <dir>] | --from-run <run id or URL> [--artifact <name>] [--root <path>] [--format text|markdown|json|handover]
 variance report  [--config <path>] [--format text|json|html [--embed-images]] [--subject <id>] [--exit-zero-on-changes] [<report>...]
-variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--build <id>] [--file <path>] [--files <path>[,...]] [--area <id>] [--name <name>] [--package <name>] [--subpath <subpath>] [--query <words>] [--under|--above|--inside|--beside|--left-of|--right-of <words>] [--on <words>] [--from <path>] [--to <path>] [--imports <import>] [--declares <regex>] [--path <regex>] [--text <pattern>] [--except-from|--except-to|--except-imports|--except-declares|--except-path <value>] [--changed-file <path>] [--taint-file <path>] [--just-answer] [--story] [--over <time>] [--after <date>] [--limit <n>] [--offset <n>] [--at <address>] [--format text|json] [<report>...]
+variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--build <id>] [--file <path>] [--files <path>[,...]] [--area <id>] [--declarations] [--name <name>] [--line <file>:<line>] [--package <name>] [--subpath <subpath>] [--query <words>] [--under|--above|--inside|--beside|--left-of|--right-of <words>] [--on <words>] [--from <path>] [--to <path>] [--imports <import>] [--declares <regex>] [--path <regex>] [--text <pattern>] [--except-from|--except-to|--except-imports|--except-declares|--except-path <value>] [--changed-file <path>] [--taint-file <path>] [--story] [--over <time>] [--after <date>] [--limit <n>] [--offset <n>] [--at <address>] [--format text|json] [<report>...]
 variance distill [--test <name>] [--file <path> | --from <dir>] [--execution <path> | --suite <name>] [--root <path>] [--format text|json|jsonl]
-variance story   [--file <path>] [--name <name>]... [--project <name>] [--label <label>] [--in <file> | --package <name> | --around <step> | --whole | --compare last|outcome|<a>,<b>,…] [--root <path>] [--format text|json]
+variance story   [--file <path>] [--name <name>]... [--project <name>] [--label <label>] [--in <file> | --package <name> | --around <step> | --whole | --page <text> | --compare last|outcome|<a>,<b>,…] [--root <path>] [--format text|json]
 variance watch
 variance adjudicate [--config <path>] --claims <path> [--exit-zero-on-changes] [<report>...]
 variance accept  [--config <path>] <subject>... | --all | --shape <fingerprint>[,...] [--by <name>] [--message-file <path> [--message <text>]]
@@ -182,6 +182,8 @@ variance serve   [--config <path>] [--just-answer] # MCP over stdio
 variance doctor  [--config <path>] [--baselines]
 variance prune
 variance job     --suite <name> [--complete-on <exit>] -- <command>...
+variance cargo   [--suite <name>] [-- <cargo test argument>...]
+variance janus   --since <ref> --file <path>... -- <command>...
 variance share   [--config <path>] [--mainline <branch>] [--publish] [<report>...] | [--suite <name>] [--publish [--collected <path>] [--from-queue <artifact pattern>] | --format text|github] [<record>...] | --purge-older-than <days> [--mainline <branch>]
 variance collect [--config <path>] [--subjects <glob>] [--shard <k>/<n>] [--workers <n>] --out <part.json> | merge <part.json>... --out <suite.index>
 variance carry   restore [--transform jest [--shard <k>/<n>]] | save | take [<dir>] [--as-base] | keep [<dir>] | hand <dir> | receive <dir> | merge <commit> [--head <sha>] [--on-conflict stay|fail] [--expect <sha>] [--config <path>] [--format text|github]
@@ -205,6 +207,7 @@ variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [--to-
 | `push` | sends a finished run to a review surface for somebody to decide |
 | `doctor` | prints what this machine can observe, before a run, not after one, and whether each declared suite has recorded; `--baselines` asks only what the baseline store holds, with no browser opened, and exits 2 on a checkout of git-LFS pointers git-lfs cannot fetch here |
 | `prune` | removes the cache entries whose checkout, worktree, process or commit is gone, now |
+| `janus` | runs a command with the files it names rolled back to their text at a ref, so the old tests run on the new code, with nothing checked out |
 | `collect` | reads the suite index's facts with no baseline, comparison or image, one part per shard; `collect merge` checks the parts are one build and folds them into the index |
 | `share` | prints what the share holds for your mainline, or publishes this run, or every shard of one build, to its line; `--suite <name>` does either for one suite, and a repository that configures no project takes the only suite it declares's record alone; `--purge-older-than <days>` removes the records kept by commit that are older |
 | `carry` | prints the paths and cache keys a CI job restores before a run and saves after it, from the config |
@@ -227,43 +230,32 @@ is kept. It is for a caller that knows; the action passes the person who ticked.
 component and which file, and what that file's package publishes, without
 re-running anything and without a second server.
 
-For source questions, `justAnswer` and its `--just-answer` spelling read the
-last published workspace generation regardless of age. They perform no Git
-status or refresh, refuse when no generation exists, and print when the value
-was produced, saying under an answer or a refusal that the checkout was not
-compared with it; `search --format json` carries `compared: false` instead.
-Without the flag a generation is reused for one hour before the next source
-question refreshes it. A question refused from a reused generation, a name not
-found among them, is answered from it, and says the checkout was not compared
-with it: `variance index` refreshes the generation and builds the dependency
-lexicon. A `symbol` or `uses` whose files changed or went away after the generation, the ones that declare the
-name or pass it on, the entry that publishes it and each row `uses` lists, and `serve`'s
-`docs_search` whose printed files, or the entry and barrels publishing them, did, which a stat of each decides, is asked again of a generation made now: an answer whose files
-are unchanged reads nothing more. When the checkout cannot be read again, or the read cannot be saved, or a file the answer rests on
-is saved during the read that answers it, the answer or the refusal says it was not compared with the generation,
-and why, and gives a file written since as the generation read it: its names, and the text of them
-it kept. An injected
-`AskRequest.source` is read again with `current` set when its answer outlived its generation. When no changed files are
-named, `search` is the exception: it reads the published generation, whatever
-its age, and says so on the same line. When nothing is published it reads the
-checkout and publishes the search, unless you passed `--just-answer`, which
-refuses and names that flag. `--changed-file` and `--taint-file` still ask it
-for a new generation by name.
+A source question answers from the workspace generation `variance index` last
+published, whatever its age, and does nothing else: no Git status, no look at
+the files the answer rests on, no index written. So after you edit, run
+`variance index`, then ask. Every answer and refusal prints when the generation
+was produced and says the checkout was not compared with it; `search --format
+json` carries `compared: false` instead. With no generation published, the
+question refuses in one line that names `variance index`. Of a file written
+after the generation's read, an answer gives what the generation recorded: its
+names, and none of its text.
+
+`--changed-file` and `--taint-file` are the exception: they ask for a new
+generation by name, and are the one way a question has the index updated.
+`--changed-file` takes a newline-delimited file of scan-root-relative paths an
+editor, watcher, or CI step already detected as changed. It asks for a new
+generation now, whatever the age of the last, and cannot be combined with
+`--just-answer`. An empty file states that nothing changed and keeps the
+generation as it stands. A list does not narrow the read: the source index finds
+what moved from Git and reads those files again, listed or not. With no
+generation to refresh, the read is whole.
 
 A library host that injects `AskRequest.source` receives `SourceReadOptions`.
-Its `current` field is true when a question was refused from a generation
-older than the question, and asks for one made from the checkout now. Its
-`tree` field is true only when the selected source tool names a `from` or `to`
-path, so the injected reader can avoid loading the graph for every other
-question and return it through `Sourced.tree` only then.
-
-`--changed-file` takes a newline-delimited file of scan-root-relative paths an
-editor, watcher, or CI step already detected as changed. It is producer input:
-an empty file states that nothing changed, it replaces Git status discovery, and
-it cannot be combined with `--just-answer`. A file you listed gives its names at
-the lines it holds now. A file you left off is unchanged for
-that request; the next question without a list looks. With no generation to
-refresh, the read is whole and the list is not used.
+Its `justAnswer` field is true unless the question names a changed file or a
+taint, and asks for the published generation alone. Its `tree` field is true
+only when the selected source tool names a `from` or `to` path, so the injected
+reader can avoid loading the graph for every other question and return it
+through `Sourced.tree` only then.
 
 `--format json` prints `search` as data: the query, the area, and the
 `published`, `exported` and `loose` sections, each with its `total` and the rows
@@ -283,6 +275,7 @@ variance ask search --query viewport    # the code, and the cases the last run r
 variance ask costs --from src           # where the suite's time goes under src, from the mainline's published times
 variance ask slowest-tests --over 3s --from src   # the cases under src that ran at least 3 s, closest to their limit first
 variance ask retried-tests              # the cases the runner retried whose attempts ended differently: failed, then passed
+variance ask not-run                    # the checks a test declared and an attempt passed without executing
 variance ask containment --after 2026-01-01    # how far commits since that day reached across package boundaries
 variance ask decisions --subject story:card   # what reviewers decided on it, read with the share token
 variance ask concerns --build ci-42           # what reviewers flagged as suspect on the subjects that build showed, and why
@@ -455,8 +448,9 @@ file, and the answer says so.
 
 Over a whole file, a region no case entered on a line the function around it
 also charges, such as a one-line branch or the line that opens a longer one,
-gets a range of its own and a line saying no case entered it, and whether that
-is unwalked or a hole; `--format json` lists it under the range's `unentered`.
+gets a range of its own, and the answer says once for the file which regions
+no case entered, and whether each is unwalked or a hole; `--format json` lists
+them under the range's `unentered`.
 A narrowed answer and a file edited since the run say the same, at the line the
 region stands on now.
 
@@ -485,18 +479,28 @@ reaches, is said to be one rather than met by each test file:
 native/src/lib.rs is not instrumented: the suite declares it a precondition of every one of the 212 test files these cases come from, so no case is recorded entering any line of it, and a change to it selects all of them.
 ```
 
-Over a whole module that many test files import, each range names the cases
-that ran it and counts the rest, the ones that ran it only while their file
-imported the module:
+Over a whole module, each test file whose cases called into it is named once,
+the most cases first, with how many of its cases called in out of how many the
+record holds for it (`3/5`). The cases that ran it only while their file
+imported the module are counted, not named:
 
 ```text
-src/format/index.ts — 3 recorded ranges, 4 named tests, and 180 more that ran it only while their file imported it
-lines 1-40
-  src/format/index.test.ts
+src/format/index.ts — 3 recorded ranges, 4 named tests in 2 test files, and 180 more that ran it only while their file imported it
+  src/format/index.test.ts — 3/5
     formats a total
-  and 180 cases in 96 test files ran it only while their file imported the module
-…
+    formats a refund
+    rounds half up
+  src/format/currency.test.ts — 1/4
+    formats yen
+lines 41-48 — loaded
+  12 cases in 9 test files ran it only while their file imported the module
 ```
+
+The text shows ten test files and three cases under each, counts the rest, and
+ends with the question that asks the next page, spelled whole with its
+`--offset`, and its `--suite` when several suites answered; `--limit` and
+`--offset` page it as they page every `ask` listing, and `--format json` names
+every case and range.
 
 A record cut under probes this build does not place still answers: what ran,
 and which cases ran it, is read from the record as it holds it, at its own
@@ -638,9 +642,10 @@ does not, and writes zero into every crossing, so a depth column here was a
 constant dressed as a measurement. *How far away is this test* is an import
 count, and it is the two flags above.
 
-Given `--file` alone the answer is per range rather than per test: the recorded
-regions of the file, each with the tests shared by every line in it, which is
-where an unclaimed region shows up as one.
+Given `--file` alone the answer names each test file once and then the ranges
+with something of their own to say, which is where an unclaimed region shows
+up: a range no case called into, a range an edit moved, and a region on a range
+no case entered. `--format json` holds every range with its cases.
 
 Each range, and the answer about one line, also carries the one word an editor
 paints it with:
@@ -673,7 +678,9 @@ variance covering --file src/checkout/total.ts --cases src/checkout/total.test.t
 
 ```text
 Read from the 3 cases of the last run at 8a72c74b1e03, not the whole suite.
-src/checkout/total.ts — 4 recorded ranges, 3 named tests
+src/checkout/total.ts — 4 recorded ranges, 3 named tests in 1 test file
+  src/checkout/total.test.ts — 3/3
+…
 ```
 
 `last` is the run that wrote the index last, which is the run you just made. A
@@ -1671,6 +1678,44 @@ since a split file still sends every test file that called into either part.
 None has a threshold. Under `--at-distance` the counts read only the band. `--format json` lists
 every file under `fanIn`. For one file or line, `covering` names the tests.
 
+`--session <name>=<path>` sets a run you made yourself beside the record: V8
+coverage exported from a browser or a Node process on your own machine, with
+the app built as you would ship it. Give it once per run. It reads Playwright's
+`page.coverage.stopJSCoverage()` written as JSON, CDP's
+`Profiler.takePreciseCoverage` result, or a `NODE_V8_COVERAGE` directory, and
+follows each script's source map back to the files the record holds. A page's
+scripts are named by URL, so `--served <dir>` says which directory the server
+served them from:
+
+```bash
+variance coverage --suite e2e --session flow=flow.json --session manual=manual.json --served dist
+```
+
+```text
+sessions
+          functions ran  loaded, not run  ran in another text
+  flow    29             6                0
+  manual  26             9                0
+ran by a session, by no recorded case — 5 functions
+src/main.tsx
+  reduce/filter.arg0    20     manual
+  exportTodos           34–36  manual
+  exportTodos/map.arg0  35     manual
+  Shell/anon#2          46     manual
+  Shell/anon#6          50     manual
+```
+
+A session is read function by function, in the regions the record cut, and is
+never written into the record: no session becomes a case, so `select` and
+`shards` answer as they did. A function whose text in the session differs from
+the checkout's is counted apart, since no case can be counted for it. Every
+script or source a session ran that no function is named from is named with its
+reason: a script no file on this machine answers, one whose file no longer
+holds the text Node ran, a map it could not read, a source outside the checkout
+or in `node_modules`, and a text that could not be parsed. `--format json` lists every
+function of every file a session loaded under `sessions`, with each session's
+verdict and the test files that entered it.
+
 `--format markdown` prints a table for a job summary, and `--format json` prints
 every count. `coverage` exits `0` whenever it could read the records, whatever
 the numbers are: a threshold is a line in your own workflow.
@@ -2239,7 +2284,9 @@ recording made at a commit git cannot read here prints `not prepared:` with
 git's reason, and the step that makes the journeys exits `2` once every line is
 printed. The
 last two lines are what `variance ask` answers from, and each prints why when it
-could not be written. An index the file system refuses
+could not be written. An unchanged index and unchanged manifests keep the
+questions published last, and their line prints `questions: kept at <time>`
+with the reason. An index the file system refuses
 to write prints `source index not written: <reason>, at <path>` and exits `2`.
 
 On your machine the command returns once the index is written. The code map,
@@ -2250,8 +2297,9 @@ stderr, so no answer comes from a map older than the index. `variance select`
 reads none of them, and waits only while the process brings the index up to
 date and folds its working layer into its base, which it does before the four. A process that ended before it
 finished is not waited on: the next command that reads them makes them itself
-and prints their lines. `--wait` makes them before `index` returns, which is what it
-always does in CI. `--follow-ups` is what the started process runs.
+and prints their lines. `--wait` waits for that process before `index` returns, and
+prints its lines and exits as it did, which is what it always does in CI.
+`--follow-ups` is what the started process runs.
 
 In CI, run it as its own step after you restore the cache. A reader that finds
 nothing published there exits `2` and names the missing step, because an index
@@ -2264,6 +2312,52 @@ Git's object store. Git still lists the files and names each blob, so the index
 is the same one either way. Use it for a partial clone or an object store on a
 network filesystem. `select` and `reach` take the flag for the build they make
 on your machine when nothing is published.
+
+Set `VARIANCE_AUTHORITY_INDEX_STAGES=1` to see where an update's time and memory
+go. Each stage of the update writes one line to stderr — listing, open, walk,
+records, encode and write — with its wall time and the process's peak resident
+memory at its end. Reading, parsing and resolving overlap inside the walk, so
+its line adds the time each took summed over every core. After them, `index`
+is the wall time the walk spent building the indexes Rust, Python, Swift, Java
+and Kotlin resolve through, before it resolved anything:
+
+```
+variance stage walk: 1.644 s, peak 2.13 GB (thread time: read 2.310 s, parse 15.255 s, resolve 12.482 s; wall: index 0.083 s)
+```
+
+The listing's line names its parts, each with its wall time, always in the
+order below, and leaves out a part that did not run:
+
+- `locate` finds the checkout, its root and its index.
+- `held` reads the listing kept from the last update, asks Watchman whether it
+  still stands, and takes Watchman's clock and the stamps of git's inputs for
+  the next one. Each question it asks Watchman waits about a second at most. A
+  watch that has not answered by then is no answer, and git lists.
+- `inventory` reads tracked paths and blob ids from Git's index through
+  git-oxide. `git ls-files`, part of it, asks Git to expand a sparse index or
+  read an index the native reader cannot decode.
+- `worktree` compares local changes against the same loaded index. `git status`
+  asks Git for its changes when a monitor, untracked cache, sparse checkout,
+  submodule or `assume-unchanged` index entry requires Git's comparison. Under a
+  watch, it compares only the files Watchman reports moved since the kept
+  listing, which answers for the rest.
+- `overlay` reads the changes and checks which are files, and `hash-object`,
+  part of it, hashes the files that changed.
+- `merge` puts the changes into the indexed file list and sorts it.
+- `seeds` and `assemble` build the list the update reads.
+
+`inventory` includes `git ls-files`, and `overlay` includes `hash-object`, so
+nested times can add up to more than the line. Work no part names is counted
+only in the line's wall time.
+
+A directory git does not list prints a listing line with no parts. Each stage
+starts its sums from zero, so time spent before it is not counted, but the sums
+belong to the process: a second update running in the same process at the same
+time adds to them.
+
+A stage can print more than once: a directory git does not list prints git's
+listing and then the disk's, and a writer that lost a race opens and walks
+again.
 
 No `variance.config.json` is read.
 
@@ -2599,6 +2693,58 @@ read is not seen: a new page the build would pick up does not select it. Declare
 what the recorder cannot see under the suite's `before`: a server the job leaves
 running, or the workflow that starts it.
 
+### `cargo`: record a Cargo suite
+
+`variance cargo` builds a crate's tests with rustc's coverage counters, runs each
+test alone, and writes the suite's record: one row per file that declares tests,
+one case per test, and the functions each one ran. `variance select` and
+`variance covering` then answer a Rust change as they answer a Node one.
+
+```bash
+variance cargo --suite unit -- --workspace --lib --locked
+variance covering --file src/lib.rs --function add
+```
+
+What follows `--` goes to `cargo test`. It exits `0` when every test passed and
+`101` when a test or the build failed. [Rust tests](https://variance-authority.dev/docs/rust) covers
+the build directory, the regions and the cost.
+
+### `janus`: the old tests on the new code
+
+A change that rewrites code and its tests together can pass because the tests
+were rewritten to agree. `variance janus` answers whether the tests as they stood
+before the change still pass on the code after it:
+
+```bash
+variance janus --since origin/main --file src/value.test.js -- <test command>
+```
+
+Each `--file` is rolled back: the command reads its text at the merge base with
+`<ref>`. Every other file is the checkout's. A `--file` names a change in an
+existing file, one the checkout and the base both hold; a file either side lacks
+is refused, because janus neither adds a file nor hides one. A test the change
+deleted or added is not rolled back: run the base's tests that still exist.
+
+Nothing is written: no checkout, no copy and no worktree, so the run starts as
+fast as the command does. Two preloads in `NODE_OPTIONS` serve the files' text
+through `fs` and Node's module loader, in every Node process the command
+starts; finding, listing and resolving files stay the disk's.
+
+The exit is the command's. A run in which no process read a file it was served
+cannot have run that file's base, so it fails and names the files: a runner
+reading them below `fs` and the module loader, or a command that runs fewer
+tests than were named.
+
+Jest, Vitest, Playwright Test and `node:test` read test files through Node, and
+run the rolled-back text. Rstest does not yet: it compiles test files through
+Rspack, which reads them itself, so every run under it fails as unread.
+
+A runner that caches transformed files by path and modification time can answer
+from the head's cache entry: run it with its cache off.
+
+A failure is a test the change broke or a test the change was right to rewrite;
+the run does not tell them apart.
+
 ### `shards`: how many CI jobs a suite is worth
 
 A runner config wrapped by `withTestSelection`, under [the runners that
@@ -2691,9 +2837,15 @@ test:
 ### `reach`: what a diff reaches, for a pipe
 
 `select` answers a journal about a suite this tool recorded. `reach` answers the
-import graph about a checkout it has never run anything in, and its languages are
-JavaScript, TypeScript, Python, Rust, Java, Kotlin and Swift. It prints the files
-a diff reaches, one per line, and it is meant to be piped:
+import graph about a checkout it has never run anything in, and its languages
+are JavaScript, TypeScript, Python, Rust, Java, Kotlin and Swift. It does not
+yet read framework file formats or bundler-only aliases: not a Vue or Svelte
+single-file component, not the files an Angular component names in `templateUrl`
+and `styleUrls`, and not an alias declared only in a bundler's configuration,
+where one declared as `paths` in a `tsconfig` resolves; [the source scan's
+limits](https://variance-authority.dev/docs/source#limits) say what each leaves
+out. It prints the files a diff reaches, one per line, and it is meant to be
+piped:
 
 ```bash
 variance reach --since origin/main | grep '_test\.py$' | xargs pytest

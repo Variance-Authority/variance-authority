@@ -1,6 +1,6 @@
 import { formatSource, resolveSource } from '@variance-authority/core/attribute';
 import type { AttributedRegion, SourceIndex } from '@variance-authority/core/attribute';
-import type { Observation } from './observe.js';
+import type { Observation } from './observation.js';
 
 /**
  * The observation as the thing a reviewer or an agent reads — and the only

@@ -1,8 +1,8 @@
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { FileSet, Tool, ToolInvocation } from '@variance-authority/mcp/tools';
-import { readsNames } from './discover.js';
+import { type Holds, readsNames } from './discover-operands.js';
 import { FoundNothing } from './find.js';
-import { limitOf, notShown, spellingOf, verbOf } from '@variance-authority/mcp/tools';
+import { nextPage, pageAt, pageOf, paged, spellingOf, verbOf } from '@variance-authority/mcp/tools';
 
 /**
  * `docs_intersection` — the files every one of several whole questions answers.
@@ -73,9 +73,12 @@ function saidQuestions(input: Readonly<Record<string, unknown>>): readonly Quest
   });
 }
 
-/** Whether a question among those crossed reads every file's names, which a host reads with the tree. */
-export function namesWanted(input: Readonly<Record<string, unknown>>): boolean {
-  return saidQuestions(input).some(({ question, input: given }) => question === 'discover' && readsNames(given));
+/**
+ * Whether a question among those crossed reads every file's names, which a host
+ * reads with the tree; `files`, the tree's, as `readsNames` takes them.
+ */
+export function namesWanted(input: Readonly<Record<string, unknown>>, files?: Holds): boolean {
+  return saidQuestions(input).some(({ question, input: given }) => question === 'discover' && readsNames(given, files));
 }
 
 /**
@@ -112,6 +115,7 @@ export function intersectionOf<Subject>(operands: readonly Tool<Subject>[]): Too
           description: 'Two or more questions, each a set of files.',
         },
         limit: { type: 'integer', description: `Files to show. ${SHOWN} when not said; the rest are counted.` },
+        offset: { type: 'integer', minimum: 0, description: 'Rows to skip before the first shown; an answer with more names the next. 0 when not said.' },
       },
       required: ['questions'],
       additionalProperties: false,
@@ -123,7 +127,7 @@ export function intersectionOf<Subject>(operands: readonly Tool<Subject>[]): Too
 
     run: (subject, input, invocation?: ToolInvocation<Subject>) => {
       const spell = spellingOf(invocation);
-      const limit = limitOf(input, SHOWN, spell);
+      const page = pageOf(input, SHOWN, spell);
       const spelled = ({ question, input: given }: Question): string => spell.operand(question, given);
       const questions = questionsOf(input);
       // Every question is resolved before any is asked, so a misspelled third
@@ -165,12 +169,13 @@ export function intersectionOf<Subject>(operands: readonly Tool<Subject>[]): Too
         return none;
       }
 
-      lines.push('', `${counted(common.length)} in all of them.`, '');
-      for (const file of common.slice(0, limit)) {
-        lines.push(`${file} — ${sets.map((set, at) => `${at + 1}: ${evidenceOf(set.files.get(file)!)}`).join(' · ')}`);
-      }
-      if (common.length > limit) lines.push('', notShown(common.length - limit, spell));
-      return lines.join('\n');
+      // The answer first, then the questions it crossed, then one row per file.
+      const rows = paged(common, page).map(
+        (file) => `${file} — ${sets.map((set, at) => `${at + 1}: ${evidenceOf(set.files.get(file)!)}`).join(' · ')}`,
+      );
+      return [`${counted(common.length)} in all of them:`, ...lines, ...pageAt(page, common.length, spell), ...rows, ...nextPage(page, common.length, spell)].join(
+        '\n',
+      );
     },
   };
   return tool;

@@ -10,8 +10,8 @@
 //! compaction's whole generation cross the same way
 //! (`encode_source_index` in `graph_index.rs`), so the layout has one author.
 //!
-//! The reader is `decodeSourceIndex` in `source-index-format.ts`, and a warm
-//! run compares what it decodes against what it rebuilt: a generation laid
+//! The reader is `index_reader.rs`, and a warm run compares what it reads
+//! against what it rebuilt: a generation laid
 //! out differently is one that never answers a warm run.
 
 // compass: variance-authority.reach.source-index
@@ -33,9 +33,8 @@ pub fn directory_columns(directories: &[(String, String)], deleted: &[String], s
     ]
 }
 
-/// A parse key's content digest and the way it was read, which `joinedKey` in
-/// `source-index-format.ts` joins again. A key read the default way has no
-/// second part.
+/// A parse key's content digest and the way it was read, which `joined` in
+/// `compact.rs` joins again. A key read the default way has no second part.
 pub fn key_parts(key: &str) -> (&str, &str) {
     key.split_once('\0').unwrap_or((key, ""))
 }
@@ -209,6 +208,14 @@ pub struct Deleted<'a> {
 
 /// The segment bytes, dictionary first: every string any part names, once.
 pub fn encode_generation<P: ParseRow>(generation: &Generation<P>) -> Vec<u8> {
+    encode_generation_carrying(generation, Vec::new())
+}
+
+/// The segment bytes with `trailing` written after the generation's own
+/// columns: what `held_listing::carried` makes of the plain segment, in one
+/// encode. Carrying a listing into a segment already encoded copies the whole
+/// segment twice more, and a cold build's segment is the largest there is.
+pub fn encode_generation_carrying<P: ParseRow>(generation: &Generation<P>, trailing: Vec<Column>) -> Vec<u8> {
     let mut values = Collected::default();
     values.extend(generation.config);
     for (path, digest) in generation.directories {
@@ -242,6 +249,7 @@ pub fn encode_generation<P: ParseRow>(generation: &Generation<P>) -> Vec<u8> {
     ]));
     let deleted_records = deleted.records.iter().map(|file| strings.id(file)).collect();
     columns.extend(RecordColumns::of(generation.records, &strings).columns(deleted_records));
+    columns.extend(trailing);
     encode(columns)
 }
 

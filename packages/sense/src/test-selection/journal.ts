@@ -49,6 +49,7 @@ import { digestString } from '../digest.js';
 import { instrumentationId, type InstrumentMode, type ModuleId } from '../instrument/index.js';
 import { ownedExecutionIndexFrom } from './cases.js';
 import { attemptsOfCases } from './attempts-record.js';
+import { landedChecks, type ChecksSection } from './checks-record.js';
 import { eyesOfCases } from './eyes-record.js';
 import { encodeOwnedSetExecutionIndex } from './execution-set-format.js';
 import {
@@ -121,6 +122,7 @@ export {
 } from './observed.js';
 export type { ObservedEyes } from './eyes-record.js';
 export type { ObservedAttempt } from './attempts-record.js';
+export type { CheckedAttempt, ChecksScope } from './checks-record.js';
 export { listenForPreconditions, type PreconditionListener, type PreconditionStanding } from './precondition-listener.js';
 export { preconditionText, saidAcross, type CasePrecondition, type Said } from './case-said.js';
 export {
@@ -206,6 +208,12 @@ export interface RecordExecutionOptions {
    * with whoever pays for the file.
    */
   readonly cases?: readonly ObservedCase[];
+  /**
+   * Which declared checks the run's cases entered, and the scope it ran in
+   * (`checks-record.ts`). It replaces the record's whole; absent, the record
+   * keeps none, because a run that declared no check names none missing.
+   */
+  readonly checks?: ChecksSection;
 }
 
 /** What a run learned, or why it learned nothing. */
@@ -218,6 +226,8 @@ export interface ExecutionRecord {
   /** How many cases the run laid into the record, for a run that was asked for them. */
   readonly cases?: number;
 }
+
+export { recordChecks } from './checks-landing.js';
 
 /**
  * Join drained journals to the modules they name and merge them into the index.
@@ -426,7 +436,7 @@ export async function recordExecution(
     // A worktree layers onto the repository's months of recording rather than
     // onto nothing. A no-op here and after the first run.
     await prepareRecord(lock, root, laidProbes(current), { cacheRoot: options.cacheRoot });
-    await landRun(coverageFile, current, root, options.cacheRoot, cases);
+    await landRun(coverageFile, current, root, options.cacheRoot, cases, options.checks === undefined ? undefined : landedChecks(options.checks, commit));
     markCheckout(repositoryRoot(root), options.cacheRoot);
   });
   if (!merged.held) {

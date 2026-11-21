@@ -200,6 +200,24 @@ describe('a change entirely inside an excluded subtree', () => {
 });
 
 describe('a change outside the excluded subtree', () => {
+  it('reads a recolour beside the excluded box as colour, whatever the box drew', async () => {
+    // Columns 30–39 sit in the excluded box and lose their ink; the block at 41 is recoloured in place.
+    const drawn = (inExcluded: boolean, block: readonly [number, number, number]): string => {
+      const png = new PNG({ width: 120, height: 120 });
+      png.data.fill(0xff);
+      for (let y = 22; y < 38; y += 1) {
+        for (let x = 30; x < 56; x += 1) {
+          if (x < 40 && !inExcluded) continue;
+          if (x === 40) continue;
+          png.data.set(x < 40 ? [0, 0, 0] : block, (y * 120 + x) * 4);
+        }
+      }
+      return PNG.sync.write(png).toString('base64');
+    };
+    const observation = await compare(drawn(true, [0x33, 0x33, 0x33]), drawn(false, [0xcc, 0x00, 0x33]), snapshotWith(CLOCK_SITE));
+    expect(observation.isolation!.regions.map((region) => region.change)).toEqual(['colour']);
+  });
+
   const outside = image({ x: 80, y: 80, size: 8 });
   const blank = image(null);
 

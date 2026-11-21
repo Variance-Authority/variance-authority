@@ -1,11 +1,6 @@
-import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { resolveJvm } from './jvm.js';
+import { describe, expect, it } from 'vitest';
 import { native } from './addon.js';
 import type { Read } from './read.js';
-import { worldOn, type TreeWorld } from './world.js';
 
 /**
  * Two syntaxes over one resolution algorithm.
@@ -20,37 +15,36 @@ import { worldOn, type TreeWorld } from './world.js';
 
 describe('what a JVM file asks for', () => {
   it('asks for its own package, which nothing in the file imports', () => {
-    const java = readJava('Thing.java', 'package a.b;\nclass Thing {}\n');
-    const kotlin = readKotlin('thing.kt', 'package a.b\n\nclass Thing\n');
+    const java = readJava('package a.b;\nclass Thing {}\n');
+    const kotlin = readKotlin('package a.b\n\nclass Thing\n');
 
     expect(java.requests[0]?.value).toBe('a.b.*');
     expect(kotlin.requests[0]?.value).toBe('a.b.*');
   });
 
   it('marks every import a guess, because the syntax cannot say whose it is', () => {
-    const read = readJava('Thing.java', 'package a.b;\nimport java.util.List;\nimport a.c.Other;\nclass Thing {}\n');
+    const read = readJava('package a.b;\nimport java.util.List;\nimport a.c.Other;\nclass Thing {}\n');
 
     expect(read.requests.every((request) => request.guessed === true)).toBe(true);
   });
 
   it('reads a wildcard import as the package rather than as a name', () => {
-    const java = readJava('Thing.java', 'import a.c.*;\nclass Thing {}\n');
-    const kotlin = readKotlin('t.kt', 'import a.c.*\nimport a.d.Named\n');
+    const java = readJava('import a.c.*;\nclass Thing {}\n');
+    const kotlin = readKotlin('import a.c.*\nimport a.d.Named\n');
 
     expect(java.requests.map((request) => request.value)).toEqual(['a.c.*']);
     expect(kotlin.requests.map((request) => request.value)).toEqual(['a.c.*', 'a.d.Named']);
   });
 
   it('binds a Kotlin import under its alias', () => {
-    const read = readKotlin('t.kt', 'import a.c.Other as Renamed\n');
+    const read = readKotlin('import a.c.Other as Renamed\n');
 
     expect(read.requests[0]?.bindings[0]?.local).toBe('Renamed');
   });
 
   it('publishes the top-level declarations of either language', () => {
-    const java = readJava('Thing.java', 'package a;\npublic class Thing {}\ninterface Seen {}\n');
+    const java = readJava('package a;\npublic class Thing {}\ninterface Seen {}\n');
     const kotlin = readKotlin(
-      't.kt',
       'package a\n\nclass Thing\nfun parse() {}\nobject Registry\ntypealias Name = String\nval version = 1\n',
     );
 
@@ -60,14 +54,14 @@ describe('what a JVM file asks for', () => {
   });
 
   it('publishes a top-level Java class whatever its modifiers, since none keeps one to its file', () => {
-    const read = readJava('Thing.java', 'package a;\n\nfinal class Thing {}\nabstract class Other {}\n');
+    const read = readJava('package a;\n\nfinal class Thing {}\nabstract class Other {}\n');
 
     expect((read.exports ?? []).map((entry) => entry.exported)).toEqual(['Thing', 'Other']);
     expect(read.symbols?.map(({ reach }) => reach)).toEqual([undefined, undefined]);
   });
 
   it('keeps a top-level Kotlin `private` to its file, and publishes an `internal` one to its module', () => {
-    const read = readKotlin('t.kt', 'package a\n\nprivate fun helper() {}\nprivate val cache = 1\ninternal class Thing\n');
+    const read = readKotlin('package a\n\nprivate fun helper() {}\nprivate val cache = 1\ninternal class Thing\n');
 
     expect((read.exports ?? []).map((entry) => entry.exported)).toEqual(['Thing']);
     expect(read.symbols?.map(({ name, reach }) => ({ name, reach }))).toEqual([
@@ -78,85 +72,22 @@ describe('what a JVM file asks for', () => {
   });
 
   it('says so when the parser stopped where an import could have been', () => {
-    expect(readJava('Thing.java', 'import a.B;\n@ ~ !\n').unknown).toContain('did not parse cleanly');
+    expect(readJava('import a.B;\n@ ~ !\n').unknown).toBe('did not parse cleanly as java, so what it imports may be incomplete.');
   });
 
   it('reads a file whose only error is inside a body, rather than marking it unknown', () => {
-    const read = readJava('Thing.java', 'import a.B;\nclass Thing { void ( }\n');
+    const read = readJava('import a.B;\nclass Thing { void ( }\n');
 
     expect(read.requests.map((request) => request.value)).toEqual(['a.B']);
     expect(read.unknown).toBeUndefined();
   });
 });
 
-describe('where a JVM import lands', () => {
-  // On disk, because a source root is derived from what a file *says* its
-  // package is — a list of paths cannot answer that, and a world that cannot
-  // read text is a world with no JVM roots in it.
-  let root: string;
-  let world: TreeWorld;
-
-  beforeAll(async () => {
-    root = await mkdtemp(join(tmpdir(), 'variance-jvm-'));
-    await write(root, 'src/main/java/a/b/Thing.java', 'package a.b;\npublic class Thing {}\n');
-    await write(root, 'src/main/java/a/b/Other.java', 'package a.b;\nclass Other {}\n');
-    await write(root, 'src/main/java/a/c/Far.java', 'package a.c;\nclass Far {}\n');
-    await write(root, 'src/test/java/a/b/ThingTest.java', 'package a.b;\nclass ThingTest {}\n');
-    await write(root, 'src/main/kotlin/a/b/helpers.kt', 'package a.b\n\nfun parse() {}\n');
-    world = worldOn(root);
-  });
-
-  afterAll(async () => {
-    await rm(root, { recursive: true, force: true });
-  });
-
-  it('derives the source root from what the file says its package is', () => {
-    // Nothing configures `src/main/java`. `a/b/Thing.java` declaring `a.b` is
-    // what says the root is `src/main/java`, and a project that does not hold
-    // to the convention is read the same way.
-    expect(resolveJvm({ from: 'src/main/java/a/c/Far.java', request: 'a.b.Thing', world }))
-      .toEqual(['src/main/java/a/b/Thing.java']);
-  });
-
-  it('unions the roots, so a test reaches the class it tests', () => {
-    expect(resolveJvm({ from: 'src/test/java/a/b/ThingTest.java', request: 'a.b.*', world }))
-      .toEqual([
-        'src/main/java/a/b/Other.java',
-        'src/main/java/a/b/Thing.java',
-        'src/main/kotlin/a/b/helpers.kt',
-      ]);
-  });
-
-  it('stops at the file when a segment left over is a name inside it', () => {
-    // `a.b.Thing.Inner` and a static `a.b.Thing.of` are the same file.
-    expect(resolveJvm({ from: 'src/main/java/a/c/Far.java', request: 'a.b.Thing.Inner', world }))
-      .toEqual(['src/main/java/a/b/Thing.java']);
-  });
-
-  it('falls back to the package when a Kotlin name is not a filename', () => {
-    // Kotlin has top-level declarations and no filename rule, so `a.b.parse`
-    // may be declared in any Kotlin file of `a/b/`.
-    expect(resolveJvm({ from: 'src/main/java/a/c/Far.java', request: 'a.b.parse', world }))
-      .toEqual(['src/main/kotlin/a/b/helpers.kt']);
-  });
-
-  it('is silent about the platform and the dependency graph', () => {
-    expect(resolveJvm({ from: 'src/main/java/a/b/Thing.java', request: 'java.util.List', world }))
-      .toEqual([]);
-  });
-});
-
-async function write(root: string, path: string, contents: string): Promise<void> {
-  const absolute = join(root, path);
-  await mkdir(dirname(absolute), { recursive: true });
-  await writeFile(absolute, contents, 'utf8');
-}
-
 describe('what a Java or Kotlin file declares', () => {
   it('records a Java class with its signature and the doc block above it', () => {
     const contents = ['package a;', '', '/** Start again. */', 'class Relaunch {', '}', ''].join('\n');
 
-    expect(spelled(contents, readJava('src/a/Relaunch.java', contents))).toEqual([
+    expect(spelled(contents, readJava(contents))).toEqual([
       { name: 'Relaunch', kind: 'class', line: 4, signature: 'class Relaunch', doc: '* Start again. ' },
     ]);
   });
@@ -164,7 +95,7 @@ describe('what a Java or Kotlin file declares', () => {
   it('records a Kotlin function with its signature and the doc block above it', () => {
     const contents = ['package a', '', '/** Start again. */', 'fun relaunch(argv: List<String>): Int {', '    return 0', '}', ''].join('\n');
 
-    expect(spelled(contents, readKotlin('src/a/Relaunch.kt', contents))).toEqual([
+    expect(spelled(contents, readKotlin(contents))).toEqual([
       { name: 'relaunch', kind: 'function', line: 4, signature: 'fun relaunch(argv: List<String>): Int', doc: '* Start again. ' },
     ]);
   });
@@ -177,15 +108,15 @@ function spelled(contents: string, read: Read) {
 }
 
 /** What the addon's Java reader answers, which is the only reader there is. */
-function readJava(file: string, contents: string): Read {
-  const answer = native()?.readLanguage('java', file, contents);
+function readJava(contents: string): Read {
+  const answer = native()?.readLanguage('java', contents);
   if (answer == null) throw new Error('these tests read Java through the native addon, built with its grammars');
   return JSON.parse(answer) as Read;
 }
 
 /** What the addon's Kotlin reader answers, which is the only reader there is. */
-function readKotlin(file: string, contents: string): Read {
-  const answer = native()?.readLanguage('kotlin', file, contents);
+function readKotlin(contents: string): Read {
+  const answer = native()?.readLanguage('kotlin', contents);
   if (answer == null) throw new Error('these tests read Kotlin through the native addon, built with its grammars');
   return JSON.parse(answer) as Read;
 }

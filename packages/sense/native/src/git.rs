@@ -1,10 +1,9 @@
 //! Every tracked path under a root, with the digest of the bytes on disk.
 //!
-//! The same three questions `tree.ts` asks git, asked from here: the committed
-//! blob of every path, read from the object store; everything the working tree
-//! disagrees about, compared in-process by `worktree_status`; and the bytes those
-//! paths actually hold. `ls-tree` and `status` answer only where the in-process
-//! readers hand the question back.
+//! Git's index supplies tracked paths and blob identities. `worktree_status`
+//! compares the working tree with that same loaded index; Git answers where
+//! its monitor, untracked cache or checkout mode owns the comparison. Neither
+//! inventory nor comparison traverses HEAD's object tree.
 //! The overlay rules are that file's and are reproduced exactly — a digest may
 //! cause work to be skipped only when it names the bytes being scanned, and a
 //! stale digest on an edited file is the one unforgivable error.
@@ -21,6 +20,7 @@ use std::io::Write;
 use std::process::{Command, Stdio};
 
 use crate::git::git_porcelain::{configured, porcelain, settings_of, untracked_question};
+use crate::stages::{part, summed, Sum};
 
 /// A git object name, unformatted. Twenty bytes rather than forty characters.
 pub type Oid = [u8; 20];
@@ -28,7 +28,7 @@ pub type Oid = [u8; 20];
 pub struct Snapshot {
     pub paths: Vec<String>,
     pub oids: Vec<Oid>,
-    /// Whether git says the path is a regular file: committed with a file mode
+    /// Whether git says the path is a regular file: indexed with a file mode
     /// and unchanged since. A symbolic link is a blob too, and `status` prints
     /// no mode for what it names, so neither is vouched for.
     pub regular: Vec<bool>,
@@ -45,102 +45,60 @@ pub struct Snapshot {
 /// outside a repository would be useless in exactly the tarball and sandbox
 /// cases it should handle quietly.
 pub fn snapshot(root: &str) -> Option<Snapshot> {
-    snapshot_of(root, true)
+    snapshot_of(root, true, None).map(|(snapshot, _)| snapshot)
 }
 
-/// `snapshot`, with the working tree compared in-process only when `compared`
-/// asks for it: the tests hold the two answers side by side.
-fn snapshot_of(root: &str, compared: bool) -> Option<Snapshot> {
-    // One call names the root's place and `HEAD`'s tree, and the object store
-    // lists the tree in-process; `ls-tree` answers where it will not, as under a
-    // replace ref or on an unborn branch.
-    let head = crate::git_store::head(std::path::Path::new(root));
-    let asked = match &head {
-        Some(head) => head.prefix.clone().into_bytes(),
-        None => trim(&git(root, &["rev-parse", "--show-prefix"], None)?).to_vec(),
-    };
-    let held = head.as_ref().and_then(|head| head.blobs.as_deref());
-    let prefix = asked.as_slice();
-    let (listing, status) = std::thread::scope(|scope| {
-        let listing = scope.spawn(|| held.is_none().then(|| git(root, &["ls-tree", "-r", "-z", "HEAD", "--", "."], None).map(Listing::Printed)).flatten());
-        // `core.fsmonitor` and `core.untrackedCache` are left to the repository,
-        // for the reason `working-tree-changes.ts` gives: they are what make this
-        // call cheap, and overriding either way spends a user's configuration on
-        // their behalf. The shape of the question is `untracked_question`'s.
-        // A reader never writes the index: its refresh would race the user's
-        // own git for `index.lock`, and move the stamp a held listing stands on.
-        // The index and `HEAD`'s blobs, both held, are compared in-process;
-        // `git status` answers where `worktree_status` hands the question back.
-        let status = scope.spawn(|| {
-            let listed = configured(root);
-            if let (true, Some(head), Some(held)) = (compared, &head, held) {
-                if let Some(changes) = crate::git::worktree_status::changes(head, held, &crate::git::worktree_status::config_of(&listed)) {
-                    return Some(Status::Known(changes));
-                }
-            }
+/// A snapshot using the held listing where Watchman says no file moved.
+pub(crate) fn snapshot_since(root: &str, before: &worktree_moved::Before) -> Option<(Snapshot, bool)> {
+    snapshot_of(root, true, Some(before))
+}
+
+/// Tests ask both the native comparison and Git for the same working bytes.
+fn snapshot_of(root: &str, compared: bool, before: Option<&worktree_moved::Before>) -> Option<(Snapshot, bool)> {
+    let checkout = summed(Sum::Locate, || crate::git_store::checkout(std::path::Path::new(root)))?;
+    let index_stamp = crate::file_stamp::stamp(&checkout.index);
+    if index_stamp.is_none() && checkout.index.try_exists().ok()? { return None; }
+    let (inventory, listed) = std::thread::scope(|scope| {
+        let listed = scope.spawn(|| configured(root));
+        (summed(Sum::Inventory, || inventory::read(&checkout)), listed.join().ok())
+    });
+    let inventory = inventory?;
+    let listed = listed?;
+    let prefix = checkout.prefix.as_bytes();
+    let config = worktree_status::config_of(&listed);
+    let walked = inventory.index.as_ref().filter(|_| compared).and_then(|index| {
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _worktree = part(Sum::Worktree);
+            let moved = before.and_then(|before| worktree_moved::walk(&checkout, &config, before, index));
+            let followed = moved.is_some();
+            moved.or_else(|| worktree_status::walk(&checkout, &config, index)).map(|changes| (changes, followed))
+        })).ok().flatten()
+    });
+    let (status, followed) = match walked {
+        Some((changes, followed)) => (Some(Status::Known(changes)), followed),
+        None => {
             let mut args = vec!["--no-optional-locks", "status", "--porcelain=v1", "-z"];
             args.extend(untracked_question(prefix, settings_of(&listed)));
-            git(root, &args, None).map(Status::Printed)
-        });
-        (listing.join().ok().flatten(), status.join().ok().flatten())
-    });
-    // A repository with no commit yet has no tree to list, and that is an empty
-    // listing rather than an unanswerable one: `status` names every file as
-    // added or untracked, and the overlay hashes each of them from disk.
-    let listing = match head.and_then(|head| head.blobs).map(Listing::Held).or(listing) {
-        Some(listing) => listing,
-        None if unborn(root) => Listing::Printed(Vec::new()),
-        None => return None,
+            (summed(Sum::GitStatus, || git(root, &args, None)).map(Status::Printed), false)
+        }
     };
-
-    // Kept in the order `ls-tree` prints it, which is byte order over the whole
-    // path: a map here would scatter it, and putting it back cost more than
-    // reading it did. The overlay is the part that moves, and it is small.
-    let mut listed: Vec<(Vec<u8>, Oid)> = Vec::new();
-    let mut links: std::collections::HashSet<Vec<u8>> = std::collections::HashSet::new();
-    match listing {
-        Listing::Held(blobs) => {
-            listed.reserve(blobs.len());
-            for (path, id, link) in blobs {
-                if link {
-                    links.insert(path.clone());
-                }
-                let mut oid = [0u8; 20];
-                oid.copy_from_slice(id.as_bytes());
-                listed.push((path, oid));
-            }
-        }
-        Listing::Printed(listing) => {
-            listed.reserve(listing.len() / 96);
-            for entry in listing.split(|byte| *byte == 0) {
-                // `<mode> <type> <object>\t<path>`, and only blobs are files.
-                let Some(tab) = entry.iter().position(|byte| *byte == b'\t') else {
-                    continue;
-                };
-                let (head, path) = entry.split_at(tab);
-                let mut fields = head.split(|byte| *byte == b' ');
-                let (mode, kind, object) = (fields.next(), fields.next(), fields.next());
-                if kind != Some(b"blob".as_slice()) {
-                    continue;
-                }
-                let Some(oid) = object.and_then(parse_oid) else {
-                    continue;
-                };
-                let path = &path[1..];
-                let relative = path.strip_prefix(prefix).unwrap_or(path);
-                if mode == Some(b"120000".as_slice()) {
-                    links.insert(relative.to_vec());
-                }
-                listed.push((relative.to_vec(), oid));
-            }
-        }
+    let mut listed = Vec::with_capacity(inventory.blobs.len());
+    let mut links = std::collections::HashSet::new();
+    for (path, id, link) in inventory.blobs {
+        if link { links.insert(path.clone()); }
+        let mut oid = [0u8; 20];
+        oid.copy_from_slice(id.as_bytes());
+        listed.push((path, oid));
     }
 
-    let (moved, unhashed) = match overlay(root, prefix, status, &links) {
+    let (moved, unhashed) = match summed(Sum::Overlay, || overlay(root, prefix, status, &links)) {
         Some((moved, unhashed)) => (Some(moved), unhashed),
         None => (None, Vec::new()),
     };
-    let unhashed = unhashed.iter().map(|path| String::from_utf8_lossy(path).into_owned()).collect();
+    let _merge = part(Sum::Merge);
+    // Indexed links come from a set, so the order is fixed here: the listing writes it into the segment.
+    let mut unhashed: Vec<String> = unhashed.iter().map(|path| String::from_utf8_lossy(path).into_owned()).collect();
+    unhashed.sort_by(|a, b| crate::order::code_unit(a, b));
     let mut unvouched = links;
     unvouched.extend(moved.iter().flat_map(|moved| moved.keys().cloned()));
     let held = match moved {
@@ -176,37 +134,25 @@ fn snapshot_of(root: &str, compared: bool) -> Option<Snapshot> {
         regular.push(vouched);
     }
 
-    Some(Snapshot { paths, oids, regular, unhashed })
+    // An atomic index replacement must not pair old blob identities with newer status.
+    let after = crate::file_stamp::stamp(&checkout.index);
+    if after != index_stamp || (after.is_none() && checkout.index.try_exists().ok()?) { return None; }
+    Some((Snapshot { paths, oids, regular, unhashed }, followed))
 }
 
-/// What the working tree says instead of `HEAD`: compared in-process, or printed by `status`.
+/// What the working tree says instead of the index: compared in-process, or printed by `status`.
 enum Status {
     Known(crate::git::worktree_status::Changes),
     Printed(Vec<u8>),
 }
 
-/// What `HEAD` holds below the root: read from the object store, or printed by `ls-tree`.
-enum Listing {
-    Held(Vec<(Vec<u8>, gix_hash::ObjectId, bool)>),
-    Printed(Vec<u8>),
-}
-
-/// Whether `HEAD` names a branch nobody has committed to yet.
-///
-/// Asked only after `ls-tree` has failed, so a checkout with history never pays
-/// for it. `--show-prefix` has already succeeded by then, so this is a
-/// repository; `--verify` failing on it means `HEAD` resolves to no commit.
-fn unborn(root: &str) -> bool {
-    git(root, &["rev-parse", "--quiet", "--verify", "HEAD"], None).is_none()
-}
-
-/// What the working tree says instead of the committed listing, path by path:
+/// What the working tree says instead of the indexed listing, path by path:
 /// `Some` is a digest for the bytes on disk, and `None` a path not there to name
 /// — deleted, renamed away, or unreadable.
 pub(crate) type Moved = HashMap<Vec<u8>, Option<Oid>>;
 
 /// Every path the working tree disagrees about, with the ones it holds that
-/// hashed nothing, or `None` when git did not answer and every committed digest
+/// hashed nothing, or `None` when git did not answer and every indexed digest
 /// is withdrawn with it.
 ///
 /// Porcelain status spells every path from the top of the checkout, wherever it
@@ -301,7 +247,7 @@ fn hash_on_disk(root: &str, prefix: &[u8], paths: &[&[u8]]) -> Vec<(Vec<u8>, Oid
         stdin.push(b'\n');
     }
 
-    let Some(out) = git(root, &["hash-object", "--stdin-paths"], Some(stdin)) else {
+    let Some(out) = summed(Sum::HashObject, || git(root, &["hash-object", "--stdin-paths"], Some(stdin))) else {
         return Vec::new();
     };
 
@@ -420,9 +366,16 @@ pub(crate) fn answer(root: &str, args: &[&str], stdin: Option<Vec<u8>>) -> Resul
 // What `status` asks git, and the comparison that answers in its place.
 #[path = "git_porcelain.rs"]
 pub(crate) mod git_porcelain;
+#[path = "worktree_moved.rs"]
+pub(crate) mod worktree_moved;
 #[path = "worktree_status.rs"]
 pub(crate) mod worktree_status;
+#[path = "worktree_untracked.rs"]
+pub(crate) mod worktree_untracked;
 
 #[cfg(all(test, unix))]
 #[path = "git_tests.rs"]
 mod tests;
+
+#[path = "git_inventory.rs"]
+mod inventory;

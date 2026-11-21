@@ -30,6 +30,7 @@ import { messageOf } from '../config-values.js';
 import { OperatorError } from '../exit.js';
 import { indexOf } from './affected.js';
 import { installedDepends } from './installed.js';
+import { fetchFromMainline } from './source-index-share.js';
 
 /**
  * The component index, from the directories the config names.
@@ -116,7 +117,7 @@ export async function indexUpToCheckout(root: string, ci = isCI, packs = true): 
   const path = sourceIndexPath(resolve(root));
   let refused: string | undefined;
   try {
-    refused = (await updateSourceIndex(root, packs ? {} : { packs: false })).refused;
+    refused = (await updateSourceIndex(root, { fetch: fetchFromMainline, ...(packs ? {} : { packs: false }) })).refused;
   } catch (error) {
     refused = messageOf(error);
   }
@@ -149,7 +150,7 @@ export async function checkoutNames(root: string, files: readonly string[], ci =
   const notUpdated = await indexUpToCheckout(root, ci);
   if (notUpdated !== undefined) return { missed: notUpdated };
   try {
-    return (await publishedNames(root, files, { ci, step: 'variance index', announce: (line) => process.stderr.write(`variance: ${line}\n`) })).names;
+    return (await publishedNames(root, files, { ci, step: 'variance index', announce: (line) => process.stderr.write(`variance: ${line}\n`), fetch: fetchFromMainline })).names;
   } catch (error) {
     if (error instanceof SourceIndexUnpublished) return { missed: error.message };
     throw error;
@@ -206,6 +207,7 @@ async function publishedWithin(
       step: noGit ? 'variance index --no-git' : 'variance index',
       announce: (line) => process.stderr.write(`variance: ${line}\n`),
       ...(noGit ? { packs: false } : {}),
+      fetch: fetchFromMainline,
     });
   } catch (error) {
     // A pipeline without the step is the operator's to fix, and the refusal

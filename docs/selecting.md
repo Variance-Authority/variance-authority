@@ -963,8 +963,10 @@ A scan runs before every run that selects, so the number that matters is not the
 first one — it is the one after a one-line edit. Three things arrive already
 known, and each removes a layer:
 
-- **`git` names every file's content without opening one.** A blob's name *is*
-  the hash of its bytes, so `git ls-tree` plus `git status` is the entire walk.
+- **`git` names unchanged tracked contents without opening the files.** A blob's
+  name *is* the hash of its bytes. The scan reads tracked paths and blob ids from Git's
+  index and compares local changes against the same loaded index. Git handles
+  the comparison when its monitor, untracked cache or checkout mode requires it.
 - **A digest names the parse.** The parse cache is keyed by content and by the
   parse settings the file's name selects, so it can never go stale: two files
   with one key had one content read one way, on any machine, in any branch, in
@@ -972,9 +974,9 @@ known, and each removes a layer:
 - **A digest plus resolution configuration and witness directories names the
   whole record, edges and all.** Edges are not a function of bytes alone: they
   also depend on resolver settings and on the directories that could have
-  answered that file's specifiers. A configuration change rebuilds every record;
-  a path appearing, disappearing or moving rebuilds the records watching its
-  directory. An unreadable configuration falls back to the whole path set.
+  answered that file's specifiers. A configuration file is keyed like any other
+  file and rebuilds only its own record; a path appearing, disappearing or
+  moving rebuilds the records watching its directory.
 
 30,500 files and 40,479 edges, one Mac:
 
@@ -1007,8 +1009,7 @@ nothing else.
 There is one bounded exception to that invalidation rule. Git-ignored generated
 files are not in the digest map, so one can appear or disappear and shadow a
 resolution without changing the recorded directory membership. Track the file
-when it participates in source resolution, or set `digests: false` to disable
-record reuse for a scan that must observe that generated layout directly.
+when it participates in source resolution.
 
 That is the scan, which reasons about the source. What the *record* costs is a
 separate arithmetic — how large the snapshot is at two hundred thousand modules,

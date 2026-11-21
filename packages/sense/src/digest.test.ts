@@ -4,7 +4,7 @@ import {
   digestBytes as portableBytes,
   digestString as portableString,
 } from '@variance-authority/core/format';
-import { digestBytes, digestString } from './digest.js';
+import { digestBytes, digestPieces, digestString } from './digest.js';
 
 /**
  * The two implementations agree, which is the whole permission for there to be
@@ -47,6 +47,15 @@ describe('the digests sense takes', () => {
     for (const input of inputs) {
       const bytes = new TextEncoder().encode(input);
       expect(digestBytes(bytes)).toBe(portableBytes(bytes));
+    }
+  });
+
+  it('are the digests core takes of raw bytes given in pieces', () => {
+    for (const input of inputs) {
+      const bytes = new TextEncoder().encode(input);
+      const pieces = digestPieces();
+      for (let at = 0; at < bytes.length; at += 7) pieces.update(bytes.subarray(at, at + 7));
+      expect(pieces.digest()).toBe(portableBytes(bytes));
     }
   });
 

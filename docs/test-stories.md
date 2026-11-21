@@ -543,10 +543,14 @@ Under Playwright, Storybook and the browser modes of Vitest and Rstest, the
 story is of the code the page ran. Under Playwright and the browser modes, each
 statement of the test opens what the page did next with its line. When the test
 ran in more than one page document, such as a page and a popup or a page it
-navigated, the story marks where it moves into each. A ref is its own
-document's, and what two documents did under one statement is in the order it
-reached the test, not the order it ran, so a comparison does not count that
-order as a difference.
+navigated, the story marks where it moves into each. Where the page went to
+another document of the same origin, or reloaded, the step it happened during
+says so before what the new document ran: `page navigated
+http://shop.test/checkout`, or `page reloaded http://shop.test/` where the
+browser reports a reload; a move back or forward is a navigation. The
+address drops its query and fragment. A ref is its own document's, and what two
+documents did under one statement is in the order it reached the test, not the
+order it ran, so a comparison does not count that order as a difference.
 
 - **Where stories are kept.** In [the cache](cache.md), under
   `coverage.stories/`. A story is removed 14 days after it was written, with
@@ -650,6 +654,14 @@ their step:
 - **[`vae`](../packages/event/README.md)**, when your product code uses it.
   Each announcement it makes.
 
+A test in Node that opens its page through
+[`createHarness`](../packages/playwright/README.md) also hears the page: each
+`log`, `info`, `warn`, `error` or `debug` line it printed as `page console.<level> <text>`, a page error as `page error
+<first line>`, a crash as `page crashed`, and each document its top frame
+loaded as `page navigated <address>`, or `page reloaded <address>` where the
+browser reports a reload; the address drops its query. Each lands on the step
+that was running when Node heard it.
+
 So when you need a value the story does not hold, add a `console.log` that
 prints it, record the test again, and read the line at its step. A step shows
 its first 5 lines and counts the rest.
@@ -692,10 +704,60 @@ the test's last line unless one of the spec's `afterEach` hooks ran before it.
 A document a statement loads is counted from the statement after it. Changes
 inside a shadow root are not counted.
 
-The note counts; it does not show the markup, or say which component made the
-change. For the React commits behind it, use [Eyes](eyes.md), which writes each
-commit under its step with the components that rendered. A test run without a
-document has no `page` note.
+Each change behind the count is kept too, as one line of plain text in the
+story file:
+
+```text
+dom + div role="dialog" "Confirm order" in Dialog at commit 2
+dom − li id="c3" "Item C3"
+dom @aria-busy p "idle" absent→"true"
+dom text p "idle"→"done"
+```
+
+`+` is a node added and `−` one removed, `@name` an attribute with its old and
+new value, and `text` a text node's old and new text under its parent. A node
+is written as the page states it: its tag, its `id`, `type` and `role`
+attributes, and its `aria-label` or the first 80 characters of its text. A role
+the tag implies is not written, so `--page 'role="dialog"'` finds a
+`div role="dialog"` and `--page '+ dialog'` finds a `<dialog>`. An added
+subtree is one line for its root and one for each node inside it that has a
+`role`, an `id`, an `aria-label` or a text of its own, so a search finds a
+button inside a dialog. A node moved is written as removed and added again.
+With `@variance-authority/react/story` in the setup files, a change names the
+component that rendered the node, `in Dialog`, and the React commit it was
+written under, `at commit 2`. A direct `append` between two commits is written
+under the next one; only what is left when the line ends has no commit. What a
+field holds is never written: an `input`'s `value`, typed or set, is named and
+not shown; a `textarea`, a `select` and an editable region (`contenteditable`)
+are left out with everything inside them, from every line, their own and their
+parent's; and a chosen `option` shows only as its `selected` attribute.
+
+`variance story` prints only the count. Ask for the changes by what they hold,
+and the answer is one row per change that matches, whatever the size of the
+page:
+
+```bash
+variance story --name "opens the dialog" --page 'role="dialog"'
+```
+
+```text
+  2 of 3 changes to the page hold `role="dialog"`; open a step with --around <step>
+  appeared     step 2  line 11  commit 2  + div role="dialog" "Confirm" in Dialog
+  disappeared  step 3  line 12            − div role="dialog" "Confirm"
+```
+
+A row says whether the node appeared, disappeared or changed, the step, the
+test line or `hook line` it stood on, and the commit. The pattern is matched as
+plain text in whole words: where it begins or ends with a letter or a digit, the
+line must not go on with one, so `Item C3` finds that row and not `Item C30`.
+The story file is plain text, so `rg -w` over it finds the same lines. A
+pattern nothing matched says so, with how many changes it searched, and, when
+the page outgrew the story's share, that the later lines were not kept and the
+node may be among them. Past 50 rows the answer says how many more there are,
+to narrow the pattern. Under `--compare`, a change
+that lands at another commit on every failing run is set apart like any other
+line the code said. A test run without a document has no `page` note and no
+changes.
 
 ## What each line sent
 

@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { affectedBy, type FileRecord } from '@variance-authority/core/relate';
-import { scanRelations } from '../scan.js';
+import { scanRelations } from '../test-support/scan.js';
 import { runGraphOf } from './graph.js';
 import { taintTable } from './index.js';
 

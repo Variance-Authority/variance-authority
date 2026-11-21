@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import type { FileRecord, Tree } from '@variance-authority/mcp/tools';
 import { treeOf } from '@variance-authority/mcp/tools';
-import { readHelp } from '@variance-authority/package/help';
+import { readHelp } from '../walk.js';
 import { search } from './search.js';
 
 /**

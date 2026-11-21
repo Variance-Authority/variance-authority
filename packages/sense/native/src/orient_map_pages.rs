@@ -12,6 +12,7 @@
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 
+use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use crate::order::code_unit;
@@ -125,6 +126,31 @@ pub(crate) fn layers(read: &Read) -> (Vec<u32>, u32) {
     let layers: Vec<u32> = component.iter().map(|&c| layer_of[c]).collect();
     let count = layers.iter().copied().max().unwrap_or(0);
     (layers, count)
+}
+
+/// Each area's edges, by position in `edges`, in order: those with an end
+/// the area holds.
+///
+/// An edge counts on a page only when the page's area holds one of its ends,
+/// and the areas holding a package are its deepest one and that one's
+/// ancestors, since an area's members hold its parts'. So each page reads only
+/// its own edges, and the cost is the edges times the depth rather than the
+/// edges times the areas. The second end's chain runs right after the first's,
+/// so an area both chains share already ends with the edge.
+fn held(edges: &[(u32, u32, u32)], deepest: &[Option<usize>], parent: &[Option<usize>]) -> Vec<Vec<usize>> {
+    let mut held: Vec<Vec<usize>> = vec![Vec::new(); parent.len()];
+    for (at, &(a, b, _)) in edges.iter().enumerate() {
+        for end in [a, b] {
+            let mut chain = deepest[end as usize];
+            while let Some(x) = chain {
+                if held[x].last() != Some(&at) {
+                    held[x].push(at);
+                }
+                chain = parent[x];
+            }
+        }
+    }
+    held
 }
 
 /// The scope-less name a row shows: `@kbn/core` is `core`.
@@ -292,9 +318,10 @@ pub(crate) fn pages(read: &Read, signals: &Signals, areas: &[Area], layer: &[u32
         (ls[0], ls[ls.len() - 1], ls[ls.len() >> 1])
     };
     areas
-        .iter()
+        .par_iter()
+        .zip(held(&read.edges, &deepest, &parent))
         .enumerate()
-        .map(|(here, focus)| {
+        .map(|(here, (focus, held))| {
             // The other end of a connection as this page sees it: one of the
             // focus's areas, the focus itself for a package no area of it
             // took, else the top-level area holding it.
@@ -309,17 +336,13 @@ pub(crate) fn pages(read: &Read, signals: &Signals, areas: &[Area], layer: &[u32
                 }
                 None
             };
-            let inner: HashSet<usize> = focus.node.members.iter().map(|&p| package(p)).collect();
             let kid: HashMap<usize, usize> = focus.kids.iter().enumerate().map(|(i, &x)| (x, i)).collect();
             let mut incoming = vec![0u32; focus.kids.len()];
             let mut outgoing = vec![0u32; focus.kids.len()];
             let mut landed: Vec<HashMap<usize, u32>> = vec![HashMap::new(); focus.kids.len()];
             let mut roads: Vec<HashMap<usize, u32>> = vec![HashMap::new(); focus.kids.len()];
-            for &(a, b, count) in &read.edges {
+            for &(a, b, count) in held.iter().map(|&at| &read.edges[at]) {
                 let (a, b) = (a as usize, b as usize);
-                if !inner.contains(&a) && !inner.contains(&b) {
-                    continue;
-                }
                 let (sa, sb) = (area_at(a), area_at(b));
                 if sa == sb {
                     continue;
@@ -392,4 +415,46 @@ pub(crate) fn pages(read: &Read, signals: &Signals, areas: &[Area], layer: &[u32
             }
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::held;
+
+    /// Whether `area` is `inner` or one of its ancestors.
+    fn holds(parent: &[Option<usize>], area: usize, inner: Option<usize>) -> bool {
+        let mut at = inner;
+        while let Some(x) = at {
+            if x == area {
+                return true;
+            }
+            at = parent[x];
+        }
+        false
+    }
+
+    #[test]
+    fn each_area_holds_every_edge_with_an_end_inside_it_once_even_where_the_two_chains_meet() {
+        // 0 ⊃ 1 ⊃ 2 ⊃ 3 ⊃ 4, 3 ⊃ 5, 1 ⊃ 6 and 7 at the top: the ends of an edge
+        // between areas 4 and 5 share three ancestors, and one between 4 and 6
+        // shares two.
+        let parent = vec![None, Some(0), Some(1), Some(2), Some(3), Some(3), Some(1), Some(0)];
+        // Packages 0..7 sit deepest in the area of their number; package 8 in none.
+        let deepest: Vec<Option<usize>> = (0..8).map(Some).chain([None]).collect();
+        let edges = vec![(4, 5, 1), (4, 6, 1), (4, 4, 1), (5, 7, 1), (8, 4, 1), (8, 8, 1), (2, 3, 1)];
+        let found = held(&edges, &deepest, &parent);
+        let expected: Vec<Vec<usize>> = (0..parent.len())
+            .map(|area| {
+                (0..edges.len())
+                    .filter(|&at| {
+                        let (a, b, _) = edges[at];
+                        holds(&parent, area, deepest[a as usize]) || holds(&parent, area, deepest[b as usize])
+                    })
+                    .collect()
+            })
+            .collect();
+        assert_eq!(found, expected);
+        assert_eq!(found[3], vec![0, 1, 2, 3, 4, 6]);
+        assert_eq!(found[7], vec![3]);
+    }
 }

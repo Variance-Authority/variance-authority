@@ -117,25 +117,22 @@ async function build(config: string, lead: readonly string[], react: 18 | 19): P
   const server = await createServer({
     root,
     configFile: join(root, 'vite.config.mjs'),
-    // Everything here belongs to the harness, not to the adopter: where to
-    // listen, how loud to be, and where to keep prebundles so the run does not
-    // write into this repository's `node_modules` through that symlink.
-    // `fs.allow` is the symlink's consequence — React's real path is outside
-    // this root, and Vite declines to serve outside it until told otherwise.
-    server: { port: 0, host: '127.0.0.1', fs: { allow: [root, REPO] } },
+    // The harness's, not the adopter's: prebundles kept out of the symlinked
+    // `node_modules`, `fs.allow` for React's real path, and no watcher or HMR
+    // client, whose late report of these fresh writes restarts the server and
+    // reloads the page under a read.
+    server: { port: 0, host: '127.0.0.1', fs: { allow: [root, REPO] }, watch: null, hmr: false },
     cacheDir: join(root, '.vite-cache'),
     logLevel: 'silent',
   });
   await server.listen();
   servers.push(server);
 
-  // Warmed before a browser is pointed at it, because Vite discovers an
-  // application's dependencies by transforming its modules and reloads the page
-  // once it has prebundled them. A first load therefore navigates twice, and a
-  // reader arriving mid-flight finds its execution context destroyed under it.
-  // This is a fixture concern — a developer's dev server was warmed by the last
-  // time they opened it — but a test that hits a cold one every run has to say
-  // so somewhere, and this is the somewhere.
+  // Warmed before a browser is pointed at it: Vite finds an application's
+  // dependencies by transforming its modules, and with no HMR client a
+  // dependency found on the first load is refused as an outdated prebundle. A
+  // developer's dev server was warmed the last time they opened it; a fixture's
+  // is cold every run.
   await server.warmupRequest('/src/main.jsx');
   await server.warmupRequest('/src/App.jsx');
   await server.waitForRequestsIdle();

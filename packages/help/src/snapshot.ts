@@ -1,19 +1,13 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { closeSync, openSync, readSync, realpathSync } from 'node:fs';
+import { closeSync, fstatSync, openSync, readSync, realpathSync } from 'node:fs';
 import { mkdir, readFile, rename, stat, writeFile } from 'node:fs/promises';
-import { dirname, resolve } from 'node:path';
-import {
-  decodeSourceTree,
-  treeAtWorkspace,
-  treeOf,
-  type FileRecord,
-  type Tree,
-} from '@variance-authority/mcp/tools';
+import { dirname, relative, resolve } from 'node:path';
+import { publishedTreeOf, treeOf, type FileRecord, type Tree } from '@variance-authority/mcp/tools';
 import { SegmentCutShort } from '@variance-authority/core/segment';
 import type { Help } from '@variance-authority/package/help';
 import { readSourceRecords, restampHelpStore, sourceIndexPath } from '@variance-authority/sense';
+import { scopeSourceIndexPath } from './scan-scope.js';
 import { openHelpStore, openSearchIndex, type SearchIndex } from './search-index.js';
-import { encodeStore } from './store-encode.js';
 import { storeHeadOf, type StoreHead } from './store-layout.js';
 
 export interface SnapshotOptions {
@@ -29,6 +23,19 @@ const generated = new WeakMap<Help, string>();
 const snapshots = new WeakMap<Help, StoreHead>();
 const searches = new WeakMap<Help, SearchIndex>();
 const stores = new WeakMap<Help, Uint8Array>();
+
+/**
+ * The source index a published value was read off, and the directory of the
+ * workspace under that index's root. A workspace whose members reach beside
+ * its directory is read from the repository's root into an index of its own
+ * beside `index`, as `scopeSourceIndexPath` names it, and its files are
+ * spelled from there; any other is read into `index` from its own directory.
+ */
+export function publishedSourceIndex(help: Help, index: string): { readonly index: string; readonly within: string } {
+  const held = snapshots.get(help);
+  const within = held === undefined ? '' : relative(held.graphRoot, held.root).replaceAll('\\', '/');
+  return { index: within === '' ? index : scopeSourceIndexPath(index, [within]), within };
+}
 
 /** When the workspace value was published, absent on an unrecorded reading. */
 export function workspaceGeneration(help: Help): string | undefined {
@@ -93,11 +100,13 @@ export async function readWorkspaceSnapshot(
 }
 
 /**
- * The generation published at `index`, read off the store's head alone: the
- * rest is every export of the repository, and a caller asking whether its write
- * landed has no use for it. Absent when there is none, or it is not this format.
+ * The head of the store published at `index` for the checkout at `root`, read
+ * off the head alone: the rest is every export of the repository, and a caller
+ * asking whether a value is current has no use for it. Absent when there is
+ * none, it is not this format, it belongs to another checkout, or the file is
+ * not the length its header declares — a store cut short no reader opens.
  */
-export function publishedHead(index: string): StoreHead | undefined {
+export function publishedHead(root: string, index: string): StoreHead | undefined {
   let file: number;
   try {
     file = openSync(workspaceSnapshotPath(index), 'r');
@@ -111,7 +120,9 @@ export function publishedHead(index: string): StoreHead | undefined {
       const held = Buffer.alloc(length);
       if (readSync(file, held, 0, length, 0) !== length) return undefined;
       try {
-        return storeHeadOf(held);
+        const { head, length: declared } = storeHeadOf(held);
+        if (head === undefined || head.root !== realpathSync(resolve(root)) || fstatSync(file).size !== declared) return undefined;
+        return head;
       } catch (error) {
         if (!(error instanceof SegmentCutShort) || error.needed <= length) return undefined;
         length = error.needed;
@@ -125,14 +136,9 @@ export function publishedHead(index: string): StoreHead | undefined {
   }
 }
 
-/**
- * When the value at `index` was published, as {@link publishedHead} reads it.
- * Absent when there is no value, or it belongs to another checkout or format.
- */
+/** When the value at `index` was published, as {@link publishedHead} reads it for the checkout at `root`. */
 export async function publishedGeneration(root: string, index: string): Promise<string | undefined> {
-  const where = realpathSync(resolve(root));
-  const held = publishedHead(index);
-  return held?.root === where ? held.generatedAt : undefined;
+  return publishedHead(root, index)?.generatedAt;
 }
 
 /**
@@ -150,32 +156,21 @@ export async function readAgain(held: Help | undefined, root: string, options: {
   return published !== undefined && Date.parse(published) > Date.parse(at);
 }
 
-/** The index manifest the value was refreshed from, absent when it was read another way. */
-export function workspaceIndexDigest(help: Help): string | undefined {
-  return snapshots.get(help)?.indexDigest;
-}
-
 /**
- * Whether the tree published beside `help` at `index` opens in this build. A
- * tree of another format version, or one whose bytes moved, is published
- * again rather than kept, though the index it was drawn from did not move.
+ * Whether the tree published beside the store whose head is `held`, at
+ * `index`, opens in this build. A tree of another format version, or one whose
+ * bytes moved, is published again rather than kept, though the index it was
+ * drawn from did not move. The tree is its own file: the store is not opened.
  */
-export async function workspaceTreeOpens(help: Help, index: string): Promise<boolean> {
-  const held = snapshots.get(help);
-  if (held === undefined) return false;
+export async function workspaceTreeOpens(held: StoreHead, index: string): Promise<boolean> {
   try {
     const tree = await readFile(workspaceTreePath(index, held.graphDigest));
     if (hexDigestOf(tree) !== held.graphDigest) return false;
-    decodeSourceTree(tree, held.graphRoot, held.root);
+    publishedTreeOf(tree, held.graphRoot, held.root);
     return true;
   } catch {
     return false;
   }
-}
-
-/** The package manifests the value was joined against, as `packagesDigest` states them; absent on an unrecorded reading. */
-export function workspacePackagesDigest(help: Help): string | undefined {
-  return snapshots.get(help)?.packagesDigest;
 }
 
 /**
@@ -211,7 +206,7 @@ export async function republishWorkspaceSnapshot(help: Help, index: string): Pro
 
 /** The tree published from `graph`, drawn over `graphRoot` and answered for `root`: the encoded bytes, or the records they encode. */
 export function publishedTree(graph: readonly FileRecord[] | Uint8Array, graphRoot: string, root: string): Tree {
-  return graph instanceof Uint8Array ? decodeSourceTree(graph, graphRoot, root) : treeAtWorkspace(treeOf(graph, graphRoot), root);
+  return graph instanceof Uint8Array ? publishedTreeOf(graph, graphRoot, root) : treeOf(graph, graphRoot, root);
 }
 
 /**
@@ -248,9 +243,17 @@ export async function publishStore(index: string, store: Uint8Array, tree: Uint8
  * memory, once per value.
  */
 export function searchIndexOf(help: Help): SearchIndex {
-  let index = searches.get(help);
-  if (index === undefined) searches.set(help, (index = openSearchIndex(encodeStore(help).bytes)));
+  const index = searches.get(help);
+  if (index === undefined) throw new Error('this help value was not read from a store, so it has no search');
   return index;
+}
+
+/** The value one store holds, with the store and its search held beside it. */
+export function heldStore(store: Uint8Array): Help {
+  const opened = openHelpStore(store);
+  stores.set(opened.help, store);
+  searches.set(opened.help, opened.search);
+  return opened.help;
 }
 
 async function writeReplacing(at: string, bytes: Uint8Array): Promise<void> {

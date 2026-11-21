@@ -11,7 +11,7 @@
 // compass: variance-authority.report.agent-surface
 
 import type { Tool } from '@variance-authority/mcp/tools';
-import { START_POINT_SCHEMA, startPointArg } from '@variance-authority/mcp/tools';
+import { START_POINT_SCHEMA, nextPage, pageAt, pageOf, spellingOf, startPointArg, type Page, type Spelling } from '@variance-authority/mcp/tools';
 import type { Help } from '@variance-authority/package/help';
 import { dependencyStack, type DependencySkill, type Stack, type StackRow } from '../dependency-lexicon.js';
 
@@ -23,16 +23,6 @@ const GROUPS = {
   unused: 'Declared, not imported here',
   unread: 'Imports not read',
 } as const;
-
-function count(input: Readonly<Record<string, unknown>>, name: string, least: number, otherwise: number): number {
-  const said = input[name];
-  if (said === undefined) return otherwise;
-  const value = typeof said === 'string' && said.trim() !== '' ? Number(said) : said;
-  if (typeof value !== 'number' || !Number.isInteger(value) || value < least) {
-    throw new Error(`\`--${name}\` takes a whole number of at least ${least}; it was given \`${String(said)}\`.`);
-  }
-  return value;
-}
 
 function line(row: StackRow): string {
   const declared = row.declaredAs === undefined ? 'imported, not declared there' : row.declaredAs;
@@ -59,15 +49,14 @@ function skillLine(skill: DependencySkill): string {
 }
 
 /** The page as text: one header, the rows grouped as the order already keeps them, and what remains. */
-export function formatStack(stack: Stack, where: string): string {
+export function formatStack(stack: Stack, where: string, page: Page, spell: Spelling): string {
   const head =
     `${stack.total} packages usable from ${where}, under ${stack.location.join(', ')}: ` +
     `${stack.imported} imported, ${stack.unused} declared and not imported, ${stack.unread} with imports not read.`;
-  if (stack.rows.length === 0) {
-    return stack.total === 0 ? `${head}\nThe owning manifest declares nothing and the code imports nothing third-party.` : `${head}\nOffset ${stack.offset} is past the last row.`;
-  }
+  if (stack.total === 0) return `${head}\nThe owning manifest declares nothing and the code imports nothing third-party.`;
+  if (stack.rows.length === 0) return [head, ...pageAt(page, stack.total, spell)].join('\n');
   const skills = stack.skilled === 0 ? undefined : `${stack.skilled} ${stack.skilled === 1 ? 'package ships' : 'packages ship'} agent skills, each listed under its package with its SKILL.md.`;
-  const out: string[] = [head, ...(skills === undefined ? [] : [skills]), `Rows ${stack.offset + 1}–${stack.offset + stack.rows.length}.`];
+  const out: string[] = [head, ...(skills === undefined ? [] : [skills]), ...pageAt(page, stack.total, spell)];
   let group: StackRow['state'] | undefined;
   for (const row of stack.rows) {
     if (row.state !== group) {
@@ -79,7 +68,7 @@ export function formatStack(stack: Stack, where: string): string {
   if (stack.unreadable.length > 0) {
     out.push('', 'Declarations that could not be read:', ...stack.unreadable.map((one) => `  ${one.package} in ${one.manifest} — ${one.reason}`));
   }
-  out.push('', stack.remaining === 0 ? 'No more rows.' : `${stack.remaining} more rows; ask again with --offset ${stack.offset + stack.rows.length}.`);
+  for (const next of nextPage(page, stack.total, spell)) out.push('', next);
   return out.join('\n');
 }
 
@@ -101,7 +90,7 @@ export const stack: Tool<Help> = {
         description: `${START_POINT_SCHEMA.from.description} The packages usable there are the ones the manifest that owns it declares: pass the file you are editing, or the folder of the feature.`,
       },
       limit: { type: 'integer', minimum: 1, description: `Rows per page; ${SHOWN} when omitted.` },
-      offset: { type: 'integer', minimum: 0, description: 'Rows to skip; the previous answer names the next one.' },
+      offset: { type: 'integer', minimum: 0, description: 'Rows to skip before the first shown; an answer with more names the next. 0 when not said.' },
     },
     required: ['from'],
     additionalProperties: false,
@@ -113,8 +102,10 @@ export const stack: Tool<Help> = {
     const at = startPointArg(input, 'from');
     if (at === undefined) throw new Error('`stack` takes `--from`, the path whose manifest is asked');
     const paths = typeof at === 'string' ? [at] : [...at];
-    const answer = dependencyStack(root, paths, count(input, 'offset', 0, 0), count(input, 'limit', 1, SHOWN));
+    const spell = spellingOf(invocation);
+    const page = pageOf(input, SHOWN, spell);
+    const answer = dependencyStack(root, paths, page.offset, page.limit);
     if (answer === undefined) throw new Error('the dependency lexicon is not published; run `variance index` before asking what a path can use');
-    return formatStack(answer, paths.join(', '));
+    return formatStack(answer, paths.join(', '), page, spell);
   },
 };

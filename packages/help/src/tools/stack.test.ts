@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, expect, it } from 'vitest';
-import { readHelp } from '@variance-authority/package/help';
+import { readHelp } from '../walk.js';
 import { updateSourceIndex } from '@variance-authority/sense';
 import { refreshDependencyLexicon } from '../dependency-lexicon.js';
 import { stack } from './stack.js';
@@ -56,18 +56,19 @@ it('lists every package usable at a path, imported before unused, and pages with
   expect(all).toContain('idle-kit@3.0.0 · types-only · dependency in packages/alpha/package.json · not imported');
   expect(all).toContain('dev-kit@2.0.0 · types-only · dev in packages/alpha/package.json · not imported');
   expect(all).not.toContain('beta-kit');
-  expect(all).toContain('No more rows.');
+  expect(all).not.toContain('more not shown');
 
   const first = ask({ from: 'packages/alpha', limit: 2 });
-  expect(first).toContain('Rows 1–2.');
-  expect(first).toContain('1 more rows; ask again with --offset 2.');
+  expect(first).toContain('1 more not shown; `offset` 2 shows the next 1.');
   const second = ask({ from: 'packages/alpha', limit: 2, offset: 2 });
-  expect(second).toContain('Rows 3–3.');
-  expect(second).toContain('No more rows.');
+  expect(second).toContain('Rows 3–3 of 3.');
+  expect(second).not.toContain('more not shown');
+  expect(ask({ from: 'packages/alpha', offset: 3 })).toContain('`offset` 3 is past the last of 3 rows.');
+  expect(stack.run(help, { from: 'packages/alpha', limit: 2 }, { root, shell: 'variance ask' })).toContain('`--offset` 2 shows the next 1.');
   expect(`${first}\n${second}`).toContain('dev-kit');
   // Declared and not installed: listed with no version, and the reason it could not be read is said.
   const beta = ask({ from: 'packages/beta/src/x.ts' });
   expect(beta).toContain('beta-kit (version not resolved)');
   expect(beta).toContain('beta-kit in packages/beta/package.json — the project resolver could not locate `beta-kit`');
-  expect(() => ask({ from: 'packages/alpha', limit: 0 })).toThrow('--limit');
+  expect(() => ask({ from: 'packages/alpha', limit: 0 })).toThrow('`limit`');
 });

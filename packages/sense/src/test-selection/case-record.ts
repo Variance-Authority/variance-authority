@@ -1,5 +1,6 @@
 import { closeSync, openSync } from 'node:fs';
 import { decodeRecordedAttempts, readableAttempts, type RecordedAttempt } from './attempts-record.js';
+import { decodeChecks, type ChecksSection } from './checks-record.js';
 import { isMissing } from './instrumented-modules.js';
 import { descriptor } from './coverage-file.js';
 import { decodeRecordedEyes, readableEyes, type EyesSection } from './eyes-record.js';
@@ -32,6 +33,8 @@ export interface CaseSections {
   readonly base?: Uint8Array;
   /** `cases.readings`: the earlier readings of cases run again over the code they read before, as bytes (`readings-bytes.ts`). */
   readonly readings?: Uint8Array;
+  /** `run.checks`: which declared checks the last run entered, and its scope (`checks-record.ts`); absent, it kept none. */
+  readonly checks?: Uint8Array;
 }
 
 /** The bytes each section occupies, read from its directory without decoding its contents. */
@@ -158,6 +161,25 @@ export function recordedAttemptsAt(coverageFile: string): readonly RecordedAttem
 }
 
 /**
+ * Which declared checks the last run entered in the record at `coverageFile`
+ * (`checks-record.ts`); `undefined` when the record kept none — its run declared
+ * no check, it was written before checks were kept, or there is no record.
+ */
+export function recordedChecksAt(coverageFile: string): ChecksSection | undefined {
+  const { checks } = caseSectionsAt(coverageFile, ['checks']);
+  return checks === undefined ? undefined : decodeChecks(checks);
+}
+
+/**
+ * `sections` without the last run's checks: a run lays its own over the
+ * record's whole, so a record's are never carried into the next.
+ */
+export function withoutChecks(sections: CaseSections): CaseSections {
+  const { checks: _, ...rest } = sections;
+  return rest;
+}
+
+/**
  * What the record held in `bytes` keeps of Eyes; `undefined` when it kept none,
  * as a case index on its own keeps none. A reader that also takes the index
  * reads both off the same bytes, so they are one run's even when a landing
@@ -265,7 +287,7 @@ export function withCaseSections(record: Uint8Array, cases: CaseSections): Buffe
 
 /**
  * `record` as another checkout takes it: the case index, its earlier readings,
- * its Eyes journals and how its retried cases' attempts ended kept, and the parts that name this checkout's last run and the record it
+ * its Eyes journals and how its retried cases' attempts ended kept, and the parts that name this checkout's last run, the checks it entered and the record it
  * started from dropped, because that run is not the taker's. Every crossing — a seed, a fetch, a share — goes
  * through here.
  *
@@ -277,10 +299,10 @@ export function withCaseSections(record: Uint8Array, cases: CaseSections): Buffe
  * terms: they say what the index's cases did in the run that recorded them.
  */
 export function sharedRecord(record: Uint8Array): Uint8Array {
-  const { index, before, last, eyes, attempts, base, readings } = caseSectionsOf(record);
+  const { index, before, last, eyes, attempts, base, readings, checks } = caseSectionsOf(record);
   const readable = eyes !== undefined && readableEyes(eyes) !== undefined;
   const tried = attempts !== undefined && readableAttempts(attempts) !== undefined;
-  if (before === undefined && last === undefined && base === undefined && (eyes === undefined || readable) && (attempts === undefined || tried)) return record;
+  if (before === undefined && last === undefined && base === undefined && checks === undefined && (eyes === undefined || readable) && (attempts === undefined || tried)) return record;
   return withCaseSections(record, {
     ...(index === undefined ? {} : { index }),
     ...(readable ? { eyes } : {}),

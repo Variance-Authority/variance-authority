@@ -25,10 +25,16 @@ import { awaitFollowUps } from './commands/index-follow-ups.js';
 
 const BIN = fileURLToPath(new URL('../dist/bin.js', import.meta.url));
 
-/** The modules a run of the built program loaded, as URLs; the run must answer with 0. */
-async function modulesLoaded(args: readonly string[], config?: object): Promise<string[]> {
+/** The modules a run of the built program loaded, as URLs; the run must answer with 0. `indexed` publishes a generation first, unhooked, as a question needs. */
+async function modulesLoaded(args: readonly string[], config?: object, indexed = false): Promise<string[]> {
   const at = realpathSync(mkdtempSync(join(tmpdir(), 'va-bin-load-')));
+  // The index is made from git's listing, so the run stands in a checkout.
+  spawnSync('git', ['init', '-q'], { cwd: at });
   if (config !== undefined) writeFileSync(join(at, 'variance.config.json'), JSON.stringify(config));
+  if (indexed) {
+    const index = spawnSync(process.execPath, [BIN, 'index', '--no-git'], { cwd: at, encoding: 'utf8', env: { ...process.env, CI: 'true' } });
+    if (index.status !== 0) throw new Error(`\`variance index\` exited ${String(index.status)}: ${index.stderr}`);
+  }
   const hook = join(at, 'hook.mjs');
   const loaded = join(at, 'loaded.txt');
   writeFileSync(
@@ -59,8 +65,8 @@ async function modulesLoaded(args: readonly string[], config?: object): Promise<
 }
 
 /** The packages a run of the built program loaded, by name, each once. */
-async function packagesLoaded(args: readonly string[], config?: object): Promise<string[]> {
-  const names = (await modulesLoaded(args, config))
+async function packagesLoaded(args: readonly string[], config?: object, indexed = false): Promise<string[]> {
+  const names = (await modulesLoaded(args, config, indexed))
     .map((url) => /node_modules\/((?:@[^/]+\/)?[^/]+)\//.exec(url)?.[1] ?? /\/packages\/([^/]+)\/dist\//.exec(url)?.[1])
     .filter((name) => name !== undefined);
   return [...new Set(names)].sort();
@@ -77,15 +83,15 @@ describe('what the program loads before it answers', () => {
   });
 
   // A question about names reads the source index, never a pixel: a half-built `png` or `observe`
-  // dist must not stop it. In this empty checkout nothing declares the name, which is an answer, so the run exits 0.
+  // dist must not stop it. In this empty, indexed checkout nothing declares the name, which is an answer, so the run exits 0.
   it.each([['ask', 'uses', '--name', 'x'], ['ask', 'symbol', '--name', 'x']])('loads no pixel package for `%s %s %s %s`', async (...args) => {
-    const loaded = await packagesLoaded(args);
+    const loaded = await packagesLoaded(args, undefined, true);
     expect(loaded).toContain('cli');
     expect(loaded.filter((name) => ['observe', 'png', 'pngjs', 'renderer', 'storybook'].includes(name))).toEqual([]);
   });
 
   it('loads no pixel package for `ask search --query x`', async () => {
-    const loaded = await packagesLoaded(['ask', 'search', '--query', 'x']);
+    const loaded = await packagesLoaded(['ask', 'search', '--query', 'x'], undefined, true);
     expect(loaded.filter((name) => ['observe', 'png', 'pngjs', 'renderer', 'storybook'].includes(name))).toEqual([]);
   });
 

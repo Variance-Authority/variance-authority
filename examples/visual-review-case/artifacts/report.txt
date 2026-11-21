@@ -1,0 +1,35 @@
+[changed] pricing-plans
+26,230 pixels differ across 2 strong regions in Notice, ChooseButton, and 3 faint regions, 1 changed in shape and 4 only in colour; 44 pixel rows inserted in 1 place, moving the content under them by up to 44 rows, and the subject resized from 480×288 to 480×332
+
+components:
+  cause      ChooseButton — geometry, token
+      background-color (not declared) → rgb(255 74 25 / 1)
+  cause      Notice — added
+  cause      PlanCard — geometry, token
+      border-bottom-color rgb(226 226 226 / 1) → rgb(216 216 216 / 1)
+  collateral PlanName — geometry
+  cause      Plans — geometry; box 0 × +44 px
+  collateral Price — geometry
+
+  cause      21120px at 0,0 480×44 — Notice
+      in main → region "Plans"
+      examples/visual-review-case/src/plans.js:78
+      shape v1:f1c4133d51a5f6a29ef2b9be9149875d
+  cause      3670px at 360,156 104×40 — ChooseButton
+      in main → region "Plans" → list item 2 of 3 → button "Choose"
+      examples/visual-review-case/src/plans.js:64
+      shape v1:f0ceae0539be67e3c965076afb3829ee
+  cause      480px at 0,139 480×1 — PlanCard
+      in main → region "Plans" → list item 2 of 3
+      examples/visual-review-case/src/plans.js:91
+      shape v1:2d5eb4341f37d8dc61f20526efaf0df4
+  cause      480px at 0,235 480×1 — PlanCard
+      in main → region "Plans" → list item 3 of 3
+      examples/visual-review-case/src/plans.js:91
+      shape v1:2d5eb4341f37d8dc61f20526efaf0df4
+  cause      480px at 0,331 480×1 — PlanCard
+      in main → region "Plans" → list item 3 of 3
+      examples/visual-review-case/src/plans.js:91
+      shape v1:2d5eb4341f37d8dc61f20526efaf0df4
+
+images: record=images/pricing-plans.after.json before=images/pricing-plans.before.webp after=images/pricing-plans.after.png diff=images/pricing-plans.diff.png change=images/pricing-plans.change.png

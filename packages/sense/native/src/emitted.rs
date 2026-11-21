@@ -30,28 +30,35 @@
 //! and the first whose `rootDir` holds the source answers.
 //!
 //! Git owns which configs a directory holds. A scan that carries the tree reads
-//! them from its listing, and reads the disk only for a directory git did not
-//! descend — no tree, outside the root, ignored, or a repository of its own. A
-//! package directory can hold twenty thousand files, and listing it once per
-//! question was most of what the rule cost.
+//! them from its listing — `HEAD` with the working tree's edits and untracked
+//! files over it — and the disk only for a directory git did not descend: no
+//! tree, outside the root, ignored, or a repository of its own. Which files
+//! are there is the disk's: an import may land in an ignored `dist/`, a
+//! generated file or a submodule, none of which git lists. The listing answers
+//! for what it does list, and beneath a regular file, where nothing is; for the
+//! rest, each directory is read once, and a name it does not hold is not there
+//! without a look of its own. A package directory can hold twenty thousand
+//! files, and every `package.json` the resolver looks for beside a source file
+//! was most of what resolving cost.
 //!
-//! The JavaScript oracle reads output back by the same rule (`src/emitted.ts`),
-//! and the two are compared on a fixture.
+//! `src/emitted.ts` reads output back by the `outDir` rule alone, from what the
+//! resolver found on disk, and `emitted.test.ts` lands both on one fixture.
 
 // compass: variance-authority.reach.source-scan
 
-use std::collections::HashMap;
+use std::collections::HashSet;
 use std::ffi::{OsStr, OsString};
 use std::io;
 use std::path::{Component, Path, PathBuf};
 use std::sync::{Arc, OnceLock};
 
 use dashmap::DashMap;
-use oxc_resolver::{FileMetadata, FileSystem, FileSystemOs, ResolveError};
+use oxc_resolver::{FileMetadata, FileSystemOs};
 use rustc_hash::FxBuildHasher;
 use serde_json::Value;
 
 use crate::conditions::{normalize, Configs};
+pub(crate) use crate::listing::{Entry, Known, Listing};
 
 /// What TypeScript emits, and the sources each is emitted from, in the order
 /// one is preferred when several exist. A declaration file written by hand is
@@ -117,61 +124,6 @@ pub enum Origin {
     Nowhere,
 }
 
-/// What git lists under the root the tree was read from: every file, which of
-/// them it vouches are regular files, and in every directory it descended, the
-/// names a declaration is read from — `package.json` and `tsconfig*.json`. A
-/// directory holding one git could not hash is not listed: git did not answer
-/// for it, and the disk does.
-#[derive(Default)]
-pub struct Listing {
-    files: Arc<HashMap<String, u32>>,
-    regular: Arc<Vec<bool>>,
-    directories: HashMap<PathBuf, Vec<OsString>>,
-}
-
-impl Listing {
-    pub fn of(files: Arc<HashMap<String, u32>>, regular: Arc<Vec<bool>>, unhashed: &[String]) -> Self {
-        let mut directories: HashMap<PathBuf, Vec<OsString>> = HashMap::new();
-        for path in files.keys() {
-            let (directory, name) = path.rsplit_once('/').unwrap_or(("", path));
-            let mut above = Some(directory);
-            while let Some(at) = above.filter(|at| !directories.contains_key(Path::new(at))) {
-                directories.insert(PathBuf::from(at), Vec::new());
-                above = (!at.is_empty()).then(|| at.rsplit_once('/').map_or("", |(parent, _)| parent));
-            }
-            if name == "package.json" || is_config(name.as_ref()) {
-                if let Some(names) = directories.get_mut(Path::new(directory)) {
-                    names.push(name.into());
-                }
-            }
-        }
-        for path in unhashed {
-            let (directory, name) = path.rsplit_once('/').unwrap_or(("", path));
-            if name == "package.json" || is_config(name.as_ref()) {
-                directories.remove(Path::new(directory));
-            }
-        }
-        Self { files, regular, directories }
-    }
-
-    /// Whether git vouches the path is a regular file. A symbolic link is a
-    /// blob as well, and may name a directory.
-    fn is_file(&self, path: &Path) -> bool {
-        let mut spelled = String::new();
-        for part in path.components() {
-            let Component::Normal(part) = part else { return false };
-            let Some(part) = part.to_str() else { return false };
-            if !spelled.is_empty() {
-                spelled.push('/');
-            }
-            spelled.push_str(part);
-        }
-        self.files
-            .get(&spelled)
-            .is_some_and(|&at| self.regular.get(at as usize).copied().unwrap_or(false))
-    }
-}
-
 type Memo<T> = Arc<DashMap<PathBuf, T, FxBuildHasher>>;
 
 #[derive(Clone, Default)]
@@ -181,6 +133,9 @@ pub struct Emitted {
     declared: Memo<Arc<OnceLock<Arc<[Arc<Layout>]>>>>,
     /// The canonical root and what git lists under it.
     listed: Option<(PathBuf, Arc<Listing>)>,
+    /// The names each directory under the root holds, read once; `None` for
+    /// one that could not be read, whose paths are each looked at.
+    entries: Memo<Arc<OnceLock<Option<Arc<Names>>>>>,
     /// The configs a layout or a condition set is read from, each read once.
     pub(crate) configs: Configs,
 }
@@ -218,7 +173,7 @@ impl Emitted {
         let wrote = |mirror: &Mirror| emitted.is_some_and(|(_, declaration, _)| declaration || mirror.code);
         for mirror in &layout.sources {
             let counterpart = mirror.root.join(rest);
-            if FileSystemOs::metadata(&counterpart).is_ok_and(FileMetadata::is_dir) {
+            if self.stat(&counterpart).is_ok_and(FileMetadata::is_dir) {
                 return Origin::Directory;
             }
             let Some((stem, _, sources)) = emitted.filter(|_| wrote(mirror)) else {
@@ -227,7 +182,7 @@ impl Emitted {
             let found = sources
                 .iter()
                 .map(|extension| counterpart.with_file_name(format!("{stem}{extension}")))
-                .find(|source| FileSystemOs::metadata(source).is_ok_and(FileMetadata::is_file));
+                .find(|source| self.stat(source).is_ok_and(FileMetadata::is_file));
             if let Some(source) = found {
                 return Origin::Source(source);
             }
@@ -235,6 +190,18 @@ impl Emitted {
         // Output none of the configs wrote is some other tool's, and the disk
         // answers for it.
         if layout.sources.iter().any(wrote) { Origin::Nowhere } else { Origin::Disk }
+    }
+
+    /// What git lists at a path spelled from the listed root, or `None` with
+    /// no listing, or one git did not answer.
+    pub(crate) fn spelled(&self, spelled: &str) -> Option<Entry> {
+        self.listed.as_ref()?.1.spelled(spelled)
+    }
+
+    /// Whether a path lies in a build's output, where what is there is read
+    /// from its source rather than from the disk.
+    pub(crate) fn emits(&self, path: &Path) -> bool {
+        self.layout(path).is_some()
     }
 
     /// The layout a path lies in: the deepest `outDir` above it.
@@ -272,6 +239,37 @@ impl Emitted {
             }
         }
         place
+    }
+
+    /// What the listing says is at a path, or `None` where the disk answers.
+    fn known(&self, path: &Path) -> Option<Known> {
+        let (root, listing) = self.listed.as_ref()?;
+        listing.known(path.strip_prefix(root).ok()?)
+    }
+
+    /// A path's metadata, links followed: from the listing, or the disk.
+    fn stat(&self, path: &Path) -> io::Result<FileMetadata> {
+        match self.known(path) {
+            Some(known) => listed(known),
+            None if self.absent(path) => Err(not_found()),
+            None => FileSystemOs::metadata(path),
+        }
+    }
+
+    /// Whether the directory a path is in, read once, holds no such name.
+    /// Only a path under a listed root is answered: elsewhere, and on a disk
+    /// that may ignore case, the path is looked at.
+    fn absent(&self, path: &Path) -> bool {
+        let Some((root, _)) = &self.listed else { return false };
+        let (Some(directory), Some(name)) = (path.parent(), path.file_name()) else {
+            return false;
+        };
+        if !directory.starts_with(root) {
+            return false;
+        }
+        let known = self.entries.get(directory).map(|cell| Arc::clone(&cell));
+        let cell = known.unwrap_or_else(|| Arc::clone(&self.entries.entry(directory.to_owned()).or_default()));
+        cell.get_or_init(|| Names::of(directory)).as_ref().is_some_and(|names| !names.may_hold(name))
     }
 
     /// Whether git vouches the path is a regular file.
@@ -378,7 +376,7 @@ fn published(real: &Path) -> bool {
     real.components().any(|part| part == Component::Normal("node_modules".as_ref()))
 }
 
-fn is_config(name: &OsStr) -> bool {
+pub(crate) fn is_config(name: &OsStr) -> bool {
     name.to_str().is_some_and(|name| name.starts_with("tsconfig") && name.ends_with(".json"))
 }
 
@@ -404,58 +402,41 @@ fn path_option(configs: &Configs, path: &Path, leaf: &Path, name: &str) -> Optio
     }))
 }
 
-fn not_found() -> io::Error {
-    io::Error::from(io::ErrorKind::NotFound)
+/// The names one directory holds, and each folded to lower case, for a disk
+/// that may ignore it. A name outside ASCII may be held, unless held exactly:
+/// a disk may open it through another Unicode spelling, as APFS opens a
+/// decomposed name through the composed one, and the disk is asked.
+struct Names {
+    exact: HashSet<OsString, FxBuildHasher>,
+    folded: HashSet<String, FxBuildHasher>,
 }
 
-impl FileSystem for Emitted {
-    fn new() -> Self {
-        Self::default()
-    }
-
-    fn read(&self, path: &Path) -> io::Result<Vec<u8>> {
-        match self.origin(path) {
-            Origin::Disk => std::fs::read(path),
-            Origin::Source(source) => std::fs::read(source),
-            Origin::Directory | Origin::Nowhere => Err(not_found()),
+impl Names {
+    /// A directory that is not there, or is a file, holds nothing.
+    fn of(directory: &Path) -> Option<Arc<Self>> {
+        let entries = match std::fs::read_dir(directory) {
+            Ok(entries) => entries,
+            Err(error) if matches!(error.kind(), io::ErrorKind::NotFound | io::ErrorKind::NotADirectory) => {
+                return Some(Arc::new(Self { exact: HashSet::default(), folded: HashSet::default() }));
+            }
+            Err(_) => return None,
+        };
+        let mut exact = HashSet::default();
+        for entry in entries {
+            exact.insert(entry.ok()?.file_name());
         }
+        let folded = exact.iter().map(|name: &OsString| name.to_string_lossy().to_lowercase()).collect();
+        Some(Arc::new(Self { exact, folded }))
     }
 
-    fn read_to_string(&self, path: &Path) -> io::Result<String> {
-        FileSystemOs::validate_string(self.read(path)?)
-    }
-
-    fn metadata(&self, path: &Path) -> io::Result<FileMetadata> {
-        match self.origin(path) {
-            Origin::Disk => FileSystemOs::metadata(path),
-            Origin::Directory => Ok(FileMetadata::new(false, true, false)),
-            Origin::Source(_) => Ok(FileMetadata::new(true, false, false)),
-            Origin::Nowhere => Err(not_found()),
-        }
-    }
-
-    fn symlink_metadata(&self, path: &Path) -> io::Result<FileMetadata> {
-        match self.origin(path) {
-            Origin::Disk => FileSystemOs::symlink_metadata(path),
-            _ => self.metadata(path),
-        }
-    }
-
-    fn read_link(&self, path: &Path) -> Result<PathBuf, ResolveError> {
-        match self.origin(path) {
-            Origin::Disk => FileSystemOs::read_link(path),
-            _ => Err(io::Error::from(io::ErrorKind::InvalidInput).into()),
-        }
-    }
-
-    fn canonicalize(&self, path: &Path) -> io::Result<PathBuf> {
-        match self.origin(path) {
-            Origin::Disk => FileSystemOs::canonicalize(path),
-            Origin::Nowhere => Err(not_found()),
-            Origin::Directory | Origin::Source(_) => self.canonical(path),
-        }
+    fn may_hold(&self, name: &OsStr) -> bool {
+        self.exact.contains(name) || !name.is_ascii() || self.folded.contains(&name.to_string_lossy().to_lowercase())
     }
 }
+
+#[path = "emitted_file_system.rs"]
+mod file_system;
+use file_system::{listed, not_found};
 
 #[cfg(all(test, unix))]
 #[path = "emitted_tests.rs"]

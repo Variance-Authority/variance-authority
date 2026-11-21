@@ -7,19 +7,21 @@
 
 // compass: variance-authority.report.agent-surface
 
+use std::borrow::Cow;
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::sync::LazyLock;
 
 use napi_derive::napi;
 use rayon::prelude::*;
 use regex::Regex;
+use rustc_hash::FxHashMap;
 use sha2::{Digest, Sha256};
 
 use crate::help_usage::NamedExport;
 
 #[derive(Default)]
 pub(crate) struct Pool<'a> {
-    pub(crate) ids: HashMap<&'a str, u32>,
+    pub(crate) ids: FxHashMap<&'a str, u32>,
     pub(crate) values: Vec<&'a str>,
 }
 
@@ -58,6 +60,39 @@ pub(crate) fn terms_of(split: &Regex, text: &str) -> HashSet<String> {
         found.extend(words.into_iter().filter(|word| long(word)).map(str::to_lowercase));
     }
     found
+}
+
+/// A doc's terms by `terms_of`, read `without_inline_tags`.
+pub(crate) fn doc_terms(split: &Regex, doc: &str) -> HashSet<String> {
+    terms_of(split, &without_inline_tags(doc))
+}
+
+/// `text` less the name of each inline doc tag: `code` in `{@code x}` is
+/// markup, no word of the doc. The one reading of it, for the store's terms
+/// and the phrase reader alike.
+pub(crate) fn without_inline_tags(text: &str) -> Cow<'_, str> {
+    INLINE_TAG.replace_all(text, "{")
+}
+
+/// An inline doc tag's opening and its name: `{@code`, `{@link`, `{@inheritDoc`.
+static INLINE_TAG: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\{@[\p{L}\p{N}]+").expect("the pattern is fixed"));
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn an_inline_tag_is_no_term_of_the_doc() {
+        // Javadoc's `{@code <layer>/coverage.bin}` writes `layer`, not `code`.
+        let terms = doc_terms(&SPLIT, "Goes to {@code <layer>/coverage.bin}, see {@link Sink sink} and {@inheritDoc}.");
+        for markup in ["code", "link", "inheritdoc", "inherit"] {
+            assert!(!terms.contains(markup), "{markup} is a term");
+        }
+        for word in ["layer", "coverage", "sink"] {
+            assert!(terms.contains(word), "{word} is no term");
+        }
+        assert!(doc_terms(&SPLIT, "The code of it.").contains("code"));
+    }
 }
 
 /// What a token ends at: a line break, a space, a punctuation mark, a backtick,
@@ -115,19 +150,41 @@ fn words_of(token: &str) -> Vec<&str> {
 }
 
 /// `joined`: strings as UTF-8 with a separator, and where each one starts.
-pub(crate) fn joined<S: AsRef<str>>(values: &[S], separator: &str) -> (Vec<u32>, Vec<u8>) {
-    let mut off = Vec::with_capacity(values.len() + 1);
-    let mut blob = Vec::new();
-    for (at, value) in values.iter().enumerate() {
-        if at > 0 {
-            blob.extend_from_slice(separator.as_bytes());
+pub(crate) fn joined<S: AsRef<str>>(values: impl IntoIterator<Item = S>, separator: &str) -> (Vec<u32>, Vec<u8>) {
+    let values = values.into_iter();
+    let mut runs = Runs::new(separator, values.size_hint().0);
+    for value in values {
+        runs.push(value.as_ref());
+    }
+    runs.done()
+}
+
+/// `joined`, a value at a time: a run of rows met in parts is written as it
+/// would be at once.
+pub(crate) struct Runs<'s> {
+    separator: &'s str,
+    off: Vec<u32>,
+    blob: Vec<u8>,
+}
+
+impl<'s> Runs<'s> {
+    pub(crate) fn new(separator: &'s str, count: usize) -> Self {
+        Runs { separator, off: Vec::with_capacity(count + 1), blob: Vec::new() }
+    }
+
+    pub(crate) fn push(&mut self, value: &str) {
+        if !self.off.is_empty() {
+            self.blob.extend_from_slice(self.separator.as_bytes());
         }
         // Each start counts a separator after every earlier value.
-        off.push((blob.len()) as u32);
-        blob.extend_from_slice(value.as_ref().as_bytes());
+        self.off.push(self.blob.len() as u32);
+        self.blob.extend_from_slice(value.as_bytes());
     }
-    off.push(if values.is_empty() { 0 } else { (blob.len() + separator.len()) as u32 });
-    (off, blob)
+
+    pub(crate) fn done(mut self) -> (Vec<u32>, Vec<u8>) {
+        self.off.push(if self.off.is_empty() { 0 } else { (self.blob.len() + self.separator.len()) as u32 });
+        (self.off, self.blob)
+    }
 }
 
 /// `postings`: for each key, the ascending rows that hold it.

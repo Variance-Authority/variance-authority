@@ -1,5 +1,5 @@
 /**
- * What the repository imports and exports, read from the index the scan keeps.
+ * What the repository imports and exports, read from the source index.
  *
  * [`use.ts`](https://github.com/Variance-Authority/variance-authority/blob/main/packages/package/src/use.ts) can answer this by itself: walk every
  * directory, parse every module, collect every specifier. On this repository
@@ -11,10 +11,10 @@
  * Nothing about the reading justifies the cost, because the reading is already
  * done. [`sense`](https://github.com/Variance-Authority/variance-authority/tree/main/packages/sense) keeps a durable, content-keyed index of exactly
  * these bytes: git names each file's content without opening it, the digest
- * names what parsing that content produced, and a scan of an unchanged tree
- * costs a map lookup per file. So a read here scans to bring the index up to
- * date, saves it, and reads the value off the saved index in the addon, as
- * `variance index` does: one producer, and no parse row handed to JavaScript.
+ * names what parsing that content produced, and an update of an unchanged tree
+ * reads no file. So a read here brings the index up to date over what Git says
+ * moved, and reads the value off the written index in the addon, as `variance
+ * index` does: one producer, and no parse row handed to JavaScript.
  *
  * ## Two readings, one index
  *
@@ -34,11 +34,11 @@
 import { resolve } from 'node:path';
 import { encodeSourceTree, type FileRecord, type Tree } from '@variance-authority/mcp/tools';
 import {
-  openSourceIndex,
   placesOf,
-  scanRelations,
+  readPublishedSources,
   sourceIndexPath,
   stepped,
+  updateSourceIndex,
   type Progress,
 } from '@variance-authority/sense';
 import { mockTaint, taintRecords, type Taint } from '@variance-authority/sense/taint';
@@ -60,6 +60,10 @@ import {
 
 export interface ReadingOptions extends HelpOptions, IndexedUsageOptions {}
 
+/**
+ * How a question opens a generation: the published one as it stands, or, with
+ * `changed` or `taints` named, one written from those files first.
+ */
 export interface AnsweringOptions extends ReadingOptions {
   /** Read the published generation regardless of age and perform no refresh. */
   readonly justAnswer?: boolean;
@@ -110,7 +114,7 @@ export async function readWorkspaceForAnswer(
     if (justAnswer) {
       throw operatorError(
         `${error instanceof Error ? error.message : String(error)}. ` +
-          'Run `variance index`, or ask again without `--just-answer`, to read the checkout and publish one.',
+          'Run `variance index` to publish one.',
         { cause: error },
       );
     }
@@ -144,8 +148,9 @@ export interface IndexedUsageOptions {
   /** Read each file's bytes from Git's object store, as `variance index --no-git` turns off. On when absent. */
   readonly packs?: boolean;
   /**
-   * Authoritative changed file paths, relative to the scan root.
-   * Present skips Git status discovery; renames name both paths.
+   * Changed file paths, relative to the scan root: present, the reading is
+   * refreshed now whatever its age, and an empty list republishes it as it
+   * stands. The index finds what moved from git, so the list names no file.
    */
   readonly changed?: readonly string[];
   /**
@@ -162,12 +167,10 @@ export interface IndexedUsageOptions {
    * Handed the arrows the scan drew, for a caller that needs the graph as well
    * as the names.
    *
-   * The scan walks the whole checkout and returns the import graph whichever
-   * question asked for it; this reading wanted only the half that says which
-   * names each file takes and hands out, and threw the other half away. A
-   * caller that has to answer *which files does this path reach* would then
-   * scan the repository a second time to learn something the first scan had
-   * already worked out and dropped on the floor.
+   * The index holds the whole checkout's records; the published value keeps
+   * only the names each file takes and hands out. A caller that has to answer
+   * *which files does this path reach* takes the records here rather than
+   * reading the index a second time.
    *
    * So it is a door rather than a return value: the reading that wants it is
    * not the reading this function performs, and a caller that does not want it
@@ -190,9 +193,9 @@ export interface IndexedUsageOptions {
  * from a walk, so asking a second question about an unchanged checkout costs the
  * manifests and nothing else.
  *
- * The scan brings the index up to date and saves it, and the value is read off
- * the saved index and published beside it, so a read whose index could not be
- * saved throws {@link UnsavedRead}. Asynchronous because the index is a file: a
+ * The update brings the index up to date and writes it, and the value is read
+ * off the written index and published beside it, so a read whose index could
+ * not be written throws {@link UnsavedRead}. Asynchronous because the index is a file: a
  * caller with no cache directory to write to, or one reading a tree it does not
  * own, wants `readHelp` and should keep having it.
  */
@@ -204,9 +207,9 @@ export async function readWorkspace(root: string, options: ReadingOptions = {}):
  * Read the workspace again over a value published before it.
  *
  * Every read publishes the whole value off the saved index, so `documented`
- * says only when its read began: a refresh of `changed` files read those files
- * and nothing else, so every other file is as old as `documented` read it, and
- * the value keeps that time as `readStartedAt`.
+ * says only when its read began. A refresh of `changed` files keeps that time as
+ * `readStartedAt`: it is never later than the update's own start, so a file
+ * saved since either read is compared again.
  */
 export async function refreshWorkspace(
   root: string,
@@ -230,17 +233,23 @@ async function readAndPublish(root: string, options: ReadingOptions, readStarted
   const scope = scanScope(where, offerings);
   const own = options.index ?? sourceIndexPath(where);
   const at = scopeSourceIndexPath(own, scope.dirs);
-  const index = await openSourceIndex(at);
-  const records = await stepped(options.progress, `reading what each file imports and exports, under ${placesOf(scope.root, scope.dirs)}`, () => scanRelations({
-    root: scope.root,
+  // The addon brings the index up to date over what git says moved, and writes
+  // it: no file is read again on this side, and an edit costs the files it touched.
+  const update = await stepped(options.progress, `reading what each file imports and exports, under ${placesOf(scope.root, scope.dirs)}`, () => updateSourceIndex(scope.root, {
+    index: at,
     dirs: scope.dirs,
-    cache: index.cache,
-    reuse: index.reuse,
-    ...(options.changed === undefined ? {} : { changed: options.changed }),
     ...(options.packs === undefined ? {} : { packs: options.packs }),
   }));
-  const given = await taintRecords(records, options.taints ?? [], { root: scope.root, cache: index.cache });
-  if (given.shadows.size > 0) {
+  // A tool reads lines out of the index on disk, so the value is read off the index this update wrote, or not at all.
+  if (update.refused !== undefined) throw new UnsavedRead(update.refused);
+  // The records are read back only for a caller that takes them or joins taints
+  // the index never holds; the published tree is otherwise the addon's own.
+  // The parses the index holds answer the taints, so no unchanged file is opened again.
+  const wanted = options.taints !== undefined || options.records !== undefined;
+  const read = wanted ? await readPublishedSources(at) : undefined;
+  const cache = read === undefined ? {} : { cache: read.cache };
+  const given = read === undefined ? undefined : await taintRecords(read.records, options.taints ?? [], { root: scope.root, ...cache });
+  if (given !== undefined && given.shadows.size > 0) {
     throw new Error(
       `Help source areas cannot apply subtractive taints: ${given.shadows.size} file(s) shadow a module. ` +
       'Pass addition-only taints for declarative module loads.',
@@ -250,12 +259,9 @@ async function readAndPublish(root: string, options: ReadingOptions, readStarted
   // addon draws it off the saved index; only a caller's taints, which the index
   // never holds, keep the published tree on this side, and then this side joins
   // the mocks the same way. A mock's cut is one test's run and stays out of either.
-  const tainted = options.taints === undefined ? given : await taintRecords(given.records, [mockTaint()], { root: scope.root, cache: index.cache });
-  options.records?.(tainted.records, scope.root);
+  const tainted = given === undefined || options.taints === undefined ? given : await taintRecords(given.records, [mockTaint()], { root: scope.root, ...cache });
+  if (tainted !== undefined) options.records?.(tainted.records, scope.root);
 
-  // A tool reads lines out of the index on disk, so the value is read off the index this scan saved, or not at all.
-  const refused = await stepped(options.progress, 'saving the source index', () => index.save());
-  if (refused !== undefined) throw new UnsavedRead(refused);
   const published = await publishHelp({
     workspace: where,
     root: scope.root,
@@ -264,7 +270,7 @@ async function readAndPublish(root: string, options: ReadingOptions, readStarted
     index: at,
     own,
     readStartedAt,
-    ...(options.taints === undefined ? {} : { tree: encodeSourceTree(tainted.records) }),
+    ...(options.taints === undefined || tainted === undefined ? {} : { tree: encodeSourceTree(tainted.records) }),
     ...(options.progress === undefined ? {} : { progress: options.progress }),
   });
   if (published === undefined) throw new UnsavedRead(`no source index opens at ${at}`);

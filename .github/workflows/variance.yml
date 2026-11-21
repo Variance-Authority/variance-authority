@@ -534,6 +534,11 @@ jobs:
       # which `site-job` names under `before` for that reason. The photographing
       # step exits 1 on changed pixels, which is a finished run, so it says so;
       # a hole fails the verdict and no record is uploaded.
+      # The rebuild below compiles the scanner, which links at its glibc floor.
+      - name: a linker for the recorded rebuild
+        if: matrix.project == 'site' && github.event_name == 'workflow_dispatch' && github.ref_name == github.event.repository.default_branch
+        uses: ./.github/actions/zigbuild
+
       - name: build again, recorded
         id: job
         if: matrix.project == 'site' && github.event_name == 'workflow_dispatch' && github.ref_name == github.event.repository.default_branch

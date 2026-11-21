@@ -176,6 +176,14 @@ The syntax says almost everything, and the work is in resolution instead:
   since both match filenames without regard to case; that is handled where it
   happens rather than left to the case-sensitive machine CI runs on.
 
+Framework file formats and bundler-only aliases are not read yet. A Vue or
+Svelte single-file component is not indexed, so what it imports is not in the
+graph. The template and stylesheet files an Angular component names in
+`templateUrl` and `styleUrls` are not linked to it. An import alias declared
+only in a bundler's configuration, such as webpack's or Vite's `resolve.alias`,
+does not resolve; the same alias declared as `paths` in a `tsconfig` does. [The
+source scan](source.md#limits) says what each one leaves out.
+
 **Stylesheets.** A second language rather than a dialect of the first, because
 the same string asked from two places is two different questions: `./colors`
 from a stylesheet may find `_colors.scss`, and from a module must not. `.scss`
@@ -196,7 +204,8 @@ file exists, so a `mod` that resolves to nothing is a hole and is reported as
 one. `use crate::read::harvest::Harvest;` names an item, and which prefix is the
 module is again a fact about the disk; resolution takes the longest prefix that
 is a file, and a `use` that finds nothing is an external crate rather than an
-error. `#[path]` is taken as written.
+error. `#[path]` is taken as written. To select Rust tests from what they ran
+rather than from this graph, see [Rust tests](rust.md).
 
 **Java and Kotlin.** Two syntaxes over one resolution algorithm. An import names
 a package and a thing in it, the package is a directory under a source root, and

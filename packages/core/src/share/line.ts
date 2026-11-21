@@ -123,6 +123,12 @@ export interface LineCell {
    * rest. Present wherever `commits` is.
    */
   drop?(lines: readonly ShareLine[]): Promise<'dropped' | ShareMiss>;
+  /**
+   * Whether an image stored for one line is there for every line, as at
+   * `images/<digest>` beside them. Then a mainline's commit is kept without
+   * its images sent again; absent, each line is sent the images it lacks.
+   */
+  readonly imagesShared?: true;
 }
 
 /** One commit a mainline's record is kept at, and when it was written, in ms since the epoch. */

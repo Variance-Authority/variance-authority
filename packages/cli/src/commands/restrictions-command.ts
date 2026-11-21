@@ -42,6 +42,7 @@ import { readTiers } from '../config-declared.js';
 import { EXIT_CLEAN, EXIT_REVIEW, OperatorError, type ExitCode } from '../exit.js';
 import type { ParsedRestrictions } from '../restrictions-args.js';
 import { RULE_FILE, ruleFiles } from './relations-file.js';
+import { fetchFromMainline } from './source-index-share.js';
 
 type PackageLayers = NonNullable<NonNullable<ReturnType<typeof packageLayers>>['packages']>;
 
@@ -154,6 +155,7 @@ export async function restrictionsOutput(request: ParsedRestrictions): Promise<{
     ci: isCI,
     step: 'variance index',
     announce: (line) => process.stderr.write(`variance: ${line}\n`),
+    fetch: fetchFromMainline,
   });
   const found: Found = {
     imports: restrictedImports(published.records, files),

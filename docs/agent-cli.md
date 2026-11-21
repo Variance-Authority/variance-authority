@@ -28,9 +28,10 @@ variance ask packages
 
 Every other question about the code needs something to ask about: a word, a
 name or a specifier. `packages` is the one that needs nothing, so ask it first
-when you have none of those. It reads the checkout under the working directory
-and nothing else: no report has to exist and `variance.config.json` is not
-opened. For each specifier, it counts the names that at least one other package
+when you have none of those. It reads the index `variance index` published for
+the checkout under the working directory and nothing else: no report has to
+exist and `variance.config.json` is not opened. After you edit, run `variance
+index`, then ask again. For each specifier, it counts the names that at least one other package
 imports. It does not list where those imports are written: `uses` gives the file
 and line of each. An answer looks like this, abridged:
 
@@ -135,7 +136,7 @@ of `published`, `exported`, `declared` or `file`, and is never repeated in `loos
 a refused
 start point returns `refused` with no sections. Only `search` answers in JSON.
 
-These questions read the checkout the same way `packages` does. `--from` and
+These questions read the published index the same way `packages` does. `--from` and
 `--to` are a path in the source tree, answered from what it reaches or what
 reaches it. `locate` is the run question that finds a subject by the names the
 run saw, and its `--from` and `--to` mean the same thing. Carry the path into
@@ -165,9 +166,9 @@ rendered by playwright-chromium (chromium@151.0.7922.34, darwin/arm64, 1x)
 3 changed
 names of 3 subject(s) written down over 8 field(s); `variance_locate {query}` finds a subject from a description
 
-[changed] card/summary — Button: 3,402 pixels differ across 2 regions in Button, Avatar
-[changed] card/compact — Button: 2,825 pixels differ across 1 region in Button
-[changed] badge/standalone — Badge: 1,017 pixels differ across 1 region in Badge
+[changed] card/summary — Button: 3,402 pixels differ across 1 strong region in Button, and 1 faint region, 1 changed in shape and 1 only in colour
+[changed] card/compact — Button: 2,825 pixels differ across 1 region in Button, its shape changed
+[changed] badge/standalone — Badge: 1,017 pixels differ across 1 region in Badge, only its colour changed
 
 coverage: every planned subject was observed.
 findings: none in 3 inspected subject(s).
@@ -388,6 +389,30 @@ own attempts are listed: Vitest's `retry` and `repeats`, Jest's
 `repeats` are not attempts. A case the
 record does not hold has none, as every case of a file recorded as a whole.
 
+## Find the checks a passing test did not run
+
+```bash
+variance ask not-run
+```
+
+A test that passed says only that nothing it ran failed. A Playwright test that
+declares its check with the annotation `variance:check` and runs it as a step of
+the same title is recorded with the checks each attempt entered, as
+[Declare what a test checks](../packages/playwright-test/README.md#declare-what-a-test-checks)
+sets up, and `not-run` names each one an attempt passed without:
+
+```text
+Declared checks not executed:
+  expected check create-event/submitted-title did not execute in case create event > submits the form (tests/create-event.spec.ts:42, project chromium), which passed
+0 declared check(s) entered.
+Scope: project chromium; a case outside it was not asked about.
+```
+
+The scope is what the run covered: its projects, `grep` and shard. A case
+outside it was not asked about and is not named. A run stopped before its runner
+ended it names no check, and a record that kept no checks says so rather than
+that every check ran.
+
 ## Find where the suite's time goes
 
 ```bash
@@ -441,9 +466,18 @@ reading and the skill's counterfactual verification loop are described in
 ## Arguments are per-question
 
 Each question takes only the arguments its own contract declares. An argument
-another question takes is refused by name rather than ignored, because a
-question answered about the whole suite when a subject was named reads as
-correct and is not.
+the question does not take, or a flag no question takes, is named on standard
+error and the question is answered from the rest, exit `0`. The line says the
+answer is what it would be without the flag, because a question answered about the whole
+suite when a subject was named reads as correct and is not:
+
+```text
+variance: `--subject` is not an argument `variance ask summary` takes, so the answer is what it is without it; it takes none.
+```
+
+A missing required argument, a malformed value and a stray word after the
+question are still refused, since each changes what the question means. Every
+command other than `ask` refuses an unknown flag.
 
 ```bash
 variance ask describe --subject story:card

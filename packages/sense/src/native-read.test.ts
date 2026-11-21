@@ -7,19 +7,17 @@ import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
 import type { Digest } from '@variance-authority/core/format';
 import type { FileRecord } from '@variance-authority/core/relate';
-import { memoryParseCache } from './cache.js';
 import { nativeFrontier, nativeGraph } from './native.js';
 import { native, nativeAvailable } from './addon.js';
 import { MODULE_EXTENSIONS } from './read.js';
-import { recordFor } from './record.js';
 import { resolveTo, resolversFor } from './resolve.js';
-import { LARGEST_FILE } from './scan.js';
+import { LARGEST_FILE } from './record.js';
 import { openSourceIndexFile, readSourceIndex } from './source-index-file.js';
 import { requestOf } from './specifier.js';
 
 /**
- * The native scanner over this repository, against the resolver and record
- * builder that still run in JavaScript.
+ * The native scanner over this repository, against the module resolver that
+ * still runs in JavaScript for the specifiers a diff adds.
  *
  * The corpus is this repository, which is the only corpus worth arguing with: a
  * fixture is a guess about what TypeScript looks like, and a few thousand real
@@ -45,7 +43,7 @@ describe('the native scanner over this repository', () => {
         const request = requestOf(value);
         const oracle = request === undefined
           ? ''
-          : resolveTo({ resolvers, root, from: join(root, file), request, style: false }) ?? '';
+          : resolveTo({ resolvers, root, from: join(root, file), request }) ?? '';
         const answered = batch.targets[at] ?? '';
         if (answered !== oracle) disagreed.push({ file, value, oracle, answered });
         at += 1;
@@ -55,10 +53,9 @@ describe('the native scanner over this repository', () => {
     expect(disagreed).toEqual([]);
   }, 120_000);
 
-  it.runIf(available)('builds every repository record the way the oracle builds it', async () => {
-    // Two producers of one record shape. A field only one of them writes is a
-    // graph that depends on which machine scanned it: `packages` was that field,
-    // and a bumped dependency had no importer wherever the addon loaded.
+  it.runIf(available)('keeps a type-only package import apart from a runtime one', async () => {
+    // `packages` was once a field only one of two record builders wrote, and a
+    // bumped dependency had no importer wherever the addon loaded.
     const files = await modules();
     const answered = nativeFrontier({
       addon: native()!,
@@ -66,32 +63,10 @@ describe('the native scanner over this repository', () => {
       files,
       largestFile: LARGEST_FILE,
       digests: files.map(() => undefined),
-      aliases: undefined,
       directories: new Map(),
       remembering: false,
     });
-    const resolvers = resolversFor({});
-    const cache = memoryParseCache();
-    const disagreed: unknown[] = [];
 
-    for (const [index, file] of files.entries()) {
-      const { record: oracle } = await recordFor({
-        absolute: join(root, file),
-        file,
-        root,
-        resolvers,
-        cache,
-        aliases: undefined,
-        directories: new Map(),
-        largestFile: LARGEST_FILE,
-        remembering: false,
-      });
-      const { digest: _native, ...held } = answered[index]!.record;
-      const { digest: _oracle, ...expected } = oracle;
-      if (JSON.stringify(held) !== JSON.stringify(expected)) disagreed.push({ file, expected, held });
-    }
-
-    expect(disagreed, JSON.stringify(disagreed.slice(0, 3), null, 2)).toHaveLength(0);
     expect(answered.some(({ record }) => record.packages?.some(({ kind }) => kind === 'type'))).toBe(true);
   }, 120_000);
 
@@ -110,7 +85,7 @@ describe('the native scanner over this repository', () => {
   });
 
   it.runIf(available)('names its kinds the way the oracle names them', () => {
-    expect(native()!.kinds()).toEqual(['imports', 'reexports', 'dynamic', 'type', 'depends']);
+    expect(native()!.kinds()).toEqual(['imports', 'reexports', 'dynamic', 'type', 'depends', 'asset']);
   });
 
   /**
@@ -124,7 +99,7 @@ describe('the native scanner over this repository', () => {
     const directory = await mkdtemp(join(tmpdir(), 'variance-native-index-'));
     const file = join(directory, 'source-index.bin');
     const record: FileRecord = {
-      file: 'packages/sense/src/scan.ts',
+      file: 'packages/sense/src/test-support/scan.ts',
       digest: 'git:4444444444444444444444444444444444444444' as Digest,
       edges: [{ to: 'packages/sense/src/native.ts', kind: 'imports' }],
     };
@@ -137,7 +112,6 @@ describe('the native scanner over this repository', () => {
         files: [record.file],
         largestFile: LARGEST_FILE,
         digests: [undefined],
-        aliases: undefined,
         directories: new Map(),
         remembering: true,
       });

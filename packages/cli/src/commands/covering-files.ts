@@ -62,6 +62,16 @@ export function coveringFiles(
     .sort(nearestFirst);
 }
 
+/**
+ * Every case that called into one of a file's ranges, once. A case loaded on
+ * one range and calling into another is a caller: it is dropped per range,
+ * before the cases are joined.
+ */
+export function calledInto(ranges: readonly { readonly tests: readonly CoveringTest[] }[]): readonly CoveringTest[] {
+  const called = ranges.flatMap((range) => range.tests.filter((test) => test.loaded !== true));
+  return [...new Map(called.map((test) => [test.id, test] as const)).values()];
+}
+
 function nearestFirst(left: CoveringFile, right: CoveringFile): number {
   if (left.hops !== right.hops) {
     if (left.hops === undefined) return 1;

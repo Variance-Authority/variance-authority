@@ -1,259 +1,28 @@
 /**
- * Turning one source file into a reusable record: read it, resolve what it asks
- * for, and keep the edges.
+ * A record declined for its size, and whether the decline still holds.
  *
- * The native batch builds modules' records itself ([`native.ts`](./native.ts)).
- * Every other language is built here, and so is every module a batch was not
- * asked for.
+ * The native batch builds every record ([`native.ts`](./native.ts)), and
+ * `too_large` in `acquire.rs` words a decline. A kept record is reused by its
+ * digest, so a scan asks here whether a decline it is about to reuse is still
+ * true of the file as it is checked out.
  */
 
-import { readFileSync, statSync } from 'node:fs';
-import { lstat, readFile, stat } from 'node:fs/promises';
-import { join } from 'node:path';
-import type { FileEdge, FileRecord, PackageEdge } from '@variance-authority/core/relate';
-import { codeUnitOrder } from '@variance-authority/core/segment';
-import type { Parsed, ParseCache } from './cache.js';
-import { digestString } from './digest.js';
-import type { Digest } from '@variance-authority/core/format';
-import { keyFor, languageFor, parseWay, type ParseWay } from './files.js';
-import { indexesComponents, type LanguageId } from './language.js';
-import { native, nativeRefusal } from './addon.js';
-import { readModule, type Read } from './read.js';
-import { readStyle } from './style.js';
-import { resolveAll, type Resolvers } from './resolve.js';
-import { isRelative, kindFor, packageOf, requestOf } from './specifier.js';
-import { witnessesOf, type Aliases } from './witness.js';
-
-export interface RecordSubject {
-  readonly absolute: string;
-  readonly file: string;
-  readonly root: string;
-  readonly resolvers: Resolvers;
-  readonly cache: ParseCache;
-  /** Where a bare specifier could land, when the tree bounds it. */
-  readonly aliases: Aliases | undefined;
-  /** Every directory the tree holds, which bounds where a lookup can land. */
-  readonly directories: ReadonlyMap<string, Digest>;
-  /** The largest file to open, in bytes. */
-  readonly largestFile: number;
-  /** Whether the record cache will consume directory witnesses. */
-  readonly remembering: boolean;
-  /** This file's content digest, when it was known without opening the file. */
-  readonly digest?: Digest;
-  /** Told of each parse this record's read makes, where it makes it, and of the bytes it parsed. */
-  readonly counted?: (file: string, contents: string) => void;
-}
-
-export interface BuiltRecord {
-  readonly record: FileRecord;
-  readonly witnesses: readonly string[];
-  readonly targets?: readonly (string | undefined)[];
-  /** What the bytes said, absent when the file could not be read. */
-  readonly read?: Parsed;
-}
-
-/** Read, parse and resolve one file through the implementation of record. */
-export async function recordFor(subject: RecordSubject): Promise<BuiltRecord> {
-  const { absolute, file, root, resolvers, cache, largestFile } = subject;
-  const way = parseWay(file);
-  const language = languageFor(way);
-
-  // No reader claims this name. That is not the same as a file with no edges,
-  // and saying so is the whole rule this package is built on: a repository
-  // whose files nobody read must not read as a repository with nothing in it.
-  if (language === undefined) {
-    return {
-      record: {
-        file,
-        unknown: `${file} is written in a language this build has no reader for, so what it asks for is unknown.`,
-      },
-      witnesses: [],
-    };
-  }
-
-  // A digest from git names a cache entry before the file is opened; only a
-  // miss falls through to I/O.
-  let digest = subject.digest;
-  let read = digest === undefined ? undefined : cache.get(keyFor(digest, way));
-  if (read !== undefined && !heldUnder(read, absolute, largestFile)) read = undefined;
-
-  if (read === undefined) {
-    const size = await sized(absolute);
-    if (size !== undefined && size > largestFile) {
-      // Declined for its bytes, so the record names them when git already
-      // has: an unchanged file is kept, not opened to be declined again. A
-      // link's object is the path it holds, not these bytes, so it names none.
-      const named = digest !== undefined && !(await linked(absolute));
-      return {
-        record: {
-          file,
-          ...(named ? { digest } : {}),
-          unknown: `${file} is ${size} bytes, over the ${largestFile} ${TOO_LARGE}`,
-        },
-        witnesses: [],
-      };
-    }
-
-    let contents: string;
-    try {
-      contents = await readFile(absolute, 'utf8');
-    } catch (error) {
-      return {
-        record: { file, unknown: `${file} could not be read: ${messageOf(error)}` },
-        witnesses: [],
-      };
-    }
-
-    // A digest known only now can still name an entry: the parse a resolver
-    // asked for before the scan reached this file (`parsedOnce`).
-    digest ??= digestString(contents);
-    read = cache.get(keyFor(digest, way));
-    if (read === undefined) {
-      read = parsedFrom(file, contents, way, language);
-      subject.counted?.(file, contents);
-      cache.set(keyFor(digest, way), read);
-    }
-  }
-
-  const edges: FileEdge[] = [];
-  const packages: PackageEdge[] = [];
-  const unresolved: string[] = [];
-  const holes: string[] = [];
-  const targets: (string | undefined)[] = [];
-
-  for (const asked of read.requests) {
-    const request = requestOf(asked.value);
-    if (request === undefined) {
-      targets.push(undefined);
-      continue;
-    }
-
-    // Every file the specifier reaches, which for Java, Kotlin and Swift is a
-    // whole package or a whole target. `targets` stays one entry per request —
-    // the source index is keyed by that alignment — and carries the first,
-    // while every one of them becomes an edge.
-    const reached = resolveAll({ resolvers, root, from: absolute, request, language, item: asked.item === true });
-    const target = reached[0];
-    targets.push(target);
-    if (target === undefined) {
-      // A guess that lands is an edge; a guess that does not is silence. The
-      // reader derived it precisely because the language would not say whether
-      // it names anything ([`read.ts`](./read.ts)), so its absence is an answer
-      // and not a gap — recording it as unresolved would report every Python
-      // package in the tree as depending on modules nobody ever wrote.
-      if (asked.guessed === true) continue;
-      unresolved.push(asked.value);
-
-      // A bare specifier that does not resolve is a package, and the scan has no
-      // business finding *where* it went: under pnpm's store or Yarn PnP there
-      // may be no path, and under a custom resolver the path would be a fact
-      // about one machine. The name is the node, and the lockfile says what is
-      // currently under it ([`lock`](./lock/index.ts)).
-      const named = packageOf(request);
-      if (named !== undefined) packages.push({ to: named, kind: asked.kind });
-
-      // A *relative* one names a path inside this repository and could not be
-      // identified, which is a hole in the edge list rather than an absence of
-      // one — so the file is marked unknown with the specifier named, and the
-      // edge is left to the recorded run.
-      if (isRelative(request, language)) holes.push(asked.value);
-      continue;
-    }
-    for (const to of reached) edges.push({ to, kind: kindFor(asked.kind, to) });
-  }
-
-  const reasons = [
-    ...(read.unknown === undefined ? [] : [read.unknown]),
-    ...(holes.length === 0
-      ? []
-      : [`${holes.length} relative specifier(s) that resolve to nothing: ${holes.join(', ')}`]),
-  ];
-
-  return {
-    record: {
-      file,
-      ...(digest === undefined ? {} : { digest }),
-      ...(edges.length === 0 ? {} : { edges: dedupe(edges) }),
-      ...(packages.length === 0 ? {} : { packages: dedupe(packages) }),
-      ...(read.declares === undefined ? {} : { declares: read.declares }),
-      ...(unresolved.length === 0
-        ? {}
-        : { unresolved: [...new Set(unresolved)].sort(codeUnitOrder) }),
-      ...(reasons.length === 0 ? {} : { unknown: `${file} — ${reasons.join('; ')}` }),
-    },
-    read,
-    targets,
-    witnesses: subject.remembering
-      ? witnessesOf({
-        file,
-        requests: read.requests.map((asked) => asked.value),
-        edges: edges.map((edge) => edge.to),
-        directories: subject.directories,
-        aliases: subject.aliases,
-      })
-      : [],
-  };
-}
+import { stat } from 'node:fs/promises';
+import type { FileRecord } from '@variance-authority/core/relate';
 
 /**
- * What one file says, parsed at most once: the parse cache's entry for its
- * digest, or a parse that the cache then holds for the record built after it.
+ * One megabyte, which is larger than source people write and smaller than
+ * output machines generate.
  *
- * For a resolver that needs another file's parse before the scan reaches it, as
- * a Rust `super` needs the `mod` lines of the file above. Nothing for a file
- * that is not there, cannot be read, or is over `largestFile`, which the record
- * built for it says.
+ * Files past a megabyte are bundles; at the cap one costs about a hundred
+ * megabytes of arena, at ten times it eight hundred.
+ *
+ * A record declined at this limit names the bytes it declined and is kept, and
+ * a run at the default names no limit in its configuration digest (`configOf`
+ * in [`reuse.ts`](./reuse.ts)). So a change to this value bumps `VERSION`
+ * there, or every index keeps the records the old limit declined.
  */
-export function parsedOnce(input: {
-  readonly root: string;
-  readonly file: string;
-  readonly cache?: ParseCache;
-  readonly digest?: Digest | undefined;
-  readonly largestFile?: number;
-  /** Told of each parse made here, where it is made, and of the bytes it parsed. */
-  readonly counted?: (file: string, contents: string) => void;
-}): Parsed | undefined {
-  const { root, file, cache, largestFile } = input;
-  const way = parseWay(file);
-  const language = languageFor(way);
-  if (language === undefined) return undefined;
-  const held = input.digest === undefined ? undefined : cache?.get(keyFor(input.digest, way));
-  let contents: string;
-  if (held !== undefined) return largestFile === undefined || heldUnder(held, join(root, file), largestFile) ? held : undefined;
-  try {
-    if (largestFile !== undefined && statSync(join(root, file)).size > largestFile) return undefined;
-    contents = readFileSync(join(root, file), 'utf8');
-  } catch {
-    return undefined;
-  }
-  const key = keyFor(input.digest ?? digestString(contents), way);
-  let read = cache?.get(key);
-  if (read === undefined) {
-    read = parsedFrom(file, contents, way, language);
-    input.counted?.(file, contents);
-  }
-  cache?.set(key, read);
-  return read;
-}
-
-/**
- * Whether a held parse answers under `largestFile`, which is not the limit that
- * read it: by the size it was measured at, else by the file's as checked out.
- * A size neither knows, such as a stylesheet's absent from a sparse checkout,
- * answers nothing, so the file is read again and says why it could not be.
- * `read_kept` in `batch.rs` keeps the same rule for the addon.
- */
-function heldUnder(held: Parsed, absolute: string, largestFile: number): boolean {
-  let bytes = held.size?.bytes;
-  if (bytes === undefined) {
-    try {
-      bytes = statSync(absolute).size;
-    } catch {
-      return false;
-    }
-  }
-  return bytes <= largestFile;
-}
+export const LARGEST_FILE = 1024 * 1024;
 
 /** The rest of the reason a file declined for its size is given: `too_large` in `acquire.rs` writes the same words. */
 const TOO_LARGE =
@@ -278,92 +47,10 @@ export async function stillTooLarge(absolute: string, largestFile: number): Prom
   return size !== undefined && size > largestFile;
 }
 
-async function linked(absolute: string): Promise<boolean> {
-  try {
-    return (await lstat(absolute)).isSymbolicLink();
-  } catch {
-    return true;
-  }
-}
-
 async function sized(absolute: string): Promise<number | undefined> {
   try {
     return (await stat(absolute)).size;
   } catch {
     return undefined;
   }
-}
-
-/**
- * Everything one file's bytes say before anything about where it sits.
- *
- * The components a file declares are the module reader's answer, read off the
- * tree the native batch reads them off ([`declarations.rs`](../native/src/declarations.rs)),
- * so a module reaches the same record whichever path built it.
- */
-function parsedFrom(file: string, contents: string, way: ParseWay, language: LanguageId): Parsed {
-  const read = readerFor(language)(file, contents);
-  const declares = way.declaring && indexesComponents(language) ? read.declares ?? [] : [];
-  return {
-    requests: read.requests,
-    ...(read.exports === undefined ? {} : { exports: read.exports }),
-    ...(read.symbols === undefined ? {} : { symbols: read.symbols }),
-    ...(read.mocks === undefined ? {} : { mocks: read.mocks }),
-    ...(read.harvested === true ? { harvested: true } : {}),
-    ...(declares.length === 0 ? {} : { declares }),
-    ...(read.ownUses === undefined ? {} : { ownUses: read.ownUses }),
-    ...(read.bindingMembers === undefined ? {} : { bindingMembers: read.bindingMembers }),
-    ...(read.unknown === undefined ? {} : { unknown: read.unknown }),
-    ...(read.size === undefined ? {} : { size: read.size }),
-  };
-}
-
-/** The reader each language is read by. Every one of them answers the same shape. */
-function readerFor(language: LanguageId): (file: string, contents: string) => Read {
-  switch (language) {
-    case 'style': return readStyle;
-    case 'python':
-    case 'rust':
-    case 'java':
-    case 'kotlin':
-    case 'swift': return (file, contents) => readLanguage(language, file, contents);
-    default: return readModule;
-  }
-}
-
-/**
- * A tree-sitter language, read by the grammar linked into the addon.
- *
- * The walk happens where the tree is and what crosses the boundary is the
- * answer ([ADR-0074](https://github.com/Variance-Authority/variance-authority/blob/main/docs/context/adr/0074-one-reader-per-tree-sitter-language.md)).
- * A binary built without the grammars claims no language, and the file is then
- * unknown with that reason rather than read some other way.
- */
-function readLanguage(language: LanguageId, file: string, contents: string): Read {
-  const addon = native();
-  if (addon === undefined) {
-    throw new Error(`sense: reading ${file} needs the native addon, which did not load: ${nativeRefusal()}`);
-  }
-  const answer = addon.readLanguage(language, file, contents);
-  if (answer !== null) return JSON.parse(answer) as Read;
-  return {
-    requests: [],
-    unknown: `${file} is ${language}, and the native addon on this machine was built without the tree-sitter grammars, so what it asks for is unknown.`,
-  };
-}
-
-function dedupe<Edge extends FileEdge>(edges: readonly Edge[]): readonly Edge[] {
-  const seen = new Set<string>();
-  return edges
-    .filter((edge) => {
-      const key = `${edge.kind} ${edge.to}`;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    })
-    .sort((a, b) => codeUnitOrder(a.to, b.to) || codeUnitOrder(a.kind, b.kind));
-}
-
-function messageOf(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }

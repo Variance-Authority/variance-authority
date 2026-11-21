@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { treeOf } from '@variance-authority/mcp/tools';
-import { readHelp } from '@variance-authority/package/help';
+import { readHelp } from '../walk.js';
 import { declaredDescribedOf, describedWordsNative, sourceIndexPath } from '@variance-authority/sense';
 import { INVENTED_PACKAGES } from '../__fixtures__/invented-packages.js';
 import { inventedWorkspace } from '../__fixtures__/invented-workspace.js';
@@ -54,7 +54,14 @@ it('answers a description with the repository\'s own names first, and the packag
 
   // Neither the phrase nor every word is in the name, so only the words held answer it.
   expect(said).toMatch(/managedFor .*\[holds: management, state\]/);
-  expect(said.indexOf('managedFor')).toBeLessThan(said.indexOf('react @1.0.0'));
+  // The repository answered, so the package that describes it is named on one line after its rows.
+  expect(said).toMatch(/^1 package describes `state management`: react\. `docs_search` with `query` `state management` and `limit` `20` lists them in full\.$/mu);
+  expect(said).not.toContain('react @1.0.0');
+  expect(said.indexOf('managedFor')).toBeLessThan(said.indexOf('describes `state management`'));
+
+  // A limit said is a reader asking for the rows: every list shows them.
+  const limited = answerSearch(searchIndexOf(readHelp(root)), { query: 'state management', limit: 10 }, treeOf([], root), root);
+  expect(limited).toContain('react @1.0.0 · dependency in package.json');
 });
 
 it('answers from a catalogue of the version before, names the described packages it cannot compare, and rebuilds it at refresh', async () => {
@@ -231,8 +238,6 @@ describe('which names the described section holds, and in what order', () => {
     expect(said).toMatch(/^diagram\d+ .*\[holds: mermaid, palette\]/mu);
     expect(said.search(/^diagram\d+ /mu)).toBeGreaterThan(said.search(/^chartPaletteAt0 /mu));
     expect(said).toMatch(/more not shown/u);
-    // Rows that sort before it are not shown, so the heading says why.
-    expect(said).toContain("then the phrase its doc writes; a row for each word these rows hold is shown however it sorts.");
   });
 
   it('reads the phrase of every name level with the last row shown, so the one writing it is shown first', async () => {

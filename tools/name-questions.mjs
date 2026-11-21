@@ -62,7 +62,7 @@ function asked(set, workspace, out, runs, bin) {
     let status = 0;
     for (let run = 0; run < runs; run++) {
       const started = process.hrtime.bigint();
-      const answer = spawnSync(process.execPath, [bin, 'ask', ...question, '--just-answer'], { cwd: workspace, encoding: 'utf8', maxBuffer: 1 << 30 });
+      const answer = spawnSync(process.execPath, [bin, 'ask', ...question], { cwd: workspace, encoding: 'utf8', maxBuffer: 1 << 30 });
       times.push(Number(process.hrtime.bigint() - started) / 1e6);
       const text = `${answer.stdout}${answer.stderr === '' ? '' : `\n--- stderr\n${answer.stderr}`}`;
       status = answer.status ?? -1;

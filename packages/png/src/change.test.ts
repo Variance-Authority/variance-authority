@@ -159,6 +159,35 @@ describe('the picture of an insertion', () => {
   });
 });
 
+describe('a page aligned in strips', () => {
+  // A sidebar that stays beside a main column where 48 rows go in at row 60:
+  // the main column is the wider strip, and the sheet reads through its rows.
+  const width = 60;
+  const side = 20;
+  const sidebar = (y: number) => [(y * 11) % 256, 50, (y * 5) % 256, 255];
+  const main = (y: number) => [(y * 7) % 256, (y * 13) % 256, 100, 255];
+  const draw = (height: number, paint: (x: number, y: number) => readonly number[]) => {
+    const png = new PNG({ width, height });
+    for (let y = 0; y < height; y += 1) for (let x = 0; x < width; x += 1) png.data.set(paint(x, y), (y * width + x) * 4);
+    return PNG.sync.write(png);
+  };
+  const before = draw(200, (x, y) => (x < side ? sidebar(y) : main(y)));
+  const after = draw(248, (x, y) => (x < side ? sidebar(Math.min(y, 199)) : y < 60 ? main(y) : y < 108 ? BLACK : main(y - 48)));
+  const sheet = sheetOf(changeImages(PNG.sync.read(before), PNG.sync.read(after), regionsOf(before, after)).change);
+
+  it('sets the main column under the insertion level with where it moved to', () => {
+    // The rows the sheet shows unmarked, each a main row of its own.
+    const unmarked = new Set(Array.from({ length: 200 }, (_, y) => colour(main(y))));
+    const level = rowsOf(sheet).filter((y) => unmarked.has(sheet.after(40, y)));
+    expect(level.length).toBeGreaterThan(0);
+    for (const y of level) expect(sheet.before(40, y)).toBe(sheet.after(40, y));
+  });
+
+  it('marks the rows inserted into the main column on the after panel', () => {
+    expect(rowsOf(sheet).map((y) => sheet.after(40, y))).toContain(washed(BLACK, 'after'));
+  });
+});
+
 describe('a change in place', () => {
   it('outlines the same place on both panels', () => {
     const before = image(1280, 2000);

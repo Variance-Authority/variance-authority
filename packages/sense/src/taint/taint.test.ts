@@ -6,7 +6,7 @@ import { idOf, affectedBy, relationsOfFiles, type FileRecord } from '@variance-a
 import { memoryParseCache } from '../cache.js';
 import { keyFor, parseWay } from '../files.js';
 import { readModule } from '../read.js';
-import { scanRelations } from '../scan.js';
+import { scanRelations } from '../test-support/scan.js';
 import { moduleCallsTaint } from './calls.js';
 import { taintFile, taintRecords, taintTable, type Taint, type Tainted } from './index.js';
 import { isTestLike, mockTaint } from './mocks.js';

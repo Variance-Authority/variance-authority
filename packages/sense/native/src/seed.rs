@@ -7,18 +7,6 @@ use napi_derive::napi;
 use rayon::prelude::*;
 use rayon::ThreadPoolBuilder;
 
-/// Every extension some reader claims, mirroring `READABLE` in `language.ts`.
-///
-/// Seeding is where a language enters the graph at all: a file whose extension
-/// is missing here is never opened, never resolved and never reported, and the
-/// scan says nothing about it — the one failure this package exists to refuse.
-/// It is the only seeder, so it has to claim the set the readers claim rather
-/// than the set they claimed when this list was written.
-/// `native-readable.check.ts` holds the two lists to each other.
-const EXTENSIONS: &[&str] = &[
-    "ts", "tsx", "mts", "cts", "js", "jsx", "mjs", "cjs", "css", "scss", "sass", "less", "py",
-    "pyi", "rs", "java", "kt", "kts", "swift",
-];
 const READERS: usize = 6;
 
 /// Select readable paths from the snapshot that supplies their content identity.
@@ -56,11 +44,17 @@ pub(crate) fn seeds_of(root: &str, dirs: &[String], snapshot: &crate::git::Snaps
     seeds
 }
 
+/// Whether some reader claims `path`. Seeding is where a language enters the
+/// graph at all: a file no reader claims is never opened, resolved or reported,
+/// so the seeder asks the table the reader reads by, `language_of`, rather than
+/// keeping a list of its own (`native-readable.check.ts` holds that table to
+/// the TypeScript ones).
 fn readable(path: &str) -> bool {
-    Path::new(path)
-        .extension()
-        .and_then(|part| part.to_str())
-        .is_some_and(|extension| EXTENSIONS.contains(&extension))
+    crate::read_any::language_of(path).is_some()
+}
+
+fn every(_: &str) -> bool {
+    true
 }
 
 fn below(path: &str, prefix: &str) -> bool {
@@ -100,7 +94,19 @@ struct Found {
 /// describe, with independent directory reads fanned over the filesystem width.
 #[napi(catch_unwind)]
 pub fn seed_files(root: String, dirs: Vec<String>) -> Vec<String> {
-    let root = PathBuf::from(root);
+    walk(&PathBuf::from(root), dirs, readable, &[])
+}
+
+/// Every file of the working tree, for a scan Git does not describe: what the
+/// languages that resolve over the tree ask about, manifests included. A
+/// repository of its own is stepped over unless it is one of `asked`, or holds
+/// one: its manifests are what resolves the files asked for.
+pub(crate) fn disk_listing(root: &Path, asked: &[String]) -> Vec<String> {
+    let asked: Vec<String> = asked.iter().filter_map(|dir| repo_path(root, &root.join(dir))).filter(|dir| !dir.is_empty()).collect();
+    walk(root, vec![String::new()], every, &asked)
+}
+
+fn walk(root: &Path, dirs: Vec<String>, keep: fn(&str) -> bool, asked: &[String]) -> Vec<String> {
     let mut pending: Vec<Directory> = dirs
         .into_iter()
         .filter_map(|dir| {
@@ -109,7 +115,7 @@ pub fn seed_files(root: String, dirs: Vec<String>) -> Vec<String> {
             } else {
                 root.join(dir)
             };
-            let prefix = repo_path(&root, &absolute)?;
+            let prefix = repo_path(root, &absolute)?;
             Some(Directory {
                 absolute,
                 prefix,
@@ -121,7 +127,7 @@ pub fn seed_files(root: String, dirs: Vec<String>) -> Vec<String> {
     let pool = ThreadPoolBuilder::new().num_threads(READERS).build();
 
     while !pending.is_empty() {
-        let work = || pending.par_iter().map(read).collect::<Vec<_>>();
+        let work = || pending.par_iter().map(|directory| read(directory, keep, asked)).collect::<Vec<_>>();
         let found = match &pool {
             Ok(pool) => pool.install(work),
             Err(_) => work(),
@@ -137,7 +143,8 @@ pub fn seed_files(root: String, dirs: Vec<String>) -> Vec<String> {
     files
 }
 
-/// Every readable file in one directory, unless it is a repository of its own.
+/// Every file in one directory that `keep` keeps, unless it is a
+/// repository of its own that holds no directory `asked` for.
 ///
 /// A checkout inside a checkout — a worktree, a vendored clone — is a different
 /// repository that happens to sit at this path. Git tracks none of its files, so
@@ -148,7 +155,7 @@ pub fn seed_files(root: String, dirs: Vec<String>) -> Vec<String> {
 ///
 /// A configured directory that is not there contributes nothing; the caller is
 /// the one that can say whether an empty result is wrong.
-fn read(directory: &Directory) -> Option<Found> {
+fn read(directory: &Directory, keep: fn(&str) -> bool, asked: &[String]) -> Option<Found> {
     let entries: Vec<_> = fs::read_dir(&directory.absolute)
         .ok()?
         .filter_map(Result::ok)
@@ -171,17 +178,14 @@ fn read(directory: &Directory) -> Option<Found> {
         let kind = entry.file_type().ok()?;
         if kind.is_dir() {
             if !crate::path::excluded(&name) {
+                let seeded = asked.iter().any(|dir| dir.strip_prefix(at.as_str()).is_some_and(|rest| rest.is_empty() || rest.starts_with('/')));
                 directories.push(Directory {
                     absolute: path,
                     prefix: at,
-                    seeded: false,
+                    seeded,
                 });
             }
-        } else if path
-            .extension()
-            .and_then(|part| part.to_str())
-            .is_some_and(|extension| EXTENSIONS.contains(&extension))
-        {
+        } else if keep(&name) {
             files.push(at);
         }
     }
@@ -202,7 +206,21 @@ fn repo_path(root: &Path, absolute: &Path) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::seed_paths;
+    use super::{disk_listing, seed_paths};
+
+    /// `world.test.ts`: walks the tree the scan would, and skips what a scan skips.
+    #[test]
+    fn a_disk_listing_holds_every_file_and_skips_what_a_scan_skips() {
+        let root = std::env::temp_dir().join(format!("sense-disk-listing-{}", std::process::id()));
+        for (path, contents) in [("Cargo.toml", "[package]\nname = \"held\"\n"), ("src/lib.rs", ""), ("node_modules/dep/index.js", "")] {
+            let file = root.join(path);
+            std::fs::create_dir_all(file.parent().unwrap()).unwrap();
+            std::fs::write(file, contents).unwrap();
+        }
+        let listed = disk_listing(&root, &[]);
+        std::fs::remove_dir_all(&root).unwrap();
+        assert_eq!(listed, ["Cargo.toml", "src/lib.rs"]);
+    }
 
     #[test]
     fn snapshot_seeds_stay_below_roots_and_out_of_generated_directories() {

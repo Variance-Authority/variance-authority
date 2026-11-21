@@ -56,11 +56,14 @@ the checkout path:
 <cache>/test-selection/<checkout>/source-index.bin
 ```
 
-Deleting the index and its `source-index.bin.segments/` directory, then running
-`variance index`, is how you force the first row deliberately. A git worktree
-has a directory of its own there, so it gets an index of its own. Its
-first update builds that index from nothing: it reads every file and parses
-only the ones the cache's parse store, shared by the checkouts, does not hold.
+Deleting the index and its `source-index.bin.segments/` directory in every
+checkout of the repository, then running `variance index`, is how you force the
+first row deliberately. A git worktree has a directory of its own there, so it
+gets an index of its own. Its first update, like an update of an index that is
+damaged or another release wrote, starts from another checkout's index and reads
+only the files that differ from it. With no index in any checkout, it reads
+every file and parses only the ones the cache's parse store, shared by the
+checkouts, does not hold.
 
 ## What a change rebuilds
 
@@ -68,11 +71,14 @@ only the ones the cache's parse store, shared by the checkouts, does not hold.
 | --- | --- |
 | the contents of a file | that one file's record, and its parse if those exact bytes have never appeared at another path in any branch |
 | a file added, moved or deleted | only the records whose imports could have been answered from the affected directory. For one added file that is 105 of Material UI's 24,908, and 111 of Kibana's 106,215 |
-| `package.json`, `jsconfig.json`, `deno.json`, `pnpm-workspace.yaml`, any lock file, or any `tsconfig*.json` | the whole index. One `paths` entry redirects every `@/` specifier in the repository, so no record survives |
+| `package.json`, `jsconfig.json`, `deno.json`, `pnpm-workspace.yaml`, any lock file, or any `tsconfig*.json` | no other file's record. A configuration edit reaches other files through the edits that come with it: a new `paths` entry or `exports` subpath arrives with the files refactored to import through it, a moved target is a moved file, a new package is new files imported by edited files, and a dependency bump moves no answer in your workspace. Editing a mapping alone, to redirect code nobody edited, is not followed until that code is edited |
 | `source.dirs` — the directories scanned | nothing. Which directories a scan visits decides which records it produces, never what any record contains, so a narrow scan reuses a wide scan's work and neither invalidates the other |
 
 Two more, neither of them yours to change: upgrading to a release that changes
-what a record includes rebuilds the index once, and a type-only import is not a
+what a record includes rebuilds the index once, unless the share sets
+[`sourceIndex`](sharing.md#configuring-one): then the checkout fetches the index
+CI published beside the mainline's record and reads only the files that differ
+from it. A type-only import is not a
 rebuild trigger for anything downstream — see [edge kinds](#can-you-choose-the-edge-kinds).
 
 How many records one added file rebuilds depends on the directory it lands in.
@@ -93,38 +99,21 @@ are not selected at all, and the config is the cause.
 
 ### A `tsconfig` the scan cannot follow
 
-To bound what a new file could change, the scan reads the `paths` and `baseUrl`
-patterns out of every `tsconfig.json` and `jsconfig.json` in the tree — every
-one, because resolution discovers the nearest config per file, so the bound has
-to cover all of them — and out of every base each of them `extends`. A relative
-`extends` is read where it points. A package `extends`, such as
-`"@company/tsconfig/base.json"`, is followed the way the resolver follows it:
-through the `node_modules` link your package manager made, then the package's
-`exports`, to the file it names — the package's `tsconfig.json` when the
-`extends` names only the package. In a workspace, that link leads back into your
-repository, and the base is read there.
+To bound what a new file could change, the scan uses the `paths` and `baseUrl`
+from the configuration that governs each importing file. The resolver selects
+that configuration and follows its `extends` chain; the same effective mappings
+supply the directories the record watches. A target that does not exist still
+contributes its candidate directory, so creating it invalidates the importer's
+record. Configurations that govern unrelated files contribute nothing to that
+record.
 
-Every base has to land on a `tsconfig*.json` or `jsconfig.json` that git tracks,
-because tracked files are what the index keys its records on. The scan cannot
-follow a config that is not valid JSON, or one whose `extends`:
-
-- names a package that is not installed, so nothing resolves;
-- names a package installed from a registry, such as `@tsconfig/strictest`,
-  whose file sits in `node_modules`, which git does not track;
-- resolves to a file outside your checkout, or is an absolute path;
-- lands on a file with any other name, such as `base.json`.
-
-One such config anywhere in the tree, or anywhere in the chain of bases a config
-extends, removes the bound for the whole tree. With no bound, every tracked path
-is folded into the configuration digest, and then **any** file appearing or
-disappearing invalidates **every** record. The symptom is that a run is cold
-whenever a file was added, moved or deleted since the last one: `variance run`
-reuses no record, and the timing sits near the 586 ms row rather than the 362 ms
-one. A run that only edits files still reuses every record but the edited ones.
-
-A base your repository tracks restores the bound: a workspace package, or a
-relative path to a `tsconfig*.json`. When the base comes from a registry, write
-the options you use from it into a tracked base instead.
+When the resolver cannot read the governing configuration or a required base,
+it has no alias candidates to retain for that file. An import that only the
+unreadable configuration would map may therefore have no directory to watch for
+its intended target. Adding that target alone cannot refresh the record. Fix
+the configuration, then edit the importing file or rebuild the index: delete
+the index and run `variance index`, as [Source index](source-index.md) says.
+Configuration edits alone rebuild only the configuration file's own record.
 
 Kibana keeps its base in a workspace package: 1,527 of its 1,534 `tsconfig`
 files extend `@kbn/tsconfig-base/tsconfig.json`, whose link leads back to
@@ -187,7 +176,7 @@ of immutable **segments** behind one manifest.
 | digest map | repository-relative path | content digest, `git:<sha>` or `v1:<hash>` | in memory, per scan |
 | parse cache | content digest, and the parse settings the name selects | requests, exports, declared names, and why the request list may be short | in memory, persisted |
 | record cache | repository-relative path | one record | in memory, persisted |
-| config digest | none, one per generation | digest of the inputs that configure resolution | every segment; read from the newest |
+| config digest | none, one per generation | digest of the resolver options the caller chose | every segment; read from the newest |
 | directory map | repository-relative directory | digest of its entry names | every segment |
 | witness list | repository-relative path | the directories one record's specifiers could have been answered from | beside each record row |
 | immutable log | segment position, oldest to newest | one encoded layer of both maps | the manifest plus its segment directory |
@@ -198,29 +187,34 @@ process. The graph is what a run derives from the records and never persists.
 
 ## The digest map
 
-One content digest per path git lists, tracked or untracked but not ignored,
-with only the dirty ones opened. It runs `git ls-tree -r -z HEAD` for the
-committed blobs and overlays `git status --porcelain=v1 -z`. At the top of a
-checkout the status is run with `--untracked-files=normal` and no pathspec,
-the one shape git's untracked cache answers, and any directory it reports whole
-is listed with `git ls-files --others --exclude-standard`. Below the top it is
-run with `--untracked-files=all -- .`. Every path the status names is
-re-hashed in one `git hash-object --stdin-paths` call, except a path that is not
-a file on disk: a submodule, or a link to a directory or to nothing, has no bytes
-to hash and would fail the call for every file in it. Deleted and renamed-away
-paths are dropped. An ignored path, one that is not a file, or one in a call the
-hash failed on gets no entry, and the scan hashes any file among them itself on
-read.
+One content digest per tracked path and per unignored untracked path Git lists.
+The native reader uses git-oxide to read tracked paths and blob ids from Git's
+index, then compares local changes against that same loaded index. A sparse
+index is expanded by `git ls-files --stage`. Working bytes are hashed for
+changed paths, untracked files and symbolic-link targets.
+
+Git answers the comparison with `status --porcelain=v1 -z` when the repository
+uses a filesystem monitor, an untracked cache, a sparse checkout, a submodule or
+an `assume-unchanged` index entry. With an untracked cache and a configured
+untracked mode of `normal` or `all`, status uses that mode and no pathspec, even
+when the scan root is below the checkout root. Otherwise it uses
+`--untracked-files=normal` at the checkout root and
+`--untracked-files=all -- .` below it. Directories status reports whole are
+expanded with `git ls-files --others --exclude-standard`.
+
+Changed files are re-hashed in one `git hash-object --stdin-paths` call. Deleted
+and renamed-away paths are dropped. An ignored untracked path, a path that is not a file,
+or one whose hash call fails gets no entry; the scan hashes any file among them
+itself when reading it.
 
 **Key.** The repository-relative path, forward-slashed.
 
 **Lookup.** One map read, O(1).
 
-**Cost to build.** Three subprocesses, or four when the status collapsed a new
-directory, the last hashing every dirty file in one batch: O(n) to parse the tree listing and O(d) to hash. Outside a git checkout
-none of this is available, nothing is reused, and every file is read and hashed —
-so a run in an exported tarball or a non-git checkout pays the cold column every
-time.
+**Cost to build.** O(n) to read the index and compare the working tree, and O(d)
+to hash changed files. Watchman can reuse a listing or limit the comparison to
+reported changes. Outside a Git checkout, or when Git cannot answer, the scan
+reads and hashes files itself.
 
 **Trace.** A digest starting with `git:` is the blob's own object name, so
 `git cat-file -p <sha>` prints the exact bytes that were scanned. A `v1:` digest
@@ -277,10 +271,11 @@ record map when the configuration digest differs, deletes individual records
 whose witness directories changed, and returns a record only when its digest
 matches.
 
-**The configuration digest.** A digest of one text: a version line, the root, the
-`tsconfig` setting, the export conditions, and the digest of every path that
-decides resolution — the files listed in the [invalidation table](#what-a-change-rebuilds).
-Building it is O(n) for the filter and O(n log n) for the sort.
+**The configuration digest.** A digest of one text: a version line, the
+`tsconfig` setting as the caller spelled it — `auto`, `off` or the named file's
+path — the export conditions and the size limit. No file's contents enter it, so
+a configuration file is keyed like any other file, by its own record. Building it
+is O(1).
 
 **Directories.** The path set is bucketed into one entry-name set per directory
 and each sorted set digested, in O(n) over path segments. Comparing two such maps
@@ -293,8 +288,8 @@ directory; for a resolved edge, the directory the answer sits in; for a bare
 request, the substitutions the tracked `paths` and `baseUrl` patterns allow. They
 are derived from the request rather than from the answer, because a request that
 resolves to nothing is the one that starts resolving when a file appears. This is
-the mechanism the first trap disables: with no readable alias patterns there are
-no witnesses, and the whole path set becomes one.
+the mechanism the first trap narrows: with no readable alias patterns, a bare
+request witnesses only the directory its answer sits in.
 
 **Lookup.** O(s) map reads through the layers and one digest comparison. The
 scan checks the record cache before it checks the parse cache, so an unchanged
@@ -493,7 +488,7 @@ is O(degree).
 | digest every tracked path | O(n) listing, O(d) hashes | start of every run that reads the index |
 | parse lookup by digest | O(s) map reads, O(1) once touched | per file being rebuilt |
 | record lookup by path and digest | O(s) map reads, one comparison | per file visited, every run |
-| configuration digest | O(n log n) | start of every run |
+| configuration digest | O(1) | start of every run |
 | directory map | O(n) segments, O(k log k) digests | start of every run |
 | records invalidated by a move | O(k) compare, O(r) witness scan | the first run after a file is added, moved or deleted |
 | scan, caches warm | O(n + m) queue, O(d) reads, O(n log n) sort | `variance run`, `variance ask locate`, `variance serve` |

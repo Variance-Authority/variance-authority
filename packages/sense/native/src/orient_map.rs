@@ -23,7 +23,9 @@ use crate::index_chain::read_chain;
 use crate::GitTree;
 use crate::orient_map_pages::{layers, names, number, pages, Page, Row};
 use crate::orient_map_read::{read, Read};
-use crate::resolve::Tsconfig;
+use crate::resolve::{Resolvers, Tsconfig};
+use crate::emitted::{Emitted, Listing};
+use std::sync::Arc;
 use crate::orient_map_signals::signals;
 use crate::orient_map_tree::tree;
 
@@ -44,7 +46,7 @@ pub(crate) struct Stored {
     /// `unmade` says why.
     pub(crate) made: Option<Made>,
     pub(crate) unmade: Option<String>,
-    pages: Vec<Page>,
+    pub(crate) pages: Vec<Page>,
     /// Every package in code-unit order of name, with the layer it sits in and
     /// the packages it takes, so two maps can be compared package by package.
     pub(crate) placed: Vec<Placed>,
@@ -123,11 +125,12 @@ struct Listed<'a> {
     paths: &'a [String],
     oids: &'a [crate::git::Oid],
     unhashed: &'a [String],
+    files: Arc<Listing>,
 }
 
-impl<'a> From<&'a crate::git::Snapshot> for Listed<'a> {
-    fn from(snapshot: &'a crate::git::Snapshot) -> Self {
-        Listed { paths: &snapshot.paths, oids: &snapshot.oids, unhashed: &snapshot.unhashed }
+impl<'a> From<&'a GitTree> for Listed<'a> {
+    fn from(tree: &'a GitTree) -> Self {
+        Listed { paths: &tree.paths, oids: &tree.oids, unhashed: &tree.unhashed, files: tree.listing() }
     }
 }
 
@@ -136,8 +139,7 @@ impl<'a> From<&'a crate::git::Snapshot> for Listed<'a> {
 /// `None` when git gave no blob id for one of them.
 fn listing(snapshot: &Listed) -> Option<String> {
     let counts = |path: &str| {
-        let name = path.rsplit('/').next().unwrap_or(path);
-        (name == "package.json" && crate::package_owners::is_package(path)) || name == ".gitattributes"
+        crate::package_owners::is_manifest(path) || path.rsplit('/').next() == Some(".gitattributes")
     };
     if snapshot.unhashed.iter().any(|path| counts(path)) {
         return None;
@@ -169,6 +171,9 @@ pub struct OrientMapPrepared {
     /// No scan's listing was carried to the map, so git listed the checkout
     /// again for it.
     pub relisted: bool,
+    /// The map kept beside the index was folded from this index and these
+    /// manifests, so it was kept as it is and nothing was read or folded.
+    pub kept: bool,
 }
 
 #[napi(object)]
@@ -213,14 +218,14 @@ pub(crate) fn uncarried(root: &str, index: &str, scanned: Option<bool>, workspac
     if scanned == Some(true) {
         return prepare(root, index, None, false, workspaces, tsconfig);
     }
-    let snapshot = crate::git::snapshot(root);
+    let snapshot = crate::git::snapshot(root).map(|snapshot| crate::git_tree::tree_from_snapshot(snapshot, Vec::new()));
     prepare(root, index, snapshot.as_ref().map(Listed::from), snapshot.is_some(), workspaces, tsconfig)
 }
 
 /// `GitTree::prepare_orient_map`, on the calling thread.
 #[cfg(test)]
 pub(crate) fn carried(tree: &GitTree, root: &str, index: &str) -> napi::Result<Option<OrientMapPrepared>> {
-    prepare(root, index, Some(Listed { paths: &tree.paths, oids: &tree.oids, unhashed: &tree.unhashed }), false, false, Tsconfig::Auto)
+    prepare(root, index, Some(Listed::from(tree)), false, false, Tsconfig::Auto)
 }
 
 #[napi]
@@ -242,8 +247,9 @@ impl GitTree {
     ) -> AsyncTask<OffThread<Option<OrientMapPrepared>>> {
         let (paths, oids, unhashed) = (self.paths.clone(), self.oids.clone(), self.unhashed.clone());
         let tsconfig = Tsconfig::from_js(tsconfig);
+        let files = self.listing();
         off_thread(move || {
-            let listed = Listed { paths: &paths, oids: &oids, unhashed: &unhashed };
+            let listed = Listed { paths: &paths, oids: &oids, unhashed: &unhashed, files };
             prepare(&root, &index, Some(listed), false, workspaces, tsconfig)
         })
     }
@@ -258,17 +264,19 @@ fn prepare(root: &str, index: &str, snapshot: Option<Listed>, relisted: bool, wo
     // The reason alone: the caller says what was not prepared.
     let fail = napi::Error::from_reason;
     let path = map_path(index);
-    let Some(chain) = read_chain(index).map_err(fail)? else { return Ok(None) };
-    let digest = hex(&Sha256::digest(chain.published()));
     let walked = snapshot.is_none();
     let listed = snapshot.as_ref().and_then(listing);
-    if listed.is_some() {
+    // The key is the manifest's bytes, which name every segment, so the check
+    // reads the manifest alone: the segments are read only to fold.
+    if let (Some(_), Some(digest)) = (&listed, manifest_digest(index)) {
         let kept = kept_bytes(&path).map_err(fail)?.and_then(|bytes| serde_json::from_slice::<Kept>(&bytes).ok());
         let kept = kept.filter(|kept| kept.index == digest && kept.listed == listed && kept.workspaces == workspaces && crate::orient_map_shipped::kept(index, &digest));
         if let Some(kept) = kept {
-            return Ok(Some(OrientMapPrepared { map: kept.made.map(Into::into), unmade: kept.unmade, walked, unmarked: kept.unmarked, relisted }));
+            return Ok(Some(OrientMapPrepared { map: kept.made.map(Into::into), unmade: kept.unmade, walked, unmarked: kept.unmarked, relisted, kept: true }));
         }
     }
+    let Some(chain) = read_chain(index).map_err(fail)? else { return Ok(None) };
+    let digest = hex(&Sha256::digest(chain.published()));
     // Git owns the file list and the generated and vendored marks. Outside a
     // checkout git answers neither: the files are then the ones the index
     // holds, nothing is marked, and the result says so.
@@ -279,6 +287,8 @@ fn prepare(root: &str, index: &str, snapshot: Option<Listed>, relisted: bool, wo
         .map(|(at, bytes)| Layer::open(bytes).map_err(|error| format!("segment {at}: {error}")))
         .collect::<Result<_, _>>()
         .map_err(fail)?;
+    let emitted = Emitted::listed(std::path::Path::new(root), snapshot.as_ref().map(|snapshot| Arc::clone(&snapshot.files)));
+    let resolvers = Resolvers::over(tsconfig, None, emitted);
     let mut unmarked = false;
     let read = std::thread::scope(|scope| {
         let marks = scope.spawn(|| {
@@ -286,7 +296,7 @@ fn prepare(root: &str, index: &str, snapshot: Option<Listed>, relisted: bool, wo
                 crate::git::git(root, &["ls-files", "-z", ":(attr:linguist-generated)", ":(attr:linguist-vendored)"], None)
             })
         });
-        read(root, &layers_read, snapshot.as_ref().map(|snapshot| snapshot.paths), tsconfig, || {
+        read(root, &layers_read, snapshot.as_ref().map(|snapshot| snapshot.paths), &resolvers, || {
             let made = marks.join().ok().flatten();
             unmarked = !walked && made.is_none();
             made.unwrap_or_default()
@@ -308,7 +318,7 @@ fn prepare(root: &str, index: &str, snapshot: Option<Listed>, relisted: bool, wo
         .and_then(|()| std::fs::rename(&written, &path))
         .map_err(|error| fail(format!("{path} was not written: {error}")))?;
     crate::orient_map_shipped::write(index, &stored.index, &read.shipped, &read.catalogued).map_err(fail)?;
-    Ok(Some(OrientMapPrepared { map: stored.made.map(Into::into), unmade: stored.unmade, walked, unmarked, relisted }))
+    Ok(Some(OrientMapPrepared { map: stored.made.map(Into::into), unmade: stored.unmade, walked, unmarked, relisted, kept: false }))
 }
 
 /// The map's pages and what they hold, or why there is nothing to fold.

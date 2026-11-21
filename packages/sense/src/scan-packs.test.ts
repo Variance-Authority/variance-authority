@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { nativeAvailable } from './addon.js';
 import { updateSourceIndex } from './published.js';
-import { scanRelations } from './scan.js';
+import { scanRelations } from './test-support/scan.js';
 
 /**
  * `packs: false` changes where bytes are read from, and nothing else.
@@ -63,13 +63,9 @@ describe.runIf(nativeAvailable())('reading from the working tree instead of the 
     }
   }
 
-  /**
-   * The store is read in-process; opening it for a file's bytes asks Git where
-   * it lies and its object format. The listing walks HEAD's trees either way,
-   * as `ls-tree` did, and asks for the tree as it does.
-   */
+  /** Opening the blob store asks for its objects path; listing needs only the index. */
   const opensObjects = (commands: string[][]): boolean =>
-    commands.some((argv) => argv.includes('--show-object-format') && !argv.includes('HEAD^{tree}'));
+    commands.some((argv) => argv.includes('--git-path') && argv.includes('objects'));
 
   it('reads the same records without opening the object store, and still asks Git what the files are', async () => {
     const packed = await traced('packed', () => scanRelations({ root, dirs: ['.'] }));

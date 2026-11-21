@@ -16,11 +16,11 @@ import { native, nativeRefusal } from './addon.js';
 import type { NativeAsked, NativeImporters, NativeIndexedUsage } from './native-orient.js';
 import type { DeclaredNames, NameTerms } from './declared-names.js';
 import { sourceIndexPath } from './source-index.js';
-import { CODE_EXTENSIONS } from './language.js';
-import type { ResolveOptions } from './resolve.js';
-import { withDeclaredTsconfig } from './typescript.js';
+import type { Mention, WalkedHelp } from './help-walked.js';
+import { mocking } from './source-tree.js';
 
-type NamedExport = NativeIndexedUsage['exported'][number];
+/** One name the export list holds, as the store's encoder takes it. */
+export type NamedExport = NativeIndexedUsage['exported'][number];
 
 /** One place a name is used, its `through` laid flat: `Use`, and `Taken`'s `name` for an import by path. */
 export interface StoreUse {
@@ -110,26 +110,22 @@ export interface HelpEntry {
   readonly file: string;
 }
 
-/** One kind of one published name, as the chain reads its declaration. */
-export interface ReachedDeclaration {
-  /** As the parser harvested it, or `foreign` for a name read from no declaration of the checkout, `namespace-object` for a module held whole. */
-  readonly kind: string;
-  readonly at: string;
-  readonly line: number;
-  readonly signature?: string | null;
-  readonly doc?: string | null;
-  /** The name it is declared under there. */
-  readonly declared: string;
+/** One opening a package publishes: its subpath, its file relative to the value's root, and the specifier a search line prints for it. */
+export interface PublishOpening {
+  readonly subpath: string;
+  readonly source: string;
+  readonly spec: string;
 }
 
-/** One name an entry hands out, and its kinds, the first declaration read of each kind kept, in the order they were read. */
-export interface PublishedName {
+/** One package the manifests publish, its openings in the order their entries were given to the reading. */
+export interface PublishPackage {
   readonly name: string;
-  readonly kinds: readonly ReachedDeclaration[];
+  readonly entry: boolean;
+  readonly openings: readonly PublishOpening[];
 }
 
-/** What `HelpReading.encode` stamps the store with, beside what the reading holds. */
-export interface HelpEncode {
+/** What `HelpReading.publish` joins the reading with, and stamps the store with. */
+export interface HelpPublish {
   readonly root: string;
   readonly graphRoot: string;
   readonly generatedAt: string;
@@ -139,8 +135,11 @@ export interface HelpEncode {
   readonly indexDigest?: string;
   /** What the package manifests the value was joined against state, as the store keeps it. */
   readonly packagesDigest: string;
-  readonly packages: readonly StorePackage[];
+  /** The directory every recorded path is relative to, under which READMEs are read. */
+  readonly readmeRoot: string;
+  /** The manifests that did not read; the files the reading could not are added after them. */
   readonly unreadable: readonly string[];
+  readonly packages: readonly PublishPackage[];
   /** The digest of the tree the caller publishes, when the reading drew none. */
   readonly graphDigest?: string;
 }
@@ -152,19 +151,15 @@ export interface HelpEncoded {
   readonly graphDigest: string;
 }
 
-/** The chain's answer for a Help value; the export list and the imports by path stay with the addon. */
+/** The chain's answer for a Help value; nothing it holds crosses into JavaScript. */
 export interface HelpReading {
-  /** The uses and unreadable files, handed over once; `exported`, `deep`, `byPath` and `unfollowed` are empty. */
-  usage(): NativeIndexedUsage;
   /**
-   * The names each entry hands out, in the order the entries were given,
-   * handed over once. Throws with the first export whose declaration the
-   * reading cannot say: a name nothing in its file binds, or one the file it
-   * leads to does not hand out.
+   * The store's bytes and the tree's, once: the openings joined with the names
+   * each hands out, their uses and what a README says of them, and encoded.
+   * Throws with the first export whose declaration the reading cannot say: a
+   * name nothing in its file binds, or one the file it leads to does not hand out.
    */
-  names(): PublishedName[][];
-  /** The store's bytes and the tree's, once. */
-  encode(options: HelpEncode): Promise<HelpEncoded>;
+  publish(options: HelpPublish): Promise<HelpEncoded>;
 }
 
 /** One declaration of a member, `on` the interface, type alias or class that holds it. */
@@ -246,7 +241,10 @@ export interface NativeHelp {
   readHelp?(root: string, index: string, entries: HelpEntry[], published: string[], unentered: string[], declared: string[], drawn: boolean, tsconfig: string | boolean | null, code: string[]): Promise<HelpReading | null>;
   encodeHelpStore?(store: HelpStore, exported: NamedExport[], meta: StoreMeta | null): EncodedStore;
   restampHelpStore?(bytes: Uint8Array, generatedAt: string): Uint8Array;
+  joinWalkedHelp?(walked: WalkedHelp): Uint8Array;
+  readmeMention?(root: string, at: string, name: string): Mention | null;
   importersOf?(root: string, index: OpenedIndex, asked: NativeAsked[][]): NativeImporters | null;
+  namesFilterOf?(index: OpenedIndex, imports: ImportAsked[], declares: string[], readable: string[]): NamesFound | null;
   memberDeclarationsOf?(root: string, index: OpenedIndex, name: string): MemberDeclarations | null;
   membersOnOf?(index: OpenedIndex, file: string, on: string): ContainerMember[] | null;
   declarationExportedOf?(index: OpenedIndex, file: string, name: string): { readonly declaration?: ExportedDeclaration | null } | null;
@@ -352,12 +350,6 @@ export function readHelp(
   return entry('readHelp')(root, index, [...entries], [...targets.published], [...targets.unentered], [...targets.declared], drawn, ...mocking(root));
 }
 
-/** How a test's loads beside its mocks resolve: the `tsconfig` the repository declares, and the extensions read as code. */
-function mocking(root: string): [string | boolean | null, string[]] {
-  const { tsconfig } = withDeclaredTsconfig<ResolveOptions>(root, {});
-  return [tsconfig ?? null, [...CODE_EXTENSIONS]];
-}
-
 /** The store of `store` and `exported`, stamped with `meta` when it is published, and the digest of `exported`. */
 export function encodeHelpStore(store: HelpStore, exported: readonly NamedExport[], meta?: StoreMeta): EncodedStore {
   return entry('encodeHelpStore')(store, [...exported], meta ?? null);
@@ -380,6 +372,45 @@ export function importersOf(
   index: string = sourceIndexPath(root),
 ): NativeImporters | undefined {
   return onIndex(index, (opened) => entry('importersOf')(root, opened, asked.map((group) => [...group]))) ?? undefined;
+}
+
+/** One `imports` set `discover` asks of the names: a module, and the name imported from it when one is asked. */
+export interface ImportAsked {
+  readonly spec: string;
+  readonly name?: string;
+}
+
+/** One line that puts a file in a name set: an import says what and from where, a declaration its name. */
+export interface NameHit {
+  readonly file: string;
+  readonly line: number;
+  readonly name?: string;
+  readonly from?: string;
+  readonly local?: string;
+  readonly through?: string;
+}
+
+/** Each asked set's lines, in the order asked, and the readable files whose names the index does not hold. */
+export interface NamesFound {
+  readonly imports: readonly (readonly NameHit[])[];
+  readonly declares: readonly { readonly hits: readonly NameHit[]; readonly refused?: string }[];
+  readonly unread: readonly string[];
+}
+
+/**
+ * The files of the index at `index` that answer each of `discover`'s name sets
+ * — `imports`, then `declares`, each a case-insensitive pattern — read in one
+ * pass on the addon's side, so no file's names are built here; and the files
+ * with an extension in `readable` whose names it does not hold. `undefined`
+ * when there is no index.
+ */
+export function namesFilterOf(
+  index: string,
+  imports: readonly ImportAsked[],
+  declares: readonly string[],
+  readable: readonly string[],
+): NamesFound | undefined {
+  return onIndex(index, (opened) => entry('namesFilterOf')(opened, [...imports], [...declares], [...readable])) ?? undefined;
 }
 
 /**

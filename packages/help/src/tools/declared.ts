@@ -24,19 +24,13 @@ import type { AliasMatch, DeclaredMatch, DeclaredRead, HeldMatch, Matches } from
 import { boundOf, SLOT } from './declaration-key.js';
 import { isUnnamedContainer } from './members.js';
 import { sharedSegments } from './shared-segments.js';
-import type { Spelling } from '@variance-authority/mcp/tools';
+import { notShownPast, type Spelling } from '@variance-authority/mcp/tools';
 import type { Help } from '@variance-authority/package/help';
 import { askedOnce } from './asked-once.js';
 import { grep } from './grep.js';
 
 /** How many declarations of one name `symbol` writes out before it counts the rest. */
 export const DECLARED_CAP = 5;
-
-/** The line counting the `count` declarations of `name`, each a `noun`, past the first `DECLARED_CAP`; none when there are no more. */
-export function notShown(count: number, noun: string, name: string): readonly string[] {
-  const more = count - DECLARED_CAP;
-  return more > 0 ? [`${more} more ${noun}${more === 1 ? '' : 's'} of \`${name}\` not shown.`] : [];
-}
 
 /** What the source index says about declarations, or why it says nothing. */
 export type Declarations =
@@ -190,7 +184,7 @@ export function unreadLine(unread: readonly string[]): readonly string[] {
  * The blocks `symbol` answers a name's file-private declarations with — alone
  * when no file exports it, after the exports when another file does: one per
  * declaration, source first and nearest a path in `from` first, the first
- * `DECLARED_CAP` of them, a count of the rest, and the files whose
+ * `limit` of them, a count of the rest, and the files whose
  * declarations were not read; nothing when the
  * source index is not at hand, since a name nothing exports is then unknown.
  */
@@ -200,6 +194,7 @@ export function declaredBlocks(
   name: string,
   wanted: string | undefined,
   spell: Spelling,
+  limit: number,
   from: readonly string[] = [],
 ): { readonly blocks: readonly string[] } {
   const read = declarationsNamed(help, root, name);
@@ -210,8 +205,8 @@ export function declaredBlocks(
   );
   if (held.length === 0) return { blocks: [] };
   const blocks = [
-    ...held.slice(0, DECLARED_CAP).map((one) => declaredBlock(one, spell)),
-    ...notShown(held.length, 'declaration', name),
+    ...held.slice(0, limit).map((one) => declaredBlock(one, spell)),
+    ...notShownPast(held.length, limit, spell, { one: `declaration of \`${name}\``, many: `declarations of \`${name}\`` }),
     ...unreadLine(read.unread),
   ];
   return { blocks };
@@ -248,7 +243,8 @@ export function declaredAt(help: Help, root: string | undefined, name: string, w
  * that is the query as written comes first, the same name in another case
  * second, every name only holding it after them, and a doc alone saying it last. Members and functions
  * inside a function are `held`, every one, ordered the same way, and `exact`
- * counts the ones at its head that are the question.
+ * counts the ones at its head that are the question. `file` receives each
+ * top-level match's coordinates before the display cap.
  */
 export function declaredMatches(
   root: string | undefined,
@@ -256,6 +252,7 @@ export function declaredMatches(
   files: Iterable<string> | undefined,
   cap: number,
   told: (one: DeclaredRead) => DeclaredMatch,
+  file?: (at: string, line?: number) => void,
 ): { readonly declared: Matches<DeclaredMatch> & { readonly unread: readonly string[] }; readonly held: readonly HeldMatch[]; readonly exact: number } | undefined {
   const read = declarations(root, query, files === undefined ? { containing: true } : { containing: true, files });
   if ('refused' in read) return undefined;
@@ -266,6 +263,7 @@ export function declaredMatches(
   const names = [...read.names].sort((left, right) => written(left) - written(right));
   const top = names.filter((one) => !isNested(one) && !isMember(one));
   const held = names.filter((one) => isNested(one) || isMember(one));
+  if (file !== undefined) for (const one of top) file(one.at, one.line);
   return {
     declared: { total: top.length, shown: top.slice(0, cap).map(declaredMatch).map(told), unread: read.unread },
     held: held.map(heldMatch),

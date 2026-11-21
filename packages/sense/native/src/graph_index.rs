@@ -26,15 +26,15 @@ use napi::bindgen_prelude::Buffer;
 use napi_derive::napi;
 use rayon::prelude::*;
 
-use crate::batch::{walk_beyond, GraphOptions, Walked};
+use crate::batch::{neighbours, texting, walk_beyond, GraphOptions, Neighbours, Walked};
 use crate::emitted::Listing;
 use crate::generation::{encode_generation, Deleted, Delta, Generation};
 use crate::git::Oid;
 use crate::index::{parses_only, way};
 use crate::parse_store::{Opened, Parse};
 use crate::order::code_unit;
-use crate::record::{built, Indexed, Settling};
-use crate::witness::AliasTable;
+use crate::record::{built, Indexed, Settled};
+use crate::world::World;
 
 /// What a cold build needs besides the walk: what a record is settled against.
 #[napi(object)]
@@ -47,8 +47,6 @@ pub struct IndexGraphOptions {
     pub condition_names: Option<Vec<String>>,
     /// Whether records keep the directories that answered them, for reuse.
     pub remembering: bool,
-    /// `Aliases.table` as JSON, when a configuration maps specifiers.
-    pub aliases: Option<String>,
     /// `builtinModules` that `isBuiltin` accepts: never a package edge.
     pub builtins: Vec<String>,
     /// Extensions whose target keeps its request's kind.
@@ -57,6 +55,8 @@ pub struct IndexGraphOptions {
     pub directories: Vec<String>,
     /// The parse stores a module's parse is looked up in before it is read.
     pub stores: Option<Vec<String>>,
+    /// A parse-only segment of the caller's cache for the seeds, looked up ahead of the stores.
+    pub held: Option<napi::bindgen_prelude::Buffer>,
 }
 
 #[napi]
@@ -79,21 +79,17 @@ pub(crate) fn index_graph(
     from_blob: &crate::parse_origin::FromBlob,
     objects: &crate::acquire::TreeObjects,
 ) -> napi::Result<IndexGraph> {
-    let aliases = options
-        .aliases
-        .as_deref()
-        .map(serde_json::from_str::<AliasTable>)
-        .transpose()
-        .map_err(|error| napi::Error::from_reason(format!("the alias table did not parse: {error}")))?;
-    let builtins: HashSet<String> = options.builtins.into_iter().collect();
-    let code: HashSet<String> = options.code_extensions.into_iter().collect();
-    let directories: HashSet<String> = options.directories.into_iter().collect();
-    // A module a store holds is answered from it, under the size and link rules
-    // every walk keeps (`read_kept`), rather than read again.
+    let settled = Settled::of(options.remembering, options.builtins, options.code_extensions, options.directories);
+    // A module the caller's cache or a store holds is answered from it, under
+    // the size and link rules every walk keeps (`read_kept`), rather than read again.
     let kept = |identity: &str, file: &str| store?.view(identity, &way(file))?.read();
+    let read_by_world = Neighbours::default();
+    let parsing = neighbours(&options.root, at, tree_oids, options.largest_file, options.readers, &kept, from_blob, objects, &read_by_world);
+    let texting = texting(&options.root);
+    let world = World::new(Some(at), None).reading(&parsing, &texting);
     let Walked { files, identities, read, targets, kept: answered } = walk_beyond(
         GraphOptions {
-            root: options.root,
+            root: options.root.clone(),
             seeds: options.seeds,
             largest_file: options.largest_file,
             readers: options.readers,
@@ -104,6 +100,8 @@ pub(crate) fn index_graph(
         at,
         tree_oids,
         listing,
+        &world,
+        &read_by_world,
         &|_| false,
         &kept,
         from_blob,
@@ -120,13 +118,7 @@ pub(crate) fn index_graph(
     let segment = parses_only(&rows.iter().map(|(key, parse)| (key.as_str(), parse)).collect::<Vec<_>>());
     let keys = rows.into_iter().map(|(key, _)| key).collect();
     let parsed = read.iter().zip(&answered).filter(|((_, _, outcome), kept)| outcome.parsed() && !**kept).count() as u32;
-    let settling = Settling {
-        builtins: &builtins,
-        code: &code,
-        remembering: options.remembering,
-        directories: &directories,
-        aliases: aliases.as_ref(),
-    };
+    let settling = settled.settling();
     let mut records: Vec<Indexed> = (0..files.len())
         .into_par_iter()
         .map(|index| {

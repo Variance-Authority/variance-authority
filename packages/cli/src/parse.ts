@@ -18,7 +18,9 @@ import { parseLayersArgs, type ParsedLayers } from './layers-args.js';
 import { parseRestrictionsArgs, type ParsedRestrictions } from './restrictions-args.js';
 import { parseShareArgs, type ParsedShare } from './share-args.js';
 import { parseCarryArgs, type ParsedCarry } from './carry-args.js';
+import { parseJanusArgs, type ParsedJanus } from './janus-args.js';
 import { parseJobArgs, type ParsedJob } from './job-args.js';
+import { parseCargoArgs, type ParsedCargo } from './cargo-args.js';
 import { parseCollectArgs, type ParsedCollect } from './collect-args.js';
 import { parsePushArgs, type ParsedPush } from './push-args.js';
 import { parseAskArgs, type ParsedAsk } from './ask-args.js';
@@ -117,7 +119,7 @@ export type Parsed =
       readonly reports: readonly string[];
     }
   | ParsedAsk
-  | ParsedDistill | ParsedStory | ParsedCovering | ParsedCoverage | ParsedLayers | ParsedRestrictions | ParsedReview | ParsedIndex | ParsedSelect | ParsedShards | ParsedReach | ParsedShare | ParsedCarry | ParsedCollect | ParsedJob
+  | ParsedDistill | ParsedStory | ParsedCovering | ParsedCoverage | ParsedLayers | ParsedRestrictions | ParsedReview | ParsedIndex | ParsedSelect | ParsedShards | ParsedReach | ParsedShare | ParsedCarry | ParsedCollect | ParsedJob | ParsedCargo | ParsedJanus
   | {
       readonly command: 'accept';
       readonly config: string;
@@ -209,9 +211,12 @@ export function parseArgs(argv: readonly string[]): Parsed {
   // the table and useless about the request: a reader who types
   // `variance run --help` wants run's synopsis, and got the whole table under a
   // complaint — and then an exit code that said the command had succeeded.
-  if (asksForHelp(argv.slice(1))) return { command: 'help', topic: first };
+  if (asksForHelp(argv.slice(1), flagsFor(first))) return { command: 'help', topic: first };
 
-  const flags = readFlags(argv.slice(1), first, flagsFor(first), synopsisFor(first));
+  // `ask` keeps an unknown flag and names it beside the answer: a question reads
+  // and writes nothing, so refusing costs a round trip and buys nothing, where
+  // `run --subject` would run the whole suite and report success.
+  const flags = readFlags(argv.slice(1), first, flagsFor(first), synopsisFor(first), first === 'ask' ? 'keep' : 'refuse');
   const config = resolve(flags.values.get('--config') ?? DEFAULT_CONFIG);
 
   switch (first) {
@@ -293,6 +298,8 @@ export function parseArgs(argv: readonly string[]): Parsed {
     case 'collect': return parseCollectArgs(flags, config);
     case 'carry': return parseCarryArgs(flags);
     case 'job': return parseJobArgs(flags);
+    case 'cargo': return parseCargoArgs(flags);
+    case 'janus': return parseJanusArgs(flags);
 
     case 'adjudicate': {
       const claims = flags.values.get('--claims');

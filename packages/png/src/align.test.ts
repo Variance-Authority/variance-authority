@@ -1,7 +1,8 @@
-import { describe, expect, it } from 'vitest';
-import { differencePixels } from './mask.js';
-import { comparePixels } from './compare.js';
-import { alignRows } from './align.js';
+import { DEFAULT_POLICY } from "@variance-authority/raster";
+import { describe, expect, it } from "vitest";
+import { differencePixels } from "./mask.js";
+import { comparePixels } from "./compare.js";
+import { ALIGNMENT_LIMIT, alignRows } from "./align.js";
 
 /**
  * A full-page capture is a column of rows, and content in a document flows: a
@@ -16,54 +17,66 @@ import { alignRows } from './align.js';
 
 const WIDTH = 4;
 
-describe('content that moved down the page', () => {
-  it('marks the inserted rows and nothing below them', () => {
+describe("content that moved down the page", () => {
+  it("marks the inserted rows and nothing below them", () => {
     const before = column([1, 2, 3, 4, 5]);
     const after = column([1, 9, 9, 2, 3, 4, 5]);
 
-    const difference = differencePixels(before, after, undefined, { diffMask: true });
+    const difference = differencePixels(before, after, undefined, {
+      diffMask: true,
+    });
 
     expect([difference.width, difference.height]).toEqual([WIDTH, 7]);
     expect(changedRows(difference.data, difference.width)).toEqual([1, 2]);
     expect(difference.changed).toBe(2 * WIDTH);
   });
 
-  it('still finds a pixel that changed in the content that moved', () => {
+  it("still finds a pixel that changed in the content that moved", () => {
     const before = column([1, 2, 3, 4, 5]);
     const after = column([1, 9, 2, 3, 4, 5]);
     // One pixel of the last row, which now sits one row lower.
     after.data.set([0, 0, 0, 255], (5 * WIDTH + 2) * 4);
 
-    const difference = differencePixels(before, after, undefined, { diffMask: true });
+    const difference = differencePixels(before, after, undefined, {
+      diffMask: true,
+    });
 
     expect(changedRows(difference.data, difference.width)).toEqual([1, 5]);
     expect(difference.changed).toBe(WIDTH + 1);
   });
 
-  it('compares a rewritten band row against row, not as an insertion', () => {
+  it("compares a rewritten band row against row, not as an insertion", () => {
     const before = column([1, 2, 3, 4]);
     const after = column([1, 7, 3, 4]);
     // The rewritten row differs from the old one in a single pixel.
-    for (let x = 0; x < WIDTH; x += 1) after.data.set(before.data.subarray((WIDTH + x) * 4, (WIDTH + x + 1) * 4), (WIDTH + x) * 4);
+    for (let x = 0; x < WIDTH; x += 1)
+      after.data.set(
+        before.data.subarray((WIDTH + x) * 4, (WIDTH + x + 1) * 4),
+        (WIDTH + x) * 4,
+      );
     after.data.set([0, 0, 0, 255], (WIDTH + 1) * 4);
 
-    const difference = differencePixels(before, after, undefined, { diffMask: true });
+    const difference = differencePixels(before, after, undefined, {
+      diffMask: true,
+    });
 
     expect(difference.changed).toBe(1);
   });
 
-  it('marks a block drawn into the middle of a gap, not the gap under it', () => {
+  it("marks a block drawn into the middle of a gap, not the gap under it", () => {
     // A gap four rows tall, with a three-row block drawn into it two rows down.
     const before = column([5, 1, 1, 1, 1, 5]);
     const after = column([5, 1, 1, 9, 9, 9, 1, 1, 5]);
 
-    const difference = differencePixels(before, after, undefined, { diffMask: true });
+    const difference = differencePixels(before, after, undefined, {
+      diffMask: true,
+    });
 
     expect(changedRows(difference.data, difference.width)).toEqual([3, 4, 5]);
     expect(difference.changed).toBe(3 * WIDTH);
   });
 
-  it('marks the rows a gap grew by as inserted, and pairs a rewritten line with the line', () => {
+  it("marks the rows a gap grew by as inserted, and pairs a rewritten line with the line", () => {
     // The gap under the first line grew by a row, and the line under it changed
     // in one pixel. The row the gap grew by is new, as a row the gap lost would
     // be removed, so a subject whose padding grew has a region to show.
@@ -81,7 +94,7 @@ describe('content that moved down the page', () => {
     expect(comparison.changed.strict).toBe(WIDTH + 1);
   });
 
-  it('says which inserted rows only repeat the run they grew, and which removed rows a run lost', () => {
+  it("says which inserted rows only repeat the run they grew, and which removed rows a run lost", () => {
     // The gap under the first line grew by two rows, and the gap under the
     // second lost one; a new line went in under the third. The grown and lost
     // rows hold nothing their neighbours do not, so they moved what follows
@@ -89,19 +102,29 @@ describe('content that moved down the page', () => {
     const before = column([1, 12, 6, 12, 12, 3, 4]);
     const after = column([1, 12, 12, 12, 6, 12, 3, 9, 4]);
 
-    const rows = alignRows(before, after)!;
+    const rows = alignRows(before, after, ALIGNMENT_LIMIT, DEFAULT_POLICY.threshold)!;
 
     expect(rows.inserted).toEqual([
       { from: 2, to: 4 },
       { from: 7, to: 8 },
     ]);
-    expect(rows.grown).toEqual([{ from: 2, to: 4 }]);
+    expect(rows.strips[0]!.grown).toEqual([{ from: 2, to: 4 }]);
     expect(rows.removed).toEqual([{ from: 4, to: 5, at: 6 }]);
-    expect(rows.shrunk).toEqual([{ from: 4, to: 5, at: 6 }]);
+    expect(rows.strips[0]!.shrunk).toEqual([{ from: 4, to: 5, at: 6 }]);
   });
 
-  it('carries removed rows on the comparison, since no after pixel shows them', () => {
-    const comparison = comparePixels(column([1, 2, 3, 4, 5]), column([1, 4, 5]));
+  it("counts a gap that grew and the line drawn under it as one inserted band", () => {
+    const rows = alignRows(column([1, 12, 6]), column([1, 12, 12, 9, 6]), ALIGNMENT_LIMIT, DEFAULT_POLICY.threshold)!;
+
+    expect(rows.inserted).toEqual([{ from: 2, to: 4 }]);
+    expect(rows.strips[0]!.grown).toEqual([{ from: 2, to: 3 }]);
+  });
+
+  it("carries removed rows on the comparison, since no after pixel shows them", () => {
+    const comparison = comparePixels(
+      column([1, 2, 3, 4, 5]),
+      column([1, 4, 5]),
+    );
 
     expect(comparison.changed).toEqual({ default: 0, strict: 0 });
     expect(comparison.dimensionsChanged).toBe(true);
@@ -113,8 +136,11 @@ describe('content that moved down the page', () => {
     });
   });
 
-  it('names where rows were inserted and how far the content below moved', () => {
-    const comparison = comparePixels(column([1, 2, 3]), column([1, 8, 8, 8, 2, 3]));
+  it("names where rows were inserted and how far the content below moved", () => {
+    const comparison = comparePixels(
+      column([1, 2, 3]),
+      column([1, 8, 8, 8, 2, 3]),
+    );
 
     expect(comparison.alignment).toEqual({
       inserted: [{ from: 1, to: 4 }],
@@ -125,14 +151,14 @@ describe('content that moved down the page', () => {
     expect(comparison.total).toBe(WIDTH * 6);
   });
 
-  it('compares position by position when that leaves fewer pixels differing', () => {
+  it("compares position by position when that leaves fewer pixels differing", () => {
     // Two lines of text with a mark beside them, a blank row and an unmarked
     // line. The mark beside the first line went and the blank row filled in:
     // nothing moved. The shortest edit between the row columns still pairs the
     // marked line that stayed with the one above it, which is a shift, and
     // that pairing leaves eight pixels differing where position leaves six.
-    const before = lines(['marked', 'marked', 'blank', 'text']);
-    const after = lines(['text', 'marked', 'text', 'text']);
+    const before = lines(["marked", "marked", "blank", "text"]);
+    const after = lines(["text", "marked", "text", "text"]);
 
     const comparison = comparePixels(before, after);
 
@@ -140,7 +166,7 @@ describe('content that moved down the page', () => {
     expect(comparison.changed.default).toBe(1 + (LINE - 3));
   });
 
-  it('compares position by position rather than remove a row to save a pixel', () => {
+  it("compares position by position rather than remove a row to save a pixel", () => {
     // The second line went and the third took its place, changed in one pixel.
     // Pairing the third with its old row saves that pixel, but only by removing
     // the second line and marking the changed row as new.
@@ -154,40 +180,60 @@ describe('content that moved down the page', () => {
     expect(comparison.changed.strict).toBe(WIDTH + 1);
   });
 
-  it('compares a one-pixel rule that starts a row earlier by position', () => {
+  it("compares a one-pixel rule that starts a row earlier by position", () => {
     // A thin vertical rule beside nothing grew upward by one row. Removing the
     // white row above it and growing the rule's run pairs every pixel away, but
     // only by moving the rule.
-    const rule = (rows: readonly ('blank' | 'ruled')[]) => {
+    const rule = (rows: readonly ("blank" | "ruled")[]) => {
       const image = column([1, ...rows.map(() => 0), 1]);
       for (const [y, row] of rows.entries()) {
         image.data.fill(255, (y + 1) * WIDTH * 4, (y + 2) * WIDTH * 4);
-        if (row === 'ruled') image.data.set([0, 0, 0, 255], ((y + 1) * WIDTH + 2) * 4);
+        if (row === "ruled")
+          image.data.set([0, 0, 0, 255], ((y + 1) * WIDTH + 2) * 4);
       }
       return image;
     };
 
-    const comparison = comparePixels(rule(['blank', 'ruled', 'ruled']), rule(['ruled', 'ruled', 'ruled']));
+    const comparison = comparePixels(
+      rule(["blank", "ruled", "ruled"]),
+      rule(["ruled", "ruled", "ruled"]),
+    );
 
     expect(comparison.alignment).toBeUndefined();
     expect(comparison.changed.strict).toBe(1);
   });
 
-  it('names a row added at the bottom, which position explains as well', () => {
+  it("names a row added at the bottom, which position explains as well", () => {
     const comparison = comparePixels(column([1, 2, 3]), column([1, 2, 3, 8]));
 
-    expect(comparison.alignment).toEqual({ inserted: [{ from: 3, to: 4 }], removed: [], shifted: [] });
+    expect(comparison.alignment).toEqual({
+      inserted: [{ from: 3, to: 4 }],
+      removed: [],
+      shifted: [],
+    });
     expect(comparison.changed.default).toBe(WIDTH);
   });
 
-  it('pairs the rows under an edit longer than one search allows', () => {
+  it("pairs the rows under an edit longer than one search allows", () => {
     // A section of 1,100 distinct rows rewritten as 1,150, then 200 rows that
     // only moved down, then a line that changed in place, so the rows that moved
     // are not the shared tail. The shortest edit is 2,252 runs, past one Myers
     // search; the rows that occur once on each side still pair the 200 with
     // their shifted partners, and the rewritten section alone is the change.
-    const before = distinct([...range(0, 3), ...range(10, 1110), ...range(5000, 5200), 7000, ...range(9000, 9003)]);
-    const after = distinct([...range(0, 3), ...range(2000, 3150), ...range(5000, 5200), 7001, ...range(9000, 9003)]);
+    const before = distinct([
+      ...range(0, 3),
+      ...range(10, 1110),
+      ...range(5000, 5200),
+      7000,
+      ...range(9000, 9003),
+    ]);
+    const after = distinct([
+      ...range(0, 3),
+      ...range(2000, 3150),
+      ...range(5000, 5200),
+      7001,
+      ...range(9000, 9003),
+    ]);
 
     const comparison = comparePixels(before, after);
 
@@ -199,40 +245,54 @@ describe('content that moved down the page', () => {
     expect(comparison.changed.strict).toBe((1150 + 1) * WIDTH);
   });
 
-  it('compares a page whose stretches nest as deep as it is long', () => {
+  it("compares a page whose stretches nest as deep as it is long", () => {
     // Each pass finds one run that occurs once on each side, and the stretch
     // after it still holds an edit past one search, for 12,000 passes:
     // 2,1,3,2,4,3,… against 1,2,3,…, over 3,000 rows that differ throughout.
     // Followed to the bottom, this outgrew the call stack; the work bound stops
     // the split a few dozen passes in and compares the rest by position.
     const depth = 12_000;
-    const before = distinct([...range(1, depth + 1).flatMap((k) => [k + 1, k]), ...range(0, 3000).map((i) => 30_000 + (i % 2))]);
-    const after = distinct([...range(1, depth + 1), ...range(0, 3000).map((i) => 40_000 + (i % 2))]);
+    const before = distinct([
+      ...range(1, depth + 1).flatMap((k) => [k + 1, k]),
+      ...range(0, 3000).map((i) => 30_000 + (i % 2)),
+    ]);
+    const after = distinct([
+      ...range(1, depth + 1),
+      ...range(0, 3000).map((i) => 40_000 + (i % 2)),
+    ]);
 
     const comparison = comparePixels(before, after);
 
     expect(comparison.alignment).toBeDefined();
-    expect([comparison.width, comparison.height]).toEqual([WIDTH, depth + 3000]);
+    expect([comparison.width, comparison.height]).toEqual([
+      WIDTH,
+      depth + 3000,
+    ]);
   });
 
-  it('pairs rows whose only difference is the colour under a fully transparent pixel', () => {
+  it("pairs rows whose only difference is the colour under a fully transparent pixel", () => {
     // A kept WebP drops that colour (libwebp without `exact`), and no
     // comparison sees it, so a fresh capture that still carries it is the same row.
     const before = column([1, 2, 3, 4, 5]);
     const after = column([1, 9, 2, 3, 4, 5]);
-    for (let y = 0; y < before.height; y += 1) before.data.set([0, 0, 0, 0], y * WIDTH * 4);
-    for (let y = 0; y < after.height; y += 1) after.data.set([7, 7, 7, 0], y * WIDTH * 4);
+    for (let y = 0; y < before.height; y += 1)
+      before.data.set([0, 0, 0, 0], y * WIDTH * 4);
+    for (let y = 0; y < after.height; y += 1)
+      after.data.set([7, 7, 7, 0], y * WIDTH * 4);
 
-    const difference = differencePixels(before, after, undefined, { diffMask: true });
+    const difference = differencePixels(before, after, undefined, {
+      diffMask: true,
+    });
 
     expect(changedRows(difference.data, difference.width)).toEqual([1]);
     expect(difference.changed).toBe(WIDTH);
   });
 
-  it('leaves the colour under a fully transparent pixel in the caller\'s image', () => {
+  it("leaves the colour under a fully transparent pixel in the caller's image", () => {
     const before = column([1, 2, 3]);
     const after = column([1, 2, 3]);
-    for (let y = 0; y < after.height; y += 1) after.data.set([7, 7, 7, 0], y * WIDTH * 4);
+    for (let y = 0; y < after.height; y += 1)
+      after.data.set([7, 7, 7, 0], y * WIDTH * 4);
     const kept = after.data.slice();
 
     comparePixels(before, after);
@@ -240,9 +300,13 @@ describe('content that moved down the page', () => {
     expect(after.data).toEqual(kept);
   });
 
-  it('compares position by position when the widths differ', () => {
+  it("compares position by position when the widths differ", () => {
     const narrow = column([1, 2, 3]);
-    const wide = { width: WIDTH + 1, height: 3, data: new Uint8Array((WIDTH + 1) * 3 * 4).fill(255) };
+    const wide = {
+      width: WIDTH + 1,
+      height: 3,
+      data: new Uint8Array((WIDTH + 1) * 3 * 4).fill(255),
+    };
 
     const comparison = comparePixels(narrow, wide);
 
@@ -252,19 +316,29 @@ describe('content that moved down the page', () => {
 });
 
 /** One image whose rows are solid greys, one per value: equal values are equal rows. */
-function column(rows: readonly number[]): { width: number; height: number; data: Uint8Array } {
+function column(rows: readonly number[]): {
+  width: number;
+  height: number;
+  data: Uint8Array;
+} {
   const data = new Uint8Array(WIDTH * rows.length * 4);
   for (const [y, value] of rows.entries()) {
-    for (let x = 0; x < WIDTH; x += 1) data.set([value * 20, value * 20, value * 20, 255], (y * WIDTH + x) * 4);
+    for (let x = 0; x < WIDTH; x += 1)
+      data.set([value * 20, value * 20, value * 20, 255], (y * WIDTH + x) * 4);
   }
   return { width: WIDTH, height: rows.length, data };
 }
 
 /** One image whose rows each have a colour of their own: equal values are equal rows, up to 65,536 of them. */
-function distinct(rows: readonly number[]): { width: number; height: number; data: Uint8Array } {
+function distinct(rows: readonly number[]): {
+  width: number;
+  height: number;
+  data: Uint8Array;
+} {
   const data = new Uint8Array(WIDTH * rows.length * 4);
   for (const [y, value] of rows.entries()) {
-    for (let x = 0; x < WIDTH; x += 1) data.set([value & 0xff, value >>> 8, 0x80, 255], (y * WIDTH + x) * 4);
+    for (let x = 0; x < WIDTH; x += 1)
+      data.set([value & 0xff, value >>> 8, 0x80, 255], (y * WIDTH + x) * 4);
   }
   return { width: WIDTH, height: rows.length, data };
 }
@@ -279,12 +353,17 @@ const LINE = 8;
  * One image of rows a page has: text from the fourth column on, a mark in the
  * first column beside text, or nothing.
  */
-function lines(rows: readonly ('blank' | 'marked' | 'text')[]): { width: number; height: number; data: Uint8Array } {
+function lines(rows: readonly ("blank" | "marked" | "text")[]): {
+  width: number;
+  height: number;
+  data: Uint8Array;
+} {
   const data = new Uint8Array(LINE * rows.length * 4).fill(255);
   for (const [y, row] of rows.entries()) {
-    if (row === 'blank') continue;
-    for (let x = 3; x < LINE; x += 1) data.set([0x33, 0x33, 0x33, 255], (y * LINE + x) * 4);
-    if (row === 'marked') data.set([255, 0, 0, 255], y * LINE * 4);
+    if (row === "blank") continue;
+    for (let x = 3; x < LINE; x += 1)
+      data.set([0x33, 0x33, 0x33, 255], (y * LINE + x) * 4);
+    if (row === "marked") data.set([255, 0, 0, 255], y * LINE * 4);
   }
   return { width: LINE, height: rows.length, data };
 }
@@ -297,14 +376,19 @@ function changedRows(mask: Uint8Array, width: number): number[] {
   return [...rows].sort((a, b) => a - b);
 }
 
-describe('two equal captures', () => {
-  it('pair every row with itself, and move none', () => {
+describe("two equal captures", () => {
+  it("pair every row with itself, and move none", () => {
     const before = column([1, 1, 2, 3, 3, 3]);
     const after = column([1, 1, 2, 3, 3, 3]);
 
-    const rows = alignRows(before, after);
+    const rows = alignRows(before, after, ALIGNMENT_LIMIT, DEFAULT_POLICY.threshold);
 
-    expect(rows && { ...rows, source: [...rows.source] }).toEqual({
+    expect(rows).toMatchObject({ inserted: [], removed: [], shifted: [] });
+    expect(rows!.strips).toHaveLength(1);
+    const [strip] = rows!.strips;
+    expect({ ...strip, source: [...strip!.source] }).toEqual({
+      from: 0,
+      to: before.width,
       source: [0, 1, 2, 3, 4, 5],
       inserted: [],
       removed: [],
@@ -314,17 +398,21 @@ describe('two equal captures', () => {
     });
   });
 
-  it('compare as the comparison of nothing', () => {
+  it("compare as the comparison of nothing", () => {
     const before = column([1, 1, 2, 3, 3, 3]);
     const after = column([1, 1, 2, 3, 3, 3]);
 
     const comparison = comparePixels(before, after);
 
-    expect([comparison.changed, comparison.dimensionsChanged, comparison.mask.changed]).toEqual([
-      { default: 0, strict: 0 },
-      false,
-      0,
-    ]);
-    expect(comparison.alignment).toEqual({ inserted: [], removed: [], shifted: [] });
+    expect([
+      comparison.changed,
+      comparison.dimensionsChanged,
+      comparison.mask.changed,
+    ]).toEqual([{ default: 0, strict: 0 }, false, 0]);
+    expect(comparison.alignment).toEqual({
+      inserted: [],
+      removed: [],
+      shifted: [],
+    });
   });
 });

@@ -8,6 +8,7 @@
  */
 
 import type { TestInfo } from '@playwright/test';
+import type { TestCase } from '@playwright/test/reporter';
 import { relative, resolve, sep } from 'node:path';
 
 /** Which test a window belongs to, where the run is recording that. */
@@ -34,6 +35,19 @@ export function testOf(testInfo: TestInfo): ObservedTest {
   return {
     name: testInfo.titlePath.slice(1).join(' > '),
     id: testInfo.testId,
+    ...(project === '' ? {} : { project }),
+  };
+}
+
+/**
+ * The same case as the reporter holds it. Its `titlePath` starts at the root
+ * suite, then the project and the file, so the name is what follows them.
+ */
+export function testCaseOf(test: TestCase): ObservedTest {
+  const project = test.parent.project()?.name ?? '';
+  return {
+    name: test.titlePath().slice(3).join(' > '),
+    id: test.id,
     ...(project === '' ? {} : { project }),
   };
 }

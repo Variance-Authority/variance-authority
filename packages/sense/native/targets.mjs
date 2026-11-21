@@ -27,3 +27,30 @@ export const TARGETS = {
   },
   'x86_64-pc-windows-msvc': { package: 'win32-x64-msvc', artifact: 'sense_native.dll' },
 };
+
+/**
+ * The target this host builds into, by its triple, or nothing where we publish
+ * none. Its glibc floor applies only on a glibc host: a musl Linux matches the
+ * gnu package by platform and architecture, and a floor build would not load there.
+ */
+export function hostTarget() {
+  const found = Object.entries(TARGETS).find(([, { package: name }]) =>
+    name.startsWith(`${process.platform}-${process.arch}`),
+  );
+  if (found === undefined) return undefined;
+  const [triple, { glibc, ...rest }] = found;
+  const onGlibc = process.platform === 'linux' && process.report.getReport().header.glibcVersionRuntime !== undefined;
+  return { triple, ...rest, ...(onGlibc && glibc !== undefined ? { glibc } : {}) };
+}
+
+/**
+ * The linker a glibc floor is reached with, by the versions CI and release
+ * install: `.github/actions/zigbuild` reads them here, and a floored binary
+ * names them in its stamp and its cache key, so a new linker builds anew.
+ */
+export const LINKER = { zig: '0.16.0', zigbuild: '0.24.1' };
+
+/** What a binary linked at `glibc` was linked with, as one stamp and key segment. */
+export function linkedAt(glibc) {
+  return `glibc ${glibc} zig ${LINKER.zig} cargo-zigbuild ${LINKER.zigbuild}`;
+}

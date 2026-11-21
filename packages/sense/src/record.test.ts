@@ -2,18 +2,14 @@ import { mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { memoryParseCache } from './cache.js';
-import { digestString } from './digest.js';
-import { keyFor, parseWay } from './files.js';
-import { declinedForSize, parsedOnce, recordFor, stillTooLarge, type RecordSubject } from './record.js';
-import { resolversFor } from './resolve.js';
+import { declinedForSize, stillTooLarge } from './record.js';
+import { scanRelations } from './test-support/scan.js';
 
 /**
- * `recordFor` builds the records the native batch does not: every language that
- * is not a module. A file it declines for its size is declined for its bytes, so
- * the record names them when the caller already knows them, and the next update
- * keeps it rather than opening the file to decline it again — unless it was
- * reached through a link, whose object names the path it holds.
+ * A scan declines a file for its size, and a later one asks whether the decline
+ * still holds before it keeps it. The reading, the decline and its digest are
+ * the native batch's, pinned in `acquire_tests.rs` and `record_tests.rs`; what
+ * is left here is the TypeScript that reads a decline back.
  */
 
 const made: string[] = [];
@@ -21,102 +17,40 @@ afterEach(async () => {
   await Promise.all(made.splice(0).map((at) => rm(at, { recursive: true, force: true })));
 });
 
-const subject = (root: string, file: string, digest?: RecordSubject['digest']): RecordSubject => ({
-  absolute: join(root, file),
-  file,
-  root,
-  resolvers: resolversFor({}),
-  cache: memoryParseCache(),
-  aliases: undefined,
-  directories: new Map(),
-  largestFile: 8,
-  remembering: false,
-  ...(digest === undefined ? {} : { digest }),
-});
+async function fixture(): Promise<string> {
+  const root = await mkdtemp(join(tmpdir(), 'variance-record-'));
+  made.push(root);
+  return root;
+}
 
-describe('recordFor', () => {
-  it('names the bytes of a stylesheet it declined for its size, and nothing when it could not read one', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'variance-record-'));
-    made.push(root);
+describe('declinedForSize', () => {
+  it('tells a stylesheet the scan declined for its size from one of exactly the limit and an empty one', async () => {
+    const root = await fixture();
     await writeFile(join(root, 'wide.css'), '.a { color: red; }\n', 'utf8');
-    const digest = digestString('the object name git gave wide.css');
-
-    const declined = (await recordFor(subject(root, 'wide.css', digest))).record;
-    expect(declined.digest).toBe(digest);
-    expect(declined.unknown).toContain('over the 8 this scan opens');
-
-    // Unknown to git, the bytes were never hashed, so there is nothing to name.
-    expect((await recordFor(subject(root, 'wide.css'))).record.digest).toBeUndefined();
-
-    const missing = (await recordFor(subject(root, 'gone.css', digest))).record;
-    expect(missing.digest).toBeUndefined();
-    expect(missing.unknown).toContain('could not be read');
-  });
-
-  it('parses a stylesheet of exactly the limit, and an empty one', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'variance-record-'));
-    made.push(root);
     await writeFile(join(root, 'exact.css'), '.a{}/**/', 'utf8');
     await writeFile(join(root, 'empty.css'), '', 'utf8');
 
+    const records = await scanRelations({ root, dirs: ['.'], digests: false, largestFile: 8 });
+    const by = new Map(records.map((record) => [record.file, record]));
+
+    expect(by.get('wide.css')?.unknown).toContain('over the 8 this scan opens');
+    expect(declinedForSize(by.get('wide.css')!)).toBe(true);
     for (const file of ['exact.css', 'empty.css']) {
-      const record = (await recordFor(subject(root, file))).record;
-      expect(record.unknown).toBeUndefined();
-      expect(declinedForSize(record)).toBe(false);
+      expect(by.get(file)?.unknown).toBeUndefined();
+      expect(declinedForSize(by.get(file)!)).toBe(false);
     }
-  });
-
-  it('declares the components a module\'s code declares, and none its comments spell', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'variance-record-'));
-    made.push(root);
-    const source = '/*\nexport function Retired() { return null; }\n*/\nexport function Button() { return null; }\n';
-    await writeFile(join(root, 'Button.tsx'), source, 'utf8');
-
-    const record = (await recordFor({ ...subject(root, 'Button.tsx'), largestFile: 1024 })).record;
-    expect(record.declares).toEqual(['Button']);
-  });
-
-  it('records no declares for a module the parser cannot read, and says why', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'variance-record-'));
-    made.push(root);
-    const source = '// @flow\ntype Props = {| label: string |};\nexport function Button(props: Props) { return null; }\n';
-    await writeFile(join(root, 'Button.js'), source, 'utf8');
-
-    const record = (await recordFor({ ...subject(root, 'Button.js'), largestFile: 1024 })).record;
-    expect(record).not.toHaveProperty('declares');
-    expect(record.unknown).toContain('parse error');
-  });
-
-  it.skipIf(process.platform === 'win32')('names no bytes for a stylesheet it declined through a link', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'variance-record-'));
-    made.push(root);
-    await writeFile(join(root, 'wide.css'), '.a { color: red; }\n', 'utf8');
-    await symlink(join(root, 'wide.css'), join(root, 'linked.css'));
-    const digest = digestString('the object name git gave the link');
-
-    const declined = (await recordFor(subject(root, 'linked.css', digest))).record;
-    expect(declined.digest).toBeUndefined();
-    expect(declinedForSize(declined)).toBe(true);
-    expect(await stillTooLarge(join(root, 'linked.css'), 8)).toBe(true);
-
-    await writeFile(join(root, 'wide.css'), '.a{}\n', 'utf8');
-    expect(await stillTooLarge(join(root, 'linked.css'), 8)).toBe(false);
   });
 });
 
-describe('parsedOnce', () => {
-  // A parse is kept whatever limit read it: the one it holds answers only under the limit asked now, by the bytes it measured.
-  it('answers a held parse by its measured size against the limit it is asked under, without opening the file', () => {
-    const digest = digestString('export const held = 1;\n');
-    const cache = memoryParseCache();
-    const held = { requests: [], size: { bytes: 24, lines: 1 } };
-    cache.set(keyFor(digest, parseWay('held.ts')), held);
-    let parses = 0;
-    const asked = (largestFile: number) =>
-      parsedOnce({ root: '/nowhere', file: 'held.ts', cache, digest, largestFile, counted: () => { parses += 1; } });
+describe('stillTooLarge', () => {
+  it.skipIf(process.platform === 'win32')('measures the file a link holds, and follows its edits', async () => {
+    const root = await fixture();
+    await writeFile(join(root, 'wide.css'), '.a { color: red; }\n', 'utf8');
+    await symlink(join(root, 'wide.css'), join(root, 'linked.css'));
 
-    expect(asked(8)).toBeUndefined();
-    expect(asked(24)).toBe(held);
-    expect(parses).toBe(0);
+    expect(await stillTooLarge(join(root, 'linked.css'), 8)).toBe(true);
+    await writeFile(join(root, 'wide.css'), '.a{}\n', 'utf8');
+    expect(await stillTooLarge(join(root, 'linked.css'), 8)).toBe(false);
+    expect(await stillTooLarge(join(root, 'gone.css'), 8)).toBe(false);
   });
 });

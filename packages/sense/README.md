@@ -325,8 +325,8 @@ and `sourceIndexPath(root)` the source index beside it. A git worktree gets
 `.work/<its own digest>/` in its own cache, which is inside the worktree at the
 default location. Its coverage reads both layers and writes only its own, so a
 worktree cut this morning inherits what the repository already recorded. Its source index is its own too,
-and the first update in it builds that index from nothing: it reads every file and
-parses only those whose parse the cache's parse store does not hold. Pass `coverageFile` in the options to put
+and the first update in it starts from another checkout's index and reads only the
+files that differ from it. Pass `coverageFile` in the options to put
 it somewhere you name instead — a CI job that uploads the file as an artifact
 needs that.
 
@@ -466,7 +466,7 @@ and each name selects the tests recorded under it.
 ### Options on the Vitest seam
 
 The optional second argument accepts `root`, `suite`, `coverageFile`,
-`include`, `unprobed`, `preconditions`, `mode`, `placement`, `continuations`, `cadence`, and `selection`.
+`include`, `unprobed`, `preconditions`, `mode`, `placement`, `continuations`, `cadence`, `selection`, and `record`.
 
 | option | default | use it when |
 |---|---|---|
@@ -481,6 +481,7 @@ The optional second argument accepts `root`, `suite`, `coverageFile`,
 | `continuations` | off | a case's work outlives it, or the suite is deliberately concurrent ([below](#record-which-case-covered-a-region)) |
 | `cadence` | on | `false` leaves test files as you wrote them, and the record without the test line that reached each region and without the time of each case's statements ([below](#record-which-test-line-reached-a-region)) |
 | `selection` | read from `@variance-authority/cli` when `VARIANCE_AUTHORITY_SINCE` is set | you compute the selection yourself: a function returning the `SuiteSelection` whose `skip` the run removes |
+| `record` | on | `false` runs a second configuration over the same selection, such as one that shares modules between files: the run selects and places its files from the record as a recorded run would, and instruments, writes and lands nothing. A file whose cases the selection cuts runs whole. Vitest's seam only for now; Jest's and Rstest's record every run they select |
 
 The config file Vite loaded, the local modules it imports and the configured
 setup files become preconditions automatically, and the runtime's own setup file
@@ -1342,7 +1343,10 @@ window — one named UI state you asked for and can ask for again, such as
 per window the driver closed, each an `owner`, the drained `journal`, optional
 `preconditions`, and `complete`, which is false for a subject that did not
 finish and keeps it from ever justifying a skip. `commit` overrides where the
-recording stands, which otherwise reads the checkout's `HEAD`.
+recording stands, which otherwise reads the checkout's `HEAD`. `checks` holds
+which declared checks each case's attempts entered and the scope the run was
+asked for, as the Playwright reporter records them for `variance ask not-run`;
+it replaces what the record held, and absent, the record keeps none.
 
 Recording refuses in one direction only. Each of these records **nothing** and
 prints why, costing the next run its full suite:
@@ -1609,11 +1613,12 @@ the host identity needed to dispatch every remaining path.
 
 ## Scan the checkout for the file graph
 
-`scanRelations` walks the configured directories, follows resolvable module and
-stylesheet references, and returns one `FileRecord` per file: that file's
-resolved outgoing edges and content digest. Hand those records to
-`@variance-authority/core`, which owns the graph and the selection rules — a
-separate package, so install it too:
+`updateSourceIndex` reads the checkout into its source index, following
+resolvable module and stylesheet references, and `readPublishedSources` returns
+one `FileRecord` per file: that file's resolved outgoing edges and content
+digest. `sourcesWithin` keeps the records your directories hold and reach. Hand
+those records to `@variance-authority/core`, which owns the graph and the
+selection rules — a separate package, so install it too:
 
 ```bash
 npm install --save-dev @variance-authority/sense @variance-authority/core
@@ -1621,9 +1626,12 @@ npm install --save-dev @variance-authority/sense @variance-authority/core
 
 ```ts
 import { affectedBy, relationsOfFiles } from '@variance-authority/core/relate';
-import { scanRelations } from '@variance-authority/sense';
+import { readPublishedSources, sourcesWithin, updateSourceIndex } from '@variance-authority/sense';
 
-const records = await scanRelations({ root: '.', dirs: ['src'] });
+const root = process.cwd();
+const update = await updateSourceIndex(root);
+if (update.refused !== undefined) throw new Error(update.refused);
+const records = sourcesWithin((await readPublishedSources(update.path)).records, root, ['src']);
 const relations = relationsOfFiles(records);
 const selection = affectedBy(relations, ['src/tokens.css']);
 
@@ -1634,35 +1642,21 @@ You need a readable checkout, installed dependencies for bare specifiers, and
 any `tsconfig.json` path mappings the source uses. Resolving a bare specifier is
 the one step that needs them; the pure readers in
 `@variance-authority/sense/read` take source text plus a file id instead and
-never touch a disk.
+never touch a disk. An alias declared only in a bundler's configuration, such
+as webpack's or Vite's `resolve.alias`, is not read, so declare it as `paths`
+in a `tsconfig` too.
 
-| option | default | use it when |
-|---|---|---|
-| `root` | required | naming the checkout; returned paths are relative to it |
-| `dirs` | required | choosing the source directories to seed |
-| `before` | absent | naming individual files the run rests on that nothing imports — a `vitest.config.ts`, the setup it loads — so the harness and everything below it become ordinary nodes; a path that is not there, or that this cannot parse, is skipped |
-| `digests` | Git digests when available | supplying a digest map, or set `false` to read and hash files directly |
-| `packs` | `true` | set `false` to read every file's bytes from the working tree instead of Git's object store; Git still lists the files and names their blobs |
-| `changed` | absent | supplying the complete scan-root-relative file list already known to have changed; present, including empty, skips `git status` |
-| `cache` | in-memory parse cache | reusing parsed module records between calls |
-| `reuse` | off unless `digests` is available | reusing resolved `FileRecord`s; sound only with content and layout digests |
-| `stores` | absent | naming parse stores to look a tracked module up in before it is read; pass the same list to `openSourceIndex`, whose `cache` holds what a store answered |
-| `largestFile` | one megabyte | reading source files larger than that; anything over the cap is recorded `unknown` instead of parsed |
-| `indexed` | absent | receiving each cached parse with the resolved target corresponding to every request |
+`sourcesWithin(records, root, dirs, before)` takes the directories to seed and,
+in `before`, individual files the run rests on that nothing imports — a
+`vitest.config.ts`, the setup it loads — so the harness and everything below it
+become ordinary nodes; a path the index does not hold is skipped.
 
-`conditionNames` and `tsconfig` are accepted by the same call and control how
-specifiers become file edges; the generated declaration states their exact
-shapes. Without `conditionNames`, a file resolves under `source`, `import`,
-`require` and `default` plus the `customConditions` of the `tsconfig` that
-governs it, following `extends` the way TypeScript does. So a workspace whose
-packages export source under a condition of their own, such as
-`"@tanstack/custom-condition": "./src/index.ts"`, gets edges into that source
-rather than into built output the checkout does not hold. When you pass
-`conditionNames`, your list is the whole set and no `tsconfig` adds to it.
-`tsconfig: false` reads no `tsconfig` at all: no `paths` and no
-`customConditions`. A call that passes no `tsconfig` takes the one
-`typescript.tsconfig` in the root `variance.config.json` names, `"auto"` when it
-names none. `await tsconfigUse(directory)` lists every config the repository
+A file resolves under `source`, `import`, `require` and `default` plus the
+`customConditions` of the `tsconfig` that governs it, following `extends` the
+way TypeScript does. So a workspace whose packages export source under a
+condition of their own, such as `"@tanstack/custom-condition":
+"./src/index.ts"`, gets edges into that source rather than into built output
+the checkout does not hold. `await tsconfigUse(directory)` lists every config the repository
 holds, the ones that can govern that directory, and which ask for `paths`,
 `baseUrl` or conditions.
 
@@ -1681,13 +1675,13 @@ resolver, and a selector that guessed would skip on the guess.
 [Read the install](#read-which-packages-the-install-changed) to find out
 which names to seed.
 
-A file over `largestFile` is marked `unknown` rather than parsed, because a file
+A file over one megabyte is marked `unknown` rather than parsed, because a file
 that size is nearly always generated output and a single one of them can cost a
-scan hundreds of megabytes. Raise it when you mean to read one anyway.
+scan hundreds of megabytes.
 
 An unreadable or unresolved relative edge marks its file **unknown**:
 `record.unknown` gives the reason — a parse error, a `require()` of a variable,
-an `import()` of a computed string, a file over `largestFile`, a language with
+an `import()` of a computed string, a file over the cap, a language with
 no reader. The graph keeps every edge the scan could read from that file and has
 none for the one it could not, so a selection answers from what the source
 states and nothing is added for the gap. The expression nobody could read is
@@ -1725,12 +1719,38 @@ const records = sourcesWithin(published.records, process.cwd(), ['src'], []);
 
 `updateSourceIndex(root)` scans the whole checkout, whoever calls it, and reads
 again only the files whose blob changed. Its result names the state it found
-(`was`), the files it holds, and how many it read again (`reread`). Pass
-`packs: false` to read bytes from the working tree, as `scanRelations` does.
+(`was`), the files it holds, and how many it read again (`reread`). Set
+`packs` to `false` to read bytes from the working tree.
 Pass `dirs` for an index that covers some directories of the checkout and what
-they import, rather than all of it. A missing index is built from nothing, in a
-worktree too: no record is copied from another checkout's index, and the parse
-store is what a second checkout reuses. An `index` you name in the checkout's
+they import, rather than all of it. An index that is missing, damaged or another
+release's starts from the same index of another checkout of the repository, its
+primary checkout's first, and reads only the files that differ from it; `from`
+names that index. A record of it that holds a parse stands only where the
+cache's parse store holds the same parse of the blob, so a file the other
+checkout edited without telling git is read again. With no such index, it reads
+every file, and the parse store is what a second checkout reuses. Pass
+`fetch` to start from an index somebody else built, such as the one CI
+published: it is asked only when the index is another release's, as the update
+starts, and places that index at the path it is given while the checkout is
+listed. When another checkout's index of this release opens, the update starts
+from that one, aborts the `signal` it gave `fetch`, and does not wait for it.
+The addon tries a fetched index after every other checkout's, and trusts a record
+of it without the parse store wherever the tree names the record's digest: the
+index keys a file git calls changed by the bytes it read, so an edit CI made
+before indexing never matches a checkout's tree. The result names
+whose it was as `fetched`, and the placed copy is removed.
+`carriedSourceIndex(chain)` carries a chain from `sourceIndexChain` as bytes
+that name its manifest and each segment's pieces of `SOURCE_INDEX_PIECE` bytes
+by their SHA-256, the names of those pieces once in `pieces`, and `piece(name)`
+to read one. A segment never changes under its digest, so the names of its
+pieces are kept beside the chain, and a carry hashes only the segments no carry
+before it hashed. `placeSourceIndex(into, bytes, piece)` places such an index from
+those bytes and a reader of each piece by name; no segment is held whole, and
+one whose length or digest is not its own leaves nothing placed; `fetchedSourceIndexPath(path)` names a place beside
+`path` for one update to have it placed, another on every call, so a download an
+update dropped without waiting removes only its own when it ends, and the next
+update that fetches removes those of a process `processAlive(pid)` says has ended; and
+`sourceIndexChain(path)` lists the files of one to publish. An `index` you name in the checkout's
 own cache directory reads that store as the checkout's own index does. `progress` is told each step's name as it starts, the git listing
 and then the read of what changed, and returns the function to call when that
 step ends.
@@ -1757,17 +1777,7 @@ have produced, so a reader with a narrower question gets the narrower graph
 without scanning.
 
 Everything in the index is derived from the checkout: a missing, incomplete or
-corrupt one costs a scan and cannot change what a scan finds. For a scan of your
-own, open the index as a cache and save it afterwards:
-
-```ts
-import { openSourceIndex, scanRelations, sourceIndexPath } from '@variance-authority/sense';
-
-const source = await openSourceIndex(sourceIndexPath(process.cwd()));
-
-await scanRelations({ root: '.', dirs: ['src'], cache: source.cache, reuse: source.reuse });
-await source.save();
-```
+corrupt one costs a scan and cannot change what a scan finds.
 
 `sourceIndexPath(root)` puts it beside the coverage snapshot under your cache
 root, cached in CI the same way. `variance index` also keeps one parse store per
@@ -1778,39 +1788,12 @@ the blob git named for it; the cache prune reclaims the parses no index names. S
 for the on-disk layout and the cache recipe. The parse section is keyed by
 content digest; the record section additionally by the repository path layout
 and resolution settings, because resolution can change while file bytes stay the
-same. `gitDigests` supplies content digests from Git when available, and
-`scanRelations` calls it unless `digests: false` or a caller-provided map is
-used.
+same.
 
-When an editor, watcher or orchestrator already has the changed files, pass them
-as `changed`. Sense still reads the committed path set, hashes those paths from
-disk and treats a missing path as deleted, but it does not run `git status` to
-rediscover the same answer. The list is authoritative: include additions and
-deletions, and include both the old and new path of a rename. An empty list
-declares the working tree unchanged.
-
-`parsed` hands you each file's parse as the scan settles it — the
-repository-relative path and what the bytes parse to, once per file, reused
-records included. A caller that needs a different reading of the same bytes
-otherwise has to walk and parse the tree a second time; handed this, that second
-reading of an unchanged tree costs a map lookup per file. The value is the
-cached parse itself rather than a copy, so treat it as read-only.
-
-`indexed` is the path-dependent companion: it receives the same parse and one
+`readPublishedSources(path)` also returns `indexed`: each file's parse with one
 resolved target per request, in request order. Use it when a consumer needs to
-follow named re-exports without resolving the same specifiers again.
-
-```ts
-// An excerpt of the call above: `source` is the opened index, and `exports` is
-// whatever map you are filling.
-await scanRelations({
-  root: '.',
-  dirs: ['src'],
-  cache: source.cache,
-  reuse: source.reuse,
-  parsed: (file, parse) => { exports.set(file, parse.exports); },
-});
-```
+follow named re-exports without resolving the same specifiers again. The values
+are the index's own, so treat them as read-only.
 
 ## Read which packages the install changed
 
@@ -1890,11 +1873,12 @@ parse cache and the record cache are left as they were read, so the same scan
 can be viewed under several taints, or none.
 
 ```ts
-import { scanRelations } from '@variance-authority/sense';
+import { readPublishedSources, sourcesWithin, updateSourceIndex } from '@variance-authority/sense';
 import { mockTaint, taintFile, taintRecords } from '@variance-authority/sense/taint';
 import { affectedBy, relationsOfFiles } from '@variance-authority/core/relate';
 
-const records = await scanRelations({ root: '.', dirs: ['src'] });
+const { path } = await updateSourceIndex(process.cwd());
+const records = sourcesWithin((await readPublishedSources(path)).records, process.cwd(), ['src']);
 const tainted = await taintRecords(records, [mockTaint(), await taintFile('variance.taint.json')], { root: '.' });
 const relations = relationsOfFiles(tainted.records, { shadows: tainted.shadows });
 
@@ -1981,7 +1965,7 @@ and the two never contend: an edge one taint adds to a file another taint
 shadows is an edge into a node the file's run never covers, and the shadow
 wins, the way the mock wins at runtime.
 
-Hand `taintRecords` the `cache` the scan used, so an unchanged file is not
+Hand `taintRecords` the `cache` the index holds, so an unchanged file is not
 opened or parsed a second time. The scan records what each file mocks in its
 parse without applying it, so the records keep every edge and `mockTaint()`
 answers from that parse without opening the file. A `mockTaint` given its own
@@ -1990,10 +1974,8 @@ answer, like any other reader's, is kept under a digest over the file's bytes
 and the reader's name:
 
 ```ts
-const source = await openSourceIndex(sourceIndexPath(process.cwd()));
-const records = await scanRelations({ root: '.', dirs: ['src'], cache: source.cache, reuse: source.reuse });
-const tainted = await taintRecords(records, [mockTaint()], { root: '.', cache: source.cache });
-await source.save();
+const { records, cache } = await readPublishedSources(path);
+const tainted = await taintRecords(sourcesWithin(records, process.cwd(), ['src']), [mockTaint()], { root: '.', cache });
 ```
 
 `runGraphOf` is that whole fold in one call, the graph `variance covering
@@ -2349,14 +2331,16 @@ a complete instrumented run. Scan both product and test directories, then join
 those records to the snapshot:
 
 ```ts
-import { scanRelations } from '@variance-authority/sense';
+import { readPublishedSources, sourcesWithin, updateSourceIndex } from '@variance-authority/sense';
 import {
   deviationOfTests,
   testCoverageFile,
 } from '@variance-authority/sense/test-selection';
 
 const root = process.cwd();
-const records = await scanRelations({ root, dirs: ['src', 'test'] });
+const update = await updateSourceIndex(root);
+if (update.refused !== undefined) throw new Error(update.refused);
+const records = sourcesWithin((await readPublishedSources(update.path)).records, root, ['src', 'test']);
 const variation = await deviationOfTests(testCoverageFile(root), { root, records });
 
 console.log(variation.coverage);
@@ -2445,8 +2429,10 @@ throws.
 what is left, so a boundary still marks where the claim on the code changes. A
 range that names cases lists under `unentered` the regions on it no case
 entered, such as a one-line branch whose line the function around it also
-charges. `unenteredSentence(region)` says that in the sentence `variance covering`
-prints, closed by `whyUnentered(stopped)`: unwalked, a hole, or
+charges. `unenteredSaid(regions)` says it once for a file, as `variance covering`
+prints it: a region several ranges hold is named once, the ones with the same
+reason share a sentence by kind, and each hole keeps its own with the cases that
+stopped short of it. `whyUnentered(stopped)` closes each: unwalked, a hole, or
 neither when the record cannot tell.
 
 Every seam here writes an `ExecutionIndex` into its snapshot. In the snapshot
@@ -2781,8 +2767,8 @@ same under every host:
 | `@variance-authority/sense/cache-root` | `cacheRootFor`, the checkout's cache directory, without loading the parser and resolver | a checkout |
 | `@variance-authority/sense/checkout-path` | `checkoutPath`, a path asked about spelled the way the recording spells it, or why it is outside the checkout, without loading the parser and resolver | a checkout |
 | `@variance-authority/sense/side-effects` | `declaresSideEffects(files)`, which of these modules their package's `sideEffects` names, the reading test selection uses | absolute paths |
-| `@variance-authority/sense` | `scanRelations`, the source index, and Git content digests | a readable checkout for the scan; persistence is optional |
-| `@variance-authority/sense/read` | `readModule` and `readStyle` when source text already comes from a VFS, editor, or bundler | a file id and source string |
+| `@variance-authority/sense` | the source index: `updateSourceIndex`, `readPublishedSources`, `sourcesWithin` | a readable checkout and the native addon |
+| `@variance-authority/sense/read` | `readModule` when a module's source text already comes from a VFS, editor, or bundler | a file id and source string |
 | `@variance-authority/sense/lock` | reading which packages an install changed between two revisions, and how they rest on each other | the lockfile's text at both revisions; nothing else, and no `node_modules` |
 | `@variance-authority/sense/taint` | joining a second table of imports onto scanned records, and auditing it against the record | the records, and a table or a reader that produces the diff |
 | `@variance-authority/sense/instrument` | transforming one module to add execution-presence probes | a module id and source string |

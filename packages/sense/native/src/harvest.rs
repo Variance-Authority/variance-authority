@@ -20,7 +20,7 @@ pub struct TextSpan {
     pub text: Option<String>,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct SourceSymbol {
     pub name: String,
     pub kind: &'static str,
@@ -40,7 +40,7 @@ pub struct SourceSymbol {
 /// A function another function's body declares, as [`crate::nested`] finds
 /// it: a name its holder alone can call. Kept apart from [`SourceSymbol`], so a
 /// reader of a file's top level never meets one.
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct NestedSymbol {
     pub name: String,
     pub kind: &'static str,
@@ -55,6 +55,34 @@ pub struct NestedSymbol {
     /// The line the function that holds it starts on.
     #[serde(rename = "holderLine")]
     pub holder_line: u32,
+}
+
+/// Every kind a grammar reader gives a declaration, each with the nodes the
+/// grammars spell it by: `kind_of` in `languages/mod.rs` reads it from the
+/// node, and a parse read back from the index from the word it stored.
+pub const KINDS: [(&str, &[&str]); 17] = [
+    ("function", &["function_item", "function_definition", "function_declaration"]),
+    ("struct", &["struct_item"]),
+    ("enum", &["enum_item", "enum_declaration"]),
+    ("union", &["union_item"]),
+    ("trait", &["trait_item"]),
+    ("type", &["type_item", "type_alias", "typealias_declaration"]),
+    ("const", &["const_item"]),
+    ("static", &["static_item"]),
+    ("module", &["mod_item"]),
+    ("macro", &["macro_definition"]),
+    ("class", &["class_definition", "class_declaration"]),
+    ("interface", &["interface_declaration"]),
+    ("record", &["record_declaration"]),
+    ("annotation", &["annotation_type_declaration"]),
+    ("object", &["object_declaration"]),
+    ("protocol", &["protocol_declaration"]),
+    ("property", &["property_declaration"]),
+];
+
+/// The word of [`KINDS`] spelled `word`.
+pub fn kind_named(word: &str) -> Option<&'static str> {
+    KINDS.iter().map(|(kind, _)| *kind).find(|kind| *kind == word)
 }
 
 /// Every reach a symbol records, in the order the index stores them, from 1:
@@ -74,12 +102,15 @@ pub fn reach_of(code: u8) -> Option<&'static str> {
     code.checked_sub(1).and_then(|at| REACHES.get(at as usize)).copied()
 }
 
-struct Offsets {
+/// A file's byte offsets as the UTF-16 units a [`TextSpan`] is written in,
+/// built once per file: the one converter every reader spans through. An
+/// ASCII file needs no table; a byte inside a character reads as 0.
+pub(crate) struct Offsets {
     utf16: Option<Vec<u32>>,
 }
 
 impl Offsets {
-    fn new(source: &str) -> Self {
+    pub(crate) fn new(source: &str) -> Self {
         if source.is_ascii() {
             return Self { utf16: None };
         }
@@ -95,7 +126,7 @@ impl Offsets {
         }
     }
 
-    fn at(&self, byte: u32) -> u32 {
+    pub(crate) fn at(&self, byte: u32) -> u32 {
         self.utf16
             .as_ref()
             .and_then(|offsets| offsets.get(byte as usize).copied())

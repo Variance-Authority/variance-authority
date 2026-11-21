@@ -5,7 +5,7 @@ import { afterAll, describe, expect, it } from 'vitest';
 import { customConditionsFor } from './conditions.js';
 import { native, nativeAvailable } from './addon.js';
 import { realPath, resolveTo, resolversFor, type ResolveOptions } from './resolve.js';
-import { scanRelations } from './scan.js';
+import { scanRelations } from './test-support/scan.js';
 
 /**
  * A workspace package that exports its source under a condition of its own.
@@ -65,7 +65,6 @@ function oracle(root: string, options: ResolveOptions = {}): string | undefined 
     root,
     from: join(root, IMPORTER),
     request: '@acme/lib',
-    language: 'module',
   });
 }
 

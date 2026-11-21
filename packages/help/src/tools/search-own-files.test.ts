@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { treeOf } from '@variance-authority/mcp/tools';
-import { readHelp } from '@variance-authority/package/help';
+import { readHelp } from '../walk.js';
 import { INVENTED_PACKAGES } from '../__fixtures__/invented-packages.js';
 import { inventedWorkspace } from '../__fixtures__/invented-workspace.js';
 import { answerSearch } from './search.js';

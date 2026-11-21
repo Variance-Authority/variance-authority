@@ -100,6 +100,7 @@ export function httpLineCell(options: HttpLineOptions): LineCell {
   }
 
   return {
+    imagesShared: true,
     async load(line) {
       const held = await get(where(line, 'manifest.json'));
       if (!('bytes' in held)) return held;

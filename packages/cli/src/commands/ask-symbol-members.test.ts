@@ -32,13 +32,13 @@ const SHAPES = {
   'packages/lib/src/inner.ts': "import type { Shape, Pair, Id, Flat } from './shapes.js';\nimport { Box } from './shapes.js';\nexport const box = new Box();\n",
 };
 
-/** The member rows of `out`. */
+/** The member rows of `out`: the file they are declared in, then each by its line. */
 const members = (out: string): readonly string[] => {
   const lines = out.split('\n');
   const from = lines.indexOf('Members:');
   if (from === -1) return [];
-  // A member row names its line; the answer's footer follows the last one.
-  const end = lines.findIndex((line, at) => at > from && !/^\S+:\d+ — /.test(line));
+  // The file heads the rows and each row under it names its line; the answer's footer follows the last one.
+  const end = lines.findIndex((line, at) => at > from + 1 && !/^ {2}\d+: /.test(line));
   return lines.slice(from + 1, end === -1 ? undefined : end);
 };
 
@@ -49,12 +49,7 @@ describe('variance ask symbol over a container', () => {
 
     const { code, out } = await run(['ask', 'symbol', '--name', 'Shape']);
     expect(code).toBe(EXIT_CLEAN);
-    expect(members(out)).toEqual([
-      'packages/lib/src/shapes.ts:3 — readonly width: number;',
-      'packages/lib/src/shapes.ts:4 — area(): number;',
-      'packages/lib/src/shapes.ts:5 — nested: { inner: number };',
-      'packages/lib/src/shapes.ts:6 — deep: {',
-    ]);
+    expect(members(out)).toEqual(['packages/lib/src/shapes.ts', '  3: readonly width: number;', '  4: area(): number;', '  5: nested: { inner: number };', '  6: deep: {']);
   });
 
   it('lists the members of a published interface after its signature and doc', async () => {
@@ -64,7 +59,7 @@ describe('variance ask symbol over a container', () => {
     const { code, out } = await run(['ask', 'symbol', '--name', 'Card']);
     expect(code).toBe(EXIT_CLEAN);
     expect(out).toContain('A card on the board.');
-    expect(members(out)).toEqual(['packages/lib/src/card.ts:4 — title: string;', 'packages/lib/src/card.ts:5 — flip(): Card;']);
+    expect(members(out)).toEqual(['packages/lib/src/card.ts', '  4: title: string;', '  5: flip(): Card;']);
   });
 
   it('lists the members of a type alias and a class, and none for an alias the line already shows', async () => {
@@ -72,10 +67,10 @@ describe('variance ask symbol over a container', () => {
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
 
     const pair = await run(['ask', 'symbol', '--name', 'Pair']);
-    expect(members(pair.out)).toEqual(['packages/lib/src/shapes.ts:11 — left: number;', 'packages/lib/src/shapes.ts:12 — right: number;']);
+    expect(members(pair.out)).toEqual(['packages/lib/src/shapes.ts', '  11: left: number;', '  12: right: number;']);
 
     const box = await run(['ask', 'symbol', '--name', 'Box']);
-    expect(members(box.out)).toEqual(['packages/lib/src/shapes.ts:17 — size = 1;', 'packages/lib/src/shapes.ts:18 — open(): void {}']);
+    expect(members(box.out)).toEqual(['packages/lib/src/shapes.ts', '  17: size = 1;', '  18: open(): void {}']);
 
     const flat = await run(['ask', 'symbol', '--name', 'Flat']);
     expect(flat.out).toContain('Flat [type]\n');

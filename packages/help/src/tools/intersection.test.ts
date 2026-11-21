@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { FileSet, Tool, ToolInvocation } from '@variance-authority/mcp/tools';
 import { FoundNothing } from './find.js';
-import { intersectionOf } from './intersection.js';
+import { intersectionOf, namesWanted } from './intersection.js';
 
 /**
  * An intersection runs whole questions and answers the files every one of them
@@ -57,7 +57,7 @@ describe('an intersection answers the files every question answers', () => {
     ]);
     expect(text).toContain('1. `{"question":"symbol","input":{"name":"selectBalance"}}`: 2 files');
     expect(text).toContain('2. `{"question":"discover","input":{"from":"src/Wallet.ts"}}`: 3 files');
-    expect(text).toContain('1 file in all of them.');
+    expect(text).toContain('1 file in all of them:');
     expect(text).toContain('src/store/selectors.ts — 1: line 1 · 2: the file');
     expect(text).not.toContain('src/old/selectors.ts');
     expect(text).not.toContain('src/Wallet.ts —');
@@ -82,7 +82,7 @@ describe('an intersection answers the files every question answers', () => {
       { question: 'grep', input: { from: 'src/Wallet.ts' } },
       { question: 'discover', input: { from: 'src/Wallet.ts' } },
     ]);
-    expect(text).toContain('2 files in all of them.');
+    expect(text).toContain('2 files in all of them:');
     const [first, second] = ['src/Wallet.ts —', 'src/store/selectors.ts —'].map((line) => text.indexOf(line));
     expect(first).toBeGreaterThan(-1);
     expect(second).toBeGreaterThan(first!);
@@ -103,7 +103,7 @@ describe('an intersection answers the files every question answers', () => {
       { question: 'grep', input: { from: 'src/Wallet.ts' } },
       { question: 'discover', input: { from: 'src/Wallet.ts' } },
     ]);
-    expect(text).toContain('1 file in all of them.');
+    expect(text).toContain('1 file in all of them:');
     const none = ask([
       { question: 'symbol', input: { name: 'selectBalance' } },
       { question: 'search', input: { name: 'nav' } },
@@ -119,10 +119,24 @@ describe('an intersection answers the files every question answers', () => {
       ],
       { limit: 1 },
     );
-    expect(text).toContain('3 files in all of them.');
-    expect(text).toContain('src/Wallet.ts — 1: the file · 2: the file');
+    // The answer first, the questions it crossed under it, then a row per file.
+    expect(text.split('\n').slice(0, 3)).toEqual([
+      '3 files in all of them:',
+      '1. `{"question":"discover","input":{"from":"src/Wallet.ts"}}`: 3 files',
+      '2. `{"question":"discover","input":{"from":"src/Wallet.ts"}}`: 3 files',
+    ]);
+    expect(text).toContain(': 3 files\nsrc/Wallet.ts — 1: the file · 2: the file\n2 more not shown');
     expect(text).not.toContain('src/store/index.ts —');
-    expect(text).toContain('2 more not shown; a higher `limit` shows them.');
+    expect(text).toContain('2 more not shown; `offset` 1 shows the next 1.');
+    const next = ask(
+      [
+        { question: 'discover', input: { from: 'src/Wallet.ts' } },
+        { question: 'discover', input: { from: 'src/Wallet.ts' } },
+      ],
+      { limit: 1, offset: 1 },
+    );
+    expect(next).toContain('Rows 2–2 of 3.');
+    expect(next).not.toContain('src/Wallet.ts —');
   });
 
   it('asks each question with the subject and everything the host read', () => {
@@ -139,6 +153,13 @@ describe('an intersection answers the files every question answers', () => {
   it('wants the tree when any of its questions does', () => {
     expect(intersection.wants?.({ questions: [{ question: 'symbol', input: { name: 'a' } }, { question: 'discover', input: { from: 'a.ts' } }] })).toBe(true);
     expect(intersection.wants?.({ questions: [{ question: 'symbol', input: { name: 'a' } }, { question: 'symbol', input: { name: 'b' } }] })).toBe(false);
+  });
+
+  it('wants no names for a crossed import of a name out of a file the tree holds', () => {
+    const asked = { questions: [{ question: 'discover', input: { imports: ['src/a.ts#x'] } }] };
+    expect(namesWanted(asked, new Set(['src/a.ts']))).toBe(false);
+    expect(namesWanted(asked, new Set(['src/b.ts']))).toBe(true);
+    expect(namesWanted(asked)).toBe(true);
   });
 });
 

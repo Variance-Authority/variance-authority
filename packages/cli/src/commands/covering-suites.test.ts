@@ -287,6 +287,22 @@ describe('several suites that never loaded the file', () => {
   });
 });
 
+describe('a suite whose test files run past one page, beside one that never loaded the file', () => {
+  it('ends the whole answer with the question that asks that suite\'s next page', () => {
+    const tests = Array.from({ length: 12 }, (_, at) => ({ id: `t${String(at)}`, file: `src/t${String(at).padStart(2, '0')}.test.ts`, name: 'charges' }));
+    const said = formatCoveringAnswer({
+      file: 'src/pay.ts',
+      suites: [
+        { suite: 'checkout', kind: 'e2e', refused: 'unloaded', reason: '`src/pay.ts` is not in the index at `/cache/coverage.bin`.' },
+        { suite: 'unit', kind: 'unit', file: 'src/pay.ts', target: { line: 12 }, tests, from: '/cache/unit.bin' },
+      ],
+    }, 'text', Date.now(), undefined, ['--file', 'src/pay.ts', '--line', '12']);
+
+    expect(said.trimEnd().split('\n').at(-1)).toBe('unit (unit): 2 more not shown; the next 2: `variance covering --file src/pay.ts --line 12 --suite unit --offset 10`.');
+    expect(said).toContain(NOT_LOADED('checkout (e2e)'));
+  });
+});
+
 const UNFETCHED = 'f'.repeat(40);
 
 describe('a file added after the commit a suite recorded at', () => {

@@ -13,10 +13,12 @@ import type { FileRecord } from '@variance-authority/core/relate';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { ParseCache, ParseKey, Parsed } from './cache.js';
 import { cacheLayers } from './test-selection/cache-layers.js';
+import { prunable } from './ordered-map.js';
 import { realPath } from './resolve.js';
 import { prune, type RecordCache, type TreeShape } from './reuse.js';
 import { openSourceIndexFile, type EncodedParseLayer, type SourceIndexState } from './source-index-file.js';
-import { type IndexedRecord, decodeSourceIndex } from './source-index-format.js';
+import type { IndexedRecord } from './source-index-format.js';
+import { readSourceIndexSegment } from './source-index-reader.js';
 import type { NativeIndexGraph } from './native-index-graph.js';
 
 const nativeParses = new WeakMap<ParseCache, EncodedParseLayer>();
@@ -31,9 +33,9 @@ export interface PersistentSourceIndex {
   readonly state: SourceIndexState;
   /** The format version the unread segment names, when `state` is `other-version`. */
   readonly written?: number;
-  /** Content-keyed facts passed to `scanRelations` as `cache`. */
+  /** Content-keyed facts a scan reads and adds to. */
   readonly cache: ParseCache;
-  /** Tree-keyed resolved records passed to `scanRelations` as `reuse`. */
+  /** Tree-keyed resolved records a scan reuses and adds to. */
   readonly reuse: RecordCache;
   /**
    * Atomically publish the facts this scan used. I/O failure is absorbed and
@@ -61,7 +63,7 @@ export function sourceIndexPath(root: string, cacheRoot?: string): string {
 }
 
 /** What {@link openSourceIndex} reads beside the chain itself. */
-export interface SourceIndexOptions {
+interface SourceIndexReads {
   /**
    * The cache's parse stores ([`parse-store.ts`](./parse-store.ts)): a parse
    * the chain does not hold is kept from the first that does, so a scan handed
@@ -77,11 +79,11 @@ export interface SourceIndexOptions {
  * or corrupt one as the segments before the first bad one. Either can make this
  * scan slower and neither can change the resulting graph. A store reads the same way.
  */
-export async function openSourceIndex(path: string, options: SourceIndexOptions = {}): Promise<PersistentSourceIndex> {
+export async function openSourceIndex(path: string, options: SourceIndexReads = {}): Promise<PersistentSourceIndex> {
   const file = await openSourceIndexFile(path);
   const stored = file.stored;
   const kept = await Promise.all((options.stores ?? []).map(async (store) => (await openSourceIndexFile(store)).stored.parses));
-  const available = new Map(stored.records);
+  const available = prunable(stored.records);
   const held: TreeShape | undefined = stored.config === undefined
     ? undefined
     : { config: stored.config, directories: stored.directories };
@@ -100,7 +102,7 @@ export async function openSourceIndex(path: string, options: SourceIndexOptions 
   const fromNative = (key: ParseKey): Parsed | undefined => {
     const layer = nativeParses.get(cache);
     if (layer === undefined || !layer.keys.has(key)) return undefined;
-    decodedNative ??= decodeSourceIndex(layer.bytes).parses;
+    decodedNative ??= readSourceIndexSegment(layer.bytes).parses;
     return decodedNative.get(key);
   };
 

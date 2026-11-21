@@ -560,7 +560,8 @@ impl TsConfig {
         Vec::new()
     }
 
-    pub(crate) fn resolve_base_url(&self, specifier: &str) -> Option<PathBuf> {
+    /// The normalized baseUrl fallback, including its declaring config's directory.
+    pub fn resolve_base_url(&self, specifier: &str) -> Option<PathBuf> {
         self.compiler_options
             .base_url
             .is_some()

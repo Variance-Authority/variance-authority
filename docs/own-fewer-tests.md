@@ -451,6 +451,23 @@ is not a check, and under `--at-distance` it counts only the crossings in the
 band, which an edit still exceeds. Before you add a test for a thin region or split a wide file,
 change the code and rerun the tests the count names, and keep what fails.
 
+## Ask what you ran that no test does
+
+Click through the app yourself, or run a script against it under Node, and
+export the V8 coverage of that run: Playwright's `page.coverage`, CDP, or
+`NODE_V8_COVERAGE`. `variance coverage --session` reads it through the build's
+source maps into the functions the record holds, and lists the ones your run
+entered and no recorded case did:
+
+```bash
+variance coverage --session manual=manual.json --served dist
+```
+
+That list is where a missing test is most likely to matter, since somebody
+used the code and nothing checks it. A session never becomes a case, so
+selection is unchanged; the [CLI reference](../packages/cli/README.md) has the
+formats and the output.
+
 ## Do you need a test?
 
 Add a test when its result can change what happens next. It might prevent a

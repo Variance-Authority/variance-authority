@@ -9,7 +9,9 @@ moved since any clock it handed out.
 ## Good at
 
 Saying that nothing moved. An update that held the tree it was made against
-asks once and, on an empty answer, lists nothing with git.
+asks once and, on an empty answer, lists nothing with git. Saying what moved:
+after a branch switch, a reset or a commit, only the files it names are
+compared, and the held listing answers for the rest.
 
 ## Bad at
 
@@ -20,9 +22,11 @@ the excludes file, HEAD.
 ## How it breaks
 
 A restarted server has no history back to an old clock and says so as a fresh
-instance; `ignore_dirs` hides paths from every answer, and `ignore_vcs` hides
-the directories it names at the watched root; no server listens. Each
-is no answer, and the update lists with git as it would without Watchman.
+instance; `ignore_vcs` hides the directories it names at the watched root;
+no server listens; a watch still crawling, or catching up after a switch,
+fails a sync bounded to about a second. Each is no answer, and the update lists with git as it would
+without Watchman. `ignore_dirs` is not one of them: what the watch ignores is
+out of the source, whatever git lists there.
 
 ## How you talk to it
 

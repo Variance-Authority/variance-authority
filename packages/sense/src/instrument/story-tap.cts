@@ -127,6 +127,8 @@ interface Tap {
   read(): Tape;
   /** Put `text` on the tape where the realm is now, in the case running now. */
   note(text: string): void;
+  /** Put what a test line changed on its page on the tape as {@link note} does, kept apart so a page never crowds out what the code said. */
+  notePage(text: string): void;
   /** Have the tape keep when each turn of the realm began, read off `clock`. */
   stampWith(clock: () => number): void;
   /** Put `text` after every turn begun and line cut by `time` on that clock; without one, as {@link Tap.note}. */
@@ -159,7 +161,8 @@ const TAPE_LIMIT = 1 << 24;
 
 /**
  * How many notes one tape keeps of what the code said, and as many again of
- * what its regions were handed and of its frames; and how many characters of each.
+ * what its regions were handed, of its frames and of what changed on its page;
+ * and how many characters of each.
  */
 const NOTE_LIMIT = 4096;
 const NOTE_LENGTH = 240;
@@ -200,9 +203,12 @@ function createTap(engine: Engine, limit: number, live = false): Tap {
   let seen = -1;
   let notes: [number, string, string][] = [];
   let unnoted = 0;
-  // How many notes each kind put on the tape: what a region was handed, or the
-  // browser reported of its frames, never crowds out what the code said.
-  let [spoken, handedOver, framed] = [0, 0, 0];
+  // How many notes each kind put on the tape: what a region was handed, the
+  // browser reported of its frames, or changed on the page, never crowds out
+  // what the code said.
+  let kept = { spoken: 0, handed: 0, framed: 0, paged: 0 };
+  // Whether one more note of a kind fits its share, counted there if it does and as unnoted if not.
+  const room = (kind: keyof typeof kept): boolean => (kept[kind] < NOTE_LIMIT ? ((kept[kind] += 1), true) : ((unnoted += 1), false));
   // Every test line, and how many notes there were at the last one: a line
   // nothing followed, visit or note, gives way to the next.
   type Line = [at: number, key: string, line: number, said: number, hook?: 1];
@@ -310,13 +316,9 @@ function createTap(engine: Engine, limit: number, live = false): Tap {
       if (parts !== undefined) {
         const into = parts.here();
         if (region === 0 || into === undefined || !parts.room(into, 'handed')) return;
-      } else if (handedOver >= NOTE_LIMIT) {
-        unnoted += 1;
-        return;
-      }
+      } else if (!room('handed')) return;
       try {
         const said = names.split(',').map((name, index) => `${name}=${shown(values[index])}`);
-        if (parts === undefined) handedOver += 1;
         if (region !== 0) put(`handed ${said.join(', ')}`);
         else held.set(module, put(`holds ${said.join(', ')}`));
       } catch {
@@ -427,20 +429,18 @@ function createTap(engine: Engine, limit: number, live = false): Tap {
         if (into !== undefined && parts.room(into, 'spoken')) put(text);
         return;
       }
-      if (spoken >= NOTE_LIMIT) {
-        unnoted += 1;
-        return;
-      }
-      spoken += 1;
-      put(text);
+      if (room('spoken')) put(text);
+    },
+    notePage(text: string): void {
+      if (parts !== undefined) return api.note(text);
+      if (room('paged')) put(text);
     },
     stampWith(given: () => number): void {
       clock = given;
     },
     noteAt(time: number, text: string): void {
       if (parts !== undefined || clock === undefined) return api.note(text);
-      if (framed >= NOTE_LIMIT) return void (unnoted += 1);
-      framed += 1;
+      if (!room('framed')) return;
       put(text);
       // The first turn that began after `time` ran after it, and all that follow.
       let turn = 0;
@@ -468,7 +468,7 @@ function createTap(engine: Engine, limit: number, live = false): Tap {
       notes = [];
       lines = [];
       unnoted = 0;
-      [spoken, handedOver, framed] = [0, 0, 0];
+      kept = { spoken: 0, handed: 0, framed: 0, paged: 0 };
       taped = 0;
       visits = 0;
       at = [];

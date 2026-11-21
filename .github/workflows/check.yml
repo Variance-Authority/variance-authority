@@ -642,6 +642,28 @@ jobs:
           suite: ${{ matrix.suite }}
           index: ${{ strategy.job-index }}
 
+      # On a pull request, a unit shard's files again on shared modules:
+      # `yarn test:shared` records nothing, so the part handed on above is what
+      # the waves ran. A test that passes only on module state an earlier file
+      # left goes red here, in the leg that gates the change. A selected leg
+      # asks the same record for every hop at once, placed as its waves placed
+      # them, so the shard runs the files both its waves ran; a leg that ran
+      # every file runs its shard of every file. Its files run in a new order
+      # each time, and the run prints the seed: the same command with
+      # `--sequence.seed=<seed>` orders the same shard again.
+      - name: run the shard on shared modules
+        if: matrix.suite == 'unit' && github.event_name == 'pull_request'
+        shell: bash
+        env:
+          SELECT: ${{ matrix.mode == 'selected' }}
+          SHARD: ${{ matrix.shard }}
+        run: |
+          if [ "$SELECT" = true ]; then
+            VARIANCE_AUTHORITY_SINCE='' VARIANCE_AUTHORITY_AT_DISTANCE=0- VARIANCE_AUTHORITY_PLACE_AT_DISTANCE=0- yarn test:shared --shard "$SHARD"
+          else
+            yarn test:shared --shard "$SHARD"
+          fi
+
   record:
     # The suite's record of this change, made whole again from the jobs that
     # ran it, and read: every shard's record laid over the mainline's, the
@@ -993,10 +1015,10 @@ jobs:
     # documentation failure is two minutes to find, so it does not spend a
     # runner on a change that is already red, and it is not in `needs` of
     # `check`, so the wait adds nothing to the gate's time. It runs on `main`
-    # and on a dispatch, not on a pull request: its finding is about the whole slice in one
-    # process, which no change's selection holds, and nothing gates on it, so a
-    # pull request paid a runner to learn what its unit `suite` legs had
-    # already said.
+    # and on a dispatch, not on a pull request: its finding is about the whole
+    # slice in one process, which no change's selection holds. A pull request
+    # runs its unit shards on shared modules in its unit `suite` legs, where a
+    # red gates it.
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     needs: rules
     runs-on: ubuntu-24.04

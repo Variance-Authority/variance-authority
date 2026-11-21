@@ -10,12 +10,12 @@
 
 // compass: variance-authority.reach.source-index
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::parse_columns::{ParseColumns, ParseRow};
 use crate::segment::{Collected, Strings};
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct HeldBinding {
     imported: String,
     local: String,
@@ -25,7 +25,7 @@ pub struct HeldBinding {
     line: u32,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct HeldRequest {
     value: String,
     kind: String,
@@ -33,88 +33,101 @@ pub struct HeldRequest {
     bindings: Vec<HeldBinding>,
     #[serde(default)]
     line: u32,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     guessed: bool,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     item: bool,
     /// `republishes` in `read.rs`; absent is an import, as JavaScript writes none for one.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     republishes: bool,
 }
 
 /// `TextSpan` in `harvest.ts`; an end JavaScript did not write reads as absent,
 /// and so does a text it did not keep.
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct HeldSpan {
+    #[serde(skip_serializing_if = "Option::is_none")]
     start: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     end: Option<u32>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     text: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct HeldExport {
+    #[serde(skip_serializing_if = "Option::is_none")]
     exported: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     local: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     from: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     imported: Option<String>,
     #[serde(default, rename = "type")]
     type_only: bool,
     #[serde(default)]
     line: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
     signature: Option<HeldSpan>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     doc: Option<HeldSpan>,
-    #[serde(default, rename = "roles", deserialize_with = "crate::declared_role::deserialize")]
+    #[serde(default, rename = "roles", deserialize_with = "crate::declared_role::deserialize", serialize_with = "crate::declared_role::serialize", skip_serializing_if = "no_roles")]
     tags: u8,
-    #[serde(default, rename = "lineText")]
+    #[serde(default, rename = "lineText", skip_serializing_if = "Option::is_none")]
     line_text: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct HeldSymbol {
     name: String,
     kind: String,
     #[serde(default)]
     line: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
     signature: Option<HeldSpan>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     doc: Option<HeldSpan>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     reach: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct HeldNested {
     name: String,
     kind: String,
     #[serde(default)]
     line: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
     signature: Option<HeldSpan>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     doc: Option<HeldSpan>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     holder: Option<String>,
     #[serde(default, rename = "holderLine")]
     holder_line: u32,
 }
 
-#[derive(Debug, Default, Deserialize)]
+#[derive(Debug, Default, Deserialize, Serialize)]
 pub struct HeldMocks {
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     minus: Vec<String>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     plus: Vec<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct HeldMember {
     #[serde(default)]
     request: u32,
     name: String,
     #[serde(default)]
     line: u32,
-    #[serde(default, rename = "throughDefault")]
+    #[serde(default, rename = "throughDefault", skip_serializing_if = "std::ops::Not::not")]
     through_default: bool,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct HeldMemberDeclaration {
     name: String,
     #[serde(default)]
@@ -122,12 +135,13 @@ pub struct HeldMemberDeclaration {
     #[serde(default)]
     on: String,
     #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     doc: Option<HeldSpan>,
-    #[serde(default, rename = "lineText")]
+    #[serde(default, rename = "lineText", skip_serializing_if = "Option::is_none")]
     line_text: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct HeldMemberUse {
     name: String,
     #[serde(default)]
@@ -138,53 +152,70 @@ pub struct HeldMemberUse {
     how: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct HeldOwnUse {
     name: String,
     #[serde(default)]
     line: u32,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct HeldBindingMember {
     #[serde(default)]
     request: u32,
     binding: String,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     within: Vec<String>,
     name: String,
     #[serde(default)]
     line: u32,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct HeldParse {
     requests: Vec<HeldRequest>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     exports: Option<Vec<HeldExport>>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     symbols: Vec<HeldSymbol>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     harvested: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
     declares: Option<Vec<String>>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "HeldMocks::is_empty")]
     mocks: HeldMocks,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     members: Vec<HeldMember>,
-    #[serde(default, rename = "memberDeclarations")]
+    #[serde(default, rename = "memberDeclarations", skip_serializing_if = "Vec::is_empty")]
     member_declarations: Vec<HeldMemberDeclaration>,
-    #[serde(default, rename = "memberUses")]
+    #[serde(default, rename = "memberUses", skip_serializing_if = "Vec::is_empty")]
     member_uses: Vec<HeldMemberUse>,
-    #[serde(default, rename = "ownUses")]
+    #[serde(default, rename = "ownUses", skip_serializing_if = "Vec::is_empty")]
     own_uses: Vec<HeldOwnUse>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     nested: Vec<HeldNested>,
-    #[serde(default, rename = "bindingMembers")]
+    #[serde(default, rename = "bindingMembers", skip_serializing_if = "Vec::is_empty")]
     binding_members: Vec<HeldBindingMember>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     unknown: Option<String>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     size: Option<crate::source_size::Size>,
     #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     doc: Option<HeldSpan>,
+}
+
+#[path = "held_read.rs"]
+mod read;
+
+fn no_roles(tags: &u8) -> bool {
+    *tags == 0
+}
+
+impl HeldMocks {
+    fn is_empty(&self) -> bool {
+        self.minus.is_empty() && self.plus.is_empty()
+    }
 }
 
 /// Both ends, each `NONE` where JavaScript's `optional` would write it, and the text.

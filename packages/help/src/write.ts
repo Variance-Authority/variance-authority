@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { type Help, type Page, readHelp, writeGaps, writeIndex, writeLlms } from '@variance-authority/package/help';
+import { type Help, type Page, writeGaps, writeIndex, writeLlms } from '@variance-authority/package/help';
+import { readHelp } from './walk.js';
 
 /**
  * The same answers, as files, for the readers that cannot call a tool.

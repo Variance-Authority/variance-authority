@@ -156,6 +156,8 @@ export interface NativeCasesEntered {
 
 /** One package's place in the dependency layers of a kept code map. */
 export interface NativeOrientPackageLayer {
+  /** The innermost area whose page lists it; absent for a package only the top page lists. */
+  readonly area?: { readonly id: string; readonly name: string } | null;
   readonly package: string;
   readonly directory: string;
   /** One more than the highest layer among the packages it takes; one that takes nothing is layer 1. */
@@ -261,6 +263,8 @@ export interface NativeOrientMapPrepared {
   readonly unmarked: boolean;
   /** No scan's listing was carried to the map, so git listed the checkout again for it. */
   readonly relisted: boolean;
+  /** The map kept beside the index was folded from this index and these manifests, so it was kept as it is and nothing was read or folded. */
+  readonly kept: boolean;
 }
 
 /** A package or an area on one row, and how many importing files the share counts. */

@@ -13,6 +13,8 @@ use std::collections::{HashMap, HashSet};
 use napi::bindgen_prelude::{Uint32Array, Uint8Array};
 use napi_derive::napi;
 
+use crate::breadth_first::breadth_first;
+
 /// One file's mocks: the files its run never reaches.
 #[napi(object)]
 pub struct JourneyShadow {
@@ -108,31 +110,15 @@ impl<'a> Graph<'a> {
     fn search(&self, adjacency: &Adjacency, seeds: &[u32], avoid: &[u8]) -> Vec<u8> {
         let nodes = self.names.len();
         let mut mask = vec![0u8; nodes];
-        let mut queue: Vec<u32> = Vec::new();
-        for &seed in seeds {
-            let at = seed as usize;
-            if at >= nodes || mask[at] == 1 || avoid.get(at) == Some(&1) {
-                continue;
+        breadth_first(adjacency.offset, adjacency.target, seeds, |from, next| {
+            let at = next as usize;
+            let through = from.is_none_or(|(_, edge)| self.allowed[adjacency.kind[edge] as usize]);
+            if !through || at >= nodes || mask[at] == 1 || avoid.get(at) == Some(&1) {
+                return false;
             }
             mask[at] = 1;
-            queue.push(seed);
-        }
-        let mut head = 0;
-        while head < queue.len() {
-            let node = queue[head] as usize;
-            head += 1;
-            for at in adjacency.offset[node] as usize..adjacency.offset[node + 1] as usize {
-                if !self.allowed[adjacency.kind[at] as usize] {
-                    continue;
-                }
-                let next = adjacency.target[at] as usize;
-                if mask[next] == 1 || avoid.get(next) == Some(&1) {
-                    continue;
-                }
-                mask[next] = 1;
-                queue.push(next as u32);
-            }
-        }
+            true
+        });
         mask
     }
 

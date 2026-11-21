@@ -1,13 +1,13 @@
 import { execFile } from 'node:child_process';
-import { mkdir, mkdtemp, rm, symlink, unlink, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, realpath, rm, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
 import { afterAll, describe, expect, it } from 'vitest';
 import type { Digest } from '@variance-authority/core/format';
 import type { FileRecord } from '@variance-authority/core/relate';
-import { memoryRecordCache, openRecordCache, treeShapeOf, type RecordCache, type TreeShape } from './reuse.js';
-import { scanRelations } from './scan.js';
+import { memoryRecordCache, treeShapeOf, type RecordCache, type TreeShape } from './reuse.js';
+import { scanRelations } from './test-support/scan.js';
 import { directoriesOf } from './witness.js';
 
 /**
@@ -90,15 +90,14 @@ describe('naming the shape of a tree', () => {
     expect(after.directories.get('')).toBe(before.directories.get(''));
   });
 
-  it('moves the configuration when a file that decides resolution is edited', async () => {
+  it('keeps the configuration when a file that decides resolution is edited', async () => {
     const edited = tree([...files].map(([path, digest]) =>
       path === 'package.json' ? ([path, B] as const) : ([path, digest] as const),
     ));
 
-    // One `paths` entry in a `tsconfig` redirects every `@/` specifier in the
-    // repository. Its own digest is the only thing that says so, and there is no
-    // narrower answer than everything.
-    expect((await shapeOf(edited)).config).not.toBe((await shapeOf(files)).config);
+    // A configuration file is a file (#1523): its edit reaches the imports that
+    // use it through the source edits that come with it, and no other record.
+    expect((await shapeOf(edited)).config).toBe((await shapeOf(files)).config);
   });
 
   it('holds still entirely when a source file is edited', async () => {
@@ -125,7 +124,7 @@ describe('naming the shape of a tree', () => {
     expect((await shapeOf(files, { largestFile: 8 })).config).not.toBe(before.config);
   });
 
-  it('moves when the config the caller names is edited, though the listing does not hold it', async () => {
+  it('keeps the configuration when the config the caller names is edited', async () => {
     const at = await mkdtemp(join(tmpdir(), 'variance-reuse-named-'));
     made.push(at);
     await mkdir(join(at, 'config'));
@@ -137,10 +136,10 @@ describe('naming the shape of a tree', () => {
     const before = await named();
     await writeFile(join(at, 'config/aliases.json'), '{ "compilerOptions": { "paths": { "@/*": ["lib/*"] } } }');
 
-    expect(await named()).not.toBe(before);
+    expect(await named()).toBe(before);
   });
 
-  it('falls back to the whole path set when no configuration bounds an alias', async () => {
+  it('keeps the configuration when a configuration cannot be read and a path appears', async () => {
     const at = await mkdtemp(join(tmpdir(), 'variance-reuse-'));
     made.push(at);
     await writeFile(join(at, 'tsconfig.json'), '{ this is not JSON', 'utf8');
@@ -150,11 +149,9 @@ describe('naming the shape of a tree', () => {
     const shapes = async (digests: ReadonlyMap<string, Digest>): Promise<TreeShape> =>
       (await treeShapeOf({ root: at, digests })).shape;
 
-    // A `tsconfig` that cannot be read is no bound on where a bare specifier
-    // lands, so there is no bound on what a new path can change either. The old
-    // whole-tree rule is the honest answer here, and this is the only place it
-    // still applies.
-    expect((await shapes(added)).config).not.toBe((await shapes(held)).config);
+    // A `tsconfig` that cannot be read declares no alias, and rebuilds nothing
+    // beyond its own record: a new path moves only the directory that holds it.
+    expect((await shapes(added)).config).toBe((await shapes(held)).config);
   });
 });
 
@@ -204,109 +201,6 @@ describe('the record cache in memory', () => {
     cache.set({ file: 'src/legacy.js', unknown: 'could not be read' }, []);
 
     expect(cache.get('src/legacy.js', A)).toBeUndefined();
-  });
-});
-
-describe('the record cache on disk', () => {
-  async function path(): Promise<string> {
-    const dir = await mkdtemp(join(tmpdir(), 'variance-reuse-'));
-    made.push(dir);
-    return join(dir, 'nested', 'records.bin');
-  }
-
-  it('round-trips a record, and prunes one nothing touched', async () => {
-    const file = await path();
-
-    const first = await openRecordCache(file);
-    first.under(HERE);
-    first.set(RECORD, WITNESSES);
-    first.set({ file: 'src/Clock.tsx', digest: B }, WITNESSES);
-    await first.save();
-
-    const second = await openRecordCache(file);
-    second.under(HERE);
-    expect(second.get('src/Button.tsx', A)).toEqual(RECORD);
-    await second.save();
-
-    const third = await openRecordCache(file);
-    third.under(HERE);
-    expect(third.get('src/Button.tsx', A)).toEqual(RECORD);
-    expect(third.get('src/Clock.tsx', B)).toBeUndefined();
-  });
-
-  it('carries a record’s witnesses across the file, not just its edges', async () => {
-    const file = await path();
-
-    const first = await openRecordCache(file);
-    first.under(HERE);
-    first.set(RECORD, WITNESSES);
-    await first.save();
-
-    // Witnesses are derived from the specifiers, which live in a parse the next
-    // run never opens. Losing them on the way to disk would make every reused
-    // record unprunable, which is worse than not reusing it.
-    const second = await openRecordCache(file);
-    second.under(shape(['package.json', 'src/Button.tsx', 'src/button.css', 'src/late.ts']));
-
-    expect(second.get('src/Button.tsx', A)).toBeUndefined();
-  });
-
-  it('discards a file written under another configuration', async () => {
-    const file = await path();
-
-    const first = await openRecordCache(file);
-    first.under(HERE);
-    first.set(RECORD, WITNESSES);
-    await first.save();
-
-    const second = await openRecordCache(file);
-    second.under({ ...HERE, config: B });
-
-    expect(second.get('src/Button.tsx', A)).toBeUndefined();
-  });
-
-  it('writes nothing at all when no scan adopted a shape', async () => {
-    const file = await path();
-
-    const first = await openRecordCache(file);
-    first.under(HERE);
-    first.set(RECORD, WITNESSES);
-    await first.save();
-
-    // A scan with no digests validates nothing and reuses nothing. Letting it
-    // save would replace a usable cache with an empty one, and the next scan
-    // that *could* have reused would pay for it.
-    const unused = await openRecordCache(file);
-    await unused.save();
-
-    const third = await openRecordCache(file);
-    third.under(HERE);
-    expect(third.get('src/Button.tsx', A)).toEqual(RECORD);
-  });
-
-  it('starts empty on a file that is not what it expects', async () => {
-    const file = await path();
-    await mkdir(dirname(file), { recursive: true });
-    await writeFile(file, 'half an index', 'utf8');
-
-    const cache = await openRecordCache(file);
-    cache.under(HERE);
-
-    expect(cache.get('src/Button.tsx', A)).toBeUndefined();
-  });
-
-  it('saves nowhere rather than failing the run', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'variance-reuse-'));
-    made.push(dir);
-
-    const blocked = join(dir, 'file');
-    await writeFile(blocked, 'not a directory', 'utf8');
-
-    const cache = await openRecordCache(join(blocked, 'records.bin'));
-    cache.under(HERE);
-    cache.set(RECORD, WITNESSES);
-
-    await expect(cache.save()).resolves.toBeUndefined();
   });
 });
 
@@ -390,6 +284,31 @@ describe('a scan that remembers the last one', () => {
     expect(button?.edges).toEqual([{ to: 'src/later.ts', kind: 'imports' }]);
   });
 
+  it.each([
+    ['paths', { paths: { '@alias/*': ['mapped/*'] } }, 'mapped'],
+    ['baseUrl fallback', { baseUrl: 'base', paths: { '@alias/*': ['missing/*'] } }, 'base/@alias'],
+    ['stylesheet fallback', { paths: { '@alias/*': ['mapped/*'] } }, 'mapped'],
+  ] as const)('re-resolves a missing %s target when it appears under default settings', async (name, compilerOptions, target) => {
+    const root = await realpath(await repository());
+    const importer = name === 'stylesheet fallback' ? 'src/theme.scss' : 'src/Clock.tsx';
+    await write(root, 'tsconfig.json', JSON.stringify({ compilerOptions, files: [importer] }));
+    await write(root, importer, name === 'stylesheet fallback' ? '@use "@alias/later";\n' : 'import "@alias/later";\n');
+    await write(root, `${target}/marker.ts`, 'export const marker = 1;\n');
+    const reuse = memoryRecordCache();
+    const scan = () => scanRelations({ root, dirs: ['src'], reuse });
+    const before = await scan();
+    expect(before.find((record) => record.file === importer)?.edges).toBeUndefined();
+
+    await write(root, `${target}/later.ts`, 'export const later = 1;\n');
+    const cold = await scanRelations({ root, dirs: ['src'] });
+    expect(cold.find((record) => record.file === importer)?.edges)
+      .toEqual([{ to: `${target}/later.ts`, kind: name === 'stylesheet fallback' ? 'asset' : 'imports' }]);
+    const after = await scan();
+    expect(after.find((record) => record.file === importer)?.edges)
+      .toEqual([{ to: `${target}/later.ts`, kind: name === 'stylesheet fallback' ? 'asset' : 'imports' }]);
+    expect(after).toEqual(cold);
+  });
+
   it('re-resolves a file that did not move, when a file it names is deleted', async () => {
     const root = await repository();
     const reuse = memoryRecordCache();
@@ -401,57 +320,6 @@ describe('a scan that remembers the last one', () => {
     const clock = records.find((record) => record.file === 'src/Clock.tsx');
     expect(clock?.edges).toBeUndefined();
     expect(clock?.unknown).toContain('./time.js');
-  });
-
-  it('keeps every record when a path appears elsewhere, under a base a workspace package exports', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'variance-reuse-'));
-    made.push(root);
-    await write(root, '.gitignore', 'node_modules\n');
-    await write(root, 'package.json', '{ "name": "fixture", "type": "module", "workspaces": ["packages/*"] }');
-    await write(root, 'tsconfig.json', '{ "extends": "@fixture/tsconfig/base", "include": ["src"] }');
-    await write(
-      root,
-      'packages/tsconfig/package.json',
-      '{ "name": "@fixture/tsconfig", "exports": { "./base": "./tsconfig.base.json" } }',
-    );
-    await write(
-      root,
-      'packages/tsconfig/tsconfig.base.json',
-      '{ "compilerOptions": { "paths": { "@app/*": ["../../src/*"] } } }',
-    );
-    await write(root, 'src/Clock.tsx', "import { now } from '@app/time';\nexport const Clock = now;\n");
-    await write(root, 'src/time.ts', 'export const now = 1;\n');
-    await mkdir(join(root, 'node_modules/@fixture'), { recursive: true });
-    await symlink(join(root, 'packages/tsconfig'), join(root, 'node_modules/@fixture/tsconfig'), 'dir');
-    await git(root, ['init', '--quiet']);
-    await git(root, ['add', '-A']);
-    await git(root, ['commit', '--quiet', '-m', 'one']);
-
-    const memory = memoryRecordCache();
-    const rebuilt: string[] = [];
-    const reuse: RecordCache = {
-      ...memory,
-      set(record, witnesses, targets) {
-        rebuilt.push(record.file);
-        memory.set(record, witnesses, targets);
-      },
-    };
-    const before = await scanRelations({ root, dirs: ['src'], reuse });
-    expect(before.find((record) => record.file === 'src/Clock.tsx')?.edges).toEqual([
-      { to: 'src/time.ts', kind: 'imports' },
-    ]);
-
-    rebuilt.length = 0;
-    await write(root, 'docs/page.md', '# a page\n');
-    await git(root, ['add', 'docs/page.md']);
-    const after = await scanRelations({ root, dirs: ['src'], reuse });
-
-    // The root config's `paths` come from a package, and the package's link
-    // leads back to a file git tracks, so they bound where `@app/time` can land
-    // and a page under `docs/` is nowhere near it. Unfollowed, the same base
-    // left every record unbounded and this scan rebuilt all of them.
-    expect(rebuilt).toEqual([]);
-    expect(JSON.stringify(after)).toBe(JSON.stringify(await scanRelations({ root, dirs: ['src'] })));
   });
 
   it('reuses nothing when it was told not to trust digests', async () => {

@@ -93,6 +93,15 @@ export function shell(value: string): string {
   return /^[\w@./:=+-]+$/u.test(value) ? value : `'${value.replace(/'/gu, `'\\''`)}'`;
 }
 
+/** At most this many names on the one line that stands for a list the repository's own answer outranks. */
+const NAMED = 5;
+
+/** A list on one line, after a blank one: its head, up to five of its names, how many more it holds, and `whole`, what shows it all. */
+export function named(head: string, names: readonly string[], total: number, whole: string): readonly string[] {
+  const shown = names.slice(0, NAMED);
+  return ['', `${head}: ${shown.join(', ')}${total > shown.length ? ` and ${total - shown.length} more` : ''}. ${whole}`];
+}
+
 /** The commands that take an answer further, after a blank line and a heading; nothing when there are none. */
 export function narrower(asks: readonly string[]): readonly string[] {
   return asks.length === 0 ? [] : ['', 'Narrower questions:', ...asks.map((command) => `  ${command}`)];
@@ -155,4 +164,82 @@ export function said(entry: Entry): readonly string[] {
     '',
     entry.mention.text,
   ];
+}
+
+/*
+ * The row grammar every located answer shares, read by agents for the facts
+ * per token. A row is one line. What the rows on a page share is said once:
+ * a file with several rows is a heading with its lines under it, as
+ * `rg --heading` prints them, and the run of import steps every chain on a
+ * page ends with is printed once above the rows, each row keeping its own.
+ */
+
+/** One located row: a file, a line in it, and what stands there. */
+export interface Located {
+  readonly file: string;
+  readonly line: number;
+  readonly text: string;
+  /** What the row adds about that line, said on the line below it. */
+  readonly note?: string;
+}
+
+/** `12: text`, the line and what stands on it, under a file already named. */
+export const atLine = (line: number, text: string): string => `${line}: ${text.trimStart()}`;
+
+/**
+ * Rows in their order, a run of one file's rows said under that file once:
+ * a file with one row is `file:line: text`, a file with several is the file,
+ * then `  line: text` per row. A row's note follows it, one step deeper.
+ */
+export function byFile(rows: readonly Located[]): readonly string[] {
+  const lines: string[] = [];
+  for (let at = 0; at < rows.length; ) {
+    const file = rows[at]!.file;
+    let end = at;
+    while (end < rows.length && rows[end]!.file === file) end++;
+    const said = (row: Located, indent: string): void => {
+      if (row.note !== undefined) lines.push(`${indent}  ${row.note}`);
+    };
+    if (end - at === 1) {
+      lines.push(`${file}:${atLine(rows[at]!.line, rows[at]!.text)}`);
+      said(rows[at]!, '');
+    } else {
+      lines.push(file);
+      for (let row = at; row < end; row++) {
+        lines.push(`  ${atLine(rows[row]!.line, rows[row]!.text)}`);
+        said(rows[row]!, '  ');
+      }
+    }
+    at = end;
+  }
+  return lines;
+}
+
+/**
+ * The longest run of steps every chain on a page ends with, when two chains or
+ * more share one; none otherwise. Even the target alone is worth saying once:
+ * it is the longest step of every row. The run stops short of every chain's
+ * first step, so no row's own file is folded into the end it shares.
+ */
+export function chainsEnd(chains: readonly (readonly string[])[]): readonly string[] {
+  if (chains.length < 2) return [];
+  let shared = Math.min(...chains.map((chain) => chain.length)) - 1;
+  const first = chains[0]!;
+  for (const chain of chains.slice(1)) {
+    let same = 0;
+    while (same < shared && chain[chain.length - 1 - same] === first[first.length - 1 - same]) same++;
+    shared = same;
+  }
+  return shared === 0 ? [] : first.slice(first.length - shared);
+}
+
+/**
+ * A chain short of the end every chain on its page shares: its own steps,
+ * then `→ …` where the shared end follows. A chain is never cut below its
+ * first step, the file the row is about.
+ */
+export function ownSteps(chain: readonly string[], end: readonly string[]): string {
+  if (end.length === 0) return chain.join(' → ');
+  const own = chain.slice(0, Math.max(1, chain.length - end.length));
+  return own.length < chain.length ? `${own.join(' → ')} → …` : own.join(' → ');
 }

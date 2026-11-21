@@ -652,7 +652,8 @@ moves onto it: every test file you did not run reads the newer record, and a
 file you ran keeps your rows if it ran at that commit or after it. A newer
 record of a commit your branch does not contain changes nothing, so long work
 keeps the record it started from until you merge or rebase. The answer names
-both:
+both, the latest state your runs landed over by name and the earlier ones as
+one count, so the line stays one line however long the checkout has run:
 
 ```text
 record of "unit": read from this checkout's own, over mainline main at 3f1c9a2…, 4 commit(s) before HEAD; 2 test file(s) ran here, every other is the mainline's: test/cart.test.ts, test/total.test.ts at 8e01b44…
@@ -764,6 +765,31 @@ file already has:
 Paths resolve against this file's own directory, and unknown keys are refused by
 name. Every kind takes `mainlines` and `remote`. There are three kinds, and a
 Tribunal deployment is an `http` share.
+
+Every kind also takes `sourceIndex`, which is off by default. It is for a
+repository where building the [source index](source-index.md) from nothing
+takes minutes, so that a release that changes the index's format does not cost
+every checkout those minutes:
+
+- **A mainline's publish adds the index CI built** as one more entry beside the
+  record, at the same commit.
+- **An update over an index a release in another format wrote fetches it** as
+  it starts, while it lists the checkout; the mainline's record never waits for
+  it. The update reads only the files that differ from CI's index. An index in
+  this release's format is never replaced. When another checkout on the
+  machine has an index in this release's format that opens, the update starts
+  from that one and drops the download without waiting for it.
+- **The index is large, and stored once.** On Firefox, about 200,000 files, it
+  is about 2 GB, or 0.7 GB compressed. It is published in pieces of 32 MiB, and
+  the share stores each piece once by its content, however many commits name
+  it. A commit uploads only the pieces of the segments its update wrote: little
+  while CI keeps its index between runs, and all of it when a CI job builds the
+  index from nothing. A git share keeps the pieces in each kept commit's tree,
+  where git stores an object once, until `--purge-older-than` deletes them. A
+  directory or HTTP share deletes no piece, so it grows by what each commit
+  uploads.
+- **A checkout that updates `variance` before CI publishes** an index in the new
+  format finds none, and reads every file.
 
 ### The repository's own refs
 

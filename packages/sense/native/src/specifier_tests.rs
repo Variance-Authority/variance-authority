@@ -2,7 +2,8 @@
 
 use std::collections::HashSet;
 
-use super::{extname, is_relative, kind_for, package_of, request_of};
+use super::{extname, is_relative, is_relative_in, kind_for, package_of, request_of};
+use crate::read_any::Language;
 
 fn set(values: &[&str]) -> HashSet<String> {
     values.iter().map(|value| (*value).to_owned()).collect()
@@ -39,6 +40,23 @@ fn relative_is_the_four_module_spellings() {
     for request in [".a", "..a", "a", "/a"] {
         assert!(!is_relative(request), "{request}");
     }
+}
+
+#[test]
+fn a_hole_is_a_path_the_language_spells_in_this_repository() {
+    // Rust: a spelled path, or one from this crate; never a foreign crate.
+    for request in ["self::order", "crate::read::Read", "super::Up", "other/place.rs"] {
+        assert!(is_relative_in(Language::Rust, request), "{request}");
+    }
+    assert!(!is_relative_in(Language::Rust, "std::fmt::Display"));
+    // Python: a leading dot, which in a module is a bare package name.
+    assert!(is_relative_in(Language::Python, ".sibling"));
+    assert!(!is_relative_in(Language::Module, ".sibling"));
+    // Java, Kotlin and Swift spell a first-party import as a platform one is.
+    for language in [Language::Java, Language::Kotlin, Language::Swift] {
+        assert!(!is_relative_in(language, "./a"));
+    }
+    assert!(is_relative_in(Language::Style, "./a"));
 }
 
 #[test]

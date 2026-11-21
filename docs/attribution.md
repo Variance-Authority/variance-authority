@@ -4,18 +4,18 @@ A pixel differ answers one question — how many pixels differ — and *5482*
 cannot be read, cannot be assigned, and leaves you opening the image to look,
 which is the expensive act the tool was supposed to replace. Attribution turns
 the count into **this region, inside `Toggle`, in
-`main → region "Todos" → item 2 of 3`, written at
+`main → region "Todos" → list item 2 of 3`, written at
 `examples/todomvc/src/ds/components.tsx:107`.**
 
-Read this page to find out how a changed region gets a component name and a
-`file:line`, what each step needs from your build, and where the chain stops
+Read this page to find out how a changed region is graded strong or faint, how
+it gets a component name and a `file:line`, what each step needs from your build, and where the chain stops
 instead of guessing. New here? Start with [your first run](start.md).
 
 Five hops, each one a pure function over data the run already has.
 
 | hop | from | to | needs |
 |---|---|---|---|
-| isolate | a change mask | regions with boxes | nothing but the mask |
+| isolate | a change mask | regions with boxes and grades | nothing but the mask |
 | join | regions and a snapshot | a node per region | a snapshot with rects |
 | name | a node's provenance | a component | React's owner links, which a development build keeps |
 | orient | a node's path | a landmark phrase | landmarks, roles and list position in the snapshot |
@@ -32,8 +32,9 @@ which components produced it, so by the time a change is observed its author is
 
 ## Where on the canvas
 
-A change arrives as a mask: one byte per pixel, row-major, `1` where the pixel
-differs, and the changed count comes with it so nothing has to rescan.
+A change arrives as a mask: one byte per pixel, row-major, `0` where the pixel
+is the same and its [grade](#how-strongly-it-changed), from 1 to 4, where it differs. The
+changed count comes with it so nothing has to rescan.
 
 `isolateRegions` clusters it. Connected components are computed on a coarse grid
 — **8 pixels by default** — rather than on the pixels themselves, and the grid
@@ -46,10 +47,85 @@ tightened back onto the actual changed pixels afterwards, so a region's box is
 exact. Each region has a pixel count and a density — `pixels / area` — which is
 what tells a scattered text change from a solid block of repaint.
 
-Regions come back largest first, capped at 32, and the cap is *reported*:
+Regions come back largest first, capped at 32 with the [faintest](#how-strongly-it-changed)
+dropped first, and the cap is *reported*:
 `truncated` counts the regions dropped and `truncatedPixels` the change in them.
 A capped list that does not report its cap reads as complete coverage, and the
 reader has no way to know the difference.
+
+### Shape, or only colour
+
+A repainted button and a button that moved both leave a region, and only one
+of them needs opening. Each listed region says which it is in `change`, and the
+verdict's sentence counts them: `1 changed in shape and 1 only in colour`.
+
+The pixels inside the box, and 2 more on each side, are read on both images,
+each paired with the before pixel it was compared against, so a page whose rows
+moved is read at the move. Pixels in an excluded subtree are not read. On each
+side, every pixel is an edge or flat by its colour distance to its right and
+lower neighbours in the same image, by the distance the judge measures: as far
+as a 0.05 threshold is an edge, a quarter of that or less is flat, and a pixel
+between them, as an anti-aliased edge often is, abstains. The scale is fixed,
+so a strong edge beside the region changes nothing in it. A pixel that
+is an edge on one side and flat on the other is drawing that moved, appeared or
+went, and makes the region `shape`; a row the after image gained has no
+partner and does the same. Where the edges stand where they stood, only the
+colour changed: `colour`. A bordered button repainted from dark to light, and
+an anti-aliased edge recoloured, stay `colour`. A region with no edge on either
+side and a pixel too faint to call flat, as a pale tint moved by a pixel,
+carries no `change`: nothing in it tells the two apart, and the sentence counts
+only the regions that carry one: `1 changed in shape`.
+
+The 2-pixel margin is there because a block shifted by a pixel leaves two
+regions a pixel wide, with no edge of their own; the margin brings in the edge
+beside each, so each reads as `shape`.
+
+## How strongly it changed
+
+A screenshot diff says how many pixels differ, and a header repainted one
+shade lighter counts as much as the button inserted under it. **A region's
+grade says how far its colour is from the baseline**, so the two read apart.
+It is a reading separate from density, which says whether the changed pixels
+are scattered or solid: a solid region can be faint, and a scattered one strong.
+
+The comparison measures every pixel's colour distance on pixelmatch's
+threshold scale, from 0 to 1. The policy decides which pixels count as changed:
+the default policy counts a distance past 0.01, the strict one any difference.
+Each counted pixel is then graded against `SEVERITY_LEVELS` from
+`@variance-authority/raster`, 0.01, 0.05, 0.1 and 0.2. The first, 0.01, is the
+default policy's own threshold, so every pixel it counts has passed it:
+
+| colour distance | grade |
+|---|---|
+| past 0.2 | 4 |
+| past 0.1 | 3 |
+| past 0.05 | 2 |
+| any other counted pixel | 1 |
+
+A pixel row the after image added, which the row alignment pairs with no row
+of the before image, gets grade 4. When the width changed there is no
+alignment, and each row is graded by its colour against white padding. A region's grade, `DiffRegion.grade`, is the highest
+grade among its pixels.
+
+A region at `STRONG_GRADE`, grade 4, is **strong**: added content, or a colour
+past 0.2, Playwright's default threshold, which its own comparator would count
+too. A region below it is **faint**, such as a colour repainted a few shades lighter. A faint region
+still decides `changed`: the grade never forgives a pixel the policy counted,
+and never changes a verdict's status.
+
+The reason a verdict gives names the components under the strong regions and
+counts the faint ones after them:
+
+```
+48 pixels differ across 1 strong region in Hero, and 2 faint regions
+```
+
+When every region is faint, the reason names their components and calls them
+faint. The grade decides only which regions that sentence names, and how they
+are drawn: the diff image paints a faint pixel pale red and a strong one red, and
+the HTML report draws a faint region's box dashed and lighter. The run's JSON carries each region's `grade`. The region
+list keeps its own order, largest first, and the semantic ranking below
+reorders it by cause without changing which regions the sentence names.
 
 ## What is there
 
@@ -171,10 +247,14 @@ describes this build and no other.
 
 `locate` builds a phrase from the things a person would use to say where they
 are: the landmark they are in, the named region or dialog, and their position in
-a list. `main → region "Todos" → list → item 2 of 3` is a sentence somebody can
+a list. `main → region "Todos" → list item 2 of 3` is a sentence somebody can
 follow without opening a screenshot, and it stays true while the layout moves
-under it. A path that does not resolve produces an empty location rather than an
-exception; losing the phrase is not worth losing the finding.
+under it. Every node on the way down that has both a role and a name is a step
+of its own, the region's own node included: the [visual-review
+example](../examples/visual-review-case/README.md) places the Team card's
+repainted button at `main → region "Plans" → list item 2 of 3 → button
+"Choose"`. A path that does not resolve produces an empty location rather than
+an exception; losing the phrase is not worth losing the finding.
 
 ## Which line
 
@@ -333,6 +413,15 @@ takes the ordering from the tier that can, promoting `Toggle` above `Stack` whil
 leaving every attribution untouched. A region matches a cause under either
 namespace, author or enclosure, because a one-sided test finds nothing and
 silently reverts to area.
+
+A region whose component is not one of the causes is **collateral**: only its
+geometry changed, which usually means a cause moved it, though a size declared
+on the component itself counts as geometry too. The [visual-review
+example](../examples/visual-review-case/README.md) inserts a notice above three
+cards, and the plan names and prices under it are reported collateral. The
+label comes from their inputs, which did not change, not from
+their pixels: the row alignment pairs each moved row with the row it was, so
+they leave no differing region at all.
 
 Two limits:
 

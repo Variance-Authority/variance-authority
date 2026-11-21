@@ -28,7 +28,7 @@ describe.skipIf(process.platform === 'win32')('the update over a watched checkou
   const answers = () => join(wire, 'answers.json');
   const asked = () => join(wire, 'git.log');
 
-  async function tell(told: { roots?: string[]; clock?: string; fresh?: boolean; files?: unknown[]; config?: unknown }): Promise<void> {
+  async function tell(told: { roots?: string[]; clock?: string; fresh?: boolean; files?: unknown[]; config?: unknown; settling?: boolean }): Promise<void> {
     await writeFile(answers(), JSON.stringify({ roots: [root], clock: 'c:1:1', ...told }));
   }
 
@@ -39,8 +39,8 @@ describe.skipIf(process.platform === 'win32')('the update over a watched checkou
     return ran;
   }
 
-  /** Whether those commands listed the checkout: HEAD's tree, read in-process or by `ls-tree`. */
-  const listed = (ran: string[]): boolean => ran.some((argv) => argv.startsWith('ls-tree') || argv.endsWith(' HEAD^{tree}'));
+  /** Whether those commands located the checkout's index for a fresh inventory. */
+  const listed = (ran: string[]): boolean => ran.some((argv) => argv.startsWith('rev-parse ') && argv.includes('--git-path index'));
 
   /**
    * A file dated a minute back. One written in the second git writes its index
@@ -115,8 +115,9 @@ describe.skipIf(process.platform === 'win32')('the update over a watched checkou
   });
 
   it('runs no git when Watchman reports nothing since the clock the update recorded', async () => {
+    // The build before it recorded the clock too, so nothing has moved since.
     const first = await updateNatively(root, index);
-    expect(await gitRan()).not.toEqual([]);
+    expect(await gitRan()).toEqual([]);
 
     await tell({ clock: 'c:1:2' });
     const told: string[] = [];
@@ -278,6 +279,89 @@ describe.skipIf(process.platform === 'win32')('the update over a watched checkou
       git('rm', '--quiet', '.hg/kept.ts', 'vendor/kept.ts');
       git('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '--quiet', '-m', 'no vcs');
     }
+  });
+
+  it('lists a switch under a watch as git would, comparing only what Watchman reports moved', async () => {
+    const at = execFileSync('git', ['symbolic-ref', '--short', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim();
+    git('switch', '--quiet', '-c', 'side');
+    await write('app/index.ts', 'export const app = 2;\n');
+    await write('lib/added.ts', 'export const added = 1;\n');
+    await write('lib/.gitignore', '*.log\n');
+    git('rm', '--quiet', 'cache/kept.ts');
+    git('add', '.');
+    git('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '--quiet', '-m', 'side');
+    git('switch', '--quiet', at);
+    try {
+      // An edit the switch carries, and a file git does not track, both listed before it.
+      await write('lib/unit.ts', 'export const unit = 3;\n', 30_000);
+      await write('notes.ts', 'export const notes = 1;\n');
+      // Untracked here, and ignored by the rule the switch brings.
+      await write('lib/debug.log', 'started\n');
+      await tell({ clock: 'c:14:1', files: ['lib/unit.ts', 'notes.ts', 'lib/debug.log'] });
+      await updateNatively(root, index);
+
+      git('switch', '--quiet', 'side');
+      await tell({ clock: 'c:14:2', files: ['app/index.ts', 'lib/added.ts', 'lib/.gitignore', 'cache/kept.ts'] });
+      const told: string[] = [];
+      const switched = await updateNatively(root, index, (step) => void told.push(step));
+      expect(told).toContain('Watchman reports what moved since the listing the index holds, so only that was compared');
+
+      const fresh = join(dirname(index), 'fresh.bin');
+      await tell({ clock: 'c:14:3', fresh: true });
+      const listed = await updateNatively(root, fresh);
+      const paths = listed.listing!.paths();
+      expect(paths).not.toContain('lib/debug.log');
+      expect(switched.listing!.paths()).toEqual(paths);
+      expect(switched.listing!.digestsFor(paths)).toEqual(listed.listing!.digestsFor(paths));
+      expect(switched.files).toBe(listed.files);
+    } finally {
+      git('switch', '--quiet', at);
+      git('branch', '--quiet', '-D', 'side');
+      await write('lib/unit.ts', 'export const unit = 1;\n');
+      await rm(join(root, 'notes.ts'));
+      await rm(join(root, 'lib/debug.log'));
+    }
+  });
+
+  it('runs no git when the watch ignores directories', async () => {
+    // A real watch leaves out `node_modules`, `dist` and caches: what it ignores is out of the source.
+    // A fresh clock makes git list under the watch as it is configured now.
+    await tell({ clock: 'c:13:1', fresh: true, config: { ignore_dirs: ['node_modules', 'dist'] } });
+    await updateNatively(root, index);
+    await gitRan();
+    await tell({ clock: 'c:13:2', config: { ignore_dirs: ['node_modules', 'dist'] } });
+    const vouched = await updateNatively(root, index);
+    expect(await gitRan()).toEqual([]);
+    expect(vouched?.listing.vouched).toBe(true);
+  });
+
+  // The server holds a synced command for as long as it is given; the update gives it no longer than an answer now takes.
+  it('lists with git, without waiting, while the watch is still crawling', { timeout: 60_000 }, async () => {
+    await tell({ clock: 'c:15:1', settling: true });
+    const fresh = join(dirname(index), 'fresh.bin');
+    let started = performance.now();
+    const first = await updateNatively(root, fresh);
+    expect(performance.now() - started).toBeLessThan(5_000);
+    expect(listed(await gitRan())).toBe(true);
+
+    // A listing held from before, which the watch cannot yet vouch for.
+    started = performance.now();
+    const held = await updateNatively(root, index);
+    expect(performance.now() - started).toBeLessThan(5_000);
+    expect(listed(await gitRan())).toBe(true);
+    expect(held.listing!.paths()).toEqual(first.listing!.paths());
+  });
+
+  it('records no clock a watch still crawling could not vouch for', { timeout: 60_000 }, async () => {
+    const fresh = join(dirname(index), 'fresh.bin');
+    await tell({ clock: 'c:16:1', settling: true });
+    await updateNatively(root, fresh);
+    await gitRan();
+
+    await tell({ clock: 'c:16:2' });
+    const after = await updateNatively(root, fresh);
+    expect(listed(await gitRan())).toBe(true);
+    expect(after?.listing.vouched).toBe(false);
   });
 
   it('asks the watchman command where its server listens once for an index, not on every update', async () => {

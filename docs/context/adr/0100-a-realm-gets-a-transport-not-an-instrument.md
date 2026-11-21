@@ -57,6 +57,9 @@ given a way to report what it ran, never a second way to observe it.**
   each cuts regions by its own rule, so a block would have one identity per
   realm and the record would need a translation between them that nothing can
   check.
+  An exported V8 session read by `coverage --session` is not this: it is
+  evidence set beside the record at function grain, cut by the record's own
+  rule, and never written into it.
 - **A Node-specific runtime in the probe.** Reading `process`, `async_hooks` or
   a file from the emitted code would make the worker case simpler. Rejected:
   the same module then cannot run in a page, and a page would need its own

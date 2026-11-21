@@ -184,13 +184,21 @@ variance reach --since origin/main              # files a diff reaches over impo
   named, with where to declare it: `/// <depends>` or `before`. It is no
   runner's input.
 - **`reach` needs no recording**, and reads JavaScript, TypeScript, Python,
-  Rust, Java, Kotlin and Swift. It prints a run list, so a reading that cannot
-  produce one exits `2` with an empty stdout rather than print a short list.
-  `--whole-files` walks from each changed file whole, the answer
-  `jest --changedSince` gives, which is how you check what the reading saved.
-  It takes `--format plain|json` and `--no-git`.
-- **`index --wait`** builds the code map, journeys, lexicon and questions before
-  it returns, rather than in a process of their own.
+  Rust, Java, Kotlin and Swift. It does not yet read framework file formats or
+  bundler-only aliases: not a Vue or Svelte single-file component, not the files
+  an Angular component names in `templateUrl` and `styleUrls`, and not an alias
+  declared only in a bundler's configuration, where one declared as `paths` in a
+  `tsconfig` resolves; [the source scan's
+  limits](https://variance-authority.dev/docs/source#limits) say what each
+  leaves out. It prints a run list, so a reading that cannot produce one exits
+  `2` with an empty stdout rather than print a short list. `--whole-files` walks
+  from each changed file whole, the answer `jest --changedSince` gives, which is
+  how you check what the reading saved. It takes `--format plain|json` and
+  `--no-git`.
+- **`index --wait`** returns once the process that builds the code map,
+  journeys, lexicon and questions has finished, and prints its lines and exits
+  as it did. They are built in a process of their own either way, so their
+  memory never adds to the index's.
 
 Which cases ran one line, and what a change did to the cases, is `variance
 covering`, in [covering](covering.md).

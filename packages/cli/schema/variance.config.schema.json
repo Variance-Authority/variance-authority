@@ -469,7 +469,8 @@
           "description": "Directory the share is read from and written to, resolved against this file."
         },
         "mainlines": { "$ref": "#/$defs/shareMainlines" },
-        "remote": { "$ref": "#/$defs/shareRemote" }
+        "remote": { "$ref": "#/$defs/shareRemote" },
+        "sourceIndex": { "$ref": "#/$defs/shareSourceIndex" }
       }
     },
     "httpShare": {
@@ -494,7 +495,8 @@
           "enum": ["PUT", "POST"]
         },
         "mainlines": { "$ref": "#/$defs/shareMainlines" },
-        "remote": { "$ref": "#/$defs/shareRemote" }
+        "remote": { "$ref": "#/$defs/shareRemote" },
+        "sourceIndex": { "$ref": "#/$defs/shareSourceIndex" }
       }
     },
     "gitShare": {
@@ -511,7 +513,8 @@
           "description": "The ref prefix the lines sit under, for a repository that already uses `refs/variance/`."
         },
         "mainlines": { "$ref": "#/$defs/shareMainlines" },
-        "remote": { "$ref": "#/$defs/shareRemote" }
+        "remote": { "$ref": "#/$defs/shareRemote" },
+        "sourceIndex": { "$ref": "#/$defs/shareSourceIndex" }
       }
     },
     "shareMainlines": {
@@ -525,6 +528,11 @@
       "minLength": 1,
       "default": "origin",
       "description": "The remote that hosts the mainlines."
+    },
+    "shareSourceIndex": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether a mainline's publish carries the source index beside the record, so a checkout whose index another release of variance wrote fetches the mainline's and reads only the files that differ from it, rather than every file. For a repository whose cold index build takes minutes; one commit's index is about the size of the parsed checkout."
     },
 
     "renderer": {

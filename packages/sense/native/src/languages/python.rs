@@ -1,9 +1,9 @@
 //! What a Python file asks for and what it publishes.
 //!
-//! The reading half of [`python.ts`](../../../src/python.ts), which holds the
-//! reasoning: one statement is several modules, an import executes the packages
-//! above it, and `if TYPE_CHECKING:` is `import type`. This file is the walk and
-//! nothing else — every judgement it encodes is argued there, and
+//! The reading half of [`resolve_python.rs`](../resolve_python.rs), which holds
+//! the reasoning: one statement is several modules, an import executes the
+//! packages above it, and `if TYPE_CHECKING:` is `import type`. This file is the
+//! walk and nothing else — every judgement it encodes is argued there, and
 //! `python.test.ts` holds it to that argument.
 
 use tree_sitter::Node;
@@ -13,7 +13,7 @@ use super::{children_for_field, head, kind_of, line_of, named_children, span_of,
 use crate::harvest::{SourceSymbol, TextSpan};
 
 /// Everything a Python file's bytes say, without touching a disk.
-pub fn read(file: &str, source: &str, tree: &tree_sitter::Tree) -> Read {
+pub fn read(source: &str, tree: &tree_sitter::Tree) -> Read {
     let mut at = Gathering::default();
     if tree.root_node().has_error() {
         at.reasons
@@ -46,7 +46,7 @@ pub fn read(file: &str, source: &str, tree: &tree_sitter::Tree) -> Read {
         unknown: if at.reasons.is_empty() {
             None
         } else {
-            Some(format!("{file} — {}", at.reasons.join("; ")))
+            Some(at.reasons.join("; "))
         },
         ..Read::default()
     }
@@ -75,7 +75,7 @@ pub fn declarations(tree: &tree_sitter::Tree, source: &str) -> Vec<SourceSymbol>
                     kind,
                     line: line_of(node),
                     signature: Some(head(node, source)),
-                    doc: docstring(node, source),
+                    doc: docstring(node),
                     reach: None,
                 });
             }
@@ -112,14 +112,14 @@ pub fn declarations(tree: &tree_sitter::Tree, source: &str) -> Vec<SourceSymbol>
 }
 
 /// The string a definition's body opens with, inside its quotes.
-fn docstring(node: Node, source: &str) -> Option<TextSpan> {
+fn docstring(node: Node) -> Option<TextSpan> {
     let first = named_children(node.child_by_field_name("body")?).into_iter().next()?;
     if first.kind() != "expression_statement" {
         return None;
     }
     let string = named_children(first).into_iter().next().filter(|part| part.kind() == "string")?;
     let content = named_children(string).into_iter().find(|part| part.kind() == "string_content")?;
-    Some(span_of(source, content.start_byte(), content.end_byte()))
+    Some(span_of(content.start_byte(), content.end_byte()))
 }
 
 #[derive(Default)]

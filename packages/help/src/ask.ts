@@ -1,6 +1,6 @@
 import { HELP_TOOLS } from './tools.js';
 import type { Tool, ToolInvocation, Tree } from '@variance-authority/mcp/tools';
-import { verbOf } from '@variance-authority/mcp/tools';
+import { spellingOf, verbOf } from '@variance-authority/mcp/tools';
 import type { Help } from '@variance-authority/package/help';
 import { asOneQuestion } from '@variance-authority/sense';
 import { snapshotLine } from './caught-up.js';
@@ -82,6 +82,7 @@ function questionFrom(text: string, at: number): { question: string; input: Reco
  */
 export function inputFrom(tool: Tool<Help>, args: readonly string[]): Record<string, unknown> {
   const taken = propertiesOf(tool);
+  const properties = (tool.inputSchema['properties'] ?? {}) as Record<string, { type?: unknown }>;
   const input: Record<string, unknown> = {};
   const questions = questionsProperty(tool);
 
@@ -111,6 +112,10 @@ export function inputFrom(tool: Tool<Help>, args: readonly string[]): Record<str
       throw new Error(`\`${verbOf(tool)}\` takes no \`--${name}\`; it takes: ${known}`);
     }
 
+    if (properties[name]?.type === 'boolean') {
+      input[name] = true;
+      continue;
+    }
     const value = args[at + 1];
     if (value === undefined) throw new Error(`\`--${name}\` was given no value`);
     input[name] = value;
@@ -155,7 +160,7 @@ export function ask(
 export function askSearchJson(index: SearchIndex, args: readonly string[], walk?: () => Tree | undefined, unseen = false, unopened?: readonly Unopened[], importing?: ImportingOf): string {
   const input = inputFrom(search, args);
   const tree = search.wants?.(input) === true ? walk?.() : undefined;
-  const answer = asOneQuestion(() => searchNames(index, searchQuestionOf(input), tree, undefined, importing));
+  const answer = asOneQuestion(() => searchNames(index, searchQuestionOf(input, spellingOf(invocationOf({}))), tree, undefined, importing));
   const at = index.generation?.generatedAt;
   return JSON.stringify({ ...answer, ...(at === undefined ? {} : { generatedAt: at, ...(unseen ? { compared: false } : {}) }), ...(unopened === undefined ? {} : { unopened }) }, undefined, 2);
 }
@@ -164,7 +169,7 @@ export function askSearchJson(index: SearchIndex, args: readonly string[], walk?
 export function askSearch(index: SearchIndex, args: readonly string[], walk?: () => Tree | undefined, unseen = false, unopened?: readonly Unopened[], importing?: ImportingOf): string {
   const input = inputFrom(search, args);
   const tree = search.wants?.(input) === true ? walk?.() : undefined;
-  const answer = asOneQuestion(() => answerSearch(index, input, tree, undefined, importing));
+  const answer = asOneQuestion(() => answerSearch(index, input, tree, undefined, importing, spellingOf(invocationOf({}))));
   const at = index.generation?.generatedAt;
   const dated = at === undefined ? answer : `${answer}\n${snapshotLine(at, unseen)}`;
   const said = unopenedLine(unopened, !unseen);

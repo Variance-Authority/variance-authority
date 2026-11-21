@@ -1,6 +1,7 @@
 import Timelines from "./Timelines";
 import AgentFlow from "./AgentFlow";
 import IntegrationLogos from "./IntegrationLogos";
+import Capabilities from "./Capabilities";
 
 /** A first introduction, paired with the problem the project exists to solve. */
 export default function Hero() {
@@ -54,6 +55,7 @@ export default function Hero() {
             Open source · CLI, libraries, MCP, and agent skills · Runs in your
             infrastructure
           </p>
+          <Capabilities />
 
           {/* A phone opens a narrower window onto the fork. */}
           <div className="relative mt-10 h-28 sm:h-40 lg:hidden">

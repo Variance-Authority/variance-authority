@@ -2,9 +2,9 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { treeOf, type FileRecord } from '@variance-authority/mcp/tools';
-import { readHelp } from '@variance-authority/package/help';
-import { verbOf } from '@variance-authority/mcp/tools';
-import { ask, inputFrom, toolNamed, verbs } from './ask.js';
+import { readHelp } from './walk.js';
+import { spellingOf, verbOf } from '@variance-authority/mcp/tools';
+import { ask, inputFrom, invocationOf, toolNamed, verbs } from './ask.js';
 import { HELP_TOOLS } from './tools.js';
 
 const WORKSPACE = join(dirname(fileURLToPath(import.meta.url)), './__fixtures__/workspace');
@@ -12,16 +12,17 @@ const READING = readHelp(WORKSPACE);
 
 describe('a verb is a tool, not a second implementation of one', () => {
   it('names every tool the server lists, with the wire prefix dropped', () => {
-    expect(verbs().map(([verb]) => verb)).toEqual(['packages', 'entrypoint', 'symbol', 'uses', 'search', 'grep', 'discover', 'intersection', 'orient', 'slowest-tests', 'retried-tests', 'journey-map', 'test-composition', 'containment', 'stack', 'gaps']);
+    expect(verbs().map(([verb]) => verb)).toEqual(['packages', 'classify', 'entrypoint', 'symbol', 'uses', 'search', 'grep', 'discover', 'intersection', 'orient', 'slowest-tests', 'retried-tests', 'not-run', 'journey-map', 'test-composition', 'containment', 'stack', 'gaps']);
   });
 
   it('dispatches to the same value the server would have called', () => {
     for (const tool of HELP_TOOLS) expect(toolNamed(verbOf(tool))).toBe(tool);
   });
 
-  it('answers a verb with exactly what the tool answers', () => {
+  it('answers a verb with exactly what the tool answers when asked from this binary', () => {
+    // The questions an answer names are spelled as asked, so the tool is run as the verb runs it.
     const tool = toolNamed('search');
-    expect(ask(READING, 'search', ['deep'])).toBe(tool.run(READING, { query: 'deep' }));
+    expect(ask(READING, 'search', ['deep'])).toBe(tool.run(READING, { query: 'deep' }, invocationOf({})));
   });
 
   it('spells the inputs and the questions an answer names as this binary takes them', () => {
@@ -32,7 +33,7 @@ describe('a verb is a tool, not a second implementation of one', () => {
 
   it('names what it answers when a verb is not one of them', () => {
     // A model handed "unknown verb" has one move left, which is to guess again.
-    expect(() => toolNamed('symbols')).toThrow(/packages, entrypoint, symbol, uses, search, grep, discover, intersection, orient, slowest-tests, retried-tests, journey-map, test-composition, containment, stack, gaps/);
+    expect(() => toolNamed('symbols')).toThrow(/packages, classify, entrypoint, symbol, uses, search, grep, discover, intersection, orient, slowest-tests, retried-tests, not-run, journey-map, test-composition, containment, stack, gaps/);
   });
 });
 
@@ -66,6 +67,13 @@ describe('arguments, read off the schema the tool already publishes', () => {
 
   it('refuses a flag given no value', () => {
     expect(() => inputFrom(toolNamed('uses'), ['--from'])).toThrow(/given no value/);
+  });
+
+  it('takes a boolean property as a switch without consuming the next argument', () => {
+    expect(inputFrom(toolNamed('orient'), ['--declarations', '--files', 'src/page.ts'])).toEqual({ declarations: true, files: 'src/page.ts' });
+    const spell = spellingOf({ shell: 'variance-authority-help' });
+    expect(spell.question(toolNamed('orient'), { files: ['src/page.ts'], declarations: true })).toBe('`variance-authority-help orient --files src/page.ts --declarations`');
+    expect(spell.question(toolNamed('orient'), { files: ['src/page.ts'], declarations: false })).toBe('`variance-authority-help orient --files src/page.ts`');
   });
 
   it('refuses an argument to a verb that takes none', () => {
