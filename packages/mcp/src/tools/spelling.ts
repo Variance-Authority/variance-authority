@@ -41,7 +41,7 @@ export function flagOf(property: string): string {
 /** A value as one shell word, a list joined by commas: quoted only when a word would not survive. */
 function wordOf(value: unknown): string {
   const text = Array.isArray(value) ? value.join(',') : String(value);
-  return text !== '' && /^[\w./:@^,+=%#-]+$/.test(text) ? text : `'${text.replace(/'/g, `'\\''`)}'`;
+  return text !== '' && !text.startsWith('#') && /^[\w./:@^,+=%#-]+$/.test(text) ? text : `'${text.replace(/'/g, `'\\''`)}'`;
 }
 
 /** The inputs, tools and questions of one surface, written as its reader types them. */

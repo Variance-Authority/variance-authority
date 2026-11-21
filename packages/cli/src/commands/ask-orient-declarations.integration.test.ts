@@ -35,6 +35,7 @@ describe('orient declaration expansion across the installed surfaces', () => {
     root = await committedCheckout('orient-declarations-', {
       'package.json': JSON.stringify({ private: true, workspaces: ['packages/*'], dependencies: { 'state-kit': '*' } }),
       'packages/a/index.ts': "import '../b/index.js';\nimport '../c/index.js';\nimport '../d/index.js';\nimport { store } from 'state-kit';\nexport const a = store;\n",
+      '#entry.ts': "export { a } from './packages/a/index.js';\n",
       'packages/a/comma,name.ts': "export { a } from './index.js';\n",
       ...Object.fromEntries(['b', 'c', 'd'].map((name) => [`packages/${name}/index.ts`, "import { store } from 'state-kit';\nexport const value = store;\n"])),
       ...Object.fromEntries(['a', 'b', 'c', 'd'].map((name) => [
@@ -67,6 +68,14 @@ describe('orient declaration expansion across the installed surfaces', () => {
     expect(standalone).toBe(expanded.out);
     const standaloneCompact = execFileSync(process.execPath, [helpBin, 'orient', '--files', 'packages/a/index.ts:4'], { encoding: 'utf8' });
     expect(standaloneCompact).toContain('`variance-authority-help orient --files packages/a/index.ts:4 --declarations`');
+    const hashCompact = await run(['ask', 'orient', '--files', '#entry.ts:1']);
+    const hashReplay = hashCompact.out.split('\n').map((line) => line.trim()).find((line) => line.startsWith('`variance ask orient '));
+    expect(hashReplay).toBe("`variance ask orient --files '#entry.ts:1' --declarations`");
+    const shellExpanded = execFileSync('/bin/sh', ['-c', hashReplay!.slice(1, -1)], {
+      encoding: 'utf8',
+      env: { ...process.env, PATH: `${join(cwd, 'node_modules/.bin')}:${process.env.PATH}` },
+    });
+    expect(shellExpanded.trim()).toBe(orient.run(undefined, { files: ['#entry.ts:1'], declarations: true }, { root }).trim());
     const mcp = orient.run(undefined, { files: ['packages/a/comma,name.ts:1'] }, { root });
     expect(mcp).toContain('`docs_orient` with `files` `["packages/a/comma,name.ts:1"]` and `declarations` `true`');
   });
