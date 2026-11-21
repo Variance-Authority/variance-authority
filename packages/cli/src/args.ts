@@ -259,3 +259,12 @@ export function countOf(value: string | undefined, of: string, flag = '--limit')
 
   return Number(value);
 }
+
+/** `--offset`: how many rows a page skips, `0` included, as every paged command reads it. */
+export function offsetOf(value: string | undefined): number | undefined {
+  if (value === undefined) return undefined;
+  if (!/^(0|[1-9][0-9]*)$/.test(value)) {
+    throw new OperatorError(`--offset is how many rows to skip and must be a whole number, not \`${value}\``);
+  }
+  return Number(value);
+}

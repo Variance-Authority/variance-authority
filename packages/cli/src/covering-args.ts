@@ -1,6 +1,6 @@
 import { resolve } from 'node:path';
-import { pageOf, spellingOf, type Page } from '@variance-authority/mcp/tools';
-import { noPositionals, oneRecord, type Flags } from './args.js';
+import type { Page } from '@variance-authority/mcp/tools';
+import { countOf, noPositionals, offsetOf, oneRecord, type Flags } from './args.js';
 import { checkoutFile } from './checkout-file.js';
 import { OperatorError } from './exit.js';
 import type { CoveringFormat } from './commands/covering.js';
@@ -254,6 +254,13 @@ function executionAnd(flags: Flags): CoveringSource {
   if (format !== 'text' && format !== 'refs' && format !== 'json') {
     throw new OperatorError(`--format must be text, refs or json, not \`${format}\``);
   }
+  for (const other of ['--limit', '--offset'] as const) {
+    if (format === 'text' || flags.values.get(other) === undefined) continue;
+    throw new OperatorError(
+      `\`--format ${format}\` and \`${other}\` do not compose. It names every case, ` +
+        'not a page of test files; ask the text answer to page its test files.',
+    );
+  }
   const execution = flags.values.get('--execution');
   const cases = flags.values.get('--cases');
   if (cases === '') throw new OperatorError('`--cases` takes `last` or a test file.');
@@ -284,16 +291,16 @@ function askedFlags(flags: Flags): readonly string[] {
   });
 }
 
-/** `--limit` and `--offset` as every listing reads them (`limit.ts`), absent when neither is said. */
+/**
+ * `--limit` and `--offset` as every paged command reads them (`args.ts`),
+ * absent when neither is said. Not `pageOf`: this module loads with every
+ * command, and the paging owner's package must load only with `covering`.
+ */
 function pageFrom(flags: Flags): Page | undefined {
-  const limit = flags.values.get('--limit');
-  const offset = flags.values.get('--offset');
+  const limit = countOf(flags.values.get('--limit'), 'test files to show');
+  const offset = offsetOf(flags.values.get('--offset'));
   if (limit === undefined && offset === undefined) return undefined;
-  try {
-    return pageOf({ ...(limit === undefined ? {} : { limit }), ...(offset === undefined ? {} : { offset }) }, FIRST_PAGE.limit, spellingOf({ shell: 'variance' }));
-  } catch (error) {
-    throw new OperatorError((error as Error).message, { cause: error });
-  }
+  return { offset: offset ?? FIRST_PAGE.offset, limit: limit ?? FIRST_PAGE.limit };
 }
 
 /**

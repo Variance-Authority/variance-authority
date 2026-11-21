@@ -95,6 +95,11 @@ describe('a covering answer an agent reads', () => {
     expect(() => parse(['--since', 'HEAD~1', '--limit', '1'])).toThrow(/`--since` and `--limit`/);
     expect(() => parse(['--since', 'HEAD~1', '--offset', '10'])).toThrow(/`--since` and `--offset`/);
   });
+
+  it('refuses a page beside `--format json` or `refs`, which name every case', () => {
+    expect(() => parse(['--file', 'src/hub.ts', '--format', 'json', '--limit', '1'])).toThrow(/`--format json` and `--limit`/);
+    expect(() => parse(['--file', 'src/hub.ts', '--format', 'refs', '--offset', '10'])).toThrow(/`--format refs` and `--offset`/);
+  });
 });
 
 describe('a case that called into one range of a file and only loaded the module on a later one', () => {
