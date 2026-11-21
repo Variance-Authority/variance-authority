@@ -125,6 +125,13 @@ describe('searchNames', () => {
 });
 
 describe('the flow from words to orient', () => {
+  it('opens with the exported matches when none is published', () => {
+    const answer = answerSearch(INDEX, { query: 'ledger' });
+    expect(answer.startsWith('1 exported match for `ledger` (not published):\n')).toBe(true);
+    expect(answer).toContain('tally — beta · packages/beta/src/again.ts:8 — What beta writes into its ledger.');
+    expect(answer).toContain('Next: `docs_orient` with `files` `["packages/beta/src/again.ts"]`');
+  });
+
   it('ends an answer that located a published name with the question for its declaration', () => {
     const hit = searchNames(INDEX, { query: 'e' }).published?.shown[0];
     expect(hit, 'the fixture publishes a name holding the query').toBeDefined();

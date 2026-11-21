@@ -302,7 +302,7 @@ function spoken({ answer, area }: Searched, asked: SearchQuestion, root: string 
 
   const heads =
     found.total === 0
-      ? [`Nothing published matches \`${query}\`.`]
+      ? []
       : [
           `${found.total} published ${found.total === 1 ? 'match' : 'matches'} for \`${query}\``,
           '',
@@ -317,8 +317,10 @@ function spoken({ answer, area }: Searched, asked: SearchQuestion, root: string 
   return [
     ...where,
     ...heads,
-    '',
-    `${rest.total} more ${rest.total === 1 ? 'name is' : 'names are'} exported ${area === undefined ? 'somewhere in the repository' : 'in that area'} without being published:`,
+    ...(found.total === 0 ? [] : ['']),
+    found.total === 0
+      ? `${rest.total} exported ${rest.total === 1 ? 'match' : 'matches'} for \`${query}\` (not published):`
+      : `${rest.total} more ${rest.total === 1 ? 'name is' : 'names are'} exported ${area === undefined ? 'somewhere in the repository' : 'in that area'} without being published:`,
     '',
     ...rest.shown.map(exportedLine),
     ...hidden,

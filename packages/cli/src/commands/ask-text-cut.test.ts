@@ -132,9 +132,7 @@ describe('ask symbol, the text it prints of a doc, a signature and a member', ()
       Next: \`variance ask orient --files packages/kit/src/cut.ts\`
       Snapshot
       ",
-        "Nothing published matches \`rated declared\`.
-
-      1 more name is exported somewhere in the repository without being published:
+        "1 exported match for \`rated declared\` (not published):
 
       declaredRate — @acme/kit · packages/kit/src/cut.ts:13 — Rated, and declared only.
 
