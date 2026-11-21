@@ -7,6 +7,8 @@ import type { RecordedAttempt } from './attempts-record.js';
 import { triedAttempts, type CaseAttempts } from './case-attempts.js';
 import { UNLIMITED, UNTIMED, type CaseDurations, type CaseLimits } from './case-durations.js';
 import type { EyesSection } from './eyes-record.js';
+import { checksOf, type EnteredCheck, type RanCase } from './case-checks.js';
+import type { ChecksSection } from './checks-record.js';
 import { nativeModule, whyAbsent } from './native-modules.js';
 import type { Reading } from './readings.js';
 
@@ -23,6 +25,8 @@ export interface CaseFold {
   readonly eyes?: EyesSection;
   /** How each attempt of a retried case ended; absent when the runner's report counted no attempts. */
   readonly attempts?: readonly RecordedAttempt[];
+  /** The checks the cases declare and what each attempt entered (`checks-record.ts`); absent when no case declares one, or the fold was handed no `tests`. */
+  readonly checks?: ChecksSection;
 }
 
 /** What the runner reported beside the journals, and how much of the relation one slice holds. */
@@ -35,6 +39,8 @@ export interface CaseFoldOptions {
   readonly tried?: CaseAttempts | undefined;
   /** Readings of files other than their own, joined into that file's record. */
   readonly readings?: ReadonlyMap<ModuleId, Reading>;
+  /** Every test file the run was handed, and whether it ran to the end; absent, the fold keeps no checks, since it cannot tell a case cut short. */
+  readonly tests?: LaidRun['tests'];
   /** Bytes of the test-by-region relation one module slice may hold. */
   readonly budget?: number;
 }
@@ -80,6 +86,7 @@ export function foldCases(
   }));
   const ids = new Map(coordinates.map((coordinate, at) => [caseKey(coordinate), cases[at]!.id]));
   const attempts = triedAttempts(coordinates, ids, options.tried, root);
+  const checks = options.tests === undefined ? undefined : checksOf(root, ranCases(cases, coordinates, options.tried, journals.checks()), options.tests);
   const looked = journals.eyes();
   const eyes: EyesSection | undefined = looked === null ? undefined : {
     watched: looked.watched,
@@ -92,7 +99,30 @@ export function foldCases(
     cases: cases.length,
     ...(eyes === undefined ? {} : { eyes }),
     ...(attempts === undefined ? {} : { attempts }),
+    ...(checks === undefined ? {} : { checks }),
   };
+}
+
+/** The fold's cases as the checks section reads them: how the runner says each attempt ended, and the checks its scope was told of. */
+function ranCases(
+  cases: readonly { readonly id: string }[],
+  coordinates: readonly CaseCoordinate[],
+  tried: CaseAttempts | undefined,
+  told: readonly { readonly case: string; readonly attempt: number; readonly check: string }[] | null,
+): RanCase[] {
+  const entered = new Map<string, EnteredCheck[]>();
+  for (const row of told ?? []) {
+    const rows = entered.get(row.case) ?? [];
+    rows.push({ attempt: row.attempt, check: row.check });
+    entered.set(row.case, rows);
+  }
+  return coordinates.map((coordinate, at) => ({
+    file: coordinate.file,
+    name: coordinate.name,
+    ...(coordinate.project === undefined ? {} : { project: coordinate.project }),
+    attempts: tried?.(coordinate.file, coordinate.name, coordinate.id),
+    entered: entered.get(cases[at]!.id) ?? [],
+  }));
 }
 
 /**
@@ -132,7 +162,7 @@ export async function freshCases(
   readings: ReadonlyMap<ModuleId, Reading> = new Map(),
 ): Promise<FreshCases | undefined> {
   const finished = run.tests.some((test) => test.complete);
-  const folded = foldCases(directory, root, modules, { durations: run.durations, limits: run.limits, tried: run.tried, readings });
+  const folded = foldCases(directory, root, modules, { durations: run.durations, limits: run.limits, tried: run.tried, readings, tests: run.tests });
   if (folded.cases === 0 && !finished) return undefined;
   return {
     fresh: folded.bytes,
@@ -142,6 +172,7 @@ export async function freshCases(
       ...(folded.attempts === undefined ? {} : { attempts: folded.attempts }),
     },
     ...(folded.eyes === undefined ? {} : { eyes: folded.eyes }),
+    ...(folded.checks === undefined ? {} : { checks: folded.checks }),
   };
 }
 

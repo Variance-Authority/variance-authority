@@ -18,6 +18,7 @@ import { caseSectionsAt, withoutChecks, type CaseSections } from './case-record.
 import { decodeExecutionIndex, decodeExecutionTests } from './execution-format.js';
 import { encodeAsSetExecutionIndex, openSetExecutionIndex } from './execution-set-format.js';
 import { layEyes, readableEyes, type EyesSection } from './eyes-record.js';
+import type { ChecksSection } from './checks-record.js';
 import { editsBetween } from './region-edit.js';
 import type { TestCoverageView } from './format-view.js';
 import type { CoverageModule, CoverageTest } from './index.js';
@@ -58,6 +59,8 @@ export interface FreshCases {
   readonly run: LaidRun;
   /** The cases that opened Eyes journals and the journals they handed over; absent when no case composed Eyes. */
   readonly eyes?: EyesSection;
+  /** The checks the run's cases declare and what each attempt entered; absent when no case declares one, and then the record keeps none. */
+  readonly checks?: ChecksSection;
 }
 
 /**

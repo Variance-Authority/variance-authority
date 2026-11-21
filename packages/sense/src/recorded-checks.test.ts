@@ -11,9 +11,8 @@ import { encodeTestCoverage } from './test-selection/format.js';
 import type { TestCoverage } from './test-selection/index.js';
 
 const section: ChecksSection = {
-  complete: true,
-  scope: { projects: [{ name: 'chromium' }] },
-  cases: [{ file: 'tests/event.spec.ts', line: 4, name: 'event > submits', declared: ['event/titled'], attempts: [{ attempt: 1, ended: 'passed', entered: [] }] }],
+  incomplete: [],
+  cases: [{ file: 'tests/event.spec.ts', line: 4, name: 'event > submits', declared: [{ id: 'event/titled', line: 6 }], attempts: [{ attempt: 1, ended: 'passed', entered: [] }] }],
 };
 
 const made: string[] = [];
@@ -29,14 +28,14 @@ describe('checksAt', () => {
     const recording = record();
     writeFileSync(recording, recordOfCases({ checks: encodeChecks(section) }));
 
-    expect(checksAt(recording)).toMatchObject({ complete: true, missing: [{ check: 'event/titled' }] });
+    expect(checksAt(recording)).toMatchObject({ incomplete: [], missing: [{ check: 'event/titled', line: 6 }] });
   });
 
   it('reads the checks a run laid where no record stood before it', async () => {
     const recording = record();
     await landChecks(recording, encodeChecks(section));
 
-    expect(checksAt(recording)).toMatchObject({ complete: true, missing: [{ check: 'event/titled' }] });
+    expect(checksAt(recording)).toMatchObject({ incomplete: [], missing: [{ check: 'event/titled', line: 6 }] });
   });
 
   it('names the commit and landing of the run that laid the checks, not the coverage an earlier run left', async () => {

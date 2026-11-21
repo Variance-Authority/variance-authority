@@ -47,6 +47,7 @@ import { readFile, rm } from 'node:fs/promises';
 import { followRowsIn } from './case-cuts.js';
 import { editsBetween } from './region-edit.js';
 import { casesRan, dropsCasesWithoutAny, layCases, textsIn, unansweredOver, type FreshCases, type ModuleTexts } from './case-landing.js';
+import { landedChecks } from './checks-record.js';
 import { inputsOf } from './case-readings.js';
 import { casesRecordedOver, recordOfCases, withCaseSections, withoutChecks } from './case-record.js';
 import { commitRunsIn, commitRunsText } from './commit-runs-text.js';
@@ -202,22 +203,22 @@ export async function landRun(
   root: string,
   cacheRoot?: string,
   cases?: FreshCases,
-  checks?: Uint8Array,
 ): Promise<void> {
-  if (laidProbes(current) === undefined) return landUncovered(coverageFile, root, cases, checks);
+  if (laidProbes(current) === undefined) return landUncovered(coverageFile, root, cases);
   if (current.modules.length === 0) {
     // A complete row over no module would say its file reaches nothing. An
     // incomplete one says its file must run, which is true without a module:
     // probes fired where nothing could place them.
     const selecting = current.tests.filter((test) => !test.complete);
     if (selecting.length < current.tests.length) {
-      return landRun(coverageFile, { ...current, tests: selecting }, root, cacheRoot, cases, checks);
+      return landRun(coverageFile, { ...current, tests: selecting }, root, cacheRoot, cases);
     }
   }
   const before = await recordedSnapshot(coverageFile);
   const held = await heldCommitRuns(coverageFile);
   // The record's checks are its last run's, and this run's replace them whole.
   const previous = withoutChecks(casesRecordedOver(coverageFile));
+  const checks = checksLanded(cases, current.commit);
   // The run's modules are named with the text each was cut from, so a module
   // re-cut over the text the index already holds lands its cases as its rows do.
   const texts = cases === undefined && previous.index === undefined ? undefined : recordedTexts(coverageFile);
@@ -279,7 +280,8 @@ export async function landRun(
  * The runs record and the ledger are left as they were: they say where tests
  * stand, and this run measured nothing for a test to stand on.
  */
-async function landUncovered(coverageFile: string, root: string, cases: FreshCases | undefined, checks: Uint8Array | undefined): Promise<void> {
+async function landUncovered(coverageFile: string, root: string, cases: FreshCases | undefined): Promise<void> {
+  const checks = checksLanded(cases, cases?.run.commit);
   if (cases === undefined) return landChecks(coverageFile, checks);
   const snapshot = await recordedSnapshot(coverageFile);
   const previous = withoutChecks(casesRecordedOver(coverageFile));
@@ -293,6 +295,11 @@ async function landUncovered(coverageFile: string, root: string, cases: FreshCas
   const based = { ...laid, base: recordBase(over, cases.run.commit, stands, takeReadFor(coverageFile)), ...(checks === undefined ? {} : { checks }) };
   if (held !== undefined) return writeCoverageBytes(coverageFile, withCaseSections(held, based));
   return writeCoverageBytes(coverageFile, recordOfCases(based));
+}
+
+/** The section bytes of the checks `cases` carry, as the run at `commit` lands them; `undefined` when it carries none. */
+function checksLanded(cases: FreshCases | undefined, commit: string | undefined): Uint8Array | undefined {
+  return cases?.checks === undefined ? undefined : landedChecks(cases.checks, commit);
 }
 
 /**
