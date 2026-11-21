@@ -15,12 +15,11 @@
 // compass: variance-authority.reach.relations
 
 use std::collections::{HashMap, HashSet};
-use std::path::Path;
 
 use napi_derive::napi;
 use rayon::prelude::*;
 
-use crate::journeys_graph::local_target;
+use crate::journeys_graph::{local_target, on_disk};
 use crate::journeys_parse::{self, Callee, Parsed};
 use crate::journeys_roots::test_roots;
 
@@ -51,31 +50,33 @@ pub struct DeclaredChecks {
 }
 
 /// The checks each case declares, in the order asked; `None` for a case that
-/// declares none the source spells: its file cannot be read or does not name
-/// the entry, or its body is not found by its name or holds no check. Each
+/// declares none the source spells: its file is not in the checkout or is not
+/// UTF-8, does not name the entry, or its body is not found by its name or
+/// holds no check. A file is read as the journeys walk reads it
+/// ([`on_disk`]), so a git-LFS pointer, or a file the system will not read,
+/// fails the answer with its reason rather than declaring nothing. Each
 /// distinct file is read once, the files on every core, and parsed only when
 /// its text names the entry.
 #[napi(catch_unwind)]
-pub fn declared_checks(root: String, cases: Vec<CheckedCaseAsk>) -> Vec<Option<DeclaredChecks>> {
+pub fn declared_checks(root: String, cases: Vec<CheckedCaseAsk>) -> napi::Result<Vec<Option<DeclaredChecks>>> {
     let files: HashSet<&str> = cases.iter().map(|case| case.file.as_str()).collect();
-    let parsed: HashMap<&str, Parsed> = files
+    let read: Vec<Option<(&str, Parsed)>> = files
         .into_par_iter()
-        .filter_map(|file| {
-            let text = std::fs::read_to_string(Path::new(&root).join(file)).ok()?;
+        .map(|file| {
             // Most test files call no check: their text is not parsed for one.
-            if !text.contains(ENTRY) {
-                return None;
-            }
-            Some((file, journeys_parse::parse(file, &text)?))
+            let parsed = on_disk(&root, file)?.filter(|text| text.contains(ENTRY)).and_then(|text| journeys_parse::parse(file, &text));
+            Ok(parsed.map(|parsed| (file, parsed)))
         })
-        .collect();
-    cases
+        .collect::<Result<_, String>>()
+        .map_err(napi::Error::from_reason)?;
+    let parsed: HashMap<&str, Parsed> = read.into_iter().flatten().collect();
+    Ok(cases
         .iter()
         .map(|case| {
             let (line, checks) = declared(parsed.get(case.file.as_str())?, &case.name)?;
             Some(DeclaredChecks { line, checks: checks.into_iter().map(|(id, line)| DeclaredCheck { id, line }).collect() })
         })
-        .collect()
+        .collect())
 }
 
 /// The line of `name`'s body and the checks it declares, each with its line;
@@ -160,6 +161,21 @@ fn within(parsed: &Parsed, at: u32, scope: u32) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_test_file_checked_out_as_a_git_lfs_pointer_fails_the_read_as_the_journeys_walk_fails_it() {
+        let root = std::env::temp_dir().join(format!("sense-case-checks-lfs-{}", std::process::id()));
+        std::fs::create_dir_all(&root).unwrap();
+        let pointer = "version https://git-lfs.github.com/spec/v1\noid sha256:4d7a214614ab2935c943f9e0ff69d22eadbb8f32b1258daaa5e2ca24d17e2393\nsize 20\n";
+        std::fs::write(root.join("a.test.ts"), pointer).unwrap();
+        std::fs::write(root.join("b.test.ts"), SOURCE).unwrap();
+        let ask = |file: &str| CheckedCaseAsk { file: file.into(), name: "form sends".into() };
+        let root_text = root.to_str().unwrap().to_string();
+        let refused = declared_checks(root_text.clone(), vec![ask("a.test.ts"), ask("b.test.ts")]).map(|_| ()).unwrap_err();
+        assert!(refused.reason.contains("a.test.ts is a git-LFS pointer"), "{}", refused.reason);
+        assert!(declared_checks(root_text, vec![ask("missing.test.ts"), ask("b.test.ts")]).unwrap()[1].is_some());
+        std::fs::remove_dir_all(&root).unwrap();
+    }
 
     fn read(source: &str, name: &str) -> Option<(u32, Vec<(String, u32)>)> {
         declared(&journeys_parse::parse("a.test.ts", source).unwrap(), name)

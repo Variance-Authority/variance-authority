@@ -49,7 +49,8 @@ export interface RanCase {
  *
  * A case's attempts are those its runner reported and those its scope told of a
  * check under; an attempt the runner did not report has no ending, and is not
- * judged. A check the case does not declare is not kept: it is not read from
+ * judged. A test file is read as the journeys walk reads it: one checked out as
+ * a git-LFS pointer, or that the system will not read, throws with its reason. A check the case does not declare is not kept: it is not read from
  * the source, so nothing could be missing of it.
  */
 export function checksOf(root: string, cases: readonly RanCase[]): ChecksSection | undefined {
