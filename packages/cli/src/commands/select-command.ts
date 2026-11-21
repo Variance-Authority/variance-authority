@@ -235,7 +235,14 @@ async function untested(request: SuiteRequest): Promise<SuiteReading> {
     ...(gap === undefined ? [] : [probesNote(gap, undefined, '--execution').replace(/\.$/, '')]),
     ...(stood === undefined ? [] : 'unread' in stood ? [stood.unread] : handed ? handedNotes(stood.reading, commit!) : standingNotes(stood.reading, commit!)),
   ];
-  const stands = handed || stood === undefined || 'unread' in stood ? [] : stood.stands;
+  // A test placed at a stand is charged with what differs from its stand to the
+  // tree, never through the journal's commit: a file the tree holds as the stand
+  // had it is no change for it, however far the journal's commit moved it. Only
+  // a file that moved between the two commits can be one, and `git diff <stand>`
+  // against the tree says which still differ; a file it lists stays charged.
+  const placed = handed || stood === undefined || 'unread' in stood ? [] : stood.stands;
+  const unchanged = new Map(placed.map((stand) => [stand.commit, unchangedSince(here, stand)] as const));
+  const stands = placed.map((stand) => ({ ...stand, changed: stand.changed.filter((file) => !unchanged.get(stand.commit)!.includes(file)) }));
   const standsChanged = stands.flatMap((stand) => stand.changed);
   const recorded = { at, ...(commit === undefined ? {} : { commit }), ...(standing.length === 0 ? {} : { standing }) };
   if (!handed && reading?.widened !== undefined) {
@@ -325,11 +332,11 @@ async function untested(request: SuiteRequest): Promise<SuiteReading> {
   const options = { relations, at, checkout: request.root, unmeasured: selection.unmeasuredOf(declared), ignore: declared?.ignore, precision: declared?.precision, distances: request.atDistance !== undefined };
   const ask = (question: StandQuestion) =>
     question.read === 'stand'
-      ? recordAgainst(here, selection.standDiff(gitIn(here), commit!, question.at), { ...options, keptTexts: false })
+      ? recordAgainst(here, selection.withoutFiles(selection.standDiff(gitIn(here), commit!, question.at), unchanged.get(question.at) ?? []), { ...options, keptTexts: false })
       : recordAgainst(
           here,
           withWhole(
-            [selection.withoutFiles(diff, question.whole), ...question.whole.map(selection.wholeEntry)].join('\n'),
+            [selection.withoutFiles(diff, [...question.whole, ...(question.at === undefined ? [] : unchanged.get(question.at) ?? [])]), ...question.whole.map(selection.wholeEntry)].join('\n'),
             beyond.get(question.at)!.files,
           ),
           handed ? { ...options, undone: false } : options,
@@ -401,6 +408,16 @@ async function standsOf(
   }
   const reading = selection.standsAt(at, runs, gitIn(repository), (test) => existsSync(join(repository, test)));
   return reading === undefined ? undefined : { reading, stands: reading.stands };
+}
+
+/**
+ * The files `stand` names as changed between it and the journal's commit that
+ * the tree in `repository` holds exactly as the stand did.
+ */
+function unchangedSince(repository: string, stand: Stand): readonly string[] {
+  if (stand.changed.length === 0) return [];
+  const differ = new Set(gitIn(repository)('diff', '--name-only', '-z', '--no-renames', stand.commit).split('\0').filter((file) => file !== ''));
+  return stand.changed.filter((file) => !differ.has(file));
 }
 
 /** What the journal says about where its tests last ran, as notes after the verdict. */
