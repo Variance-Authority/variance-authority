@@ -4,8 +4,8 @@
  * where it did. A surface — `/dom` for a document, `/playwright` for a browser
  * page — answers the questions; the declarations are the same over both.
  *
- * It reads no signal from the app and imports nothing from the rest of
- * Variance Authority.
+ * It reads no signal from the app. Of Variance Authority it imports only
+ * `@variance-authority/core`, for which requests count as work.
  */
 
 export { action, here, region, stay, Unreached } from './model.js';

@@ -22,8 +22,9 @@ export function quietPeriod(period: number, pending: () => number): QuietPeriod 
     clearTimeout(timer);
     const settled = settle;
     if (settled === undefined || pending() > 0) return;
-    // A deadline, not a look: armed when the last work ends and disarmed when
-    // more begins, so it fires only on a full quiet period.
+    // A quiet period, not a look: armed when the last work ends and disarmed
+    // when more begins, so it fires only on a full one. Staying is told by this
+    // timer; whether a signal can tell it instead is open in #1473.
     timer = setTimeout(() => {
       still = true;
       settled('quiet');

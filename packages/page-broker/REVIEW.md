@@ -10,8 +10,8 @@ each over a page that announces nothing.
 
 - **One model, any surface.** `model.ts` decides outcomes from a `Surface`
   alone; `dom.ts` and `playwright.ts` only find, look and act. No runner is
-  favoured, and the package imports nothing from the rest of Variance
-  Authority.
+  favoured, and of Variance Authority the package imports only
+  `@variance-authority/core`.
 - **The app announces nothing.** No `aria-busy`, no announced event, no
   attribute written for a test is read. An arrival is a declared region
   becoming visible.
@@ -29,9 +29,9 @@ each over a page that announces nothing.
 - **Quiet is told by one clock on every surface.** `quiet-period.ts` keeps
   it; what counts as pending differs, since each surface sees different work:
   requests in flight over a browser, requests and document changes over a
-  document. Which requests count is `awaitedRequest`, from
-  `@variance-authority/core`, on both. Whether a timer is the
-  right way is
+  document. Over a browser, which requests count is `awaitedRequest`, from
+  `@variance-authority/core`; over a document, it is the APIs the surface
+  wraps, `fetch` and `XMLHttpRequest`. Whether a timer is the right way is
   [open](https://github.com/Variance-Authority/variance-authority/issues/1473).
 
 ## What it does not answer

@@ -50,9 +50,9 @@ change, `window.open` or a new modal dialog is having left.
 
 ## Communicates with
 
-[Arrival](../stability/arrival/README.md): which requests count as work is
-`awaitedRequest` from `@variance-authority/core`, the list arrival waits on, so
-the two never disagree. Nothing imports this block.
+[Arrival](../stability/arrival/README.md): over a browser, which requests
+count as work is `awaitedRequest` from `@variance-authority/core`, the list
+arrival waits on, so the two never disagree. Nothing imports this block.
 
 ## Uses
 

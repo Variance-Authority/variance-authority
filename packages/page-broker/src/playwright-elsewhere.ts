@@ -26,7 +26,8 @@ export async function elsewhere(page: Page): Promise<Elsewhere> {
     try {
       request.frame();
     } catch {
-      // A document asked for before Playwright has a frame for it is a new page's.
+      // Playwright's documented case: `frame()` throws for a navigation request
+      // issued before its frame is created, which is a new page's document.
       opened = true;
     }
   };
