@@ -273,6 +273,30 @@ describe('a test that did not run at the journal commit', () => {
     expect(answer.selected).toEqual([]);
   });
 
+  it('charges only what the branch changed since a test last ran, in a file it edits again after merging the stand that is no ancestor of the journal', async () => {
+    // `alpha` and `beta` last ran at M, on main, where `alpha`'s function in
+    // `src/far.ts` changed after the branch point B. The branch commits J off B
+    // and runs only `near` there, then merges main and edits `beta`'s function.
+    // From M to HEAD only `beta`'s function changed: `alpha` ran on M's text.
+    const repo = checkout();
+    const B = repo.commit({ ...sources(1, ['near']), ...twoFunctions(1, 1), 'test/alpha.test.ts': "import '../src/far.js';\n", 'test/beta.test.ts': "import '../src/far.js';\n" }, 'B');
+    const M = repo.commit(twoFunctions(2, 1), 'M');
+    await landRun(repo.file, twoFunctionsRun(repo.root, M), repo.root);
+    repo.git('checkout', '--quiet', '-b', 'side', B);
+    const J = repo.commit({ 'notes.txt': 'unrelated\n' }, 'J');
+    await landRun(repo.file, run(repo.root, J, ['near']), repo.root);
+    repo.git('merge', '--quiet', '--no-edit', 'main');
+    repo.commit(twoFunctions(2, 3), 'edit beta');
+    expect((await readCommitRuns(repo.file))?.standing).toMatchObject([{ commit: M, files: ['test/alpha.test.ts', 'test/beta.test.ts'] }]);
+    expect(repo.git('merge-base', M, J)).toBe(B);
+
+    await repo.select();
+    const said = await selectOutput({ cwd: repo.root, format: 'json' });
+
+    const answer = JSON.parse(said.out) as { selected: { test: string }[] };
+    expect(answer.selected.map(({ test }) => test)).toEqual(['test/beta.test.ts']);
+  });
+
   it('names the stand git cannot read, not the oldest one', async () => {
     const { root, file, P } = await partialRun();
     const gone = 'e'.repeat(40);
@@ -426,6 +450,33 @@ function checkout(root = mkdtempSync(join(tmpdir(), 'va-select-standing-'))) {
       await indexOutput({ cwd: root });
       return await selectOutput({ cwd: root, format: 'plain' });
     },
+  };
+}
+
+/** `src/far.ts` as two functions, `alpha` returning `a` and `beta` returning `b`. */
+function twoFunctions(a: number, b: number): Record<string, string> {
+  return { 'src/far.ts': `export function alpha() {\n  return ${a};\n}\n\nexport function beta() {\n  return ${b};\n}\n` };
+}
+
+/** A run of `alpha`, `beta` and `near` at `commit`, each of the first two entering its own function of `src/far.ts`. */
+function twoFunctionsRun(root: string, commit: string): TestCoverage {
+  const near = run(root, commit, ['near']);
+  return {
+    ...near,
+    tests: [...near.tests, ...['alpha', 'beta'].map((name) => ({ file: `test/${name}.test.ts`, complete: true, preconditions: [] }))],
+    modules: [
+      ...near.modules,
+      {
+        file: 'src/far.ts',
+        sourceDigest: digestString(readFileSync(join(root, 'src/far.ts'), 'utf8')),
+        instrumented: true,
+        blocks: [
+          { ordinal: 0, kind: 'module', digest: digestString('module'), name: '', path: 'module', startLine: 1, endLine: 7, source: true, testFiles: ['test/alpha.test.ts', 'test/beta.test.ts'] },
+          { ordinal: 1, kind: 'function', owner: 0, digest: digestString('alpha'), name: 'alpha', path: 'entry', startLine: 1, endLine: 3, source: true, testFiles: ['test/alpha.test.ts'] },
+          { ordinal: 2, kind: 'function', owner: 0, digest: digestString('beta'), name: 'beta', path: 'entry', startLine: 5, endLine: 7, source: true, testFiles: ['test/beta.test.ts'] },
+        ],
+      },
+    ],
   };
 }
 
