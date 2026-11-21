@@ -7,7 +7,8 @@ import type { RecordedAttempt } from './attempts-record.js';
 import { triedAttempts, type CaseAttempts } from './case-attempts.js';
 import { UNLIMITED, UNTIMED, type CaseDurations, type CaseLimits } from './case-durations.js';
 import type { EyesSection } from './eyes-record.js';
-import { checksOf, type EnteredCheck, type RanCase } from './case-checks.js';
+import type { EnteredCheck, RanCase } from './case-checks.js';
+import { checksOfSource } from './source-checks.js';
 import type { ChecksSection } from './checks-record.js';
 import { nativeModule, whyAbsent } from './native-modules.js';
 import type { Reading } from './readings.js';
@@ -94,7 +95,7 @@ export function foldCases(
   }));
   const ids = new Map(coordinates.map((coordinate, at) => [caseKey(coordinate), cases[at]!.id]));
   const attempts = triedAttempts(coordinates, ids, options.tried, root);
-  const checks = checksOf(root, ranCases(cases, coordinates, options.tried, journals.checks()));
+  const checks = checksOfSource(root, ranCases(cases, coordinates, options.tried, journals.checks()));
   const looked = journals.eyes();
   const eyes: EyesSection | undefined = looked === null ? undefined : {
     watched: looked.watched,

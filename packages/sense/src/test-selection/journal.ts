@@ -49,7 +49,7 @@ import { digestString } from '../digest.js';
 import { instrumentationId, type InstrumentMode, type ModuleId } from '../instrument/index.js';
 import { ownedExecutionIndexFrom } from './cases.js';
 import { attemptsOfCases } from './attempts-record.js';
-import { checksOf } from './case-checks.js';
+import { checksOfSource } from './source-checks.js';
 import { eyesOfCases } from './eyes-record.js';
 import { encodeOwnedSetExecutionIndex } from './execution-set-format.js';
 import {
@@ -416,7 +416,7 @@ export async function recordExecution(
   const observed = options.cases ?? [];
   const eyes = eyesOfCases(observed);
   const attempts = attemptsOfCases(observed, root);
-  const checks = observed.length === 0 || options.partial === true ? undefined : checksOf(root, observed.map((one) => ({
+  const checks = observed.length === 0 || options.partial === true ? undefined : checksOfSource(root, observed.map((one) => ({
     file: one.file,
     name: one.name,
     ...(one.project === undefined ? {} : { project: one.project }),

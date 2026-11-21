@@ -20,7 +20,6 @@
 // compass: variance-authority.reach
 
 import { codeUnitOrder } from '@variance-authority/core/segment';
-import { native } from '../addon.js';
 import type { ObservedAttempt } from './attempts-record.js';
 import type { CheckedAttempt, CheckedCase, ChecksSection } from './checks-record.js';
 
@@ -41,21 +40,24 @@ export interface RanCase {
   readonly entered: readonly EnteredCheck[];
 }
 
+/** What one case's body declares, as `checksOfSource` reads it from its test file: its line and each check it spells. */
+export interface DeclaredCase {
+  readonly line: number;
+  readonly checks: readonly { readonly id: string; readonly line: number }[];
+}
+
 /**
- * The checks section of a run that ran `cases` over `tests`, or `undefined`
- * when none of its cases declares a check the source spells, or the addon that
- * reads the declarations is not loaded: such a run kept no checks, which is not
- * a run that missed none.
+ * The checks section of a run that ran `cases`, each declaring what `declared`
+ * holds at its index (`null` for a body the source does not hold), or
+ * `undefined` when none of its cases declares a check: such a run kept no
+ * checks, which is not a run that missed none.
  *
  * A case's attempts are those its runner reported and those its scope told of a
  * check under; an attempt the runner did not report has no ending, and is not
- * judged. A test file is read as the journeys walk reads it: one checked out as
- * a git-LFS pointer, or that the system will not read, throws with its reason. A check the case does not declare is not kept: it is not read from
+ * judged. A check the case does not declare is not kept: it is not read from
  * the source, so nothing could be missing of it.
  */
-export function checksOf(root: string, cases: readonly RanCase[]): ChecksSection | undefined {
-  const declared = native()?.declaredChecks?.(root, cases.map(({ file, name }) => ({ file, name })));
-  if (declared === undefined) return undefined;
+export function checksOf(cases: readonly RanCase[], declared: readonly (DeclaredCase | null)[]): ChecksSection | undefined {
   const checked = cases.flatMap((ran, at): CheckedCase[] => {
     const body = declared[at];
     return body == null ? [] : [{
