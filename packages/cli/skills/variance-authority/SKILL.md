@@ -12,66 +12,31 @@ page from here to manufacture the reading. The distillation loop does rerun a
 test: that is an experiment you run, and its evidence comes back through the
 same read-only commands.
 
+## Questions about the code
+
+`variance ask` answers about the source `variance index` read. These are its
+main questions; pick the one that fits what you hold, each is one command:
+
+| You hold | Ask | Example |
+|---|---|---|
+| The task's words | [which of them name a package, an entrypoint or an export, and the folders they point to](references/workspace-classify.md) | `variance ask classify --query "checkout payment retry"` |
+| Nothing yet | [the map: packages, areas, layers](references/orient.md#orient) | `variance ask orient` |
+| A file | [its place on that map](references/orient.md#orient) | `variance ask orient --files src/billing/invoice.ts` |
+| What a thing does | [the names that do it](references/workspace-search.md) | `variance ask search --query "retry payment" --from src/billing/` |
+| A name | [where it is declared](references/workspace-symbol.md) | `variance ask symbol --name PaymentRetry` |
+| A name | [every file that imports it; `--from` sorts them, it does not narrow](references/workspace-uses.md) | `variance ask uses --name PaymentRetry` |
+| A name and an area | [the files there that import it](references/workspace-discover.md) | `variance ask discover --imports src/billing/retry.ts#PaymentRetry --path '^src/checkout/'` |
+| A file | [what it reaches through its imports, nearest first; `--declares <regex>` keeps the ones declaring a name](references/workspace-discover.md) | `variance ask discover --from src/billing/invoice.ts --declares Retry` |
+| A file | [what reaches it through imports](references/workspace-discover.md) | `variance ask discover --to src/billing/invoice.ts` |
+| Two questions | [the files both answer](references/workspace-intersection.md) | `variance ask intersection 'symbol --name PaymentRetry' 'discover --from src/checkout/'` |
+| A string or a pattern | [the source lines that hold it](references/workspace-grep.md) | `variance ask grep --query 'retryCount' --from src/billing/` |
+| Text nothing in the source imports: YAML, JSON, Markdown, shell, workflows, logs | not `variance`: `rg` or `git grep` | `rg 'retryCount' .github/` |
+
 ## Fill a gap with a run of what it names
 
-An answer gives what the record has and names what it lacks — its gap. Fill a
-gap with what it names: a record fetched from the mainline, or a recorded run of
-the tests it names with the project's own runner. Never fill it by running the
-whole suite again over a record that exists:
-
-- **A suite with no recording** — `covering`'s `unrecorded`. When the refusal
-  names `variance share --suite <name>`, run that: it fetches the mainline's
-  record of a suite the root config gives `"carry": "share"`, with no run.
-  Otherwise wire the suite's producer, as [producers](references/producers.md)
-  says, and record one run of the suite: that first run is the record.
-- **A domain no producer wrote.** Wire the producer, as
-  [producers](references/producers.md) says, then run again the tests whose
-  answer lacked it.
-- **A case, or a test file.** Run that file, filtered to the case by its name
-  with the runner's own filter: `-t` under Vitest, Jest and Rstest, `--grep`
-  under Playwright.
-- **A file the record is older than** — `covering`'s `older`: the commit the
-  record was made at did not hold the file, so the file is new. Run
-  `variance index`, then `variance reach --since <commit>` with the commit the
-  refusal names: it takes every file added since the record at once, with no
-  record needed, and lists the files each one reaches over imports. Run the
-  test files in that list. A ref such as `origin/main` diffs from its merge base
-  with `HEAD`, which can already hold the file.
-- **Lines written since the recording, or recorded over another text since, in
-  a file the record holds** — `covering` answers a line your edit wrote with no
-  case and names it in `written`. A line a case ran over, where a run over
-  another text has landed since, is named in `overwritten`, under any frame:
-  which case ran it is not known. A line the record cannot say a case ran over,
-  since it does not say which text one that crossed the file ran, is named in
-  `unknown`, with `why`. A `stale` frame or a `moved` range is the
-  same gap. Record: the test files the gap names, the ones `variance select`
-  runs for the file, among them every test file the record holds only in part.
-  Run what the gap's `Run with the suite's own runner:` line names, `gap.run`
-  under `--format json`.
-- **A file the suite never loaded** — `covering`'s `Not loaded by`
-  (`unloaded`). The file is in the record's commit, and the recorded run of the
-  suite loaded it by no import at all — static, dynamic, or a setup file's.
-  Running the same tests again records the same thing. A test file added since
-  the recording is the diff's: `variance reach --since <commit>`, with the
-  commit the record was made at, names it when it imports the file. Otherwise
-  the gap is a test that loads the file, which no run fills.
-- **A base the answer cannot compare against** — `undiffed`. The base names a
-  commit this clone lacks or cannot diff from, or names none, or `--since` names
-  a ref that reads as no diff. This gap is the one no run fills: fetch that commit, for example by deepening a shallow
-  clone, or ask without the base.
-
-`reach` and `discover` follow imports. A suite that drives the code from another
-process, such as Playwright over a running app or a built Storybook, has no
-import from a spec to the file, so for a new or an unloaded file the source
-names none of its specs. Run the specs that drive the page, route or story the
-file serves, filtered with `--grep`, against a build that carries
-`testSelectionProbes()`, so the run measures the file.
-
-Inside the edit loop, `VARIANCE_AUTHORITY_SINCE= <runner>` already selects
-what each edit reached, both legs, as [test selection](references/test-selection.md#test-an-edit-in-a-loop)
-says; these bullets fill one answer's gap. A run of the whole suite is the gate
-before a change is done, and it is how the record is brought up to a commit. It
-is not how one answer's gap is filled.
+When an answer names missing recording evidence, follow
+[the gap it names](references/recording-gaps.md). That reference gives the
+bounded run or fetch for each gap.
 
 ## Run the installed binary
 
@@ -135,6 +100,7 @@ when its condition holds, not before.
 | Where does this one test, or the few I am looking into, go, and in what order? What was each function handed, and where did this object come from? | [story](references/story.md) | |
 | Which tests does this edit need, and which first? What does a distance or a `bearing` mean? | [test selection](references/test-selection.md) | you are writing a suite's `before` or `relations`, the selection came back whole, missed a config file, or a recorded run times out: [selection wiring](references/selection-wiring.md); you need distances, the `because` trail or a diff that is not a ref: [selection API](references/selection-api.md) |
 | What can this test be reduced to? How much of what each test file loads does it use, as percentiles across a suite? | [distill](references/distill.md) | an input file is missing: [producers](references/producers.md) |
+| Where should a coding task start? | [code orientation](references/code-orientation.md) | you need a question's complete flags: [workspace API](references/workspace-api.md#the-verbs) |
 | What does this workspace publish? Where is a name declared, and who imports it? Where are the words of a task, and which packages are they in? | [workspace API](references/workspace-api.md) | you need why a name exists or what it connects to: [what is written about a name](references/written-about-a-name.md) |
 | Where am I in this codebase, what runs here, what can this file import, and which tests are slowest? | [orient](references/orient.md) | |
 | The client holds an MCP connection, or you are writing its config | [MCP](references/mcp.md) | then the row for the question itself |
@@ -142,37 +108,9 @@ when its condition holds, not before.
 
 ## Follow a golden path
 
-When the task is an outcome rather than one question, its golden path on the
-site owns the order of the steps and links the page for each; it describes the
-latest release. Below, each path names the references that cover its steps.
-
-- **Make CI faster** ([path](https://variance-authority.dev/docs/path-faster-ci)):
-  shard by recorded time ([combine CI shard records](references/test-selection.md#combine-ci-shard-records)),
-  select on a pull request ([selection wiring](references/selection-wiring.md)),
-  carry the record to the next push (the same reference), then
-  [test an edit in a loop](references/test-selection.md#test-an-edit-in-a-loop).
-  All four start from the record main publishes.
-- **Review a visual change** ([path](https://variance-authority.dev/docs/path-visual-review)):
-  [check an edit](references/check-an-edit.md), then [ask a run](references/ask-a-run.md).
-- **Review a pull request** ([path](https://variance-authority.dev/docs/path-code-review)):
-  the handover, then [covering](references/covering.md) for a function it flags
-  🔴 and [the whole change](references/covering.md#ask-about-the-whole-change-at-review-time),
-  then `variance layers`, then `review --fail-on-uncovered` or `--fail-on-lost` as the [gate](#what-each-command-needs).
-- **Keep a test suite lean** ([path](https://variance-authority.dev/docs/path-lean-suite)):
-  [covering](references/covering.md), then
-  [case preconditions](references/case-preconditions.md), then
-  [distill](references/distill.md).
-- **Orient a coding agent in a codebase** ([path](https://variance-authority.dev/docs/path-agent-orientation)):
-  for a concrete feature task, start with [names, then relations](references/workspace-api.md#names-then-relations).
-  For the architecture, use [orient](references/orient.md#orient),
-  [stack](references/orient.md#stack), [packages](references/workspace-api.md#packages)
-  and `variance layers` as needed. Before editing, ask
-  [covering](references/covering.md) about the lines to change.
-- **Find out why a test failed or hangs** ([path](https://variance-authority.dev/docs/path-test-failure)):
-  [story](references/story.md) from the wrapped suite's record (a visual run
-  starts at [ask a run](references/ask-a-run.md)), then where it [parted from a passing test](https://variance-authority.dev/docs/journeys);
-  a run that has not ended starts at [live run](references/live-run.md), then
-  [interrogate the test](https://variance-authority.dev/agents/interrogate).
+For an outcome spanning several questions, follow
+[its workflow](references/workflows.md). Each path links its site guide and
+the references for its steps.
 
 ## Rules every answer shares
 
@@ -196,9 +134,10 @@ when it spells a name or a phrase: `node id` finds `NodeId`.
 source index takes `rg` or `git grep`, as the workspace reference explains.
 
 **Say where you are standing.** On a large repository a common word matches
-everywhere the product uses its own name. `--from <path>` narrows to what that
-path imports, at any depth; `--to <path>` to what imports it. Give both and the
-two areas are combined, not intersected. A path has three widths and no others:
+everywhere the product uses its own name. On `search` and `grep`,
+`--from <path>` narrows to what that path imports, at any depth; `--to <path>`
+to what imports it. Give both and the two areas are combined. `discover`
+intersects its operands instead. A path has three widths and no others:
 `src/a/File.ts` is that file, `src/a/*` is that folder's own files, `src/a/` is
 everything under it at any depth. Write the parent with the file name —
 `Provider.tsx` alone is not unique. A path is a fact about the source tree, so
@@ -208,8 +147,11 @@ ask from a checkout at the revision you are asking about.
 a name, or `discover --path <regex> --declares <regex>` for declarations in
 an area. Once an answer names a plausible feature owner, read its named lines
 and imports; these verbs are choices, not a sequence to complete first.
-Then use `discover --from <file>` or `--to <file>` with the names the source
-gave you to find the next responsibility. A historical symptom may be gone:
+Find the next responsibility by crossing what you know, with the `discover`
+and `intersection` rows of [the table](#questions-about-the-code);
+`discover --imports` follows re-exports too. Take import names from the source
+you read.
+A historical symptom may be gone:
 establish the current feature's owners before searching for the old predicate.
 A file explicitly named by the task can be read directly. Any other file no
 answer named takes `orient --files <path>` before the read.

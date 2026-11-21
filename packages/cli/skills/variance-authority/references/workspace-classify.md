@@ -1,0 +1,36 @@
+# `classify --query <words>`
+
+Ask it first when you hold a request and no name. It says which of the
+request's words are, whole, a package's name or that name without its scope, an
+entrypoint's specifier (both matched without case), or a published exported
+name (matched as spelled). A word that is only part of a name is not one:
+`check` names nothing beside `checkoutPath`, and `Check` does not match `check`.
+Each entity is listed with what it names, a package first, then its
+entrypoints, then the specifiers that export it, and each with its package's
+area and dependency layer as `orient` numbers them. The words that name
+nothing follow on one line, and the answer ends with a `symbol` question per
+exported name, an `entrypoint` question per published package or entrypoint,
+and an `orient --area` question per package that publishes nothing, or none
+when the map placed that package in no area. A word the
+request spells another way — a plural, two words for a hyphenated name, a
+domain word no name carries — is not an entity.
+
+Then it ranks the areas of the tree the request's words point to, ten at
+most, best first: a directory of at most 500 tracked files, a larger one read
+as its children. An area's words are its path's, its files' names and the
+top-level names its files declare, exported or not, compared by stem, and a word counts for more
+the fewer areas hold it. An area's length counts every word its declared names
+hold, exported or not and asked or not, each name once per file, so changing
+a name's export visibility alone does not move an area. Each area is listed with its file count, the
+request's words it holds, the one weighing most there first, and the package
+on the code map nearest at or above it, with that package's area and layer on
+the code map. The best one
+is asked `search --from` for its two weightiest words. A request that names
+nothing still points somewhere: `Fix task manager claiming tasks twice` ranks
+the task manager plugin first in Kibana. In a monorepo of many products, pass
+`--from` with the product's folder: only the files it reaches along the imports
+are ranked, its own and the shared code it imports, and a word rare inside the
+product counts for more there. `--to` ranks the files that import a path. The
+answer then opens with the start point's line, as `grep`'s does. It reads the
+code map `variance index` folds, and without one it says so and classifies
+nothing.
