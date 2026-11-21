@@ -199,6 +199,20 @@ describe('variance ask classify', () => {
     expect(asked.out).not.toContain('variance ask entrypoint --package @t/case-runner');
   });
 
+  it('answers known names with their direct questions and no lexical area fallback', async () => {
+    families();
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    for (const [query, followup] of [['@t/shop-2', 'entrypoint --package @t/shop-2'], ['data1', 'symbol --name data1']] as const) {
+      const asked = await run(['ask', 'classify', '--query', query]);
+
+      expect(asked.code).toBe(EXIT_CLEAN);
+      expect(asked.out).toContain(`variance ask ${followup}`);
+      expect(asked.out).not.toContain('Areas its words point to');
+      expect(asked.out).not.toContain('variance ask search');
+    }
+  });
+
   it('ranks only the files a start point reaches along the imports, and says which', async () => {
     families();
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
@@ -209,6 +223,15 @@ describe('variance ask classify', () => {
     expect(asked.out).toContain('In 5 file(s) reachable from `packages/shop/shop-4/src/index.ts` along the imports');
     expect(asked.out).toMatch(/^ {2}\. — 5 files · holds shop$/m);
     expect(asked.out).toContain("variance ask search --query shop --from packages/shop/shop-4/src/index.ts\n");
+
+    for (const direction of ['--from', '--to']) {
+      const exact = await run(['ask', 'classify', '--query', 'shop-2', direction, 'packages/shop/shop-2/src/index.ts']);
+
+      expect(exact.code).toBe(EXIT_CLEAN);
+      expect(exact.out).toContain('Areas its words point to');
+      expect(exact.out).toContain('variance ask search');
+      expect(exact.out).toContain(direction === '--from' ? 'reachable from' : 'reaching');
+    }
   });
 
   it('reads the names a file keeps to itself as its area\'s words, as it reads the exported ones', async () => {
@@ -251,7 +274,7 @@ describe('variance ask classify', () => {
     families();
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
 
-    const asked = await run(['ask', 'classify', '--query', 'shop', '--from', 'packages/nowhere/src/index.ts']);
+    const asked = await run(['ask', 'classify', '--query', 'shop-2', '--from', 'packages/nowhere/src/index.ts']);
 
     expect(asked.code).not.toBe(EXIT_CLEAN);
     expect(asked.err + asked.out).toContain('`classify` ranked nothing');

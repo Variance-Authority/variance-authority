@@ -1,8 +1,9 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Documented, Entry, Help } from '@variance-authority/package/help';
+import * as sense from '@variance-authority/sense';
 import { HELP_TOOLS } from '../tools.js';
 import { classify } from './classify.js';
 import { classifyWords, formatClassified, placedAreas, type CodeMapPlaces } from './classify-words.js';
@@ -52,7 +53,28 @@ const MAPPED = [...PLACED.packages.keys()];
 
 const ASKED = 'hey can you check if sense can see eyes via vantage';
 
+afterEach(() => vi.restoreAllMocks());
+
 describe('docs_classify', () => {
+  it.each(['checkoutPath', 'sense/test-selection'])('answers a fully recognized unscoped query without requesting area ranking (%s)', (query) => {
+    vi.spyOn(sense, 'packageLayers').mockReturnValue({ current: true, packages: [] });
+    const rank = vi.spyOn(sense, 'classifiedAreas').mockReturnValue({ areas: [], reached: 0, unresolved: 0 });
+
+    const text = classify.run(HELP, { query }, { root: '/unused' });
+
+    expect(text).toContain(query);
+    expect(rank).not.toHaveBeenCalled();
+  });
+
+  it.each(['checkoutPath defaults', 'defaults'])('still requests area ranking for unresolved words (%s)', (query) => {
+    vi.spyOn(sense, 'packageLayers').mockReturnValue({ current: true, packages: [] });
+    const rank = vi.spyOn(sense, 'classifiedAreas').mockReturnValue({ areas: [], reached: 0, unresolved: 0 });
+
+    classify.run(HELP, { query }, { root: '/unused' });
+
+    expect(rank).toHaveBeenCalledOnce();
+  });
+
   it('names the packages among the words, each with its area and layer, and the rest on one line', () => {
     const text = formatClassified(classifyWords(ASKED, HELP, MAPPED), PLACED);
 
