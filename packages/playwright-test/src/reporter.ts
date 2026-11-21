@@ -192,13 +192,12 @@ export default class implements Reporter {
     this.#directory = resolve(dirname(this.#snapshot), `.run-${process.pid}-${randomUUID()}`);
     openStage(this.#directory);
     // A run killed before `onEnd` would leave the run before it answering, so
-    // the record reads incomplete from here until this run says otherwise.
-    if (this.#checked.size > 0) {
-      const cases = [...this.#checked.values()].map((one) => caseOf({ ...one, attempts: new Map() }));
-      this.#opened = recordChecks(this.#where(), { complete: false, scope: this.#scope(), cases }).catch((error: unknown) => {
-        process.stderr.write(`variance-authority: could not mark the record's checks incomplete — ${error instanceof Error ? error.message : String(error)}\n`);
-      });
-    }
+    // the record reads incomplete from here until this run says otherwise —
+    // whether or not this run collected a case that declares a check.
+    const cases = [...this.#checked.values()].map((one) => caseOf({ ...one, attempts: new Map() }));
+    this.#opened = recordChecks(this.#where(), { complete: false, scope: this.#scope(), cases }).catch((error: unknown) => {
+      process.stderr.write(`variance-authority: could not mark the record's checks incomplete — ${error instanceof Error ? error.message : String(error)}\n`);
+    });
   }
 
   onTestBegin(test: TestCase, result: TestResult): void {

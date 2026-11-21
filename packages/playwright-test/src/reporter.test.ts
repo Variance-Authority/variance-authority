@@ -136,7 +136,7 @@ describe('the reporter that folds what the workers recorded', () => {
 });
 
 describe('the verdict on a run that found no tests', () => {
-  const config = { projects: [{ testMatch: '**/*.spec.ts' }] } as unknown as FullConfig;
+  const config = { projects: [{ testMatch: '**/*.spec.ts' }], shard: null } as unknown as FullConfig;
   const noTests = { message: 'Error: No tests found.' };
 
   afterEach(() => {

@@ -114,6 +114,15 @@ describe.runIf(BROWSER_AVAILABLE)('a Playwright case whose declared check did no
     expect(read).not.toContain('1 declared check(s) entered');
   }, 180_000);
 
+  it('reads a killed run that collected no declaring case as incomplete, not as the run before it', async () => {
+    const coverageFile = await freshRecord();
+    await run(coverageFile, { DROP_TITLE: '1' });
+    await run(coverageFile, { DROP_TITLE: '1', STALL: 'SIGKILL' }, ['--grep', 'lists events']);
+    const read = readingOf(coverageFile);
+    expect(read).toContain('incomplete');
+    expect(read).not.toContain('did not execute');
+  }, 180_000);
+
   it('reads a run the runner stopped before it ended as incomplete, and names no missing check', async () => {
     const read = await reading({ DROP_TITLE: '1', STALL: '1' });
     expect(read).toContain('incomplete');
