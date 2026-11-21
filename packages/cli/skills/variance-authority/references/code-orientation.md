@@ -37,10 +37,10 @@ one known file, combine its exact path with `--text`:
 variance ask discover --path '^src/PriceCard[.]tsx$' --text 'onComplete|error'
 ```
 
-A task's quoted UI label or error message is source text: try scoped `grep`
-for it before expanding the request into name queries. The query is a regular
-expression: escape metacharacters in literal text, such as `Failed \(retry\)`,
-as the [grep contract](workspace-api.md#grep) describes. A matching line names
+A quoted UI label or error is source text: use scoped `grep`. If its exact
+wording misses, retry a distinctive fragment in the same scope before name
+queries. Escape regex metacharacters in literal text, such as `Failed \(retry\)`;
+see the [grep contract](workspace-api.md#grep). A matching line names
 a candidate; read it before deciding it owns the requested behavior.
 
 For example, find an example that transitively imports a component, then a
