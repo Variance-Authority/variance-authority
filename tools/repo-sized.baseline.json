@@ -1,0 +1,570 @@
+[
+  {
+    "at": "packages/cli/src/commands/doctor-skills.ts sameTree",
+    "count": 1
+  },
+  {
+    "at": "packages/cli/src/commands/evidence-identity.ts directoryDigest",
+    "count": 1
+  },
+  {
+    "at": "packages/cli/src/commands/mainline-fixture.ts forgetLineAnswers",
+    "count": 1
+  },
+  {
+    "at": "packages/cli/src/commands/relations-file.ts trackedRuleFiles",
+    "count": 1
+  },
+  {
+    "at": "packages/cli/src/commands/share-suites.ts recordsUnder",
+    "count": 1
+  },
+  {
+    "at": "packages/cli/src/commands/since.ts untrackedFiles",
+    "count": 1
+  },
+  {
+    "at": "packages/cli/src/commands/source-graph.ts walkSource",
+    "count": 1
+  },
+  {
+    "at": "packages/package/src/manifest.ts namedWithExtension",
+    "count": 1
+  },
+  {
+    "at": "packages/package/src/manifest.ts openedBy",
+    "count": 1
+  },
+  {
+    "at": "packages/package/src/members.ts members",
+    "count": 2
+  },
+  {
+    "at": "packages/route-collector/src/source.ts walk",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/append_index.rs append_source_index",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/batch.rs kinds",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/batch.rs read_batch",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/batch.rs scan_batch",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/case_layer_napi.rs case_cut_apart",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/case_layer_napi.rs follow_case_cuts",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/case_layer_napi.rs layer_case_before",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/case_layer_napi.rs layer_case_index",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/case_readings_lay/napi.rs lay_readings",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/case_readings_lay/napi.rs newest_regions_of_case",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/case_readings_lay/napi.rs readings_of_case",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/case_run.rs CaseJournals.cases",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/case_run.rs CaseJournals.eyes",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/case_run.rs CaseJournals.fold",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/case_said_napi.rs said_joined",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/case_said_napi.rs said_laid",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/case_said_napi.rs said_read",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/change_tree.rs change_tree",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/change_tree.rs disk_tree",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/commit_text.rs blobs_at",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/commit_text.rs fetch_texts_at",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/commit_text.rs texts_at",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/declared_roles_check.rs check_declared_roles",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/dependency_described.rs described_words",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/dependency_described.rs near_of",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/dependency_described.rs phrase_of",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/dependency_described.rs word_stems",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/dependency_lexicon_query.rs query_dependency_lexicon",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/dependency_stack.rs dependency_stack",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/distill_gather.rs DistillRecords.file",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/distill_gather.rs DistillRecords.regions",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/distill_gather.rs DistillRecords.scope",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/distill_gather.rs read_distill_records",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/distill_rank.rs rank_distill_causes",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/external_dependencies.rs external_dependencies",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/external_dependencies.rs orient_around",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/git_tree.rs GitTree.digests",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/git_tree.rs GitTree.digests_for",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/git_tree.rs GitTree.directories",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/git_tree.rs GitTree.index_graph",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/git_tree.rs GitTree.kept_parses",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/git_tree.rs GitTree.named",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/git_tree.rs GitTree.paths",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/git_tree.rs GitTree.seeds",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/git_tree.rs GitTree.update_index",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/git_tree.rs git_tree_for",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/graph_index.rs IndexGraph.encode",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/graph_index.rs IndexGraph.following",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/graph_index.rs IndexGraph.publish",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/graph_index.rs encode_source_index",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/help_grep.rs ripgrep",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/help_publish.rs HelpReading.publish",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/help_publish.rs aliases_of",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/help_publish.rs declared_described_of",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/help_publish.rs declared_loose_of",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/help_publish.rs declared_of",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/help_publish.rs declared_terms_of",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/help_publish.rs importers_of",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/help_publish.rs join_walked_help",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/help_publish.rs member_declarations_of",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/help_publish.rs members_on_of",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/help_publish.rs names_filter_of",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/help_publish.rs read_help",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/help_search.rs name_terms_of",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/help_store.rs encode_help_store",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/index_reader.rs SourceIndexReader.directories",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/index_reader.rs SourceIndexReader.parse_keys",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/index_reader.rs SourceIndexReader.record_files",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/index_reader.rs open_source_index_reader",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/instrument.rs cadence",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/instrument.rs instrument_module",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/instrument.rs place_module",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/journey.rs fold_journey",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/journey.rs fold_journey_to",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/journey.rs journey_module_ids",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/journey_compose.rs test_composition",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/journey_compose.rs test_ran",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/journey_forks.rs forks_between",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/journey_map.rs journey_map",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/journey_paths.rs paths_through",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/journey_query.rs cases_entered",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/journey_query.rs project_journeys",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/journey_record.rs land_regions",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/journey_resonance.rs resonance",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/journey_select.rs select_journeys",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/journey_stitch.rs stitch_journeys",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/journey_stitch.rs stitch_journeys_to",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/journeys_among.rs journeys_among",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/journeys_read.rs journeys_for",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/journeys_read.rs lines_then",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/module_readers.rs module_readers",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/module_references.rs module_references",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/module_verdict.rs module_verdict",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/orient_map.rs orient_map_page",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/orient_map_layers.rs orient_layers",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/orient_map_shipped.rs orient_shipped",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/package_graph.rs orient_packages",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/parse_store.rs prune_parse_store",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/record_combine.rs combine_records",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/record_coverage_layer.rs lay_records",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/rust_coverage.rs rust_coverage",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/seed.rs seed_files",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/side_effects.rs declared_effects",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/side_effects.rs resolve_sources",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/source_query.rs SourceTree.entries",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/source_query.rs SourceTree.paths",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/source_query.rs SourceTree.unknown_among",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/source_query.rs SourceTree.unknown_files",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/source_query.rs SourceTree.walk",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/source_query.rs SourceWalk.chain",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/source_query.rs SourceWalk.depths",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/source_query.rs SourceWalk.files",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/source_query.rs source_tree_of",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/source_update_seed.rs source_index_seed",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/native/src/text_digests.rs text_digests",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/src/checkout-path.ts checkoutListing",
+    "count": 2
+  },
+  {
+    "at": "packages/sense/src/checkout-path.ts existingAt",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/src/commit-changes.ts trackedFiles",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/src/parse-store.ts rewritesParsed",
+    "count": 2
+  },
+  {
+    "at": "packages/sense/src/test-selection/cargo-recording.ts packageFiles",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/src/test-selection/cargo-recording.ts rerunIfChanged",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/src/test-selection/job-recording.ts stepOf",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/src/test-selection/prune.ts writtenSince",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/src/test-selection/rstest-selection.ts projectFiles",
+    "count": 2
+  },
+  {
+    "at": "packages/sense/src/tree.ts gitDigests",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/src/working-tree-changes.ts workingTreeChanges",
+    "count": 1
+  },
+  {
+    "at": "packages/store/src/held.ts walk",
+    "count": 1
+  },
+  {
+    "at": "packages/store/src/lfs-fetch.ts namesakes",
+    "count": 1
+  },
+  {
+    "at": "packages/store/src/retention.ts isEmptyTree",
+    "count": 1
+  },
+  {
+    "at": "packages/store/src/share-git.ts createGitLineCell",
+    "count": 1
+  },
+  {
+    "at": "packages/storybook-collector/src/source.ts walk",
+    "count": 1
+  }
+]
