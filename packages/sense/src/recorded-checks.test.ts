@@ -61,6 +61,21 @@ describe('checksAt', () => {
     expect(checksAt(recording)).toMatchObject({ unfinished: expect.any(String), commit: 'c'.repeat(40) });
   });
 
+  it("reads a run as unfinished when the file system's clock, which stamps its directory, lags the clock that stamped the landing", async () => {
+    // Linux stamps files from a coarse clock that runs up to a tick behind the
+    // one \`Date\` reads, so a run that began just after the landing can bear
+    // an earlier time than the landing names; it is still after the record.
+    const recording = record();
+    await landChecks(recording, landedChecks(section, 'c'.repeat(40)));
+    const landed = Date.parse((checksAt(recording) as { landed: string }).landed);
+    utimesSync(recording, new Date(landed - 8), new Date(landed - 8));
+    const began = join(dirname(recording), `.run-1-${'a'.repeat(8)}-cases`);
+    mkdirSync(began);
+    utimesSync(began, new Date(landed - 3), new Date(landed - 3));
+
+    expect(checksAt(recording)).toMatchObject({ unfinished: expect.any(String), commit: 'c'.repeat(40) });
+  });
+
   it('leaves a run stopped before the checks landed to the run that landed them', async () => {
     const recording = record();
     const stopped = join(dirname(recording), `.run-1-${'a'.repeat(8)}-cases`);

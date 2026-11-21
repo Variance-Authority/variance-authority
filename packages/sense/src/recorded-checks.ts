@@ -65,7 +65,12 @@ export function checksAt(recording: string): CheckedRun {
     if (section === undefined) return { unkept: true };
     const { commit, landed } = section;
     const run = { ...(commit === undefined ? {} : { commit }), ...(landed === undefined ? {} : { landed }) };
-    const unfinished = unlandedSince(recording, landed === undefined ? statSync(recording).mtimeMs : Date.parse(landed));
+    // The landing is stamped from the clock \`Date\` reads and a run's
+    // directories from the file system's, which on Linux lags it by up to a
+    // tick; the record was written after the landing, by the second clock, so
+    // the earlier of the two is a bound both clocks agree a later run passed.
+    const written = statSync(recording).mtimeMs;
+    const unfinished = unlandedSince(recording, landed === undefined ? written : Math.min(Date.parse(landed), written));
     return unfinished === undefined ? { ...run, ...readChecks(section) } : { ...run, unfinished };
   } catch (error) {
     return { unread: error instanceof Error ? error.message : String(error) };
