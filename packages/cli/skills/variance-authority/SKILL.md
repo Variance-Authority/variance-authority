@@ -208,7 +208,8 @@ and imports; these verbs are choices, not a sequence to complete first.
 Then use `discover --from <file>` or `--to <file>` with the names the source
 gave you to find the next responsibility. A historical symptom may be gone:
 establish the current feature's owners before searching for the old predicate.
-A file no answer named takes `orient --files <path>` before the read.
+A file explicitly named by the task can be read directly. Any other file no
+answer named takes `orient --files <path>` before the read.
 
 **The uses of a name you change are part of the change.** Before you change
 what a name takes, returns or means, or rename it, list the files that import

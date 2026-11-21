@@ -26,6 +26,33 @@ An experimental discover preview reduced a channel task answer from 25,130 to
 These establish smaller answers and recoverable evidence, not better task
 completion. The discover preview remains an experiment.
 
+The orient replay ran these questions from AFM, with the candidate CLI and
+`VARIANCE_AUTHORITY_CACHE` pointing to the v8 generation above:
+
+```sh
+node "$orientation_cli" ask orient --files "$orientation_file" > compact.txt
+node "$orientation_cli" ask orient --files "$orientation_file" --declarations > expanded.txt
+wc -c compact.txt expanded.txt
+```
+
+`orientation_cli` was this worktree's `packages/cli/dist/bin.js`;
+`orientation_file` and `preview_file` name the private source paths retained
+with the local raw commands. The preview's
+source question was `ask discover --to "$preview_file" --text 'query|Channel|Help' --limit 20`. The local harness ran it with
+`python3 local-experiments/orientation-two-minute/trial-current.py
+preview-smoke ask discover` followed by those operands. Its renderer kept the
+first three numbered evidence lines per file and emitted a per-file question
+with an exact `--path`; `wc -c` over `preview-smoke/01.raw.txt` and
+`preview-smoke/01.txt` gave 25,130 and 4,628. That prototype is not published.
+
+Trial wall times below are the harness's `finished` Unix timestamp minus its
+`started` timestamp, both taken with Python `time.time()`. Each run began with
+`python3 local-experiments/orientation-two-minute/trial-current.py RUN begin`
+and submitted its answer on stdin to the same command with `RUN finish`.
+The replay needs the private AFM checkout; the trial clocks also need the local
+artifacts named above. Neither can be reproduced from this public repository
+alone.
+
 Changing prompts did not establish reliable orientation. Representative trials:
 
 | Protocol and task | Verified result | Submission |
