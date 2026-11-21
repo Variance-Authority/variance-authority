@@ -33,8 +33,8 @@ function placesOf(root: string): CodeMapPlaces | string {
  * whole, a package, an entrypoint or an exported name, so the next question is
  * asked about a name rather than a guess. Its packages are the code map's, read
  * the way `docs_orient` reads them, and without a map it classifies nothing.
- * Most of a request's words name nothing, so it then ranks the areas of the
- * tree they point to, which a request that names nothing still has.
+ * Unresolved words or an explicit start point also rank the areas of the tree
+ * the request points to; fully recognized unscoped requests use exact follow-ups.
  */
 export const classify: Tool<Help> = {
   name: 'docs_classify',
@@ -43,7 +43,7 @@ export const classify: Tool<Help> = {
     'whole, the name of a package on the code map or that name without its scope, an entrypoint\'s specifier (both without case), or a ' +
     'published exported name (as spelled); a word that is only part of a name is not one. Each entity is listed with ' +
     'what it names, its package\'s area and dependency layer on the code map as docs_orient numbers them, then the ' +
-    'words that name nothing on one line. Then the areas of the tree the words point to, ten at most, best first: a directory of at ' +
+    'words that name nothing on one line. When words remain unrecognized or `from` or `to` is supplied, it also ranks the areas the words point to, ten at most, best first: a directory of at ' +
     'most 500 tracked files, scored by the request\'s words, by stem, that its path, its files\' names and the top-level names its files ' +
     'declare, exported or not, hold, a word held by fewer areas counting for more and every declared name counting once per file in an area\'s length whatever its export visibility; each with the package on the code map nearest at or above it, and that package\'s area and layer. With `from` or `to`, only the files that start point reaches along the ' +
     'imports are ranked: a product\'s folder and the shared code it imports. Ask it first when holding a request in words and no name.',
@@ -75,6 +75,9 @@ export const classify: Tool<Help> = {
     // walks; only the ten areas cross.
     const from = startPointArg(input, 'from');
     const to = startPointArg(input, 'to');
+    if (from === undefined && to === undefined && classified.entities.length > 0 && classified.plain.length === 0) {
+      return formatClassified(classified, places);
+    }
     const said: StartPoint | undefined =
       from === undefined && to === undefined
         ? undefined

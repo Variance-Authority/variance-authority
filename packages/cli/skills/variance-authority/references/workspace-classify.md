@@ -15,8 +15,10 @@ when the map placed that package in no area. A word the
 request spells another way — a plural, two words for a hyphenated name, a
 domain word no name carries — is not an entity.
 
-Then it ranks the areas of the tree the request's words point to, ten at
-most, best first: a directory of at most 500 tracked files, a larger one read
+When every word is recognized and no `--from` or `--to` is supplied, the
+answer contains only those entities and their direct questions. Otherwise it
+also ranks the areas of the tree the request's words point to, ten at most,
+best first: a directory of at most 500 tracked files, a larger one read
 as its children. An area's words are its path's, its files' names and the
 top-level names its files declare, exported or not, compared by stem, and a word counts for more
 the fewer areas hold it. An area's length counts every word its declared names

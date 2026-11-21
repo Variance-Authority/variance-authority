@@ -448,8 +448,9 @@ and ends with the question each one takes next, written as the `variance ask`
 command whatever the caller: `symbol` (`docs_symbol`) for an exported name,
 `entrypoint` (`docs_entrypoint`) for a published package or entrypoint, and
 `orient --area` (`docs_orient`) for a package that publishes nothing, or no
-question when the map placed it in no area. After the entities it ranks the
-areas of the tree the request's words point to, best first — a directory of at
+question when the map placed it in no area. When words remain unrecognized or
+`from` or `to` is supplied, it also ranks the areas of the tree the request's
+words point to, best first — a directory of at
 most 500 tracked files, scored by the words its path, its files' names and the
 top-level names its files declare, exported or not, hold, a rare word counting for more
 and an area's length counting every declared name once per file whatever its
