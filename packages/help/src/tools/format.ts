@@ -199,11 +199,12 @@ export function byFile(rows: readonly Located[]): readonly string[] {
 /**
  * The longest run of steps every chain on a page ends with, when two chains or
  * more share one; none otherwise. Even the target alone is worth saying once:
- * it is the longest step of every row.
+ * it is the longest step of every row. The run stops short of every chain's
+ * first step, so no row's own file is folded into the end it shares.
  */
 export function chainsEnd(chains: readonly (readonly string[])[]): readonly string[] {
   if (chains.length < 2) return [];
-  let shared = Math.min(...chains.map((chain) => chain.length));
+  let shared = Math.min(...chains.map((chain) => chain.length)) - 1;
   const first = chains[0]!;
   for (const chain of chains.slice(1)) {
     let same = 0;

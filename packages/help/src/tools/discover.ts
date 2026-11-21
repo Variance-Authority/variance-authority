@@ -69,6 +69,8 @@ interface Reach {
 /** One set, read whole, and how it says a file is in it. */
 interface Operand {
   readonly header: string;
+  /** The walk a reach operand's header names after its count, `reaching \`x\``; reach operands only. */
+  readonly said?: string;
   readonly files: ReadonlySet<string>;
   /** Import distance from or to its start point; reach operands only. */
   readonly distance?: ReadonlyMap<string, number>;
@@ -134,11 +136,11 @@ function chainSteps(links: readonly Link[]): readonly string[] {
  * them, a file the walk did not reach may import the subject through the one
  * import nobody resolved, so those are the files named.
  */
-function holesOf(tree: Tree, files: ReadonlySet<string>, along: boolean, term = ''): string | undefined {
+function holesOf(tree: Tree, files: ReadonlySet<string>, along: boolean, said: string): string | undefined {
   if (along) {
     const unresolved = tree.unknownAmong(files).length;
     const which = unresolved === 1 ? 'file' : 'files';
-    return unresolved === 0 ? undefined : `${unresolved} ${which} reached from \`${term}\` import something the scan could not resolve`;
+    return unresolved === 0 ? undefined : `${unresolved} ${which} ${said} import something the scan could not resolve`;
   }
   const unseen = tree.unknownFiles().filter((file) => !files.has(file));
   if (unseen.length === 0) return undefined;
@@ -171,9 +173,11 @@ function reach(term: string, tree: Tree, along: boolean, root: string | undefine
   const chains = along ? undefined : tree.chainsTo(seeds.files);
   const distance = chains?.distance ?? tree.distanceFrom(seeds.files);
   const files = new Set(distance.keys());
-  const holes = holesOf(tree, files, along, term);
+  const said = `${along ? 'reached from' : 'reaching'} \`${term}\``;
+  const holes = holesOf(tree, files, along, said);
   return {
-    header: `${counted(files.size)} ${along ? 'reached from' : 'reaching'} \`${term}\``,
+    header: `${counted(files.size)} ${said}`,
+    said,
     files,
     distance,
     evidence: none,
@@ -204,9 +208,11 @@ function reachingName(term: string, file: string, name: string, tree: Tree, root
   const distance = new Map<string, number>([[file, 0]]);
   for (const [at, hops] of chains.distance) if (!distance.has(at)) distance.set(at, hops + 1);
   const files = new Set(distance.keys());
-  const holes = holesOf(tree, files, false);
+  const said = `reaching \`${name}\` from \`${file}\`${passedOn(read.through)}`;
+  const holes = holesOf(tree, files, false, said);
   return {
-    header: `${counted(files.size)} reaching \`${name}\` from \`${file}\`${passedOn(read.through)}`,
+    header: `${counted(files.size)} ${said}`,
+    said,
     files,
     distance,
     evidence: (at) => (distance.get(at) === 1 ? (sites.get(at) ?? []) : []),
@@ -471,9 +477,8 @@ function rowsOf(
   const lines = [
     `${counted(answer.length)} in all of them${reaches.length === 0 ? ':' : ', nearest first:'}`,
     ...header.map((said) => `- ${said}`),
-    ...(reaches.length > 1 ? [`each row: imports ${reaches.map((operand) => operand.header.replace(/^\d+ files? /u, '')).join(', then ')}`] : []),
-    ...ends.flatMap((end, at) =>
-      end.length === 0 ? [] : [`${chained.length > 1 ? `chains ${reaches[at]!.header.replace(/^\d+ files? /u, '')} ` : 'chains '}end: ${end.join(' → ')}`]),
+    ...(reaches.length === 0 ? [] : [`each row: imports ${reaches.map((operand) => operand.said!).join(', then ')}`]),
+    ...ends.flatMap((end, at) => (end.length === 0 ? [] : [`chains ${chained.length > 1 ? `${reaches[at]!.said!} ` : ''}end: ${end.join(' → ')}`])),
     ...pageAt(page, answer.length, spell),
   ];
   for (const { file, reached } of shown) {

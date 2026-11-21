@@ -264,6 +264,8 @@ describe('discover crosses whole sets', () => {
 describe('discover says how a file reaches what it was asked of', () => {
   it('gives each file one shortest chain of imports to the subject, with the kind of each import that is not plain', () => {
     const text = ask({ to: 'src/chain/base.ts' });
+    // One walk is still named, so the number leading each row says what it counts.
+    expect(text).toContain('\neach row: imports reaching `src/chain/base.ts`\n');
     expect(text).toContain('\nchains end: src/chain/model.ts (type import) → src/chain/base.ts\n');
     expect(text).toContain('\n2 src/chain/view.ts → …\n');
     expect(text).toContain('\n2 src/chain/shell.ts → …\n');

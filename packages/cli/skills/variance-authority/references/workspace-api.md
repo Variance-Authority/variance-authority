@@ -668,9 +668,9 @@ variance ask discover --to src/store/selectors.ts#selectBalance
 The answer opens with how many files are in all of the sets, then one `- `
 line per set with its count. One file is one row, nearest the `--from` or `--to`
 paths first. A row that sits some imports from a `--from` or `--to` path starts
-with that count, one per path, in the order an `each row:` line names when there
-is more than one; the evidence follows the path, each set's line as `1: line 4`,
-with `·` between sets; `--path` puts a file in by its name, with no line. A file
+with that count, one per path, in the order the `each row:` line names them;
+the lines that put the file in a set follow the row, indented as
+`  <line>: <text>`; `--path` puts a file in by its name, with no line. A file
 two or more imports away from a `--to` path carries one shortest chain of
 imports to it, a step that is not a plain import marked — `src/Page.ts →
 src/Model.ts (type import) → src/store/selectors.ts` — and for `file#name` the

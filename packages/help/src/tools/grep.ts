@@ -101,8 +101,8 @@ export const grep: Tool<unknown> = {
       lines.push(`${distance} ${distance === 1 ? 'import' : 'imports'} away:`, ...byFile(shown.slice(at, end)));
       at = end;
     }
-    // Where the area is whole, its size changes nothing; where files in it could not be read through, it can.
-    if (area.unresolved.length > 0) lines.push(`note: ${areaLine(area)}`);
+    // The area searched bounds every count above, so it is said after them, whole or not.
+    lines.push(`note: ${areaLine(area)}`);
     for (const line of unread) lines.push(`note: ${line}`);
     lines.push(...nextPage(page, hits.length, spell));
     return lines.join('\n');

@@ -90,6 +90,8 @@ describe('grep over a closure', () => {
     expect(text.indexOf('src/entry.ts:2: const needle = 0;')).toBeLessThan(text.indexOf('src/far.ts:1: export const needle = 1;'));
     expect(text).toContain('2 imports away:');
     expect(text).not.toContain('outside.ts');
+    // The area bounds the counts, so it is said even when every file in it was read through.
+    expect(text.split('\n').at(-1)).toMatch(/^note: In \d+ file\(s\) reachable from `src\/entry.ts` along the imports/u);
   });
 
   it('answers against the imports with `to`', () => {
@@ -109,7 +111,7 @@ describe('grep over a closure', () => {
     const text = ask({ query: 'crowd', from: 'src/crowded.ts' });
     // The answer first, and a file with several lines named once above them.
     expect(text.split('\n').slice(0, 5)).toEqual([`${CROWDED} matching lines in 1 file, nearest first:`, '0 imports away:', 'src/crowded.ts', '  1: crowd', '  2: crowd']);
-    expect(text.split('src/crowded.ts')).toHaveLength(2);
+    expect(text.split('\n').filter((line) => line.startsWith('src/crowded.ts'))).toEqual(['src/crowded.ts']);
   });
 
   it('counts what the limit leaves out', () => {
