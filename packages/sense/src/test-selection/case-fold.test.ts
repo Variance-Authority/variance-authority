@@ -217,6 +217,39 @@ describe('the bounded case fold', () => {
     expect(lastCaseRunOf(second)).toMatchObject({ commit: 'abc', files: ['test/early.test.ts'] });
   });
 
+  it('judges each case by the checks its own attempts entered', async () => {
+    const cases = await directory();
+    const root = resolve(cases, '..');
+    await mkdir(resolve(root, 'test'));
+    await writeFile(resolve(root, 'test/form.test.ts'), [
+      "import { checked } from '@variance-authority/sense/checked';",
+      "it('sends', () => {",
+      "  checked('title', () => 1);",
+      "  checked('body', () => 2);",
+      '});',
+      "it('drafts', () => {",
+      "  checked('title', () => 1);",
+      '});',
+    ].join('\n'));
+    const sends = packCase(resolve(root, 'test/form.test.ts'), 'sends', '1');
+    const drafts = packCase(resolve(root, 'test/form.test.ts'), 'drafts', '2');
+    await writeFile(resolve(cases, 'worker.vac'), packFrames([
+      journalFormat.encodeJournal(sends, new Map([['src/branch.ts', counters(3, [0])]])),
+      journalFormat.encodeJournal(drafts, new Map([['src/branch.ts', counters(3, [0])]])),
+      eyesFrames.encodeEyesFrame({ case: sends, attempt: 1, check: 'title' }),
+      eyesFrames.encodeEyesFrame({ case: drafts, attempt: 1, check: 'title' }),
+      eyesFrames.encodeEyesFrame({ case: sends, attempt: 1, check: 'body' }),
+    ]));
+    const modules = new Map<ModuleId, CapturedModule>([['src/branch.ts', captured('src/branch.ts', 'src/branch.ts', 3)]]);
+
+    const folded = foldCases(cases, root, modules, { budget: 64 });
+
+    expect(folded.checks?.cases.map(({ name, attempts }) => [name, attempts.map(({ entered }) => entered)])).toEqual([
+      ['sends', [['body', 'title']]],
+      ['drafts', [['title']]],
+    ]);
+  });
+
   it('names what Eyes handed each case beside its crossings, and a case that watched and crossed nothing', async () => {
     const cases = await directory();
     const crossed = packCase('/repo/test/eyes.test.ts', 'crosses', '1');

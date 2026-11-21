@@ -1,8 +1,14 @@
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { native } from '../addon.js';
 import { checksOf, type RanCase } from './case-checks.js';
+
+vi.mock('../addon.js', async (actual) => {
+  const loaded = await actual<typeof import('../addon.js')>();
+  return { ...loaded, native: vi.fn(loaded.native) };
+});
 
 const SOURCE = `import { checked } from '@variance-authority/sense/checked';
 it('sends', () => {
@@ -17,6 +23,7 @@ describe('checksOf', () => {
   beforeAll(async () => {
     root = await mkdtemp(join(tmpdir(), 'variance-authority-case-checks-'));
     await writeFile(join(root, 'a.test.ts'), SOURCE);
+    await writeFile(join(root, 'b.test.ts'), `${SOURCE}it('saves', () => {\n  checked('stored', () => 1);\n});\n`);
   });
 
   afterAll(async () => {
@@ -59,6 +66,25 @@ describe('checksOf', () => {
       ran([{ attempt: 1, ended: 'passed' }]),
       { ...ran([{ attempt: 1, ended: 'interrupted' }]), name: 'drafts' },
     ])?.incomplete).toEqual(['a.test.ts']);
+  });
+
+  it('orders the cases by file, then by the line their body is registered at', () => {
+    const passed = ran([{ attempt: 1, ended: 'passed' }]);
+    const cases = checksOf(root, [
+      { ...passed, file: 'b.test.ts', name: 'saves' },
+      { ...passed, file: 'b.test.ts' },
+      passed,
+    ])?.cases;
+    expect(cases?.map(({ file, line, name }) => [file, line, name])).toEqual([
+      ['a.test.ts', 2, 'sends'],
+      ['b.test.ts', 2, 'sends'],
+      ['b.test.ts', 6, 'saves'],
+    ]);
+  });
+
+  it('keeps no section where the addon is not loaded, rather than one that declares nothing', () => {
+    vi.mocked(native).mockReturnValueOnce(undefined);
+    expect(checksOf(root, [ran([{ attempt: 1, ended: 'passed' }])])).toBeUndefined();
   });
 
   it('keeps no section when no case declares a check', () => {

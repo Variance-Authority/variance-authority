@@ -1,11 +1,11 @@
 import { readdirSync } from 'node:fs';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import type { Page, TestInfo } from '@playwright/test';
 import { moduleId } from '@variance-authority/sense/journal';
 import { storyDirectory } from '@variance-authority/sense/story';
-import { decodeExecutionIndex, recordedEyesAt, recordFileFor } from '@variance-authority/sense/test-selection';
+import { caseSectionsAt, decodeExecutionIndex, recordedEyesAt, recordFileFor } from '@variance-authority/sense/test-selection';
 import { describe, expect, it, vi } from 'vitest';
 import { varianceCompletedFixtures } from './completed.js';
 import { createExecutionRecorder, type ExecutionRecorder } from './execution.js';
@@ -108,6 +108,42 @@ describe('the case a Playwright test runs as', () => {
       });
       await recorder.close();
       expect(recordedEyesAt(coverageFile)).toEqual({ watched: ['|chromium| tests/checkout.spec.ts > checkout > pays'], journals: [] });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('keeps the checks each attempt told its scope it entered, against those its body declares', async () => {
+    const root = await mkdtemp(resolve(tmpdir(), 'variance-playwright-case-scope-'));
+    try {
+      await writeFile(resolve(root, 'price.js'), SOURCE, 'utf8');
+      await mkdir(resolve(root, 'tests'));
+      await writeFile(resolve(root, 'tests/checkout.spec.ts'), [
+        'import { test } from \'@playwright/test\';',
+        'import { checked } from \'@variance-authority/sense/checked\';',
+        'test.describe(\'checkout\', () => {',
+        '  test(\'pays\', async () => {',
+        '    checked(\'charged\', () => 1);',
+        '    checked(\'receipt\', () => 2);',
+        '  });',
+        '});',
+      ].join('\n'), 'utf8');
+      const coverageFile = resolve(root, 'coverage.bin');
+      const recorder = createExecutionRecorder({ root, cacheRoot: resolve(root, 'cache'), coverageFile });
+      const page = {
+        evaluate: async () => ({ instrumentation: INSTRUMENTATION, modules: [{ id: moduleId('price.js', SOURCE), hits: [0], shared: [] }] }),
+      } as unknown as Page;
+      await ran(recorder, root, {}, async () => {
+        await recorder.note(page, 'tests/checkout.spec.ts', { name: 'checkout > pays', id: 'runner-id-1' });
+        scopeNow()!.checked('charged');
+      });
+      await recorder.close();
+
+      const { checks } = caseSectionsAt(coverageFile, ['checks']);
+      const section = JSON.parse(Buffer.from(checks!).toString('utf8')) as { cases: readonly { name: string; attempts: unknown }[] };
+      expect(section.cases.map(({ name, attempts }) => ({ name, attempts }))).toEqual([
+        { name: 'checkout > pays', attempts: [{ attempt: 1, ended: 'passed', entered: ['charged'] }] },
+      ]);
     } finally {
       await rm(root, { recursive: true, force: true });
     }
