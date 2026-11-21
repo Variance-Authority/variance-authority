@@ -3656,6 +3656,7 @@
         "textsOf": "function",
         "timeBeforeCases": "function",
         "undone": "function",
+        "unenteredPlace": "function",
         "unenteredSentence": "function",
         "unmeasuredOf": "function",
         "valued": "function",

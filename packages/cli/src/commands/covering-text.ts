@@ -16,6 +16,7 @@ import {
   type HeldLines,
   type Unentered,
 } from '@variance-authority/sense/test-selection';
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import { nextPage, pageAt, paged, spellingOf, type Page } from '@variance-authority/mcp/tools';
 import { FIRST_PAGE } from '../covering-args.js';
 import { runsOfLines, runsText, targetText, type UnrunPart } from './covering-at.js';
@@ -220,28 +221,21 @@ function staleText(answer: Covering, page: Page): string {
 
 /**
  * The test files whose cases called into a file, each named once, the most
- * cases first, then the ranges that have something to say on their own.
- *
- * Which range a case entered is the JSON's and `--line`'s answer: the reader of
- * the text picks test files to run and to open, and the same files listed again
- * under every range they entered told them nothing new. A range is said only
- * when no case called into it, an edit moved it, or it holds what its cases do
- * not say.
- *
- * A case that reached the file only while its own file imported the module is
- * counted, not named: on a module every test file imports, those are most of
- * the suite, and a list of them says who imports the file rather than who runs
- * it. Asked by line or function, or as JSON, they are named.
+ * cases first, then what the ranges say on their own. Which range a case entered
+ * is the JSON's and `--line`'s answer: the reader of the text picks test files
+ * to run, and the same file under every range it entered told them nothing new.
  */
 function wholeFile(answer: Covering, ranges: readonly CoveringRange[], page: Page): string {
   const file = answer.file ?? '';
   if (ranges.length === 0) return `No line of ${file} is recorded in ${answer.from}.`;
   const called = (range: CoveringRange) => range.tests.filter((test) => test.loaded !== true);
   const named = new Map(ranges.flatMap((range) => called(range).map((test) => [test.id, test] as const)));
+  // A case that reached the file only while its own file imported the module is counted, not named: on a module
+  // every test file imports, those are most of the suite, and say who imports the file rather than who runs it.
   const loading = new Set(ranges.flatMap((range) => range.tests.filter((test) => test.loaded === true).map((test) => test.id)));
   for (const id of named.keys()) loading.delete(id);
   const byFile = [...casesByFile([...named.values()], [])].sort(([left, a], [right, b]) =>
-    b.length - a.length || (left < right ? -1 : left > right ? 1 : 0));
+    b.length - a.length || codeUnitOrder(left, right));
   const lines = [
     `${file} — ${ranges.length} recorded range${ranges.length === 1 ? '' : 's'}, ${named.size} named test${named.size === 1 ? '' : 's'}${
       named.size === 0 ? '' : ` in ${byFile.length} test file${byFile.length === 1 ? '' : 's'}`
