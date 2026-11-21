@@ -7,8 +7,9 @@
  * get a paragraph. Nothing is counted here: every share and every number is
  * the addon's, and this only chooses the words and the order.
  *
- * The answer is for an agent at a terminal. It is five parts, each one a
- * narrower reading of the one above it — the files asked about, which packages
+ * The answer is for an agent at a terminal. It is six parts, each one a
+ * narrower reading of the one above it — the files asked about and what each
+ * declares at its top level, which packages
  * they belong to and what crosses their edges, which recorded cases ran
  * those files, the calls those cases took into and out of them, and the
  * commands that ask about one name or one file — and a
@@ -18,8 +19,9 @@
 
 // compass: variance-authority.report.agent-surface
 
-import type { CasesEntered, ExternalOrientation, JourneysAround, OrientFlows, PackagesAround, RecordedCases } from '@variance-authority/sense';
+import type { CasesEntered, ExternalOrientation, FileDeclarations, JourneysAround, OrientFlows, PackagesAround, RecordedCases } from '@variance-authority/sense';
 import { narrower, plural, shell } from './format.js';
+import { formatDeclarations } from './orient-declarations-format.js';
 import { formatJourneys } from './orient-journeys-format.js';
 
 /** Everything an orientation answer is made of. */
@@ -29,6 +31,8 @@ export interface OrientReading {
   /** Print every reached declaration entry, rather than the initial three. */
   readonly declarations?: boolean;
   readonly around: PackagesAround;
+  /** What each file the index holds declares at its top level; absent when no index is published. */
+  readonly declared?: readonly FileDeclarations[];
   readonly external?: {
     readonly index: string;
     readonly orientation?: ExternalOrientation;
@@ -264,6 +268,7 @@ export function formatOrientation(reading: OrientReading): string {
   const asks = followUps(reading);
   return [
     ...named(reading),
+    ...formatDeclarations(reading.declared),
     '',
     ...packages(reading),
     ...external(reading),

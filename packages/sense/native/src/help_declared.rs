@@ -236,7 +236,7 @@ pub(crate) fn private_words(layers: &[Layer]) -> Vec<PrivateWords> {
 
 /// Local names bound by an export, including renamed exports. Both private
 /// matching and private vocabulary counts use this boundary.
-fn exported_locals<'a>(layer: &'a Layer<'a>, row: usize) -> BTreeSet<&'a str> {
+pub(crate) fn exported_locals<'a>(layer: &'a Layer<'a>, row: usize) -> BTreeSet<&'a str> {
     let (text, parses) = (&layer.stored, &layer.parses);
     if parses.exports_present[row] != 1 { return BTreeSet::new() }
     parses.exports.range(row)

@@ -26,6 +26,7 @@ import type {
   NativeJourneyModule, NativeJourneyStitch, NativeJourneyStitchResult, NativeCaseJournals,
   NativeCaseCut, NativeCaseEdit, NativeCaseLayers, NativeCaseRegion, NativeCaseRunFiles,
 } from './native-journey.js';
+import type { FileDeclarations } from './orient.js';
 import type { NativeCasesEntered, NativeDependencyLexicon, NativeExternalOrientation, NativeOrientation, NativeOrientMapListing, NativeOrientMaps } from './native-orient.js';
 import type { NativeCommitTexts } from './native-commit-text.js';
 import type { NativePaths } from './package-owner.js';
@@ -295,7 +296,16 @@ export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon
   /** The packages `files` belong to and the names crossing their edges, read off the source index at `index`; `null` when none was published. */
   orientPackages?(root: string, index: string, files: string[], rows: number, names: number): NativeOrientation | null;
   /** Both of the above from one read of the chain and one listing of the tree; `null` when no index is published. */
-  orientAround?(root: string, index: string, files: string[], packageRows: number, packageNames: number, externalRows: number, externalSites: number): { packages: NativeOrientation; external: NativeExternalOrientation } | null;
+  orientAround?(
+    root: string,
+    index: string,
+    files: string[],
+    packageRows: number,
+    packageNames: number,
+    externalRows: number,
+    externalSites: number,
+    declarationLines: number,
+  ): { packages: NativeOrientation; external: NativeExternalOrientation; declarations: FileDeclarations[] } | null;
   /** Indexed external requests from `files`; `null` when no index is published. */
   externalDependencies?(root: string, index: string, files: string[], rows: number, sites: number): NativeExternalOrientation | null;
   /** For each of `files`, the cases in the journey file at `file` that ran it. */

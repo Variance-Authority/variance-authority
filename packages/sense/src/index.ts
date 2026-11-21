@@ -102,6 +102,8 @@ export {
   dependenciesAround,
   orientAround,
   recordedCases,
+  type FileDeclaration,
+  type FileDeclarations,
   type OrientLimits,
   type PackagesAround,
   type RecordedCases,

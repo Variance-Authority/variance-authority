@@ -6,10 +6,10 @@
  * found. Finding them is those tools' job. The first two answer from the index
  * `variance index` publishes and the third runs ripgrep over what one file
  * reaches, so orientation does not scan source text. This answers the graph
- * questions each of those files raises: the package it belongs to, the names
- * that cross that package's edge in both directions, the recorded cases that
- * ran it, the calls those cases took into and out of it, and the commands that
- * ask about one of the names it printed. A file asked as `path:line` narrows the
+ * questions each of those files raises: what it declares at its top level, the
+ * package it belongs to, the names that cross that package's edge in both
+ * directions, the recorded cases that ran it, the calls those cases took into
+ * and out of it, and the commands that ask about one of the names it printed. A file asked as `path:line` narrows the
  * calls to the function holding that line.
  *
  * The package graph and the recorded cases are the addon's, through
@@ -38,6 +38,8 @@ import { formatOrientation, type OrientReading } from './orient-format.js';
 const LIMITS = { rows: 5, names: 4 } as const;
 /** Case titles shown per file. */
 const TITLES = 3;
+/** Lines of top-level declarations and their members shown per file; the rest are counted. */
+const DECLARED_LINES = 40;
 
 /** The files as they were said, each once, in the order said. */
 export function filesOf(input: Readonly<Record<string, unknown>>): readonly string[] {
@@ -71,7 +73,9 @@ export const orient: Tool<unknown> = {
     'its dependency layers, the packages most imports into it land on and the areas it imports from most; `area` ' +
     'opens one of those areas by its id. ' +
     'For files you already have — from a stack trace, a ticket, or docs_search, docs_symbol and docs_grep, ' +
-    'which find them. Says which package each file is in, what that package imports from other packages and ' +
+    'which find them. Says which package each file is in, what each declares at its top level with its line and ' +
+    'whether an export binds it, a class\'s or an interface\'s members under it, within a line budget that counts what it left out, ' +
+    'what that package imports from other packages and ' +
     'what other packages import from it, as each package\'s share of that side with the names it takes, ' +
     'each name weighed against all the outside use of the package that exports it, ' +
     'which external packages the local imports from those files request, ' +
@@ -96,7 +100,8 @@ export const orient: Tool<unknown> = {
       },
       declarations: {
         type: 'boolean',
-        description: 'With files, print every declaration entry for each listed external dependency; otherwise the first three and a remaining count.',
+        description:
+          'With files, print every manifest declaration entry for each listed external dependency; otherwise the first three and a remaining count.',
       },
     },
     additionalProperties: false,
@@ -122,11 +127,12 @@ export const orient: Tool<unknown> = {
           'ask with `files` alone, or with `area` alone.',
       );
     }
-    const { packages: around, external } = orientAround(root, files, LIMITS, { rows: 8, names: 3 });
+    const { packages: around, external, declarations: declared } = orientAround(root, files, LIMITS, { rows: 8, names: 3 }, DECLARED_LINES);
     return formatOrientation({
       files,
       declarations,
       around,
+      ...(declared === undefined ? {} : { declared }),
       external: { ...external, declarationsQuestion: spellingOf(invocation).question(orient, { files: said, declarations: true }) },
       recorded: recordedCases(root, files, TITLES),
       ...journeysOf(root, asks),

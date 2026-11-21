@@ -16,6 +16,7 @@ use crate::chain_lookup::fold;
 use crate::compact::Layer;
 use crate::index_chain::{read_chain, Chain};
 use crate::order::code_unit;
+use crate::orient_declarations::{declarations_of, FileDeclarations};
 use crate::package_graph::{join_parses, names_object, orientation, Crossing, Limits, Listed, Orientation};
 use crate::package_owners::{declared, owners, Manifest, NO_OWNER};
 use crate::specifier::{package_of, request_of};
@@ -78,12 +79,14 @@ pub fn external_dependencies(
     inspect(&root, &chain, &listed, &files, rows as usize, sites as usize).map(Some).map_err(fail)
 }
 
-/// Both readings a question makes of the source index, from one read of the chain and one listing of
+/// The readings a question makes of the source index, from one read of the chain and one listing of
 /// the working tree: `git status` is the cost of either, and asking it twice charged a question twice.
 #[napi(object)]
 pub struct Around {
     pub packages: Orientation,
     pub external: ExternalOrientation,
+    /// What each asked file the chain holds declares at its top level, in the order asked.
+    pub declarations: Vec<FileDeclarations>,
 }
 
 #[napi(catch_unwind)]
@@ -96,6 +99,7 @@ pub fn orient_around(
     package_names: u32,
     external_rows: u32,
     external_sites: u32,
+    declaration_lines: u32,
 ) -> napi::Result<Option<Around>> {
     let (chain, snapshot) = std::thread::scope(|scope| {
         let snapshot = scope.spawn(|| crate::git::snapshot(&root));
@@ -106,11 +110,19 @@ pub fn orient_around(
     let snapshot = snapshot.ok_or_else(|| napi::Error::from_reason(format!("git could not list the tree at {root}")))?;
     let listed = Listed { paths: &snapshot.paths, oids: &snapshot.oids };
     let limits = Limits { rows: package_rows as usize, names: package_names as usize };
-    let (packages, external) = rayon::join(
-        || orientation(&root, &chain, &listed, &files, limits),
-        || inspect(&root, &chain, &listed, &files, external_rows as usize, external_sites as usize),
+    let ((packages, external), declarations) = rayon::join(
+        || rayon::join(
+            || orientation(&root, &chain, &listed, &files, limits),
+            || inspect(&root, &chain, &listed, &files, external_rows as usize, external_sites as usize),
+        ),
+        || -> Result<_, String> {
+            let layers = chain.segments.iter().enumerate()
+                .map(|(at, bytes)| Layer::open(bytes).map_err(|error| format!("segment {at}: {error}")))
+                .collect::<Result<Vec<_>, _>>()?;
+            Ok(declarations_of(&layers, &files, declaration_lines as usize))
+        },
     );
-    Ok(Some(Around { packages: packages.map_err(fail)?, external: external.map_err(fail)? }))
+    Ok(Some(Around { packages: packages.map_err(fail)?, external: external.map_err(fail)?, declarations: declarations.map_err(fail)? }))
 }
 
 struct Found {
