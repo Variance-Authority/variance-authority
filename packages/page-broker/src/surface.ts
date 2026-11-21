@@ -63,6 +63,7 @@ export interface Surface<Native = unknown, Handle = unknown> {
   /**
    * Resolves `arrived` once any target is visible, and `late` when none is
    * within `ms` or `done` is aborted: the action has answered, and looks no more.
+   * `targets` is never empty, and `done` is not aborted when the wait begins.
    */
   arrival(targets: readonly Target<Handle>[], ms: number, done: AbortSignal): Promise<'arrived' | 'late'>;
   /** Quiet once no work the surface can see has been pending for `period` ms. */

@@ -18,15 +18,15 @@ export async function elsewhere(page: Page): Promise<Elsewhere> {
   const dialog = (shown: Dialog): void => {
     native ??= shown.type();
     // The count is the client's event emitter's, which Playwright's types do not name.
-    if ((page as unknown as { listenerCount(event: string): number }).listenerCount('dialog') === 1) void shown.dismiss().catch(() => undefined);
+    // Playwright resolves a dismissal on a closed page, so only a second hand could refuse it, and there is none.
+    if ((page as unknown as { listenerCount(event: string): number }).listenerCount('dialog') === 1) void shown.dismiss();
   };
   // A navigation request of this page's own frame is a new document; a history
   // or hash change makes none.
   let loaded = false;
   const navigated = (frame: Frame): void => {
     if (frame !== page.mainFrame()) return;
-    const { pathname, search, hash } = new URL(frame.url());
-    went = `${pathname}${search}${hash}`;
+    went = address(frame.url());
   };
   const popup = (): void => {
     opened = true;
@@ -62,9 +62,10 @@ export async function elsewhere(page: Page): Promise<Elsewhere> {
           [MODALS, before] as const,
         );
       } catch (error) {
-        // A new document committed during the look, and took the old one's handles with it.
-        if (loaded) return { by: 'document', words: `a new document at ${went ?? new URL(page.url()).pathname}` };
-        throw error;
+        // A new document took the old one's handles with it: one committed
+        // during the look, or one no request loaded, such as `about:blank`.
+        if (page.isClosed()) throw error;
+        return { by: 'document', words: `a new document at ${went ?? address(page.url())}` };
       }
       if (opens) return { by: 'modal', words: 'a modal dialog opened' };
       return went === undefined ? undefined : { by: 'address', words: `the page went to ${went}` };
@@ -74,7 +75,14 @@ export async function elsewhere(page: Page): Promise<Elsewhere> {
       page.off('popup', popup);
       page.off('dialog', dialog);
       page.off('request', asked);
-      void before.dispose().catch(() => undefined);
+      // Playwright resolves a disposal on a closed page or a gone document.
+      void before.dispose();
     },
   };
+}
+
+/** Where a URL is, as a test reads it: its path, or the whole URL where it has no origin, as `about:blank`. */
+function address(url: string): string {
+  const { origin, href, pathname, search, hash } = new URL(url);
+  return origin === 'null' ? href : `${pathname}${search}${hash}`;
 }

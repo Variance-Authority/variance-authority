@@ -30,7 +30,13 @@ const ORIGIN = 'https://shop.test';
  */
 const CHECKOUT = `<!doctype html>
 <main>
-  <form aria-label="Billing"><label>Street <input name="street"></label><button>Continue</button></form>
+  <form aria-label="Billing">
+    <label>Street <input name="street"></label>
+    <label for="delivery">Delivery</label> <select id="delivery" name="delivery"><option value="standard">Standard</option><option value="express">Express</option></select>
+    <label><input type="checkbox" name="gift"> Gift</label>
+    <output data-testid="summary"></output>
+    <button>Continue</button>
+  </form>
   <form aria-label="Payment" hidden><p>Card number</p></form>
   <dialog aria-label="Sign in"><p>Who are you?</p></dialog>
   <div role="dialog" aria-modal="true" aria-label="Help" hidden><p>Need help?</p></div>
@@ -39,15 +45,16 @@ const CHECKOUT = `<!doctype html>
   const query = new URLSearchParams(location.search);
   const show = (answer) => {
     for (const part of answer.split(',')) {
-      const follow = (target) => {
+      const follow = (target, to = '/checkout/elsewhere') => {
         const link = document.body.appendChild(document.createElement('a'));
-        link.href = '/checkout/elsewhere';
+        link.href = to;
         if (target) link.target = target;
         link.click();
       };
       if (part === 'alert') window.alert('Saved');
       if (part === 'link') follow();
       if (part === 'blank') follow('_blank');
+      if (part === 'hash') follow('', '#billing');
       if (part === 'post') {
         const away = document.body.appendChild(document.createElement('form'));
         away.action = '/checkout/elsewhere';
@@ -56,6 +63,7 @@ const CHECKOUT = `<!doctype html>
       if (part === 'payment') document.querySelector('[aria-label=Payment]').hidden = false;
       if (part === 'signIn') document.querySelector('dialog').show();
       if (part === 'elsewhere') location.assign('/checkout/elsewhere');
+      if (part === 'aboutBlank') location.assign('about:blank');
       if (part === 'gone') document.querySelector('[aria-label=Billing]').hidden = true;
       if (part === 'next') history.pushState(null, '', '/checkout/next');
       if (part === 'window') window.open('about:blank');
@@ -72,7 +80,14 @@ const CHECKOUT = `<!doctype html>
     }
   };
   show(query.get('open') ?? '');
-  document.querySelector('form').addEventListener('submit', async (event) => {
+  const billing = document.querySelector('form');
+  const summarize = () => {
+    const { street, delivery, gift } = billing.elements;
+    billing.querySelector('output').textContent = [street.value, delivery.value, gift.checked ? 'gift' : ''].filter(Boolean).join(' / ');
+  };
+  billing.addEventListener('input', summarize);
+  billing.addEventListener('change', summarize);
+  billing.addEventListener('submit', async (event) => {
     event.preventDefault();
     if (query.has('stream')) {
       new EventSource('/api/stream');
@@ -331,6 +346,16 @@ chromium_('a broker over a page that announces nothing', () => {
     await expect(submit()).rejects.toThrow(
       'billing.submit: reached none of payment, signIn, and a new page opened, which no outcome declares',
     );
+  });
+
+  it('does not report staying when the app went to a document it asked the network nothing for', async () => {
+    await open('answer=aboutBlank');
+    const { submit } = await billing({ submit: quick({ ...outcomes, refused: stay }, click) });
+
+    await expect(submit()).rejects.toMatchObject({
+      reason: 'elsewhere',
+      message: 'billing.submit: reached none of payment, signIn, and a new document at about:blank, which no outcome declares',
+    });
   });
 
   it('reaches a declared outcome on another document', async () => {

@@ -11,27 +11,47 @@ import { cases } from './surfaces.cases.js';
  */
 function checkout(answer: string, after = 20): void {
   document.body.innerHTML = `
-    <form aria-label="Billing"><label>Street <input name="street"></label><button>Continue</button></form>
+    <form aria-label="Billing">
+      <label>Street <input name="street"></label>
+      <label for="delivery">Delivery</label> <select id="delivery" name="delivery"><option value="standard">Standard</option><option value="express">Express</option></select>
+      <label><input type="checkbox" name="gift"> Gift</label>
+      <output data-testid="summary"></output>
+      <button>Continue</button>
+    </form>
     <form aria-label="Payment" hidden><p>Card number</p></form>
     <div role="dialog" aria-label="Sign in" hidden><p>Who are you?</p></div>
     <div role="dialog" aria-modal="true" aria-label="Help" hidden><p>Need help?</p></div>`;
-  vi.stubGlobal('fetch', async () => {
+  vi.stubGlobal('fetch', async (input: string) => {
+    // A request the server never answers.
+    if (input.endsWith('?hang')) await new Promise(() => undefined);
     // The server's latency, which the case is about: an answer that takes time.
     await new Promise((done) => setTimeout(done, after));
     return new Response(answer);
   });
-  document.querySelector('form')!.addEventListener('submit', async (event) => {
+  const billing = document.querySelector('form')!;
+  const summarize = (): void => {
+    const { street, delivery, gift } = billing.elements as unknown as Record<string, HTMLInputElement>;
+    billing.querySelector('output')!.textContent = [street!.value, delivery!.value, gift!.checked ? 'gift' : '']
+      .filter(Boolean)
+      .join(' / ');
+  };
+  billing.addEventListener('input', summarize);
+  billing.addEventListener('change', summarize);
+  billing.addEventListener('submit', async (event) => {
     event.preventDefault();
     for (const said of (await (await fetch('/api/billing')).text()).split(',')) {
-      const follow = (target?: string) => {
+      const follow = (target?: string, to = '/checkout/elsewhere') => {
         const link = document.body.appendChild(document.createElement('a'));
-        link.href = '/checkout/elsewhere';
+        link.href = to;
         if (target) link.target = target;
         link.click();
       };
       if (said === 'alert') window.alert('Saved');
       if (said === 'link') follow();
       if (said === 'blank') follow('_blank');
+      if (said === 'hash') follow('', '#billing');
+      if (said === 'window') window.open('/checkout/elsewhere');
+      if (said === 'hang') void fetch('/api/billing?hang');
       if (said === 'post') {
         const away = document.body.appendChild(document.createElement('form'));
         away.action = '/checkout/elsewhere';
@@ -194,6 +214,146 @@ describe('page-broker over a document', () => {
     await new Promise((done) => setTimeout(done, 300));
 
     expect(looks).toBe(answered);
+  });
+
+  it('names a choice the field does not offer, and a query that matches more than the one part an act is for', async () => {
+    checkout('nothing');
+    const on = surface(document);
+
+    await expect(on.select({ label: /Delivery/ }, 'overnight')).rejects.toThrow('{"label":"/Delivery/"} has no option overnight');
+    await expect(on.click({ css: 'label' })).rejects.toThrow('{"css":"label"} matches 3 elements, and an act is for one');
+  });
+
+  it('acts on nothing that is not on the page or is disabled, once a person would have given up', async () => {
+    checkout('nothing');
+    document.querySelector('button')!.disabled = true;
+    const on = surface(document);
+
+    // Both waits run at once: each takes the whole wait to give up.
+    await Promise.all([
+      expect(on.click({ role: 'button', name: 'Continue' })).rejects.toThrow(
+        '{"role":"button","name":"Continue"} is disabled after 5000 ms',
+      ),
+      expect(on.click({ text: 'Pay now' })).rejects.toThrow('{"text":"Pay now"} is not on the page after 5000 ms'),
+    ]);
+  }, 10_000);
+
+  it('names where the app went at the timeout, when a request it left in flight kept the page from going quiet', async () => {
+    checkout('link,hang');
+
+    await expect((await Billing.on(surface(document))).submit()).rejects.toMatchObject({
+      reason: 'elsewhere',
+      message: 'billing.submit: reached none of payment, signIn, and a new document at /checkout/elsewhere, which no outcome declares',
+    });
+  });
+
+  it('does not report staying while an XMLHttpRequest the action sent is in flight', async () => {
+    checkout('nothing');
+    /** A server reached by XMLHttpRequest that answers `payment` after three quiet periods. */
+    class Request extends EventTarget {
+      readonly OPENED = 1;
+      readyState = 0;
+      responseText = '';
+      open(): void {
+        this.readyState = this.OPENED;
+      }
+      send(): void {
+        setTimeout(() => {
+          this.readyState = 4;
+          this.responseText = 'payment';
+          this.dispatchEvent(new Event('load'));
+          this.dispatchEvent(new Event('loadend'));
+        }, 300);
+      }
+    }
+    vi.stubGlobal('XMLHttpRequest', Request);
+    const form = document.querySelector('form')!;
+    form.replaceWith(form.cloneNode(true));
+    document.querySelector('form')!.addEventListener('submit', (event) => {
+      event.preventDefault();
+      const request = new XMLHttpRequest();
+      request.open('POST', '/api/billing');
+      request.addEventListener('load', () => {
+        (document.querySelector('[aria-label=Payment]') as HTMLElement).hidden = request.responseText !== 'payment';
+      });
+      request.send();
+    });
+    const on = surface(document);
+    const quiet = on.quiet(100);
+    const reached = (await Billing.on(on)).submit();
+    await new Promise((done) => setTimeout(done, 50));
+
+    expect(quiet.held()).toBe('POST /api/billing still in flight');
+    await expect(reached).resolves.toMatchObject({ outcome: 'payment' });
+    quiet.stop();
+  });
+
+  it('does not follow a request sent without being opened, which the request refuses', () => {
+    const quiet = surface(document).quiet(100);
+
+    expect(() => new XMLHttpRequest().send()).toThrow(DOMException);
+
+    expect(quiet.held()).toBeUndefined();
+    quiet.stop();
+  });
+
+  it('hears the answer an app gives when its request failed', async () => {
+    checkout('nothing');
+    vi.stubGlobal('fetch', async () => {
+      await new Promise((done) => setTimeout(done, 20));
+      throw new TypeError('Failed to fetch');
+    });
+    const form = document.querySelector('form')!;
+    form.replaceWith(form.cloneNode(true));
+    document.querySelector('form')!.addEventListener('submit', (event) => {
+      event.preventDefault();
+      fetch('/api/billing').catch(() => {
+        (document.querySelector('[aria-label="Sign in"]') as HTMLElement).hidden = false;
+      });
+    });
+
+    await expect((await Billing.on(surface(document))).submit()).resolves.toMatchObject({ outcome: 'signIn' });
+  });
+
+  it.each([
+    ['no body', () => new Response(null)],
+    ['a server-sent stream that never ends', () => new Response(new ReadableStream(), { headers: { 'content-type': 'text/event-stream' } })],
+    [
+      'a body that broke off',
+      () =>
+        new Response(
+          new ReadableStream({
+            pull(stream) {
+              stream.error(new TypeError('network error'));
+            },
+          }),
+        ),
+    ],
+  ])('hears the answer once a response with %s is in, without waiting on its body', async (_, response) => {
+    checkout('nothing');
+    vi.stubGlobal('fetch', async () => response());
+    const form = document.querySelector('form')!;
+    form.replaceWith(form.cloneNode(true));
+    document.querySelector('form')!.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      await fetch('/api/billing');
+      (document.querySelector('[aria-label=Payment]') as HTMLElement).hidden = false;
+    });
+
+    await expect((await Billing.on(surface(document))).submit()).resolves.toMatchObject({ outcome: 'payment' });
+  });
+
+  it.each(['display: none', 'visibility: hidden'])('is not found where its probe is hidden by %s', async (style) => {
+    document.body.innerHTML = `<div style="${style}"><p>Card number</p></div>`;
+
+    await expect(broker('card', { probe: { text: 'Card number' } }).on(surface(document))).rejects.toMatchObject({
+      reason: 'start',
+      message: 'card: not on the page',
+    });
+  });
+
+  it('refuses an action that declares no outcome: it could never be told it arrived', () => {
+    expect(() => leads({}, async () => undefined)).toThrow('leads: declares no outcome');
   });
 
   it('declares through the default means too', () => {

@@ -30,7 +30,7 @@ export function surface(page: Page): PageSurface {
   return {
     native: page,
     find,
-    arrival: (targets, ms, done) => arrival(targets as readonly Found[], ms, done),
+    arrival: (targets, ms) => arrival(targets as readonly Found[], ms),
     quiet: (period) => requests(period)(page),
     elsewhere: () => elsewhere(page),
     click: (query) => locate(page, query).click(),
@@ -60,12 +60,8 @@ function locate(page: Page, query: Query): Locator {
  * left. Playwright's wait takes no signal, so one the action has answered
  * before runs on in the browser to its deadline, and is told to nobody.
  */
-async function arrival(targets: readonly Found[], left: number, done: AbortSignal): Promise<'arrived' | 'late'> {
-  if (done.aborted) return 'late';
-  const any = targets
-    .map((target) => target.locator)
-    .reduce<Locator | undefined>((joined, at) => (joined === undefined ? at : joined.or(at)), undefined);
-  if (any === undefined) return new Promise(() => undefined);
+async function arrival(targets: readonly Found[], left: number): Promise<'arrived' | 'late'> {
+  const any = targets.slice(1).reduce((joined, target) => joined.or(target.locator), targets[0]!.locator);
   try {
     // Only the visible ones are waited on: a query may match its part while it
     // is hidden, and the first match would then be one that never shows.

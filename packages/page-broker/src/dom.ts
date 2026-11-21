@@ -110,7 +110,6 @@ async function arrival(
 ): Promise<'arrived' | 'late'> {
   const any = async (): Promise<boolean> => (await Promise.all(targets.map((each) => each.visible()))).some(Boolean);
   if (await any()) return 'arrived';
-  if (ms <= 0) return 'late';
   try {
     // `waitFor` takes no signal: an answered action ends it at its next look.
     await waitFor(

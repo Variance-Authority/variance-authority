@@ -1,24 +1,27 @@
 // One test body, run over every surface the package ships: a broker holds,
 // and fails, the same way over a document and over a browser page.
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
 import { by } from './broker.js';
 import { broker, stay, Unreached } from './index.js';
 import type { Surface } from './surface.js';
 
 /**
  * A checkout on the surface, announcing nothing: a Billing form with a Street
- * field and a Continue button that submits it whose answer, after `after` ms, is `answer` — `payment`
+ * field, a Delivery choice of `standard` or `express`, a Gift box, a summary of
+ * the three whose test id is `summary`, and a Continue button that submits it
+ * whose answer, after `after` ms, is `answer` — `payment`
  * shows the Payment form, `signIn` the Sign in dialog, `help` opens a modal
  * dialog, `helpShown` shows a modal dialog that was on the page hidden, `next`
  * moves the page to `/checkout/next` with the form still on it, `gone` hides
  * the form and shows nothing in its place, `nothing` leaves the page as it was,
  * `alert` shows a native alert, `link` follows a link to `/checkout/elsewhere`,
- * `blank` follows one to a new page and `post` submits a form there, none of
- * them prevented,
+ * `blank` follows one to a new page, `hash` one to `#billing` in the same
+ * document, `post` submits a form there, none of them prevented, `window`
+ * opens a new page by script,
  * and answers joined by a comma happen together.
  */
 export type Checkout = (
-  answer: 'payment' | 'signIn' | 'help' | 'helpShown' | 'next' | 'next,help' | 'gone' | 'nothing' | 'alert' | 'link' | 'blank' | 'post',
+  answer: 'payment' | 'signIn' | 'help' | 'helpShown' | 'next' | 'next,help' | 'gone' | 'nothing' | 'alert' | 'link' | 'blank' | 'hash' | 'post' | 'window',
   after: number,
 ) => Promise<Surface>;
 
@@ -33,11 +36,15 @@ const Billing = broker('billing', {
   actions: {
     // Stays within the form: nothing is declared, nothing is decided.
     street: (on, words: string) => on.fill({ label: 'Street' }, words),
+    key: (on, key: string) => on.press({ label: 'Street' }, key),
+    deliver: (on, how: string) => on.select({ label: 'Delivery' }, how),
+    gift: (on) => on.check({ label: 'Gift' }),
     submit: leads({ payment: Payment, signIn: SignIn, invalid: stay }, proceed),
     enter: leads({ payment: Payment, signIn: SignIn, invalid: stay }, (on) => on.press({ label: 'Street' }, 'Enter')),
     pay: leads({ payment: Payment }, proceed),
     next: leads({ again: stay }, proceed),
     wait: brief({ again: stay }, proceed),
+    hold: brief({ payment: Payment }, proceed),
   },
 });
 
@@ -86,6 +93,28 @@ export function cases(checkout: Checkout): void {
     const billing = await Billing.on(await checkout('nothing', 20));
 
     await expect(billing.street('Main Street 1')).resolves.toBeUndefined();
+  });
+
+  it('fills, presses, chooses and ticks as a person does, and reads the page back by text, test id and selector', async () => {
+    const on = await checkout('nothing', 20);
+    const billing = await Billing.on(on);
+
+    // Brackets are text, never a key's name.
+    await billing.street('{Apt} [2]');
+    await billing.key('Backspace');
+    await billing.key('+');
+    await billing.key('Shift++');
+    // By its label, then by its value.
+    await billing.deliver('Express');
+    await billing.deliver('standard');
+    await billing.deliver('express');
+    // Ticked once, however often asked.
+    await billing.gift();
+    await billing.gift();
+
+    expect(await on.find({ text: '{Apt} [2++ / express / gift' }).visible()).toBeDefined();
+    expect(await on.find({ testId: 'summary' }).visible()).toBeDefined();
+    expect(await on.find({ css: 'output' }).visible()).toBeDefined();
   });
 
   it('submits a form by Enter in its field, as a person does', async () => {
@@ -152,10 +181,26 @@ export function cases(checkout: Checkout): void {
     ['link', 'a new document at /checkout/elsewhere'],
     ['post', 'a new document at /checkout/elsewhere'],
     ['blank', 'a new page opened'],
+    ['window', 'a new page opened'],
   ] as const)('does not stay when the app followed %s, which the page does not prevent', async (answer, went) => {
     const billing = await Billing.on(await checkout(answer, 20));
 
     await expect(billing.next()).rejects.toMatchObject({ reason: 'elsewhere', went });
+  });
+
+  it('stays when the app followed a link within its own document', async () => {
+    const billing = await Billing.on(await checkout('hash', 20));
+
+    await expect(billing.next()).resolves.toMatchObject({ outcome: 'again' });
+  });
+
+  it('fails at its timeout naming the outcomes never reached, when the app answered with none', async () => {
+    const billing = await Billing.on(await checkout('nothing', 20));
+
+    await expect(billing.hold()).rejects.toMatchObject({
+      reason: 'late',
+      message: 'billing.hold: reached none of payment within 600 ms',
+    });
   });
 
   it('does not stay once it has left the page, though nothing declared took its place', async () => {
@@ -179,14 +224,11 @@ export function cases(checkout: Checkout): void {
   });
 
   it('refuses to act when an outcome is on the page before the action, since it could not be arrived at', async () => {
-    let acted = false;
+    const act = vi.fn(proceed);
     const Again = broker('again', {
       probe: { role: 'form', name: 'Billing' },
       actions: {
-        submit: leads({ billing: Billing }, async (on) => {
-          acted = true;
-          await proceed(on);
-        }),
+        submit: leads({ billing: Billing }, act),
       },
     });
     const again = await Again.on(await checkout('payment', 20));
@@ -195,7 +237,7 @@ export function cases(checkout: Checkout): void {
       reason: 'start',
       message: 'again.submit: billing is on the page before the action, so it could not be arrived at',
     });
-    expect(acted).toBe(false);
+    expect(act).not.toHaveBeenCalled();
   });
 
   it('reads as data: its probe, and where each action leads, without a page', () => {
@@ -208,6 +250,7 @@ export function cases(checkout: Checkout): void {
         pay: { payment: 'payment' },
         next: { again: stay },
         wait: { again: stay },
+        hold: { payment: 'payment' },
       },
     });
   });

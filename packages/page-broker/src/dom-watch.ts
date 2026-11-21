@@ -257,12 +257,10 @@ function followed(event: Event, document: Document): Left | undefined {
     to = form.action;
     target = form.target;
   } else {
-    const click = event as MouseEvent;
     const link = (event.target as Element | null)?.closest?.('a[href], area[href]') as HTMLAnchorElement | null;
     if (link === null || link === undefined || link.hasAttribute('download')) return undefined;
     to = link.href;
     target = link.target;
-    if (click.ctrlKey || click.metaKey || click.shiftKey) target = '_blank';
   }
   if (target !== '' && target !== '_self') return { by: 'page', words: 'a new page opened' };
   const url = new URL(to, document.location.href);
@@ -272,15 +270,9 @@ function followed(event: Event, document: Document): Left | undefined {
   return { by: 'document', words: `a new document at ${url.pathname}${url.search}${url.hash}` };
 }
 
-/** The modal dialogs open and shown now: by `:modal` where the document knows it, and by `aria-modal` everywhere. */
+/** The modal dialogs open and shown now: a `<dialog>` shown modal, or anything marked `aria-modal`. */
 function modals(document: Document): Set<Element> {
-  const found = new Set<Element>(document.querySelectorAll('[aria-modal="true"]'));
-  try {
-    for (const each of document.querySelectorAll(':modal')) found.add(each);
-  } catch {
-    // A document without `:modal`, such as jsdom's, has no modal dialog but by `aria-modal`.
-  }
-  return new Set([...found].filter(shown));
+  return new Set([...document.querySelectorAll('[aria-modal="true"], :modal')].filter(shown));
 }
 
 /**
