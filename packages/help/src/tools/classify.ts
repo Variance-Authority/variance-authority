@@ -1,13 +1,12 @@
 // compass: variance-authority.report.agent-surface
 
-import { relative } from 'node:path';
 import { START_POINT_SCHEMA, saysStartPoint, startPointArg, type Tool, type ToolInvocation } from '@variance-authority/mcp/tools';
-import { ownership, type Help } from '@variance-authority/package/help';
+import type { Help } from '@variance-authority/package/help';
 import { declaredDescribedOf, describedWordsNative, packageLayers, sourceIndexPath, trackedFiles } from '@variance-authority/sense';
 import { searchIndexOf } from '../snapshot.js';
 import { areaLine, areaOf } from './area.js';
 import { rankedAreas, type Declared } from './classify-areas.js';
-import { classifyWords, formatClassified, type CodeMapPlaces, type StartPoint } from './classify-words.js';
+import { classifyWords, formatClassified, placedAreas, type CodeMapPlaces, type StartPoint } from './classify-words.js';
 import { noCodeMap, unfoldedCodeMap } from './code-map-format.js';
 import { termsOfStems } from './loose.js';
 
@@ -22,7 +21,7 @@ function placesOf(root: string): CodeMapPlaces | string {
   if (layers.packages === undefined || layers.packages === null) return unfoldedCodeMap(sourceIndexPath(root), layers.unmade ?? undefined);
   return {
     current: layers.current,
-    packages: new Map(layers.packages.map(({ package: name, area, layer }) => [name, area == null ? { layer } : { area, layer }] as const)),
+    packages: new Map(layers.packages.map(({ package: name, area, layer, directory }) => [name, area == null ? { layer, directory } : { area, layer, directory }] as const)),
   };
 }
 
@@ -75,8 +74,8 @@ function declaredOf(help: Help, root: string, query: string): Declared {
  * The tracked paths a start point reaches along the imports, with the line
  * that says which; every tracked path when none was said. The walk names files
  * from the graph's root, which a nested workspace sits below, so a file is
- * named from the workspace by the part after the workspace's own path, and
- * one outside the workspace is no tracked path of it.
+ * named from the workspace by the part after the offset the source index
+ * names, and one outside the workspace is no tracked path of it.
  */
 function scopedPaths(
   paths: readonly string[],
@@ -90,8 +89,9 @@ function scopedPaths(
   const tree = invocation?.tree;
   const area = areaOf(from, to, tree);
   if (area.refused !== undefined || tree === undefined) throw new Error(`\`classify\` ranked nothing: ${areaLine(area)}`);
-  const within = tree.graphRoot === undefined ? '' : `${relative(tree.graphRoot, tree.root).replaceAll('\\', '/')}/`;
-  const reached = new Set([...area.files].flatMap((file) => (file.startsWith(within) ? [file.slice(within.length)] : [])));
+  const within = invocation?.sourceIndex?.within ?? '';
+  const under = within === '' ? '' : `${within}/`;
+  const reached = new Set([...area.files].flatMap((file) => (file.startsWith(under) ? [file.slice(under.length)] : [])));
   return { paths: paths.filter((path) => reached.has(path)), line: areaLine(area), said };
 }
 
@@ -116,7 +116,7 @@ export const classify: Tool<Help> = {
     'what it names, its package\'s area and dependency layer on the code map as docs_orient numbers them, then the ' +
     'words that name nothing on one line. Then the areas of the tree the words point to, ten at most, best first: a directory of at ' +
     'most 500 tracked files, scored by the request\'s words, by stem, that its path, its files\' names and the top-level names its files ' +
-    'declare, exported or not, hold, a word held by fewer areas counting for more; each with the package whose manifest is nearest at or above it, and that package\'s area and layer. With `from` or `to`, only the files that start point reaches along the ' +
+    'declare, exported or not, hold, a word held by fewer areas counting for more; each with the package on the code map nearest at or above it, and that package\'s area and layer. With `from` or `to`, only the files that start point reaches along the ' +
     'imports are ranked: a product\'s folder and the shared code it imports. Ask it first when holding a request in words and no name.',
   inputSchema: {
     type: 'object',
@@ -153,13 +153,7 @@ export const classify: Tool<Help> = {
     }
     const scoped = scopedPaths(tracked, input, invocation);
     const areas = scoped.paths.length === 0 ? [] : rankedAreas(query, scoped.paths, declaredOf(help, root, query));
-    // An area's package is the nearest manifest at or above its directory, as the scanner draws them.
-    const ownerOf = ownership(root);
-    const owned = areas.map((area) => {
-      const owner = ownerOf(area.path === '.' ? '' : `${area.path}/`);
-      return owner === '' ? area : { ...area, package: owner };
-    });
-    const answer = formatClassified(classified, places, owned, scoped.said);
+    const answer = formatClassified(classified, places, placedAreas(areas, places.packages), scoped.said);
     return scoped.line === undefined ? answer : `${scoped.line}\n\n${answer}`;
   },
 };

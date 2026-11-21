@@ -50,6 +50,8 @@ export interface Classified {
 export interface Placed {
   readonly area?: { readonly id: string; readonly name: string };
   readonly layer: number;
+  /** Its directory from the workspace, as the map's scan drew it; empty for the root. */
+  readonly directory: string;
 }
 
 /** Every package on the code map, placed, and whether the map was folded from the source index as it stands. */
@@ -133,13 +135,31 @@ function where(placed: Placed | undefined): string {
 export type PlacedArea = RankedArea & { readonly package?: string };
 
 /**
+ * Each area in the map package whose directory is nearest at or above it,
+ * under the name the map gives that package; an area above every package on
+ * the map is in none.
+ */
+export function placedAreas(areas: readonly RankedArea[], packages: ReadonlyMap<string, Placed>): readonly PlacedArea[] {
+  const owners = [...packages].map(([name, { directory }]) => ({ name, directory: directory === '.' ? '' : directory }));
+  return areas.map((area) => {
+    const path = area.path === '.' ? '' : area.path;
+    let owner: { readonly name: string; readonly directory: string } | undefined;
+    for (const held of owners) {
+      const above = held.directory === '' || path === held.directory || path.startsWith(`${held.directory}/`);
+      if (above && (owner === undefined || held.directory.length > owner.directory.length)) owner = held;
+    }
+    return owner === undefined ? area : { ...area, package: owner.name };
+  });
+}
+
+/** The start point the asker said, by the flag that said it. */
+export type StartPoint = { readonly from?: readonly string[]; readonly to?: readonly string[] };
+
+/**
  * The entities, one line per thing each names with its place on the code map,
  * then the plain words on one line, then the areas of the tree the words point
  * to, best first, each with its package and that package's place on the map.
  */
-/** The start point the asker said, by the flag that said it. */
-export type StartPoint = { readonly from?: readonly string[]; readonly to?: readonly string[] };
-
 export function formatClassified(
   { entities, plain }: Classified,
   { current, packages }: CodeMapPlaces,

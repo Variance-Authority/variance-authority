@@ -204,7 +204,7 @@ as its children. An area's words are its path's, its files' names and the
 top-level names its files declare, exported or not, compared by stem, and a word counts for more
 the fewer areas hold it. Each area is listed with its file count, the
 request's words it holds, the one weighing most there first, and the package
-whose manifest is nearest at or above it, with that package's area and layer on
+on the code map nearest at or above it, with that package's area and layer on
 the code map. The best one
 is asked `search --from` for its two weightiest words. A request that names
 nothing still points somewhere: `Fix task manager claiming tasks twice` ranks

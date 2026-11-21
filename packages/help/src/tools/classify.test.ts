@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import type { Documented, Entry, Help } from '@variance-authority/package/help';
 import { HELP_TOOLS } from '../tools.js';
 import { classify } from './classify.js';
-import { classifyWords, formatClassified, type CodeMapPlaces } from './classify-words.js';
+import { classifyWords, formatClassified, placedAreas, type CodeMapPlaces } from './classify-words.js';
 
 /**
  * `docs_classify`: which words of the asker's own sentence are, whole, a
@@ -42,9 +42,9 @@ const HELP = {
 const PLACED: CodeMapPlaces = {
   current: true,
   packages: new Map([
-    ['@acme/sense', { area: { id: '4', name: 'around core, sense' }, layer: 3 }],
-    ['@acme/eyes', { area: { id: '5', name: 'png' }, layer: 2 }],
-    ['@acme/vantage', { area: { id: '10', name: 'vantage wire event' }, layer: 1 }],
+    ['@acme/sense', { area: { id: '4', name: 'around core, sense' }, layer: 3, directory: 'packages/sense' }],
+    ['@acme/eyes', { area: { id: '5', name: 'png' }, layer: 2, directory: 'packages/eyes' }],
+    ['@acme/vantage', { area: { id: '10', name: 'vantage wire event' }, layer: 1, directory: 'packages/vantage' }],
   ]),
 };
 
@@ -128,7 +128,7 @@ describe('docs_classify', () => {
   });
 
   it('sends a package that publishes nothing to its area on the map, not to `entrypoint`', () => {
-    const places = { current: true, packages: new Map([...PLACED.packages, ['case-runner', { area: { id: '7', name: 'cases' }, layer: 2 }]]) };
+    const places = { current: true, packages: new Map([...PLACED.packages, ['case-runner', { area: { id: '7', name: 'cases' }, layer: 2, directory: 'cases/runner' }]]) };
     const text = formatClassified(classifyWords('is case-runner in a layer', HELP, [...places.packages.keys()]), places);
 
     expect(text).toContain('variance ask orient --area 7');
@@ -150,6 +150,21 @@ describe('docs_classify', () => {
       '  docs — 1 file · holds task',
     ].join('\n'));
     expect(text).toContain("variance ask search --query 'manager task' --from x-pack/plugins/task_manager/server");
+  });
+
+  it('places an area in the map package nearest at or above it, by the name the map gives it', () => {
+    const packages = new Map([
+      ['shop', { layer: 1, directory: 'packages/shop' }],
+      ['shop (packages/old/shop)', { layer: 1, directory: 'packages/old/shop' }],
+    ]);
+    const area = (path: string) => ({ path, files: 1, words: ['shop'], score: 1 });
+
+    expect(placedAreas([area('packages/old/shop/src'), area('packages/shop'), area('packages/old'), area('.')], packages)).toEqual([
+      { ...area('packages/old/shop/src'), package: 'shop (packages/old/shop)' },
+      { ...area('packages/shop'), package: 'shop' },
+      area('packages/old'),
+      area('.'),
+    ]);
   });
 
   it('keeps the start point the asker said when the best area is the whole tree it reached', () => {

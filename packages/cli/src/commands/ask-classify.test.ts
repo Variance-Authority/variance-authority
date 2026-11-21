@@ -106,7 +106,7 @@ describe('variance ask classify', () => {
     expect(asked.code).toBe(EXIT_CLEAN);
     expect(asked.out).toContain('In 5 file(s) reachable from `packages/shop/shop-4/src/index.ts` along the imports');
     expect(asked.out).toMatch(/^ {2}\. — 5 files · holds shop$/m);
-    expect(asked.out).toContain("variance ask search --query shop\n");
+    expect(asked.out).toContain("variance ask search --query shop --from packages/shop/shop-4/src/index.ts\n");
   });
 
   it('reads the names a file keeps to itself as its area\'s words, as it reads the exported ones', async () => {
