@@ -56,7 +56,8 @@ gh pr checks <n>
 
 CodeRabbit is one of those checks, and an opportunity, never a blocker: its
 check passes when it skipped a push or ran out of reviews, and neither is waited
-for. Read what it found, classify it, and either go round again or hand over.
+for. A skipped check is not a silent one, so read what it said all the same,
+classify it, and either go round again or hand over.
 A cycle you had to start by fixing something ends the same way, after
 the push. A cycle that stops blocked does not wait for the checks: it takes the
 label off and says why, and the next cycle watches them.
@@ -78,20 +79,29 @@ is still reviewed: the public pages are the project's face.
 
 **Every check but `site`, until each has finished**, with the watch above.
 
-**CodeRabbit.** It reviews pull requests here and reports as the `CodeRabbit` check, which
-reads `Review completed` when it reviewed, and something else, such as `Review
-skipped` or `Review rate limited`, when it did not. A review it did not make is
-named in the report, never waited for. The inline comments are where the
-findings are:
+**CodeRabbit.** It reports as the `CodeRabbit` check, and the check says
+whether it reviewed the push, not whether it said anything: a push it skipped
+or was rate limited on still gets a summary comment carrying the pre-merge
+checks `.coderabbit.yaml` declares, and the merge-risk note of any push it
+reviewed. A skip, a rate limit
+or a failed review is named in the report, by the check's own title, never
+waited for. Everything it wrote — the summary comment, each
+review's body with the comments outside the diff and the nitpicks, and each
+inline comment — comes from one command, which posts nothing:
 
 ```bash
-gh api --paginate repos/{owner}/{repo}/pulls/<n>/comments --jq '.[] | select(.user.login == "coderabbitai[bot]") | "\(.path):\(.line)\n\(.body)\n"'
+yarn review:coderabbit <n>
 ```
 
-Its walkthrough also carries the pre-merge checks `.coderabbit.yaml` declares.
-An **Alignment** check that reads failed asks the same questions as the
+Read it whole. It prints each body as CodeRabbit wrote it, less the tips and
+the autofix box it marks as its own. A review or an inline comment that judged
+an older commit says which, and the summary names the commits it reviewed:
+classify an older part against the head, and read again once the check
+finishes. An
+**Alignment** check that reads failed asks the same questions as the
 `alignment` reviewer of the pushed diff. Its finding is classified like a
-comment; one that is real goes back to the inner loop.
+comment; one that is real goes back to the inner loop. The merge-risk note and
+every other finding the summary names are classified the same way.
 
 **Codex.** The reviewers before the push and the agent that wrote the change
 share a model family, and they share its blind spots. Codex reads the open PR

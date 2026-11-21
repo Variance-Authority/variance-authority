@@ -38,6 +38,7 @@
     "owners": "node tools/owners.mjs",
     "restrictions": "variance index && variance restrictions",
     "review:codex": "node tools/codex-review.mjs",
+    "review:coderabbit": "node tools/coderabbit-review.mjs",
     "clones": "node tools/clones.mjs",
     "typecheck": "tsc --build --force",
     "verify": "yarn lint && yarn check && yarn measure && yarn test",
