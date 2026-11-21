@@ -1,4 +1,5 @@
-import { mkdtemp, writeFile } from 'node:fs/promises';
+import { execFileSync } from 'node:child_process';
+import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -8,6 +9,7 @@ import { OperatorError } from '../exit.js';
 import { flagsFor, synopsisFor } from '../usage.js';
 import { covering } from './covering.js';
 import { formatCovering } from './covering-text.js';
+import { indexOutput } from './index-command.js';
 
 /** Twelve test files, the first with twelve cases and each next with one fewer, every case calling into one function. */
 const FILES = Array.from({ length: 12 }, (_, at) => `t${String(at).padStart(2, '0')}.test.ts`);
@@ -103,7 +105,26 @@ describe('a covering answer an agent reads', () => {
 });
 
 describe('a case that called into one range of a file and only loaded the module on a later one', () => {
+  /** A loaded crossing makes the answer read the file graph, so the checkout is real and its index published, as CI's step publishes it. */
+  async function checkout(): Promise<string> {
+    const root = await mkdtemp(join(tmpdir(), 'variance-covering-loaded-'));
+    const run = (args: readonly string[]): void => {
+      execFileSync('git', args, { cwd: root, stdio: 'pipe' });
+    };
+    await mkdir(join(root, 'src'), { recursive: true });
+    await writeFile(join(root, 'src/hub.ts'), `${Array.from({ length: 9 }, (_, at) => `export const line${at + 1} = ${at + 1};`).join('\n')}\n`);
+    await writeFile(join(root, 'a.test.ts'), "import { line1 } from './src/hub';\nit('calls', () => line1);\n");
+    run(['init', '--quiet', '--initial-branch', 'main']);
+    run(['config', 'user.email', 'fixture@example.test']);
+    run(['config', 'user.name', 'Fixture']);
+    run(['add', '-A']);
+    run(['commit', '--quiet', '-m', 'first']);
+    await indexOutput({ cwd: root });
+    return root;
+  }
+
   it('ranks its test file with the count of the cases that called in, as the header counts them', async () => {
+    const root = await checkout();
     const file = join(await mkdtemp(join(tmpdir(), 'variance-covering-loaded-')), 'cases.json');
     await writeFile(file, JSON.stringify({
       tests: [{ id: 'a.test.ts > calls', file: 'a.test.ts', name: 'calls' }],
@@ -115,7 +136,7 @@ describe('a case that called into one range of a file and only loaded the module
         ],
       }],
     }));
-    const answer = await covering(parse(['--file', 'src/hub.ts', '--execution', file]));
+    const answer = await covering(parse(['--file', 'src/hub.ts', '--root', root, '--execution', file]));
 
     expect(answer.files).toEqual([{ file: 'a.test.ts', cases: 1, of: 1 }]);
     expect(formatCovering(answer, 'text', Date.now())).toContain('1 named test in 1 test file\n  a.test.ts — 1/1\n');
