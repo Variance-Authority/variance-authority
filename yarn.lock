@@ -5498,6 +5498,7 @@ __metadata:
     "@variance-authority/mcp": "workspace:^"
     "@variance-authority/package": "workspace:^"
     "@variance-authority/sense": "workspace:^"
+    ajv: "npm:^8.20.0"
     minisearch: "npm:^7.2.0"
   bin:
     variance-authority-help: ./dist/bin.js

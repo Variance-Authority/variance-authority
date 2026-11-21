@@ -54,6 +54,7 @@
     "@variance-authority/sense": "workspace:^"
   },
   "devDependencies": {
+    "ajv": "^8.20.0",
     "minisearch": "^7.2.0"
   }
 }

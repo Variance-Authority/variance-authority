@@ -181,11 +181,18 @@ export function argumentsOf(tool: Asked): readonly Argument[] {
   });
 }
 
+/**
+ * A schema's `type`, one or a list of them, says how the flag is read: a type
+ * that admits an array is a list, split at commas, whether or not one value may
+ * also be said as a string. A `oneOf` is not read, so a start point, whose one
+ * string is one path whole, stays text.
+ */
 function kindOf(schema: unknown): Argument['kind'] {
-  const type =
+  const said =
     typeof schema === 'object' && schema !== null
       ? (schema as Record<string, unknown>)['type']
       : undefined;
+  const type = Array.isArray(said) && said.includes('array') ? 'array' : said;
   if (type === 'array') {
     // Only `intersection` takes objects in a list, and each is a whole question.
     const items = (schema as Record<string, unknown>)['items'];

@@ -53,7 +53,7 @@ export const symbol: Tool<Help> = {
     type: 'object',
     properties: {
       name: {
-        type: 'array',
+        type: ['array', 'string'],
         items: { type: 'string' },
         description:
           'The names, each matched exactly; `Container.member` asks for that container\'s member. Each is answered as one is, in the ' +

@@ -93,6 +93,10 @@ describe('what a question takes', () => {
     expect(inputFor(symbol, { name: 'baseToLocal, localToRemote' }, () => undefined)).toEqual({ name: ['baseToLocal', 'localToRemote'] });
   });
 
+  it('hands a start point over whole: a comma is part of a path', () => {
+    expect(inputFor(symbol, { name: 'baseToLocal', from: 'src/a,b.ts' }, () => undefined)).toMatchObject({ from: 'src/a,b.ts' });
+  });
+
   it('spells a true-or-false argument as a bare flag', () => {
     const ran = vantageToolByName('variance_ran')!;
 
