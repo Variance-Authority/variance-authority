@@ -33,7 +33,7 @@ fn chain(files: &[(&str, &str, &str)]) -> (Vec<u8>, Vec<u8>) {
 fn rows(found: &FileDeclarations) -> Vec<String> {
     let mut rows = Vec::new();
     for declaration in &found.declarations {
-        rows.push(format!("{} {} {} {:?} +{}", declaration.line, declaration.kind, declaration.name, declaration.exported, declaration.more_members));
+        rows.push(format!("{} {} {} {:?}", declaration.line, declaration.kind, declaration.name, declaration.exported));
         rows.extend(declaration.members.iter().map(|member| format!("  {} {}", member.line, member.name)));
     }
     rows
@@ -47,11 +47,11 @@ fn each_declaration_has_its_line_and_whether_an_export_binds_it_with_a_class_mem
     assert_eq!(found.len(), 1, "a file the chain does not hold is left out");
     assert!(found[0].read);
     assert_eq!(rows(&found[0]), vec![
-        "2 function total Some(true) +0",
-        "4 class Basket Some(true) +0",
+        "2 function total Some(true)",
+        "4 class Basket Some(true)",
         "  5 lines",
         "  6 add",
-        "9 const limit Some(false) +0",
+        "9 const limit Some(false)",
     ]);
 }
 
@@ -59,12 +59,14 @@ fn each_declaration_has_its_line_and_whether_an_export_binds_it_with_a_class_mem
 fn the_budget_shows_top_level_declarations_first_and_counts_the_members_and_declarations_it_cut() {
     let (records, parses) = chain(&[("src/basket.ts", "git:a", BASKET)]);
     let layers = [Layer::open(&records).unwrap(), Layer::open(&parses).unwrap()];
-    let found = declarations_of(&layers, &["src/basket.ts".to_owned()], 4);
-    assert_eq!(rows(&found[0]), vec!["2 function total Some(true) +0", "4 class Basket Some(true) +1", "  5 lines", "9 const limit Some(false) +0"]);
-    assert_eq!(found[0].more, 0);
-    let cut = declarations_of(&layers, &["src/basket.ts".to_owned()], 2);
-    assert_eq!(rows(&cut[0]), vec!["2 function total Some(true) +0", "4 class Basket Some(true) +2"]);
-    assert_eq!(cut[0].more, 1);
+    let cut = |budget: usize| {
+        let found = declarations_of(&layers, &["src/basket.ts".to_owned()], budget).remove(0);
+        (rows(&found), found.more, found.more_members)
+    };
+    assert_eq!(cut(4), (vec!["2 function total Some(true)".to_owned(), "4 class Basket Some(true)".to_owned(), "  5 lines".to_owned(), "9 const limit Some(false)".to_owned()], 0, 1));
+    assert_eq!(cut(2), (vec!["2 function total Some(true)".to_owned(), "4 class Basket Some(true)".to_owned()], 1, 2));
+    // The members of a declaration the budget cut are counted with the rest.
+    assert_eq!(cut(1), (vec!["2 function total Some(true)".to_owned()], 2, 2));
 }
 
 #[test]
@@ -72,5 +74,5 @@ fn a_member_on_its_container_line_is_listed_as_symbol_lists_it() {
     let (records, parses) = chain(&[("src/id.ts", "git:b", "export type Id = { id: string; at: number };\n")]);
     let layers = [Layer::open(&records).unwrap(), Layer::open(&parses).unwrap()];
     let found = declarations_of(&layers, &["src/id.ts".to_owned()], 40);
-    assert_eq!(rows(&found[0]), vec!["1 type Id Some(true) +0", "  1 id", "  1 at"]);
+    assert_eq!(rows(&found[0]), vec!["1 type Id Some(true)", "  1 id", "  1 at"]);
 }

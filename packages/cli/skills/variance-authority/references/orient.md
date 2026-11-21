@@ -51,9 +51,12 @@ own definitions. What you decide from it:
 - **`Declared at the top level`** lists each file's own declarations from the
   source index, by line: the kind, the name, and `exported` when an export
   binds it. A class's, an interface's or a type's members follow it, one line
-  each. A file shows at most 40 lines, and the answer counts what it left out;
-  ask `symbol --name <name>` for one of those. `not read` means the index holds
-  the file without its declarations, not that it declares nothing.
+  each; members are read from JavaScript and TypeScript only, and a file in
+  another language says so. A file shows at most 40 declaration and member
+  rows, and one line counts the declarations and members it left out; ask
+  `symbol --name <name>` for one of those. `the index holds no parse of its
+  declarations` means the file may declare anything, not that it declares
+  nothing.
 - **External dependency declarations** are the manifest's entries, and show the first three entries per
   listed dependency, followed by the count of the rest. Run the printed
   `orient --files … --declarations` command for every entry, including

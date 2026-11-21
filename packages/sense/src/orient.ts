@@ -68,8 +68,6 @@ export interface FileDeclaration {
   readonly exported?: boolean | null;
   /** The members declared on it, by line, as many as the line budget left. */
   readonly members: readonly ContainerMember[];
-  /** The members on it the budget left out. */
-  readonly moreMembers: number;
 }
 
 /** What one asked file declares at its top level. */
@@ -80,6 +78,8 @@ export interface FileDeclarations {
   readonly declarations: readonly FileDeclaration[];
   /** The top-level declarations the budget left out. */
   readonly more: number;
+  /** The members the budget left out, those of a declaration it cut included. */
+  readonly moreMembers: number;
 }
 
 /**

@@ -11,7 +11,8 @@
 //! An outline is bounded by lines, not names: a file of four hundred exports
 //! would otherwise print four hundred lines before the graph the reader asked
 //! for. Top-level declarations are shown first, then members in line order
-//! while lines are left, and each cut is counted where it was made.
+//! while lines are left; the declarations and the members cut are each counted
+//! once for the file, so the counts add no line per container.
 
 // compass: variance-authority.reach.relations
 
@@ -19,7 +20,7 @@ use std::collections::HashMap;
 
 use napi_derive::napi;
 
-use crate::chain_lookup::fold;
+use crate::chain_lookup::record;
 use crate::compact::Layer;
 use crate::help_declared::exported_locals;
 use crate::help_members::{members_of_row, ContainerMember};
@@ -38,8 +39,6 @@ pub struct FileDeclaration {
     pub exported: Option<bool>,
     /// The members declared on it, by line, as many as the budget left.
     pub members: Vec<ContainerMember>,
-    /// The members on it the budget left out.
-    pub more_members: u32,
 }
 
 /// One asked file's top level, or why it cannot be told.
@@ -52,24 +51,25 @@ pub struct FileDeclarations {
     pub declarations: Vec<FileDeclaration>,
     /// The top-level declarations the budget left out.
     pub more: u32,
+    /// The members the budget left out, those of a declaration it cut included.
+    pub more_members: u32,
 }
 
 /// The top level of each of `files` the chain holds, in the order asked, each
 /// within `budget` lines; a file the chain does not hold is left out, as the
 /// list of files asked about already says it is outside the index.
 pub(crate) fn declarations_of(layers: &[Layer], files: &[String], budget: usize) -> Vec<FileDeclarations> {
-    let folded = fold(layers);
     let mut crossings: Vec<Crossing> = files
         .iter()
-        .filter_map(|file| folded.get_key_value(file.as_str()))
-        .map(|(&file, &at)| Crossing { file, owner: NO_OWNER, others: Vec::new(), at, parse: None })
+        .filter_map(|file| record(layers, file))
+        .map(|(file, at)| Crossing { file, owner: NO_OWNER, others: Vec::new(), at, parse: None })
         .collect();
     join_parses(layers, &mut crossings);
     crossings.iter().map(|crossing| outline(layers, crossing, budget)).collect()
 }
 
 fn outline(layers: &[Layer], crossing: &Crossing, budget: usize) -> FileDeclarations {
-    let unread = FileDeclarations { file: crossing.file.to_owned(), read: false, declarations: Vec::new(), more: 0 };
+    let unread = FileDeclarations { file: crossing.file.to_owned(), read: false, declarations: Vec::new(), more: 0, more_members: 0 };
     let Some((layer, row)) = crossing.parse else { return unread };
     let (stored, parses) = (&layers[layer].stored, &layers[layer].parses);
     if parses.harvested[row] != 1 { return unread }
@@ -85,16 +85,14 @@ fn outline(layers: &[Layer], crossing: &Crossing, budget: usize) -> FileDeclarat
                 line: parses.symbol_line.at(symbol),
                 exported: exported.as_ref().map(|exported| exported.contains(name)),
                 members: Vec::new(),
-                more_members: 0,
             }
         })
         .collect();
     declarations.sort_by_key(|declaration| declaration.line);
-    let more = declarations.len().saturating_sub(budget) as u32;
-    declarations.truncate(budget);
 
     // A member goes under the first declaration of its container's name, as
-    // `symbol` lists a container's members.
+    // `symbol` lists a container's members; one whose container the budget
+    // cuts is counted with the members cut.
     let mut holder: HashMap<&str, usize> = HashMap::new();
     for (at, declaration) in declarations.iter().enumerate() {
         holder.entry(declaration.name.as_str()).or_insert(at);
@@ -103,18 +101,22 @@ fn outline(layers: &[Layer], crossing: &Crossing, budget: usize) -> FileDeclarat
         .into_iter()
         .filter_map(|(of, member)| Some((*holder.get(of)?, member)))
         .collect();
-    members.sort_by_key(|(on, member)| (declarations[*on].line, member.line));
+    drop(holder);
+    let more = declarations.len().saturating_sub(budget) as u32;
+    declarations.truncate(budget);
+    members.sort_by_key(|(on, member)| (declarations.get(*on).map(|on| on.line), member.line));
     let mut left = budget - declarations.len();
+    let mut more_members = 0;
     for (on, member) in members {
-        let declaration = &mut declarations[on];
-        if left == 0 {
-            declaration.more_members += 1;
-        } else {
-            left -= 1;
-            declaration.members.push(member);
+        match declarations.get_mut(on) {
+            Some(declaration) if left > 0 => {
+                left -= 1;
+                declaration.members.push(member);
+            }
+            _ => more_members += 1,
         }
     }
-    FileDeclarations { file: crossing.file.to_owned(), read: true, declarations, more }
+    FileDeclarations { file: crossing.file.to_owned(), read: true, declarations, more, more_members }
 }
 
 #[cfg(test)]

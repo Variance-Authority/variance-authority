@@ -13,6 +13,7 @@
 
 import type { FileDeclaration, FileDeclarations } from '@variance-authority/sense';
 import { plural } from './format.js';
+import { membersNotReadIn } from './members.js';
 
 /** The declarations part, or nothing when no file asked about is in the index. */
 export function formatDeclarations(files: readonly FileDeclarations[] | undefined): readonly string[] {
@@ -22,16 +23,30 @@ export function formatDeclarations(files: readonly FileDeclarations[] | undefine
 
 function outline(file: FileDeclarations): readonly string[] {
   // Absent is not empty: a file whose declarations were not read may declare anything.
-  if (!file.read) return [`  ${file.file}  its declarations were not read; \`variance index\` reads them`];
+  if (!file.read) return [`  ${file.file}  the index holds no parse of its declarations`];
   if (file.declarations.length === 0 && file.more === 0) return [`  ${file.file}  declares nothing at the top level`];
-  const unknown = file.declarations.some((declaration) => declaration.exported === undefined || declaration.exported === null);
-  const lines = file.declarations.flatMap((declaration) => [declaration.line, ...declaration.members.map((member) => member.line)]);
-  const wide = String(Math.max(...lines)).length;
-  return [
-    `  ${file.file}${unknown ? '  (the index kept no exports of it, so none is marked exported)' : ''}`,
-    ...file.declarations.flatMap((declaration) => rows(declaration, wide)),
-    ...(file.more > 0 ? [`    ${plural(file.more, 'more top-level declaration')} not shown.`] : []),
+  const notes = [
+    ...(file.declarations.some((declaration) => declaration.exported === undefined || declaration.exported === null)
+      ? ['the index kept no exports of it, so none is marked exported']
+      : []),
+    ...[membersNotReadIn(file.file)].filter((note) => note !== undefined),
   ];
+  const lines = file.declarations.flatMap((declaration) => [declaration.line, ...declaration.members.map((member) => member.line)]);
+  const wide = String(Math.max(1, ...lines)).length;
+  return [
+    `  ${file.file}${notes.map((note) => `  (${note})`).join('')}`,
+    ...file.declarations.flatMap((declaration) => rows(declaration, wide)),
+    ...[left(file)].filter((line) => line !== undefined),
+  ];
+}
+
+/** The one line that counts what the budget cut from a file, or nothing when it cut nothing. */
+function left(file: FileDeclarations): string | undefined {
+  const cut = [
+    ...(file.more > 0 ? [plural(file.more, 'more top-level declaration')] : []),
+    ...(file.moreMembers > 0 ? [plural(file.moreMembers, 'more member')] : []),
+  ];
+  return cut.length === 0 ? undefined : `    ${cut.join(' and ')} not shown.`;
 }
 
 function rows(declaration: FileDeclaration, wide: number): readonly string[] {
@@ -44,6 +59,5 @@ function rows(declaration: FileDeclaration, wide: number): readonly string[] {
       const shared = member.line === (at === 0 ? declaration.line : declaration.members[at - 1]?.line);
       return `${under}${String(member.line).padStart(wide)}  ${shared ? member.name : (member.text?.trim() ?? member.name)}`;
     }),
-    ...(declaration.moreMembers > 0 ? [`${under}${plural(declaration.moreMembers, 'more member')} not shown.`] : []),
   ];
 }
