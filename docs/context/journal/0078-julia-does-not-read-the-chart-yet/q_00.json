@@ -1,0 +1,482 @@
+[
+ {
+  "readme": ".compass/variance-authority/acquisition/README.md",
+  "title": "Observe a hovered or scrolled state as its own subject",
+  "body": "Today a run can only read a subject in the state the host puts on screen when it switches to it. Teams keep asking for a focused input, an open tooltip, or a list scrolled halfway. A subject will be able to declare a short, named interaction the host already knows how to perform, and the reading will be taken after it. The interaction is recorded in the subject's identity, so two readings of the same story with different interactions never share a baseline. A host that cannot perform the interaction refuses the subject by name, and the refusal lands in the report instead of silently reading the resting state."
+ },
+ {
+  "readme": ".compass/variance-authority/acquisition/README.md",
+  "title": "An unreachable subject disappears when the host process crashes mid-run",
+  "body": "When the preview process dies partway through a run, the subjects already collected are reported, but the ones after the crash are neither observed nor listed as Not observed. The summary shows a smaller total and nothing explains the gap. The run should compare what the plan intended against what arrived and name every missing subject with the reason 'the host exited before this subject was reached', including the exit code where one exists. A run whose plan and whose results disagree in count should never report success without saying so."
+ },
+ {
+  "readme": ".compass/variance-authority/acquisition/README.md",
+  "title": "Every capture carries the extraction version beside the ruleset version",
+  "body": "The rule today is that comparability is versioned only by the normalization ruleset, on the assumption that extraction never changes what it hands over. That assumption broke once already when attribute authorship was added to the raw capture. I propose that each raw capture carry an extraction version as well, and that a baseline taken under a different extraction version be read as incomparable rather than as a difference. The report would then say 'baseline predates this extraction' instead of flagging hundreds of subjects as changed after an upgrade that altered nothing on screen."
+ },
+ {
+  "readme": ".compass/variance-authority/acquisition/collector-contract/README.md",
+  "title": "Collectors can stream subjects instead of returning a whole plan",
+  "body": "A collector returns its entire plan before any collection starts. For a route collector walking a large sitemap, that means reading every location up front even when reach will narrow the list to twelve. The contract will gain an optional streaming form of plan that yields subjects in codepoint order as it finds them, so the run can start collecting while the plan is still being built. A collector that does not offer streaming keeps today's behaviour, and the run states which form it used, so a slow plan is visible rather than folded into the collection time."
+ },
+ {
+  "readme": ".compass/variance-authority/acquisition/collector-contract/README.md",
+  "title": "A collector that throws in close hides every subject's result",
+  "body": "If the operator's module throws while ending the world, the run exits with that stack trace and the report for the subjects already collected is never written. Three hundred good observations are lost to a teardown error. A failure in close should be recorded as a run-level finding, naming the module and the message, while the collected subjects still go to normalization and into the report. The exit status can still be non-zero, but the work already paid for must not be discarded because the browser refused to shut down cleanly."
+ },
+ {
+  "readme": ".compass/variance-authority/acquisition/collector-contract/README.md",
+  "title": "Declare the rebuilt-world capability up front, not per call",
+  "body": "Whether a collector can offer a fresh-world recollection is currently discovered when the run first asks for one. By then the run has already scheduled the check and only learns the answer mid-flight. The contract should require a collector to state its capabilities when it is loaded — call site resolution, rebuilt-world collection, value subjects — as a declared set. The run can then plan around what is missing, and the report lists every capability the collector did not offer before any subject is read, instead of mid-run."
+ },
+ {
+  "readme": ".compass/variance-authority/acquisition/deferred-capture/README.md",
+  "title": "Archived documents close over web fonts pulled in by a stylesheet",
+  "body": "The archive inlines every resource the subtree references, but a font a stylesheet pulls in through a nested @import or a font-face declared inside a shadow root is not followed today. The written document names a family it cannot paint, and the pinned machine falls back to a system font. The factory will walk font-face declarations reachable from the pruned sheet, including imported sheets, resolve each source through the same resolver, and inline them with their digests. A font that still cannot be resolved stays a refusal naming the family and the URL."
+ },
+ {
+  "readme": ".compass/variance-authority/acquisition/deferred-capture/README.md",
+  "title": "Custom properties set inline on an ancestor are lost in the inherited floor",
+  "body": "A design system that sets its tokens with a style attribute on the body, rather than with a rule, loses them when the document is written: the reconstructed ancestor frame keeps rules, not inline declarations. The painted result shows default colours and reads as a catastrophic regression in every subject. Inline custom properties on every ancestor of the subject root should be folded into the inherited floor exactly as a matching rule would be, and the archive should record which ancestor contributed each one so a reviewer can trace where a token came from."
+ },
+ {
+  "readme": ".compass/variance-authority/acquisition/deferred-capture/README.md",
+  "title": "Refuse the whole archive when two subjects disagree on a resource digest",
+  "body": "Right now each document is closed independently, so two subjects in one archive can inline the same URL with different bytes if the asset changed between reads. Both documents paint, and nobody learns that the run saw two versions of one image. The rule should be that within a single archive a URL resolves to exactly one digest. A second, different digest for the same URL will be an error naming both subjects and both digests, because a mid-run change to a served asset is a fact about the environment that belongs in the report."
+ },
+ {
+  "readme": ".compass/variance-authority/acquisition/host-adapters/README.md",
+  "title": "A host adapter for a component catalogue served by Ladle",
+  "body": "The shipped adapters cover a story preview and a served route. Ladle exposes a comparable preview with its own channel for switching states, and adopters on it currently fall back to route collection with one navigation per story. A third adapter will reach a named Ladle story over its own channel, reuse the page agent for the crossing, and produce the same source index for file:line. It will copy the directory walk rather than import from another adapter, matching the existing rule, and refuse a story that threw with the host's message."
+ },
+ {
+  "readme": ".compass/variance-authority/acquisition/host-adapters/README.md",
+  "title": "A route that redirects is observed as the destination without a word",
+  "body": "When a served route answers with a redirect, the adapter follows it and reads whatever page it lands on. The subject named /settings is quietly a reading of /login, and its baseline is a login form. A redirect should be treated as a refusal by default, carrying the status code and the final location, so the operator sees that the planned state was never reached. Where following it is intended, the operator will say so per route in configuration, and the reading then records the final location as part of its provenance."
+ },
+ {
+  "readme": ".compass/variance-authority/acquisition/host-adapters/README.md",
+  "title": "The readiness selector becomes required for every subject",
+  "body": "Today the per-subject readiness selector is optional, and when it is missing the adapter trusts the host's rendered event. That event fires as soon as the render call returns — too early for anything that defers work — and the result is a skeleton baseline. I propose making readiness mandatory at the plan level: a subject without a readiness selector, and without an explicit statement that the host event is enough, is refused as not observed. The operator writes the statement once, and the absence of a decision stops being a silent default."
+ },
+ {
+  "readme": ".compass/variance-authority/acquisition/live-extraction/README.md",
+  "title": "Extract pseudo-element content into the raw capture",
+  "body": "The raw capture holds the element tree and the rules applying per node, but ::before and ::after content is only visible as a rule, not as something rendered. A change to generated content such as a counter or an icon glyph is invisible to a semantic comparison. Extraction will read the computed content of each pseudo-element that has one and record it as a child of its host node, with its own provenance pointing at the rule that produced it. Hosts whose profile cannot compute pseudo-element styles will declare that dimension as unobservable."
+ },
+ {
+  "readme": ".compass/variance-authority/acquisition/live-extraction/README.md",
+  "title": "An ignore selector with invalid syntax is reported as matching nothing",
+  "body": "If an ignore rule contains a selector the browser cannot parse, querySelectorAll throws, the error is caught, and the selector is reported as having matched nothing in this subject. Across a whole run that looks identical to a rule that has stopped matching, and nobody fixes the typo. Extraction should distinguish a selector that failed to parse from one that parsed and matched nothing, carrying the parser's message, so the run can refuse the configuration by name rather than report it as an ordinary miss."
+ },
+ {
+  "readme": ".compass/variance-authority/acquisition/live-extraction/README.md",
+  "title": "Profile probing runs once per page, not once per subject",
+  "body": "The profile is measured by laying out a probe element and asking its width, and that probe runs for every subject. The rule assumes a host's capabilities can change between subjects, which in a single standing page they cannot. The contract will change so the profile is measured once when the page agent is installed and carried with every capture from that page. A capture still states its profile, so nothing downstream loses information, but a probe that disagrees with the first measurement mid-run will be reported as a finding about the host."
+ },
+ {
+  "readme": ".compass/variance-authority/acquisition/page-agent/README.md",
+  "title": "Run the in-page half inside a device farm session",
+  "body": "The crossing already carries only plain values, so nothing prevents it from sitting behind a worker or a remote device. I propose a transport that runs the far side in a device farm session, sending the request as JSON over the farm's own channel and receiving the serialized capture as a string. The driver side stays unchanged. The first target is a single mobile browser; what the host declares in its profile decides what is compared, and a farm that cannot report assets on the wire says so rather than sending an empty asset map."
+ },
+ {
+  "readme": ".compass/variance-authority/acquisition/page-agent/README.md",
+  "title": "A page that fetches on a timer produces an unstable verdict with no explanation",
+  "body": "When the asset map keeps moving after the second read, the subject is marked unstable, but the report does not say which URLs kept arriving. The operator sees 'unstable' and has to reproduce the run with devtools open to find the polling endpoint. The agent should carry the assets that changed between the two reads, with their URLs and the time each arrived, into the finding. A reviewer can then name the request responsible and fix the application, which is what the unstable verdict is for."
+ },
+ {
+  "readme": ".compass/variance-authority/acquisition/page-agent/README.md",
+  "title": "Interventions carry a version with their id",
+  "body": "An intervention crosses as an id and the page resolves it from its own registry. If the driver and the in-page bundle are built from different versions, the same id can mean two different recipes and nothing detects it. The request will carry each intervention as an id plus a digest of its definition, and the page will refuse to apply one whose digest does not match its registry. The refusal names the intervention and both digests, turning a silent recipe mismatch into an error that points at a stale bundle."
+ },
+ {
+  "readme": ".compass/variance-authority/acquisition/subject-plan/README.md",
+  "title": "Plan subjects from a list of declared colour schemes",
+  "body": "The plan already multiplies subjects by declared widths, giving each size its own id. Teams with a dark theme want the same treatment for colour schemes. The plan will accept a list of schemes in configuration and produce one subject per scheme and width, with the scheme written into the id. Each entry carries the scheme it overrides the run's with, and a scheme the host cannot emulate is refused at planning time rather than rendered in the default and reported as observed."
+ },
+ {
+  "readme": ".compass/variance-authority/acquisition/subject-plan/README.md",
+  "title": "Two stories with the same title and name collapse into one subject",
+  "body": "When two story files export the same title and story name — usually during a rename — the built index holds two entries, but the plan keys them to one id and the second silently replaces the first. One of them is never observed and never listed as Not observed. The plan should detect a duplicate id, keep neither, and name both with their import paths as refused, so the collision is fixed in the stories rather than masked by whichever file the filesystem walk happened to read last."
+ },
+ {
+  "readme": ".compass/variance-authority/acquisition/subject-plan/README.md",
+  "title": "Exclusion tags must be declared vocabulary",
+  "body": "An exclusion tag in configuration is matched by string against what each subject wears. A typo like 'skip-vr' for 'skip-visual' excludes nothing and the run carries on. The rule will change so that every tag the plan acts on is looked up in the declared vocabulary first, and a tag that is not declared is refused with its spelling and the nearest declared word. The plan still defines no meaning of its own; it only refuses to act on a word the vocabulary has never heard of."
+ },
+ {
+  "readme": ".compass/variance-authority/acquisition/suite-observation/README.md",
+  "title": "Observe a subject from a Cypress component test",
+  "body": "Adopters on Cypress component testing have a mounted, waited-on subject but no way to hand it to a run. A new surface will accept a resolved element from a Cypress test body, perform the read in the tab, and send only the artifact out over Cypress's task channel. As with the browser-mode surface, the judging half stays on the node side where the baseline lives. Anything scoped wider than one reading — sensitivity, history — is declared at the call, and the surface says plainly which of those it cannot supply."
+ },
+ {
+  "readme": ".compass/variance-authority/acquisition/suite-observation/README.md",
+  "title": "A portal opened after the read starts is missing from the accessibility reading",
+  "body": "Portal markers are stamped before the read begins. A dropdown that mounts its portal a few milliseconds later, during the read, is outside every marked root and its accessible content is absent from the reading. The subject's baseline then lacks the menu entirely. The observer should re-check for portal targets once the read completes, and when a new one appeared, either include it and say so, or refuse the reading as not yet arrived. A portal that came and went during the read should never be silently omitted."
+ },
+ {
+  "readme": ".compass/variance-authority/acquisition/suite-observation/README.md",
+  "title": "An embedded surface must state what it cannot answer",
+  "body": "Surfaces inside an adopter's suite have no run around them, so sensitivity, history and reviewer images are only available when declared at the call. Today a missing declaration simply means the feature does not happen. The contract should change so that every embedded observation returns, beside its verdict, the list of run-scoped answers it did not have and why — no history configured, no sensitivity declared. The asymmetry stays, but the adopter sees exactly which answers their placement left out instead of assuming they were checked."
+ },
+ {
+  "readme": ".compass/variance-authority/acquisition/value-subject/README.md",
+  "title": "Snapshot a GraphQL schema as an unrendered subject",
+  "body": "A GraphQL schema is a published surface just like a workspace's exports, and a change to it breaks clients without moving a pixel. This will accept an introspection result or SDL text, shape it with types and fields sorted by codepoint, and write it as a content-addressed artifact. Descriptions can be declared volatile so a doc edit is recorded as present but not compared. The source reads plain data only; which comparison runs against it stays the decision of whoever shapes it."
+ },
+ {
+  "readme": ".compass/variance-authority/acquisition/value-subject/README.md",
+  "title": "Arrays without an identifying member diff as a wall of changes",
+  "body": "When a value holds an array of records and no identifying member was declared, inserting one record near the top shifts every later index and the comparison reports each of them as changed. A reviewer sees forty differences for a single insertion. Shaping should detect records that share an obvious identity key, such as id or key, and suggest it in the report, while still refusing to pick one silently. Where no member was declared, the finding should say that positional comparison was used, so the noise has a name."
+ },
+ {
+  "readme": ".compass/variance-authority/acquisition/value-subject/README.md",
+  "title": "Dates are shaped rather than refused",
+  "body": "A Date is currently refused by pointer, which forces every adopter to stringify timestamps before snapshotting an API response. The rule should change so a Date is shaped into its ISO string with an explicit marker that it was a Date, keeping the distinction between a string that looks like a timestamp and a real one. Functions, bigints and non-finite numbers stay refused. Because a Date value is frequently volatile, the report will list any Date pointer not declared volatile, so the author decides whether it compares."
+ },
+ {
+  "readme": ".compass/variance-authority/adjudication/README.md",
+  "title": "Explain a verdict to a reviewer who asks why",
+  "body": "A reviewer looking at a changed subject gets a word, a place and a cause, but no trace of how the run got there. I propose an explain view that replays the sequence for one subject: which digests were compared, which ignore rules subtracted what, whether a sensitivity level was consulted, which regions survived and why the first cause outranked the rest. It reads only data the observation already carries and computes nothing new. A step that was skipped because a side lacked the input appears as skipped with its reason, never as a step that ran and found nothing."
+ },
+ {
+  "readme": ".compass/variance-authority/adjudication/README.md",
+  "title": "A run over a production build reports every cause as unattributed",
+  "body": "On a minified production build, authorship is gone, so every changed region lands as unattributed and the report reads as if the system had nothing to say. The reviewer cannot tell whether the tooling failed or the build hid the answer. When provenance is missing for a whole subject, the observation should carry one sentence saying authorship was unavailable in this build and naming the enclosure walk that was used instead. An unattributed region caused by a missing input must read differently from one no box contained."
+ },
+ {
+  "readme": ".compass/variance-authority/adjudication/README.md",
+  "title": "Cross-subject joins run at one commit only when both readings share a ruleset",
+  "body": "The axis relating a run's subjects to one another assumes every reading in the run was normalized by the same ruleset. A run that mixes readings from an archive written last week with fresh ones breaks that silently: two renderings of one component disagree because the rules changed, and composition calls it a divergence. The contract should require every reading joined across subjects to carry the same ruleset version, and a reading that does not will be excluded from the join by name rather than admitted."
+ },
+ {
+  "readme": ".compass/variance-authority/adjudication/attribution/README.md",
+  "title": "Name the drawing component for regions inside a canvas or SVG",
+  "body": "A region inside a canvas element attributes to the canvas's box and stops there, because the pixels inside have no DOM beneath them. For charts this sends every reviewer to a wrapper component. The join will accept an optional sub-box tree an adopter's drawing library can emit — series, axis, legend — carrying provenance for each shape, and join regions against it the same way it joins the box tree. Where no such tree was emitted, the region attributes to the canvas and the observation says the interior was opaque."
+ },
+ {
+  "readme": ".compass/variance-authority/adjudication/attribution/README.md",
+  "title": "Regions under a sticky header attribute to the header, not the content",
+  "body": "When a page scrolls between two readings and a sticky header overlays content, changed pixels under the header are contained by the header's box, which is innermost in paint order but not in the tree. The report names the header component as the cause of a change in the list beneath it. Containment should consider stacking: when two unrelated boxes both contain a region, the one painted on top wins only if its own pixels changed. Otherwise the region should be reported ambiguous with both candidates, rather than confidently naming the wrong file."
+ },
+ {
+  "readme": ".compass/variance-authority/adjudication/attribution/README.md",
+  "title": "A raised region cap must be declared, not configured silently",
+  "body": "The region cap is reported, but an adopter can raise it in configuration and nothing in the output says the cap differs from the default. Two runs with different caps then produce region lists of different lengths, and comparisons across them look like the product changed. The cap in force should be recorded in every observation's diagnostics beside the dropped count, and a run whose cap differs from its baseline's should say so. The cap stays a knob; what changes is that it is never invisible."
+ },
+ {
+  "readme": ".compass/variance-authority/adjudication/comparison/README.md",
+  "title": "An early exit when the semantic snapshot proves nothing moved",
+  "body": "Today two agreeing digests settle a subject with no image read, but when digests disagree only because of a volatile attribute and the semantic diff finds zero deltas, a paint is still paid for. I propose one more cheap exit: when both sides carry semantic snapshots under the same profile and the difference is empty in every band the profile can observe, the subject answers unchanged without materialization. The observation records that the answer came from the semantic tier, and a profile with unobservable bands never takes this exit."
+ },
+ {
+  "readme": ".compass/variance-authority/adjudication/comparison/README.md",
+  "title": "A font that failed to load turns into a red verdict",
+  "body": "When a declared font never loads on the candidate side, the text reflows, pixels move, and the subject is reported changed with regions attributed to every text component. The font failure appears as a diagnostic below it, but the verdict is already red and reviewers approve the wrong baseline. A missing declared font on either side should make the subject incomparable, because the two images were not painted under the same identity. The diagnostic stays; the verdict stops asserting something about the product that is really about the machine."
+ },
+ {
+  "readme": ".compass/variance-authority/adjudication/comparison/README.md",
+  "title": "Let the adopter reorder the sequence without forking the component",
+  "body": "The rule is that a team who disagrees with the fixed order replaces this component and keeps everything else. In practice nobody does, because replacing it means copying the whole sequence to move one step. The contract should change so the order is a named, versioned value that a run declares, with the current order as the only shipped one. A different order becomes a second declared value, its identity recorded in every observation, so two runs using different orders can never be compared as if they used the same one."
+ },
+ {
+  "readme": ".compass/variance-authority/adjudication/composition/README.md",
+  "title": "Report which subjects a token change will move before painting",
+  "body": "The cross-subject join already knows which components read which tokens off their own instances. When a run is given the tokens whose resolved values moved, it will produce, before any materialization, a forecast listing the subjects whose components read those tokens and the sites in each. After the run, the forecast is joined against what actually moved, so a reviewer sees subjects that moved without reading the token and subjects that read it but did not move. Neither list is a verdict; both go to the report."
+ },
+ {
+  "readme": ".compass/variance-authority/adjudication/composition/README.md",
+  "title": "The held control group is empty on small suites and reads as confirmation",
+  "body": "On a suite where a component appears in only one subject, the held group is empty and the control count is zero. The report renders the movement next to an empty control list, and readers take it as 'no other site disagreed'. Zero drawn-from should render a sentence stating there was no second site to compare against, and the movement should not be placed alongside ones that had a real control. An absent control and a control where everything also moved are opposite findings and must look different on the page."
+ },
+ {
+  "readme": ".compass/variance-authority/adjudication/composition/README.md",
+  "title": "A changed file set becomes mandatory for the edited rung",
+  "body": "The edited rung is taken only when the run was handed a changed file set, and a run without one quietly starts at the token rung. That means the same movement lands on different rungs depending on whether the CI job remembered a flag. The rule should change so a run without a change set states, once at the top of the cross-subject section, that the edited and token rungs were not available, and every movement carries the rung it would have tried first. The ladder stays; skipping a rung stops being silent."
+ },
+ {
+  "readme": ".compass/variance-authority/adjudication/difference/README.md",
+  "title": "A motion band for animation and transition changes",
+  "body": "A change to a transition duration or an animation timing function lands in the texture band today, the quietest one, alongside a changed shadow. For reduced-motion work those changes matter more than that. The semantic diff will gain a sixth band, motion, for deltas in transition, animation and scroll-behaviour properties, ordered after geometry and before token. The order is still declared once and collapsed by the one function allowed to do it; every caller that assumes an order must be found and removed before the band ships."
+ },
+ {
+  "readme": ".compass/variance-authority/adjudication/difference/README.md",
+  "title": "Reordered list items appear as every item changed",
+  "body": "When a list is reordered — two rows swapped — the diff matches children by position, so every row between the two is reported as a content delta with its own root. The reviewer sees eight changes for one swap. Children with a stable key in their provenance should be matched by key first and by position only when keys are missing, and a reorder should be a single delta in the geometry band naming the parent. When keys are absent, the delta list should say positional matching was used."
+ },
+ {
+  "readme": ".compass/variance-authority/adjudication/difference/README.md",
+  "title": "Differing profiles yield a partial diff instead of a refusal",
+  "body": "Two readings taken under different profiles are refused outright. That is correct for a verdict but blocks a useful answer: a jsdom reading against a Chromium one can still say whether content and accessibility moved. The rule should change so that the arithmetic runs on the intersection of observable bands, marks every other band unobserved, and flags the result as cross-profile so no caller can turn it into a verdict. Comparison will keep refusing; other callers such as variations could opt in explicitly."
+ },
+ {
+  "readme": ".compass/variance-authority/adjudication/ignores/README.md",
+  "title": "Suggest a shape rule from a region a reviewer dismisses",
+  "body": "Writing a fingerprint rule today means copying a digest from the report into configuration by hand. When a reviewer marks a region as not their concern, the tool will draft the rule — the fingerprint, the subject scope, and an empty reason field — and print it for the reviewer to paste. Nothing is written to configuration automatically. The draft refuses to be complete without a reason, and it proposes an expiry thirty days out that the reviewer can delete, so a quick dismissal does not become a permanent hole."
+ },
+ {
+  "readme": ".compass/variance-authority/adjudication/ignores/README.md",
+  "title": "An expired rule reports its hidden difference without its history",
+  "body": "When a rule expires, what it was hiding comes back as an ordinary change. The reviewer sees a red subject with no indication that the same difference had been absorbed for three months by a rule someone wrote on purpose. The observation should say that this region was absorbed until yesterday by a named rule, with the rule's reason, so the reviewer knows the flake was not new. The ledger already records the expiry; the subject's own finding should link to it."
+ },
+ {
+  "readme": ".compass/variance-authority/adjudication/ignores/README.md",
+  "title": "Scope intersections across tag and subject lists become explicit",
+  "body": "A rule that names both a tag and a subject list intersects them, but a reader of the configuration commonly expects a union. The rule absorbs nothing and shows up as unworn, and the adopter concludes the tag is wrong. The contract should change so a rule naming more than one scope must say how they combine, and a missing word is refused by name. Intersection stays the only accepted answer, but writing it down makes the narrowing visible where the rule is read."
+ },
+ {
+  "readme": ".compass/variance-authority/adjudication/inspection/README.md",
+  "title": "Flag interactive elements with no accessible name",
+  "body": "A button or link whose accessible name is empty is detectable from one reading: the tree says it is interactive and the accessible meaning says it has no name. A new single-reading rule will cover it, with a defensible negative — an element hidden from assistive technology, or one labelled by a referenced node that resolves, is not reported. The finding names the authoring component and the landmark path, bands accessibility, carries no severity, and gets a stable mark so a decision about it outlives the run."
+ },
+ {
+  "readme": ".compass/variance-authority/adjudication/inspection/README.md",
+  "title": "A heading skip inside a portal is reported against the page",
+  "body": "Headings inside a portal are evaluated in document order, so a dialog opened with an h2 right after a page's h4 is not reported, while a dialog with h4 after an h1 is. The forward-jump rule sees the portal's headings as part of the surrounding outline. Portal content should be inspected as its own outline root, starting fresh, because a dialog is read on its own. A finding that crosses into a portal should never be attributed to the page component that happens to precede it."
+ },
+ {
+  "readme": ".compass/variance-authority/adjudication/inspection/README.md",
+  "title": "Findings on the first run must be decided before the baseline is written",
+  "body": "The first reading of a subject becomes its baseline, and the single-reading rules are the only place its defects are reported. Today a first-run finding is shown but the baseline is written regardless, so the next run agrees with the defect. The rule should change: a new subject that carries single-reading findings is written as a baseline only once each finding is either fixed or marked decided. The subject still reports new; what changes is that approving a first reading also approves each thing those rules said about it."
+ },
+ {
+  "readme": ".compass/variance-authority/adjudication/pixel-comparison/README.md",
+  "title": "Compare in a perceptual colour space as a third policy",
+  "body": "Every comparison reports a lenient count and a strict per-pixel count. Neither tracks what a person sees: a small hue shift in a dark area counts the same as one in a light area. I propose a third policy that measures difference in a perceptual colour space against a named threshold. It will be reported beside the other two, never alone, and a mask can be built from it by name. The threshold remains part of the plan so a caller can hash it without opening an image."
+ },
+ {
+  "readme": ".compass/variance-authority/adjudication/pixel-comparison/README.md",
+  "title": "Images of different sizes produce a mask dominated by padding",
+  "body": "Two images of different heights are padded to their union, and every padded pixel counts as changed. A subject that grew by one row of content reports thousands of changed pixels, most of them the empty padding, and attribution clusters it into one region at the bottom. A size change should be carried as its own fact, the padded area counted separately from content change, and the mask should mark padding distinctly so attribution does not treat it as a region a component painted."
+ },
+ {
+  "readme": ".compass/variance-authority/adjudication/pixel-comparison/README.md",
+  "title": "Fingerprints include a coarse size class",
+  "body": "A fingerprint is not scale-free, but its size component is exact, so a flaky badge that renders one pixel wider on another machine gets a different fingerprint and escapes its rule. The contract should change so a fingerprint carries a coarse size class instead of exact dimensions, wide enough to absorb one or two pixels of jitter and narrow enough that a card gone solid never matches a badge. Existing rules will keep matching under the old form for one release, and the ledger will name every rule still using it."
+ },
+ {
+  "readme": ".compass/variance-authority/adjudication/sensitivity/README.md",
+  "title": "A level scoped by changed files instead of subjects",
+  "body": "Levels are scoped to subjects and tags. A team migrating a design token wants to relax only the token band for subjects reached through the files the migration touches, and assert on everything else in full. A level will accept a file scope, evaluated against the run's changed file set and the subjects reach connects to it. A run with no change set treats a file-scoped level as matching nothing and reports it as a ledger line, never as matching everything."
+ },
+ {
+  "readme": ".compass/variance-authority/adjudication/sensitivity/README.md",
+  "title": "A relaxed level still pays for isolation when a side lacks hashes",
+  "body": "When one side carries no component hashes, the level correctly fails toward reporting — but the reason is not in the observation. The subject goes through full isolation and a reviewer wonders why a relaxed subject is showing texture changes. The observation should carry the sentence that the level could not be evaluated because the baseline carried no hashes, naming the level. The reporting behaviour does not change; the reason it happened stops being something a reviewer has to reconstruct."
+ },
+ {
+  "readme": ".compass/variance-authority/adjudication/sensitivity/README.md",
+  "title": "Last-matching-rule wins is replaced by most-specific wins",
+  "body": "Where two levels match one subject, the last one written wins. That makes the answer depend on the order of lines in a configuration file, which moves during unrelated edits. The rule should change to most-specific wins — a subject id beats a tag, a tag beats the whole run — with position used only to break a tie between rules of equal specificity. The ledger will name, for each subject, which rule was chosen and which it overrode, so the choice is visible."
+ },
+ {
+  "readme": ".compass/variance-authority/adjudication/variations/README.md",
+  "title": "A matrix view over every variation of one base subject",
+  "body": "When a subject has linked variants along several axes, each link is reported on its own. A reviewer looking at a button with light, dark, compact and right-to-left variants sees four records and has to assemble the grid mentally. The report will be able to group all links that share a base into one matrix: rows for axes, cells holding whether the pair renders identically and the bands the difference falls in. It adds no verdict, reads only the existing link records, and a link that could not be computed appears as an empty cell with its reason."
+ },
+ {
+  "readme": ".compass/variance-authority/adjudication/variations/README.md",
+  "title": "A variation whose difference digest changes goes unnoticed",
+  "body": "Each link carries a digest of the difference itself, but no one compares that digest to the previous run's. The dark-mode variant of a card could stop differing from the light one — a theming regression — and the run is green. The digest should be carried forward, and when it changes between runs, the variation record should say the difference itself changed, while still reaching no verdict. A difference whose identity moved is exactly the news the second arm exists to surface."
+ },
+ {
+  "readme": ".compass/variance-authority/adjudication/variations/README.md",
+  "title": "Separator-based pairing requires a declared separator",
+  "body": "Name-based pairing picks the longest sibling name this one extends past a separator, and the separator set is fixed. A project that uses a double underscore for something unrelated gets spurious links that nobody declared. The rule should change so name-based pairing is off until the adopter declares which separators mean 'variation of'. Without a declaration only tagged links are made, and the report says name pairing was not asked for, rather than guessing from spelling."
+ },
+ {
+  "readme": ".compass/variance-authority/materialization/README.md",
+  "title": "Paint a subject in two engines under one run",
+  "body": "A run paints every subject in one engine. Teams that ship to Safari want a second raster of the same document from WebKit without running the whole suite twice. The paint phase will accept a list of renderers, each with its own identity, and paint every document once per renderer. Each raster is stored and compared only against baselines under its own identity; a subject that painted in one engine and was refused in another reports both outcomes by name. The deciding tiers above are unaware anything changed."
+ },
+ {
+  "readme": ".compass/variance-authority/materialization/README.md",
+  "title": "A renderer that crashes mid-run leaves subjects with no image and no reason",
+  "body": "When the browser behind the local renderer crashes, the render in flight rejects, and the remaining documents in the queue hang until the run times out. The report shows a timeout for the whole run and nothing per subject. A renderer crash should fail the document it was painting with the engine's message, relaunch once under the same identity, and continue. If the relaunched renderer's identity differs from the first — a different build picked up — every subsequent raster must be refused rather than painted under a changed key."
+ },
+ {
+  "readme": ".compass/variance-authority/materialization/README.md",
+  "title": "Pixels may only be produced after the digest settlement has run",
+  "body": "The boundary says digest settlement must precede the handoff to painting, but nothing enforces it. A caller that forgets pays for a paint it did not need. The contract should change so a document arrives with the settlement outcome attached — not settled, and why — and a document without one is refused. The rule costs one field and makes 'painted because nobody checked' impossible to spell, which is the same discipline the rest of the pipeline applies to absence."
+ },
+ {
+  "readme": ".compass/variance-authority/materialization/browser-renderer/README.md",
+  "title": "Paint forced-colors and reduced-motion media as launch decisions",
+  "body": "The renderer launches with one set of emulated media. Accessibility work needs rasters under forced-colors and prefers-reduced-motion, which are page-level emulation settings rather than launch flags. The renderer will accept emulated media as part of the launch decisions the caller makes once, apply them to every leased page, and fold them into the ordered arguments that reach the identity. A document painted under forced-colors therefore has a different identity from one painted without, and the two are never compared."
+ },
+ {
+  "readme": ".compass/variance-authority/materialization/browser-renderer/README.md",
+  "title": "A subject taller than the viewport is clipped to the fold",
+  "body": "When a subject's box extends below the viewport, the clip path is correctly skipped, but the element path takes a screenshot that the engine limits to the visible area on some configurations. The raster is cut at the fold and the lower half of a long form never reaches a comparison. The renderer should detect that the returned image's height is smaller than the subject box and either repaint with the viewport extended to fit or refuse by name. An image missing half the subject must never be filed as a complete raster."
+ },
+ {
+  "readme": ".compass/variance-authority/materialization/browser-renderer/README.md",
+  "title": "Concurrency above one must be declared in the identity",
+  "body": "Concurrency leases a separate page per render, which isolates documents, but GPU memory pressure under high concurrency has produced different antialiasing on the same machine. Two runs of the same documents at concurrency one and eight then disagree with nothing in the identity to explain it. The contract should change so the concurrency a renderer was constructed with is part of the ordered rasterization arguments. A run that changes concurrency then compares as incomparable instead of reporting texture changes across every subject."
+ },
+ {
+  "readme": ".compass/variance-authority/materialization/document-assembly/README.md",
+  "title": "A dry-run check that a document would paint what was read",
+  "body": "Assembly is pure so that 'would this paint what was read' can be answered without a browser. Nothing answers it yet. I propose a check that takes a render document and the semantic snapshot of the same read, assembles the page, and walks the result to confirm that every node in the snapshot has a counterpart, every rule kept in the pruned sheet still matches something, and the container width landed on the innermost ancestor. It reports each mismatch by path and needs no engine, so it can run in the process that wrote the archive."
+ },
+ {
+  "readme": ".compass/variance-authority/materialization/document-assembly/README.md",
+  "title": "Extra caller styling is appended after the inherited floor and silently overrides tokens",
+  "body": "The caller's extra styling goes last, which is intended, but a caller that sets a custom property on :root in that styling replaces a design token from the inherited floor. The painted subject changes colour and the document itself records nothing about it. Any custom property the extra styling sets that the inherited floor also defines should be listed in the assembly output as an override, so the raster's provenance says a token was replaced by the caller and not by the application."
+ },
+ {
+  "readme": ".compass/variance-authority/materialization/document-assembly/README.md",
+  "title": "Assembly states every adjustment as data, not just in prose",
+  "body": "The four adjustments assembly makes are described but not recorded anywhere a reader of a raster can see them. If a fifth is added later, no stored image says which set it was painted under. The contract should change so assembly returns, beside the HTML, the list of adjustments applied with an id for each, and that list reaches the renderer identity's digest. Adding an adjustment then changes identity, and older rasters are partitioned rather than compared against pages assembled differently."
+ },
+ {
+  "readme": ".compass/variance-authority/materialization/in-place-raster/README.md",
+  "title": "Read the launch from the suite's config instead of asking the caller",
+  "body": "The caller has to declare headless mode and launch arguments by hand, and a mismatch files an image under a render that never happened. For suites that launch through their runner's own configuration, the in-place raster will read the launch options from that configuration file and compare them with anything the caller also declared. When both exist and disagree, the raster is refused with both lists. When only the configuration exists, it is used and the raster's provenance says where the launch came from."
+ },
+ {
+  "readme": ".compass/variance-authority/materialization/in-place-raster/README.md",
+  "title": "A blinking caret in a contenteditable escapes the caret hide",
+  "body": "Only the caret is hidden, using the standard caret colour. A contenteditable element styled with its own animated border, used as a caret substitute by some editors, keeps blinking, and two independent screenshots disagree. The subject is refused as moving, correctly, but the refusal names only the disagreement. The refusal should carry the changed region between the two screenshots and the node it attributes to, so the adopter can see that it was their editor's caret, not their content, and decide how to hold it still."
+ },
+ {
+  "readme": ".compass/variance-authority/materialization/in-place-raster/README.md",
+  "title": "The number of agreeing screenshots becomes a declared value",
+  "body": "In-place rasters are required to agree across independent screenshots, but how many are taken is fixed inside the adapter. A suite that wants stronger evidence cannot ask for more, and one that is paying too much cannot ask for fewer. The contract should let the caller declare the count, with two as the minimum, and fold the declared count into the raster's identity. A baseline taken with three agreeing captures is then never silently compared against one taken with two."
+ },
+ {
+  "readme": ".compass/variance-authority/materialization/remote-hop/README.md",
+  "title": "Stream rasters back as each document finishes",
+  "body": "The hop answers a batch in one response, so the fastest subject in a batch of sixteen waits for the slowest before the client sees it. The serving half will stream one outcome per document as each completes, tagged with the document's position, over the same connection. The client still matches by position and still refuses a missing or duplicated position. The interface upstream is unchanged: rasters arrive one at a time as they already appear to, only sooner."
+ },
+ {
+  "readme": ".compass/variance-authority/materialization/remote-hop/README.md",
+  "title": "A far end restarted with a different build passes the construction check",
+  "body": "The identity is fetched once at construction. If the render server restarts mid-run with an updated browser, every later document is painted under a new identity. Each raster is still checked per document against the predicted identity, so it fails — but every remaining subject then fails individually with the same message. The client should notice the first mismatch, refetch the machine identity once, and fail the rest of the run with one sentence saying the far end changed identity mid-run."
+ },
+ {
+  "readme": ".compass/variance-authority/materialization/remote-hop/README.md",
+  "title": "The serving half binds to loopback unless told otherwise",
+  "body": "The serving half carries no credential and checks none, leaving the socket as the gate. Today it binds to every interface by default, so a developer running it on a laptop on café Wi-Fi exposes a renderer to the network. The rule should change: the server binds to loopback unless an address is given explicitly, and it prints the address it bound to at start. No credential is added, since none is transmitted; the operator still decides the network, but has to decide it out loud."
+ },
+ {
+  "readme": ".compass/variance-authority/materialization/render-deferral/README.md",
+  "title": "Share the render cache across CI runners through object storage",
+  "body": "The cache lives on the machine that ran the render, so a CI fleet with many runners starts cold on every job. Deferral will accept an object-storage location as a second tier behind the local one, keyed exactly as the local cache is. A read that misses locally checks the shared tier; a write goes to both. Because an entry is addressed by document digest and identity, a runner with a different machine never reads another's images, and an outage of the shared tier behaves like a miss."
+ },
+ {
+  "readme": ".compass/variance-authority/materialization/render-deferral/README.md",
+  "title": "A run silently slows when the cache directory is not writable",
+  "body": "The cache never throws, so when its directory is read-only every write fails and every render repeats on the next run. The operator sees builds getting slower and nothing else. A run should count cache writes that failed and report the count once in the run summary with the first error's message. The run stays green, and the cache stays an economy — but a broken lever becomes something the report says, instead of something an operator discovers by timing builds."
+ },
+ {
+  "readme": ".compass/variance-authority/materialization/render-deferral/README.md",
+  "title": "Cache entries carry the renderer's version of the stamping rule",
+  "body": "A cache hit is trusted because the key is the document digest under the identity. If the way identityFor stamps a document changes between releases, an older entry can be read under a key the new rule would never produce. The contract should add the stamping rule's version to the cache key, so entries written by a different release are misses rather than hits. The cost is one cold run after an upgrade; the gain is that the key can never outlive the rule that built it."
+ },
+ {
+  "readme": ".compass/variance-authority/materialization/renderer-contract/README.md",
+  "title": "A renderer can report the documents it refused before painting",
+  "body": "The contract returns one raster per document or throws. A renderer that knows ahead of time it cannot paint a document — a font it lacks, an engine feature missing — has no way to say so before the work is scheduled. The interface will gain an optional pre-flight that takes a document and answers whether it can be painted, and if not, why. The run can refuse those documents early by name and spend its render budget on the rest, while renderers that omit pre-flight keep today's behaviour."
+ },
+ {
+  "readme": ".compass/variance-authority/materialization/renderer-contract/README.md",
+  "title": "A store keyed on the machine identity mismatches every raster above 1x",
+  "body": "Callers still key stored images on the machine identity, whose scale is a placeholder, and then look them up under the document identity at 2x. Every subject reports incomparable naming the same machine on both sides. The contract should make it impossible to use the machine identity as a key: it will be a distinct type that a store's lookup refuses to accept. The reader of the refusal then sees 'keyed on the machine identity' rather than a mismatch that looks like two different computers."
+ },
+ {
+  "readme": ".compass/variance-authority/materialization/renderer-contract/README.md",
+  "title": "Missing font families fail the raster rather than riding along",
+  "body": "A raster lists the families its renderer lacked, and callers decide what to do with the list. In practice most callers ignore it, and a fallback font becomes a baseline. The contract should change so a raster with a missing declared family is returned as a refusal naming the family, and only a caller that explicitly accepts fallbacks can receive it as an image. Missing families not declared by the caller remain informational."
+ },
+ {
+  "readme": ".compass/variance-authority/materialization/renderer-identity/README.md",
+  "title": "Print the difference between two identities field by field",
+  "body": "When a comparison is refused as incomparable, the sentence names both identities, and a reader has to compare two long lines by eye to find which field differs. The identity will be able to produce a field-by-field difference: engine build, platform, fonts, recipe digest, argument digest, scale, with only the differing fields shown and their values on each side. Where a digest differs, the argument list behind it is shown if both sides still have it, so 'launch arguments differ' becomes the actual flag."
+ },
+ {
+  "readme": ".compass/variance-authority/materialization/renderer-identity/README.md",
+  "title": "An identity read from disk drops an optional field and mismatches itself",
+  "body": "Identities written before the recipe digest existed lack that field. When read back, the field is omitted, and the rebuilt identity differs from a fresh one on the same machine, which has it. The run reports incomparable with the same machine named twice. Reading an older identity should reconstruct a missing field as explicitly absent and report the baseline as written under an older identity format, so the reader knows to re-record rather than suspecting their hardware."
+ },
+ {
+  "readme": ".compass/variance-authority/materialization/renderer-identity/README.md",
+  "title": "Font content hashes become mandatory for every declared family",
+  "body": "Fonts are asserted by caller-supplied content hashes, but a declaration can name a family without a hash, and the identity then records only the name. Two machines with different versions of the same family produce the same identity. The rule should change so a declared family without a content hash is refused when the identity is built. The family check inside the page still happens; what changes is that a declaration too weak to distinguish two font builds cannot enter an identity at all."
+ },
+ {
+  "readme": ".compass/variance-authority/normalization/README.md",
+  "title": "Normalize Vue components as well as React",
+  "body": "Today the only framework read is React, through its fiber, structurally. Vue exposes a comparable component instance chain on rendered elements in development builds. A second set of readers will walk that chain for owner, wiring and held state, returning the same shapes the React readers return, and will be injected the same way so extraction keeps no framework dependency. The semantic snapshot will record which reader produced its provenance, and a reading from one framework's reader is never compared against another's."
+ },
+ {
+  "readme": ".compass/variance-authority/normalization/README.md",
+  "title": "Two readings of an unchanged page disagree after a restart",
+  "body": "On a page that uses a CSS-in-JS library with a counter-based class name, restarting the dev server renames every class, and the semantic snapshot changes even though nothing on screen did. The ruleset should recognize hashed or sequential class names and replace them with a stable projection before hashing, the same way it already removes other volatile identifiers. The raw capture still keeps the original names, since cleaning up belongs here and not in extraction."
+ },
+ {
+  "readme": ".compass/variance-authority/normalization/README.md",
+  "title": "The ruleset version is part of every snapshot's identity",
+  "body": "A semantic snapshot records the ruleset that normalized it, but comparisons do not check it, so a snapshot normalized under an older ruleset is compared against a newer one and every rule that changed shows up as a delta. The contract should require that two snapshots compared against each other carry the same ruleset version, and that a mismatch answers incomparable with a sentence naming both versions. Re-normalizing an old raw capture under the new rules is then the way forward, not reading the noise."
+ },
+ {
+  "readme": ".compass/variance-authority/normalization/call-site/README.md",
+  "title": "Recover authoring lines from Svelte's compiled output",
+  "body": "Svelte's compiler already attaches file and position metadata to elements in development mode, much as JSX transforms pass them to the runtime. A new carrier will read that metadata off the rendered node and emit the same repository-relative file, line and column. It will not claim the build's runtime setting, will skip locations that resolve into vendored code, and will return nothing for a location whose source map version it does not recognize."
+ },
+ {
+  "readme": ".compass/variance-authority/normalization/call-site/README.md",
+  "title": "A sibling package's authoring line resolves to its built output",
+  "body": "When a component comes from a sibling workspace package consumed through its built output, the frame resolves to the built file in dist rather than the source the author edits. The report names a path nobody should open. When a resolved position lands inside a package's output directory and the package's source map points back to source in the same repository, the reported location should follow it to the source file. Where no map exists, the report should say the location is in built output."
+ },
+ {
+  "readme": ".compass/variance-authority/normalization/call-site/README.md",
+  "title": "The author frame rule becomes configurable per vendored path",
+  "body": "Authorship goes to the earliest frame resolving into project-owned code, so any frame resolving into vendored code is skipped. A team that vendors a design system into their own repository under a vendor directory finds file:line answers pointing to the vendored copy, which is code they wrote but do not want to be sent to. The rule should let an adopter declare path prefixes that count as not-authored. The default stays 'anything outside node_modules is authored', and a declared prefix is printed in the provenance."
+ },
+ {
+  "readme": ".compass/variance-authority/normalization/component-boundaries/README.md",
+  "title": "Record the context values each boundary reads",
+  "body": "A component hash covers its own content and the digest of its props, but a component that reads a theme or locale from context changes without its props changing. Composition then files it as unexplained. Boundaries will record a digest of each context value a component consumed, beside the props digest and outside the component hash, so a movement can be traced to a context change. The digest never holds the value itself, only enough for an equality test, so a context carrying user data does not travel."
+ },
+ {
+  "readme": ".compass/variance-authority/normalization/component-boundaries/README.md",
+  "title": "A component rendered through a fragment wrapper disappears",
+  "body": "A component that returns a fragment wrapping only other components has no nodes of its own and should be entered at its own rung. When the fragment is keyed and nested inside a list, the boundary for the wrapper is dropped and its children are assigned to the list's component. The wrapper then never shows as edited, even when its code changed. Every component present in a node's ownership chain should open a boundary regardless of whether it rendered a DOM node, and a boundary with zero owned nodes should say so."
+ },
+ {
+  "readme": ".compass/variance-authority/normalization/component-boundaries/README.md",
+  "title": "Slotted children count only when they render",
+  "body": "A slot's count of children reaches the container's digest. A conditional child that rendered null is still counted as a child, so a container whose conditional content toggles off reports as changed when nothing it drew moved. The rule should count slotted children that produced at least one node, and carry the number that produced none beside the digest rather than inside it. A container is then stable on every page where its visible output is stable."
+ },
+ {
+  "readme": ".compass/variance-authority/normalization/declaration-index/README.md",
+  "title": "Recognize components declared through forwardRef and memo",
+  "body": "Components wrapped in forwardRef or memo at their declaration are assigned from a call rather than declared as a function, so the index misses them and reports degrade to the component name. The index will recognize a top-level constant whose initializer is a call to one of those wrappers, with a component-shaped argument, and record it with the recognition method 'wrapped'. Recognition stays shallow: a wrapper imported under another name is still missed, and the index says how every hit was found."
+ },
+ {
+  "readme": ".compass/variance-authority/normalization/declaration-index/README.md",
+  "title": "A component re-exported from an index barrel is attributed to the barrel",
+  "body": "When a component is declared in one file and re-exported from an index file with export-from, a text scan that finds the name in the barrel records the barrel as a declaration. A lookup returns two files, one of which only forwards the name, and the report prints an ambiguity that is not real. Re-export statements should not count as declarations, and where the index sees a re-export it should record it as a pointer to the declaring file so the lookup collapses to one answer."
+ },
+ {
+  "readme": ".compass/variance-authority/normalization/declaration-index/README.md",
+  "title": "An ambiguous lookup lists files in a fixed order",
+  "body": "When a name maps to several files, the answer includes every declaration, but in the order the files were merged, which depends on how the caller walked the repository. Two machines print the same ambiguity in different orders, and a stored report differs for no reason. The contract should require that ambiguous answers be ordered by repository-relative path in code-unit order. The index still ranks nothing — the order is only a stable spelling, not a preference."
+ },
+ {
+  "readme": ".compass/variance-authority/normalization/digests/README.md",
+  "title": "A hash can explain which projected field changed",
+  "body": "Two hashes that differ say only that something differs. When a component hash moves, a reader wants to know whether it was a style field, a text field or an attribute. The hashing layer will offer a companion that takes two canonical serializations built by the same projection and returns the paths where they diverge. The paths come from the projection, never from the tree, so an inserted sibling does not appear as a change. It is used only for explanation and never feeds another hash."
+ },
+ {
+  "readme": ".compass/variance-authority/normalization/digests/README.md",
+  "title": "Negative zero and zero hash differently",
+  "body": "Canonical serialization writes -0 and 0 differently, so a measured value that lands on negative zero after a subtraction — a margin, a transform offset — produces a new hash on one machine and not another. The subject reads as changed with no visible difference. Canonicalization should write negative zero as zero, since no comparison in this system distinguishes them, and a test should pin that both inputs hash identically."
+ },
+ {
+  "readme": ".compass/variance-authority/normalization/digests/README.md",
+  "title": "Truncated hash length becomes versioned",
+  "body": "The prefixed hash is truncated to a fixed length. If collisions ever force the length to grow, every stored hash becomes a different string and every comparison reports a change. The contract should put the length into the prefix, so a hash names both its domain and its width, and comparisons of two hashes with different widths answer incomparable rather than unequal. Increasing the width then costs a re-record with a clear message instead of a wall of false differences."
+ }
+]
