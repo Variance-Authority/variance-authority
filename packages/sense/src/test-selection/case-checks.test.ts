@@ -54,6 +54,13 @@ describe('checksOf', () => {
     expect(checksOf(root, [ran(attempts)])?.incomplete).toEqual(['a.test.ts']);
   });
 
+  it('marks the file incomplete for an attempt cut short in a case that declares no check', () => {
+    expect(checksOf(root, [
+      ran([{ attempt: 1, ended: 'passed' }]),
+      { ...ran([{ attempt: 1, ended: 'interrupted' }]), name: 'drafts' },
+    ])?.incomplete).toEqual(['a.test.ts']);
+  });
+
   it('keeps no section when no case declares a check', () => {
     expect(checksOf(root, [{ ...ran([{ attempt: 1, ended: 'passed' }]), name: 'drafts' }])).toBeUndefined();
   });

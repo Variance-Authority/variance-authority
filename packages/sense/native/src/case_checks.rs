@@ -126,7 +126,7 @@ fn declared(parsed: &Parsed, name: &str) -> Option<(u32, Vec<(String, u32)>)> {
             if !is_check(at) || !within(parsed, at as u32, scope) {
                 continue;
             }
-            let Some(id) = parsed.fns[at].title.as_deref().filter(|id| !id.contains('*')) else { continue };
+            let Some(id) = parsed.fns[at].title.as_deref().filter(|_| !parsed.fns[at].templated) else { continue };
             if !checks.iter().any(|(known, _)| known == id) {
                 checks.push((id.to_owned(), at_line.unwrap_or_else(|| site(at as u32))));
             }
@@ -203,6 +203,19 @@ it('retries', { retry: 1 }, () => {
         assert_eq!(read(&unimported, "form > sends"), None);
         let renamed = SOURCE.replacen("{ checked }", "{ checked as check }", 1).replace("  checked(", "  check(");
         assert_eq!(read(&renamed, "retries").map(|(_, checks)| checks.len()), Some(1));
+    }
+
+    #[test]
+    fn declares_a_literal_id_that_spells_an_asterisk_and_not_a_template_with_a_hole() {
+        let source = "import { checked } from '@variance-authority/sense/checked';
+it('sends', () => {
+  checked('user * admin', () => 1);
+  checked(`all ${n}`, () => 2);
+  checked(`plain`, () => 3);
+});
+";
+        let ids = read(source, "sends").map(|(_, checks)| checks.into_iter().map(|(id, _)| id).collect::<Vec<_>>());
+        assert_eq!(ids, Some(vec!["user * admin".to_owned(), "plain".to_owned()]));
     }
 
     #[test]

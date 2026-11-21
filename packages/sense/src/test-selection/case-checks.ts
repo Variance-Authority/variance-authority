@@ -68,8 +68,10 @@ export function checksOf(root: string, cases: readonly RanCase[]): ChecksSection
   });
   if (checked.length === 0) return undefined;
   checked.sort((left, right) => codeUnitOrder(left.file, right.file) || left.line - right.line || codeUnitOrder(left.name, right.name));
-  const incomplete = new Set(checked.filter((one) => !endedAll(one.attempts)).map((one) => one.file));
-  return { incomplete: [...incomplete].sort(codeUnitOrder), cases: checked };
+  // Every case the run ran says whether its file ended, not only the judged ones.
+  const judged = new Set(checked.map((one) => one.file));
+  const cut = cases.filter((ran) => judged.has(ran.file) && !endedAll(attemptsOf(ran, new Set())));
+  return { incomplete: [...new Set(cut.map((ran) => ran.file))].sort(codeUnitOrder), cases: checked };
 }
 
 function attemptsOf(ran: RanCase, ids: ReadonlySet<string>): CheckedAttempt[] {
