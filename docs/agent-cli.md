@@ -465,6 +465,10 @@ reading and the skill's counterfactual verification loop are described in
 
 ## Arguments are per-question
 
+`variance ask` with no question or question arguments lists the questions.
+Arguments without a question are refused with exit `2`: write
+`variance ask <question> ...`, or run `variance ask` to list the questions.
+
 Each question takes only the arguments its own contract declares. An argument
 the question does not take, or a flag no question takes, is named on standard
 error and the question is answered from the rest, exit `0`. The line says the

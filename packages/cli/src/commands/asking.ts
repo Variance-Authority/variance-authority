@@ -341,13 +341,6 @@ export function ignored(tool: Asked, flag: string, typed: string, ignore: (messa
   ignore(`${notTaken(tool, typed)}, so the answer is what it is without it; ${takesNow(tool)}.${didYouMean(flag, flags)}`);
 }
 
-/** Tells `ignore` of a flag typed where no question was asked, beside the list of questions. */
-export function unasked(unknown: readonly Unknown[], ignore: (message: string) => void): void {
-  for (const { typed } of unknown) {
-    ignore(`\`${typed}\` is not an argument \`variance ask\` takes, so the list of questions is what it is without it; a flag goes after its question.`);
-  }
-}
-
 /** That a question does not take what was typed. */
 function notTaken(tool: Asked, typed: string): string {
   return `\`${typed}\` is not an argument \`variance ask ${verbOf(tool)}\` takes`;

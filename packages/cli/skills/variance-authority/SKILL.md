@@ -85,7 +85,9 @@ package is missing, add it as a devDependency with the project's
 package manager.
 
 `variance ask` with no question prints every question and what each one needs.
-It reads no config and no run, so it is the whole install check.
+It reads no config and no run, so it is the whole install check. With question
+arguments, name the question first: `variance ask <question> ...`. Arguments
+without a question are refused with exit `2`.
 
 ## What each command needs
 

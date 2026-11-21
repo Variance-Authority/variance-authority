@@ -1,4 +1,5 @@
 import { crossingOf, type Crossing } from '../ask-args.js';
+import { OperatorError } from '../exit.js';
 import type { AskRequest } from './ask.js';
 
 /** The flags every question is spelled with, whichever subject answers it. */
@@ -54,4 +55,18 @@ export function flagged(request: Flagged): Readonly<Record<string, unknown>> {
     claims: request.claims,
     ...crossingOf(request),
   };
+}
+
+/** Refuse arguments with no question before either dispatcher reads a subject. */
+export function unasked(request: Flagged & Pick<AskRequest, 'unknown' | 'changedFile' | 'taintFile' | 'at' | 'format'>): void {
+  const input = {
+    ...flagged(request),
+    changedFile: request.changedFile,
+    taintFile: request.taintFile,
+    at: request.at,
+    format: request.format,
+  };
+  if (Object.values(input).some((value) => value !== undefined) || (request.unknown?.length ?? 0) > 0) {
+    throw new OperatorError('`variance ask` needs a question before its arguments. Use `variance ask <question> ...`; run `variance ask` to list questions.');
+  }
 }

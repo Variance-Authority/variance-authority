@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import '../bin.fixture.js';
 import { main } from '../bin.js';
-import { EXIT_CLEAN } from '../exit.js';
+import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
 import { questions } from './ask-questions.js';
 
 /**
@@ -30,6 +30,34 @@ async function answer(argv: readonly string[]): Promise<{ code: number; out: str
 describe('an answer that needs no config', () => {
   it('lists the questions `ask` answers, for `ask` with no question', async () => {
     expect(await answer(['ask'])).toEqual({ code: EXIT_CLEAN, out: questions(), err: '' });
+  });
+
+  it.each([
+    ['--to', 'src/entry.ts'],
+    ['--query', 'token'],
+    ['--imports', 'module#name'],
+    ['--declarations'],
+    ['--changed-file', 'missing.txt'],
+    ['--taint-file', 'missing.json'],
+    ['--format', 'json'],
+    ['--at', 'missing-watcher'],
+    ['--verbose'],
+  ])('refuses question arguments without a question: %s', async (...args) => {
+    const { code, out, err } = await answer(['ask', ...args]);
+    expect(code).toBe(EXIT_OPERATOR);
+    expect(out).toBe('');
+    expect(err).toContain('`variance ask` needs a question before its arguments.');
+    expect(err).toContain('`variance ask <question> ...`');
+    expect(err).toContain('run `variance ask` to list questions');
+    expect(err).not.toContain('could not read');
+  });
+
+  it('keeps explicit help and the config-independent catalogue', async () => {
+    const help = await answer(['ask', '--to', 'src/entry.ts', '--help']);
+    expect(help.code).toBe(EXIT_CLEAN);
+    expect(help.err).toBe('');
+    expect(help.out).toContain('variance ask');
+    expect(await answer(['ask', '--config', 'missing.json'])).toEqual({ code: EXIT_CLEAN, out: questions(), err: '' });
   });
 
   it('asks a watcher what only a watcher answers, where no project was ever configured', async () => {
