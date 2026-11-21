@@ -1,69 +1,76 @@
 // The shop saying nothing, reached through `@variance-authority/page-broker`:
 // its outcomes are told from the page and its requests alone.
 import { expect, test, type Page } from '@playwright/test';
-import { action, region, stay } from '@variance-authority/page-broker';
+import { broker, leads, stay } from '@variance-authority/page-broker';
 import { surface } from '@variance-authority/page-broker/playwright';
 
-const billing = region('billing', { role: 'form', name: 'Billing details' });
-const payment = region('payment', { role: 'form', name: 'Payment' });
-const signInDialog = region('signIn', { role: 'dialog', name: 'Sign in' });
-const product = region('product', { role: 'article', name: 'Product' });
+const Payment = broker('payment', { probe: { role: 'form', name: 'Payment' } });
 
-const submit = action('submit', { from: billing, to: { payment, signIn: signInDialog, invalid: stay } }, (on) =>
-  on.click({ role: 'button', name: 'Continue' }),
-);
+const SignIn = broker('signIn', {
+  probe: { role: 'dialog', name: 'Sign in' },
+  actions: {
+    signIn: leads({ payment: Payment }, (on) => on.click({ role: 'button', name: 'Sign in' })),
+  },
+});
 
-const signIn = action('signIn', { from: signInDialog, to: { payment } }, (on) =>
-  on.click({ role: 'button', name: 'Sign in' }),
-);
+const Billing = broker('billing', {
+  probe: { role: 'form', name: 'Billing details' },
+  actions: {
+    address: async (on, country: string, street: string) => {
+      await on.select({ label: 'Country' }, country);
+      await on.fill({ label: 'Street' }, street);
+    },
+    submit: leads({ payment: Payment, signIn: SignIn, invalid: stay }, (on) =>
+      on.click({ role: 'button', name: 'Continue' }),
+    ),
+  },
+});
 
-// The count is on the page before the like, and still there once the page is quiet: the like rests there.
-const like = action('like', { from: product, to: { liked: product } }, (on) => on.click({ role: 'button', name: 'Like' }));
+const Product = broker('product', {
+  probe: { role: 'article', name: 'Product' },
+  actions: {
+    like: leads({ liked: stay }, (on) => on.click({ role: 'button', name: 'Like' })),
+  },
+});
 
 /**
  * Opens the checkout. The shop keeps Continue disabled until the form
  * hydrates, and Playwright's click waits for that: when an action may start is
  * not something a declared outcome answers.
  */
-async function checkout(page: Page, user: 'guest' | 'member'): Promise<void> {
+async function checkout(page: Page, user: 'guest' | 'member') {
   await page.goto(`/checkout?user=${user}`);
-}
-
-async function address(page: Page): Promise<void> {
-  const on = surface(page);
-  await on.select({ label: 'Country' }, 'NL');
-  await on.fill({ label: 'Street' }, 'Damrak 1');
+  return Billing.on(surface(page));
 }
 
 test('a member with an address reaches payment', async ({ page }) => {
-  await checkout(page, 'member');
-  await address(page);
+  const billing = await checkout(page, 'member');
+  await billing.address('NL', 'Damrak 1');
 
-  const reached = await submit(surface(page));
+  const payment = await billing.submit().to('payment');
 
-  expect(reached.outcome).toBe('payment');
-  await expect(reached.at!.getByLabel('Card')).toBeVisible({ timeout: 0 });
+  await expect(payment.root.getByLabel('Card')).toBeVisible({ timeout: 0 });
 });
 
 test('a guest reaches the sign-in, and a test that insisted on payment hears it', async ({ page }) => {
-  await checkout(page, 'guest');
-  await address(page);
+  const billing = await checkout(page, 'guest');
+  await billing.address('NL', 'Damrak 1');
 
-  await expect(submit(surface(page)).to('payment')).rejects.toThrow('submit: expected payment, reached signIn');
+  await expect(billing.submit().to('payment')).rejects.toThrow('billing.submit: expected payment, reached signIn');
 });
 
 test('a guest who signs in reaches payment', async ({ page }) => {
-  await checkout(page, 'guest');
-  await address(page);
+  const billing = await checkout(page, 'guest');
+  await billing.address('NL', 'Damrak 1');
 
-  await submit(surface(page)).to('signIn');
-  await signIn(surface(page)).to('payment');
+  const signIn = await billing.submit().to('signIn');
+  await signIn.signIn().to('payment');
 });
 
 test('an empty form stays, and its errors are there when it is said to', async ({ page }) => {
-  await checkout(page, 'member');
+  const billing = await checkout(page, 'member');
 
-  await submit(surface(page)).to('invalid');
+  await billing.submit().to('invalid');
 
   expect(await page.getByRole('alert').allInnerTexts()).toEqual(['Choose a country', 'Enter a street']);
 });
@@ -73,8 +80,9 @@ test('a like stays on the product, with the count already moved', async ({ page 
   const count = page.getByTestId('likes');
   await expect(count).not.toHaveText('…');
   const before = Number(await count.innerText());
+  const product = await Product.on(surface(page));
 
-  await like(surface(page)).to('liked');
+  await product.like().to('liked');
 
   expect(Number(await count.innerText())).toBeGreaterThan(before);
 });

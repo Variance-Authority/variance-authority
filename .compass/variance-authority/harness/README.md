@@ -43,7 +43,7 @@ change, `window.open` or a new modal dialog is having left.
 
 ## Implementation coordinates
 
-- `packages/page-broker/src/` — the action and its outcomes, the quiet told
+- `packages/page-broker/src/` — the broker, its actions and their outcomes, the quiet told
   from the page's requests, and the watch for a destination not declared
 - `cases/page-broker-case/src/declared/` — the package over a shop that
   announces nothing and over Storybook's manager

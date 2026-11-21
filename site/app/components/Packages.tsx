@@ -64,7 +64,7 @@ const PACKAGES: {
       },
       {
         name: "page-broker",
-        role: "declared outcomes for an action on a page, over a document (jsdom, happy-dom, a browser mode) or a Playwright page: say where it can end — the next page, a dialog, or nowhere — and learn which one the app reached. Needs nothing from the app",
+        role: "a broker per complex part of an app, whose actions declare their outcomes, over a document (jsdom, happy-dom, a browser mode) or a Playwright page: say where it can end — the next page, a dialog, or nowhere — and learn which one the app reached. Needs nothing from the app",
       },
       {
         name: "storybook-collector",

@@ -1,8 +1,8 @@
 import { existsSync } from 'node:fs';
-import { chromium, type Browser, type Page } from 'playwright-core';
+import { chromium, type Browser, type Locator, type Page } from 'playwright-core';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { action, region, stay, Unreached } from './index.js';
-import { by } from './model.js';
+import { by } from './broker.js';
+import { broker, stay, Unreached, type Members } from './index.js';
 import { surface, type PageSurface } from './playwright.js';
 import { cases } from './surfaces.cases.js';
 import type { Query, Surface } from './surface.js';
@@ -20,7 +20,7 @@ const ORIGIN = 'https://shop.test';
 /**
  * A checkout that announces nothing. `?answer=` picks where Continue ends —
  * `elsewhere`, `window` and `help` are places no case declares: another
- * document, a new page and a modal dialog, `helpShown` a modal dialog on the
+ * document, a new page and a modal dialog, `gone` the billing form hidden, `helpShown` a modal dialog on the
  * page hidden until then, `frame` is a frame inside the
  * page going to one, and `next` a new address for the same document —
  * `?after=` how long the server takes, `?open=` what is on the page before
@@ -42,6 +42,7 @@ const CHECKOUT = `<!doctype html>
       if (part === 'payment') document.querySelector('[aria-label=Payment]').hidden = false;
       if (part === 'signIn') document.querySelector('dialog').show();
       if (part === 'elsewhere') location.assign('/checkout/elsewhere');
+      if (part === 'gone') document.querySelector('[aria-label=Billing]').hidden = true;
       if (part === 'next') history.pushState(null, '', '/checkout/next');
       if (part === 'window') window.open('about:blank');
       if (part === 'slowWindow') window.open('/slow');
@@ -75,14 +76,19 @@ const CHECKOUT = `<!doctype html>
 let browser: Browser | undefined;
 let page: Page;
 
-const payment = region('payment', { role: 'form', name: 'Payment' });
-const signIn = region('signIn', { role: 'dialog', name: 'Sign in' });
-const outcomes = { payment, signIn };
+const Payment = broker('payment', { probe: { role: 'form', name: 'Payment' } });
+const SignIn = broker('signIn', { probe: { role: 'dialog', name: 'Sign in' } });
+const outcomes = { payment: Payment, signIn: SignIn };
 const click = (on: Surface): Promise<void> => on.click({ role: 'button', name: 'Continue' });
 // The package's own means are 5000 ms and 500 ms; these keep the cases short.
 const QUIET = 200;
 const quick = by({ timeout: 2000, quiet: QUIET });
 const brief = by({ timeout: 600, quiet: 100 });
+
+/** The billing form with the members a case declares, found on `on`, the page's own surface unless given. */
+function billing<const M extends Members>(actions: M, on: PageSurface = surface(page)) {
+  return broker('billing', { probe: { role: 'form', name: 'Billing' }, actions }).on(on);
+}
 
 /** The page's surface, with one query's look replaced, to count the looks or answer one of them falsely. */
 function looking(query: Query, look: (visible: () => Promise<unknown>) => Promise<unknown>): PageSurface {
@@ -115,6 +121,10 @@ beforeEach(async () => {
   page = await browser.newPage();
   await page.route(`${ORIGIN}/checkout**`, (route) =>
     route.fulfill({ contentType: 'text/html', body: CHECKOUT }),
+  );
+  // Another document, with no billing form on it.
+  await page.route(`${ORIGIN}/checkout/elsewhere`, (route) =>
+    route.fulfill({ contentType: 'text/html', body: '<main>Elsewhere</main>' }),
   );
   // Never answered: the stream stays in flight for as long as the page lives.
   await page.route(`${ORIGIN}/api/stream`, () => undefined);
@@ -151,77 +161,75 @@ if (!BROWSER_AVAILABLE) {
   );
 }
 
-describe('declaring an action', () => {
-  it('refuses two outcomes that both stay, since nothing tells them apart', () => {
-    expect(() => action('submit', { to: { same: stay, still: stay } }, click)).toThrow(
-      'submit: same and still both stay',
-    );
-  });
-
-  it('refuses an action with no outcome', () => {
-    expect(() => action('submit', { to: {} }, click)).toThrow('submit: declares no outcome');
-  });
-});
-
-chromium_('an action over a page that announces nothing', () => {
-  it('returns the outcome the app reached, by its declared name', async () => {
-    const submit = action('submit', { to: outcomes }, click);
+chromium_('a broker over a page that announces nothing', () => {
+  it('returns the outcome the app reached, by its declared name, as that broker', async () => {
     await open('answer=signIn&after=50');
+    const { submit } = await billing({ submit: quick(outcomes, click) });
 
-    const reached = await submit(surface(page));
+    const reached = await submit();
 
     expect(reached.outcome).toBe('signIn');
-    await expect(reached.at?.getAttribute('aria-label')).resolves.toBe('Sign in');
+    await expect((reached.at.root as Locator).getAttribute('aria-label')).resolves.toBe('Sign in');
   });
 
   it('fails a test that insisted on another outcome, naming the one reached', async () => {
-    const submit = quick('submit', { to: outcomes }, click);
     await open('answer=payment');
+    const { submit } = await billing({ submit: quick(outcomes, click) });
 
-    await expect(submit(surface(page)).to('signIn')).rejects.toThrow(
-      'submit: expected signIn, reached payment',
-    );
+    await expect(submit().to('signIn')).rejects.toThrow('billing.submit: expected signIn, reached payment');
   });
 
-  it('hands the insisted outcome back when it is the one reached', async () => {
-    const submit = quick('submit', { to: outcomes }, click);
+  it('hands the insisted broker back when it is the one reached', async () => {
     await open('answer=payment');
+    const { submit } = await billing({ submit: quick(outcomes, click) });
 
-    await expect(submit(surface(page)).to('payment')).resolves.toMatchObject({ outcome: 'payment' });
+    const payment = await submit().to('payment');
+
+    await expect(payment.root.getAttribute('aria-label')).resolves.toBe('Payment');
   });
 
   it('does not report staying while a slower declared outcome is on its way', async () => {
-    const submit = quick('submit', { to: { ...outcomes, refused: stay } }, click);
     // The answer takes four quiet periods to come.
     await open('answer=payment&after=800');
+    const { submit } = await billing({ submit: quick({ ...outcomes, refused: stay }, click) });
 
-    await expect(submit(surface(page))).resolves.toMatchObject({ outcome: 'payment' });
+    await expect(submit()).resolves.toMatchObject({ outcome: 'payment' });
   });
 
-  it('reports staying once the page has gone quiet with nothing declared on it', async () => {
-    const submit = quick('submit', { to: { ...outcomes, refused: stay } }, click);
+  it('reports staying once the page has gone quiet with the broker still on it', async () => {
     await open('answer=nothing&after=100');
+    const { submit } = await billing({ submit: quick({ ...outcomes, refused: stay }, click) });
 
     const started = Date.now();
-    const reached = await submit(surface(page));
+    const reached = await submit();
 
-    expect(reached).toEqual({ outcome: 'refused', at: undefined });
+    expect(reached.outcome).toBe('refused');
+    await expect((reached.at.root as Locator).getAttribute('aria-label')).resolves.toBe('Billing');
     expect(Date.now() - started).toBeGreaterThanOrEqual(100 + QUIET);
   });
 
   it('begins the quiet period again when the page asks once more inside it', async () => {
-    const submit = quick('submit', { to: { ...outcomes, refused: stay } }, click);
     // The second request starts half a quiet period after the first answer.
     await open('answer=nothing&then=100&second=signIn');
+    const { submit } = await billing({ submit: quick({ ...outcomes, refused: stay }, click) });
 
-    await expect(submit(surface(page))).resolves.toMatchObject({ outcome: 'signIn' });
+    await expect(submit()).resolves.toMatchObject({ outcome: 'signIn' });
   });
 
   it('reports staying for an action whose only outcome is to stay', async () => {
-    const submit = quick('submit', { to: { refused: stay } }, click);
     await open('answer=nothing&after=100');
+    const { submit } = await billing({ submit: quick({ refused: stay }, click) });
 
-    await expect(submit(surface(page))).resolves.toEqual({ outcome: 'refused', at: undefined });
+    await expect(submit()).resolves.toMatchObject({ outcome: 'refused' });
+  });
+
+  it('does not report staying when the broker left the page and nothing declared took its place', async () => {
+    await open('answer=gone&after=50');
+    const { submit } = await billing({ submit: brief({ refused: stay }, click) });
+
+    await expect(submit()).rejects.toThrow(
+      'billing.submit: billing left the page, and nothing declared took its place within 600 ms',
+    );
   });
 
   it.each([
@@ -230,82 +238,87 @@ chromium_('an action over a page that announces nothing', () => {
     ['help', 'a modal dialog opened'],
     ['overlay', 'a modal dialog opened'],
   ])('fails, and does not report staying, when the app answered with %s, which is not declared', async (answer, where) => {
-    const submit = quick('submit', { to: { ...outcomes, refused: stay } }, click);
     await open(`answer=${answer}&after=50`);
+    const { submit } = await billing({ submit: quick({ ...outcomes, refused: stay }, click) });
 
-    await expect(submit(surface(page))).rejects.toThrow(
-      `submit: reached none of payment, signIn, and ${where}, which no outcome declares`,
-    );
+    const failed = await submit().catch((error: unknown) => error);
+
+    expect(failed).toBeInstanceOf(Unreached);
+    expect(failed).toMatchObject({
+      reason: 'elsewhere',
+      action: 'billing.submit',
+      message: `billing.submit: reached none of payment, signIn, and ${where}, which no outcome declares`,
+    });
+  });
+
+  it('reports staying when the address changed and the broker is still on the page', async () => {
+    await open('answer=next&after=50');
+    const { submit } = await billing({ submit: quick({ ...outcomes, refused: stay }, click) });
+
+    await expect(submit()).resolves.toMatchObject({ outcome: 'refused' });
+    expect(new URL(page.url()).pathname).toBe('/checkout/next');
   });
 
   it('reports staying when only a frame inside the page went somewhere', async () => {
-    const submit = quick('submit', { to: { ...outcomes, refused: stay } }, click);
     await open('answer=frame&after=50');
+    const { submit } = await billing({ submit: quick({ ...outcomes, refused: stay }, click) });
 
-    await expect(submit(surface(page))).resolves.toEqual({ outcome: 'refused', at: undefined });
+    await expect(submit()).resolves.toMatchObject({ outcome: 'refused' });
     expect(page.frames().map((frame) => new URL(frame.url()).pathname)).toContain('/checkout/frame');
   });
 
   it('looks again when the part it woke for is not there at the look', async () => {
     let looks = 0;
-    const submit = quick('submit', { to: { signIn } }, click);
     await open('answer=signIn');
-    const on = looking(signIn.query, async (visible) => {
+    const on = looking(SignIn.probe, async (visible) => {
       looks += 1;
       // The first look is before the act; the second is the one the arrival woke.
       return looks === 2 ? undefined : visible();
     });
+    const { submit } = await billing({ submit: quick({ signIn: SignIn }, click) }, on);
 
-    await expect(submit(on)).resolves.toMatchObject({ outcome: 'signIn' });
+    await expect(submit()).resolves.toMatchObject({ outcome: 'signIn' });
     expect(looks).toBe(3);
   });
 
   it('fails, and does not report staying, when the page it opened has not answered yet', async () => {
-    const submit = quick('submit', { to: { ...outcomes, refused: stay } }, click);
     // The new page's document takes three quiet periods to begin.
     await page.context().route(`${ORIGIN}/slow`, (route) =>
       // The case is over, and its context gone, before this answers.
       setTimeout(() => void route.fulfill({ contentType: 'text/html', body: 'slow' }).catch(() => undefined), 3 * QUIET),
     );
     await open('answer=slowWindow');
+    const { submit } = await billing({ submit: quick({ ...outcomes, refused: stay }, click) });
 
-    await expect(submit(surface(page))).rejects.toThrow(
-      'submit: reached none of payment, signIn, and a new page opened, which no outcome declares',
+    await expect(submit()).rejects.toThrow(
+      'billing.submit: reached none of payment, signIn, and a new page opened, which no outcome declares',
     );
   });
 
   it('reaches a declared outcome on another document', async () => {
-    const submit = quick('submit', { to: outcomes }, click);
     await page.route(`${ORIGIN}/checkout/elsewhere`, (route) =>
       route.fulfill({ contentType: 'text/html', body: '<form aria-label="Payment">Card number</form>' }),
     );
     await open('answer=elsewhere');
+    const { submit } = await billing({ submit: quick(outcomes, click) });
 
-    await expect(submit(surface(page))).resolves.toMatchObject({ outcome: 'payment' });
+    await expect(submit()).resolves.toMatchObject({ outcome: 'payment' });
   });
 
   it('reaches an outcome that stands after a hidden one in the page', async () => {
-    // Queries that match their part while it is hidden, as a selector does.
-    const submit = quick(
-      'submit',
-      {
-        to: {
-          payment: region('payment', { css: '[aria-label=Payment]' }),
-          signIn: region('signIn', { css: 'dialog' }),
-        },
-      },
-      click,
-    );
+    // Probes that match their part while it is hidden, as a selector does.
+    const payment = broker('payment', { probe: { css: '[aria-label=Payment]' } });
+    const signIn = broker('signIn', { probe: { css: 'dialog' } });
     await open('answer=signIn&after=50');
+    const { submit } = await billing({ submit: quick({ payment, signIn }, click) });
 
-    await expect(submit(surface(page))).resolves.toMatchObject({ outcome: 'signIn' });
+    await expect(submit()).resolves.toMatchObject({ outcome: 'signIn' });
   });
 
   it('does not report staying when the page asks again while the parts are looked at', async () => {
     let looks = 0;
-    const submit = quick('submit', { to: { signIn, refused: stay } }, click);
     await open('answer=nothing');
-    const on = looking(signIn.query, async (visible) => {
+    const on = looking(SignIn.probe, async (visible) => {
       looks += 1;
       // The second look is the one the quiet period woke.
       if (looks === 2) {
@@ -314,126 +327,114 @@ chromium_('an action over a page that announces nothing', () => {
       }
       return visible();
     });
+    const { submit } = await billing({ submit: quick({ signIn: SignIn, refused: stay }, click) }, on);
 
-    await expect(submit(on)).resolves.toMatchObject({ outcome: 'signIn' });
+    await expect(submit()).resolves.toMatchObject({ outcome: 'signIn' });
   });
 
   it('fails with what Playwright said when the page is gone before an outcome', async () => {
-    const leave = quick('leave', { to: outcomes }, (on: PageSurface) => on.native.close());
     await open('answer=payment');
+    const { leave } = await billing({ leave: quick(outcomes, (on) => (on as PageSurface).native.close()) });
 
-    await expect(leave(surface(page))).rejects.toThrow(/closed/);
+    await expect(leave()).rejects.toThrow(/closed/);
   });
 
   it('releases the page when the act fails, and fails with what the act threw', async () => {
-    const submit = quick('submit', { to: outcomes }, async () => {
-      throw new Error('no such button');
-    });
     await open('answer=payment');
+    const { submit } = await billing({
+      submit: quick(outcomes, async () => {
+        throw new Error('no such button');
+      }),
+    });
 
-    await expect(submit(surface(page))).rejects.toThrow('no such button');
+    await expect(submit()).rejects.toThrow('no such button');
     expect(page.listenerCount('request')).toBe(0);
   });
 
   it('does not wait for a stream the server never ends, or a picture that never loads', async () => {
-    const submit = quick('submit', { to: { ...outcomes, refused: stay } }, click);
     await open('answer=nothing&stream');
+    const { submit } = await billing({ submit: quick({ ...outcomes, refused: stay }, click) });
 
     const started = Date.now();
-    const reached = await submit(surface(page));
+    const reached = await submit();
 
     expect(reached.outcome).toBe('refused');
     expect(Date.now() - started).toBeLessThan(2000);
   });
 
   it('fails, and does not report staying, when the page never went quiet in time', async () => {
-    const submit = brief('submit', { to: { ...outcomes, refused: stay } }, click);
     // The answer is still in flight when the time is up.
     await open('answer=payment&after=1500');
+    const { submit } = await billing({ submit: brief({ ...outcomes, refused: stay }, click) });
 
-    await expect(submit(surface(page))).rejects.toThrow(
-      'submit: reached none of payment, signIn and the page did not go quiet within 600 ms: GET /api/billing still in flight',
+    await expect(submit()).rejects.toThrow(
+      'billing.submit: reached none of payment, signIn and the page did not go quiet within 600 ms: GET /api/billing still in flight',
     );
   });
 
   it('fails an action whose only outcome is to stay when the page never went quiet in time', async () => {
-    const submit = brief('submit', { to: { refused: stay } }, click);
     await open('answer=nothing&after=1500');
+    const { submit } = await billing({ submit: brief({ refused: stay }, click) });
 
-    await expect(submit(surface(page))).rejects.toThrow(
-      'submit: the page did not go quiet within 600 ms: GET /api/billing still in flight',
+    await expect(submit()).rejects.toThrow(
+      'billing.submit: the page did not go quiet within 600 ms: GET /api/billing still in flight',
     );
   });
 
   it('fails at the timeout when no outcome is reached and none is to stay, naming the outcomes', async () => {
-    const submit = brief('submit', { to: outcomes }, click);
     await open('answer=nothing');
+    const { submit } = await billing({ submit: brief(outcomes, click) });
 
-    await expect(submit(surface(page))).rejects.toThrow(
-      'submit: reached none of payment, signIn within 600 ms',
-    );
+    await expect(submit()).rejects.toThrow('billing.submit: reached none of payment, signIn within 600 ms');
   });
 
   it('fails when two declared outcomes are on the page at once', async () => {
-    const submit = quick('submit', { to: outcomes }, click);
     await open('answer=payment,signIn');
+    const { submit } = await billing({ submit: quick(outcomes, click) });
 
-    await expect(submit(surface(page))).rejects.toThrow('submit: reached payment and signIn at once');
+    await expect(submit()).rejects.toThrow('billing.submit: reached payment and signIn at once');
   });
 
-  it('rests at a declared outcome already on the page once the page is quiet with it still there', async () => {
+  it('refuses to act when a declared outcome is on the page before the action', async () => {
     let acted = false;
-    const submit = quick('submit', { to: outcomes }, async (on: Surface) => {
-      acted = true;
-      await click(on);
-    });
     await open('open=payment&answer=nothing');
-
-    await expect(submit(surface(page))).resolves.toMatchObject({ outcome: 'payment' });
-    expect(acted).toBe(true);
-  });
-
-  it('reaches the other outcome when the app answers away from the one it rested at', async () => {
-    const submit = quick('submit', { to: outcomes }, click);
-    await open('open=payment&answer=signIn');
-
-    await expect(submit(surface(page))).resolves.toMatchObject({ outcome: 'signIn' });
-  });
-
-  it('refuses to act when a resting outcome and staying could not be told apart', async () => {
-    let acted = false;
-    const submit = quick('submit', { to: { ...outcomes, refused: stay } }, async (on: Surface) => {
-      acted = true;
-      await click(on);
+    const { submit } = await billing({
+      submit: quick(outcomes, async (on: Surface) => {
+        acted = true;
+        await click(on);
+      }),
     });
-    await open('open=payment&answer=payment');
 
-    await expect(submit(surface(page))).rejects.toThrow(
-      'submit: payment is on the page before the action, and refused stays, so they could not be told apart',
-    );
+    const failed = await submit().catch((error: unknown) => error);
+
+    expect(failed).toBeInstanceOf(Unreached);
+    expect(failed).toMatchObject({
+      reason: 'start',
+      message: 'billing.submit: payment is on the page before the action, so it could not be arrived at',
+    });
     expect(acted).toBe(false);
   });
 
-  it('refuses to act when it does not start where it is declared to', async () => {
-    const billing = region('billing', { role: 'form', name: 'Billing' });
-    const pay = quick('pay', { from: payment, to: { billing } }, click);
+  it('refuses to act when the broker has left the page since it was found', async () => {
     await open('answer=nothing');
+    const { submit } = await billing({ submit: quick(outcomes, click) });
+    await page.evaluate(`document.querySelector('[aria-label=Billing]').hidden = true`);
 
-    const failed = await pay(surface(page)).catch((error: unknown) => error);
-
-    expect(failed).toBeInstanceOf(Unreached);
-    expect(failed).toMatchObject({ reason: 'start', message: 'pay: starts from payment, and none is on the page' });
+    await expect(submit()).rejects.toMatchObject({
+      reason: 'start',
+      message: 'billing.submit: starts from billing, and it is not on the page',
+    });
   });
 
   it('passes what the test gave it on to the act', async () => {
-    const press = quick('press', { to: outcomes }, (on: Surface, name: string) =>
-      on.click({ role: 'button', name }),
-    );
     await open('answer=signIn');
-
-    await expect(press(surface(page), 'Continue').to('signIn')).resolves.toMatchObject({
-      outcome: 'signIn',
+    const { press } = await billing({
+      press: quick(outcomes, (on: Surface, name: string) => on.click({ role: 'button', name })),
     });
+
+    const signIn = await press('Continue').to('signIn');
+
+    await expect(signIn.root.getAttribute('aria-label')).resolves.toBe('Sign in');
   });
 });
 

@@ -8,20 +8,20 @@ passes: over a document in [src/dom.test.ts](src/dom.test.ts) and over a
 browser in [src/playwright.chromium.test.ts](src/playwright.chromium.test.ts),
 each over a page that announces nothing.
 
-- **One model, any surface.** `model.ts` decides outcomes from a `Surface`
+- **One broker per complex part, any surface.** `broker.ts` decides outcomes from a `Surface`
   alone; `dom.ts` and `playwright.ts` only find, look and act. No runner is
   favoured, and of Variance Authority the package imports only
   `@variance-authority/core`.
 - **The app announces nothing.** No `aria-busy`, no announced event, no
-  attribute written for a test is read. An arrival is a declared region
-  becoming visible.
-- **Staying and resting are never reported early.** Each needs the act
-  finished and nothing pending for the quiet period, and a declared region that
-  appears first wins.
-- **The order of a declaration decides nothing.** Two declared regions visible
+  attribute written for a test is read. An arrival is a declared broker's
+  probe becoming visible.
+- **Staying is never reported early.** It needs the act finished, nothing
+  pending for the quiet period and the broker still visible, and a declared
+  broker that appears first wins.
+- **The order of a declaration decides nothing.** Two declared brokers visible
   at once fail; neither is picked.
-- **A region on the page before the act is where the action rests**, and is
-  refused beside `stay`, since the two could not be told apart.
+- **An outcome on the page before the act is refused**, and the act does not
+  run: its being there would read as the answer.
 - **A failure names the action and what happened**: `expected X, reached Y`,
   the outcomes none of which was reached, or what kept the page busy.
 - **An undeclared destination is never staying.** A navigation, a new page or a

@@ -1,13 +1,13 @@
 // @vitest-environment jsdom
 import { Combobox, ComboboxInput, ComboboxOption, ComboboxOptions } from '@headlessui/react';
-import { action, here, region } from '@variance-authority/page-broker';
+import { broker, leads } from '@variance-authority/page-broker';
 import { surface } from '@variance-authority/page-broker/dom';
 import { act, createElement as h, useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /** A fruit picker built from Headless UI's combobox, which this repository did not write. */
-function Picker() {
+function FruitPicker() {
   const [query, setQuery] = useState('');
   const [chosen, choose] = useState<string | null>(null);
   const shown = ['Apple', 'Banana', 'Cherry'].filter((fruit) =>
@@ -31,18 +31,26 @@ function Picker() {
   );
 }
 
-const picker = region('picker', { role: 'combobox', name: 'Fruit' });
-// Headless UI keeps an empty listbox open when no option matches, so an option marks the find.
-const found = region('found', { role: 'option' });
-const nothing = region('nothing', { text: 'No fruit found' });
-const chosen = region('chosen', { role: 'status' });
+const Chosen = broker('chosen', { probe: { role: 'status' } });
 
-const search = action('search', { from: picker, to: { found, nothing } }, (on, words: string) =>
-  on.fill({ role: 'combobox', name: 'Fruit' }, words),
-);
-const pick = action('pick', { from: found, to: { chosen } }, (on, fruit: string) =>
-  on.click({ role: 'option', name: fruit }),
-);
+// Headless UI keeps an empty listbox open when no option matches, so an option marks the find.
+const Options = broker('options', {
+  probe: { role: 'option' },
+  actions: {
+    pick: leads({ chosen: Chosen }, (on, fruit: string) => on.click({ role: 'option', name: fruit })),
+  },
+});
+
+const Nothing = broker('nothing', { probe: { text: 'No fruit found' } });
+
+const Picker = broker('picker', {
+  probe: { role: 'combobox', name: 'Fruit' },
+  actions: {
+    search: leads({ found: Options, nothing: Nothing }, (on, words: string) =>
+      on.fill({ role: 'combobox', name: 'Fruit' }, words),
+    ),
+  },
+});
 
 describe('a third-party combobox, over a document', () => {
   let root: Root;
@@ -51,7 +59,7 @@ describe('a third-party combobox, over a document', () => {
     vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} });
     const host = document.body.appendChild(document.createElement('div'));
     root = createRoot(host);
-    act(() => root.render(h(Picker)));
+    act(() => root.render(h(FruitPicker)));
   });
   afterEach(() => {
     act(() => root.unmount());
@@ -60,15 +68,16 @@ describe('a third-party combobox, over a document', () => {
   });
 
   it('finds the options its words match, and picks one', async () => {
-    const on = surface(document);
-    await search(on, 'an').to('found');
-    await pick(on, 'Banana').to('chosen');
+    const picker = await Picker.on(surface(document));
+    const options = await picker.search('an').to('found');
+    await options.pick('Banana').to('chosen');
     expect(document.querySelector('[role=status]')?.textContent).toBe('Chosen: Banana');
   });
 
   it('reports finding nothing for words no option holds', async () => {
     const on = surface(document);
-    expect(await search(on, 'kiwi')).toMatchObject({ outcome: 'nothing' });
-    expect(await here(on, [picker, found, nothing])).toEqual(['picker', 'nothing']);
+    const picker = await Picker.on(on);
+    expect(await picker.search('kiwi')).toMatchObject({ outcome: 'nothing' });
+    await expect(Options.on(on)).rejects.toThrow('options: not on the page');
   });
 });

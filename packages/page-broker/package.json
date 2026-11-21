@@ -1,7 +1,7 @@
 {
   "name": "@variance-authority/page-broker",
   "version": "0.34.0",
-  "description": "Declare where an action on a page can end, over a document or a browser, and learn which outcome the app reached.",
+  "description": "One broker per complex part of an app: how a test finds it, what it can do there, and where each action can lead, over a document or a browser.",
   "keywords": [
     "variance-authority",
     "page-object",
