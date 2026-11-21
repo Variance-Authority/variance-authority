@@ -85,20 +85,28 @@ pub(super) fn stem(word: &str) -> String {
 
 /// Each word of `text` with the paragraph it is in, split at punctuation, space
 /// and camelCase. A possessive `'s` is part of the word before it, and a blank
-/// line — a newline, spaces or tabs, a newline — starts the next paragraph.
+/// line — a newline, spaces or tabs, a newline — starts the next paragraph. The
+/// name of an inline doc tag, `code` in `{@code x}`, is markup: it is no word
+/// and holds no place.
 fn each_word(text: &str, mut visit: impl FnMut(&str, u32)) {
     let mut word = String::new();
     let (mut last_lower, mut paragraph, mut blank_line, mut broke) = (false, 0u32, false, false);
+    let (mut before, mut last, mut tag) = (None::<char>, None::<char>, false);
     let mut chars = text.chars().peekable();
     while let Some(ch) = chars.next() {
+        let opens = (before, last) == (Some('{'), Some('@'));
+        (before, last) = (last, Some(ch));
         if ch.is_alphanumeric() {
             if broke { paragraph += 1; broke = false; }
             blank_line = false;
+            if word.is_empty() && !tag { tag = opens; }
+            if tag { continue; }
             if ch.is_uppercase() && last_lower { visit(&word, paragraph); word.clear(); }
             last_lower = ch.is_lowercase() || ch.is_ascii_digit();
             word.push(ch);
             continue;
         }
+        tag = false;
         if matches!(ch, '\'' | '\u{2019}') && !word.is_empty() {
             let mut ahead = chars.clone();
             if matches!(ahead.next(), Some('s' | 'S')) && !ahead.next().is_some_and(char::is_alphanumeric) { chars.next(); }
@@ -308,6 +316,14 @@ mod tests {
     fn a_blank_line_in_the_question_is_no_break_in_its_run() {
         assert_eq!(phrase("the a page\n\nsink", "The page sink."), Some(0));
         assert_eq!(near("the a page\n\nsink", "The page sink."), 1);
+    }
+
+    #[test]
+    fn an_inline_tag_is_markup_not_a_word_of_the_doc() {
+        // Javadoc's `{@code <layer>/coverage.bin}` says `layer`, not `code layer`.
+        assert_eq!(phrase("code layers", "Goes to {@code <layer>/coverage.bin} by default."), None);
+        assert_eq!(phrase("inherit doc", "{@inheritDoc}"), None);
+        assert_eq!(phrase("page sink", "The page {@link Sink sink} of it."), Some(0));
     }
 
     #[test]

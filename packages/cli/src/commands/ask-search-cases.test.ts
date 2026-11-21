@@ -72,6 +72,17 @@ describe('variance ask search about the name a test ran under', () => {
     expect(await searched('--query', 'qqzzq')).toMatch(new RegExp(`\\n\\nNext: \`variance ask orient --files ${ALONE.replaceAll('.', '\\.')}\`\\n`, 'u'));
   });
 
+  it('ends an answer of a case and a declaration with the question about the declaration, not the test', async () => {
+    checkout({ ...FILES, 'packages/kit/src/tuner.ts': '/** Tunes the widget of a xylophone. */\nexport const tuner = 1;\n' });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+    await record([[ALONE, 'alone > xylophone widget']]);
+
+    const answer = await searched('--query', 'xylophone widget');
+
+    expect(answer).toContain('alone > xylophone widget [test]');
+    expect(answer).toMatch(/\n\nNext: `variance ask (?:orient --files packages\/kit\/src\/tuner\.ts|symbol --name tuner --package \S+)`\n/u);
+  });
+
   it('leaves out the unread language of an answer a case gave, in JSON as in text', async () => {
     checkout({ ...FILES, 'packages/kit/Cargo.toml': '[package]\nname = "kit"\nversion = "0.1.0"\n', 'packages/kit/src/lib.rs': 'pub fn restart() {}\n' });
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);

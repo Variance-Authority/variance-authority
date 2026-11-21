@@ -111,6 +111,9 @@ import { byPublishedPath, named, plural, shell } from './format.js';
  * and the packages they sit in, as `uses` counts them; or, given without the
  * Help value, the imports from other packages by a published specifier.
  */
+/** Whether a row of any list is a published one, asked by its specifier. */
+const isPublished = (row: { readonly at: string }): row is PublishedMatch => (row as { readonly source?: string }).source === 'published';
+
 function importedLine(match: PublishedMatch): string {
   const { importedIn } = match;
   if (importedIn !== undefined) {
@@ -303,14 +306,19 @@ function spoken({ answer, area }: Searched, root: string | undefined, spell: Spe
   const testSection = section(`${tests.total} recorded test ${tests.total === 1 ? 'case holds' : 'cases hold'} every word, as the last run wrote it:`, tests, testLine, spell);
   const declaredSection = [...namesSection, ...insideSection, ...testSection, ...casesUnder(answer.tests), ...aliasSection];
 
-  // Last, so the answer ends on what to run: the declaration of the first
-  // published row by its specifier, or what surrounds the first file this
-  // repository answered with; nothing when it answered with no row.
-  const first = found.shown[0];
-  const at = [rest, declared, inside, tests, aliases, held, answer.loose].map((list) => list?.shown[0]?.at).find((file) => file !== undefined);
-  const next = first !== undefined
-    ? ['', `Next: \`variance ask symbol --name ${shell(first.name)} --package ${shell(first.specifier)}\``]
-    : at === undefined ? [] : ['', `Next: \`variance ask orient --files ${shell(at)}\``];
+  // Last, so the answer ends on what to run, about its first declaration in
+  // the order shown, and a recorded case only when no declaration answered: a
+  // case says where the code was tested, not where it is. A published row is
+  // asked by its specifier, any other by what surrounds its file; nothing when
+  // the repository answered with no row.
+  const lead = [found, rest, declared, inside, aliases, held, answer.loose, tests]
+    .map((list): { readonly at: string } | undefined => list?.shown[0])
+    .find((row) => row !== undefined);
+  const next = lead === undefined
+    ? []
+    : isPublished(lead)
+      ? ['', `Next: \`variance ask symbol --name ${shell(lead.name)} --package ${shell(lead.specifier)}\``]
+      : ['', `Next: \`variance ask orient --files ${shell(lead.at)}\``];
 
   if (found.total === 0 && rest.total === 0 && declared.total === 0 && inside.total === 0 && tests.total === 0 && aliases.total === 0 && (third?.total ?? 0) === 0) {
     // It names what the substring read, and no more: a local that is no function
@@ -404,7 +412,7 @@ export const search: Tool<Help> = {
     `each labelled with the words it holds. After a question of two words or more answered as written, at most ${NEAR_CAP} ` +
     'of them follow the answer, so you learn the repository\'s own wording; when nothing holds the question ' +
     'as written they lead, and names that match loosely — your words apart, or within a ' +
-    'character of the ones written, exported or kept to their file — follow them. Neither is mixed into the sections above. An answer holding a row of this repository ends with `Next:` and the command to run on its first one. On a large ' +
+    'character of the ones written, exported or kept to their file — follow them. Neither is mixed into the sections above. An answer holding a row of this repository ends with `Next:` and the command to run on its first declaration, or on its first recorded case when no declaration answered. On a large ' +
     'repository a substring alone matches everywhere a product says its own name, so say where ' +
     'you are standing. Carry a path the editor, ticket or stack trace already supplied: `from` ' +
     'answers with published names imported by the files that path reaches; `to` does the same ' +
