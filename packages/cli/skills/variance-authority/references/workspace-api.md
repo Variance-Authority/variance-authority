@@ -102,18 +102,8 @@ one subdirectory, and there `search` is the only verb worth asking, because
 
 ## Names, then relations
 
-Ask by what you hold:
-
-| You hold | Ask |
-|---|---|
-| A request, in the asker's words | `classify`, for which of its words are names |
-| A name whose signature or declaration you need | `symbol` |
-| Every importer of a name | `uses`; `--from` sorts, it does not narrow |
-| A known file or import, and a related responsibility to find | `discover`, crossing the relation with `--declares` or `--path` |
-| Two facts already expressed as complete file questions | `intersection` |
-| A meaning, in words | `search`, with each likely spelling |
-| A local name, a string or a pattern in code | `grep --from <path>`, from where you are working |
-| Text outside the source: YAML, JSON, Markdown, shell, workflows, logs | `rg` or `git grep` |
+Which question fits what you hold is the skill's
+[Questions about the code](../SKILL.md#questions-about-the-code) table.
 
 The source is the files the index parses — JavaScript and TypeScript,
 stylesheets, Python, Rust, Java, Kotlin and Swift — and any other file one of

@@ -14,7 +14,7 @@ same read-only commands.
 
 ## Questions about the code
 
-`variance ask` answers from the source index `variance index` built. Pick the
+`variance ask` answers about the source `variance index` read. Pick the
 question that fits what you hold; each is one command:
 
 | You hold | Ask | Example |
@@ -24,14 +24,13 @@ question that fits what you hold; each is one command:
 | A file | its place on that map | `variance ask orient --files src/billing/invoice.ts` |
 | What a thing does | the names that do it | `variance ask search --query "retry payment" --from src/billing/` |
 | A name | where it is declared | `variance ask symbol --name PaymentRetry` |
-| A name | which files import it | `variance ask uses --name PaymentRetry` |
+| A name | every file that imports it; `--from` sorts them, it does not narrow | `variance ask uses --name PaymentRetry` |
 | A name and an area | the files there that import it | `variance ask discover --imports src/billing/retry.ts#PaymentRetry --path '^src/checkout/'` |
-| A file | what it reaches through its imports, nearest first | `variance ask discover --from src/billing/invoice.ts` |
+| A file | what it reaches through its imports, nearest first; `--declares <regex>` keeps the ones declaring a name | `variance ask discover --from src/billing/invoice.ts --declares Retry` |
 | A file | what reaches it through imports | `variance ask discover --to src/billing/invoice.ts` |
 | Two questions | the files both answer | `variance ask intersection 'symbol --name PaymentRetry' 'discover --from src/checkout/'` |
 | A string or a pattern | the source lines that hold it | `variance ask grep --query 'retryCount' --from src/billing/` |
-
-YAML, JSON, Markdown and shell are outside the index: `rg` reads them.
+| Text nothing in the source imports: YAML, JSON, Markdown, shell, workflows, logs | not `variance`: `rg` or `git grep` | `rg 'retryCount' .github/` |
 
 ## Fill a gap with a run of what it names
 
