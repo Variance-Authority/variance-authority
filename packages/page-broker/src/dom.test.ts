@@ -116,6 +116,18 @@ describe('page-broker over a document', () => {
     expect(window.open).toBe(opening);
   });
 
+  it('follows a request opened before the action and sent during it', () => {
+    const request = new XMLHttpRequest();
+    request.open('POST', '/api/billing');
+    const quiet = surface(document).quiet(100);
+
+    request.send();
+
+    expect(quiet.held()).toBe('an XMLHttpRequest opened before the action still in flight');
+    request.abort();
+    quiet.stop();
+  });
+
   it('follows a request on behalf of every action overlapping it', async () => {
     checkout('payment', 50);
     const on = surface(document);

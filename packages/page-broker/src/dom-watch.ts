@@ -68,7 +68,8 @@ async function arrived(response: Response): Promise<void> {
 /** What a request was opened with, for the requests opened while any action followed them. */
 const opened = new WeakMap<XMLHttpRequest, [string, string | URL]>();
 
-type Started = (method: string, url: RequestInfo | URL) => () => void;
+/** A request's method and address, or nothing for one opened before any action followed it. */
+type Started = (method?: string, url?: RequestInfo | URL) => () => void;
 
 /**
  * Quiet in a document: no request made with `fetch` or `XMLHttpRequest` in
@@ -82,7 +83,12 @@ export function pending(document: Document, period: number): Quiet {
   let changed = 0;
   const started: Started = (method, url) => {
     const key = {};
-    flying.set(key, `${method.toUpperCase()} ${path(url, document)}`);
+    flying.set(
+      key,
+      method === undefined || url === undefined
+        ? 'an XMLHttpRequest opened before the action'
+        : `${method.toUpperCase()} ${path(url, document)}`,
+    );
     clock.began();
     return () => {
       if (flying.delete(key)) clock.ended();
@@ -127,10 +133,11 @@ export function pending(document: Document, period: number): Quiet {
       ),
       hook(prototype, 'send', started, (original: XMLHttpRequest['send'], followers) =>
         function (this: XMLHttpRequest, body?: Document | XMLHttpRequestBodyInit | null): void {
-          const request = opened.get(this);
-          // Opened before the follow began, or never: not followed, and a send of one never opened is refused anyway.
-          if (request === undefined) return original.call(this, body);
-          const ends = [...followers].map((each) => each(...request));
+          // One opened before the follow began is followed without its address,
+          // which the request does not keep; a send of one never opened is refused.
+          if (this.readyState !== this.OPENED) return original.call(this, body);
+          const [method, url] = opened.get(this) ?? [];
+          const ends = [...followers].map((each) => each(method, url));
           this.addEventListener(
             'loadend',
             () => {
