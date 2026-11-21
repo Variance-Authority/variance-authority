@@ -63,7 +63,7 @@ describe('what a question takes', () => {
 
   it('marks a required argument required and an optional one optional', () => {
     expect(takes(toolByName('variance_describe')!)).toBe('  --subject <id>');
-    expect(takes(symbol)).toBe('  --name <name> [--package <name>] [--from <path>] [--line <file>:<line>] [--limit <n>]');
+    expect(takes(symbol)).toBe('  --name <name>[,...] [--package <name>] [--from <path>] [--line <file>:<line>] [--limit <n>]');
     expect(takes(vantageToolByName('variance_test_signals')!)).toBe('  --test <id>');
     expect(takes(vantageToolByName('variance_run_signals')!)).toContain('[--state <state>]');
   });
@@ -87,6 +87,14 @@ describe('what a question takes', () => {
 
     expect(listed?.kind).toBe('list');
     expect(counted?.kind).toBe('number');
+  });
+
+  it('splits the names `symbol` is asked about as it splits any list', () => {
+    expect(inputFor(symbol, { name: 'baseToLocal, localToRemote' }, () => undefined)).toEqual({ name: ['baseToLocal', 'localToRemote'] });
+  });
+
+  it('hands a start point over whole: a comma is part of a path', () => {
+    expect(inputFor(symbol, { name: 'baseToLocal', from: 'src/a,b.ts' }, () => undefined)).toMatchObject({ from: 'src/a,b.ts' });
   });
 
   it('spells a true-or-false argument as a bare flag', () => {

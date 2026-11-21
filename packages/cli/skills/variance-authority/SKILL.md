@@ -23,7 +23,7 @@ main questions; pick the one that fits what you hold, each is one command:
 | Nothing yet | [the map: packages, areas, layers](references/orient.md#orient) | `variance ask orient` |
 | A file | [its place on that map](references/orient.md#orient) | `variance ask orient --files src/billing/invoice.ts` |
 | What a thing does | [the names that do it](references/workspace-search.md) | `variance ask search --query "retry payment" --from src/billing/` |
-| A name | [where it is declared](references/workspace-symbol.md) | `variance ask symbol --name PaymentRetry` |
+| A name, or several | [where each is declared: `--name <name>[,...]`](references/workspace-symbol.md) | `variance ask symbol --name PaymentRetry,RetryPolicy` |
 | A name | [every file that imports it; `--from` sorts them, it does not narrow](references/workspace-uses.md) | `variance ask uses --name PaymentRetry` |
 | A name and an area | [the files there that import it](references/workspace-discover.md) | `variance ask discover --imports src/billing/retry.ts#PaymentRetry --path '^src/checkout/'` |
 | A file | [what it reaches through its imports, nearest first; `--declares <regex>` keeps the ones declaring a name](references/workspace-discover.md) | `variance ask discover --from src/billing/invoice.ts --declares Retry` |

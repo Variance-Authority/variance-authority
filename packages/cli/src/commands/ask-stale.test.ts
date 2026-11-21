@@ -210,7 +210,7 @@ describe('variance ask about a name whose file changed since the source index', 
 
     const { code, err } = await run(['ask', 'symbol', '--name', '']);
     expect(code).toBe(EXIT_OPERATOR);
-    expect(err).toContain('`name` is required and must be a non-empty string');
+    expect(err).toContain('`name` is required and must name at least one name');
     expect(err).not.toContain('defect in the tool');
   });
 
