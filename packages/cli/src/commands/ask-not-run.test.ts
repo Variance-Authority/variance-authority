@@ -91,4 +91,33 @@ describe('variance ask not-run', () => {
     });
     expect((await run(['ask', 'not-run'])).out).toContain('Declared checks not executed: none.\n1 declared check(s) entered.');
   });
+
+  it('says of each declared suite that recorded nothing that nothing was read, and why', async () => {
+    const root = realpathSync(mkdtempSync(join(tmpdir(), 'va-not-run-')));
+    execFileSync('git', ['init', '--quiet', '--initial-branch', 'main'], { cwd: root, stdio: 'pipe' });
+    writeFileSync(join(root, 'variance.config.json'), JSON.stringify({ suites: { unit: { kind: 'unit' }, chromium: { kind: 'e2e' } } }));
+    process.chdir(root);
+
+    expect(await run(['ask', 'not-run'])).toEqual({
+      code: EXIT_CLEAN,
+      err: '',
+      out: expect.stringMatching(new RegExp([
+        'Declared checks not executed, suite chromium: none read from \\S+/suites/chromium/coverage\\.bin, nothing is recorded there\\.',
+        '',
+        'Declared checks not executed, suite unit: none read from \\S+/suites/unit/coverage\\.bin, nothing is recorded there\\.',
+        '',
+      ].join('\n'))),
+    });
+  });
+
+  it('says a checks section it cannot read is unread, rather than that no check was missed', async () => {
+    const at = await recorded(undefined);
+    writeFileSync(at, withCaseSections(readFileSync(at), { checks: Buffer.from('not a checks section') }));
+
+    expect(await run(['ask', 'not-run'])).toEqual({
+      code: EXIT_CLEAN,
+      err: '',
+      out: `Declared checks not executed: none read from ${at}, the record's checks section is not JSON.\n`,
+    });
+  });
 });

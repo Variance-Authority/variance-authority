@@ -130,6 +130,8 @@ export default class implements Reporter {
   /** The run's configuration, from `onBegin`, which Playwright calls before `onEnd` even when it found nothing. */
   #config: FullConfig | undefined;
   #projects: readonly FullProject[] = [];
+  /** What the run covered, from `onBegin`: a run that never began covered no project. */
+  #covered: ChecksScope = { projects: [] };
   /** The collected cases that declare checks. */
   readonly #checked = new Map<TestCase, Checked>();
   /** Whether the runner ended the run itself, from `onEnd`. */
@@ -171,6 +173,7 @@ export default class implements Reporter {
     // The projects it collected from: `--project` narrows these, never `config.projects`.
     this.#projects = suite.suites.flatMap((child) => child.project() ?? []);
     this.#tellSelected(suite);
+    this.#covered = this.#scopeOf(config);
     for (const test of suite.allTests()) {
       const declared = test.annotations.flatMap(({ type, description }) =>
         type === CHECK && description !== undefined ? [description] : []);
@@ -195,7 +198,7 @@ export default class implements Reporter {
     // the record reads incomplete from here until this run says otherwise —
     // whether or not this run collected a case that declares a check.
     const cases = [...this.#checked.values()].map((one) => caseOf({ ...one, attempts: new Map() }));
-    this.#opened = recordChecks(this.#where(), { complete: false, scope: this.#scope(), cases }).catch((error: unknown) => {
+    this.#opened = recordChecks(this.#where(), { complete: false, scope: this.#covered, cases }).catch((error: unknown) => {
       process.stderr.write(`variance-authority: could not mark the record's checks incomplete — ${error instanceof Error ? error.message : String(error)}\n`);
     });
   }
@@ -262,9 +265,7 @@ export default class implements Reporter {
   }
 
   /** What the run covered: the projects it collected, their greps, its shard and the files a selection skipped. File filters are not kept. */
-  #scope(): ChecksScope {
-    const config = this.#config;
-    if (config === undefined) return { projects: [] };
+  #scopeOf(config: FullConfig): ChecksScope {
     // The runner's snapshot of its command line; a Playwright older than 1.64 hands none, and runs in this process.
     const argv = (config as { argv?: readonly string[] }).argv ?? process.argv;
     const skipped = fileSelection()?.dropped.size ?? 0;
@@ -298,7 +299,7 @@ export default class implements Reporter {
     if (directory === undefined) return;
     try {
       const staged = await foldStage(directory);
-      const checks = { complete: this.#complete, scope: this.#scope(), cases: [...this.#checked.values()].map(caseOf) };
+      const checks = { complete: this.#complete, scope: this.#covered, cases: [...this.#checked.values()].map(caseOf) };
       const where = this.#where();
       await this.#opened;
       // A run that staged nothing — a grep or a selection that left no case —
