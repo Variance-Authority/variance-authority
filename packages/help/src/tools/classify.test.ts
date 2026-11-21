@@ -152,6 +152,13 @@ describe('docs_classify', () => {
     expect(text).toContain("variance ask search --query 'manager task' --from x-pack/plugins/task_manager/server");
   });
 
+  it('keeps the start point the asker said when the best area is the whole tree it reached', () => {
+    const areas = [{ path: '.', files: 40, words: ['task', 'manager'], score: 900 }];
+    const text = formatClassified(classifyWords('task manager claiming', HELP, MAPPED), PLACED, areas, { from: ['x-pack/plugins/task_manager/'] });
+
+    expect(text).toContain("variance ask search --query 'task manager' --from x-pack/plugins/task_manager/");
+  });
+
   it('says the map is older than the source index when it was folded from an earlier one', () => {
     const text = formatClassified(classifyWords(ASKED, HELP, MAPPED), { ...PLACED, current: false });
 

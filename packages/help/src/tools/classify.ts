@@ -7,7 +7,7 @@ import { declaredDescribedOf, describedWordsNative, packageLayers, sourceIndexPa
 import { searchIndexOf } from '../snapshot.js';
 import { areaLine, areaOf } from './area.js';
 import { rankedAreas, type Declared } from './classify-areas.js';
-import { classifyWords, formatClassified, type CodeMapPlaces } from './classify-words.js';
+import { classifyWords, formatClassified, type CodeMapPlaces, type StartPoint } from './classify-words.js';
 import { noCodeMap, unfoldedCodeMap } from './code-map-format.js';
 import { termsOfStems } from './loose.js';
 
@@ -82,16 +82,17 @@ function scopedPaths(
   paths: readonly string[],
   input: Readonly<Record<string, unknown>>,
   invocation: ToolInvocation<unknown> | undefined,
-): { readonly paths: readonly string[]; readonly line?: string } {
+): { readonly paths: readonly string[]; readonly line?: string; readonly said?: StartPoint } {
   const from = startPointArg(input, 'from');
   const to = startPointArg(input, 'to');
   if (from === undefined && to === undefined) return { paths };
+  const said = { ...(from === undefined ? {} : { from: [from].flat() }), ...(to === undefined ? {} : { to: [to].flat() }) };
   const tree = invocation?.tree;
   const area = areaOf(from, to, tree);
   if (area.refused !== undefined || tree === undefined) throw new Error(`\`classify\` ranked nothing: ${areaLine(area)}`);
   const within = tree.graphRoot === undefined ? '' : `${relative(tree.graphRoot, tree.root).replaceAll('\\', '/')}/`;
   const reached = new Set([...area.files].flatMap((file) => (file.startsWith(within) ? [file.slice(within.length)] : [])));
-  return { paths: paths.filter((path) => reached.has(path)), line: areaLine(area) };
+  return { paths: paths.filter((path) => reached.has(path)), line: areaLine(area), said };
 }
 
 /**
@@ -158,7 +159,7 @@ export const classify: Tool<Help> = {
       const owner = ownerOf(area.path === '.' ? '' : `${area.path}/`);
       return owner === '' ? area : { ...area, package: owner };
     });
-    const answer = formatClassified(classified, places, owned);
+    const answer = formatClassified(classified, places, owned, scoped.said);
     return scoped.line === undefined ? answer : `${scoped.line}\n\n${answer}`;
   },
 };

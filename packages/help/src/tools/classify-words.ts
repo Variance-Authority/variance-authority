@@ -137,10 +137,14 @@ export type PlacedArea = RankedArea & { readonly package?: string };
  * then the plain words on one line, then the areas of the tree the words point
  * to, best first, each with its package and that package's place on the map.
  */
+/** The start point the asker said, by the flag that said it. */
+export type StartPoint = { readonly from?: readonly string[]; readonly to?: readonly string[] };
+
 export function formatClassified(
   { entities, plain }: Classified,
   { current, packages }: CodeMapPlaces,
   areas: readonly PlacedArea[] = [],
+  said: StartPoint = {},
 ): string {
   const lines = [
     entities.length === 0
@@ -168,10 +172,12 @@ export function formatClassified(
     return area === undefined ? [] : [`variance ask orient --area ${shell(area.id)}`];
   }));
   // `search` takes the words of one name, so the best area is asked for the
-  // two that weigh most there; the root is no start point, so it is asked whole.
+  // two that weigh most there; the root is no start point, so it is asked from
+  // the start point the asker said, or whole when none was.
   const best = areas[0];
   if (best !== undefined) {
-    const from = best.path === '.' ? '' : ` --from ${shell(best.path)}`;
+    const flags = Object.entries(said).flatMap(([which, paths]) => (paths ?? []).map((path) => ` --${which} ${shell(path)}`));
+    const from = best.path === '.' ? flags.join('') : ` --from ${shell(best.path)}`;
     asks.push(`variance ask search --query ${shell(best.words.slice(0, 2).join(' '))}${from}`);
   }
   lines.push(...narrower([...new Set(asks)]));
