@@ -73,6 +73,10 @@
       "types": "./dist/test-selection/page.d.ts",
       "default": "./dist/test-selection/page.js"
     },
+    "./checked": {
+      "types": "./dist/test-selection/checked.d.ts",
+      "default": "./dist/test-selection/checked.js"
+    },
     "./precondition": {
       "types": "./dist/test-selection/precondition.d.ts",
       "default": "./dist/test-selection/precondition.js"

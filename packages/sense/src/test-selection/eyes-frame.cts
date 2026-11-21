@@ -1,5 +1,6 @@
 /**
- * What a case's Eyes journal travels as, from the worker to the fold.
+ * What a case's Eyes journal, and each check it entered, travel as, from the
+ * worker to the fold.
  *
  * A journal is closed in the test's `afterEach`, after the runner's case scope
  * has already closed around the body: Vitest wraps the test function and
@@ -18,6 +19,12 @@
  * The frame is JSON behind its own magic: a journal is Eyes' to read, and a
  * handful per case is nothing beside the case's crossings.
  *
+ * A `checked` call in a case writes a frame that names the check instead of a
+ * journal (`checked.ts`): the attempt that entered it is the one the scope
+ * counted, so an attempt that failed after entering a check never lends it to
+ * the attempt after. It needs no checkout to be spelled against, so the scope
+ * keeps it whether or not Eyes is attended.
+ *
  * CommonJS for the same reason as `journal-format.cts`: Jest evaluates the
  * collector inside the sandbox, from `node_modules`, untransformed.
  */
@@ -31,8 +38,10 @@ interface EyesFrame {
   readonly case: string;
   /** Counted from 1, per case, in the worker that ran it. */
   readonly attempt: number;
-  /** The journal as Eyes handed it over; absent, the case opened one. */
+  /** The journal as Eyes handed it over; absent with no `check`, the case opened one. */
   readonly journal?: Readonly<Record<string, unknown>>;
+  /** The id of a check the attempt entered; a frame names a check or a journal, never both. */
+  readonly check?: string;
 }
 
 function encodeEyesFrame(frame: EyesFrame): Uint8Array {
@@ -50,19 +59,22 @@ function decodeEyesFrame(bytes: Uint8Array): EyesFrame | undefined {
   const parsed = JSON.parse(Buffer.from(bytes.buffer, bytes.byteOffset + MAGIC.length, bytes.length - MAGIC.length)
     .toString('utf8')) as Partial<EyesFrame> | null;
   if (parsed === null || typeof parsed.case !== 'string' || typeof parsed.attempt !== 'number' ||
-    (parsed.journal !== undefined && (typeof parsed.journal !== 'object' || parsed.journal === null))) {
+    (parsed.journal !== undefined && (typeof parsed.journal !== 'object' || parsed.journal === null)) ||
+    (parsed.check !== undefined && (typeof parsed.check !== 'string' || parsed.journal !== undefined))) {
     throw new Error('not a variance-authority eyes frame');
   }
   return parsed as EyesFrame;
 }
 
-/** What a collector's case scope adds for Eyes, and the two calls it owes it. */
+/** What a collector's case scope adds for Eyes and for `checked`, and the two calls it owes them. */
 interface Attending {
-  /** Handed to Eyes under the case scope's symbol. */
+  /** Handed to Eyes and `checked` under the case scope's symbol; Eyes' members only with a checkout. */
   readonly scope: {
-    readonly root: string;
-    readonly eyes: (journal: Readonly<Record<string, unknown>>) => boolean;
-    readonly watch: () => void;
+    readonly root?: string;
+    readonly eyes?: (journal: Readonly<Record<string, unknown>>) => boolean;
+    readonly watch?: () => void;
+    /** The attempt entered the check `id`; `false` where no case runs. */
+    readonly checked: (id: string) => boolean;
     /** The runner starts an attempt: its hooks and its body follow. */
     readonly begin: () => void;
     /** The attempt's hooks are done. */
@@ -75,12 +87,14 @@ interface Attending {
 /**
  * The attending bracket for one collector.
  *
+ * @param root The checkout Eyes spells a journal's paths against; absent, Eyes
+ * finds no scope to hand one to, and checks are still kept.
  * @param running The case whose body is running now, or `undefined` outside
  * every body; `null` when the collector can no longer tell cases apart.
  * @param push Where a frame goes, beside the collector's case frames.
  */
 function attending(
-  root: string,
+  root: string | undefined,
   running: () => string | undefined | null,
   push: (frame: Uint8Array) => void,
 ): Attending {
@@ -90,27 +104,36 @@ function attending(
   let attended: string | undefined;
   // A journal opened in `beforeEach`, before the attempt has named its case.
   let watching = false;
-  const write = (key: string, journal?: Readonly<Record<string, unknown>>): void => {
-    push(encodeEyesFrame({ case: key, attempt: attempts.get(key) ?? 1, ...(journal === undefined ? {} : { journal }) }));
+  const write = (key: string, word: Pick<EyesFrame, 'journal' | 'check'> = {}): void => {
+    push(encodeEyesFrame({ case: key, attempt: attempts.get(key) ?? 1, ...word }));
   };
   const target = (): string | undefined | null => {
     const now = running();
     return now === undefined ? attended : now;
   };
+  const eyes = (at: string) => ({
+    root: at,
+    eyes(journal: Readonly<Record<string, unknown>>): boolean {
+      const key = target();
+      if (key === undefined || key === null) return false;
+      write(key, { journal });
+      return true;
+    },
+    watch(): void {
+      const key = target();
+      if (key === null) return;
+      if (key !== undefined) write(key);
+      else if (trying) watching = true;
+    },
+  });
   return {
     scope: {
-      root,
-      eyes(journal) {
+      ...(root === undefined ? {} : eyes(root)),
+      checked(check) {
         const key = target();
         if (key === undefined || key === null) return false;
-        write(key, journal);
+        write(key, { check });
         return true;
-      },
-      watch() {
-        const key = target();
-        if (key === null) return;
-        if (key !== undefined) write(key);
-        else if (trying) watching = true;
       },
       begin() {
         trying = true;

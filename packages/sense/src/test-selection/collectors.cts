@@ -199,7 +199,8 @@ function flat(holder: Holder): Collector {
  * @param story Where each case's story goes as the case settles, when the run
  * asked for stories.
  * @param root The checkout the record names files against. Given, the scope
- * also keeps what Eyes hands each case, as `eyes-frame.cts` describes.
+ * also keeps what Eyes hands each case, as `eyes-frame.cts` describes; the
+ * checks a case enters are kept either way.
  * @param siteNamed How a warning names a precondition's call site, given by a
  * host that can load the addon; a sandboxed realm prints the site as it was
  * spelled.
@@ -421,7 +422,7 @@ function scoped(
     cuts?.time(bucket);
     if (inFlight.size > 0) crowded = true;
     inFlight.add(bucket);
-    attention?.entered(key);
+    attention.entered(key);
     const carried = trace;
     const run = carried === undefined
       ? body
@@ -435,10 +436,8 @@ function scoped(
     const key = running();
     return key === undefined ? undefined : journeyOf(key);
   };
-  // A tangled file writes no case frame, so it keeps no journal either.
-  const attention = root === undefined
-    ? undefined
-    : eyesFrames.attending(root, () => (tangled ? null : running()), (frame) => frames.push(frame));
+  // A tangled file writes no case frame, so it keeps no journal or check either.
+  const attention = eyesFrames.attending(root, () => (tangled ? null : running()), (frame) => frames.push(frame));
   const { phase, within, where } = recorder;
   // One edge starts an attempt for both: what a `beforeEach` said for a case
   // that never ran is forgotten, and Eyes attends the attempt from here. One
@@ -448,11 +447,11 @@ function scoped(
     ended();
     owed = [];
     recorder.begin(token);
-    attention?.scope.begin();
+    attention.scope.begin();
   };
-  const leave = (): void => { givenUp(); ended(); attention?.scope.leave(); };
+  const leave = (): void => { givenUp(); ended(); attention.scope.leave(); };
   (holder as { [CASE_SCOPE]?: unknown })[CASE_SCOPE] = {
-    enter, journey, phase, within, where, ...attention?.scope, begin, leave,
+    enter, journey, phase, within, where, ...attention.scope, begin, leave,
   };
 
   const ambientKey = (testFile: string): string => caseOwner.packCase(testFile, '', '');

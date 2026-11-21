@@ -17,6 +17,7 @@ interface Attended {
   readonly root?: string;
   eyes?(journal: Readonly<Record<string, unknown>>): boolean;
   watch?(): void;
+  checked(id: string): boolean;
   begin?(): void;
   leave?(): void;
 }
@@ -112,6 +113,22 @@ describe('what Eyes hands a case, as the collector writes it', () => {
   });
 });
 
+describe('what `checked` hands a case, as the collector writes it', () => {
+  it('writes each check under the attempt that entered it, with no checkout, and none outside an attempt\'s body', () => {
+    const { made, scope } = collector(undefined);
+    expect(scope.checked('outside')).toBe(false);
+    scope.begin!();
+    scope.enter(key('retried'), () => expect(scope.checked('title')).toBe(true));
+    scope.leave!();
+    scope.begin!();
+    scope.enter(key('retried'), () => {});
+    scope.leave!();
+    expect(scope.checked('after leave')).toBe(false);
+
+    expect(handed(made.finish(FILE).frames)).toEqual([{ case: 'retried', attempt: 1, check: 'title' }]);
+  });
+});
+
 describe('an eyes frame', () => {
   it('is not one when it is a case frame or shorter than its magic', () => {
     expect(eyesFrames.decodeEyesFrame(journals.encodeJournal(key('a'), new Map()))).toBeUndefined();
@@ -121,7 +138,7 @@ describe('an eyes frame', () => {
   it('refuses a frame behind its magic that does not name a case and an attempt', () => {
     const magic = eyesFrames.encodeEyesFrame({ case: 'c', attempt: 1 }).subarray(0, 8);
     const framed = (body: string) => new Uint8Array([...magic, ...Buffer.from(body, 'utf8')]);
-    for (const body of ['null', '{"attempt":1}', '{"case":"c"}', '{"case":"c","attempt":1,"journal":null}', '{"case":"c","attempt":1,"journal":"x"}']) {
+    for (const body of ['null', '{"attempt":1}', '{"case":"c"}', '{"case":"c","attempt":1,"journal":null}', '{"case":"c","attempt":1,"journal":"x"}', '{"case":"c","attempt":1,"check":1}', '{"case":"c","attempt":1,"check":"t","journal":{}}']) {
       expect(() => eyesFrames.decodeEyesFrame(framed(body)), body).toThrow('not a variance-authority eyes frame');
     }
   });
