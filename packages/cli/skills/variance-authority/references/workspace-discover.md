@@ -57,6 +57,6 @@ when more remain, the answer ends with how many and the `--offset` that shows
 the next page. A source file whose names the scan did not hand over is counted in the
 `--imports` and `--declares` headers, since it is unknown rather than a file with no names; a README or a
 manifest has none to read.
-Over MCP, `docs_discover` answers `from`, `to`, `path` and `--imports` of a
-name out of a repo-relative file, and refuses `declares` and any other
-`imports`: the reading an MCP host serves holds no names.
+Over MCP, `docs_discover` supports the same operands, including `declares` and
+`imports` of a module or name. Pass `imports` as an array of strings and
+`declares` as a pattern; exclusion fields use camelCase, such as `exceptImports`.
