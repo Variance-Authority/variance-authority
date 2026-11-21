@@ -7,7 +7,7 @@ import {
   waitFor,
 } from '@testing-library/dom';
 import { userEvent } from '@testing-library/user-event';
-import { away, pending } from './dom-watch.js';
+import { away, pending, shown } from './dom-watch.js';
 import type { Query, Surface, Target } from './surface.js';
 
 /** A document as page-broker sees it: what is found in it is an element, and `native` is the document. */
@@ -90,20 +90,6 @@ function all(document: Document, query: Query): Element[] {
   if ('label' in query) return queryAllByLabelText(body, query.label);
   if ('testId' in query) return queryAllByTestId(body, query.testId);
   return [...body.querySelectorAll(query.css)];
-}
-
-/**
- * Whether a person could see the element, as far as a document without layout
- * can tell: neither it nor any element around it is hidden or not displayed.
- */
-function shown(element: Element): boolean {
-  const view = element.ownerDocument.defaultView;
-  for (let at: Element | null = element; at !== null; at = at.parentElement) {
-    if ((at as HTMLElement).hidden) return false;
-    const style = view?.getComputedStyle(at);
-    if (style?.display === 'none' || style?.visibility === 'hidden') return false;
-  }
-  return element.isConnected;
 }
 
 /**

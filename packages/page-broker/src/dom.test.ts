@@ -13,7 +13,8 @@ function checkout(answer: string, after = 20): void {
   document.body.innerHTML = `
     <form aria-label="Billing"><label>Street <input name="street"></label><button>Continue</button></form>
     <form aria-label="Payment" hidden><p>Card number</p></form>
-    <div role="dialog" aria-label="Sign in" hidden><p>Who are you?</p></div>`;
+    <div role="dialog" aria-label="Sign in" hidden><p>Who are you?</p></div>
+    <div role="dialog" aria-modal="true" aria-label="Help" hidden><p>Need help?</p></div>`;
   vi.stubGlobal('fetch', async () => {
     // The server's latency, which the case is about: an answer that takes time.
     await new Promise((done) => setTimeout(done, after));
@@ -24,6 +25,7 @@ function checkout(answer: string, after = 20): void {
     const said = await (await fetch('/api/billing')).text();
     if (said === 'payment') (document.querySelector('[aria-label=Payment]') as HTMLElement).hidden = false;
     if (said === 'signIn') (document.querySelector('[role=dialog]') as HTMLElement).hidden = false;
+    if (said === 'helpShown') (document.querySelector('[aria-label=Help]') as HTMLElement).hidden = false;
     if (said === 'help') {
       const help = document.body.appendChild(document.createElement('div'));
       help.setAttribute('role', 'dialog');
@@ -126,6 +128,24 @@ describe('page-broker over a document', () => {
     expect(second.held()).toBe('GET /api/billing still in flight');
     first.stop();
     second.stop();
+  });
+
+  it("does not report staying while a fetch's body is still arriving after its headers", async () => {
+    checkout('payment');
+    vi.stubGlobal('fetch', async () => {
+      const body = new ReadableStream<Uint8Array>({
+        start(stream) {
+          // Three quiet periods after the headers: the answer is in the body.
+          setTimeout(() => {
+            stream.enqueue(new TextEncoder().encode('payment'));
+            stream.close();
+          }, 300);
+        },
+      });
+      return new Response(body);
+    });
+
+    await expect(submit(surface(document))).resolves.toMatchObject({ outcome: 'payment' });
   });
 
   it('looks for no outcome once the action has answered', async () => {

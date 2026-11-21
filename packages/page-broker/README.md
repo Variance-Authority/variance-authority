@@ -175,7 +175,10 @@ element drawn off screen or covered still reads as visible there.
 
 On both, a modal dialog is one `:modal` matches or one marked
 `aria-modal="true"`, as component libraries draw them; jsdom has no `:modal`,
-so there only the mark counts.
+so there only the mark counts. One is new when it is shown and was not before
+the act, so a dialog kept on the page hidden and then shown opens like one
+added. Over a document, a `fetch` is pending until its body has arrived, not
+only its headers.
 
 ## What it does not do
 

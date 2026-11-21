@@ -9,10 +9,10 @@ import type { Surface } from './surface.js';
  * A checkout on the surface, announcing nothing: a Billing form with a Street
  * field and a Continue button that submits it whose answer, after `after` ms, is `answer` — `payment`
  * shows the Payment form, `signIn` the Sign in dialog, `help` opens a modal
- * dialog, `next` moves the page to `/checkout/next` with the form still on it,
+ * dialog, `helpShown` shows a modal dialog that was on the page hidden, `next` moves the page to `/checkout/next` with the form still on it,
  * and `nothing` leaves the page as it was.
  */
-export type Checkout = (answer: 'payment' | 'signIn' | 'help' | 'next' | 'nothing', after: number) => Promise<Surface>;
+export type Checkout = (answer: 'payment' | 'signIn' | 'help' | 'helpShown' | 'next' | 'nothing', after: number) => Promise<Surface>;
 
 const billing = region('billing', { role: 'form', name: 'Billing' });
 const payment = region('payment', { role: 'form', name: 'Payment' });
@@ -52,6 +52,13 @@ export function cases(checkout: Checkout): void {
     expect(failed).toMatchObject({
       action: 'submit',
       outcomes: ['payment', 'signIn', 'invalid'],
+      reason: 'elsewhere',
+      went: 'a modal dialog opened',
+    });
+  });
+
+  it('fails on a modal dialog that was on the page hidden and is shown by the action', async () => {
+    await expect(submit(await checkout('helpShown', 20))).rejects.toMatchObject({
       reason: 'elsewhere',
       went: 'a modal dialog opened',
     });

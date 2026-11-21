@@ -20,7 +20,8 @@ const ORIGIN = 'https://shop.test';
 /**
  * A checkout that announces nothing. `?answer=` picks where Continue ends —
  * `elsewhere`, `window` and `help` are places no case declares: another
- * document, a new page and a modal dialog, `frame` is a frame inside the
+ * document, a new page and a modal dialog, `helpShown` a modal dialog on the
+ * page hidden until then, `frame` is a frame inside the
  * page going to one, and `next` a new address for the same document —
  * `?after=` how long the server takes, `?open=` what is on the page before
  * anybody acts, `?stream` has Continue open a server-sent stream that never ends
@@ -32,6 +33,7 @@ const CHECKOUT = `<!doctype html>
   <form aria-label="Billing"><label>Street <input name="street"></label><button>Continue</button></form>
   <form aria-label="Payment" hidden><p>Card number</p></form>
   <dialog aria-label="Sign in"><p>Who are you?</p></dialog>
+  <div role="dialog" aria-modal="true" aria-label="Help" hidden><p>Need help?</p></div>
 </main>
 <script>
   const query = new URLSearchParams(location.search);
@@ -44,6 +46,7 @@ const CHECKOUT = `<!doctype html>
       if (part === 'window') window.open('about:blank');
       if (part === 'slowWindow') window.open('/slow');
       if (part === 'frame') document.body.appendChild(document.createElement('iframe')).src = '/checkout/frame';
+      if (part === 'helpShown') document.querySelector('[aria-label=Help]').hidden = false;
       if (part === 'help') document.body.appendChild(document.createElement('dialog')).showModal();
       if (part === 'overlay') {
         const overlay = document.body.appendChild(document.createElement('div'));

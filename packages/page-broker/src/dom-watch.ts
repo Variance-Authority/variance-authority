@@ -48,6 +48,20 @@ function hook<F>(owner: object, key: PropertyKey, follower: F, wrap: (original: 
   };
 }
 
+/**
+ * When a response's body has arrived, read from a copy so the app's own read
+ * is untouched: `fetch` answers once the headers have, and the answer an app
+ * acts on is in the body. A server-sent stream never ends, and is not waited
+ * for.
+ */
+async function arrived(response: Response): Promise<void> {
+  if (response.body === null || response.headers.get('content-type')?.includes('text/event-stream')) return;
+  await response
+    .clone()
+    .arrayBuffer()
+    .catch(() => undefined);
+}
+
 /** What a request was opened with, for the requests opened while any action followed them. */
 const opened = new WeakMap<XMLHttpRequest, [string, string | URL]>();
 
@@ -80,9 +94,19 @@ export function pending(document: Document, period: number): Quiet {
           function (this: unknown, input: RequestInfo | URL, init?: RequestInit) {
             const method = init?.method ?? (input instanceof Request ? input.method : 'GET');
             const ends = [...followers].map((each) => each(method, input));
-            return original.call(this, input, init).finally(() => {
-              for (const end of ends) end();
-            });
+            const end = (): void => {
+              for (const each of ends) each();
+            };
+            return original.call(this, input, init).then(
+              (response) => {
+                void arrived(response).finally(end);
+                return response;
+              },
+              (error: unknown) => {
+                end();
+                throw error;
+              },
+            );
           },
         ),
       );
@@ -169,6 +193,7 @@ export function away(document: Document): Elsewhere {
       }
       if (opened) return { by: 'page', words: 'a new page opened' };
       const now = modals(document);
+      // Shown now and not before: a dialog mounted hidden and then shown opened just the same.
       return [...now].some((each) => !before.has(each)) ? { by: 'modal', words: 'a modal dialog opened' } : undefined;
     },
     stop: () => {
@@ -177,7 +202,7 @@ export function away(document: Document): Elsewhere {
   };
 }
 
-/** The modal dialogs open now: by `:modal` where the document knows it, and by `aria-modal` everywhere. */
+/** The modal dialogs open and shown now: by `:modal` where the document knows it, and by `aria-modal` everywhere. */
 function modals(document: Document): Set<Element> {
   const found = new Set<Element>(document.querySelectorAll('[aria-modal="true"]'));
   try {
@@ -185,7 +210,21 @@ function modals(document: Document): Set<Element> {
   } catch {
     // A document without `:modal`, such as jsdom's, has no modal dialog but by `aria-modal`.
   }
-  return found;
+  return new Set([...found].filter(shown));
+}
+
+/**
+ * Whether a person could see the element, as far as a document without layout
+ * can tell: neither it nor any element around it is hidden or not displayed.
+ */
+export function shown(element: Element): boolean {
+  const view = element.ownerDocument.defaultView;
+  for (let at: Element | null = element; at !== null; at = at.parentElement) {
+    if ((at as HTMLElement).hidden) return false;
+    const style = view?.getComputedStyle(at);
+    if (style?.display === 'none' || style?.visibility === 'hidden') return false;
+  }
+  return element.isConnected;
 }
 
 function path(input: RequestInfo | URL, document: Document): string {

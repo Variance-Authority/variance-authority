@@ -34,9 +34,12 @@ export async function elsewhere(page: Page): Promise<Elsewhere> {
     }
   };
   // A modal is `:modal` or marked `aria-modal`, as component libraries draw
-  // one, and is new when it was not open before: the document surface's rule.
-  const modals = page.locator(MODALS);
-  const before = await modals.elementHandles();
+  // one, and is new when it is visible and was not before, so one mounted
+  // hidden and then shown counts: the document surface's rule.
+  const before = await page.evaluateHandle(
+    (query) => [...document.querySelectorAll(query)].filter((each) => each.checkVisibility()),
+    MODALS,
+  );
   page.on('framenavigated', navigated);
   page.on('popup', popup);
   page.context().on('request', asked);
@@ -45,8 +48,9 @@ export async function elsewhere(page: Page): Promise<Elsewhere> {
       if (went !== undefined) return { by: 'address', words: `the page went to ${went}` };
       if (opened) return { by: 'page', words: 'a new page opened' };
       const opens = await page.evaluate(
-        ([query, ...open]) => [...document.querySelectorAll(query)].some((each) => !open.includes(each)),
-        [MODALS, ...before] as const,
+        ([query, open]) =>
+          [...document.querySelectorAll(query)].some((each) => each.checkVisibility() && !open.includes(each)),
+        [MODALS, before] as const,
       );
       return opens ? { by: 'modal', words: 'a modal dialog opened' } : undefined;
     },
@@ -54,7 +58,7 @@ export async function elsewhere(page: Page): Promise<Elsewhere> {
       page.off('framenavigated', navigated);
       page.off('popup', popup);
       page.context().off('request', asked);
-      for (const each of before) void each.dispose().catch(() => undefined);
+      void before.dispose().catch(() => undefined);
     },
   };
 }
