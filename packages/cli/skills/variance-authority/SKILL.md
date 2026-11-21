@@ -26,8 +26,8 @@ question that fits what you hold; each is one command:
 | A name | where it is declared | `variance ask symbol --name PaymentRetry` |
 | A name | which files import it | `variance ask uses --name PaymentRetry` |
 | A name and an area | the files there that import it | `variance ask discover --imports src/billing/retry.ts#PaymentRetry --path '^src/checkout/'` |
-| A file | what it imports, nearest first | `variance ask discover --from src/billing/invoice.ts` |
-| A file | what imports it | `variance ask discover --to src/billing/invoice.ts` |
+| A file | what it reaches through its imports, nearest first | `variance ask discover --from src/billing/invoice.ts` |
+| A file | what reaches it through imports | `variance ask discover --to src/billing/invoice.ts` |
 | Two questions | the files both answer | `variance ask intersection 'symbol --name PaymentRetry' 'discover --from src/checkout/'` |
 | A string or a pattern | the source lines that hold it | `variance ask grep --query 'retryCount' --from src/billing/` |
 
