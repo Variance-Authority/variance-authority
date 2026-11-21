@@ -37,7 +37,7 @@ const INSTALLED_CAP = 100;
 export const symbol: Tool<Help> = {
   name: 'docs_symbol',
   description:
-    'Everything known about one name, or each of several said as a comma list: what it is, the import line that reaches it, the ' +
+    'Everything known about each name asked, in the order asked: what it is, the import line that reaches it, the ' +
     'file and line that declares it, its full signature, its documentation — or, where nothing is ' +
     'written above it, the README passage that names it — which packages import it, where an import ' +
     'renames it, and the members an interface, a type alias or a class declares, one line each. An export ' +
@@ -52,7 +52,13 @@ export const symbol: Tool<Help> = {
   inputSchema: {
     type: 'object',
     properties: {
-      name: { type: 'string', description: 'The name, matched exactly; `Container.member` asks for that container\'s member. Several names, comma separated, are each answered as one is, in the order given.' },
+      name: {
+        type: 'array',
+        items: { type: 'string' },
+        description:
+          'The names, each matched exactly; `Container.member` asks for that container\'s member. Each is answered as one is, in the ' +
+          'order given, a blank line apart, and a name nothing declares is said in its place. One name may be given as a string.',
+      },
       package: { type: 'string', description: 'Only answer from this package, by name or by specifier. Optional.' },
       from: {
         ...START_POINT_SCHEMA.from,

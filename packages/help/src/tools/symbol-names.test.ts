@@ -7,12 +7,12 @@ import { updateSourceIndex } from '@variance-authority/sense';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import { readHelp } from '../walk.js';
 import { FoundNothing } from './find.js';
-import { symbol } from './symbol.js';
+import { restsOn, symbol } from './symbol.js';
 
 /**
- * `symbol` asked about several names, said as a comma list: each is answered
- * as it is answered alone, in the order given, and a name nothing declares is
- * said in its place while the others still answer. A comma is part of no name.
+ * `symbol` asked about several names: each is answered as it is answered
+ * alone, in the order given, and a name nothing declares is said in its place
+ * while the others still answer.
  */
 
 const before = process.env['VARIANCE_AUTHORITY_CACHE'];
@@ -55,27 +55,33 @@ function alone(name: string): string {
 }
 
 it('answers each of two declared names as it answers one, in the order given', () => {
-  const answer = symbol.run(help, { name: 'baseToLocal,localToRemote' }, { root });
+  const answer = symbol.run(help, { name: ['baseToLocal', 'localToRemote'] }, { root });
   expect(answer).toBe(`${alone('baseToLocal')}\n\n${alone('localToRemote')}`);
   expect(alone('baseToLocal')).toContain('declared at packages/merge/src/base.ts:2');
 });
 
 it('says a name nothing declares in its place, and still answers the others', () => {
-  const answer = symbol.run(help, { name: 'localToRemote, baseToRemote' }, { root });
+  const answer = symbol.run(help, { name: ['localToRemote', 'baseToRemote'] }, { root });
   expect(answer).toBe(`${alone('localToRemote')}\n\n${alone('baseToRemote')}`);
   expect(alone('baseToRemote')).toContain('No file in this workspace declares `baseToRemote`');
 });
 
 it('refuses a list whose names are all undeclared as it refuses one, with each said', () => {
-  expect(() => symbol.run(help, { name: 'baseToRemote,remoteCompare' }, { root })).toThrow(FoundNothing);
-  expect(() => symbol.run(help, { name: 'baseToRemote,remoteCompare' }, { root })).toThrow(`${alone('baseToRemote')}\n\n${alone('remoteCompare')}`);
+  expect(() => symbol.run(help, { name: ['baseToRemote', 'remoteCompare'] }, { root })).toThrow(FoundNothing);
+  expect(() => symbol.run(help, { name: ['baseToRemote', 'remoteCompare'] }, { root })).toThrow(`${alone('baseToRemote')}\n\n${alone('remoteCompare')}`);
 });
 
-it('refuses a list with an empty name in it', () => {
-  expect(() => symbol.run(help, { name: 'localToRemote,,baseToLocal' }, { root })).toThrow('`localToRemote,,baseToLocal` has an empty name between its commas');
+it('answers a name said twice once, as it answers it alone', () => {
+  expect(symbol.run(help, { name: ['localToRemote', ' localToRemote'] }, { root })).toBe(alone('localToRemote'));
+});
+
+it('refuses for each of a list nothing declares what the answer refuses, as `files` and `restsOn` read it', () => {
+  const said = `${alone('baseToRemote')}\n\n${alone('remoteCompare')}`;
+  expect(() => symbol.files?.(help, { name: ['baseToRemote', 'remoteCompare'] }, { root })).toThrow(said);
+  expect(() => [...restsOn(help, { name: ['baseToRemote', 'remoteCompare'] }, { root })]).toThrow(said);
 });
 
 it('gives the files that declare any of the names, leaving out the one nothing declares', () => {
-  const files = symbol.files?.(help, { name: 'localToRemote,baseToRemote,baseToLocal' }, { root });
+  const files = symbol.files?.(help, { name: ['localToRemote', 'baseToRemote', 'baseToLocal'] }, { root });
   expect(files === undefined ? [] : [...files.files.keys()].sort()).toEqual(['packages/merge/src/base.ts', 'packages/merge/src/local.ts']);
 });

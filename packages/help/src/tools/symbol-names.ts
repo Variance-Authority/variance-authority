@@ -1,22 +1,18 @@
 import type { FileSet } from '@variance-authority/mcp/tools';
-import { stringArg } from '@variance-authority/mcp/tools';
+import { listArg } from '@variance-authority/mcp/tools';
 import { FoundNothing } from './find.js';
 
 /** Input, as a tool is handed it. */
 type Input = Readonly<Record<string, unknown>>;
 
 /**
- * The names `symbol` is asked about: one, or several said as a comma list,
- * each once, in the order given. A comma is part of no name, so a name without
- * one is read whole, as it always was. An empty name between commas is a typo,
- * refused rather than read as nothing asked.
+ * The names `symbol` is asked about, each once, in the order given: a list, or
+ * one name said as a string, which is read whole.
  */
 export function namesOf(input: Input): readonly string[] {
-  const said = stringArg(input, 'name');
-  if (!said.includes(',')) return [said];
-  const names = said.split(',').map((name) => name.trim());
-  if (names.includes('')) throw new Error(`\`${said}\` has an empty name between its commas; say the names as \`a,b\`.`);
-  return [...new Set(names)];
+  const names = listArg(input, 'name');
+  if (names.length === 0) throw new Error('`name` is required and must name at least one name');
+  return names;
 }
 
 /** `one` asked of each name, in order: what it gives, or, for a name nothing declares, that refusal; `missed` keeps those apart. */
@@ -37,21 +33,24 @@ function eachOf<Value>(input: Input, one: (input: Input) => Value): readonly ({ 
  * nothing in which is declared is refused as one such name is, with each said.
  */
 export function eachAnswer(input: Input, one: (input: Input) => string): string {
-  if (namesOf(input).length === 1) return one(input);
   const answers = eachOf(input, one);
-  const text = answers.map((answer) => ('value' in answer ? answer.value : answer.missed.message)).join('\n\n');
-  if (answers.some((answer) => 'value' in answer)) return text;
-  throw new FoundNothing(text);
+  if (answers.every((answer) => 'missed' in answer)) throw missedAll(answers);
+  return answers.map((answer) => ('value' in answer ? answer.value : answer.missed.message)).join('\n\n');
 }
 
-/** What `one` gives for each name something declares; when nothing declares any, the first name's refusal. */
+/** What `one` gives for each name something declares; when nothing declares any, the refusal `eachAnswer` gives. */
 export function eachDeclared<Value>(input: Input, one: (input: Input) => Value): readonly Value[] {
-  if (namesOf(input).length === 1) return [one(input)];
   const answers = eachOf(input, one);
-  const values = answers.flatMap((answer) => ('value' in answer ? [answer.value] : []));
-  const [first] = answers;
-  if (values.length === 0 && first !== undefined && 'missed' in first) throw first.missed;
-  return values;
+  if (answers.every((answer) => 'missed' in answer)) throw missedAll(answers);
+  return answers.flatMap((answer) => ('value' in answer ? [answer.value] : []));
+}
+
+/** One refusal for a list nothing in which is declared: each name's, a blank line apart, and one name's alone. */
+function missedAll(answers: readonly ({ value: unknown } | { missed: FoundNothing })[]): FoundNothing {
+  const missed = answers.flatMap((answer) => ('missed' in answer ? [answer.missed] : []));
+  const [first] = missed;
+  if (missed.length === 1 && first !== undefined) return first;
+  return new FoundNothing(missed.map((refusal) => refusal.message).join('\n\n'));
 }
 
 /** The files of every set, each with the lines any of them names, in the order first named. */
