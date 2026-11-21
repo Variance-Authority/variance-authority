@@ -11,7 +11,7 @@ import type { UseKind } from '@variance-authority/package/help';
 
 /** `FORMAT` and `VERSION` in `help_store.rs`. */
 const FORMAT = 'variance-authority-help-store';
-const VERSION = 7;
+const VERSION = 8;
 const WHAT = 'help store';
 
 export const USE_KINDS: readonly UseKind[] = ['source', 'test', 'story'];

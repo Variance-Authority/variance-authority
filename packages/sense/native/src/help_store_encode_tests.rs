@@ -112,7 +112,7 @@ fn written(packages: impl FnOnce(Vec<PackageRef>) -> Box<dyn Packages + '_>, hel
     (bytes.len(), Sha256::digest(&bytes).iter().map(|byte| format!("{byte:02x}")).collect())
 }
 
-const PINNED: (usize, &str) = (10_350_440, "41deaa65730da1989362bf1f41673f385bebdd9e0273d0b4aeb8a66d8cf57b2a");
+const PINNED: (usize, &str) = (10_350_440, "152ca417c3506f6f2271d90f6e0a2b50fc1129a75890f599cadff7d6ad3c9de4");
 
 #[test]
 fn the_store_is_written_byte_for_byte_as_before() {

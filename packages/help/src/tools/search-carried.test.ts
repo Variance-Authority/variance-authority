@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { treeOf } from '@variance-authority/mcp/tools';
+import { spellingOf, treeOf } from '@variance-authority/mcp/tools';
 import { readHelp } from '../walk.js';
 import { INVENTED_PACKAGES } from '../__fixtures__/invented-packages.js';
 import { inventedWorkspace } from '../__fixtures__/invented-workspace.js';
@@ -18,9 +18,10 @@ afterEach(() => {
   else process.env['VARIANCE_AUTHORITY_CACHE'] = before;
 });
 
-const ask = async (files: Record<string, string>, query: string, from?: string): Promise<string> => {
+const ask = async (files: Record<string, string>, query: string, from?: string, shell?: string): Promise<string> => {
   const root = await inventedWorkspace(INVENTED_PACKAGES, ['react'], files);
-  return answerSearch(searchIndexOf(readHelp(root)), { query, ...(from === undefined ? {} : { from }) }, treeOf(from === undefined ? [] : [{ file: from }], root), root);
+  const tree = treeOf(from === undefined ? [] : [{ file: from }], root);
+  return answerSearch(searchIndexOf(readHelp(root)), { query, ...(from === undefined ? {} : { from }) }, tree, root, undefined, spellingOf(shell === undefined ? undefined : { shell }));
 };
 
 /** `count` declarations, each written by `line`. */
@@ -54,10 +55,20 @@ describe('a question whose words are not equally rare', () => {
 
   it('neither shows nor counts a row holding only the common word, beside a row holding the rare one', async () => {
     const said = await ask(FIXTURE, 'xylophone file');
-    expect(said).toMatch(/^Near matches, not exact: 2 names and files in this repository hold most of `xylophone file`/mu);
+    expect(said).toMatch(/^Near matches, not exact: 2 hold most of `xylophone file`:$/mu);
     expect(said).toMatch(/^tuned .*\[holds: file, xylophone\]/mu);
     expect(said).toMatch(/^played .*\[holds: xylophone\]/mu);
     expect(said).not.toMatch(/fileAt\d/u);
+  });
+
+  it('ends an answer of near matches alone with the question about the first one\'s file', async () => {
+    expect(await ask(FIXTURE, 'xylophone file')).toMatch(/\n\nNext: `docs_orient` with `files` `\["src\/rare\.ts"\]`$/u);
+  });
+
+  it('ends an answer of a name kept to its file with the question about that file, spelled as it was asked', async () => {
+    const kept = { 'src/kept file.ts': 'const xylophoneTuner = 1;\nexport const used = xylophoneTuner;\n' };
+    expect(await ask(kept, 'xylophoneTuner')).toMatch(/\n\nNext: `docs_orient` with `files` `\["src\/kept file\.ts"\]`$/u);
+    expect(await ask(kept, 'xylophoneTuner', undefined, 'variance ask')).toMatch(/\n\nNext: `variance ask orient --files 'src\/kept file\.ts'`$/u);
   });
 
   it('keeps a row lacking one rare word when the rest of the question outweighs it', async () => {
@@ -87,9 +98,10 @@ describe('a question whose words are not equally rare', () => {
       'src/census.ts': each(4, (at) => `/** Counts the probes a run measures. */\nexport const census${at} = ${at};\n`),
     }, 'count probes and measure their overhead');
     const rows = said.split('\n').filter((line) => line.includes('[holds:'));
-    expect(rows.length).toBeGreaterThan(10);
+    // More than ten pass the cut, and the ten shown are the first ten.
+    expect(Number(/^Near matches, not exact: (\d+) /mu.exec(said)?.[1])).toBeGreaterThan(10);
+    expect(rows).toHaveLength(10);
     expect(rows.some((row) => /^(?:counted|measured|tally)\d/u.test(row))).toBe(false);
-    rows.splice(10);
     expect(rows.some((row) => row.startsWith('scripts/overhead.mjs '))).toBe(true);
     expect(rows.some((row) => row.startsWith('src/cost.measure.ts '))).toBe(true);
   });
@@ -182,6 +194,6 @@ describe('a wider area that adds a direct match', () => {
   it('shows five near names after a direct answer, and counts the rest', async () => {
     const said = await ask({ ...AREA, 'src/more.ts': each(7, (at) => `/** Drops stale entries, then the cache. */\nexport const drop${at} = ${at};\n`) }, 'cache entries');
     expect(said.match(/\[holds: cache, entries\]$/gmu)).toHaveLength(5);
-    expect(said).toMatch(/^Near matches, not exact: 8 names /mu);
+    expect(said).toMatch(/^Near matches, not exact: 8 hold most of /mu);
   });
 });

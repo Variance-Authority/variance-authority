@@ -197,7 +197,8 @@ it does not perform another graph traversal or remove any result.
 
 `variance index` publishes a separate catalogue of installed third-party APIs.
 `ask search` shows those names in their own section, after the repository's
-own. A `--from` or `--to` path
+own; when the repository answered, that section is one line naming the
+`--limit` that lists it in full. A `--from` or `--to` path
 limits them to packages available to the workspaces in that graph closure; the
 answer labels imports separately from availability. Ask `symbol --name <name>
 --package <package>` for the installed signature and full documentation. The

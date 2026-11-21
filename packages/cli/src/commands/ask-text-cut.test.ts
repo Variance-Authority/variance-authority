@@ -125,13 +125,11 @@ describe('ask symbol, the text it prints of a doc, a signature and a member', ()
       ",
         "No export, top-level declaration or member of a class, an interface or a type in this repository, nor the doc of one, nor a function inside a function, writes \`marks pair\`. The nearest follow.
 
-      No recorded case was read: no run kept its cases there.
-
-      Near matches, not exact: 1 name or file in this repository holds most of \`marks pair\`, the rarer words counting for more, read by stem as the packages are, best first: the words held, each counted by how few rows hold it and more in the name than in a doc, more in a doc than in a signature, then the words in the name, then the phrase its doc writes; a row for each word these rows hold is shown however it sorts.
+      Near matches, not exact: 1 holds most of \`marks pair\`:
 
       opened — @acme/kit · packages/kit/src/cut.ts:8 — Opens the door. door.open() * Led by two marks Wears 😀 a pair [holds: marks, pair]
 
-      No third-party name matches \`marks pair\`. No dependency was searched: no manifest in reach declares or imports one.
+      Next: \`variance ask orient --files packages/kit/src/cut.ts\`
       Snapshot
       ",
         "Nothing published matches \`rated declared\`.
@@ -140,11 +138,7 @@ describe('ask symbol, the text it prints of a doc, a signature and a member', ()
 
       declaredRate — @acme/kit · packages/kit/src/cut.ts:13 — Rated, and declared only.
 
-      From a file above to what surrounds it: \`variance ask orient --files packages/kit/src/cut.ts\`.
-
-      No recorded case was read: no run kept its cases there.
-
-      No third-party name matches \`rated declared\`. No dependency was searched: no manifest in reach declares or imports one.
+      Next: \`variance ask orient --files packages/kit/src/cut.ts\`
       Snapshot
       ",
       ]

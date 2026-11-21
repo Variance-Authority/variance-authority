@@ -274,12 +274,11 @@ first, as a miss of the text you typed rather than of the code:
 ```
 No export, top-level declaration or member of a class, an interface or a type in this repository, nor the doc of one, nor a function inside a function, writes `meesure`. The nearest follow.
 
-No recorded case was read: no run kept its cases there.
-
-1 more name matches loosely — your words apart, or within a character of the
-ones written. Nothing above was reordered by this.
+1 more name matches loosely, the words apart or a character off:
 
 alpha · measure [function] imported in 1 place in 1 package — Measures the thing, and says how much of it there was.
+
+Next: `variance-authority-help symbol --name measure --package alpha`
 ```
 
 It may only add. Nothing the two sections above answered is scored, reordered,
@@ -295,7 +294,8 @@ whose full name holds every word, as a word, the start of one or its stem, print
 as `<name> [test] — <file>`. They are what ran, not what the source spells, so a
 title is found however it was registered. A case added since that run is missing
 and one removed since is still listed, until a run of that suite writes its
-record; a suite with no record is named under the answer, with the reason.
+record; when nothing in the repository answered, a suite with no record is
+named under the answer, with the reason.
 
 Inside it the order is the order above — by the other packages that import the
 name by a published path, then within the page by the places and packages its

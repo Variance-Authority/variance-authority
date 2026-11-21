@@ -66,6 +66,23 @@ describe('variance ask search about the name a test ran under', () => {
     expect(answer).toContain('1 recorded test case holds every word, as the last run wrote it:');
   });
 
+  it('ends an answer of a recorded case alone with the question about its test file', async () => {
+    await record([[ALONE, 'alone > qqzzq']]);
+
+    expect(await searched('--query', 'qqzzq')).toMatch(new RegExp(`\\n\\nNext: \`variance ask orient --files ${ALONE.replaceAll('.', '\\.')}\`\\n`, 'u'));
+  });
+
+  it('ends an answer of a case and a declaration with the question about the declaration, not the test', async () => {
+    checkout({ ...FILES, 'packages/kit/src/tuner.ts': '/** Tunes the widget of a xylophone. */\nexport const tuner = 1;\n' });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+    await record([[ALONE, 'alone > xylophone widget']]);
+
+    const answer = await searched('--query', 'xylophone widget');
+
+    expect(answer).toContain('alone > xylophone widget [test]');
+    expect(answer).toMatch(/\n\nNext: `variance ask (?:orient --files packages\/kit\/src\/tuner\.ts|symbol --name tuner --package \S+)`\n/u);
+  });
+
   it('leaves out the unread language of an answer a case gave, in JSON as in text', async () => {
     checkout({ ...FILES, 'packages/kit/Cargo.toml': '[package]\nname = "kit"\nversion = "0.1.0"\n', 'packages/kit/src/lib.rs': 'pub fn restart() {}\n' });
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
@@ -118,9 +135,9 @@ describe('variance ask search about the name a test ran under', () => {
 
     const answer = await searched('--query', 'numbered case');
 
-    expect(answer.split('\n').filter((line) => line.includes('[test]'))).toHaveLength(25);
+    expect(answer.split('\n').filter((line) => line.includes('[test]'))).toHaveLength(10);
     expect(answer).toContain('30 recorded test cases hold every word');
-    expect(answer).toContain('5 more not shown; a higher `--limit` shows them.');
+    expect(answer).toContain('20 more not shown; a higher `--limit` shows them.');
   });
 
   it('keeps to the area a start point names', async () => {
@@ -172,14 +189,14 @@ describe('an empty answer about a recorded case', () => {
 });
 
 describe('an answer of names, with no record to read', () => {
-  it('says no recorded case was read under the names', async () => {
+  it('does not say under the names that no recorded case was read: the names answered', async () => {
     checkout(FILES);
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
 
     const answer = await searched('--query', 'route');
 
     expect(answer).toContain('packages/kit/src/route.ts');
-    expect(answer).toContain('No recorded case was read: no run kept its cases there.');
+    expect(answer).not.toContain('No recorded case');
   });
 });
 
@@ -205,12 +222,20 @@ describe('a search where the root config declares suites', () => {
     expect(await searched('--query', 'qzxvk')).toContain('No recorded case of `chromium` was read: no run kept its cases there.');
   });
 
-  it('says so under the cases it did list', async () => {
+  it('does not name an unread suite under the cases it did list', async () => {
     await record([[ALONE, 'reads']], 'unit');
 
     const answer = await searched('--query', 'reads');
 
     expect(answer).toContain('reads [test]');
-    expect(answer).toContain('No recorded case of `chromium` was read: no run kept its cases there.');
+    expect(answer).not.toContain('No recorded case');
+  });
+
+  it('names every unread suite on one line when no case was found', async () => {
+    const answer = await searched('--query', 'qzxvk');
+
+    expect(answer.split('\n').filter((line) => line.startsWith('No recorded case'))).toEqual([
+      expect.stringMatching(/^No recorded case of `(unit|chromium)`, `(unit|chromium)` was read: no run kept its cases there\.$/u),
+    ]);
   });
 });

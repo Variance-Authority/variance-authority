@@ -24,7 +24,7 @@ use crate::stored::Stored;
 
 /// `FORMAT` and `VERSION` in `packages/help/src/store-layout.ts`.
 const FORMAT: &str = "variance-authority-help-store";
-const VERSION: u8 = 7;
+const VERSION: u8 = 8;
 pub(crate) const NONE: u32 = u32::MAX;
 pub(crate) const USE_KINDS: [&str; 3] = ["source", "test", "story"];
 /// The generation's fields, in the order `head` holds them.
