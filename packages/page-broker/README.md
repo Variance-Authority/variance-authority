@@ -136,8 +136,9 @@ the page going quiet — every region is looked at once.
   went to /help, which no outcome declares`. Somewhere is the page navigating,
   a hash or history change included, a new page opening, or a modal dialog
   opening. Staying is never reported for it.
-- **None, and nothing to rest at**: the action fails at the timeout, naming the
-  outcomes none of which was reached.
+- **None, and nothing to rest at**: the action waits on, and fails at the
+  timeout naming the outcomes none of which was reached — or where the app went,
+  if it has gone somewhere undeclared by then.
 - **None, and never quiet**: the action fails at the timeout too, naming what
   was still pending. Time running out is not staying: the answer is not in.
 
@@ -174,9 +175,9 @@ Know these before you rely on it:
   dialog. A panel, a popover or a dialog that is not modal, opened in the page
   and not declared, still reads as staying, so declare every place the action
   can lead.
-- **An undeclared destination is caught only when the action can rest or
-  stay.** Without that, it fails at the timeout naming the outcomes it did not
-  reach.
+- **An undeclared destination is caught once the page is quiet there, or at
+  the timeout.** An app that leaves and keeps working is named when time runs
+  out, not before.
 - **Over a browser, work that makes no request is invisible to it.** A change
   that arrives on a timer longer than the quiet period, with no request in
   flight, is read as staying. Over a document, a change to it counts as work.

@@ -212,6 +212,9 @@ async function perform<Name extends string, Handle>(
       out = setTimeout(() => resolve('late'), means.timeout);
     });
     const targets: readonly Target<Handle>[] = arriving.map((part) => part.target);
+    // An action with nowhere to rest still hears the first quiet, to tell an
+    // app gone somewhere undeclared; quiet anywhere else is no answer to it.
+    let hearing = true;
     for (;;) {
       const waits: Promise<'arrived' | 'late' | 'quiet'>[] = [late];
       if (targets.length > 0) {
@@ -222,7 +225,7 @@ async function perform<Name extends string, Handle>(
       }
       // Asked for again on every pass: a quiet that ended before an arrival
       // woke the wait says nothing of what has begun since.
-      if (rests) waits.push(quiet.settled());
+      if (rests || hearing) waits.push(quiet.settled());
       const woke = await Promise.race(waits);
       if (woke === 'late') break;
       const arrived = await look(arriving);
@@ -238,11 +241,14 @@ async function perform<Name extends string, Handle>(
       if (!quiet.still()) continue;
       // Quiet somewhere else is not resting: no outcome says where the app is.
       if (left !== undefined) throw fail(`${none(', and ')}${left}, which no outcome declares`, 'elsewhere', left);
+      hearing = false;
       if (still !== undefined) return { outcome: still.name, at: still.at };
       if (declared.staying !== undefined) return { outcome: declared.staying, at: undefined };
       // The region it rested in has gone and nothing has arrived: the answer is not in.
     }
     // Time running out is never staying: with work still pending, the answer is not in.
+    const left = await gone.left();
+    if (left !== undefined) throw fail(`${none(', and ')}${left}, which no outcome declares`, 'elsewhere', left);
     const held = quiet.held();
     if (!rests || (held === undefined && quiet.still())) throw fail(`${none('')} within ${means.timeout} ms`, 'late');
     throw fail(

@@ -56,6 +56,17 @@ export function cases(checkout: Checkout): void {
     });
   });
 
+  it('names where the app went for an action with nowhere to rest, once the page is quiet there', async () => {
+    const pay = by({ timeout: 2000, quiet: 100 })('pay', { from: billing, to: { payment } }, (on) =>
+      on.click({ role: 'button', name: 'Continue' }),
+    );
+    const began = Date.now();
+
+    await expect(pay(await checkout('help', 20))).rejects.toMatchObject({ reason: 'elsewhere', went: 'a modal dialog opened' });
+    // Told when the page went quiet there, not at the timeout.
+    expect(Date.now() - began).toBeLessThan(1500);
+  });
+
   it('submits a form by Enter in its field, as a person does', async () => {
     const enter = by({ timeout: 2000, quiet: 100 })(
       'enter',
