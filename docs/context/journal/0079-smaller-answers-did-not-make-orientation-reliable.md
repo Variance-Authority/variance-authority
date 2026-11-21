@@ -7,21 +7,23 @@ tasks and 120 seconds to submit coding starting files. They could search only
 through the public Variance CLI and read source paths an answer had named. The
 build and source index stayed fixed during each trial. Expected paths were
 withheld until submission, then supplied for reflection. Historical paths that
-had disappeared were scored separately from verified current owners.
+had disappeared were scored separately from verified current owners: one
+expected wrapper had become a compatibility re-export, and the agent that chose
+its current implementation instead was credited with the owner, not the path.
 
 The frozen candidate build was `d3410c704`, combining main with PRs #1671,
 #1676 and #1681. The bounded preview result and expansion audit are also
 recorded on
 [issue #1682](https://github.com/Variance-Authority/variance-authority/issues/1682#issuecomment-7056510523).
-The corpus is private, so the figures below are rounded and the trials cannot
-be reproduced from this repository.
+The corpus is private, so the answer sizes below are rounded and the trials
+cannot be reproduced from this repository.
 
 ## What survived measurement
 
 PR #1681 reduced one orient answer from about 100 KB to about 12 KB by showing
 three declarations per dependency and naming the omitted count and expansion.
 An experimental discover preview reduced a messaging task's answer from about
-30 KB to about 6 KB; all seven expansion commands recovered the original
+31 KB to about 6 KB; all seven expansion commands recovered the original
 evidence rows. These establish smaller answers and recoverable evidence, not
 better task completion. The discover preview remains an experiment.
 
@@ -33,8 +35,8 @@ variance ask orient --files "$file" --declarations > expanded.txt
 wc -c compact.txt expanded.txt
 ```
 
-The preview's source question was
-`ask discover --to "$file" --text 'query|Channel|Help' --limit 20`. Its
+The preview's source question, on a different file, was
+`ask discover --to "$other_file" --text '<task words>' --limit 20`. Its
 renderer kept the first three numbered evidence lines per file and emitted a
 per-file question with an exact `--path`. That prototype is not published.
 
