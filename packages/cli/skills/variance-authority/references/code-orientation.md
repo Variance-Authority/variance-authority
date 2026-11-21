@@ -40,7 +40,7 @@ variance ask discover --path '^src/PriceCard[.]tsx$' --text 'onComplete|error'
 A quoted UI label or error is source text: use scoped `grep`. If its exact
 wording misses, retry a distinctive fragment in the same scope before name
 queries. Escape regex metacharacters in literal text, such as `Failed \(retry\)`;
-see the [grep contract](workspace-api.md#grep). A matching line names
+see the [grep contract](workspace-grep.md). A matching line names
 a candidate; read it before deciding it owns the requested behavior.
 
 For example, find an example that transitively imports a component, then a
@@ -82,5 +82,5 @@ tooling (TypeScript's language service for JavaScript and TypeScript, the
 language's own language server for any other) and ask it for find-references
 or go-to-definition there.
 
-For a question's complete flags and limits, read its section in the
-[workspace API](workspace-api.md#the-verbs).
+For a question's complete flags and limits, follow its link in the
+[source-question table](../SKILL.md#questions-about-the-code).

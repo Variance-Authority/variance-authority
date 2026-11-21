@@ -20,8 +20,8 @@ main questions; pick the one that fits what you hold, each is one command:
 | You hold | Ask | Example |
 |---|---|---|
 | The task's words | [which of them name a package, an entrypoint or an export, and the folders they point to](references/workspace-classify.md) | `variance ask classify --query "checkout payment retry"` |
-| Nothing yet | the map: packages, areas, layers | `variance ask orient` |
-| A file | its place on that map | `variance ask orient --files src/billing/invoice.ts` |
+| Nothing yet | [the map: packages, areas, layers](references/orient.md#orient) | `variance ask orient` |
+| A file | [its place on that map](references/orient.md#orient) | `variance ask orient --files src/billing/invoice.ts` |
 | What a thing does | [the names that do it](references/workspace-search.md) | `variance ask search --query "retry payment" --from src/billing/` |
 | A name | [where it is declared](references/workspace-symbol.md) | `variance ask symbol --name PaymentRetry` |
 | A name | [every file that imports it; `--from` sorts them, it does not narrow](references/workspace-uses.md) | `variance ask uses --name PaymentRetry` |
