@@ -28,11 +28,11 @@ variance covering --file src/checkout/total.ts --format refs    # each case once
 A line or a function is answered per test file first: `total.test.ts — 2/3`
 means two of that file's three cases ran through it, and the cases follow. A
 whole file is answered the same way, once: each test file whose cases called
-into any of its ranges, the most cases first, `total.test.ts — 3 cases`. A
+into any of its ranges, the most cases first, `total.test.ts — 3/5`. A
 range is named under the files only when it has something of its own to say,
-such as an edit that moved it or a region on it no case entered. The ranges no
-case called into are one line per state,
-`No case called into lines 61-68, 101-103: unwalked.`
+such as an edit that moved it. The ranges no case called into are one line per
+state, `No case called into lines 61-68, 101-103: unwalked.`, and the regions no
+case entered on lines a case called into are named once for the file.
 
 The text shows ten test files and three cases under each, counts the rest, and
 says under them the `--offset` that shows the next page; `--limit` and `--offset`
@@ -217,12 +217,12 @@ record cannot rank.
 A range's cases are the ones an edit to its lines selects, so the line that
 opens a branch carries the cases of the function around it. A region no case
 entered on such a line, a one-line branch or the opening line of a longer one,
-gets a range of its own in the whole-file answer and a line under it that says
-no case entered it, with its state:
+gets a range of its own, and the whole-file answer says once, under its test
+files, which regions no case entered, by kind and with their state. Each hole
+has a sentence of its own, with the cases that stopped short of it:
 
 ```text
-line 6 — alone
-  no case entered the branch on line 6, and every case that could have reached it finished: unwalked.
+No case entered the functions on lines 60-69 and 95, or the branch on line 134, and every case that could have reached them finished: unwalked.
 ```
 
 `--format json` lists those regions under the range's `unentered`, and

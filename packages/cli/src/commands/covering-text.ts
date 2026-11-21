@@ -8,7 +8,7 @@
 
 import {
   formatCoveringChange,
-  unenteredSentence,
+  unenteredSaid,
   whyUnentered,
   type CoveringTest,
   type ExecutionTest,
@@ -244,6 +244,7 @@ function wholeFile(answer: Covering, ranges: readonly CoveringRange[], page: Pag
     const runs = quiet.filter((range) => range.state === state);
     lines.push(`No case called into ${single(runs) ? 'line' : 'lines'} ${runsText(runs)}: ${state}.`);
   }
+  lines.push(...unenteredText(ranges));
   lines.push(...narrowedText(answer));
   return lines.join('\n');
 }
@@ -271,7 +272,6 @@ function rangeNote(answer: Covering, range: CoveringRange): readonly string[] {
     notes.push(...loadedOnly(carried));
   }
   if (range.tests.length > 0 && range.overwritten !== undefined) notes.push(`  it is also ${lostText({ other: true, it: 'it' })}`);
-  notes.push(...unenteredLines(range));
   if (notes.length === 0 && range.tests.length > 0 && range.moved !== true) return [];
   const place = range.startLine === range.endLine ? `line ${range.startLine}` : `lines ${range.startLine}-${range.endLine}`;
   return [`${place}${range.state === undefined ? '' : ` — ${range.state}`}${range.moved === true ? ', edited since the recording' : ''}`, ...notes];
@@ -279,25 +279,25 @@ function rangeNote(answer: Covering, range: CoveringRange): readonly string[] {
 
 /**
  * A range whose state says all there is: no case called into it, none stopped
- * short of it, and no edit, overwrite or unentered region on it. Said in one line per state for
+ * short of it, and no edit or overwrite on it. Said in one line per state for
  * the whole file, not a header per range.
  */
 function isQuiet(range: CoveringRange): boolean {
   return range.tests.length === 0 &&
     (range.state === 'unwalked' || range.state === 'loaded' || range.state === 'hole') &&
     (range.state === 'loaded' || (range.stopped ?? []).length === 0) &&
-    range.moved !== true && range.overwritten === undefined && (range.unentered ?? []).length === 0;
+    range.moved !== true && range.overwritten === undefined;
 }
 
 /**
- * The regions on a range nobody entered: the range's cases are the ones an
- * edit to its lines selects, and a region with no line of its own would read as
- * theirs (`unentered.ts` in sense).
+ * The regions no case entered on the file's ranges, said once for the file:
+ * a range's cases are the ones an edit to its lines selects, and a region with
+ * no line of its own would read as theirs (`unentered.ts` in sense).
  */
-function unenteredLines(range: CoveringRange): readonly string[] {
-  return (range.unentered ?? []).flatMap((region) => [
-    `  ${unenteredSentence(region)}`,
-    ...(region.stopped ?? []).map((test) => `    stopped: ${test.file} > ${caseName(test)}`),
+function unenteredText(ranges: readonly CoveringRange[]): readonly string[] {
+  return unenteredSaid(ranges.flatMap((range) => range.unentered ?? [])).flatMap((said) => [
+    said.sentence,
+    ...(said.stopped ?? []).map((test) => `  stopped: ${test.file} > ${caseName(test)}`),
   ]);
 }
 
