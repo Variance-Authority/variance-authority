@@ -91,8 +91,9 @@ export { inIndexTurn, indexTurnPath, type IndexTurnHolder } from './index-turn.j
 export type { SourceIndexState } from './source-index-file.js';
 export { SOURCE_INDEX_VERSION } from './source-index-format.js';
 
-export { firstParentChanges, firstParentChangesBetween, trackedFiles, type CommitChange, type CommitChanges } from './commit-changes.js';
-export { packageOwner } from './package-owner.js';
+export { firstParentChanges, firstParentChangesBetween, type CommitChange, type CommitChanges } from './commit-changes.js';
+export { classifiedAreas, type AreasAsked, type ClassifiedAreas, type RankedArea } from './classified-areas.js';
+export { packageOwner, pathKinds, type PathKind, type PathKinds, type SourceTrees } from './package-owner.js';
 export { isTestPath } from './test-path.js';
 export { fileSizes, matchesGlob, sourceScope, type FileSize, type SourceScope } from './source-scope.js';
 
@@ -316,3 +317,4 @@ export { mayMock, mockTaint, type MockTaintOptions } from './taint/mocks.js';
 export { runGraphOf, type RunGraphOptions } from './taint/graph.js';
 export { shadowReach, type ShadowReach } from './taint/reach.js';
 export { auditTaints, type TaintAuditOptions, type TaintDeviation, type TaintDeviationKind } from './taint/audit.js';
+export { rarityNative, saturationNative } from './rarity.js';

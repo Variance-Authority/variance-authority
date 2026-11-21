@@ -1,4 +1,5 @@
-import { entryPoints, pathsOf, refusalFor, spellingOf, type ToolInvocation, type Tree } from '@variance-authority/mcp/tools';
+import { entryPoints, pathsOf, refusalFor, spellingOf, type EntryPoints, type ToolInvocation, type Tree } from '@variance-authority/mcp/tools';
+import type { SourceWalk } from '@variance-authority/sense';
 
 /**
  * Which part of the repository an answer is allowed to come from.
@@ -76,40 +77,79 @@ const NOWHERE = {
   unresolved: [] as readonly string[],
 };
 
+/** A start point resolved as the walks it made, held by the addon: what reached them is counted there, never listed here. */
+export interface Reach {
+  readonly from: readonly string[];
+  readonly to: readonly string[];
+  readonly entries: number;
+  /** The walk along the imports from `from`, and the one against them from `to`; neither when refused. */
+  readonly walks: { readonly from?: SourceWalk; readonly to?: SourceWalk };
+  readonly refused?: string;
+}
+
+/**
+ * No tree, no answer. The reading knows which file declares each name, and
+ * answering from *that* — every name whose path happens to begin with the
+ * same segments — would be a different question wearing this one's clothes:
+ * a folder is not a closure, and the imports are the whole point.
+ */
+const NO_TREE =
+  'a start point is a path in the source tree, and no source tree was read. Ask from a ' +
+  'checkout of the workspace, or ask without a start point';
+
+/** A start point's entry files, or why it has none: what {@link areaOf} and {@link reachOf} both walk from. */
+type Entries =
+  | { readonly refused: string; readonly from: readonly string[]; readonly to: readonly string[] }
+  | { readonly refused?: undefined; readonly tree: Tree; readonly down: EntryPoints; readonly up: EntryPoints; readonly entries: number };
+
+function entriesOf(from: string | readonly string[] | undefined, to: string | readonly string[] | undefined, tree: Tree | undefined): Entries {
+  const fromTerms = pathsOf(from);
+  const toTerms = pathsOf(to);
+  if (fromTerms.length === 0 && toTerms.length === 0) return { refused: 'no start point was said', from: [], to: [] };
+  if (tree === undefined) return { refused: NO_TREE, from: [], to: [] };
+  const down = entryPoints(fromTerms, tree);
+  const up = entryPoints(toTerms, tree);
+  const refused = refusalFor([...down.unmatched, ...up.unmatched], tree.root);
+  if (refused !== undefined) return { refused, from: down.found, to: up.found };
+  return { tree, down, up, entries: new Set([...down.files, ...up.files]).size };
+}
+
+/**
+ * Resolve a start point as the walks it makes, without carrying the files they
+ * reached: the caller that only counts or filters them hands the walks back to
+ * the addon. Refused as {@link areaOf} refuses.
+ */
+export function reachOf(
+  from: string | readonly string[] | undefined,
+  to: string | readonly string[] | undefined,
+  tree: Tree | undefined,
+): Reach {
+  const start = entriesOf(from, to, tree);
+  if (start.refused !== undefined) return { ...start, entries: 0, walks: {} };
+  const { down, up } = start;
+  return {
+    from: down.found,
+    to: up.found,
+    entries: start.entries,
+    walks: {
+      ...(pathsOf(from).length === 0 ? {} : { from: start.tree.walk(down.files, false) }),
+      ...(pathsOf(to).length === 0 ? {} : { to: start.tree.walk(up.files, true) }),
+    },
+  };
+}
+
 /** Resolve a start point, or say why it could not be. */
 export function areaOf(
   from: string | readonly string[] | undefined,
   to: string | readonly string[] | undefined,
   tree: Tree | undefined,
 ): Area {
-  const fromTerms = pathsOf(from);
-  const toTerms = pathsOf(to);
+  const start = entriesOf(from, to, tree);
+  if (start.refused !== undefined) return { ...NOWHERE, ...start };
+  const { down, up } = start;
 
-  if (fromTerms.length === 0 && toTerms.length === 0) {
-    return { ...NOWHERE, refused: 'no start point was said' };
-  }
-
-  // No tree, no answer. The reading knows which file declares each name, and
-  // answering from *that* — every name whose path happens to begin with the
-  // same segments — would be a different question wearing this one's clothes:
-  // a folder is not a closure, and the imports are the whole point.
-  if (tree === undefined) {
-    return {
-      ...NOWHERE,
-      refused:
-        'a start point is a path in the source tree, and no source tree was read. Ask from a ' +
-        'checkout of the workspace, or ask without a start point',
-    };
-  }
-
-  const down = entryPoints(fromTerms, tree);
-  const up = entryPoints(toTerms, tree);
-
-  const refused = refusalFor([...down.unmatched, ...up.unmatched], tree.root);
-  if (refused !== undefined) return { ...NOWHERE, from: down.found, to: up.found, refused };
-
-  const distance = new Map(tree.distanceFrom(down.files));
-  for (const [file, hops] of tree.distanceTo(up.files)) {
+  const distance = new Map(start.tree.distanceFrom(down.files));
+  for (const [file, hops] of start.tree.distanceTo(up.files)) {
     const held = distance.get(file);
     if (held === undefined || hops < held) distance.set(file, hops);
   }
@@ -118,10 +158,10 @@ export function areaOf(
   return {
     from: down.found,
     to: up.found,
-    entries: new Set([...down.files, ...up.files]).size,
+    entries: start.entries,
     files,
     distance,
-    unresolved: tree.unknownAmong(files),
+    unresolved: start.tree.unknownAmong(files),
   };
 }
 
@@ -134,6 +174,18 @@ export function areaOf(
  * somewhere else, and only the tool knows which happened.
  */
 export function areaLine(area: Area): string {
+  return reachLine({ ...area, files: area.files.size, unresolved: area.unresolved.length });
+}
+
+/** {@link areaLine}, said from the counts alone: how many files the start point reached, and how many of those import what the scan could not resolve. */
+export function reachLine(area: {
+  readonly from: readonly string[];
+  readonly to: readonly string[];
+  readonly entries: number;
+  readonly files: number;
+  readonly unresolved: number;
+  readonly refused?: string;
+}): string {
   if (area.refused !== undefined) {
     return (
       `No search was run: ${area.refused}. ` +
@@ -149,9 +201,9 @@ export function areaLine(area: Area): string {
   // large fixed fraction of any repository, which is not a narrowing the caller
   // would recognise as one.
   const holes =
-    area.unresolved.length === 0
+    area.unresolved === 0
       ? ''
-      : ` ${area.unresolved.length} file(s) in it import something the scan could not resolve, ` +
+      : ` ${area.unresolved} file(s) in it import something the scan could not resolve, ` +
         'so what lies behind those is not enumerated.';
 
   // The direction is said, not implied by the number. *Reachable from the
@@ -163,7 +215,7 @@ export function areaLine(area: Area): string {
   const against = area.to.length === 0 ? '' : `reaching ${named(area.to)}`;
 
   return (
-    `In ${area.files.size} file(s) ${[along, against].filter((half) => half !== '').join(' or ')} ` +
+    `In ${area.files} file(s) ${[along, against].filter((half) => half !== '').join(' or ')} ` +
     `along the imports, at any depth — ${area.entries} named by the path itself.${holes}`
   );
 }

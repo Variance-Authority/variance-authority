@@ -76,8 +76,3 @@ export function firstParentChanges(root: string, after: string): CommitChanges {
 export function firstParentChangesBetween(root: string, from: string, to: string): readonly CommitChange[] {
   return lineOf(root, `${from}..${to}`);
 }
-
-/** The files `HEAD` holds under `root`, spelled from it: the tree the log ends at, not what is staged. */
-export function trackedFiles(root: string): readonly string[] {
-  return git(root, ['ls-tree', '-r', '-z', '--name-only', 'HEAD']).split('\0').filter((path) => path !== '');
-}

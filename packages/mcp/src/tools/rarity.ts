@@ -1,9 +1,12 @@
 // compass: variance-authority.report.agent-surface
 
+import { rarityNative, saturationNative } from '@variance-authority/sense/rarity';
+
 /**
  * How rare a word is in a population, as an integer from 0 to 1000: of
  * `population` rows, `holders` hold the word. A word every row holds scores
  * 1000 / (population + 1), never zero; a word one row holds scores nearly 1000.
+ * Defined once, in the addon, which ranks with it too.
  *
  * An integer, so a sort key built from it is exact and a tie is a tie
  * (ADR-0057: no float reaches a sort key). A ranking multiplies it by the
@@ -13,7 +16,7 @@
  * counted over the same rows: a scope that drops rows recounts the holders too.
  */
 export function rarity(population: number, holders: number): number {
-  return Math.floor((1000 * (population - holders + 1)) / (population + 1));
+  return rarityNative(population, holders);
 }
 
 /**
@@ -36,5 +39,5 @@ export function heldWeight<Held>(held: readonly Held[], rarityOf: (one: Held) =>
  * measure against, every row is of the mean length.
  */
 export function saturation(held: number, length: number, total: number, rows: number): number {
-  return total === 0 ? Math.floor((22000 * held) / (10 * held + 12)) : Math.floor((22000 * held * total) / (10 * held * total + 3 * total + 9 * length * rows));
+  return saturationNative(held, length, total, rows);
 }

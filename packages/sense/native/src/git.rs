@@ -329,6 +329,41 @@ pub(crate) fn git(root: &str, args: &[&str], stdin: Option<Vec<u8>>) -> Option<V
 /// ended when it wrote nothing. For a caller whose answer is wrong without
 /// git's, which then fails with git's own reason rather than a softer answer.
 pub(crate) fn answer(root: &str, args: &[&str], stdin: Option<Vec<u8>>) -> Result<Vec<u8>, String> {
+    run(root, args, stdin).map_err(|refused| match refused {
+        Refused::Start(error) => format!("git did not start: {error}"),
+        Refused::Input => "git took no input".to_owned(),
+        Refused::Finish(error) => format!("git did not finish: {error}"),
+        Refused::Said(said) => said,
+        Refused::Ended(status) => format!("git {} ended with {status}", args.join(" ")),
+    })
+}
+
+/// [`answer`] for a refusal a person reads: it names what the addon ran beside
+/// what git said, `` `git ls-tree HEAD` said: fatal: not a git repository ``,
+/// or how it ended when git wrote nothing, or that it did not start.
+pub(crate) fn answer_or_refusal(root: &str, args: &[&str]) -> Result<Vec<u8>, String> {
+    let ran = format!("`git {}`", args.join(" "));
+    run(root, args, None).map_err(|refused| match refused {
+        Refused::Start(error) => format!("{ran} did not start: {error}"),
+        Refused::Input => format!("{ran} took no input"),
+        Refused::Finish(error) => format!("{ran} did not finish: {error}"),
+        Refused::Said(said) => format!("{ran} said: {said}"),
+        Refused::Ended(status) => format!("{ran} ended with {status}"),
+    })
+}
+
+/// Why git did not answer.
+enum Refused {
+    Start(std::io::Error),
+    Input,
+    Finish(std::io::Error),
+    /// What it wrote to stderr, trimmed.
+    Said(String),
+    /// How it ended, having written nothing.
+    Ended(std::process::ExitStatus),
+}
+
+fn run(root: &str, args: &[&str], stdin: Option<Vec<u8>>) -> Result<Vec<u8>, Refused> {
     let mut command = Command::new("git");
     command
         .args(args)
@@ -341,23 +376,23 @@ pub(crate) fn answer(root: &str, args: &[&str], stdin: Option<Vec<u8>>) -> Resul
             Stdio::null()
         });
 
-    let mut child = command.spawn().map_err(|error| format!("git did not start: {error}"))?;
+    let mut child = command.spawn().map_err(Refused::Start)?;
 
     if let Some(bytes) = stdin {
         // On its own thread: a list of two hundred thousand paths is larger than
         // a pipe buffer, and writing it from here while git waits for us to read
         // its output is a deadlock rather than a slow call.
-        let mut pipe = child.stdin.take().ok_or("git took no input")?;
+        let mut pipe = child.stdin.take().ok_or(Refused::Input)?;
         std::thread::spawn(move || {
             let _ = pipe.write_all(&bytes);
         });
     }
 
-    let output = child.wait_with_output().map_err(|error| format!("git did not finish: {error}"))?;
+    let output = child.wait_with_output().map_err(Refused::Finish)?;
     if !output.status.success() {
         let said = String::from_utf8_lossy(&output.stderr);
         let said = said.trim();
-        return Err(if said.is_empty() { format!("git {} ended with {}", args.join(" "), output.status) } else { said.to_owned() });
+        return Err(if said.is_empty() { Refused::Ended(output.status) } else { Refused::Said(said.to_owned()) });
     }
 
     Ok(output.stdout)

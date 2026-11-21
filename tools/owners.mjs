@@ -315,7 +315,7 @@ function writesThenRenames(fn) {
 // the caller's own function, such as a view fetching its data again.
 const isFreshPage = (callee) => callee.type === 'MemberExpression' && FRESH_PAGES.has(calleeName(callee));
 
-function calleeName(callee) {
+export function calleeName(callee) {
   if (callee.type === 'Identifier') return callee.name;
   if (callee.type === 'MemberExpression' && !callee.computed) return callee.property.name;
   return undefined;
@@ -331,7 +331,9 @@ function nameOf(fn, scope) {
 
 /**
  * Depth-first over every node, carrying the nearest named function so a site
- * can say where it is. `into` decides whether to descend below a node.
+ * can say where it is, the offset of the statement it is in (`statement`), and
+ * the function holding it (`fn`) with the scope that function sits in
+ * (`outer`). `into` decides whether to descend below a node.
  */
 export function visit(root, enter, { into = () => true } = {}) {
   const walk = (node, scope) => {
@@ -342,20 +344,21 @@ export function visit(root, enter, { into = () => true } = {}) {
     }
     if (typeof node.type !== 'string') return;
     let inner = scope;
+    if (/Statement$|Declaration$/u.test(node.type)) inner = { ...inner, statement: node.start };
     if (node.type === 'VariableDeclarator' && node.id.type === 'Identifier') {
-      inner = { ...scope, binding: node.id.name };
+      inner = { ...inner, binding: node.id.name };
     } else if (node.type === 'MethodDefinition' || node.type === 'Property') {
-      inner = { ...scope, binding: node.key?.name };
+      inner = { ...inner, binding: node.key?.name };
     }
     enter(node, inner);
-    if (isFunction(node)) inner = { name: nameOf(node, inner), binding: undefined };
+    if (isFunction(node)) inner = { name: nameOf(node, inner), binding: undefined, statement: inner.statement, fn: node, outer: inner };
     if (node !== root && !into(node)) return;
     for (const key of Object.keys(node)) {
       if (key === 'type' || key === 'start' || key === 'end') continue;
       walk(node[key], inner);
     }
   };
-  walk(root, { name: undefined, binding: undefined });
+  walk(root, { name: undefined, binding: undefined, statement: root.start });
 }
 
 /** The line of each offset in `text`: oxc reports UTF-16 offsets into the text it was given. */

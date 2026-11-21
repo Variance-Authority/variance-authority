@@ -50,6 +50,12 @@ fn asked(query: &str, cut: fn(&str) -> Vec<String>) -> BTreeMap<String, String> 
     asked
 }
 
+/// The question's distinct stems, each with the first word written for it,
+/// cut as [`described_words`] cuts them: what `classify` asks a path for.
+pub(crate) fn code_words(query: &str) -> BTreeMap<String, String> {
+    asked(query, code_stems)
+}
+
 /// The question's distinct stems as `[stem, word]` pairs, for the repository's
 /// own names: cut as a package's words are, less the stopwords only a package
 /// says, since code is named in `package`, `module` and `use`.
