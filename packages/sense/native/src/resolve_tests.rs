@@ -51,7 +51,9 @@ fn a_root_reached_through_a_link_lands_as_its_canonical_path() {
     std::os::unix::fs::symlink(&real, &root).unwrap();
     let from = root.join("src/a.ts");
     let resolvers = Resolvers::new(Tsconfig::Auto, None);
+    let listed = HashMap::from([("src/a.ts".to_owned(), 0), ("src/b.ts".to_owned(), 1)]);
     assert_eq!(resolvers.resolve(&root, &from, "./b", None), Some("src/b.ts".to_owned()));
+    assert_eq!(resolvers.resolve(&root, &from, "./b.js", Some(&listed)), Some("src/b.ts".to_owned()));
     let _ = std::fs::remove_dir_all(&base);
 }
 
