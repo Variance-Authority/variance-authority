@@ -16,8 +16,6 @@
 
 // compass: variance-authority.reach.relations
 
-use std::collections::HashMap;
-
 use napi_derive::napi;
 
 use crate::chain_lookup::record;
@@ -91,18 +89,16 @@ fn outline(layers: &[Layer], crossing: &Crossing, budget: usize) -> FileDeclarat
         .collect();
     declarations.sort_by_key(|declaration| declaration.line);
 
-    // A member goes under the first declaration of its container's name, as
-    // `symbol` lists a container's members; one whose container the budget
-    // cuts is counted with the members cut.
-    let mut holder: HashMap<&str, usize> = HashMap::new();
-    for (at, declaration) in declarations.iter().enumerate() {
-        holder.entry(declaration.name.as_str()).or_insert(at);
-    }
+    // A member goes under the top-level declaration it is written in: top-level
+    // declarations do not nest, so that is the last one starting on or before
+    // the member's line, and the parser's container must name it. A value and a
+    // type may share a name, and an interface may be declared twice; each keeps
+    // its own members. One in a container nested elsewhere — a function, a
+    // call — is not the file's top level, and is not listed.
     let mut members: Vec<(usize, ContainerMember)> = members_of_row(&layers[layer], row)
         .into_iter()
-        .filter_map(|(of, member)| Some((*holder.get(of)?, member)))
+        .filter_map(|(of, member)| Some((holder(&declarations, of, member.line)?, member)))
         .collect();
-    drop(holder);
     let more = declarations.len().saturating_sub(budget) as u32;
     declarations.truncate(budget);
     // The budget is spent by the line shown, as `symbol`'s rule shows one row
@@ -127,6 +123,15 @@ fn outline(layers: &[Layer], crossing: &Crossing, budget: usize) -> FileDeclarat
         }
     }
     FileDeclarations { file: crossing.file.to_owned(), read: true, declarations, more, more_members }
+}
+
+/// The declaration among `declarations`, by line, that a member of the
+/// container named `of` on `line` is written in: the last one starting on or
+/// before `line`, among those that start on the same line the last named `of`.
+fn holder(declarations: &[FileDeclaration], of: &str, line: u32) -> Option<usize> {
+    let after = declarations.partition_point(|declaration| declaration.line <= line);
+    let starts = declarations[..after].last()?.line;
+    (0..after).rev().take_while(|at| declarations[*at].line == starts).find(|at| declarations[*at].name == of)
 }
 
 #[cfg(test)]

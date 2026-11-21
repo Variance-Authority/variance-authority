@@ -92,3 +92,20 @@ fn the_budget_spends_one_line_on_members_that_share_a_line_and_counts_the_lines_
     // Two lines cut, four members on them, counted as the two lines.
     assert_eq!(cut(3), (4, 0, 2));
 }
+
+#[test]
+fn a_member_goes_under_the_declaration_it_is_written_in_when_another_shares_its_name() {
+    let source = "export const Shape = { kind: 'shape' };\nexport type Shape = { width: number };\n\ninterface Box { a: string }\ninterface Box { b: string }\n";
+    let (records, parses) = chain(&[("src/shape.ts", "git:d", source)]);
+    let layers = [Layer::open(&records).unwrap(), Layer::open(&parses).unwrap()];
+    let found = declarations_of(&layers, &["src/shape.ts".to_owned()], 40);
+    assert_eq!(rows(&found[0]), vec![
+        "1 const Shape Some(true)",
+        "2 type Shape Some(true)",
+        "  2 width",
+        "4 interface Box Some(false)",
+        "  4 a",
+        "5 interface Box Some(false)",
+        "  5 b",
+    ]);
+}
