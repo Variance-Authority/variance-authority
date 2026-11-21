@@ -1,11 +1,13 @@
-import { mkdtempSync, realpathSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { sourceIndexPath } from '@variance-authority/sense';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import '../bin.fixture.js';
 import { main } from '../bin.js';
 import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
 import { questions } from './ask-questions.js';
+import { heldBy, holdFollowUps } from './index-follow-ups.js';
 
 /**
  * The answers that need no config, asked where there is none: a directory
@@ -19,8 +21,9 @@ afterEach(() => {
   process.chdir(cwd);
 });
 
-async function answer(argv: readonly string[]): Promise<{ code: number; out: string; err: string }> {
+async function answer(argv: readonly string[], prepare?: () => void): Promise<{ code: number; out: string; err: string }> {
   process.chdir(realpathSync(mkdtempSync(join(tmpdir(), 'va-configless-'))));
+  prepare?.();
   let out = '';
   let err = '';
   const code = await main(argv, { out: (text) => { out += text; }, err: (text) => { err += text; } });
@@ -58,6 +61,22 @@ describe('an answer that needs no config', () => {
     expect(help.err).toBe('');
     expect(help.out).toContain('variance ask');
     expect(await answer(['ask', '--config', 'missing.json'])).toEqual({ code: EXIT_CLEAN, out: questions(), err: '' });
+  });
+
+  it.each([
+    { args: [], code: EXIT_CLEAN },
+    { args: ['--query', 'token'], code: EXIT_OPERATOR },
+  ])('leaves index follow-ups alone with no question: $args', async ({ args, code }) => {
+    let index = '';
+    const lock = { pid: process.pid, log: 'unused.log', failed: ['unread walk'] };
+    const result = await answer(['ask', ...args], () => {
+      index = sourceIndexPath(process.cwd());
+      mkdirSync(dirname(index), { recursive: true });
+      holdFollowUps(index, lock);
+    });
+    expect(result.code).toBe(code);
+    expect(result.err).not.toContain('unread walk');
+    expect(heldBy(index)).toEqual(lock);
   });
 
   it('asks a watcher what only a watcher answers, where no project was ever configured', async () => {

@@ -24,7 +24,7 @@ variance-authority-help search viewport
 variance-authority-help search viewport --from packages/app/
 ```
 
-On `variance ask` every argument is a flag, and `variance ask` with no question
+On `variance ask` every argument is a flag, and bare `variance ask`
 prints each question's flags and what it answers. On `variance-authority-help`
 the first argument is positional.
 

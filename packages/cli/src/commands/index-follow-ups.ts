@@ -171,11 +171,12 @@ export async function awaitFollowUps(index: string, waiting: (lock: FollowUpsLoc
 const READS_THE_INDEX_ALONE: ReadonlySet<Parsed['command']> = new Set(['select']);
 
 /**
- * The commands that read nothing `variance index` writes: `journeys combine`
- * combines the records it is named and opens nothing else. They do not wait.
+ * Commands with no indexed subject: a questionless `ask` and `journeys combine`,
+ * which combines only the records it is named. Neither waits.
  */
 function readsNoIndex(parsed: Parsed): boolean {
-  return parsed.command === 'journeys' && parsed.operation === 'combine';
+  return (parsed.command === 'ask' && parsed.question === undefined)
+    || (parsed.command === 'journeys' && parsed.operation === 'combine');
 }
 
 /**
