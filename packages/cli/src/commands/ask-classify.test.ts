@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -78,7 +78,7 @@ function nested(): string {
   write('.gitignore', 'node_modules\n');
   write('app/package.json', JSON.stringify({ private: true, workspaces: ['packages/*', '../shared'] }));
   write('shared/package.json', JSON.stringify({ name: '@t/shared', exports: { '.': './src/index.ts' } }));
-  write('shared/src/index.ts', 'export const shared = 1;\n');
+  write('shared/src/index.ts', 'function reconcileShared(): number { return 1; }\nexport const shared = reconcileShared();\n');
   write('app/packages/a/package.json', JSON.stringify({ name: '@t/a', exports: { '.': './src/index.ts' } }));
   write('app/packages/a/src/ledger.ts', 'function reconcileLedger(): number { return 1; }\nexport const ledger = reconcileLedger();\n');
   write('app/packages/a/src/index.ts', "import { ledger } from './ledger.js';\nexport const a = ledger;\n");
@@ -160,7 +160,11 @@ describe('variance ask classify', () => {
 
     expect(asked.code).toBe(EXIT_CLEAN);
     expect(asked.out).toMatch(/^ {2}\S+ — \d+ files · holds reconcile$/m);
+    // The shared package the start point reaches declares a name that holds the
+    // word too, but it is no tracked path of the workspace, so it ranks nowhere.
+    expect(asked.out).not.toMatch(/^ {2}\S*shared\S* — /m);
   });
+
   it('reads a nested workspace\'s own names from the index its graph was read into, with no start point said', async () => {
     nested();
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
@@ -169,5 +173,26 @@ describe('variance ask classify', () => {
 
     expect(asked.code).toBe(EXIT_CLEAN);
     expect(asked.out).toMatch(/^ {2}\S+ — \d+ files · holds reconcile$/m);
+  });
+
+  it('ranks nothing and says why when the start point names no file the graph holds', async () => {
+    families();
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const asked = await run(['ask', 'classify', '--query', 'shop', '--from', 'packages/nowhere/src/index.ts']);
+
+    expect(asked.code).not.toBe(EXIT_CLEAN);
+    expect(asked.err + asked.out).toContain('`classify` ranked nothing');
+  });
+
+  it('names the entities and says why no area is ranked when git cannot list the files HEAD holds', async () => {
+    const root = families();
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+    rmSync(join(root, '.git'), { recursive: true, force: true });
+
+    const asked = await run(['ask', 'classify', '--query', 'why does shop-2 call data1?']);
+
+    expect(asked.out).toMatch(/^shop-2 — package @t\/shop-2 /m);
+    expect(asked.out).toContain('No area is ranked: git could not list the files HEAD holds');
   });
 });

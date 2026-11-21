@@ -24,7 +24,7 @@ export const AREAS_SHOWN = 10;
 
 /** What the source index says the files declare. */
 export interface Declared {
-  /** For each stem, the files declaring a name that holds it, and how many such names each declares. */
+  /** For each of the request's stems, the files declaring a name that holds it, and how many such names each declares. */
   readonly holding: ReadonlyMap<string, ReadonlyMap<string, number>>;
   /** For each file, how many words the names it declares hold together. */
   readonly words: ReadonlyMap<string, number>;
@@ -97,7 +97,6 @@ export function rankedAreas(
     for (const stem of cut.stems) count(area.held, stem, 1);
   }
   for (const [stem, files] of declared.holding) {
-    if (!stems.has(stem)) continue;
     for (const [file, names] of files) {
       const area = fileOf.get(file);
       if (area === undefined) continue;
