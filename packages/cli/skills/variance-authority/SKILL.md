@@ -12,6 +12,27 @@ page from here to manufacture the reading. The distillation loop does rerun a
 test: that is an experiment you run, and its evidence comes back through the
 same read-only commands.
 
+## Questions about the code
+
+`variance ask` answers from the source index `variance index` built. Pick the
+question that fits what you hold; each is one command:
+
+| You hold | Ask | Example |
+|---|---|---|
+| The task's words | which packages, entrypoints and folders they point to | `variance ask classify --query "checkout payment retry"` |
+| Nothing yet | the map: packages, areas, layers | `variance ask orient` |
+| A file | its place on that map | `variance ask orient --files src/billing/invoice.ts` |
+| What a thing does | the names that do it | `variance ask search --query "retry payment" --from src/billing/` |
+| A name | where it is declared | `variance ask symbol --name PaymentRetry` |
+| A name | which files import it | `variance ask uses --name PaymentRetry` |
+| A name and an area | the files there that import it | `variance ask discover --imports src/billing/retry.ts#PaymentRetry --path '^src/checkout/'` |
+| A file | what it imports, nearest first | `variance ask discover --from src/billing/invoice.ts` |
+| A file | what imports it | `variance ask discover --to src/billing/invoice.ts` |
+| Two questions | the files both answer | `variance ask intersection 'symbol --name PaymentRetry' 'discover --from src/checkout/'` |
+| A string or a pattern | the source lines that hold it | `variance ask grep --query 'retryCount' --from src/billing/` |
+
+YAML, JSON, Markdown and shell are outside the index: `rg` reads them.
+
 ## Fill a gap with a run of what it names
 
 An answer gives what the record has and names what it lacks — its gap. Fill a
