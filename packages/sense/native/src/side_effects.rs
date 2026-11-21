@@ -52,9 +52,7 @@ pub fn resolve_sources(
 ) -> Vec<String> {
     let listed: Option<HashMap<String, u32>> = listed.map(|paths| paths.into_iter().zip(0..).collect());
     let resolvers = Resolvers::new(Tsconfig::from_js(tsconfig), None);
-    // The resolver answers with the path a symlink leads to, and a repository
-    // path is cut from the root that path lies under.
-    let root = std::fs::canonicalize(&root).unwrap_or_else(|_| PathBuf::from(&root));
+    let root = crate::resolve::checkout_root(Path::new(&root));
     let from = root.join(&file);
     sources
         .iter()

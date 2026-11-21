@@ -27,12 +27,9 @@ impl Resolvers {
         if let Some(base) = config.resolve_base_url(request) {
             paths.push(base);
         }
-        // The configuration was read where the resolver found it, through
-        // links, so its paths lie under the canonical root.
-        let root = self.canonical(root);
         let mut candidates: Vec<String> = paths.into_iter().filter_map(|path| {
             let path = path.normalize();
-            let relative = path.strip_prefix(&root).ok()?;
+            let relative = path.strip_prefix(root).ok()?;
             Some(relative.to_string_lossy().replace('\\', "/"))
         }).collect();
         candidates.sort_unstable();

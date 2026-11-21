@@ -64,24 +64,3 @@ fn alias_candidates_belong_to_the_importers_effective_configuration() {
     }
     let _ = std::fs::remove_dir_all(&root);
 }
-
-/// The configuration is read where the resolver finds it, through links, so a
-/// root handed through a link names the same candidates as its canonical path.
-#[cfg(unix)]
-#[test]
-fn alias_candidates_under_a_root_reached_through_a_link_are_spelled_from_it() {
-    use std::sync::OnceLock;
-    let base = std::env::temp_dir().join(format!("sense-linked-aliases-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&base);
-    let real = base.join("real");
-    std::fs::create_dir_all(real.join("src")).unwrap();
-    std::fs::write(real.join("tsconfig.json"), r#"{"compilerOptions":{"baseUrl":".","paths":{"@app/*":["src/*"]}}}"#).unwrap();
-    std::fs::write(real.join("src/a.ts"), "import '@app/missing';").unwrap();
-    let root = base.join("linked");
-    std::os::unix::fs::symlink(&real, &root).unwrap();
-    let resolvers = Resolvers::new(Tsconfig::Auto, None);
-    let mut candidates = resolvers.alias_candidates(&root, &root.join("src/a.ts"), "@app/missing", &OnceLock::new());
-    candidates.sort();
-    assert_eq!(candidates, vec!["@app/missing", "src/missing"]);
-    let _ = std::fs::remove_dir_all(&base);
-}

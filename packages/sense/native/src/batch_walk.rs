@@ -100,7 +100,8 @@ pub(crate) fn walk_beyond(
         condition_names,
         include_parses: _,
     } = options;
-    let root_path = Path::new(&root);
+    let root_path = crate::resolve::checkout_root(Path::new(&root));
+    let root_path = root_path.as_path();
     let resolvers = Resolvers::over(tsconfig, condition_names, Emitted::listed(root_path, Some(listing)));
     let mut files = Vec::new();
     let mut read = Vec::new();
@@ -391,6 +392,48 @@ mod tests {
             assert_eq!(kept, oids.iter().map(Option::is_some).collect::<Vec<_>>(), "slice {slice}");
             assert_eq!(targets, wave.iter().map(|file| vec![format!("{file} read {file}")]).collect::<Vec<_>>(), "slice {slice}");
         }
+    }
+
+    /// macOS spells every temporary directory through a link, and the resolver
+    /// answers through links: a walk from a linked root lands its imports and
+    /// spells its alias candidates as from the canonical root.
+    #[cfg(unix)]
+    #[test]
+    fn a_walk_from_a_linked_root_lands_as_from_its_canonical_root() {
+        let base = std::env::temp_dir().join(format!("sense-walk-linked-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        let real = base.join("real");
+        let files = [
+            ("tsconfig.json", r#"{ "compilerOptions": { "baseUrl": ".", "paths": { "@app/*": ["src/*"] } } }"#),
+            ("src/a.ts", "import './b';\nimport '@app/missing';\n"),
+            ("src/b.ts", "export {};\n"),
+        ];
+        for (file, text) in files {
+            std::fs::create_dir_all(real.join(file).parent().unwrap()).unwrap();
+            std::fs::write(real.join(file), text).unwrap();
+        }
+        let root = base.join("linked");
+        std::os::unix::fs::symlink(&real, &root).unwrap();
+        let known: HashMap<String, u32> = files.iter().map(|(file, _)| (*file).to_owned()).zip(0..).collect();
+        let parsing = |paths: &[&str]| {
+            let held = |path: &str| files.iter().find(|(file, _)| *file == path).map(|(_, text)| *text);
+            paths.iter().map(|path| held(path).map(|text| crate::read_any::read_file(path, text, &oxc_allocator::Allocator::default(), true))).collect()
+        };
+        let texting = |_: &str| None;
+        let world = World::new(Some(&known), None).reading(&parsing, &texting);
+        let options = GraphOptions {
+            root: root.to_string_lossy().into_owned(),
+            seeds: vec!["src/a.ts".to_owned()],
+            largest_file: None,
+            readers: None,
+            tsconfig: crate::resolve::Tsconfig::from_js(None),
+            condition_names: None,
+            include_parses: false,
+        };
+        let walked = walk_beyond(options, &HashMap::new(), &[], Arc::new(Listing::default()), &world, &Neighbours::default(), &|_| true, &|_, _| None, &FromBlob::default(), &TreeObjects::default());
+        let _ = std::fs::remove_dir_all(&base);
+        assert_eq!(walked.targets[0].first, ["src/b.ts", ""]);
+        assert!(walked.targets[0].candidates.contains(&"src/missing".to_owned()), "{:?}", walked.targets[0].candidates);
     }
 
     /// A warm update walks round after round over one tree: the world it is

@@ -35,28 +35,6 @@ fn a_build_directory_is_source_where_git_lists_it() {
     let _ = std::fs::remove_dir_all(&root);
 }
 
-/// The resolver follows links and answers with canonical paths, so a root
-/// handed through a link, as macOS spells every temporary directory, lands
-/// the same files as its canonical spelling.
-#[cfg(unix)]
-#[test]
-fn a_root_reached_through_a_link_lands_as_its_canonical_path() {
-    let base = std::env::temp_dir().join(format!("sense-linked-root-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&base);
-    let real = base.join("real");
-    std::fs::create_dir_all(real.join("src")).unwrap();
-    std::fs::write(real.join("src/a.ts"), "import './b';\n").unwrap();
-    std::fs::write(real.join("src/b.ts"), "export {};\n").unwrap();
-    let root = base.join("linked");
-    std::os::unix::fs::symlink(&real, &root).unwrap();
-    let from = root.join("src/a.ts");
-    let resolvers = Resolvers::new(Tsconfig::Auto, None);
-    let listed = HashMap::from([("src/a.ts".to_owned(), 0), ("src/b.ts".to_owned(), 1)]);
-    assert_eq!(resolvers.resolve(&root, &from, "./b", None), Some("src/b.ts".to_owned()));
-    assert_eq!(resolvers.resolve(&root, &from, "./b.js", Some(&listed)), Some("src/b.ts".to_owned()));
-    let _ = std::fs::remove_dir_all(&base);
-}
-
 #[test]
 fn a_declaration_stem_drops_the_whole_suffix() {
     assert_eq!(stem("context.d.ts"), "context");

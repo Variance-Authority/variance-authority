@@ -48,8 +48,7 @@ pub(crate) struct Mocking {
 impl Mocking {
     /// A test's loads beside its mocks, resolved from the checkout at `root`.
     pub(crate) fn at(root: &str, tsconfig: crate::resolve::Tsconfig, code: Vec<String>) -> Self {
-        let at = std::path::Path::new(root);
-        let checkout = std::fs::canonicalize(at).unwrap_or_else(|_| at.to_path_buf());
+        let checkout = crate::resolve::checkout_root(std::path::Path::new(root));
         let resolvers = Resolvers::over(tsconfig, None, crate::emitted::Emitted::listed(&checkout, None));
         Mocking { root: checkout, resolvers, code: code.into_iter().collect() }
     }

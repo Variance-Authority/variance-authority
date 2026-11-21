@@ -230,7 +230,8 @@ impl Graph {
         );
         let by_file: HashMap<&str, usize> = index.iter().enumerate().map(|(at, crossing)| (crossing.file, at)).collect();
         let resolvers = Resolvers::new(tsconfig, None);
-        let absolute = Path::new(root);
+        let absolute = crate::resolve::checkout_root(Path::new(root));
+        let absolute = absolute.as_path();
         let mut graph = Graph {
             files: Vec::new(),
             ids: HashMap::new(),
