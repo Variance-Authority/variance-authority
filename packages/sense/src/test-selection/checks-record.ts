@@ -53,7 +53,7 @@ export interface ChecksSection {
   readonly commit?: string;
   /** When the run's checks landed, as ISO 8601; absent before they land. */
   readonly landed?: string;
-  /** The test files of `cases` whose recording did not run to the end, in code-unit order; their cases are not judged. */
+  /** The test files of `cases` where the runner did not end an attempt it began, in code-unit order; their cases are not judged. */
   readonly incomplete: readonly string[];
   readonly cases: readonly CheckedCase[];
 }
@@ -74,7 +74,7 @@ export interface ChecksReading {
   readonly missing: readonly MissingCheck[];
   /** Declared checks some attempt of their case entered, each counted once, in the files that ran to the end. */
   readonly entered: number;
-  /** The test files whose recording did not run to the end: no check of theirs is named missing. */
+  /** The test files where the runner did not end an attempt it began: no check of theirs is named missing. */
   readonly incomplete: readonly string[];
 }
 
@@ -118,8 +118,8 @@ export function decodeChecks(bytes: Uint8Array): ChecksSection {
  * check names it, once per attempt, and only from what that attempt entered: a
  * failed attempt that entered the check says nothing of the retry that passed.
  * One that failed, timed out or was skipped already says it did not pass. A
- * file whose recording did not run to the end names none: its last attempts
- * may have been stopped before they could enter one.
+ * file where the runner did not end an attempt it began names none: that
+ * attempt may have been stopped before it could enter one.
  */
 export function readChecks(section: ChecksSection): ChecksReading {
   const incomplete = new Set(section.incomplete);

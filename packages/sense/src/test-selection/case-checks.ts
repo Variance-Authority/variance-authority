@@ -7,6 +7,14 @@
  *
  * The declaration is read from source and never from the run: the set a run is
  * judged against exists before it, outside the results it is compared with.
+ *
+ * A file is incomplete when its runner did not end an attempt it began there: an
+ * attempt with no ending, one before the last that has no row, or one the runner
+ * interrupted. Its cases are not judged, because an attempt cut short may have
+ * passed what it reached and been stopped before a check. It is read from the
+ * attempts and not from whether the file's coverage is whole: a case that failed,
+ * or a retry that passed after it, ended, and leaves the other cases of its file
+ * to be judged.
  */
 
 // compass: variance-authority.reach
@@ -44,11 +52,7 @@ export interface RanCase {
  * judged. A check the case does not declare is not kept: it is not read from
  * the source, so nothing could be missing of it.
  */
-export function checksOf(
-  root: string,
-  cases: readonly RanCase[],
-  tests: readonly { readonly file: string; readonly complete: boolean }[],
-): ChecksSection | undefined {
+export function checksOf(root: string, cases: readonly RanCase[]): ChecksSection | undefined {
   const declared = native()?.declaredChecks?.(root, cases.map(({ file, name }) => ({ file, name })));
   if (declared === undefined) return undefined;
   const checked = cases.flatMap((ran, at): CheckedCase[] => {
@@ -64,9 +68,8 @@ export function checksOf(
   });
   if (checked.length === 0) return undefined;
   checked.sort((left, right) => codeUnitOrder(left.file, right.file) || left.line - right.line || codeUnitOrder(left.name, right.name));
-  const files = new Set(checked.map((one) => one.file));
-  const incomplete = tests.filter((test) => !test.complete && files.has(test.file)).map((test) => test.file);
-  return { incomplete: [...new Set(incomplete)].sort(codeUnitOrder), cases: checked };
+  const incomplete = new Set(checked.filter((one) => !endedAll(one.attempts)).map((one) => one.file));
+  return { incomplete: [...incomplete].sort(codeUnitOrder), cases: checked };
 }
 
 function attemptsOf(ran: RanCase, ids: ReadonlySet<string>): CheckedAttempt[] {
@@ -77,4 +80,10 @@ function attemptsOf(ran: RanCase, ids: ReadonlySet<string>): CheckedAttempt[] {
     const entered = ran.entered.filter((one) => one.attempt === attempt && ids.has(one.check)).map((one) => one.check);
     return { attempt, ...(end === undefined ? {} : { ended: end }), entered: [...new Set(entered)].sort(codeUnitOrder) };
   });
+}
+
+/** Whether the runner ended every attempt `attempts` holds and every one before the last. */
+function endedAll(attempts: readonly CheckedAttempt[]): boolean {
+  return attempts.length === (attempts.at(-1)?.attempt ?? 0)
+    && attempts.every((one) => one.ended !== undefined && one.ended !== 'interrupted');
 }

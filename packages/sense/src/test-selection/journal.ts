@@ -416,7 +416,7 @@ export async function recordExecution(
     ...(one.project === undefined ? {} : { project: one.project }),
     attempts: one.attempts,
     entered: one.checks ?? [],
-  })), tests);
+  })));
   const owned = observed.length === 0 ? undefined : ownedExecutionIndexFrom(caseJournals(observed), byId);
   const cases =
     owned === undefined

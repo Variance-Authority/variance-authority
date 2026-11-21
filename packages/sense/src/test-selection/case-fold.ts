@@ -25,7 +25,7 @@ export interface CaseFold {
   readonly eyes?: EyesSection;
   /** How each attempt of a retried case ended; absent when the runner's report counted no attempts. */
   readonly attempts?: readonly RecordedAttempt[];
-  /** The checks the cases declare and what each attempt entered (`checks-record.ts`); absent when no case declares one, or the fold was handed no `tests`. */
+  /** The checks the cases declare and what each attempt entered (`checks-record.ts`); absent when no case declares one. */
   readonly checks?: ChecksSection;
 }
 
@@ -39,8 +39,6 @@ export interface CaseFoldOptions {
   readonly tried?: CaseAttempts | undefined;
   /** Readings of files other than their own, joined into that file's record. */
   readonly readings?: ReadonlyMap<ModuleId, Reading>;
-  /** Every test file the run was handed, and whether it ran to the end; absent, the fold keeps no checks, since it cannot tell a case cut short. */
-  readonly tests?: LaidRun['tests'];
   /** Bytes of the test-by-region relation one module slice may hold. */
   readonly budget?: number;
 }
@@ -86,7 +84,7 @@ export function foldCases(
   }));
   const ids = new Map(coordinates.map((coordinate, at) => [caseKey(coordinate), cases[at]!.id]));
   const attempts = triedAttempts(coordinates, ids, options.tried, root);
-  const checks = options.tests === undefined ? undefined : checksOf(root, ranCases(cases, coordinates, options.tried, journals.checks()), options.tests);
+  const checks = checksOf(root, ranCases(cases, coordinates, options.tried, journals.checks()));
   const looked = journals.eyes();
   const eyes: EyesSection | undefined = looked === null ? undefined : {
     watched: looked.watched,
@@ -162,7 +160,7 @@ export async function freshCases(
   readings: ReadonlyMap<ModuleId, Reading> = new Map(),
 ): Promise<FreshCases | undefined> {
   const finished = run.tests.some((test) => test.complete);
-  const folded = foldCases(directory, root, modules, { durations: run.durations, limits: run.limits, tried: run.tried, readings, tests: run.tests });
+  const folded = foldCases(directory, root, modules, { durations: run.durations, limits: run.limits, tried: run.tried, readings });
   if (folded.cases === 0 && !finished) return undefined;
   return {
     fresh: folded.bytes,
