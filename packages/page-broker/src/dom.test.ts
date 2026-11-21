@@ -147,6 +147,7 @@ describe('page-broker over a document', () => {
 
     await expect(submit(counted)).resolves.toMatchObject({ outcome: 'invalid' });
     const answered = looks;
+    // Nothing announces a look that does not happen: six polls' time is the window it would fall in.
     await new Promise((done) => setTimeout(done, 300));
 
     expect(looks).toBe(answered);

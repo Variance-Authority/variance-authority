@@ -807,7 +807,7 @@
   {
     "idiom": "timer",
     "at": "packages/page-broker/src/dom.test.ts",
-    "count": 1
+    "count": 2
   },
   {
     "idiom": "fresh-page",
