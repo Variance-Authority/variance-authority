@@ -27,8 +27,10 @@ of them:
 - `--path <regex>`: a pattern over repo-relative paths.
 - `--except-from`, `--except-to`, `--except-imports`, `--except-declares`,
   `--except-path`: the same sets, taken out.
-- `--text <pattern>`: ripgrep over the files the other sets kept, never over the
-  checkout; a file with no matching line drops out.
+- `--text <pattern>`: ripgrep over the files the other sets kept, not the whole
+  checkout; a file with no matching line drops out. The sets come from the
+  published generation, the text from each file as it is on disk now, so after
+  an edit the two can disagree until `variance index` runs.
 
 ```bash
 variance ask discover --from src/TopNav.tsx --imports react#createContext --declares 'theme|user|account'

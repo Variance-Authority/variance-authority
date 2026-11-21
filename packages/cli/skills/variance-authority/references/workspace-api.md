@@ -35,7 +35,9 @@ the first argument is positional.
 - **A published generation.** `variance index` publishes one. Run it once
   before the first question, and again after you edit files: edit, run
   `variance index`, then ask. A question answers from the generation that is
-  published, at any age, and never reads the checkout to bring it up to date. It
+  published, at any age, and never reads the checkout to bring it up to date;
+  only a text match, in `grep` and `discover --text`, reads files as they are on
+  disk now. It
   does not check which files changed, and it writes no index. Every answer and
   refusal says when that generation was made and that the checkout was not
   compared with it; as JSON, `search` gives `compared: false`. With no
