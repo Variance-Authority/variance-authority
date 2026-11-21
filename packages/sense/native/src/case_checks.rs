@@ -79,11 +79,13 @@ pub fn declared_checks(root: String, cases: Vec<CheckedCaseAsk>) -> Vec<Option<D
 }
 
 /// The line of `name`'s body and the checks it declares, each with its line;
-/// `None` when no body is registered under `name` or it declares no check.
+/// `None` when no body is registered under `name`, several could be, or it
+/// declares no check.
 fn declared(parsed: &Parsed, name: &str) -> Option<(u32, Vec<(String, u32)>)> {
     let sites: HashMap<u32, u32> = parsed.calls.iter().filter_map(|call| call.callback.map(|at| (at, call.line))).collect();
     let site = |at: u32| sites.get(&at).copied().unwrap_or(parsed.fns[at as usize].line);
-    let body = test_roots(parsed, name, None)?.body;
+    // A case is judged only against the body its name picks out, never the walk's guess.
+    let body = test_roots(parsed, name, None).filter(|found| found.named)?.body;
     // What `checked` is called by in this file: its local name, or a namespace of the entry.
     let (mut named, mut spaces) = (HashSet::new(), HashSet::new());
     for (local, import) in parsed.imports.iter().filter(|(_, import)| import.spec == ENTRY) {
@@ -227,6 +229,31 @@ it(name(), () => {});
         assert_eq!(ids("draft > sends"), Some(vec!["draft".to_owned()]));
         assert_eq!(ids("adds 2"), None);
         assert_eq!(ids("other"), None);
+    }
+
+    #[test]
+    fn declares_nothing_for_a_case_whose_body_is_only_guessed() {
+        let source = "import { checked } from '@variance-authority/sense/checked';
+describe('draft', () => {
+  it('sends', () => {
+    checked('draft', () => 1);
+  });
+});
+describe(`${kind}`, () => {
+  it('sends', () => {});
+});
+";
+        // `${kind}` is spelled at run time: two bodies share the title and neither spells the name.
+        assert_eq!(read(source, "final > sends"), None);
+        assert_eq!(read(source, "draft > sends").map(|(_, checks)| checks.len()), Some(1));
+        let alone = "import { checked } from '@variance-authority/sense/checked';
+describe(`${kind}`, () => {
+  it('sends', () => {
+    checked('sent', () => 1);
+  });
+});
+";
+        assert_eq!(read(alone, "final > sends").map(|(_, checks)| checks.len()), Some(1));
     }
 
     #[test]

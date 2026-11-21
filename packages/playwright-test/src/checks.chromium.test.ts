@@ -123,6 +123,8 @@ describe.runIf(BROWSER_AVAILABLE)('a Playwright case that passes without enterin
     await run(coverageFile, { DROP_TITLE: '1' });
     expect(readingOf(coverageFile)).toContain('did not execute');
     await run(coverageFile, { DROP_TITLE: '1' }, ['--grep', 'no case is titled this', '--pass-with-no-tests']);
-    expect(readingOf(coverageFile)).not.toContain('did not execute');
+    const read = readingOf(coverageFile);
+    expect(read).not.toContain('did not execute');
+    expect(read).toContain('checks were not kept');
   }, 180_000);
 });

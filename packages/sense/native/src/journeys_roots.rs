@@ -97,6 +97,9 @@ fn glob(pattern: &str, text: &str) -> bool {
 
 pub(crate) struct Found {
     pub(crate) body: u32,
+    /// The body is spelled by the whole name, or is the only one with its
+    /// title; otherwise it is the walk's best guess among several.
+    pub(crate) named: bool,
     hooks: Vec<u32>,
     scopes: Vec<u32>,
 }
@@ -145,12 +148,10 @@ pub(crate) fn test_roots(parsed: &Parsed, name: &str, path: Option<&[&str]>) -> 
                 && path.is_none_or(|path| !placeholder(own) && on_path(at, path))
         })
         .collect();
-    let body = bodies
-        .iter()
-        .copied()
-        .find(|&at| whole(at))
-        .or_else(|| bodies.iter().copied().find(|&at| parsed.fns[at as usize].title.as_deref() == Some(title)))
-        .or(bodies.first().copied())?;
+    let titled = |at: &u32| parsed.fns[*at as usize].title.as_deref() == Some(title);
+    let spelled_whole = bodies.iter().copied().find(|&at| whole(at));
+    let named = spelled_whole.is_some() || bodies.iter().filter(|at| titled(at)).count() == 1;
+    let body = spelled_whole.or_else(|| bodies.iter().copied().find(titled)).or(bodies.first().copied())?;
     let mut chain = Vec::new();
     let mut scope = parsed.fns[body as usize].parent;
     while let Some(s) = scope {
@@ -164,7 +165,7 @@ pub(crate) fn test_roots(parsed: &Parsed, name: &str, path: Option<&[&str]>) -> 
         })
         .collect();
     let scopes = chain.iter().rev().copied().filter(|&s| describe(parsed.fns[s as usize].hint.as_deref())).collect();
-    Some(Found { body, hooks, scopes })
+    Some(Found { body, named, hooks, scopes })
 }
 
 /// Files up to three imports or re-exports out of a test file that register

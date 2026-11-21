@@ -199,8 +199,8 @@ export default class implements Reporter {
     if (directory === undefined) return;
     try {
       // A run that staged nothing — a grep or a selection that left no case —
-      // still lands, so its checks replace the record's and the run before it
-      // never answers for it.
+      // still lands, with no checks, so the record keeps none and the run
+      // before it never answers for it.
       const staged = await foldStage(directory);
       const record = await recordExecution({
         root: this.#root,

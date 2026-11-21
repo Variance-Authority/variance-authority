@@ -2746,8 +2746,9 @@ file, not from the run: each `checked` call in its
 body, and each in a function of the same file the body calls, declared at the
 line the body calls it. The id is read from the source, so it is a string
 literal; an id built at run time, a helper imported from another file or passed
-by reference, and a case whose title is built by `each` or a template declare
-nothing, and a case that bypasses such a check is not named.
+by reference, a case whose title is built by `each` or a template, and a case
+whose name no body spells while several share its title declare nothing, and a
+case that bypasses such a check is not named.
 
 During the run the call tells the running case's scope its attempt entered the
 check, then runs `fn` and returns what it returns. Outside a recording it runs
