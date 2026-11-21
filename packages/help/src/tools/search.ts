@@ -152,11 +152,13 @@ function section<Row>(head: string, found: Matches<Row>, line: (row: Row) => str
 
 /**
  * The question that lists `total` rows of a section in full: `asked` again,
- * with a `limit` that shows them all, spelled as the asker asks.
+ * with a `limit` that shows them all, spelled as the asker asks. A `limit`
+ * caps every list, so it is never below the widest cap: the question only
+ * widens the answer, and no list of the repository's own shows fewer rows.
  */
 function inFull(asked: SearchQuestion, total: number, spell: Spelling): string {
   const where = { ...(asked.from === undefined ? {} : { from: asked.from }), ...(asked.to === undefined ? {} : { to: asked.to }) };
-  return `${spell.question(search, { query: asked.query, ...where, limit: total })} lists them in full.`;
+  return `${spell.question(search, { query: asked.query, ...where, limit: Math.max(total, CAP) })} lists them in full.`;
 }
 
 /** What a search says of what it found, to `asked`. */

@@ -55,7 +55,7 @@ it('answers a description with the repository\'s own names first, and the packag
   // Neither the phrase nor every word is in the name, so only the words held answer it.
   expect(said).toMatch(/managedFor .*\[holds: management, state\]/);
   // The repository answered, so the package that describes it is named on one line after its rows.
-  expect(said).toMatch(/^1 package describes `state management`: react\. `docs_search` with `query` `state management` and `limit` `1` lists them in full\.$/mu);
+  expect(said).toMatch(/^1 package describes `state management`: react\. `docs_search` with `query` `state management` and `limit` `20` lists them in full\.$/mu);
   expect(said).not.toContain('react @1.0.0');
   expect(said.indexOf('managedFor')).toBeLessThan(said.indexOf('describes `state management`'));
 

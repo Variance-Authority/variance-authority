@@ -95,7 +95,7 @@ it('names a matching installed name on one line when a workspace name answers to
   const said = answerSearch(searchIndexOf(readHelp(root)), { query: 'betaOwnName' }, treeOf([], root), root);
 
   expect(said).toContain('packages/beta/src/fixtures.ts');
-  expect(said).toMatch(/^1 third-party name matches `betaownname`: beta-kit · betaOwnName\. `docs_search` with `query` `betaOwnName` and `limit` `1` lists them in full\.$/mu);
+  expect(said).toMatch(/^1 third-party name matches `betaownname`: beta-kit · betaOwnName\. `docs_search` with `query` `betaOwnName` and `limit` `20` lists them in full\.$/mu);
   expect(said).not.toContain('· dependency in packages/beta/package.json');
 });
 

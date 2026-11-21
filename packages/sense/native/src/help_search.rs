@@ -7,6 +7,7 @@
 
 // compass: variance-authority.report.agent-surface
 
+use std::borrow::Cow;
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::sync::LazyLock;
 
@@ -61,10 +62,16 @@ pub(crate) fn terms_of(split: &Regex, text: &str) -> HashSet<String> {
     found
 }
 
-/// A doc's terms by `terms_of`, less the name of each inline doc tag: `code`
-/// in `{@code x}` is markup, as `each_word` reads it, and no term of the doc.
+/// A doc's terms by `terms_of`, read `without_inline_tags`.
 pub(crate) fn doc_terms(split: &Regex, doc: &str) -> HashSet<String> {
-    terms_of(split, &INLINE_TAG.replace_all(doc, "{"))
+    terms_of(split, &without_inline_tags(doc))
+}
+
+/// `text` less the name of each inline doc tag: `code` in `{@code x}` is
+/// markup, no word of the doc. The one reading of it, for the store's terms
+/// and the phrase reader alike.
+pub(crate) fn without_inline_tags(text: &str) -> Cow<'_, str> {
+    INLINE_TAG.replace_all(text, "{")
 }
 
 /// An inline doc tag's opening and its name: `{@code`, `{@link`, `{@inheritDoc`.
