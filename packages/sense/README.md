@@ -1345,7 +1345,9 @@ per window the driver closed, each an `owner`, the drained `journal`, optional
 finish and keeps it from ever justifying a skip. `commit` overrides where the
 recording stands, which otherwise reads the checkout's `HEAD`. A case in `cases`
 carries the checks each of its attempts entered, as [`checked`](#name-the-check-a-case-is-there-for)
-tells its scope, and the run's checks are built from them.
+tells its scope, and the run's checks are built from them. Pass `partial: true`
+when `cases` holds only this process's share of the run: no checks are kept
+then, because the last share to land would replace the others'.
 
 Recording refuses in one direction only. Each of these records **nothing** and
 prints why, costing the next run its full suite:
