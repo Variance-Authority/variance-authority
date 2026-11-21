@@ -31,4 +31,3 @@ latest release. Below, each path names the references that cover its steps.
   starts at [ask a run](ask-a-run.md)), then where it [parted from a passing test](https://variance-authority.dev/docs/journeys);
   a run that has not ended starts at [live run](live-run.md), then
   [interrogate the test](https://variance-authority.dev/agents/interrogate).
-

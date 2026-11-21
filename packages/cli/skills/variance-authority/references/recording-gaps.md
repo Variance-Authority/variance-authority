@@ -58,4 +58,3 @@ what each edit reached, both legs, as [test selection](test-selection.md#test-an
 says; these bullets fill one answer's gap. A run of the whole suite is the gate
 before a change is done, and it is how the record is brought up to a commit. It
 is not how one answer's gap is filled.
-
