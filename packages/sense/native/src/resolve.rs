@@ -316,7 +316,11 @@ impl Resolvers {
 
     /// Where a path a resolver found lands: a repository file, somewhere a scan
     /// records nothing, or a file that only matched because the disk ignores case.
+    /// The resolver follows links and answers with canonical paths, so they
+    /// strip against the canonical root, whatever spelling the caller handed in.
     fn land(&self, root: &Path, request: &str, path: &Path, known: Option<&HashMap<String, u32>>) -> Landing {
+        let root = self.canonical(root);
+        let root = root.as_path();
         let resolved = match self.emitted.origin(path) {
             Origin::Source(source) if self.emitted.vouched(&source) => Cow::Owned(source),
             // The resolver never saw the source, so a link there is read
