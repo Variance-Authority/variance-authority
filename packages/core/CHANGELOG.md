@@ -1,5 +1,11 @@
 # @variance-authority/core
 
+## 0.35.0
+
+### Patch Changes
+
+- 448a07a: The JSDoc of `Location.where` and `Finding.where` spells a list position the way `locate` prints it: `main → region "Todos" → list item 2 of 3`, not `item 2 of 3`.
+
 ## 0.34.0
 
 ### Minor Changes
