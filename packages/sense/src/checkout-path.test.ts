@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { checkoutPath, existedAt, existingAt, trackedPaths } from './checkout-path.js';
+import { checkoutPath, existedAt, existingAt } from './checkout-path.js';
 
 /** What a commit held, asked of a real repository: of one path, and of many in one listing. */
 
@@ -66,22 +66,5 @@ describe('checkoutPath', () => {
     expect(checkoutPath(root, '../elsewhere.ts')).toEqual({
       outside: `../elsewhere.ts is outside the checkout at ${root}, and the recording holds only paths inside it.`,
     });
-  });
-});
-
-describe('trackedPaths', () => {
-  it('names every file git tracks, literally, and no untracked one', async () => {
-    await writeFile(join(root, 'src/loose.ts'), 'export {};\n');
-
-    expect(trackedPaths(root)).toEqual(['src/held.ts', 'src/odd [name].ts']);
-  });
-
-  it('says why when the directory is no checkout', async () => {
-    const outside = await realpath(await mkdtemp(join(tmpdir(), 'variance-no-checkout-')));
-    try {
-      expect(trackedPaths(outside)).toHaveProperty('unread');
-    } finally {
-      await rm(outside, { recursive: true, force: true });
-    }
   });
 });

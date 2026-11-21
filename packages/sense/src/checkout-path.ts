@@ -50,11 +50,6 @@ export function checkoutListing(root: string, path: string): CheckoutListing {
   return { file: false, directory: false, ignored: ignored.length > 0 };
 }
 
-/** Every file git tracks in the checkout at `root`, repository-relative, in git's order. */
-export function trackedPaths(root: string): readonly string[] | { readonly unread: string } {
-  return gitNames(root, ['ls-files', '-z', '--cached']);
-}
-
 /**
  * Whether `path`, a repository-relative path, existed at `commit`: git lists
  * something there in that commit's tree. A recording made at a commit that did
@@ -101,13 +96,10 @@ function batchesOf(paths: readonly string[]): readonly (readonly string[])[] {
   return batches;
 }
 
-/** The most a listing prints: a whole checkout of a few hundred thousand files, which `execFileSync`'s 1 MB default refuses. */
-const LISTING_BYTES = 1 << 30;
-
 /** The names a git listing gives, or the first line git gave for not answering. */
 function gitNames(root: string, args: readonly string[]): readonly string[] | { readonly unread: string } {
   try {
-    const listed = execFileSync('git', ['--literal-pathspecs', ...args], { cwd: root, encoding: 'utf8', maxBuffer: LISTING_BYTES, stdio: ['ignore', 'pipe', 'pipe'] });
+    const listed = execFileSync('git', ['--literal-pathspecs', ...args], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
     return listed.split('\0').filter((name) => name !== '');
   } catch (error) {
     const said = error instanceof Error && 'stderr' in error ? String(error.stderr) : String(error);

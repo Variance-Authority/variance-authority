@@ -3,7 +3,7 @@
 import { relative } from 'node:path';
 import { START_POINT_SCHEMA, saysStartPoint, startPointArg, type Tool, type ToolInvocation } from '@variance-authority/mcp/tools';
 import type { Help } from '@variance-authority/package/help';
-import { declaredDescribedOf, describedWordsNative, packageLayers, sourceIndexPath, trackedPaths } from '@variance-authority/sense';
+import { declaredDescribedOf, describedWordsNative, packageLayers, sourceIndexPath, trackedFiles } from '@variance-authority/sense';
 import { searchIndexOf } from '../snapshot.js';
 import { areaLine, areaOf } from './area.js';
 import { rankedAreas, type Declared } from './classify-areas.js';
@@ -144,10 +144,15 @@ export const classify: Tool<Help> = {
     // The map names the packages, so without one nothing is classified.
     const places = placesOf(root);
     if (typeof places === 'string') return places;
-    // The tree the words point to, read from what git tracks; a checkout git
+    // The tree the words point to, read from what HEAD holds; a checkout git
     // cannot list ranks no area, and the entities are answered all the same.
-    const tracked = trackedPaths(root);
-    const scoped = 'unread' in tracked ? { paths: [] } : scopedPaths(tracked, input, invocation);
+    let tracked: readonly string[] = [];
+    try {
+      tracked = trackedFiles(root);
+    } catch {
+      // No commit to read, or no checkout: no area is ranked.
+    }
+    const scoped = tracked.length === 0 ? { paths: [] } : scopedPaths(tracked, input, invocation);
     const areas = scoped.paths.length === 0 ? [] : rankedAreas(query, scoped.paths, declaredOf(help, root, query));
     const answer = formatClassified(classifyWords(query, help, places.packages.keys()), places, areas);
     return scoped.line === undefined ? answer : `${scoped.line}\n\n${answer}`;
