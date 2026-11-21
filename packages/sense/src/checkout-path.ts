@@ -11,7 +11,6 @@
 // compass: variance-authority.reach.relations
 
 import { execFileSync } from 'node:child_process';
-import { codeUnitOrder } from '@variance-authority/core/segment';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
 
 /** The repository-relative spelling of `asked`, or why it has none. */
@@ -100,7 +99,7 @@ function batchesOf(paths: readonly string[]): readonly (readonly string[])[] {
 /**
  * The files git tracks whose name, its last extension dropped, is one of
  * `bases` — `lib/child_process.js` for `child_process` — keyed by that base,
- * the first `cap` of each in code-unit order and how many there are; a base no
+ * the first `cap` of each in code-unit order (`sort` with no comparator) and how many there are; a base no
  * file is named is absent. Git matches the names, so only the files named
  * cross. A base that holds `/`, a glob character or nothing is no file name,
  * and is not asked.
@@ -126,7 +125,7 @@ export function filesNamed(
     held.push(file);
     named.set(base, held);
   }
-  return new Map([...named].map(([base, held]) => [base, { files: held.sort(codeUnitOrder).slice(0, cap), count: held.length }] as const));
+  return new Map([...named].map(([base, held]) => [base, { files: held.sort().slice(0, cap), count: held.length }] as const));
 }
 
 /** The names a git listing gives, or the first line git gave for not answering; `literal` reads every pathspec as a path, never as a pattern. */
