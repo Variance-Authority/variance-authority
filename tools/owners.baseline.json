@@ -812,7 +812,7 @@
   {
     "idiom": "fresh-page",
     "at": "packages/page-broker/src/playwright.chromium.test.ts",
-    "count": 3
+    "count": 4
   },
   {
     "idiom": "timer",

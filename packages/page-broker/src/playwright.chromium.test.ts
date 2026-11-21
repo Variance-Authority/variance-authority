@@ -106,6 +106,8 @@ function looking(query: Query, look: (visible: () => Promise<unknown>) => Promis
   };
 }
 
+// A navigation per case: where the app goes is what these cases measure, so
+// each starts on its own document rather than a story switched in place.
 async function open(query: string): Promise<void> {
   await page.goto(`${ORIGIN}/checkout?${query}`);
 }
@@ -142,7 +144,8 @@ async function fresh(): Promise<void> {
 }
 
 // One browser, one context and one page, on Playwright alone: the package
-// stands on nothing else here, the harness's page pool included. Each case
+// never joins the playwright packages, so `browsers.ts` and `PagePool` are
+// not its to lease from. Each case
 // moves the page to its own document.
 beforeAll(async () => {
   if (!BROWSER_AVAILABLE) return;
