@@ -2,10 +2,8 @@
 '@variance-authority/cli': patch
 ---
 
-Guide orientation from a known owner through import relations and file predicates. The skill distinguishes targeted `discover` and `intersection` questions from the exhaustive `uses` inventory, whose `--from` flag sorts rather than filters. The skill opens with a table of the main source questions — `classify`, `orient`, `search`, `symbol`, `uses`, `discover`, `intersection` and `grep` — each with what it answers and an example.
+The skill opens with one table of source questions — `classify`, `orient`, `search`, `symbol`, `uses`, `discover`, `intersection` and `grep` — each with what it answers, an example and a link to its own complete reference. A focused orientation reference shows how to cross a known import relation with a path, declaration or text predicate instead of listing every importer with `uses`, whose `--from` sorts rather than filters.
 
-Route coding tasks to a focused orientation reference, keeping complete argument and answer contracts in one reference per question. The question table links each contract directly; the shared workspace reference keeps setup and the old section links. Prefer concrete source text to paraphrased name queries, and show how to search text in one exact file without traversing its dependencies.
+Recording-gap repair and the golden paths load from their own references when those questions arise. The gap reference follows the run each gap names, including Deep stories, partial test files and whole-suite selection.
 
-Document MCP `docs_discover` support for declaration patterns and module-name import filters.
-
-Route text questions about one named file directly to exact-path `discover --text` in the skill's question table.
+The MCP reference documents `docs_discover` support for declaration patterns and module-name import filters.

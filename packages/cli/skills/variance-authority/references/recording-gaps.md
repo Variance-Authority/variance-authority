@@ -20,15 +20,17 @@ because selection runs the whole suite:
   `VARIANCE_AUTHORITY_STORY=1`, then read their stories with the commands in
   `gap.next`, as [Fast, Smart, Deep](fsd.md#an-answer-ends-with-its-gap) describes.
 - **A file the record is older than** — `covering`'s `older`: the commit the
-  record was made at did not hold the file, so the file is new. Run
-  `variance index`, then the test files `variance select` names for the file,
-  including every test file the record holds only in part. Follow the gap's
-  named whole-suite run when selection declines to narrow. Then run
-  `variance reach --since <commit>` with the commit the
+  record was made at did not hold the file, so the file is new. Two steps fill
+  it. First run what the gap's run line names, `gap.run` under `--format json`:
+  the recorded test files selection runs for the file, every test file the
+  record holds only in part among them, or the whole suite when selection runs
+  it. Take the files from the gap, not from `variance select`, which prints a
+  skip list; a gap with no run line has no recorded test to run. Then run
+  `variance index` and `variance reach --since <commit>` with the commit the
   refusal names: it takes every file added since the record at once, with no
   record needed, and lists the files each one reaches over imports. Run the
-  test files in that list. A ref such as `origin/main` diffs from its merge base
-  with `HEAD`, which can already hold the file.
+  test files in that list. A ref such as `origin/main` diffs from its merge
+  base with `HEAD`, which can already hold the file.
 - **Lines written since the recording, or recorded over another text since, in
   a file the record holds** — `covering` answers a line your edit wrote with no
   case and names it in `written`. A line a case ran over, where a run over
