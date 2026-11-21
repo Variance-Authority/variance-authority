@@ -9,7 +9,7 @@ import { main } from '../bin.js';
 import { EXIT_CLEAN } from '../exit.js';
 // Sense publishes the reader of these two and not their writers, which only
 // a recording run calls, so this writes a record the way that run does.
-import { encodeChecks, type ChecksSection } from '../../../sense/src/test-selection/checks-record.js';
+import { landedChecks, type ChecksSection } from '../../../sense/src/test-selection/checks-record.js';
 import { commitRunsText } from '../../../sense/src/test-selection/commit-runs-text.js';
 
 /**
@@ -40,7 +40,7 @@ async function recorded(checks: ChecksSection | undefined): Promise<string> {
   await writeTestCoverage(at, { version: 3, instrumentation: 'fixture-instrumentation', commit: COMMIT, tests: [], modules: [] });
   writeFileSync(at, withCaseSections(readFileSync(at), {
     index: encodeExecutionIndex({ tests: [], modules: [] }),
-    ...(checks === undefined ? {} : { checks: encodeChecks(checks) }),
+    ...(checks === undefined ? {} : { checks: landedChecks(checks, COMMIT) }),
   }));
   writeFileSync(commitRunsFile(at), commitRunsText({ commit: COMMIT, latest: new Date().toISOString(), runs: 1, landings: [] }));
   return at;

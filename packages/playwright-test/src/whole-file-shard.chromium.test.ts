@@ -1,6 +1,5 @@
-import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
-import { decodeExecutionIndex } from '@variance-authority/sense/test-selection';
+import { decodeExecutionIndex, keepsCases } from '@variance-authority/sense/test-selection';
 import { afterAll, describe, expect, it } from 'vitest';
 import { BROWSER_AVAILABLE, removeRuns } from './runs.fixture.js';
 import { passing } from './sharded-files.fixture.js';
@@ -20,10 +19,10 @@ afterAll(removeRuns);
 
 const fileSet = (files: readonly string[]) => [...new Set(files)].sort();
 
-/** Each recorded case's file, run by a shard that passed. */
+/** Each recorded case's file, run by a shard that passed; a record that keeps no case index ran none. */
 async function shardFiles(args: readonly string[]): Promise<{ readonly files: readonly string[]; readonly ran: readonly string[]; readonly stderr: string }> {
   const { coverageFile, ran, stderr } = await passing(args);
-  if (!existsSync(coverageFile)) return { files: [], ran, stderr };
+  if (!keepsCases(coverageFile)) return { files: [], ran, stderr };
   const index = decodeExecutionIndex(await readFile(coverageFile));
   return { files: index.tests.map((test) => test.id.split(' > ')[0]!).sort(), ran, stderr };
 }
