@@ -152,19 +152,9 @@ async function askSuite(request: CoveringQuestion, suite: DeclaredSuite, graph: 
 }
 
 /**
- * Say either answer in the shape the caller asked for.
- *
- * Once any suite answered, the answers come first. A suite that has never run
- * follows them, and one that never loaded the file is named on the closing line
- * without its record's path or size: the reader came for the answer, and a
- * suite that tests other code is the common case, not a finding. Every other
- * refusal keeps its place and its whole sentence. When no suite answered,
- * every refusal is printed in full, since a wrong path is then the likely
- * cause. JSON carries every refusal whole either way. Under `refs` no gap is
- * said: the list is for a runner, and {@link answerGaps} hands the gaps to the
- * caller for the person. Each record is dated against `now`, in ms. The
- * text ends with the question that asks each suite's next page, spelled from
- * `asked` with that suite named, so the last line is the one to run next.
+ * Say either answer in the shape the caller asked for, each record dated
+ * against `now`, in ms. Answers come before refusals, and the text ends with
+ * each suite's next page, spelled from `asked`. JSON carries every refusal whole.
  */
 export function formatCoveringAnswer(
   answer: Covering | CoveringSuites,
@@ -180,6 +170,7 @@ export function formatCoveringAnswer(
   const next: string[] = [];
   const say = (one: SuiteAnswer): string => {
     const head = `${named(one)}:`;
+    // Under `refs` no gap is said: the list is for a runner, and answerGaps hands the gaps to the caller.
     const gap = one.gap === undefined || format === 'refs' ? '' : `${evidenceGapText(one.gap).replace(/^/gmu, '  ')}\n`;
     if ('reason' in one) return `${head} ${one.reason}\n${gap}`;
     if (format === 'refs') return `${head}\n${formatCovering(one, format, now)}`;
@@ -187,11 +178,14 @@ export function formatCoveringAnswer(
     next.push(...said.next.map((line) => `${head} ${line}`));
     return `${head}\n${said.lines.map((line) => line.replace(/^(?=.)/gmu, '  ')).join('\n')}\n`;
   };
+  // When no suite answered, every refusal is said in full: a wrong path is then the likely cause.
   if (answer.suites.every((one) => 'reason' in one)) return answer.suites.map(say).join('\n');
 
   const unrecorded = (one: SuiteAnswer): boolean => 'reason' in one && one.refused === 'unrecorded';
   const away = (one: SuiteAnswer): boolean =>
     'reason' in one && one.refused === 'unloaded';
+  // A suite that never ran follows the answers; one that never loaded the file is named on one closing line,
+  // since a suite that tests other code is the common case, not a finding. Every other refusal keeps its place.
   const said = [
     ...answer.suites.filter((one) => !unrecorded(one) && !away(one)),
     ...answer.suites.filter(unrecorded),
