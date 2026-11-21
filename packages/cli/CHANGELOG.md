@@ -1,5 +1,76 @@
 # @variance-authority/cli
 
+## 0.35.0
+
+### Minor Changes
+
+- 92d168e: `variance ask` answers past a flag the question does not take, or one no question takes, instead of refusing it. Each is named on standard error with the flags the question takes and the nearest spelling, and the answer exits `0`. A missing required argument, a malformed value and a stray word are still refused, and every other command still refuses an unknown flag.
+- 0fcfe8f: `variance ask classify --query <words>`, and `docs_classify` over MCP, say which words of a request are, whole, a package on the code map, an entrypoint or an exported name the workspace publishes, each with its package's area and dependency layer. A private package that publishes nothing is still named. The words that name nothing are listed on one line. Without a code map the answer names `variance index` and classifies nothing; a map folded from an earlier source index says so.
+
+  `packageLayers` gives each package's `area`: the innermost area of the code map whose page lists it.
+- 615942f: Refuse question arguments without a question
+
+  `variance ask --to src/entry.ts` and other questionless argument requests now exit with code `2` and a short diagnostic. Name the question with `variance ask <question> ...`. Bare `variance ask` still lists questions, and explicit help still succeeds.
+- 8239881: `variance cargo` records a Cargo test suite by the functions each test ran
+
+  It builds the tests once with rustc's `-C instrument-coverage`, in a `variance` directory under Cargo's target directory, runs each test alone, and writes the suite's record: one row per test target, such as a crate's unit tests or a file under `tests/`, one case per test by its libtest path; an `#[ignore]`d test is not run. A target with its own `main` (`harness = false`) runs once as `cargo test` runs it; it, or one with a test whose process or a process it started left no counters to read, is recorded incomplete, so any change selects it; the counters are written as they count, so a process that aborts or calls `_exit` is recorded. What runs as a crate compiles, a `const fn` or a `macro_rules!` macro, is charged to every test of each target that compiled its file. A change to a manifest, the lockfile, Cargo's configuration, the toolchain file, a build script, a file it names by `rerun-if-changed`, every file of its package when it names none, a file the source includes by `include_str!` or `include_bytes!`, or a path dependency under the repository root the workspace leaves out selects every target. A test that starts a workspace binary through `CARGO_BIN_EXE_*` is charged with what that process ran. A Cargo `runner` is not used. `variance select` and `variance covering` answer a Rust change from it. What follows `--` goes to `cargo test`, and a test filter, or a libtest flag after a second `--`, is refused; doctests are not run. The command exits `0` when every test passed and `101` otherwise.
+
+  `@variance-authority/sense` exports `recordCargo`, and its native addon reads `.rs` files as modules whose regions are their functions, and reads the profiles with no `llvm-cov`.
+- 2e70b99: `variance covering` answers in text a page at a time. A whole file names each test file whose cases called into it once, the most cases first, with its case count, instead of listing every range with every case under it. The ranges no case called into are one line per state; a range is named only when it has something of its own to say, such as lines that moved or text written over since it ran, and the regions no case entered are said once for the file. A line or a function keeps its file rows, nearest first. Either shows ten test files and three cases under each, counts the rest, and ends with the question that asks the next page, spelled whole; `--limit` and `--offset` page it as they page every `ask` listing. On a module 40 test files enter, the whole-file answer fell from 544 KB to 9 KB. `--format json` and `--format refs` name every case, so they refuse `--limit` and `--offset`; a whole file's JSON now also carries `files`, the same test file rows, and a case that only loaded the module on one range but called into another is counted as a caller.
+
+  The `record of "<suite>"` line a checkout's own record writes names the latest state its runs landed over and counts the distinct test files of the earlier ones, instead of naming every state, so it no longer grows with every local run.
+
+  In `@variance-authority/mcp/tools`, `nextPage` takes the question a caller can spell at a given offset, and then names that whole question as the next page instead of the bare `offset`.
+- cafa7c9: `variance ask not-run` names each check a Playwright test declared and an attempt passed without executing: `expected check <id> did not execute in case <name>`, with the file and line of the case and its project, so a test that passed without its check is told apart from one that checked. A test declares a check with the annotation `variance:check` and runs it as a step of the same title. The reporter records the checks each attempt entered and the scope the run was asked for — projects, `grep`, shard — and a run stopped before Playwright ended it names no check missing.
+- 6e4ecc9: `ask search` and `ask symbol` take `--limit`
+
+  `--limit <n>` sets how many rows each list of the answer shows, so a cut list can be read whole. MCP clients pass it as `limit` to `docs_search` and `docs_symbol`. Without it, each list keeps its own cap. For `search`, that is 40 published names, 20 installed ones, 25 of each other kind, and 15 loose or described ones. For `symbol`, it is 5 declarations or members of each kind, and 100 installed declarations. `--format json` applies the same caps.
+
+  Every line that counts the rows left out now says that a higher `--limit` shows them. In `symbol` it keeps what it counts: "2 more declarations of `keyOf` not shown." now reads "2 more declarations of `keyOf` not shown; a higher `--limit` shows them.". In `search`, whose lists are headed, "24 more matches not shown." now reads "24 more not shown; a higher `--limit` shows them.". Without `--limit`, the rows and the counts are unchanged. When `ask uses` finds no declaration of a member, its list of the containers that lack it takes `--limit` the same way.
+
+  `@variance-authority/mcp/tools` exports `notShownPast` and the `Rows` a cut line names, and `notShown` takes `rows`.
+
+### Patch Changes
+
+- 99f3ac3: `variance ask classify`, and `docs_classify` over MCP, rank the areas of the tree a request's words point to after its entities, ten at most, best first: a directory of at most 500 tracked files, scored by the words its path, its files' names and the top-level names its files declare, exported or not, hold, a word held by fewer areas counting for more. Each area names the package on the code map nearest at or above it, with that package's area and layer on the code map. A request that names no declared name, as most do, still points somewhere, and `search` is asked next from the best area that declares a name, or from the start point the asker said. `--from` and `--to` rank only the files a start point reaches along the imports: in a monorepo of many products, a product's folder and the shared code it imports, in a nested workspace whose members reach beside its directory as in any other.
+
+  `saysStartPoint(input)` says whether a call named `from` or `to`, the `wants` of every tool that takes a start point. `saturation(held, length, total, rows)` is the BM25 saturation of a term's count in thousandths, which `search`'s described rows and `classify`'s areas share.
+- ae732b1: `variance ask discover`, `intersection`, `grep`, `uses` and `symbol` answer in fewer lines and say each fact once. Each answer opens with the answer: `673 files in all of them, nearest first:`, `15 matching lines in 4 files, nearest first:`. `discover` gives one row per file, with its import counts before the path; the chain tail every row shares is printed once as `chains end: …`. `grep` lines and `symbol`'s `Members:` share one grouping: a file with one line is `path:line: text`, and a file with several is its path, then `  line: text` under it. A `uses` row under a heading that already names its package or its file leaves the package off. A `symbol` local name whose declaration the answer already gave says so in one line instead of answering it again. Notes come on trailing `note:` lines, before the paging line and the snapshot.
+- bc5b496: `variance ask discover`, `grep` and `intersection` take `--offset` (`offset` over `serve` and MCP). When an answer has more rows than its page, it ends with how many remain and the offset that shows the next page, ``2023 more not shown; `--offset` 50 shows the next 50.``, instead of pointing to a higher `--limit`, which showed the whole list again. A page that does not start at the first row says which rows it shows, `Rows 51–100 of 2073.`, and an offset past the last row says so. `ask grep --test` pages each suite's ran, not taken and written lines as one list. `ask stack` writes the same lines, so over `serve` and MCP it names `offset` rather than `--offset`. Questions whose answer holds several lists, such as `symbol`, `uses` and `search`, keep `--limit`.
+- a193258: `variance ask search` answers in fewer lines. When the repository answers, the installed names and the packages that describe your words are each one line naming up to five and the question that lists them in full, which a `--limit` you say does too, and the line saying no installed name matched is left out; a suite whose recorded cases were not read is named on one line, and only when the repository answered with no row; the near-match and loose headings are one short line; and an answer holding a row of this repository ends with `Next:` and the question for its first declaration, or for its first recorded test case when no declaration answered, spelled as you ask: a command in the shell, a tool and its input over MCP. Each list shows at most 20 published rows and 10 of every other kind unless `--limit` says more.
+- 7044b21: Print discovery paths once per evidence group
+
+  `variance ask discover` prints each file as a heading, with line numbers and
+  evidence text beneath it. Numbered evidence lines no longer repeat
+  the heading's path. Matching, order, limits, counts and warnings stay the same.
+- 71a1b02: `variance ask discover --imports <file>#<name>`, and an `intersection` crossing it, no longer read every file's names when each `imports` and `exceptImports` operand is a name out of a repository file: the source index answers those alone. On a generated 264,000-file monorepo the question took 0.5 s and 1.6 GB peak instead of 7.5 s and 4.9 GB.
+- 70ef974: `discover --imports`, `--declares` and their `--except-` sets are answered by one pass over the source index's parses, on every core, rather than by building every file's names for JavaScript to filter. A file is turned into a row only when it matches. A `--declares` pattern is now read in the syntax of Rust's `regex` crate, which has no lookaround or backreferences; a pattern it cannot read is refused with its reason.
+
+  An MCP host that hands `discover` the tree and the checkout now gets its name sets answered, and so do `variance serve` and the help server, which hand it the published index their generation was read off through `serve`'s new `sourceIndex` option; before, they were refused because no names were read with the tree. A tree read under some directories answers its name sets from its own files only.
+
+  `namesFilterOf` is added to `@variance-authority/sense`, and `readSourceParses` with `IndexedParse` is removed. `@variance-authority/mcp` no longer exports `readIndexedNames`, `namesOf`, `DeclaredName`, `FileNames`, `ImportedName` or `SourceNames`, and a tool invocation carries `sourceIndex` — the index the tree was read from — in place of `names`, and a `Tree` read by `readTree` names that index as `index`. `@variance-authority/help` replaces `readGenerationNames` with `generationSourceIndex`, and `readNamedTree` no longer takes the question's input.
+- 0d30371: `ask orient --files` shows three declaration entries per external dependency
+  and counts the rest. Its printed `--declarations` command expands every entry
+  without changing import evidence or the index.
+  The expansion is spelled for the calling CLI or MCP surface; standalone CLI
+  boolean switches are read from the shared question schema.
+- 544416a: Route feature orientation directly from candidate names to their source and
+  relations. Clarify source grep, import reach, runtime path loaders and examples
+  that represent the requested data state.
+- 80c3fa8: Intersection answers now label near and loose search candidates for each operand. File-set producers can supply a qualification that composition displays with their evidence. Candidate membership and pagination are unchanged.
+- 3f156b3: Count private top-level declaration names in `ask classify` vocabulary lengths,
+  including names unrelated to the request, so changing export visibility alone
+  does not favor an area with the same declaration names.
+- f524a0a: Keep the same search candidates inside an intersection
+
+  `variance ask intersection` now retains the files found by every evaluated
+  section of a search, including private declarations, members, nested functions,
+  import aliases, recorded test names and described or loose candidates. Matches
+  beyond display caps and other matching files of a grouped name remain eligible.
+  The search's scope, matching rules and standalone output stay the same.
+- 2880c9a: `withTestSelection` takes `record: false` on Vitest: the run selects and places its files from the record as a recorded run would, and instruments, writes and lands nothing, so a second configuration, such as one that shares modules between files, runs the same selection without a second record of it. A file whose cases the selection cuts runs whole.
+- cafef5f: `variance index --wait`, and `variance index` in CI, now make the code map, the journeys, the dependency lexicon and the questions in the same process of their own a workstation's `index` starts, and wait for it to end, rather than making them in the process that walked the source index. Their memory is no longer added to what the walk holds: on a cold run over a checkout of about 200,000 files, on an M4 Max with 64 GB and Node 24, the walking process's peak resident memory fell from about 2.3 GB to about 1.8 GB. The run takes about a second and a half longer, because that process brings the index up to date before it starts. The lines printed and the exit are the same; that process's lines are also written to the log beside the index, and its progress goes to stderr as it comes.
+
 ## 0.34.0
 
 ### Minor Changes
