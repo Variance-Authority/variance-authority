@@ -235,28 +235,22 @@ refused: `nothing` is not published by this workspace, and no published name con
 
 kit · freeze [function] imported in 1 place in 1 package — Freezes a value and everything it holds.
 
-No recorded case was read: no run kept its cases there.
-
-Next: `variance ask symbol --name freeze --package kit`
+Next: `variance-authority-help symbol --name freeze --package kit`
 Snapshot <masked>
 
 ## search --query numbers add
 No export, top-level declaration or member of a class, an interface or a type in this repository, nor the doc of one, nor a function inside a function, writes `numbers add`. The nearest follow.
-
-No recorded case was read: no run kept its cases there.
 
 Near matches, not exact: 2 hold most of `numbers add`:
 
 kit · count [function] imported in 1 place in 1 package — Adds the numbers it is given. [holds: add, numbers]
 tally — kit · packages/kit/src/tally.ts:2 — Adds the numbers it is given. [holds: add, numbers]
 
-Next: `variance ask symbol --name count --package kit`
+Next: `variance-authority-help symbol --name count --package kit`
 Snapshot <masked>
 
 ## search --query clock time
 No export, top-level declaration or member of a class, an interface or a type in this repository, nor the doc of one, nor a function inside a function, writes `clock time`. The nearest follow.
-
-No recorded case was read: no run kept its cases there.
 
 Near matches, not exact: 3 hold most of `clock time`:
 
@@ -264,7 +258,7 @@ kit · Clock [interface] imported in 1 place in 1 package — A source of the ti
 packages/kit/src/clock.ts [file] — kit [holds: clock]
 kit/extra · walk [function] imported in 1 place in 1 package — Walks a tree, one level at a time. [holds: time]
 
-Next: `variance ask symbol --name Clock --package kit`
+Next: `variance-authority-help symbol --name Clock --package kit`
 Snapshot <masked>
 
 ## packages
