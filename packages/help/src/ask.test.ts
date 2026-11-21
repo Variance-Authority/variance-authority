@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { treeOf, type FileRecord } from '@variance-authority/mcp/tools';
 import { readHelp } from './walk.js';
 import { verbOf } from '@variance-authority/mcp/tools';
-import { ask, inputFrom, toolNamed, verbs } from './ask.js';
+import { ask, inputFrom, invocationOf, toolNamed, verbs } from './ask.js';
 import { HELP_TOOLS } from './tools.js';
 
 const WORKSPACE = join(dirname(fileURLToPath(import.meta.url)), './__fixtures__/workspace');
@@ -19,9 +19,10 @@ describe('a verb is a tool, not a second implementation of one', () => {
     for (const tool of HELP_TOOLS) expect(toolNamed(verbOf(tool))).toBe(tool);
   });
 
-  it('answers a verb with exactly what the tool answers', () => {
+  it('answers a verb with exactly what the tool answers when asked from this binary', () => {
+    // The questions an answer names are spelled as asked, so the tool is run as the verb runs it.
     const tool = toolNamed('search');
-    expect(ask(READING, 'search', ['deep'])).toBe(tool.run(READING, { query: 'deep' }));
+    expect(ask(READING, 'search', ['deep'])).toBe(tool.run(READING, { query: 'deep' }, invocationOf({})));
   });
 
   it('spells the inputs and the questions an answer names as this binary takes them', () => {

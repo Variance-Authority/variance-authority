@@ -43,11 +43,14 @@ describe('the workspace store version', () => {
   });
 
   it('refuses a store of another version', async () => {
+    // The version is read off the store this reader writes, so the test follows every bump.
     const bytes = Buffer.from(stored('2026-10-17T23:59:59.000Z'));
-    const version = bytes.indexOf('"version":7');
-    bytes.write('"version":6', version);
+    const [field, written] = /"version":(\d+)/.exec(bytes.toString('latin1')) ?? [];
+    if (field === undefined || written === undefined) throw new Error('the store names no version');
+    const current = Number(written);
+    bytes.write(`"version":${current - 1}`, bytes.indexOf(field));
     await writeFile(workspaceSnapshotPath(index), bytes);
-    await expect(readWorkspaceSnapshot(root, { index })).rejects.toThrow('written in format version 6, and this reader reads version 7');
+    await expect(readWorkspaceSnapshot(root, { index })).rejects.toThrow(`written in format version ${current - 1}, and this reader reads version ${current}`);
   });
 
   it('refuses a store encoded in memory, which names no generation', async () => {
