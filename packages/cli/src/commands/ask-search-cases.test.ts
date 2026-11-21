@@ -118,9 +118,9 @@ describe('variance ask search about the name a test ran under', () => {
 
     const answer = await searched('--query', 'numbered case');
 
-    expect(answer.split('\n').filter((line) => line.includes('[test]'))).toHaveLength(25);
+    expect(answer.split('\n').filter((line) => line.includes('[test]'))).toHaveLength(10);
     expect(answer).toContain('30 recorded test cases hold every word');
-    expect(answer).toContain('5 more not shown; a higher `--limit` shows them.');
+    expect(answer).toContain('20 more not shown; a higher `--limit` shows them.');
   });
 
   it('keeps to the area a start point names', async () => {
@@ -205,12 +205,20 @@ describe('a search where the root config declares suites', () => {
     expect(await searched('--query', 'qzxvk')).toContain('No recorded case of `chromium` was read: no run kept its cases there.');
   });
 
-  it('says so under the cases it did list', async () => {
+  it('does not name an unread suite under the cases it did list', async () => {
     await record([[ALONE, 'reads']], 'unit');
 
     const answer = await searched('--query', 'reads');
 
     expect(answer).toContain('reads [test]');
-    expect(answer).toContain('No recorded case of `chromium` was read: no run kept its cases there.');
+    expect(answer).not.toContain('No recorded case');
+  });
+
+  it('names every unread suite on one line when no case was found', async () => {
+    const answer = await searched('--query', 'qzxvk');
+
+    expect(answer.split('\n').filter((line) => line.startsWith('No recorded case'))).toEqual([
+      expect.stringMatching(/^No recorded case of `(unit|chromium)`, `(unit|chromium)` was read: no run kept its cases there\.$/u),
+    ]);
   });
 });

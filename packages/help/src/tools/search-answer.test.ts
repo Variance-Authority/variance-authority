@@ -125,9 +125,9 @@ describe('searchNames', () => {
 });
 
 describe('the flow from words to orient', () => {
-  it('ends an answer that located a file with the orient question for that file', () => {
-    const hit = searchNames(INDEX, { query: 'e' }).exported?.shown[0];
-    expect(hit, 'the fixture exports a name it does not publish').toBeDefined();
-    expect(answerSearch(INDEX, { query: 'e' })).toContain(`variance ask orient --files ${hit!.at}`);
+  it('ends an answer that located a published name with the question for its declaration', () => {
+    const hit = searchNames(INDEX, { query: 'e' }).published?.shown[0];
+    expect(hit, 'the fixture publishes a name holding the query').toBeDefined();
+    expect(answerSearch(INDEX, { query: 'e' }).endsWith(`\n\nNext: \`variance ask symbol --name ${hit!.name}\``)).toBe(true);
   });
 });

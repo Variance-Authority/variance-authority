@@ -19,13 +19,13 @@ import { docsSaying } from './phrase.js';
 import { recordedTests, suiteCaseNames } from './search-tests.js';
 
 /** Published matches shown before the answer says it stopped, when the question says no `limit`. */
-export const CAP = 40;
+export const CAP = 20;
 
-/** Exported matches shown when no `limit` is said; held ones, imports binding the name and test cases too. Lower, because the section below it is the cheaper half. */
-export const ELSEWHERE_CAP = 25;
+/** Exported matches shown when no `limit` is said; held ones, imports binding the name and test cases too. Lower, because the section below it is the cheaper half; `offset` pages the rest. */
+export const ELSEWHERE_CAP = 10;
 
-/** Loose matches shown when no `limit` is said. Lowest: these are the ones the caller did not ask for. */
-export const LOOSE_CAP = 15;
+/** Loose matches shown when no `limit` is said: these are the ones the caller did not ask for. */
+export const LOOSE_CAP = 10;
 
 /** Described matches shown: as many as the loose pass, the same kind of guess. */
 export const DESCRIBED_CAP = LOOSE_CAP;

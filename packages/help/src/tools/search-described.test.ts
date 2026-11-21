@@ -54,7 +54,10 @@ it('answers a description with the repository\'s own names first, and the packag
 
   // Neither the phrase nor every word is in the name, so only the words held answer it.
   expect(said).toMatch(/managedFor .*\[holds: management, state\]/);
-  expect(said.indexOf('managedFor')).toBeLessThan(said.indexOf('react @1.0.0'));
+  // The repository answered, so the package that describes it is named on one line after its rows.
+  expect(said).toMatch(/^1 package describes `state management`: react\.$/mu);
+  expect(said).not.toContain('react @1.0.0');
+  expect(said.indexOf('managedFor')).toBeLessThan(said.indexOf('describes `state management`'));
 });
 
 it('answers from a catalogue of the version before, names the described packages it cannot compare, and rebuilds it at refresh', async () => {
@@ -231,8 +234,6 @@ describe('which names the described section holds, and in what order', () => {
     expect(said).toMatch(/^diagram\d+ .*\[holds: mermaid, palette\]/mu);
     expect(said.search(/^diagram\d+ /mu)).toBeGreaterThan(said.search(/^chartPaletteAt0 /mu));
     expect(said).toMatch(/more not shown/u);
-    // Rows that sort before it are not shown, so the heading says why.
-    expect(said).toContain("then the phrase its doc writes; a row for each word these rows hold is shown however it sorts.");
   });
 
   it('reads the phrase of every name level with the last row shown, so the one writing it is shown first', async () => {

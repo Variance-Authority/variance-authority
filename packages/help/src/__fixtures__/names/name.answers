@@ -237,7 +237,7 @@ kit · freeze [function] imported in 1 place in 1 package — Freezes a value an
 
 No recorded case was read: no run kept its cases there.
 
-No third-party name matches `freeze`. No dependency was searched: no manifest in reach declares or imports one.
+Next: `variance ask symbol --name freeze`
 Snapshot <masked>
 
 ## search --query numbers add
@@ -245,12 +245,10 @@ No export, top-level declaration or member of a class, an interface or a type in
 
 No recorded case was read: no run kept its cases there.
 
-Near matches, not exact: 2 names and files in this repository hold most of `numbers add`, the rarer words counting for more, read by stem as the packages are, best first: the words held, each counted by how few rows hold it and more in the name than in a doc, more in a doc than in a signature, then the words in the name, then the phrase its doc writes; a row for each word these rows hold is shown however it sorts.
+Near matches, not exact: 2 hold most of `numbers add`:
 
 kit · count [function] imported in 1 place in 1 package — Adds the numbers it is given. [holds: add, numbers]
 tally — kit · packages/kit/src/tally.ts:2 — Adds the numbers it is given. [holds: add, numbers]
-
-No third-party name matches `numbers add`. No dependency was searched: no manifest in reach declares or imports one.
 Snapshot <masked>
 
 ## search --query clock time
@@ -258,13 +256,11 @@ No export, top-level declaration or member of a class, an interface or a type in
 
 No recorded case was read: no run kept its cases there.
 
-Near matches, not exact: 3 names and files in this repository hold most of `clock time`, the rarer words counting for more, read by stem as the packages are, best first: the words held, each counted by how few rows hold it and more in the name than in a doc, more in a doc than in a signature, then the words in the name, then the phrase its doc writes; a row for each word these rows hold is shown however it sorts.
+Near matches, not exact: 3 hold most of `clock time`:
 
 kit · Clock [interface] imported in 1 place in 1 package — A source of the time. [holds: clock, time]
 packages/kit/src/clock.ts [file] — kit [holds: clock]
 kit/extra · walk [function] imported in 1 place in 1 package — Walks a tree, one level at a time. [holds: time]
-
-No third-party name matches `clock time`. No dependency was searched: no manifest in reach declares or imports one.
 Snapshot <masked>
 
 ## packages

@@ -54,7 +54,7 @@ describe('a question whose words are not equally rare', () => {
 
   it('neither shows nor counts a row holding only the common word, beside a row holding the rare one', async () => {
     const said = await ask(FIXTURE, 'xylophone file');
-    expect(said).toMatch(/^Near matches, not exact: 2 names and files in this repository hold most of `xylophone file`/mu);
+    expect(said).toMatch(/^Near matches, not exact: 2 hold most of `xylophone file`:$/mu);
     expect(said).toMatch(/^tuned .*\[holds: file, xylophone\]/mu);
     expect(said).toMatch(/^played .*\[holds: xylophone\]/mu);
     expect(said).not.toMatch(/fileAt\d/u);
@@ -87,9 +87,10 @@ describe('a question whose words are not equally rare', () => {
       'src/census.ts': each(4, (at) => `/** Counts the probes a run measures. */\nexport const census${at} = ${at};\n`),
     }, 'count probes and measure their overhead');
     const rows = said.split('\n').filter((line) => line.includes('[holds:'));
-    expect(rows.length).toBeGreaterThan(10);
+    // More than ten pass the cut, and the ten shown are the first ten.
+    expect(Number(/^Near matches, not exact: (\d+) /mu.exec(said)?.[1])).toBeGreaterThan(10);
+    expect(rows).toHaveLength(10);
     expect(rows.some((row) => /^(?:counted|measured|tally)\d/u.test(row))).toBe(false);
-    rows.splice(10);
     expect(rows.some((row) => row.startsWith('scripts/overhead.mjs '))).toBe(true);
     expect(rows.some((row) => row.startsWith('src/cost.measure.ts '))).toBe(true);
   });
@@ -182,6 +183,6 @@ describe('a wider area that adds a direct match', () => {
   it('shows five near names after a direct answer, and counts the rest', async () => {
     const said = await ask({ ...AREA, 'src/more.ts': each(7, (at) => `/** Drops stale entries, then the cache. */\nexport const drop${at} = ${at};\n`) }, 'cache entries');
     expect(said.match(/\[holds: cache, entries\]$/gmu)).toHaveLength(5);
-    expect(said).toMatch(/^Near matches, not exact: 8 names /mu);
+    expect(said).toMatch(/^Near matches, not exact: 8 hold most of /mu);
   });
 });

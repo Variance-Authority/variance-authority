@@ -147,10 +147,26 @@ function fileLine(match: FileMatch): string {
 /** One recorded case: the name it ran under and the test file that holds it. */
 const testLine = (match: TestMatch): string => `${match.name} [test] — ${match.at}`;
 
-/** What was left unread of the recorded cases, a line to each record, whatever else the answer holds. */
+/**
+ * What was left unread of the recorded cases, one line to each reason, and only
+ * when no case was found: a case found answers the question, and a suite left
+ * unread can change the conclusion only of an answer that found none.
+ */
 function casesUnder(tests: RecordedTests | undefined): readonly string[] {
-  const left = (tests?.unread ?? []).map(({ suite, why }) => `No recorded case${suite === undefined ? '' : ` of \`${suite}\``} was read: ${why}.`);
+  if (tests === undefined || tests.total > 0) return [];
+  const suitesBy = new Map<string, string[]>();
+  for (const { suite, why } of tests.unread) suitesBy.set(why, [...(suitesBy.get(why) ?? []), ...(suite === undefined ? [] : [`\`${suite}\``])]);
+  const left = [...suitesBy].map(([why, suites]) => `No recorded case${suites.length === 0 ? '' : ` of ${suites.join(', ')}`} was read: ${why}.`);
   return left.length === 0 ? [] : ['', ...left];
+}
+
+/** At most this many names on the one line that stands for a list the repository's own answer outranks. */
+const NAMED = 5;
+
+/** A list on one line: its head, then up to `NAMED` of its names, and how many more it holds. */
+function named(head: string, names: readonly string[], total: number): readonly string[] {
+  const shown = names.slice(0, NAMED);
+  return ['', `${head}: ${shown.join(', ')}${total > shown.length ? ` and ${total - shown.length} more` : ''}.`];
 }
 
 const matchLine = (match: PublishedMatch | ExportedMatch | DeclaredMatch): string =>
@@ -213,24 +229,39 @@ function spoken({ answer, area }: Searched, root: string | undefined, spell: Spe
   // Said once, as `uses` says it, below the rows it leaves short.
   const unreadImports = answer.importsUnread === undefined ? [] : ['', `Imports that do not name a package path are not counted: ${answer.importsUnread}.`];
   const missing = [...unreadImports, ...lexicon];
-  const thirdSection = third === undefined ? [] : third.total === 0 ? ['', `No third-party name matches \`${query}\`. ${thirdScope(third.scope)}`] : [
+  // The repository's own rows are the answer whenever there are any: then what
+  // is installed is named on one line, and what was not found there is not said.
+  const ownFound = [answer.published, answer.exported, answer.declared, answer.held, answer.tests, answer.aliases, answer.described, answer.loose].some(
+    (list) => (list?.total ?? 0) > 0,
+  );
+  const thirdHead = (total: number): string => `${total} third-party ${total === 1 ? 'name matches' : 'names match'} \`${query}\``;
+  const thirdSection = third === undefined
+    ? []
+    : third.total === 0
+    ? ownFound ? [] : ['', `No third-party name matches \`${query}\`. ${thirdScope(third.scope)}`]
+    : ownFound
+    ? named(thirdHead(third.total), third.shown.map((match) => `${match.specifier} · ${match.name}`), third.total)
+    : [
     '',
-    `${third.total} third-party ${third.total === 1 ? 'name' : 'names'} match \`${query}\`, ` +
+    `${thirdHead(third.total)}, ` +
       (area === undefined ? 'offered by some manifest in this workspace:' : 'usable from that start point, under the manifest that owns it:'),
     '',
     ...third.shown.map(thirdLine),
     ...cut(third.total, third.shown.length, spell),
   ];
   const described = third?.described ?? [];
+  const describing = third?.describedTotal ?? described.length;
+  const describedHead = `${describing} ${describing === 1 ? 'package describes' : 'packages describe'} \`${query}\``;
   const describedSection =
     third?.describedUnread !== undefined
-      ? ['', `${third.describedUnread}, so no package was asked whether it describes \`${query}\`; \`variance index\` rebuilds it.`]
+      ? ownFound ? [] : ['', `${third.describedUnread}, so no package was asked whether it describes \`${query}\`; \`variance index\` rebuilds it.`]
       : described.length === 0
       ? []
+      : ownFound
+      ? named(describedHead, described.map((hit) => hit.specifier), describing)
       : [
           '',
-          `${third?.describedTotal ?? described.length} ${(third?.describedTotal ?? described.length) === 1 ? 'package describes' : 'packages describe'} \`${query}\` in ` +
-            'their own words or the words of their names, best first:',
+          `${describedHead} in their own words or the words of their names, best first:`,
           '',
           ...described.map(describedLine),
           ...cut(third?.describedTotal ?? 0, described.length, spell),
@@ -241,7 +272,7 @@ function spoken({ answer, area }: Searched, root: string | undefined, spell: Spe
       ? []
       : [
           '',
-          `${looser} more ${looser === 1 ? 'name matches' : 'names match'} loosely — your words apart, or within a character of the ones written. Nothing above was reordered by this.`,
+          `${looser} more ${looser === 1 ? 'name matches' : 'names match'} loosely, the words apart or a character off:`,
           '',
           ...seenLoosely,
           ...cut(looser, seenLoosely.length, spell),
@@ -252,8 +283,7 @@ function spoken({ answer, area }: Searched, root: string | undefined, spell: Spe
       ? []
       : [
           '',
-          `Near matches, not exact: ${held.total} ${held.total === 1 ? 'name or file in this repository holds' : 'names and files in this repository hold'} most of \`${query}\`, ` +
-            'the rarer words counting for more, read by stem as the packages are, best first: the words held, each counted by how few rows hold it and more in the name than in a doc, more in a doc than in a signature, then the words in the name, then the phrase its doc writes; a row for each word these rows hold is shown however it sorts.',
+          `Near matches, not exact: ${held.total} ${held.total === 1 ? 'holds' : 'hold'} most of \`${query}\`:`,
           '',
           ...held.shown.map(describedRow),
           ...cut(held.total, held.shown.length, spell),
@@ -319,7 +349,15 @@ function spoken({ answer, area }: Searched, root: string | undefined, spell: Spe
           ...more,
         ];
 
-  if (rest.total === 0) return [...where, ...(found.total === 0 ? [] : heads), ...declaredSection, ...own, ...thirdSection, ...describedSection, ...missing].join('\n');
+  // Last, so the answer ends on what to run: the declaration of the first
+  // published row, or what surrounds the file of the first exported one.
+  const next = found.shown.length > 0
+    ? ['', `Next: \`variance ask symbol --name ${found.shown[0]!.name}\``]
+    : rest.shown.length > 0
+    ? ['', `Next: \`variance ask orient --files ${rest.shown[0]!.at}\``]
+    : [];
+
+  if (rest.total === 0) return [...where, ...(found.total === 0 ? [] : heads), ...declaredSection, ...own, ...thirdSection, ...describedSection, ...missing, ...next].join('\n');
 
   const hidden = cut(rest.total, rest.shown.length, spell);
 
@@ -331,13 +369,12 @@ function spoken({ answer, area }: Searched, root: string | undefined, spell: Spe
     '',
     ...rest.shown.map(exportedLine),
     ...hidden,
-    '',
-    `From a file above to what surrounds it: \`variance ask orient --files ${rest.shown[0]!.at}\`.`,
     ...declaredSection,
     ...own,
     ...thirdSection,
     ...describedSection,
     ...missing,
+    ...next,
   ].join('\n');
 }
 
@@ -367,14 +404,14 @@ export const search: Tool<Help> = {
     'functions inside a function under what holds them, the recorded test cases whose names hold every word, as each suite\'s last run wrote them, so a case added since is not among them and one removed since still is, and the imports that bind the name as a local one. Installed third-party ' +
     'names appear separately when the third-party API catalogue is published, followed by the installed ' +
     'packages that describe your words — in their own description, keywords and README headings, or in ' +
-    'the words of their names — so a job reaches a package by what it does. Near matches follow, ' +
+    'the words of their names — so a job reaches a package by what it does; when the repository answers, each of the two is one line naming up to five. Near matches follow, ' +
     'headed as near, not exact: this repository\'s own names and files holding most of your words, the rarer ' +
     'counting for more, read by stem, before any installed package, a file by its name and the doc it opens with, best ' +
     'first by the words held, then by the words in the name, then by how much of your phrase its doc writes, ' +
     `each labelled with the words it holds. After a question of two words or more answered as written, at most ${NEAR_CAP} ` +
     'of them follow the answer, so you learn the repository\'s own wording; when nothing holds the question ' +
     'as written they lead, and names that match loosely — your words apart, or within a ' +
-    'character of the ones written, exported or kept to their file — follow them. Neither is mixed into the sections above. On a large ' +
+    'character of the ones written, exported or kept to their file — follow them. Neither is mixed into the sections above. The answer ends with `Next:` and the command to run on its first row. On a large ' +
     'repository a substring alone matches everywhere a product says its own name, so say where ' +
     'you are standing. Carry a path the editor, ticket or stack trace already supplied: `from` ' +
     'answers with published names imported by the files that path reaches; `to` does the same ' +

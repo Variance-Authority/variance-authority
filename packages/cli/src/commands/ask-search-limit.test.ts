@@ -25,7 +25,7 @@ afterEach(() => {
 
 const numbered = (prefix: string, count: number): readonly string[] => Array.from({ length: count }, (_, at) => `${prefix}${String(at).padStart(2, '0')}`);
 
-/** 45 published names and 30 exported ones that hold `version`: past the caps of 40 and 25. */
+/** 45 published names and 30 exported ones that hold `version`: past the caps of 20 and 10. */
 const VERSIONS = {
   'packages/lib/src/index.ts': `${numbered('versionPub', 45).map((name) => `export const ${name} = 1;`).join('\n')}\n`,
   ...Object.fromEntries(numbered('versionKit', 30).map((name) => [`packages/kit/src/${name}.ts`, `export const ${name} = 1;\n`])),
@@ -43,10 +43,11 @@ describe('variance ask search --limit', () => {
     expect(err).toBe('');
     expect(code).toBe(EXIT_CLEAN);
     expect(out).toContain('45 published matches for `version`');
-    expect(rows(out, 'versionPub')).toHaveLength(40);
+    expect(rows(out, 'versionPub')).toHaveLength(20);
     expect(out).toContain('30 more names are exported somewhere in the repository without being published:');
-    expect(rows(out, 'versionKit')).toHaveLength(25);
-    expect(out.split('\n').filter((line) => line === '5 more not shown; a higher `--limit` shows them.')).toHaveLength(2);
+    expect(rows(out, 'versionKit')).toHaveLength(10);
+    expect(out.split('\n').filter((line) => line === '25 more not shown; a higher `--limit` shows them.')).toHaveLength(1);
+    expect(out.split('\n').filter((line) => line === '20 more not shown; a higher `--limit` shows them.')).toHaveLength(1);
     expect(out).not.toMatch(/not shown\.$/m);
   });
 
@@ -59,7 +60,7 @@ describe('variance ask search --limit', () => {
     expect(err).toBe('');
     expect(code).toBe(EXIT_CLEAN);
     expect(rows(out, 'versionPub')).toHaveLength(45);
-    expect(rows(out, 'versionPub').slice(0, 40)).toEqual(rows(capped.out, 'versionPub'));
+    expect(rows(out, 'versionPub').slice(0, 20)).toEqual(rows(capped.out, 'versionPub'));
     expect(rows(out, 'versionKit')).toHaveLength(30);
     expect(out).not.toContain('not shown');
   });
@@ -89,9 +90,9 @@ describe('variance ask search --limit', () => {
 
     const plain = await run(['ask', 'search', '--query', 'version', '--format', 'json']);
     const capped = JSON.parse(plain.out) as typeof wide;
-    expect(capped.published.shown).toHaveLength(40);
-    expect(capped.exported.shown).toHaveLength(25);
-    expect(capped.published.shown).toEqual(wide.published.shown.slice(0, 40));
+    expect(capped.published.shown).toHaveLength(20);
+    expect(capped.exported.shown).toHaveLength(10);
+    expect(capped.published.shown).toEqual(wide.published.shown.slice(0, 20));
     expect(plain.out).not.toContain('"limit"');
   });
 });

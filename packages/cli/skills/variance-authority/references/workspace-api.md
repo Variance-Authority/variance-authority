@@ -527,8 +527,8 @@ file as it is now.
 ### `search`
 
 **A list contains candidates, not every match.** Each list is capped and prints
-how many rows it did not show: 40 published names, 20 installed ones, 25 of each
-other kind, and 15 loose or described ones, unless `--limit <n>` sets one cap for every list; the
+how many rows it did not show: 20 published names, 20 installed ones, 10 of each
+other kind, and 10 loose or described ones, unless `--limit <n>` sets one cap for every list; the
 JSON caps its lists the same way. Once any name matches, looser matches and members
 and functions inside a function that only contain your words are left out without
 a count. `git grep -i <word>` prints every tracked line that writes the word, and
@@ -560,8 +560,12 @@ A file whose declarations were not read, such as one over the size a read
 opens, is named under the answer, since the name may be declared there.
 
 `variance index` also publishes a lexicon of the installed direct third-party
-packages, and `search` reads it. Once that lexicon exists, every answer has a
-third-party section, and prints a line when nothing in it matched. `symbol`
+packages, and `search` reads it. When nothing in the repository answers, the
+installed names and the packages that describe your words are listed in full, or
+a line says which manifests were searched. When the repository answers, each is
+one line naming up to five, and an empty one is not mentioned. An answer with a
+published or exported row ends with `Next:` and the command for its first row:
+`ask symbol --name` for a published one, `ask orient --files` for an exported one. `symbol`
 matches installed third-party declarations from the same lexicon, which is
 `dependency-lexicon.bin` beside the source index. It is a binary file: ask
 `search` and `symbol` for what it holds.

@@ -88,6 +88,17 @@ it('answers an installed name a workspace file passes on as well as the file tha
   expect(said).toContain('beta-kit · betaOwnName [const] · beta-kit@1.0.0');
 });
 
+it('names a matching installed name on one line when a workspace name answers too', async () => {
+  const root = await workspace({
+    'packages/beta/src/fixtures.ts': "import { betaOwnName } from 'beta-kit';\nexport { betaOwnName };\n",
+  });
+  const said = answerSearch(searchIndexOf(readHelp(root)), { query: 'betaOwnName' }, treeOf([], root), root);
+
+  expect(said).toContain('packages/beta/src/fixtures.ts');
+  expect(said).toMatch(/^1 third-party name matches `betaownname`: beta-kit · betaOwnName\.$/mu);
+  expect(said).not.toContain('· dependency in packages/beta/package.json');
+});
+
 it('answers a workspace export when no lexicon of installed names is published', async () => {
   const root = await workspace({ 'packages/beta/src/fixtures.ts': 'export const fixtureOnly = 1;\n' }, false);
 
