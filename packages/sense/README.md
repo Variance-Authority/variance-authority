@@ -1343,10 +1343,9 @@ window — one named UI state you asked for and can ask for again, such as
 per window the driver closed, each an `owner`, the drained `journal`, optional
 `preconditions`, and `complete`, which is false for a subject that did not
 finish and keeps it from ever justifying a skip. `commit` overrides where the
-recording stands, which otherwise reads the checkout's `HEAD`. `checks` holds
-which declared checks each case's attempts entered and the scope the run was
-asked for, as the Playwright reporter records them for `variance ask not-run`;
-it replaces what the record held, and absent, the record keeps none.
+recording stands, which otherwise reads the checkout's `HEAD`. A case in `cases`
+carries the checks each of its attempts entered, as [`checked`](#name-the-check-a-case-is-there-for)
+tells its scope, and the run's checks are built from them.
 
 Recording refuses in one direction only. Each of these records **nothing** and
 prints why, costing the next run its full suite:
@@ -2721,6 +2720,40 @@ under `--where`; the words then follow the state, so a region only an unlisted
 case ran reads as covered, not as a hole.
 The CLI prints it under `variance covering --since`.
 
+## Name the check a case is there for
+
+A case that passes says only that nothing it ran failed: one that asserts on
+one branch passes on the other with nothing checked. When a case is there to
+check one thing, run the check under an id with `checked`:
+
+```ts
+import { checked } from '@variance-authority/sense/checked';
+
+test('submits the form', async () => {
+  const sent = await submit({ title: 'Launch' });
+  if (sent.title !== undefined) {
+    checked('create-event/submitted-title', () => expect(sent.title).toBe('Launch'));
+  }
+});
+```
+
+It is the same call in a Vitest, Jest, Rstest or Playwright case. What a case
+declares is read from its test file before the run: each `checked` call in its
+body, and each in a function of the same file the body calls, declared at the
+line the body calls it. The id is read from the source, so it is a string
+literal; an id built at run time, a helper imported from another file or passed
+by reference, and a case whose title is built by `each` or a template declare
+nothing, and a case that bypasses such a check is not named.
+
+During the run the call tells the running case's scope its attempt entered the
+check, then runs `fn` and returns what it returns. Outside a recording it runs
+`fn` and nothing else, and an error in recording never fails the case.
+`variance ask not-run` names each declared check a passing attempt did not
+enter, with the line of its case and of its call. A retried case is judged
+attempt by attempt: what a failed attempt entered says nothing of the retry
+that passed. A file where the runner did not end an attempt it began —
+interrupted, or its worker died — names none and is reported as incomplete.
+
 ## What each host gives the recording
 
 Every seam records the same three things — which regions the transform cut,
@@ -2758,6 +2791,7 @@ same under every host:
 | `@variance-authority/sense/vitest` | adding instrumentation, collection, and persistence to Vitest | Vitest `^4.1.0 \|\| ^5.0.0` and product tests |
 | `@variance-authority/sense/jest` | the same around the transformer your project already uses | Jest 30 and product tests |
 | `@variance-authority/sense/jest-transform`, `/jest-globals`, `/jest-setup`, `/jest-reporter` | the four modules `withTestSelection` names by path, for a configuration assembled by hand | Jest 30 |
+| `@variance-authority/sense/checked` | `checked(id, fn)`, to name the check a case is there for, so `variance ask not-run` names a passing attempt that did not reach it | nothing; a call outside a recording runs `fn` and nothing else |
 | `@variance-authority/sense/precondition` | `variancePrecondition`, to record the state the running case ran under | nothing; a call outside a recording does nothing |
 | `@variance-authority/sense/case-journey` | the running case's journey id, to put on a request to a service | a case recorded by `withJourneyCoverage` |
 | `@variance-authority/sense/rstest` | the same as an Rspack loader and a reporter, for a suite Rstest bundles | Rstest `^0.12.0` and product tests |

@@ -33,7 +33,7 @@ type Scope = { readonly checked?: (id: string) => unknown } | undefined;
  * The running case's attempt entered the check when the call is made, before
  * `fn` runs: a check that throws fails the attempt, which then is not judged.
  *
- * @see https://variance-authority.dev/docs/agent-cli#a-check-a-case-passed-without
+ * @see https://variance-authority.dev/docs/agent-cli#find-the-checks-a-passing-test-did-not-run
  */
 export function checked<Result>(id: string, fn: () => Result): Result {
   const scope = (globalThis as { [CASE_SCOPE]?: Scope })[CASE_SCOPE];

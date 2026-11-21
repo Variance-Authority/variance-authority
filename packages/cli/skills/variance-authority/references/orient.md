@@ -223,17 +223,18 @@ as no retries. `--limit` lists more cases.
 
 ## `not-run`
 
-A case that passed says only that nothing it ran failed. A Playwright test
-declares the check it is there for with the annotation `variance:check` and runs
-it as a step of the same title; the answer names each declared check an attempt
-passed without executing, as `expected check <id> did not execute in case <name>`,
-with the file and line declaring the case and its project. A case named here
-passed without its check: read the branch or the early return
-that skipped the step before trusting the pass.
+A case that passed says only that nothing it ran failed. A case under any
+runner declares the check it is there for by running it as `checked(id, fn)`
+from `@variance-authority/sense/checked`, in its body or in a helper of its file
+the body calls. The answer names each declared check a passing attempt did not
+enter, as `expected check <id> did not execute in case <name>`, with the file
+and line of the case, the line of the check and the attempt when the case ran
+more than once. A case named here passed without its check: read the branch or
+the early return that skipped it before trusting the pass.
 
-It counts the checks entered and prints the scope the run covered — projects,
-`grep`, shard — and a case outside it was not asked about. A step skipped with
-`test.step.skip` did not execute. A run stopped before its runner ended it, or
-killed outright, names no check, because the attempts it cut short could not
-reach theirs. A record that kept no checks says so: read that as unknown, not as
-every check executed.
+The declaration is read from source: an id built at run time, or a helper from
+another file, declares nothing, and a case that bypasses it is not named. A
+failed attempt's checks say nothing of the retry that passed. A file where the
+runner did not end an attempt it began names no check, because that attempt may
+have been cut short before reaching one. A record that kept no checks says so:
+read that as unknown, not as every check executed.

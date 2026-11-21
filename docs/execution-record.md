@@ -659,13 +659,13 @@ in, so a record with attempts selects the tests the same record without them
 selects. `variance ask retried-tests` lists the cases whose attempts ended
 differently.
 
-The record also carries the checks a run's Playwright cases declared, in a
-`run.checks` section: each declaring case with its file, line and project, the
-checks it declares, and per attempt how it ended and which of them it entered as
-a step, then the scope the run covered and whether its runner ended it.
-Each run replaces the section whole, a run that lands no case included, so it is
-this checkout's last run and never crosses a shard landing; a run whose reporter
-kept no checks leaves none, which reads as not kept. No selection reads it.
+The record also carries the checks a run's cases declared, in a `run.checks`
+section: each declaring case with its file, line and project, the checks its
+body declares with `checked` and the line of each, and per attempt how it ended
+and which of them it entered, then the test files where the runner did not end
+an attempt it began. Each run replaces the section whole, so it is this
+checkout's last run and never crosses a shard landing; a run that kept no checks
+leaves none, which reads as not kept. No selection reads it.
 `variance ask not-run` names each declared check a passed attempt did not enter.
 
 The case index also carries what each case said, its
