@@ -251,7 +251,7 @@ describe('finding a name somebody can only describe', () => {
     // only read the published surface would answer that this workspace has no
     // such name, which is false about the checkout it just read.
     const text = call('docs_search', { query: 'deeper' });
-    expect(text).toContain('Nothing published matches');
+    expect(text.startsWith('1 exported match for `deeper` (not published):\n')).toBe(true);
     expect(text).toContain('deeper — beta · packages/beta/src/inner/deeper.ts:3');
   });
 
