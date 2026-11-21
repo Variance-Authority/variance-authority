@@ -1,5 +1,6 @@
 // compass: variance-authority.harness
 import type { Page, Request } from 'playwright-core';
+import { quietPeriod } from './quiet-period.js';
 import type { Quiet } from './surface.js';
 
 /**
@@ -19,46 +20,27 @@ const NOT_AWAITED: ReadonlySet<string> = new Set(['eventsource', 'font', 'image'
 export function requests(period: number): (page: Page) => Quiet {
   return (page) => {
     const flying = new Set<Request>();
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    // Absent until the act is done: the page is not quiet while the test still acts on it.
-    let settle: ((value: 'quiet') => void) | undefined;
-    // A deadline, not a look: it is armed when the last request ends and
-    // disarmed when another begins, so it fires only on a full quiet period.
-    let still = false;
-    const arm = (): void => {
-      clearTimeout(timer);
-      const settled = settle;
-      if (settled === undefined || flying.size > 0) return;
-      timer = setTimeout(() => {
-        still = true;
-        settled('quiet');
-      }, period);
-    };
+    const clock = quietPeriod(period, () => flying.size);
     const began = (request: Request): void => {
       if (NOT_AWAITED.has(request.resourceType())) return;
       flying.add(request);
-      still = false;
-      clearTimeout(timer);
+      clock.began();
     };
     const ended = (request: Request): void => {
-      if (flying.delete(request)) arm();
+      if (flying.delete(request)) clock.ended();
     };
     page.on('request', began);
     page.on('requestfinished', ended);
     page.on('requestfailed', ended);
     return {
-      settled: () =>
-        new Promise((resolve) => {
-          settle = resolve;
-          arm();
-        }),
-      still: () => still,
+      settled: clock.settled,
+      still: clock.still,
       held: () =>
         flying.size === 0
           ? undefined
           : `${[...flying].map((request) => `${request.method()} ${new URL(request.url()).pathname}`).join(', ')} still in flight`,
       stop: () => {
-        clearTimeout(timer);
+        clock.stop();
         page.off('request', began);
         page.off('requestfinished', ended);
         page.off('requestfailed', ended);

@@ -1751,6 +1751,14 @@
         ".": {
           "types": "./dist/index.d.ts",
           "default": "./dist/index.js"
+        },
+        "./dom": {
+          "types": "./dist/dom.d.ts",
+          "default": "./dist/dom.js"
+        },
+        "./playwright": {
+          "types": "./dist/playwright.d.ts",
+          "default": "./dist/playwright.js"
         }
       },
       "files": [
@@ -1764,14 +1772,34 @@
     },
     "names": {
       ".": {
-        "Action": "type",
+        "Action": "interface",
         "Declare": "type",
+        "Declared": "interface",
+        "Elsewhere": "interface",
+        "Ends": "interface",
         "Outcomes": "type",
+        "Query": "type",
+        "Quiet": "interface",
         "Reached": "interface",
         "Reaching": "interface",
-        "Recogniser": "type",
+        "Reason": "type",
+        "Region": "interface",
+        "Surface": "interface",
+        "Target": "interface",
+        "Unreached": "class",
         "action": "const",
+        "here": "function",
+        "region": "function",
         "stay": "const"
+      },
+      "./dom": {
+        "DocumentSurface": "type",
+        "shown": "function",
+        "surface": "function"
+      },
+      "./playwright": {
+        "PageSurface": "type",
+        "surface": "function"
       }
     }
   },

@@ -3,30 +3,32 @@
 ## Contracts
 
 Written in [README](README.md) and pinned by
-[src/action.chromium.test.ts](src/action.chromium.test.ts), over a page that
-announces nothing.
+[src/surfaces.cases.ts](src/surfaces.cases.ts), the cases every surface
+passes: over a document in [src/dom.test.ts](src/dom.test.ts) and over a
+browser in [src/playwright.chromium.test.ts](src/playwright.chromium.test.ts),
+each over a page that announces nothing.
 
-- **It stands on Playwright alone.** It imports nothing from the rest of
-  Variance Authority, and Playwright as types only. It is no part of
-  `@variance-authority/playwright-test` or `@variance-authority/playwright`,
-  and neither depends on it.
+- **One model, any surface.** `model.ts` decides outcomes from a `Surface`
+  alone; `dom.ts` and `playwright.ts` only find, look and act. No runner is
+  favoured, and the package imports nothing from the rest of Variance
+  Authority.
 - **The app announces nothing.** No `aria-busy`, no announced event, no
-  attribute written for a test is read. An arrival is a declared part of the
-  page becoming visible.
-- **Staying is never reported early.** It needs the act finished and no request
-  in flight for the quiet period, and a declared part that appears first wins.
-- **The order of a declaration decides nothing.** Two declared parts visible at
-  once fail; neither is picked.
-- **An outcome on the page before the act is refused**, since reaching it could
-  not be told from standing still.
-- **A failure names the action and the declared outcome reached**: `expected X,
-  reached Y`, or the outcomes none of which was reached.
+  attribute written for a test is read. An arrival is a declared region
+  becoming visible.
+- **Staying and resting are never reported early.** Each needs the act
+  finished and nothing pending for the quiet period, and a declared region that
+  appears first wins.
+- **The order of a declaration decides nothing.** Two declared regions visible
+  at once fail; neither is picked.
+- **A region on the page before the act is where the action rests**, and is
+  refused beside `stay`, since the two could not be told apart.
+- **A failure names the action and what happened**: `expected X, reached Y`,
+  the outcomes none of which was reached, or what kept the page busy.
 - **An undeclared destination is never staying.** A navigation, a new page or a
-  modal dialog that no outcome declares fails the action and is named. A change
-  inside the page that is none of those is not seen.
-- **What an action does with quiet does not depend on how quiet is told.** The
-  policy in `action.ts` reads a `Quiet`; the page's requests are one way to give
-  it. Whether a timer is the right way is
+  modal dialog that no outcome declares fails the action and is named.
+- **Quiet is told one way on every surface.** `quiet-period.ts` is the one
+  clock; each surface says only what counts as pending. Whether a timer is the
+  right way is
   [open](https://github.com/Variance-Authority/variance-authority/issues/1473).
 
 ## What it does not answer

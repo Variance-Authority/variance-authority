@@ -296,12 +296,12 @@
   },
   {
     "idiom": "timer",
-    "at": "packages/page-broker/src/action.ts",
+    "at": "packages/page-broker/src/model.ts",
     "count": 1
   },
   {
     "idiom": "timer",
-    "at": "packages/page-broker/src/quiet.ts",
+    "at": "packages/page-broker/src/quiet-period.ts",
     "count": 1
   },
   {
@@ -805,13 +805,18 @@
     "count": 2
   },
   {
+    "idiom": "timer",
+    "at": "packages/page-broker/src/dom.test.ts",
+    "count": 1
+  },
+  {
     "idiom": "fresh-page",
-    "at": "packages/page-broker/src/action.chromium.test.ts",
+    "at": "packages/page-broker/src/playwright.chromium.test.ts",
     "count": 3
   },
   {
     "idiom": "timer",
-    "at": "packages/page-broker/src/action.chromium.test.ts",
+    "at": "packages/page-broker/src/playwright.chromium.test.ts",
     "count": 3
   },
   {

@@ -15,6 +15,7 @@ function checkout(answer: string, after = 20): void {
     <form aria-label="Payment" hidden><p>Card number</p></form>
     <div role="dialog" aria-label="Sign in" hidden><p>Who are you?</p></div>`;
   vi.stubGlobal('fetch', async () => {
+    // The server's latency, which the case is about: an answer that takes time.
     await new Promise((done) => setTimeout(done, after));
     return new Response(answer);
   });

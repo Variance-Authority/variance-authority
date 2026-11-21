@@ -1,4 +1,5 @@
 // compass: variance-authority.harness
+import { quietPeriod } from './quiet-period.js';
 import type { Elsewhere, Quiet } from './surface.js';
 
 interface Host {
@@ -20,26 +21,14 @@ function hosts(document: Document): Host[] {
  */
 export function pending(document: Document, period: number): Quiet {
   const flying = new Map<object, string>();
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  let settle: ((value: 'quiet') => void) | undefined;
-  let still = false;
+  const clock = quietPeriod(period, () => flying.size);
   let changed = 0;
-  const arm = (): void => {
-    clearTimeout(timer);
-    const settled = settle;
-    if (settled === undefined || flying.size > 0) return;
-    timer = setTimeout(() => {
-      still = true;
-      settled('quiet');
-    }, period);
-  };
   const began = (key: object, what: string): void => {
     flying.set(key, what);
-    still = false;
-    clearTimeout(timer);
+    clock.began();
   };
   const ended = (key: object): void => {
-    if (flying.delete(key)) arm();
+    if (flying.delete(key)) clock.ended();
   };
   const undo: (() => void)[] = [];
   for (const host of hosts(document)) {
@@ -80,23 +69,19 @@ export function pending(document: Document, period: number): Quiet {
   }
   const observer = new (document.defaultView!.MutationObserver)(() => {
     changed = Date.now();
-    still = false;
-    arm();
+    clock.began();
+    clock.ended();
   });
   observer.observe(document, { subtree: true, childList: true, attributes: true, characterData: true });
   return {
-    settled: () =>
-      new Promise((resolve) => {
-        settle = resolve;
-        arm();
-      }),
-    still: () => still,
+    settled: clock.settled,
+    still: clock.still,
     held: () => {
       if (flying.size > 0) return `${[...flying.values()].join(', ')} still in flight`;
       return Date.now() - changed < period ? 'the document kept changing' : undefined;
     },
     stop: () => {
-      clearTimeout(timer);
+      clock.stop();
       observer.disconnect();
       for (const each of undo) each();
     },

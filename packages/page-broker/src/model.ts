@@ -141,21 +141,13 @@ export function by(means: Means): Declare {
 }
 
 /**
- * Declares an action by where it starts and the outcomes it can end in.
- * Performing it on a surface runs `act` and returns the name of the declared
- * region that became visible, or of {@link stay} when the page went quiet where
- * it was with none of them on it. An app that went anywhere not declared fails
- * the action with {@link Unreached}.
- *
- * The app has 5000 ms after the act, and is quiet after 500 ms with nothing
- * pending.
+ * Declares an action by where it starts and the outcomes it can end in, and
+ * returns it performable on any surface. Performing it names the outcome the
+ * app reached, or fails with {@link Unreached}; how an outcome is decided is in
+ * the package README.
  *
  * @example
- * const payment = region('payment', { role: 'form', name: 'Payment' });
- * const submit = action('submit', { to: { payment, invalid: stay } }, (s) =>
- *   s.click({ role: 'button', name: 'Continue' }),
- * );
- * const { outcome } = await submit(surface(page)); // 'payment' | 'invalid'
+ * const submit = action('submit', { to: { payment, invalid: stay } }, (on) => on.click({ role: 'button', name: 'Continue' }));
  * await submit(surface(page)).to('payment'); // or: submit: expected payment, reached invalid
  */
 export const action: Declare = by({ timeout: 5000, quiet: 500 });
@@ -213,7 +205,8 @@ async function perform<Name extends string, Handle>(
   try {
     gone = await surface.elsewhere();
     await act();
-    // The app's time starts when the act is done: a slow act does not spend it.
+    // A deadline that names the outcomes never reached, never a wait. The app's
+    // time starts when the act is done: a slow act does not spend it.
     const deadline = Date.now() + means.timeout;
     const late = new Promise<'late'>((resolve) => {
       out = setTimeout(() => resolve('late'), means.timeout);

@@ -5,6 +5,7 @@ import {
   queryAllByRole,
   queryAllByTestId,
   queryAllByText,
+  waitFor,
 } from '@testing-library/dom';
 import { away, pending } from './dom-watch.js';
 import type { Query, Surface, Target } from './surface.js';
@@ -103,46 +104,47 @@ export function shown(element: Element): boolean {
   return element.isConnected;
 }
 
+/**
+ * Waits by Testing Library's `waitFor`, which looks again on every mutation and
+ * every `POLL` ms besides, for what no mutation announces: a frame's document,
+ * a style sheet.
+ */
 async function arrival(document: Document, targets: readonly Target<Element>[], ms: number): Promise<'arrived' | 'late'> {
   const any = async (): Promise<boolean> => (await Promise.all(targets.map((each) => each.visible()))).some(Boolean);
   if (await any()) return 'arrived';
-  return new Promise((resolve) => {
-    let looking = false;
-    const look = (): void => {
-      if (looking) return;
-      looking = true;
-      void any().then((seen) => {
-        looking = false;
-        if (seen) end('arrived');
-      });
-    };
-    const observer = new (document.defaultView!.MutationObserver)(look);
-    observer.observe(document, { subtree: true, childList: true, attributes: true, characterData: true });
-    // A frame's document and a style sheet tell this observer nothing.
-    const poll = setInterval(look, POLL);
-    const out = setTimeout(() => end('late'), Math.max(ms, 0));
-    const end = (how: 'arrived' | 'late'): void => {
-      observer.disconnect();
-      clearInterval(poll);
-      clearTimeout(out);
-      resolve(how);
-    };
-  });
+  if (ms <= 0) return 'late';
+  try {
+    await waitFor(
+      async () => {
+        if (!(await any())) throw new Error('no outcome yet');
+      },
+      { container: document.documentElement, timeout: ms, interval: POLL },
+    );
+    return 'arrived';
+  } catch {
+    return 'late';
+  }
 }
 
 /** The one shown, enabled element an act is for, once it is there. */
 async function actable(document: Document, query: Query): Promise<Element> {
-  const until = Date.now() + ACTABLE;
-  for (;;) {
-    const found = all(document, query).filter(shown);
-    const ready = found.filter((each) => !(each as HTMLButtonElement).disabled);
-    if (ready.length === 1) return ready[0]!;
-    if (found.length > 1) throw new Error(`${describe(query)} matches ${found.length} elements, and an act is for one`);
-    if (Date.now() >= until) {
+  let many = 0;
+  const one = await waitFor(
+    () => {
+      const found = all(document, query).filter(shown);
+      const ready = found.filter((each) => !(each as HTMLButtonElement).disabled);
+      if (ready.length === 1) return ready[0]!;
+      // More than one is no wait: it is an error now, and stays one.
+      if (found.length > 1) {
+        many = found.length;
+        return undefined;
+      }
       throw new Error(`${describe(query)} is ${found.length === 0 ? 'not on the page' : 'disabled'} after ${ACTABLE} ms`);
-    }
-    await new Promise((done) => setTimeout(done, POLL));
-  }
+    },
+    { container: document.documentElement, timeout: ACTABLE, interval: POLL, onTimeout: (error) => error },
+  );
+  if (one === undefined) throw new Error(`${describe(query)} matches ${many} elements, and an act is for one`);
+  return one;
 }
 
 function describe(query: Query): string {
