@@ -165,11 +165,11 @@ export function away(document: Document): Elsewhere {
     left: async () => {
       if (document.location.href !== href) {
         const { pathname, search, hash } = new URL(document.location.href);
-        return `the page went to ${pathname}${search}${hash}`;
+        return { by: 'address', words: `the page went to ${pathname}${search}${hash}` };
       }
-      if (opened) return 'a new page opened';
+      if (opened) return { by: 'page', words: 'a new page opened' };
       const now = modals(document);
-      return [...now].some((each) => !before.has(each)) ? 'a modal dialog opened' : undefined;
+      return [...now].some((each) => !before.has(each)) ? { by: 'modal', words: 'a modal dialog opened' } : undefined;
     },
     stop: () => {
       for (const each of undo) each();

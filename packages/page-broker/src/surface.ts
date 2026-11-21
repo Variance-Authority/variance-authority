@@ -31,10 +31,20 @@ export interface Quiet {
   stop(): void;
 }
 
+/**
+ * Where the app went: to another address, which may still show a region the
+ * action rests at, or to another page or under a modal dialog, which cannot.
+ */
+export interface Left {
+  readonly by: 'address' | 'page' | 'modal';
+  /** Where, in words. */
+  readonly words: string;
+}
+
 /** Whether the app, since the action began, went somewhere that is no part of the page it was on. */
 export interface Elsewhere {
-  /** Where it went, in words, and absent while it is where it was. */
-  left(): Promise<string | undefined>;
+  /** Where it went, and absent while it is where it was. */
+  left(): Promise<Left | undefined>;
   stop(): void;
 }
 

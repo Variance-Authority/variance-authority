@@ -107,7 +107,10 @@ to it.
 `here(on, regions)` names the regions visible now, without acting, and
 `submit.declared` is the action as data — its name, `from`, and `to` with
 each outcome's region or `stay` — for whatever reads a model without running
-it.
+it. `model([submit, pay])` reads actions together: `actions`, every region
+they name once as `regions`, and `from(names)`, the actions that can start
+among those regions. `shop.from(await here(on, shop.regions))` names the
+actions possible on the page now.
 
 ## How an outcome is decided
 
@@ -116,9 +119,11 @@ Before the act, every declared region is looked for.
 - **None is on the page**: the act runs, and the action waits for one to
   appear.
 - **One already is**: it cannot be arrived at, so the action rests there,
-  reported the way staying is — once the page is quiet and it is still there.
-  An action that likes a product, ending on the product it started on, declares
-  it so. Beside `stay` it is refused, since the two could not be told apart, and
+  reported the way staying is — once the page is quiet and it is still there,
+  at the address it started on or a new one. An action that likes a product,
+  ending on the product it started on, declares it so, and so does "next
+  product", which moves to `/product/2` with the product still shown. A new
+  page or a modal dialog is never resting. Beside `stay` it is refused, since the two could not be told apart, and
   two regions on the page before the act are refused for the same reason. A
   refusal is an `Unreached` whose reason is `start`, and the act does not run.
 

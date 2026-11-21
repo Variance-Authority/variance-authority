@@ -42,13 +42,13 @@ export async function elsewhere(page: Page): Promise<Elsewhere> {
   page.context().on('request', asked);
   return {
     left: async () => {
-      if (went !== undefined) return `the page went to ${went}`;
-      if (opened) return 'a new page opened';
+      if (went !== undefined) return { by: 'address', words: `the page went to ${went}` };
+      if (opened) return { by: 'page', words: 'a new page opened' };
       const opens = await page.evaluate(
         ([query, ...open]) => [...document.querySelectorAll(query)].some((each) => !open.includes(each)),
         [MODALS, ...before] as const,
       );
-      return opens ? 'a modal dialog opened' : undefined;
+      return opens ? { by: 'modal', words: 'a modal dialog opened' } : undefined;
     },
     stop: () => {
       page.off('framenavigated', navigated);

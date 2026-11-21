@@ -30,6 +30,7 @@ function checkout(answer: string, after = 20): void {
       help.setAttribute('aria-modal', 'true');
     }
     if (said === 'elsewhere') history.pushState(null, '', '/help');
+    if (said === 'next') history.pushState(null, '', '/checkout/next');
   });
 }
 

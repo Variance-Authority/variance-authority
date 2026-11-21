@@ -1,7 +1,7 @@
 // One test body, run over every surface the package ships: a declaration
 // holds, and fails, the same way over a document and over a browser page.
 import { expect, it } from 'vitest';
-import { here, region, stay, Unreached } from './index.js';
+import { here, model, region, stay, Unreached } from './index.js';
 import { by } from './model.js';
 import type { Surface } from './surface.js';
 
@@ -9,9 +9,10 @@ import type { Surface } from './surface.js';
  * A checkout on the surface, announcing nothing: a Billing form with a Street
  * field and a Continue button that submits it whose answer, after `after` ms, is `answer` — `payment`
  * shows the Payment form, `signIn` the Sign in dialog, `help` opens a modal
- * dialog, and `nothing` leaves the page as it was.
+ * dialog, `next` moves the page to `/checkout/next` with the form still on it,
+ * and `nothing` leaves the page as it was.
  */
-export type Checkout = (answer: 'payment' | 'signIn' | 'help' | 'nothing', after: number) => Promise<Surface>;
+export type Checkout = (answer: 'payment' | 'signIn' | 'help' | 'next' | 'nothing', after: number) => Promise<Surface>;
 
 const billing = region('billing', { role: 'form', name: 'Billing' });
 const payment = region('payment', { role: 'form', name: 'Payment' });
@@ -78,6 +79,39 @@ export function cases(checkout: Checkout): void {
     );
 
     await expect(enter(await checkout('payment', 20))).resolves.toMatchObject({ outcome: 'payment' });
+  });
+
+  it('rests at a region still on the page after the app moved to a new address', async () => {
+    const next = by({ timeout: 2000, quiet: 100 })('next', { to: { billing } }, (on) =>
+      on.click({ role: 'button', name: 'Continue' }),
+    );
+
+    await expect(next(await checkout('next', 20))).resolves.toMatchObject({ outcome: 'billing' });
+  });
+
+  it('does not rest at a region a modal dialog has opened over', async () => {
+    const next = by({ timeout: 2000, quiet: 100 })('next', { to: { billing } }, (on) =>
+      on.click({ role: 'button', name: 'Continue' }),
+    );
+
+    await expect(next(await checkout('help', 20))).rejects.toMatchObject({
+      reason: 'elsewhere',
+      went: 'a modal dialog opened',
+    });
+  });
+
+  it('lists a model\'s actions, and those that can start where the page is, without acting', async () => {
+    let acted = 0;
+    const pay = by({ timeout: 2000, quiet: 100 })('pay', { from: payment, to: { signIn } }, async () => {
+      acted += 1;
+    });
+    const shop = model([submit, pay]);
+    const on = await checkout('payment', 20);
+
+    expect(shop.actions).toEqual([submit.declared, pay.declared]);
+    expect(shop.regions).toEqual([billing, payment, signIn]);
+    expect(shop.from(await here(on, shop.regions))).toEqual([submit.declared]);
+    expect(acted).toBe(0);
   });
 
   it('reads the regions on the page and the action as data, without acting', async () => {

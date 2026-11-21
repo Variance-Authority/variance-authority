@@ -20,8 +20,8 @@ const ORIGIN = 'https://shop.test';
 /**
  * A checkout that announces nothing. `?answer=` picks where Continue ends —
  * `elsewhere`, `window` and `help` are places no case declares: another
- * document, a new page and a modal dialog, and `frame` is a frame inside the
- * page going to one —
+ * document, a new page and a modal dialog, `frame` is a frame inside the
+ * page going to one, and `next` a new address for the same document —
  * `?after=` how long the server takes, `?open=` what is on the page before
  * anybody acts, `?stream` has Continue open a server-sent stream that never ends
  * and ask for a picture that never loads, and `?then=` has the page ask again
@@ -40,6 +40,7 @@ const CHECKOUT = `<!doctype html>
       if (part === 'payment') document.querySelector('[aria-label=Payment]').hidden = false;
       if (part === 'signIn') document.querySelector('dialog').show();
       if (part === 'elsewhere') location.assign('/checkout/elsewhere');
+      if (part === 'next') history.pushState(null, '', '/checkout/next');
       if (part === 'window') window.open('about:blank');
       if (part === 'slowWindow') window.open('/slow');
       if (part === 'frame') document.body.appendChild(document.createElement('iframe')).src = '/checkout/frame';

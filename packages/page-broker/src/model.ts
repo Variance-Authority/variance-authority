@@ -25,6 +25,42 @@ export async function here(surface: Surface, regions: readonly Region[]): Promis
   return regions.filter((_, index) => seen[index] !== undefined).map((each) => each.name);
 }
 
+/** Actions read together, as data: the regions they name, and which of them can start where the page is. */
+export interface Model {
+  /** Each action, in the order given. */
+  readonly actions: readonly Declared[];
+  /** Every region the actions start from or lead to, once each, in the order first named. */
+  readonly regions: readonly Region[];
+  /** The actions that can start among the regions named: one of theirs is there, or they declare none. */
+  from(regions: readonly string[]): Declared[];
+}
+
+/**
+ * Reads actions as one model, performing none of them. With {@link here}, it
+ * names the actions possible on the page now.
+ *
+ * @example
+ * const shop = model([submit, pay]);
+ * shop.from(await here(on, shop.regions)); // [submit.declared]
+ */
+export function model(actions: readonly { readonly declared: Declared }[]): Model {
+  const declared = actions.map((each) => each.declared);
+  const regions = new Map<string, Region>();
+  for (const each of declared) {
+    for (const part of [...each.from, ...Object.values(each.to)]) {
+      if (part === stay) continue;
+      const known = regions.get(part.name);
+      if (known !== undefined && known !== part) throw new Error(`${part.name}: two regions by one name`);
+      regions.set(part.name, part);
+    }
+  }
+  return {
+    actions: declared,
+    regions: [...regions.values()],
+    from: (names) => declared.filter((each) => each.from.length === 0 || each.from.some((part) => names.includes(part.name))),
+  };
+}
+
 /** An action's outcomes by name: a region to arrive at, or {@link stay}. */
 export type Outcomes = Readonly<Record<string, Region | typeof stay>>;
 
@@ -187,7 +223,8 @@ async function perform<Name extends string, Handle>(
   }
 
   // A region already on the page is never arrived at: the action rests there,
-  // told the way staying is, once the page is quiet and it is still there.
+  // told the way staying is, once the page is quiet and it is still there,
+  // at the address it started on or another.
   const before = await look(parts);
   if (before.length > 1) {
     throw fail(`${before.map((part) => part.name).join(' and ')} are on the page before the action, so they could not be told apart`, 'start');
@@ -246,8 +283,11 @@ async function perform<Name extends string, Handle>(
       const left = await gone.left();
       // What began while the page was looked at ended the quiet it was looked at in.
       if (!quiet.still()) continue;
-      // Quiet somewhere else is not resting: no outcome says where the app is.
-      if (left !== undefined) throw fail(`${none(', and ')}${left}, which no outcome declares`, 'elsewhere', left);
+      // A new address that still shows the region is where the action rests;
+      // anywhere else, quiet is not resting: no outcome says where the app is.
+      if (left !== undefined && !(still !== undefined && left.by === 'address')) {
+        throw fail(`${none(', and ')}${left.words}, which no outcome declares`, 'elsewhere', left.words);
+      }
       hearing = false;
       if (still !== undefined) return { outcome: still.name, at: still.at };
       if (declared.staying !== undefined) return { outcome: declared.staying, at: undefined };
@@ -255,7 +295,7 @@ async function perform<Name extends string, Handle>(
     }
     // Time running out is never staying: with work still pending, the answer is not in.
     const left = await gone.left();
-    if (left !== undefined) throw fail(`${none(', and ')}${left}, which no outcome declares`, 'elsewhere', left);
+    if (left !== undefined) throw fail(`${none(', and ')}${left.words}, which no outcome declares`, 'elsewhere', left.words);
     const held = quiet.held();
     if (!rests || (held === undefined && quiet.still())) throw fail(`${none('')} within ${means.timeout} ms`, 'late');
     throw fail(

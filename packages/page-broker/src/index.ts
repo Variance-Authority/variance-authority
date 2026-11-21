@@ -8,6 +8,6 @@
  * `@variance-authority/core`, for which requests count as work.
  */
 
-export { action, here, region, stay, Unreached } from './model.js';
-export type { Action, Declare, Declared, Ends, Outcomes, Reached, Reaching, Reason, Region } from './model.js';
-export type { Elsewhere, Query, Quiet, Surface, Target } from './surface.js';
+export { action, here, model, region, stay, Unreached } from './model.js';
+export type { Action, Declare, Declared, Ends, Model, Outcomes, Reached, Reaching, Reason, Region } from './model.js';
+export type { Elsewhere, Left, Query, Quiet, Surface, Target } from './surface.js';
