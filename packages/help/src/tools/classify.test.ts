@@ -6,7 +6,7 @@ import type { Documented, Entry, Help } from '@variance-authority/package/help';
 import * as sense from '@variance-authority/sense';
 import { HELP_TOOLS } from '../tools.js';
 import { classify } from './classify.js';
-import { classifyWords, formatClassified, placedAreas, type CodeMapPlaces } from './classify-words.js';
+import { classifyWords, formatClassified, identifier, placedAreas, type CodeMapPlaces, type Named } from './classify-words.js';
 
 /**
  * `docs_classify`: which words of the asker's own sentence are, whole, a
@@ -213,6 +213,30 @@ describe('docs_classify', () => {
 
     expect(text).toContain("variance ask search --query 'manager task' --from x-pack/plugins/task_manager/server");
     expect(text).not.toContain('--from docs/task_manager');
+  });
+
+  it('looks up only the identifier-shaped words no published name took, and counts past the ones it shows', () => {
+    const asked: string[][] = [];
+    const declared = (at: string, more?: number): Named => ({ kind: 'declared', specifier: at, package: '', published: false, ...(more === undefined ? {} : { more }) });
+    const located = classifyWords('ModuleLoader checkoutPath loader child_process', HELP, MAPPED, (words) => {
+      asked.push([...words]);
+      return new Map([
+        ['ModuleLoader', [declared('lib/a.js:3'), declared('lib/b.js:9'), declared('test/c.test.js:1', 4)]],
+        ['child_process', [{ kind: 'file', specifier: 'lib/child_process.js', package: '@acme/sense', published: false }]],
+      ]);
+    });
+    const text = formatClassified(located, PLACED);
+
+    expect(asked).toEqual([['ModuleLoader', 'child_process']]);
+    expect(text).toContain('ModuleLoader — declared lib/a.js:3 · in no package\n             — declared lib/b.js:9 · in no package\n             — declared test/c.test.js:1 · in no package\n             — and 4 more\n');
+    expect(text).toMatch(/^child_process — file lib\/child_process\.js · in @acme\/sense · area 4 around core, sense · layer 3$/m);
+    expect(text).toContain('variance ask orient --files lib/child_process.js');
+    expect(text).toContain('Not entities: loader');
+  });
+
+  it('takes a word as an identifier by an inner capital, an underscore or a digit after a letter, and nothing else', () => {
+    expect(['ModuleLoader', 'run_main', 'utf8', 'ESM'].filter(identifier)).toEqual(['ModuleLoader', 'run_main', 'utf8', 'ESM']);
+    expect(['loader', 'Loader', '2fa', 'CJS-ESM', 'lib/loader.js'].filter(identifier)).toEqual([]);
   });
 
   it('says the map is older than the source index when it was folded from an earlier one', () => {

@@ -96,10 +96,37 @@ function batchesOf(paths: readonly string[]): readonly (readonly string[])[] {
   return batches;
 }
 
-/** The names a git listing gives, or the first line git gave for not answering. */
-function gitNames(root: string, args: readonly string[]): readonly string[] | { readonly unread: string } {
+/**
+ * The files git tracks whose name, its last extension dropped, is one of
+ * `bases` — `lib/child_process.js` for `child_process` — keyed by that base,
+ * each in code-unit order; a base no file is named is absent. Git matches the
+ * names, so only the files named cross. A base that holds `/`, a glob
+ * character or nothing is no file name, and is not asked.
+ */
+export function filesNamed(root: string, bases: readonly string[]): ReadonlyMap<string, readonly string[]> | { readonly unread: string } {
+  const asked = [...new Set(bases)].filter((base) => base !== '' && !/[/*?[\]\\:]/u.test(base));
+  const named = new Map<string, string[]>();
+  if (asked.length === 0) return named;
+  const listed = gitNames(root, ['ls-files', '-z', '--cached', '--', ...asked.flatMap((base) => [`:(glob)**/${base}`, `:(glob)**/${base}.*`])], false);
+  if ('unread' in listed) return listed;
+  const wanted = new Set(asked);
+  for (const file of listed) {
+    const name = file.slice(file.lastIndexOf('/') + 1);
+    const dot = name.lastIndexOf('.');
+    const base = dot > 0 ? name.slice(0, dot) : name;
+    if (!wanted.has(base)) continue;
+    const held = named.get(base) ?? [];
+    held.push(file);
+    named.set(base, held);
+  }
+  for (const held of named.values()) held.sort((left, right) => (left < right ? -1 : left > right ? 1 : 0));
+  return named;
+}
+
+/** The names a git listing gives, or the first line git gave for not answering; `literal` reads every pathspec as a path, never as a pattern. */
+function gitNames(root: string, args: readonly string[], literal = true): readonly string[] | { readonly unread: string } {
   try {
-    const listed = execFileSync('git', ['--literal-pathspecs', ...args], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+    const listed = execFileSync('git', [...(literal ? ['--literal-pathspecs'] : []), ...args], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
     return listed.split('\0').filter((name) => name !== '');
   } catch (error) {
     const said = error instanceof Error && 'stderr' in error ? String(error.stderr) : String(error);

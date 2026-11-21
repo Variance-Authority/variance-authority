@@ -53,6 +53,12 @@ export interface Tree {
    * reached hands it this, and nothing the walk's size crosses here.
    */
   walk(seeds: Iterable<string>, against: boolean): SourceWalk;
+  /**
+   * How many files import each of `files` directly, in their order, each
+   * importer counted once; zero for a file the tree does not hold. Only the
+   * counts cross, one per file asked.
+   */
+  importers(files: readonly string[]): readonly number[];
   /** Minimum import distance from the seeds to every reachable file: a seed is at zero and every arrow adds one. */
   distanceFrom(seeds: Iterable<string>): ReadonlyMap<string, number>;
   /** The same minimum distance against the arrows. */
@@ -134,6 +140,7 @@ function treeAt(native: SourceTree, root: string, graphRoot?: string): Tree {
     distanceTo: (seeds) => distances(walk(seeds, true)),
     unknownAmong: (among) => native.unknownAmong([...among]),
     unknownFiles: () => native.unknownFiles(),
+    importers: (files) => native.importers([...files]),
     chainsTo(seeds) {
       const walked = walk(seeds, true);
       return {

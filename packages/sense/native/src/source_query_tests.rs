@@ -113,3 +113,10 @@ fn a_tree_whose_columns_disagree_is_refused() {
     ]);
     assert!(Graph::read(&bytes, "").is_err());
 }
+
+#[test]
+fn importers_count_each_direct_importer_once_and_nothing_for_an_unheld_path() {
+    let tree = open(&sample(), "");
+    // c.ts is imported by b.ts twice, a type and a re-export, and by d.ts once.
+    assert_eq!(tree.importers(strings(&["c.ts", "a.ts", "nowhere.ts"])), vec![2, 0, 0]);
+}
