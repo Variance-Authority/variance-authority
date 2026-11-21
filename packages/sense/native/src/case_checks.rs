@@ -1,4 +1,4 @@
-//! The checks a case declares, read from its test file before anything runs:
+//! The checks a case declares, read from its test file and not from the run:
 //! the `checked(id, fn)` calls its body holds, and those a function of the same
 //! file holds that the body calls, declared at the line the body calls it.
 //!
@@ -6,8 +6,11 @@
 //! declares and did not enter is missing. Only what the source spells is
 //! declared — a literal id, a callback written in place, a helper the file
 //! names — so a check built at run time is never named, rather than named by
-//! a guess. A case's body is the one the journeys walk starts from
-//! (`journeys_roots::test_roots`), so both read one case the same way.
+//! a guess. A case's body is the one the journeys walk finds in the test file
+//! (`journeys_roots::test_roots`), and a helper is the function the journeys
+//! resolve the body's call to (`journeys_graph::local_target`).
+// TODO: a case registered by a shared suite in another file declares nothing,
+// where the journeys walk falls back to the suite's file for its body.
 
 // compass: variance-authority.reach.relations
 
@@ -17,7 +20,8 @@ use std::path::Path;
 use napi_derive::napi;
 use rayon::prelude::*;
 
-use crate::journeys_parse::{self, Parsed};
+use crate::journeys_graph::local_target;
+use crate::journeys_parse::{self, Callee, Parsed};
 use crate::journeys_roots::test_roots;
 
 /// The entry `checked` ships from.
@@ -80,24 +84,37 @@ fn declared(parsed: &Parsed, name: &str) -> Option<(u32, Vec<(String, u32)>)> {
     let sites: HashMap<u32, u32> = parsed.calls.iter().filter_map(|call| call.callback.map(|at| (at, call.line))).collect();
     let site = |at: u32| sites.get(&at).copied().unwrap_or(parsed.fns[at as usize].line);
     let body = test_roots(parsed, name, None)?.body;
-    // What `checked` is called by in this file: its local name, or `checked` on a namespace.
-    let callees: HashSet<&str> = parsed
-        .imports
-        .iter()
-        .filter(|(_, import)| import.spec == ENTRY)
-        .filter_map(|(local, import)| match import.name.as_str() {
-            "checked" => Some(local.as_str()),
-            "*" => Some("checked"),
-            _ => None,
-        })
-        .collect();
-    if callees.is_empty() {
+    // What `checked` is called by in this file: its local name, or a namespace of the entry.
+    let (mut named, mut spaces) = (HashSet::new(), HashSet::new());
+    for (local, import) in parsed.imports.iter().filter(|(_, import)| import.spec == ENTRY) {
+        match import.name.as_str() {
+            "checked" => named.insert(local.as_str()),
+            "*" => spaces.insert(local.as_str()),
+            _ => false,
+        };
+    }
+    if named.is_empty() && spaces.is_empty() {
         return None;
     }
-    let mut checks: Vec<(String, u32)> = Vec::new();
-    let is_check = |at: usize| {
-        parsed.fns[at].hint.as_deref().and_then(|hint| hint.split_once(".arg")).is_some_and(|(callee, arg)| arg == "1" && callees.contains(callee))
+    let calls_checked = |callee: &Callee| match (&callee.id, &callee.ns, &callee.prop) {
+        (Some(id), None, _) => named.contains(id.as_str()),
+        (None, Some(ns), Some(prop)) => prop == "checked" && spaces.contains(ns.as_str()),
+        _ => false,
     };
+    // A check is the function handed to `checked` as its second argument: its
+    // site sorts two places before the call it is handed to.
+    let callees: HashMap<u64, &Callee> =
+        parsed.calls.iter().filter(|call| call.callback.is_none() && !call.by_ref).map(|call| (call.col, &call.callee)).collect();
+    let handed: HashMap<u32, &Callee> = parsed
+        .calls
+        .iter()
+        .filter_map(|call| Some((call.callback?, *callees.get(&(call.col + 2))?)))
+        .collect();
+    let is_check = |at: usize| {
+        parsed.fns[at].hint.as_deref().is_some_and(|hint| hint.ends_with(".arg1"))
+            && handed.get(&(at as u32)).is_some_and(|callee| calls_checked(callee))
+    };
+    let mut checks: Vec<(String, u32)> = Vec::new();
     let mut seen = HashSet::from([body]);
     // Each scope searched, with the line its checks are declared at: none for
     // the body, the line it calls the helper at for a helper.
@@ -117,10 +134,8 @@ fn declared(parsed: &Parsed, name: &str) -> Option<(u32, Vec<(String, u32)>)> {
             if call.by_ref || call.callback.is_some() || !within(parsed, from, scope) {
                 continue;
             }
-            for &helper in parsed.locals.get(callee).into_iter().flatten() {
-                if seen.insert(helper) {
-                    scopes.push((helper, Some(at_line.unwrap_or(call.line))));
-                }
+            if let Some(helper) = local_target(parsed, Some(from), callee).filter(|&helper| seen.insert(helper)) {
+                scopes.push((helper, Some(at_line.unwrap_or(call.line))));
             }
         }
     }
@@ -189,7 +204,7 @@ it('retries', { retry: 1 }, () => {
     }
 
     #[test]
-    fn finds_the_body_as_the_journeys_walk_does_by_its_path_then_its_title_then_its_template() {
+    fn finds_the_body_as_the_journeys_walk_does_by_its_path_then_its_title_and_reads_no_each_case() {
         let source = "import { checked } from '@variance-authority/sense/checked';
 describe('draft', () => {
   it('sends', () => {
@@ -204,11 +219,40 @@ describe('final', () => {
 it.each([1, 2])('adds %s', (n) => {
   checked('sum', () => n);
 });
+it(name(), () => {});
 ";
         let ids = |name: &str| read(source, name).map(|(_, checks)| checks.into_iter().map(|(id, _)| id).collect::<Vec<_>>());
         assert_eq!(ids("final > sends"), Some(vec!["final".to_owned()]));
         assert_eq!(ids("final sends"), Some(vec!["final".to_owned()]));
         assert_eq!(ids("draft > sends"), Some(vec!["draft".to_owned()]));
-        assert_eq!(ids("adds 2"), Some(vec!["sum".to_owned()]));
+        assert_eq!(ids("adds 2"), None);
+        assert_eq!(ids("other"), None);
+    }
+
+    #[test]
+    fn follows_a_helper_the_call_reaches_and_a_namespace_only_when_it_is_the_entry() {
+        let source = "import * as v from '@variance-authority/sense/checked';
+import * as other from './other';
+describe('draft', () => {
+  function verify() {
+    v.checked('draft', () => 1);
+  }
+  it('sends', () => {
+    verify();
+    other.checked('not a check', () => 2);
+  });
+});
+describe('final', () => {
+  function verify() {
+    v.checked('final', () => 1);
+  }
+  it('sends', () => {
+    verify();
+  });
+});
+";
+        let ids = |name: &str| read(source, name).map(|(_, checks)| checks.into_iter().map(|(id, _)| id).collect::<Vec<_>>());
+        assert_eq!(ids("draft > sends"), Some(vec!["draft".to_owned()]));
+        assert_eq!(ids("final > sends"), Some(vec!["final".to_owned()]));
     }
 }

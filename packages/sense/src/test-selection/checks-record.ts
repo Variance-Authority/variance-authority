@@ -1,7 +1,7 @@
 /**
  * Which declared checks the last run entered, case by case and attempt by
  * attempt. A case declares a check by writing `checked(id, fn)` in its body,
- * read from its test file before the run (`case-checks.ts`); an attempt enters
+ * read from its test file, not from the run (`case-checks.ts`); an attempt enters
  * it when the call runs, told by the case scope every runner opens. A check a
  * passing attempt declared and did not enter passed without it.
  *

@@ -369,25 +369,8 @@ impl Graph {
             _ => Target::NotFunction { file: at, local },
         };
         if let Some(id) = &callee.id {
-            if let Some(candidates) = parsed.locals.get(id) {
-                // The last candidate whose scope holds the call, else the first.
-                let mut best = None;
-                for &candidate in candidates {
-                    let parent = parsed.fns[candidate as usize].parent;
-                    let mut scope = from;
-                    let mut holds = parent.is_none();
-                    while !holds {
-                        let Some(at) = scope else { break };
-                        holds = Some(at) == parent;
-                        scope = parsed.fns[at as usize].parent;
-                    }
-                    if holds {
-                        best = Some(candidate);
-                    }
-                }
-                if let Some(func) = best.or_else(|| candidates.first().copied()) {
-                    return Target::Fn { file, func, how: How::Local };
-                }
+            if let Some(func) = local_target(parsed, from, id) {
+                return Target::Fn { file, func, how: How::Local };
             }
             if let Some(import) = parsed.imports.get(id) {
                 let declaration =
@@ -406,6 +389,27 @@ impl Graph {
         }
         Target::Member
     }
+}
+
+/// The function of the file a call written in `from` reaches by the name
+/// `id`: the last one bound to it whose scope holds the call, else the first.
+pub(crate) fn local_target(parsed: &Parsed, from: Option<u32>, id: &str) -> Option<u32> {
+    let candidates = parsed.locals.get(id)?;
+    let mut best = None;
+    for &candidate in candidates {
+        let parent = parsed.fns[candidate as usize].parent;
+        let mut scope = from;
+        let mut holds = parent.is_none();
+        while !holds {
+            let Some(at) = scope else { break };
+            holds = Some(at) == parent;
+            scope = parsed.fns[at as usize].parent;
+        }
+        if holds {
+            best = Some(candidate);
+        }
+    }
+    best.or_else(|| candidates.first().copied())
 }
 
 impl Modules for Graph {

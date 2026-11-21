@@ -2,13 +2,13 @@
  * Mark a check in a case body, so a case that passes without reaching it is
  * named rather than read as verified.
  *
- * The check is declared by where it stands, read from the test file before the
- * run (`case_checks.rs`): a `checked` call in a case body, or in a helper of the
- * same file the body calls, at the line the body calls it. Its id is a string
- * literal; one built at run time declares nothing.
+ * The check is declared by where it stands, read from the test file and not
+ * from the run (`case_checks.rs`): a `checked` call in a case body, or in a
+ * helper of the same file the body calls, at the line the body calls it. Its id
+ * is a string literal; one built at run time declares nothing.
  *
  * The entry imports nothing: it reads the case scope a recording installs on
- * the realm, in Node and in a browser realm alike.
+ * the realm, so it loads in a page too.
  */
 
 // compass: variance-authority.reach
@@ -29,6 +29,8 @@ type Scope = { readonly checked?: (id: string) => unknown } | undefined;
  * @see https://variance-authority.dev/reference/packages/sense#name-the-check-a-case-is-there-for
  */
 export function checked<Result>(id: string, fn: () => Result): Result {
+  // TODO: a page installs no case scope, so a case run in a page is not judged;
+  // it waits for cases recorded in a page (the TODOs in `vitest-plugin.ts` and `rstest.ts`).
   const scope = (globalThis as { [CASE_SCOPE]?: Scope })[CASE_SCOPE];
   try {
     scope?.checked?.(id);

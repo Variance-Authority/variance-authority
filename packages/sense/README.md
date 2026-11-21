@@ -2737,8 +2737,10 @@ test('submits the form', async () => {
 });
 ```
 
-It is the same call in a Vitest, Jest, Rstest or Playwright case. What a case
-declares is read from its test file before the run: each `checked` call in its
+It is the same call in a Vitest, Jest, Rstest or Playwright case. A case run in
+a page, under Vitest's or Rstest's browser mode, is recorded by its file and not
+by its case, so it is not judged yet. What a case declares is read from its test
+file, not from the run: each `checked` call in its
 body, and each in a function of the same file the body calls, declared at the
 line the body calls it. The id is read from the source, so it is a string
 literal; an id built at run time, a helper imported from another file or passed

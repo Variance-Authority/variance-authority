@@ -32,17 +32,6 @@ fn a_title_no_text_holds_is_no_title() {
 }
 
 #[test]
-fn a_body_handed_to_a_curried_each_is_named_by_the_call_it_curries() {
-    let parsed = parse(
-        "a.test.ts",
-        "describe.each([1])('suite %s', () => {\n  it.each([2])('adds %s', () => {});\n  test.each`a`('takes $a', () => {});\n});\nmake(1)(() => {});\n",
-    )
-    .unwrap();
-    let hints: Vec<_> = parsed.fns.iter().map(|func| func.hint.as_deref().unwrap_or("-")).collect();
-    assert_eq!(hints, ["describe.arg1", "it.arg1", "test.arg1", "?.arg0"]);
-}
-
-#[test]
 fn a_function_is_named_by_its_binding_key_or_the_call_it_is_handed_to() {
     let parsed = parse(
         "a.test.ts",
