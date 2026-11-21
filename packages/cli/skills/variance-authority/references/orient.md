@@ -47,6 +47,10 @@ Each file is answered in the order you gave. A `:<line>` after a path narrows
 the call journeys to the function that contains that line. The answer prints its
 own definitions. What you decide from it:
 
+- **External dependency declarations** show the first three entries per
+  listed dependency, followed by the count of the rest. Run the printed
+  `orient --files … --declarations` command for every entry, including
+  development declarations. Import sites and request counts are unchanged.
 - **`not recorded`** means the recording has no row for the file. It is no
   evidence about whether a test runs it. **`recorded, and no case ran it`** is a
   measurement.

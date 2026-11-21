@@ -93,6 +93,10 @@ export const orient: Tool<unknown> = {
         type: 'string',
         description: 'The id of an area on the code map, as a page lists it (`4.1`). Without files or area, the top page.',
       },
+      declarations: {
+        type: 'boolean',
+        description: 'With files, print every declaration entry for each listed external dependency; otherwise the first three and a remaining count.',
+      },
     },
     additionalProperties: false,
   },
@@ -106,7 +110,11 @@ export const orient: Tool<unknown> = {
     if (root === undefined) {
       throw new Error('`orient` reads what a checkout published, and this host named no checkout to read');
     }
-    if (said.length === 0) return mapPage(root, area === '' ? undefined : area);
+    const declarations = input['declarations'] === true;
+    if (said.length === 0) {
+      if (declarations) throw new Error('`--declarations` needs `--files`; a code-map page has no external dependency declarations.');
+      return mapPage(root, area === '' ? undefined : area);
+    }
     if (area !== undefined) {
       throw new Error(
         '`orient` reads either the graph around some files or one page of the code map, and was given both; ' +
@@ -116,6 +124,8 @@ export const orient: Tool<unknown> = {
     const { packages: around, external } = orientAround(root, files, LIMITS, { rows: 8, names: 3 });
     return formatOrientation({
       files,
+      asks: said,
+      declarations,
       around,
       external,
       recorded: recordedCases(root, files, TITLES),

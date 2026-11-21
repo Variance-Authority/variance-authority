@@ -26,6 +26,10 @@ import { formatJourneys } from './orient-journeys-format.js';
 export interface OrientReading {
   /** The files asked about, in the order asked. */
   readonly files: readonly string[];
+  /** Original inputs, retaining line selectors when a command replays the question. */
+  readonly asks?: readonly string[];
+  /** Print every reached declaration entry, rather than the initial three. */
+  readonly declarations?: boolean;
   readonly around: PackagesAround;
   readonly external?: { readonly index: string; readonly orientation?: ExternalOrientation };
   readonly recorded: readonly RecordedCases[];
@@ -37,6 +41,9 @@ export interface OrientReading {
 
 /** Below this many uses in a denominator a percentage says less than the count does, so only the count is printed. */
 export const SHARE_FLOOR = 10;
+
+/** Declaration entries per dependency in the initial reading. */
+const DECLARATIONS_SHOWN = 3;
 
 /** A share with the count it is over, or the bare count when the denominator is under the floor. */
 export function counted(share: number, uses: number, of: number): string {
@@ -133,9 +140,11 @@ function external(reading: OrientReading): readonly string[] {
   ];
   if (answer.dependencies.length === 0) lines.push('  No external package request was read from this path.');
   for (const dependency of answer.dependencies) {
+    const entries = reading.declarations === true ? dependency.declaredIn : dependency.declaredIn.slice(0, DECLARATIONS_SHOWN);
+    const more = dependency.declaredIn.length - entries.length;
     const declared = dependency.declaredIn.length === 0
       ? 'no reached manifest declares it'
-      : `declared in ${dependency.declaredIn.join(', ')}`;
+      : `declared in ${entries.join(', ')}${more > 0 ? `; ${plural(more, 'more declaration entry', 'more declaration entries')}` : ''}`;
     lines.push(`  ${dependency.package} — ${plural(dependency.files, 'file')}, ${plural(dependency.imports, 'request')}; ${declared}`);
     for (const site of dependency.sites) {
       const names = site.names.map(nameOf).join(', ');
@@ -220,6 +229,9 @@ function namedIn(flows: OrientFlows): { readonly name: string; readonly package?
 /** Commands that ask about one name or one file this answer printed. */
 export function followUps(reading: OrientReading): readonly string[] {
   const commands: string[] = [];
+  if (reading.declarations !== true && reading.external?.orientation?.dependencies.some((dependency) => dependency.declaredIn.length > DECLARATIONS_SHOWN)) {
+    commands.push(`variance ask orient --files ${shell((reading.asks ?? reading.files).join(','))} --declarations`);
+  }
   const asked = reading.around.orientation?.packages ?? [];
   // The first name another package uses, from the first asked package anybody uses.
   for (const one of asked) {

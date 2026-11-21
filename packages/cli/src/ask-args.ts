@@ -102,6 +102,8 @@ export interface ParsedAsk extends Crossing {
   readonly files?: readonly string[];
   /** `--area <id>`: the page of the code map `orient` prints, as its id (`4.1`). */
   readonly area?: string;
+  /** `--declarations`: every reached declaration entry in file orientation. */
+  readonly declarations?: boolean;
   /** `--name <name>`: an exported name, matched exactly, for `symbol` and `uses`; a test's name or a word of it, for `test-composition`. */
   readonly name?: string;
   /** `--line <file>:<line>`: a line that uses the name, for `symbol` to order its declarations by the tests that ran it. */
@@ -232,6 +234,7 @@ export function parseAskArgs(flags: Flags, config: string): ParsedAsk {
     ...(file !== undefined ? { file } : {}),
     ...(files.length > 0 ? { files } : {}),
     ...(area !== undefined ? { area } : {}),
+    ...(flags.present.has('--declarations') ? { declarations: true } : {}),
     ...(name !== undefined ? { name } : {}),
     ...(line !== undefined ? { line } : {}),
     ...(pkg !== undefined ? { package: pkg } : {}),
