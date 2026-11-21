@@ -11,6 +11,8 @@
  * the realm, in Node and in a browser realm alike.
  */
 
+// compass: variance-authority.reach
+
 /** Where a recording keeps the running case's scope; mirrors `CASE_SCOPE` in `cases.ts`. */
 const CASE_SCOPE = Symbol.for('variance-authority.test-selection.cases');
 
