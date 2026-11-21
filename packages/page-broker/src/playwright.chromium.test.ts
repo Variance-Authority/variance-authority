@@ -29,7 +29,7 @@ const ORIGIN = 'https://shop.test';
  */
 const CHECKOUT = `<!doctype html>
 <main>
-  <form aria-label="Billing"><button type="button">Continue</button></form>
+  <form aria-label="Billing"><label>Street <input name="street"></label><button>Continue</button></form>
   <form aria-label="Payment" hidden><p>Card number</p></form>
   <dialog aria-label="Sign in"><p>Who are you?</p></dialog>
 </main>
@@ -48,7 +48,8 @@ const CHECKOUT = `<!doctype html>
     }
   };
   show(query.get('open') ?? '');
-  document.querySelector('button').addEventListener('click', async () => {
+  document.querySelector('form').addEventListener('submit', async (event) => {
+    event.preventDefault();
     if (query.has('stream')) {
       new EventSource('/api/stream');
       new Image().src = '/api/picture';

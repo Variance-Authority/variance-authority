@@ -11,7 +11,7 @@ import { cases } from './surfaces.cases.js';
  */
 function checkout(answer: string, after = 20): void {
   document.body.innerHTML = `
-    <form aria-label="Billing"><label>Street <input name="street"></label><button type="button">Continue</button></form>
+    <form aria-label="Billing"><label>Street <input name="street"></label><button>Continue</button></form>
     <form aria-label="Payment" hidden><p>Card number</p></form>
     <div role="dialog" aria-label="Sign in" hidden><p>Who are you?</p></div>`;
   vi.stubGlobal('fetch', async () => {
@@ -19,7 +19,8 @@ function checkout(answer: string, after = 20): void {
     await new Promise((done) => setTimeout(done, after));
     return new Response(answer);
   });
-  document.querySelector('button')!.addEventListener('click', async () => {
+  document.querySelector('form')!.addEventListener('submit', async (event) => {
+    event.preventDefault();
     const said = await (await fetch('/api/billing')).text();
     if (said === 'payment') (document.querySelector('[aria-label=Payment]') as HTMLElement).hidden = false;
     if (said === 'signIn') (document.querySelector('[role=dialog]') as HTMLElement).hidden = false;

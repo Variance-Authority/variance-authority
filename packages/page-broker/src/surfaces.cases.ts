@@ -6,8 +6,8 @@ import { by } from './model.js';
 import type { Surface } from './surface.js';
 
 /**
- * A checkout on the surface, announcing nothing: a Billing form with a
- * Continue button whose answer, after `after` ms, is `answer` — `payment`
+ * A checkout on the surface, announcing nothing: a Billing form with a Street
+ * field and a Continue button that submits it whose answer, after `after` ms, is `answer` — `payment`
  * shows the Payment form, `signIn` the Sign in dialog, `help` opens a modal
  * dialog, and `nothing` leaves the page as it was.
  */
@@ -54,6 +54,19 @@ export function cases(checkout: Checkout): void {
       reason: 'elsewhere',
       went: 'a modal dialog opened',
     });
+  });
+
+  it('submits a form by Enter in its field, as a person does', async () => {
+    const enter = by({ timeout: 2000, quiet: 100 })(
+      'enter',
+      { from: billing, to: { payment, signIn, invalid: stay } },
+      async (on) => {
+        await on.fill({ label: 'Street' }, 'Main Street 1');
+        await on.press({ label: 'Street' }, 'Enter');
+      },
+    );
+
+    await expect(enter(await checkout('payment', 20))).resolves.toMatchObject({ outcome: 'payment' });
   });
 
   it('reads the regions on the page and the action as data, without acting', async () => {

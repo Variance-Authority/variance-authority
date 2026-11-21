@@ -1,12 +1,12 @@
 // compass: variance-authority.harness
 import {
-  fireEvent,
   queryAllByLabelText,
   queryAllByRole,
   queryAllByTestId,
   queryAllByText,
   waitFor,
 } from '@testing-library/dom';
+import { userEvent } from '@testing-library/user-event';
 import { away, pending } from './dom-watch.js';
 import type { Query, Surface, Target } from './surface.js';
 
@@ -23,7 +23,7 @@ const POLL = 50;
  * browser's own in a runner's browser mode. Parts are found the way Testing
  * Library finds them, the page is quiet once no request made with `fetch` or
  * `XMLHttpRequest` is in flight and the document has stopped changing, and
- * acts are dispatched as the events a person's input would fire.
+ * acts are a person's input as Testing Library's user-event makes it.
  *
  * @example
  * const reached = await submit(surface(document)); // { outcome: 'payment', at: <form> }
@@ -31,49 +31,52 @@ const POLL = 50;
 export function surface(document: Document): DocumentSurface {
   const find = (query: Query): Target<Element> => ({ visible: async () => all(document, query).find(shown) });
   const one = (query: Query): Promise<Element> => actable(document, query);
+  const user = userEvent.setup({ document });
   return {
     native: document,
     find,
     arrival: (targets, ms) => arrival(document, targets, ms),
     quiet: (period) => pending(document, period),
     elsewhere: async () => away(document),
-    click: async (query) => press(await one(query)),
+    click: async (query) => user.click(await one(query)),
     fill: async (query, value) => {
       const element = await one(query);
-      if (element instanceof document.defaultView!.HTMLElement) element.focus();
-      fireEvent.input(element, { target: { value } });
-      fireEvent.change(element, { target: { value } });
+      await user.clear(element);
+      if (value !== '') await user.type(element, typed(value));
     },
     press: async (query, key) => {
       const element = await one(query);
-      fireEvent.keyDown(element, { key });
-      fireEvent.keyUp(element, { key });
+      if (element instanceof document.defaultView!.HTMLElement) element.focus();
+      await user.keyboard(keys(key));
     },
     check: async (query) => {
       const element = await one(query);
-      if (!(element as HTMLInputElement).checked) press(element);
+      if (!(element as HTMLInputElement).checked) await user.click(element);
     },
     select: async (query, value) => {
       const element = (await one(query)) as HTMLSelectElement;
       const option = [...element.options].find((each) => each.value === value || each.label === value);
       if (option === undefined) throw new Error(`${describe(query)} has no option ${value}`);
-      fireEvent.change(element, { target: { value: option.value } });
+      await user.selectOptions(element, option);
     },
   };
 }
 
+/** Text as user-event types it, whose `{` and `[` open a key's name unless doubled. */
+function typed(text: string): string {
+  return text.replace(/[{[]/g, (bracket) => bracket + bracket);
+}
+
 /**
- * A click as a user's mouse makes it: down, up, then click. A widget may answer
- * the press rather than the click, and one that cancels the press keeps focus
- * where it was.
+ * A key as Playwright names it — `Enter`, `a`, `Control+A` — as user-event
+ * presses it: each modifier held down around the last key.
  */
-function press(element: Element): void {
-  fireEvent.pointerDown(element, { button: 0 });
-  const focusing = fireEvent.mouseDown(element, { button: 0 });
-  if (focusing && element instanceof element.ownerDocument.defaultView!.HTMLElement) element.focus();
-  fireEvent.pointerUp(element, { button: 0 });
-  fireEvent.mouseUp(element, { button: 0 });
-  fireEvent.click(element, { button: 0 });
+function keys(key: string): string {
+  if (key === '+') return key;
+  const parts = key.length > 1 && key.endsWith('+') ? [...key.slice(0, -2).split('+'), '+'] : key.split('+');
+  const last = parts.pop()!;
+  const pressed = last.length === 1 ? typed(last) : `{${last}}`;
+  return parts.map((held) => `{${held}>}`).join('') + pressed + parts.reverse().map((held) => `{/${held}}`).join('');
 }
 
 /** Every element the query matches, shown or not. A frame not yet there holds none. */
