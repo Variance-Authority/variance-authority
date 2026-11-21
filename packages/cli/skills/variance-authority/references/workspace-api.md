@@ -2,10 +2,9 @@
 
 Ten questions read a workspace's manifests and source: `packages`,
 `classify`, `entrypoint`, `symbol`, `uses`, `search`, `grep`, `discover`, `intersection`
-and `gaps`. Each answer
-read from a workspace generation names its UTC time; `variance ask discover`
-reads the checkout as it is, and names none. They describe source, not a
-build or a generated site, and they need no run and no config. For where a file
+and `gaps`. Each answer reads from a workspace generation and names its UTC
+time. They describe source, not a build or a generated site, and they need no
+run and no config. For where a file
 sits and what runs it, read [orient](orient.md).
 
 Use them for *what does this repository publish, and how is it already used
