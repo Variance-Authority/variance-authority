@@ -5,7 +5,7 @@
  *
  * Its check is no summary of what it said: a review it skipped or was rate
  * limited on still leaves a summary comment carrying the pre-merge checks
- * `.coderabbit.yaml` declares and a merge-risk note. So every place it writes is
+ * `.coderabbit.yaml` declares, and the merge-risk note of any push it reviewed. So every place it writes is
  * printed as it wrote it: the summary comment, each review's body, where
  * comments outside the diff and nitpicks go, and each inline comment. A skip, a
  * rate limit or a failed review is named from its check's own title and exits
@@ -35,13 +35,13 @@ const verdict = (check) => {
 const judged = (commit, head) => (commit && commit !== head ? ` — judged ${commit.slice(0, 9)}, not the head ${head.slice(0, 9)}` : '');
 
 /**
- * The report: the check's state, then every place CodeRabbit wrote, oldest
- * first. A review or an inline comment that judged an older commit than the head
+ * The report: the check's state, then what CodeRabbit wrote by kind — its
+ * comments, its reviews, its inline comments — each kind oldest first. A review or an inline comment that judged an older commit than the head
  * says so; the summary comment names the range it reviewed itself.
  */
 export const report = ({ number, head, check, comments, reviews, inline }) => {
   const parts = [`CodeRabbit on #${number}: ${verdict(check)}.`];
-  for (const comment of comments) parts.push(`== summary comment, last written ${comment.at}\n${unfurnished(comment.body)}`);
+  for (const comment of comments) parts.push(`== comment, last written ${comment.at}\n${unfurnished(comment.body)}`);
   for (const review of reviews) {
     const body = unfurnished(review.body);
     if (body) parts.push(`== review ${review.state}, ${review.at}${judged(review.commit, head)}\n${body}`);
@@ -53,6 +53,15 @@ export const report = ({ number, head, check, comments, reviews, inline }) => {
   if (parts.length === 1) parts.push('It wrote nothing on this pull request.');
   return parts.join('\n\n');
 };
+
+/**
+ * An inline comment as the REST API returns it, read for the report. GitHub
+ * moves its `commit_id` forward while its line still maps, so the commit it was
+ * written against is `original_commit_id`.
+ */
+export const inlineOf = (one) => ({
+  path: one.path, line: one.line, originalLine: one.original_line, at: one.updated_at, commit: one.original_commit_id, body: one.body,
+});
 
 const gh = (args) => JSON.parse(execFileSync('gh', args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 }));
 const all = (path) => gh(['api', '--paginate', '--slurp', path]).flat();
@@ -74,7 +83,7 @@ const main = () => {
         .map((one) => ({ at: one.submitted_at, state: one.state, commit: one.commit_id, body: one.body ?? '' })),
       inline: all(`repos/${repo}/pulls/${view.number}/comments`)
         .filter(mine)
-        .map((one) => ({ path: one.path, line: one.line, originalLine: one.original_line, at: one.updated_at, commit: one.commit_id, body: one.body })),
+        .map(inlineOf),
     }),
   );
 };

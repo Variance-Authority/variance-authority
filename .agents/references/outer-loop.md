@@ -82,7 +82,8 @@ is still reviewed: the public pages are the project's face.
 **CodeRabbit.** It reports as the `CodeRabbit` check, and the check says
 whether it reviewed the push, not whether it said anything: a push it skipped
 or was rate limited on still gets a summary comment carrying the pre-merge
-checks `.coderabbit.yaml` declares and a merge-risk note. A skip, a rate limit
+checks `.coderabbit.yaml` declares, and the merge-risk note of any push it
+reviewed. A skip, a rate limit
 or a failed review is named in the report, by the check's own title, never
 waited for. Everything it wrote — the summary comment, each
 review's body with the comments outside the diff and the nitpicks, and each
@@ -99,8 +100,8 @@ classify an older part against the head, and read again once the check
 finishes. An
 **Alignment** check that reads failed asks the same questions as the
 `alignment` reviewer of the pushed diff. Its finding is classified like a
-comment; one that is real goes back to the inner loop. So is the merge-risk
-note and every other finding the summary names.
+comment; one that is real goes back to the inner loop. The merge-risk note and
+every other finding the summary names are classified the same way.
 
 **Codex.** The reviewers before the push and the agent that wrote the change
 share a model family, and they share its blind spots. Codex reads the open PR

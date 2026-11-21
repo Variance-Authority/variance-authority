@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { report, unfurnished } from './coderabbit-review.mjs';
+import { inlineOf, report, unfurnished } from './coderabbit-review.mjs';
 
 /** The summary comment as CodeRabbit writes it on a push it skipped: the skip, a failed pre-merge check, and the spans it marks as furniture. */
 const SKIPPED = `<!-- This is an auto-generated comment: summarize by coderabbit.ai -->
@@ -67,6 +67,13 @@ describe('yarn review:coderabbit', () => {
   it('removes only the spans CodeRabbit marks as its furniture', () => {
     expect(unfurnished('<details>\n<summary>Review details</summary>\nup to 8ecd9\n</details>\n<!-- tips_start -->x<!-- tips_end -->')).toBe(
       '<details>\n<summary>Review details</summary>\nup to 8ecd9\n</details>',
+    );
+  });
+
+  it('reads an inline comment as judging the commit it was written against, though GitHub moved it to the head', () => {
+    const moved = { path: 'a.ts', line: 283, original_line: 274, updated_at: 't', commit_id: HEAD, original_commit_id: '4942169d7000', body: 'b' };
+    expect(report({ number: 4, head: HEAD, check: undefined, comments: [], reviews: [], inline: [inlineOf(moved)] })).toContain(
+      '== inline a.ts, line 283, t — judged 4942169d7, not the head 10a293940',
     );
   });
 });
