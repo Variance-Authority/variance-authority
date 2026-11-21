@@ -84,6 +84,7 @@ export function cases(checkout: Checkout): void {
     const on = await checkout('payment', 20);
 
     await expect(here(on, [billing, payment, signIn])).resolves.toEqual(['billing']);
-    expect(submit.declared).toEqual({ name: 'submit', from: [billing], outcomes: ['payment', 'signIn', 'invalid'] });
+    // Each outcome names its region, so a program reading the model knows where it leads.
+    expect(submit.declared).toEqual({ name: 'submit', from: [billing], to: { payment, signIn, invalid: stay } });
   });
 }

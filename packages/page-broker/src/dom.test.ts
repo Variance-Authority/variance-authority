@@ -128,7 +128,7 @@ describe('page-broker over a document', () => {
   });
 
   it('declares through the default means too', () => {
-    expect(action('noop', { to: { idle: stay } }, async () => undefined).declared.outcomes).toEqual(['idle']);
+    expect(action('noop', { to: { idle: stay } }, async () => undefined).declared.to).toEqual({ idle: stay });
   });
 });
 

@@ -48,16 +48,17 @@ export interface Reaching<Name extends string, Handle = unknown> extends Promise
 }
 
 /** An action as data, read without performing it. */
-export interface Declared {
+export interface Declared<To extends Outcomes = Outcomes> {
   readonly name: string;
   readonly from: readonly Region[];
-  readonly outcomes: readonly string[];
+  /** Its outcomes by name, each the region it leads to or {@link stay}, in the order declared. */
+  readonly to: To;
 }
 
 /** An action declared once and performed on a surface any number of times. */
 export interface Action<Name extends string, Args extends readonly unknown[], S extends Surface = Surface> {
   <Handle>(surface: S & Surface<unknown, Handle>, ...args: Args): Reaching<Name, Handle>;
-  readonly declared: Declared;
+  readonly declared: Declared<Readonly<Record<Name, Region | typeof stay>>>;
 }
 
 /**
@@ -137,7 +138,7 @@ export function by(means: Means): Declare {
       };
       return Object.assign(reached, { to });
     };
-    return Object.assign(performed, { declared: { name, from: [...from], outcomes: [...names] } });
+    return Object.assign(performed, { declared: { name, from: [...from], to: { ...ends.to } } });
   };
 }
 

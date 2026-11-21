@@ -106,8 +106,9 @@ and what the surface found — an element, or a locator — which is absent for
 to it.
 
 `here(on, regions)` names the regions visible now, without acting, and
-`submit.declared` is the action as data — its name, `from` and outcomes — for
-whatever reads a model without running it.
+`submit.declared` is the action as data — its name, `from`, and `to` with
+each outcome's region or `stay` — for whatever reads a model without running
+it.
 
 ## How an outcome is decided
 
