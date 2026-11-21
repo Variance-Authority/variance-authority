@@ -4,6 +4,7 @@ import { asOneQuestion } from '@variance-authority/sense';
 import { snapshotLine } from './caught-up.js';
 import { operatorError } from './operator.js';
 import { workspaceGeneration } from './snapshot.js';
+import { classify } from './tools/classify.js';
 import { containment } from './tools/containment.js';
 import { discover } from './tools/discover.js';
 import { entrypoint } from './tools/entrypoint.js';
@@ -57,7 +58,7 @@ function dated(tool: Tool<Help>, unseen: boolean): Tool<Help> {
  * `HELP_TOOLS` is this order with `docs_intersection`, which crosses them.
  */
 const ALONE: readonly Tool<Help>[] =
-  [packages, entrypoint, symbol, uses, search, grep, discover, orient, slowestTests, retriedTests, journeyMapTool, testCompositionTool, containment, stack, gaps];
+  [packages, classify, entrypoint, symbol, uses, search, grep, discover, orient, slowestTests, retriedTests, journeyMapTool, testCompositionTool, containment, stack, gaps];
 
 /** Every question above, crossed; built over the list so a question that joins it can be an operand. */
 const intersection = intersectionOf<Help>(ALONE);
@@ -121,7 +122,7 @@ const intersection = intersectionOf<Help>(ALONE);
  * told a name is undocumented is the agent best placed to write the paragraph.
  */
 export const HELP_TOOLS: readonly Tool<Help>[] =
-  [packages, entrypoint, symbol, uses, search, grep, discover, intersection, orient, slowestTests, retriedTests, journeyMapTool, testCompositionTool, containment, stack, gaps];
+  [packages, classify, entrypoint, symbol, uses, search, grep, discover, intersection, orient, slowestTests, retriedTests, journeyMapTool, testCompositionTool, containment, stack, gaps];
 
 
 export const SERVER_NAME = 'variance-authority-help';
@@ -140,7 +141,7 @@ export const HELP: Served<Help> = {
  */
 export const UNCOMPARED_HELP: Served<Help> = { ...HELP, tools: HELP_TOOLS.map((tool) => dated(tool, true)) };
 
-export { containment, discover, entrypoint, gaps, grep, intersection, journeyMapTool, orient, packages, retriedTests, search, slowestTests, stack, symbol, testCompositionTool, uses };
+export { classify, containment, discover, entrypoint, gaps, grep, intersection, journeyMapTool, orient, packages, retriedTests, search, slowestTests, stack, symbol, testCompositionTool, uses };
 export { containmentOf, formatContainment, type Containment } from './tools/containment.js';
 export { namesWanted } from './tools/intersection.js';
 export { formatOrientation, type OrientReading } from './tools/orient-format.js';

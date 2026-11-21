@@ -30,7 +30,7 @@
 import type { Tool } from '@variance-authority/mcp/tools';
 import { basename } from 'node:path';
 import { codeMapPage, journeysAround, orientAround, recordedCases, type JourneysAsk } from '@variance-authority/sense';
-import { formatCodeMapPage } from './code-map-format.js';
+import { formatCodeMapPage, noCodeMap, unfoldedCodeMap } from './code-map-format.js';
 import { formatOrientation, type OrientReading } from './orient-format.js';
 
 /** Other packages shown per side, and names shown per package. */
@@ -138,11 +138,11 @@ function mapPage(root: string, area: string | undefined): string {
   const { index, answer } = codeMapPage(root, area);
   const files = 'With files in hand, `files` reads the graph around them.';
   if (answer === undefined) {
-    return `No code map is kept beside the source index at ${index}; \`variance index\` folds one. ${files}`;
+    return `${noCodeMap(index)} ${files}`;
   }
   const { layers, page } = answer;
   if (layers === undefined || layers === null) {
-    return `The source index at ${index} was folded into no code map, because ${answer.unmade ?? 'there is no package to fold'}. ${files}`;
+    return `${unfoldedCodeMap(index, answer.unmade ?? undefined)} ${files}`;
   }
   if (page === undefined || page === null) {
     throw new Error(`the code map has no area \`${area ?? ''}\`; the top page, asked with no \`area\`, lists the areas`);

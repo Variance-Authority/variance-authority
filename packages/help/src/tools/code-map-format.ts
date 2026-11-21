@@ -53,6 +53,19 @@ function row(area: CodeMapRow): string {
   return parts.join(' · ');
 }
 
+/** What a reading of a map folded from an earlier source index ends with. */
+export const STALE_MAP = 'This map was folded from an earlier source index; `variance index` folds it again.';
+
+/** Why there is no code map to read: none is kept beside the source index at `index`. */
+export function noCodeMap(index: string): string {
+  return `No code map is kept beside the source index at ${index}; \`variance index\` folds one.`;
+}
+
+/** Why there is no code map to read: the source index at `index` was folded into none. */
+export function unfoldedCodeMap(index: string, unmade: string | undefined): string {
+  return `The source index at ${index} was folded into no code map, because ${unmade ?? 'there is no package to fold'}.`;
+}
+
 /** The page as `variance ask orient` prints it; `repository` names the top page. */
 export function formatCodeMapPage(
   answer: Pick<CodeMapAnswer, 'current'> & { readonly layers: number; readonly page: CodeMapPage },
@@ -64,8 +77,6 @@ export function formatCodeMapPage(
   if (page.list.length > 0) {
     lines.push(`  ${page.rows.length === 0 ? 'packages' : 'in no area above'}: ${page.list.map(unscoped).join(', ')}`);
   }
-  if (!answer.current) {
-    lines.push('', 'This map was folded from an earlier source index; `variance index` folds it again.');
-  }
+  if (!answer.current) lines.push('', STALE_MAP);
   return lines.join('\n');
 }

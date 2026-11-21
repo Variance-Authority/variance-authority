@@ -1131,6 +1131,7 @@
         "answerSearch": "function",
         "audience": "function",
         "block": "function",
+        "classify": "const",
         "containment": "const",
         "containmentOf": "function",
         "discover": "const",

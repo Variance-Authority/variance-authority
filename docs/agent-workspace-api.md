@@ -104,10 +104,10 @@ npx @modelcontextprotocol/inspector@1 --cli --config .mcp.json --server workspac
 
 Version 2 of the Inspector needs Node 22.19, so this line stays on version 1, which
 runs on every Node these packages do. It prints a notice that version 1 is
-deprecated, then the answer, which lists these sixteen:
+deprecated, then the answer, which lists these seventeen:
 
 ```text
-docs_packages docs_entrypoint docs_symbol docs_uses docs_search docs_grep
+docs_packages docs_classify docs_entrypoint docs_symbol docs_uses docs_search docs_grep
 docs_discover docs_intersection docs_orient docs_slowest_tests docs_retried_tests
 docs_journey_map docs_test_composition docs_containment docs_stack docs_gaps
 ```
@@ -439,6 +439,15 @@ import. A package whose declared entry the reading could not follow to a source
 file, such as a build output the checkout does not hold, opens no names, and
 the imports that name that entry are counted apart from the deep ones. Either
 row goes to `docs_entrypoint` as `package`, exactly as printed.
+
+Holding a request in words rather than a name, call `docs_classify` with it as
+`query` instead. It says which of its words are, whole, a package, an
+entrypoint or an exported name, each with its area and layer on the code map,
+and ends with the question each one takes next, written as the `variance ask`
+command whatever the caller: `symbol` (`docs_symbol`) for an exported name,
+`entrypoint` (`docs_entrypoint`) for a published package or entrypoint, and
+`orient --area` (`docs_orient`) for a package that publishes nothing, or no
+question when the map placed it in no area.
 
 Called with a specifier, `docs_entrypoint` lists the names it opens, ranked by
 how many workspace packages import them. Called with a package's name, it lists

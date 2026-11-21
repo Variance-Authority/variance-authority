@@ -156,6 +156,8 @@ export interface NativeCasesEntered {
 
 /** One package's place in the dependency layers of a kept code map. */
 export interface NativeOrientPackageLayer {
+  /** The innermost area whose page lists it; absent for a package only the top page lists. */
+  readonly area?: { readonly id: string; readonly name: string } | null;
   readonly package: string;
   readonly directory: string;
   /** One more than the highest layer among the packages it takes; one that takes nothing is layer 1. */
