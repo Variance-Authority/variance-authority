@@ -39,8 +39,11 @@ export async function wholeSource(
   const root = process.cwd();
   const sourced = await read(root, reading);
   const tree = reading.tree === true ? sourced.tree?.() : undefined;
+  // The tree names files from the graph's root, which a nested workspace sits
+  // below, so a tool that reads it is told the offset, as the server tells it.
+  const drawn = tree === undefined ? {} : { tree, sourceIndex: generationSourceIndex(sourced.help, root, sourceIndexPath(root)) };
   return {
-    answer: () => tool.run(sourced.help, input, invocationOf({ ...(tree === undefined ? {} : { tree }), root })),
+    answer: () => tool.run(sourced.help, input, invocationOf({ ...drawn, root })),
     data: () => searchNames(searchIndexOf(sourced.help), searchQuestionOf(input, spellingOf(invocationOf({ root }))), tree, root, importingOf(sourced.help, root)),
     at: workspaceGeneration(sourced.help),
   };

@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import type { Documented, Entry, Help } from '@variance-authority/package/help';
 import { HELP_TOOLS } from '../tools.js';
 import { classify } from './classify.js';
-import { classifyWords, formatClassified, type CodeMapPlaces } from './classify-words.js';
+import { classifyWords, formatClassified, placedAreas, type CodeMapPlaces } from './classify-words.js';
 
 /**
  * `docs_classify`: which words of the asker's own sentence are, whole, a
@@ -42,9 +42,9 @@ const HELP = {
 const PLACED: CodeMapPlaces = {
   current: true,
   packages: new Map([
-    ['@acme/sense', { area: { id: '4', name: 'around core, sense' }, layer: 3 }],
-    ['@acme/eyes', { area: { id: '5', name: 'png' }, layer: 2 }],
-    ['@acme/vantage', { area: { id: '10', name: 'vantage wire event' }, layer: 1 }],
+    ['@acme/sense', { area: { id: '4', name: 'around core, sense' }, layer: 3, directory: 'packages/sense' }],
+    ['@acme/eyes', { area: { id: '5', name: 'png' }, layer: 2, directory: 'packages/eyes' }],
+    ['@acme/vantage', { area: { id: '10', name: 'vantage wire event' }, layer: 1, directory: 'packages/vantage' }],
   ]),
 };
 
@@ -128,11 +128,69 @@ describe('docs_classify', () => {
   });
 
   it('sends a package that publishes nothing to its area on the map, not to `entrypoint`', () => {
-    const places = { current: true, packages: new Map([...PLACED.packages, ['case-runner', { area: { id: '7', name: 'cases' }, layer: 2 }]]) };
+    const places = { current: true, packages: new Map([...PLACED.packages, ['case-runner', { area: { id: '7', name: 'cases' }, layer: 2, directory: 'cases/runner' }]]) };
     const text = formatClassified(classifyWords('is case-runner in a layer', HELP, [...places.packages.keys()]), places);
 
     expect(text).toContain('variance ask orient --area 7');
     expect(text).not.toContain('entrypoint --package case-runner');
+  });
+
+  it('lists the areas the words point to, best first, each in its package, and asks `search` from the best for its two weightiest words', () => {
+    const areas = [
+      { path: 'x-pack/plugins/task_manager/server', files: 3, words: ['manager', 'task', 'claiming'], score: 2900, declares: true, package: '@acme/sense' },
+      { path: 'x-pack/plugins/alerting/server', files: 1, words: ['task'], score: 700, declares: true, package: '@acme/alerting' },
+      { path: 'docs', files: 1, words: ['task'], score: 500, declares: true },
+    ];
+    const text = formatClassified(classifyWords('task manager claiming', HELP, MAPPED), PLACED, areas);
+
+    expect(text).toContain([
+      'Areas its words point to, best first:',
+      '  x-pack/plugins/task_manager/server — 3 files · holds manager task claiming · in @acme/sense · area 4 around core, sense · layer 3',
+      '  x-pack/plugins/alerting/server — 1 file · holds task · in @acme/alerting · not on the code map',
+      '  docs — 1 file · holds task',
+    ].join('\n'));
+    expect(text).toContain("variance ask search --query 'manager task' --from x-pack/plugins/task_manager/server");
+  });
+
+  it('places an area in the map package nearest at or above it, by the name the map gives it', () => {
+    const packages = new Map([
+      ['shop', { layer: 1, directory: 'packages/shop' }],
+      ['shop (packages/old/shop)', { layer: 1, directory: 'packages/old/shop' }],
+    ]);
+    const area = (path: string) => ({ path, files: 1, words: ['shop'], score: 1, declares: true });
+
+    expect(placedAreas([area('packages/old/shop/src'), area('packages/shop'), area('packages/old'), area('.')], packages)).toEqual([
+      { ...area('packages/old/shop/src'), package: 'shop (packages/old/shop)' },
+      { ...area('packages/shop'), package: 'shop' },
+      area('packages/old'),
+      area('.'),
+    ]);
+  });
+
+  it('keeps the start point the asker said when the best area is the whole tree it reached', () => {
+    const areas = [{ path: '.', files: 40, words: ['task', 'manager'], score: 900, declares: true }];
+    const text = formatClassified(classifyWords('task manager claiming', HELP, MAPPED), PLACED, areas, { from: ['x-pack/plugins/task_manager/'] });
+
+    expect(text).toContain("variance ask search --query 'task manager' --from x-pack/plugins/task_manager/");
+  });
+
+  it('keeps the start point the asker said over the best area, whose directory holds files that start point never reached', () => {
+    const areas = [{ path: 'x-pack/plugins/task_manager/server', files: 3, words: ['manager', 'task'], score: 800, declares: true }];
+    const text = formatClassified(classifyWords('task manager claiming', HELP, MAPPED), PLACED, areas, { from: ['x-pack/plugins/alerting/'] });
+
+    expect(text).toMatch(/variance ask search --query 'manager task' --from x-pack\/plugins\/alerting\/$/);
+    expect(text).not.toContain('--from x-pack/plugins/task_manager/server');
+  });
+
+  it('asks `search` from the best area a file of which declares a name, as one that declares none is no start point', () => {
+    const areas = [
+      { path: 'docs/task_manager', files: 4, words: ['task', 'manager'], score: 900, declares: false },
+      { path: 'x-pack/plugins/task_manager/server', files: 3, words: ['manager', 'task'], score: 800, declares: true },
+    ];
+    const text = formatClassified(classifyWords('task manager claiming', HELP, MAPPED), PLACED, areas);
+
+    expect(text).toContain("variance ask search --query 'manager task' --from x-pack/plugins/task_manager/server");
+    expect(text).not.toContain('--from docs/task_manager');
   });
 
   it('says the map is older than the source index when it was folded from an earlier one', () => {

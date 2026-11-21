@@ -1,5 +1,5 @@
 import type { FileSet, Tool, ToolInvocation } from '@variance-authority/mcp/tools';
-import { START_POINT_SCHEMA, nextPage, pageAt, pageOf, paged, spellingOf, startPointArg, stringArg } from '@variance-authority/mcp/tools';
+import { START_POINT_SCHEMA, nextPage, pageAt, pageOf, paged, saysStartPoint, spellingOf, startPointArg, stringArg } from '@variance-authority/mcp/tools';
 import { testsRan } from '@variance-authority/sense';
 import { areaLine, areaOf, startPointNeeded } from './area.js';
 import { byFile } from './format.js';
@@ -71,7 +71,7 @@ export const grep: Tool<unknown> = {
     additionalProperties: false,
   },
 
-  wants: (input) => startPointArg(input, 'from') !== undefined || startPointArg(input, 'to') !== undefined,
+  wants: saysStartPoint,
 
   run: (_help, input, invocation) => {
     const spell = spellingOf(invocation);
