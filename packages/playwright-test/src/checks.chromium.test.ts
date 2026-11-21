@@ -47,15 +47,24 @@ async function freshRecord(): Promise<string> {
   return resolve(directory, 'coverage.bin');
 }
 
+/** Run the fixture under `env` and `args`, recording into `coverageFile`. */
+async function run(coverageFile: string, env: Readonly<Record<string, string>>, args: readonly string[] = []): Promise<void> {
+  await promisify(execFile)(
+    process.execPath,
+    [resolve(repository, 'node_modules/@playwright/test/cli.js'), 'test', '--config', resolve(fixture, 'playwright.config.mjs'), ...args],
+    { cwd: fixture, env: { ...process.env, ...env, VARIANCE_AUTHORITY_COVERAGE: coverageFile, VARIANCE_AUTHORITY_CACHE: resolve(dirname(coverageFile), 'cache') } },
+  ).catch(() => undefined);
+}
+
+/** The reading `not-run` prints of the record at `coverageFile`. */
+const readingOf = (coverageFile: string): string =>
+  formatNotRun([{ recording: coverageFile, origin: 'own', ...checksAt(coverageFile) }], Date.now());
+
 /** The reading `not-run` prints of one run of the fixture under `env`. */
 async function reading(env: Readonly<Record<string, string>>): Promise<string> {
   const coverageFile = await freshRecord();
-  await promisify(execFile)(
-    process.execPath,
-    [resolve(repository, 'node_modules/@playwright/test/cli.js'), 'test', '--config', resolve(fixture, 'playwright.config.mjs')],
-    { cwd: fixture, env: { ...process.env, ...env, VARIANCE_AUTHORITY_COVERAGE: coverageFile, VARIANCE_AUTHORITY_CACHE: resolve(dirname(coverageFile), 'cache') } },
-  ).catch(() => undefined);
-  return formatNotRun([{ recording: coverageFile, origin: 'own', ...checksAt(coverageFile) }], Date.now());
+  await run(coverageFile, env);
+  return readingOf(coverageFile);
 }
 
 /** The fixture's line whose trailing comment names the call. */
@@ -90,4 +99,12 @@ describe.runIf(BROWSER_AVAILABLE)('a Playwright case that passes without enterin
     expect(read).toContain(`Incomplete, stopped before their runner ended them, so none of their checks is named: ${spec}.`);
     expect(read).not.toContain('did not execute');
   }, 120_000);
+
+  it('reads a later run that collected no case, not the run before it', async () => {
+    const coverageFile = await freshRecord();
+    await run(coverageFile, { DROP_TITLE: '1' });
+    expect(readingOf(coverageFile)).toContain('did not execute');
+    await run(coverageFile, { DROP_TITLE: '1' }, ['--grep', 'no case is titled this', '--pass-with-no-tests']);
+    expect(readingOf(coverageFile)).not.toContain('did not execute');
+  }, 180_000);
 });
