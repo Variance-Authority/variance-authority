@@ -7,8 +7,8 @@ name (matched as spelled). A word shaped as an identifier — a capital past its
 first letter, an underscore, or a digit after a letter — that is none of those
 is then looked up as spelled among the top-level names files declare, exported
 or not, and the tracked files whose name without its extension it is:
-`ModuleLoader` is `declared lib/internal/modules/esm/loader.js:110`,
-`child_process` is `file lib/child_process.js`. Ordinary source comes before
+in Node.js, `ModuleLoader` is declared in the ESM loader's file, at its line,
+and `child_process` is the file of that name under `lib/`. Ordinary source comes before
 tests and stories, then the file more files import; three of each are shown and
 the rest counted. Each is placed in the package on the code map nearest at or
 above it, or `in no package`, so a checkout with no manifest still gets them. A

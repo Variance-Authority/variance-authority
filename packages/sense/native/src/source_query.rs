@@ -314,6 +314,7 @@ impl SourceTree {
 
     /// How many files import each of `paths` directly, each importer counted
     /// once however many imports it writes; zero for a path the tree does not hold.
+    /// bound: the paths the caller asked
     #[napi]
     pub fn importers(&self, paths: Vec<String>) -> Vec<u32> {
         let graph = &self.graph;

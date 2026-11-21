@@ -1,6 +1,7 @@
 // compass: variance-authority.report.agent-surface
 
 import { START_POINT_SCHEMA, saysStartPoint, startPointArg, type Tool, type Tree } from '@variance-authority/mcp/tools';
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import { kindOf, type Help } from '@variance-authority/package/help';
 import { classifiedAreas, describedWordsNative, filesNamed, packageLayers, sourceIndexPath } from '@variance-authority/sense';
 import { searchIndexOf, storeBytesOf } from '../snapshot.js';
@@ -13,6 +14,9 @@ import { termsOfStems } from './loose.js';
 
 /** How many declarations or files of one word are written out before the rest are counted. */
 const LOCATED_CAP = 3;
+
+/** How many files of one name are ordered by their importers; past them, a name every folder repeats is counted, not read. */
+const FILES_READ = 64;
 
 /**
  * Every package on the code map beside the source index, with its innermost
@@ -48,8 +52,8 @@ interface Found {
 function locating(help: Help, root: string, places: CodeMapPlaces, tree: Tree | undefined): Locate {
   return (words) => {
     const owning = ownerOf(places.packages);
-    const files = filesNamed(root, words);
-    const named = 'unread' in files ? new Map<string, readonly string[]>() : files;
+    const files = filesNamed(root, words, FILES_READ);
+    const named = 'unread' in files ? new Map<string, { readonly files: readonly string[]; readonly count: number }>() : files;
     const declared = new Map<string, readonly Found[]>();
     for (const word of words) {
       const read = declarations(root, word);
@@ -65,28 +69,29 @@ function locating(help: Help, root: string, places: CodeMapPlaces, tree: Tree | 
       declared.set(word, [...found.values()]);
     }
     // One read of the import graph counts every path either kind holds.
-    const paths = [...new Set([...declared.values(), ...named.values()].flatMap((found) => found.map((one) => (typeof one === 'string' ? one : one.at))))];
+    const paths = [...new Set([...[...declared.values()].flatMap((found) => found.map((one) => one.at)), ...[...named.values()].flatMap((one) => one.files)])];
     const counts = tree === undefined || paths.length === 0 ? [] : tree.importers(paths);
     const importers = new Map(paths.map((path, at) => [path, counts[at] ?? 0]));
     const order = (one: Found, other: Found): number =>
       Number(one.test) - Number(other.test) ||
       (importers.get(other.at) ?? 0) - (importers.get(one.at) ?? 0) ||
-      (one.at < other.at ? -1 : one.at > other.at ? 1 : 0) ||
+      codeUnitOrder(one.at, other.at) ||
       (one.line ?? 0) - (other.line ?? 0);
-    const shown = (found: readonly Found[], kind: 'declared' | 'file'): readonly Named[] => {
+    const shown = (found: readonly Found[], kind: 'declared' | 'file', count = found.length): readonly Named[] => {
       const sorted = [...found].sort(order);
       return sorted.slice(0, LOCATED_CAP).map((one, at, kept) => ({
         kind,
         specifier: one.line === undefined ? one.at : `${one.at}:${one.line}`,
         package: owning(one.at) ?? '',
         published: false,
-        ...(at === kept.length - 1 && sorted.length > kept.length ? { more: sorted.length - kept.length } : {}),
+        ...(at === kept.length - 1 && count > kept.length ? { more: count - kept.length } : {}),
       }));
     };
-    return new Map(words.map((word) => [word, [
-      ...shown(declared.get(word) ?? [], 'declared'),
-      ...shown((named.get(word) ?? []).map((at) => ({ at, test: kindOf(at) !== 'source' })), 'file'),
-    ]] as const));
+    return new Map(words.map((word) => {
+      const file = named.get(word);
+      const asFiles = (file?.files ?? []).map((at) => ({ at, test: kindOf(at) !== 'source' }));
+      return [word, [...shown(declared.get(word) ?? [], 'declared'), ...shown(asFiles, 'file', file?.count)]] as const;
+    }));
   };
 }
 
@@ -96,15 +101,9 @@ function locating(help: Help, root: string, places: CodeMapPlaces, tree: Tree | 
  *
  * Every other question takes a name or a pattern the asker already chose. This
  * one takes the request as it was written and says which of its words are,
- * whole, a package, an entrypoint or an exported name, so the next question is
- * asked about a name rather than a guess; then, of the identifier-shaped words
- * left, which are a name the source index holds declared or a file git tracks
- * by that name, each in the map package nearest above it. Its packages are the
- * code map's, read the way `docs_orient` reads them, and without a map it
- * classifies nothing; a map folded with no package still places declarations
- * and files, in no package.
- * Unresolved words or an explicit start point also rank the areas of the tree
- * the request points to; fully recognized unscoped requests use exact follow-ups.
+ * whole, a package, an entrypoint, an exported or declared name or a file, so
+ * the next question is asked about a name rather than a guess. Without a code
+ * map it classifies nothing.
  */
 export const classify: Tool<Help> = {
   name: 'docs_classify',

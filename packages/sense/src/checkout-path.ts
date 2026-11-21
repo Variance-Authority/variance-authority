@@ -11,6 +11,7 @@
 // compass: variance-authority.reach.relations
 
 import { execFileSync } from 'node:child_process';
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
 
 /** The repository-relative spelling of `asked`, or why it has none. */
@@ -99,14 +100,20 @@ function batchesOf(paths: readonly string[]): readonly (readonly string[])[] {
 /**
  * The files git tracks whose name, its last extension dropped, is one of
  * `bases` — `lib/child_process.js` for `child_process` — keyed by that base,
- * each in code-unit order; a base no file is named is absent. Git matches the
- * names, so only the files named cross. A base that holds `/`, a glob
- * character or nothing is no file name, and is not asked.
+ * the first `cap` of each in code-unit order and how many there are; a base no
+ * file is named is absent. Git matches the names, so only the files named
+ * cross. A base that holds `/`, a glob character or nothing is no file name,
+ * and is not asked.
  */
-export function filesNamed(root: string, bases: readonly string[]): ReadonlyMap<string, readonly string[]> | { readonly unread: string } {
+export function filesNamed(
+  root: string,
+  bases: readonly string[],
+  cap: number,
+): ReadonlyMap<string, { readonly files: readonly string[]; readonly count: number }> | { readonly unread: string } {
   const asked = [...new Set(bases)].filter((base) => base !== '' && !/[/*?[\]\\:]/u.test(base));
+  // bound: the files named by one of the asked bases, `cap` of each kept
   const named = new Map<string, string[]>();
-  if (asked.length === 0) return named;
+  if (asked.length === 0) return new Map();
   const listed = gitNames(root, ['ls-files', '-z', '--cached', '--', ...asked.flatMap((base) => [`:(glob)**/${base}`, `:(glob)**/${base}.*`])], false);
   if ('unread' in listed) return listed;
   const wanted = new Set(asked);
@@ -119,8 +126,7 @@ export function filesNamed(root: string, bases: readonly string[]): ReadonlyMap<
     held.push(file);
     named.set(base, held);
   }
-  for (const held of named.values()) held.sort((left, right) => (left < right ? -1 : left > right ? 1 : 0));
-  return named;
+  return new Map([...named].map(([base, held]) => [base, { files: held.sort(codeUnitOrder).slice(0, cap), count: held.length }] as const));
 }
 
 /** The names a git listing gives, or the first line git gave for not answering; `literal` reads every pathspec as a path, never as a pattern. */

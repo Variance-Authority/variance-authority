@@ -1,23 +1,9 @@
 /**
- * Which words of a sentence are names this workspace publishes, and how they
- * are said.
- *
- * Apart from the tool for the reason `code-map-format.ts` is: matching and
- * wording are pure functions of the reading and the placements, and a test
- * holding them should not need a repository and an index to get one.
- *
- * A word is an entity when it is, whole, the name of a package the code map
- * holds or that name without its scope, an entrypoint's specifier with or
- * without the scope (both matched without case), or a published exported name,
- * matched as it is spelled. The packages are the map's, so one that publishes
- * nothing is still named; the entrypoints and exports are the reading's. A word
- * shaped as an identifier — an inner capital, an underscore, or a digit after a
- * letter — that none of those names is then looked up whole, as spelled, among
- * the names the source index holds declared and the files git tracks by their
- * name without its extension: `ModuleLoader`, `child_process`. A plain
- * lowercase word is not, so `loader` names no file of that name. A word that is
- * only part of a name is not one: `check` beside `checkoutPath` names nothing.
- * There is no ranking and no model; the dictionary is the reading and the index.
+ * Which words of a sentence are names this workspace publishes or declares,
+ * and how they are said: pure functions of the reading and the placements, so
+ * a test holding them needs no repository and no index. A word names something
+ * only whole: `check` beside `checkoutPath` names nothing. There is no ranking
+ * and no model; the dictionary is the reading, and the index for identifiers.
  */
 
 // compass: variance-authority.report.agent-surface
@@ -126,9 +112,10 @@ function dictionaryOf(help: Help, packages: Iterable<string>): { readonly folded
 }
 
 /**
- * The words of `text` that are, whole, one of `packages` or a name `help`
- * publishes, or, shaped as an identifier and naming none of those, a name
- * `locate` finds declared or a file it finds named; and the words that are not.
+ * The words of `text` that are, whole, one of `packages` (scoped or not) or an
+ * entrypoint `help` publishes, both without case, or an export it publishes as
+ * spelled; or, shaped as an identifier and none of those, a name `locate` finds
+ * declared or a file it finds named; and the words that are not.
  */
 export function classifyWords(text: string, help: Help, packages: Iterable<string>, locate?: Locate): Classified {
   const { folded, exact } = dictionaryOf(help, packages);
