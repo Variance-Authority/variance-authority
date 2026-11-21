@@ -266,7 +266,7 @@ export function readingFrom({
     const count = these.reduce((sum, stand) => sum + stand.tests.length, 0);
     return whole
       ? [`${files} file(s) changed between the merge base with ${ref} and ${at} are read whole for the ${count} test(s) read from it`]
-      : [`${files} file(s) changed between the commits ${count} test(s) last ran at and ${at}, where the snapshot was recorded, are charged what changed from there to the tree, in the snapshot's lines`];
+      : [`${count} test(s) that last ran before ${at}, where the snapshot was recorded, are charged what changed from where each ran to the tree, in the snapshot's lines`];
   });
   return { base: commit, from: first, stands: read, says: `${reason}${note}; ${readings.join('; ')}${said}`, ...also };
 }
@@ -392,12 +392,12 @@ export function standChange(record: string, stand: string, differs: readonly str
  * One question `askPerStand` puts to a selector. `tree` reads the change from
  * the snapshot's commit to the tree, on the install at `at`, with `whole`
  * charged whole and left out of the hunks; `stand` reads the change from `at`
- * to the tree, in the snapshot commit's lines ({@link standChange}), on the
+ * to the tree, in the snapshot commit's lines ({@link standChange}), for `stand`, on the
  * install at `at`.
  */
 export type StandQuestion =
   | { readonly read: 'tree'; readonly at: string | undefined; readonly whole: readonly string[] }
-  | { readonly read: 'stand'; readonly at: string };
+  | { readonly read: 'stand'; readonly at: string; readonly stand: Stand };
 
 /** What a selector answers one {@link StandQuestion} with. */
 export interface StandAnswer<Distance extends TestDistance> {
@@ -451,7 +451,7 @@ export async function askPerStand<Distance extends TestDistance>(
   const here = await ask({ read: 'tree', at: undefined, whole: [] });
   keep(here, -1);
   for (const [at, stand] of stands.entries()) {
-    keep(await ask(stand.whole.length === 0 ? { read: 'stand', at: stand.commit } : { read: 'tree', at: stand.commit, whole: stand.whole }), at);
+    keep(await ask(stand.whole.length === 0 ? { read: 'stand', at: stand.commit, stand } : { read: 'tree', at: stand.commit, whole: stand.whole }), at);
   }
   const order = [...entered];
   return {

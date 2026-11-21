@@ -241,7 +241,7 @@ async function untested(request: SuiteRequest): Promise<SuiteReading> {
   if (!handed && reading?.widened !== undefined) {
     return said({ ...recorded, ground: { kind: 'no-diff', from: reading.from! } });
   }
-  const diff = handed ? await handedChange(request) : await diffSince(request.since ?? base, [], commit, { cwd: here });
+  const diff = handed ? await handedChange(request) : await diffSince(request.since ?? base, [], commit, { cwd: here, unified: 0 });
   if (diff === undefined) {
     const ground: SelectGround = { kind: 'no-diff', from: base };
     return said({ ...recorded, ground });
@@ -320,17 +320,18 @@ async function untested(request: SuiteRequest): Promise<SuiteReading> {
   // charged one change, from its stand to the tree, in the journal's lines
   // (`standChange`); the files a whole stand reads leave the hunk diff.
   const options = { relations, at, checkout: request.root, unmeasured: selection.unmeasuredOf(declared), ignore: declared?.ignore, precision: declared?.precision, distances: request.atDistance !== undefined };
-  const inRecord = stands.some((stand) => stand.whole.length === 0) ? diffSince(base, [], commit, { cwd: here, unified: 0 }) : undefined;
-  // A diff git could not write charges every file the stand or the tree moved whole, which selects more and never skips.
-  const standChange = async (stand: string, record: string | undefined, installed: readonly string[]) => {
-    const since = record === undefined ? undefined : await diffSince(base, [], stand, { cwd: here, unified: 0 });
-    const differs = stands.find((one) => one.commit === stand)!.changed;
-    const change = since === undefined ? selection.changeOfFiles([...changed, ...differs]) : selection.standChange(record!, since, differs);
-    return { lines: new Map([...change.lines, ...installed.map((file) => [file, []] as const)]), hunks: change.hunks };
+  // The tree's diff is `-U0`, so it is also the line map from the journal's commit that a stand's change is read in.
+  const standChange = async (stand: Stand, installed: readonly string[]) => {
+    const since = await diffSince(base, [], stand.commit, { cwd: here, unified: 0 });
+    if (since === undefined) throw new Error(`git could not write the diff from ${stand.commit.slice(0, 12)}, where ${stand.tests.length} test files last ran, to the tree`);
+    const change = selection.standChange(diff, since, stand.changed);
+    // What the install moved is charged whole and leaves the hunks, as `withWhole` writes it for the tree, so no export reading narrows it.
+    const whole = new Set(installed);
+    return { lines: new Map([...change.lines, ...installed.map((file) => [file, []] as const)]), hunks: new Map([...change.hunks].filter(([file]) => !whole.has(file))) };
   };
   const ask = async (question: StandQuestion) =>
     question.read === 'stand'
-      ? recordAgainst(here, await standChange(question.at, await inRecord, beyond.get(question.at)!.files), options)
+      ? recordAgainst(here, await standChange(question.stand, beyond.get(question.at)!.files), options)
       : recordAgainst(
           here,
           withWhole([selection.withoutFiles(diff, question.whole), ...question.whole.map(selection.wholeEntry)].join('\n'), beyond.get(question.at)!.files),

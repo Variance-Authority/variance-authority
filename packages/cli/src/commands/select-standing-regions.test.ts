@@ -42,7 +42,7 @@ describe('what changed after a test last ran is read region by region', () => {
     const said = await repo.select();
 
     expect(said.out).toBe('test/far.test.ts\n');
-    expect(said.err).toContain(`1 test file last ran at ${P.slice(0, 12)}`);
+    expect(said.err).toContain(`1 test file last ran at ${P.slice(0, 12)}, before the journal's commit ${C.slice(0, 12)}, so it is charged what changed from ${P.slice(0, 12)} to the tree, read in the journal's lines`);
   });
 
   it('runs a test for an edit, committed after it ran, to a function it ran in a file the run did not load', async () => {

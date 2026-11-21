@@ -190,12 +190,6 @@ export async function recordAgainst(
     readonly precision?: Precision | undefined;
     readonly distances?: boolean;
     /**
-     * `false` for a diff whose new side is not the text the landing kept a
-     * text against: a module recorded over an edit then reads `stale` and is
-     * charged whole, rather than read from the kept text to that side.
-     */
-    readonly keptTexts?: false;
-    /**
      * `false` for a diff that is the whole change as given, a patch handed in:
      * a module recorded over a kept text it does not name is left unread,
      * rather than read as an edit undone since.
@@ -210,12 +204,8 @@ export async function recordAgainst(
   const sourceAt = selection.textAtRecording(root, (typeof diff === 'string' ? selection.changedLines(diff) : diff.lines).keys());
   const asked = {
     sourceAt,
-    ...(options.keptTexts === false
-      ? {}
-      : {
-          keptText: selection.keptTexts(checkout),
-          ...(options.undone === false ? {} : { keptDigests: selection.keptDigests(checkout) }),
-        }),
+    keptText: selection.keptTexts(checkout),
+    ...(options.undone === false ? {} : { keptDigests: selection.keptDigests(checkout) }),
     root,
     ...(relations === undefined ? {} : { relations }),
     ...(unmeasured === undefined ? {} : { unmeasured }),

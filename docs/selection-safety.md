@@ -104,6 +104,7 @@ against that text before it is compared with your diff.
 | A changed module was recorded from a text nobody kept | every test that ran any region of it | `N changed modules were recorded from a text the journal's own commit does not hold and the cache did not keep, so every region of them was charged rather than read` |
 | The record names no commit, and `--since` names the base | every test that ran a changed module | `the journal names no commit, so none of its line ranges could be checked against the text they were cut from; every changed module with a row was charged whole` |
 | Some test files last ran at an earlier commit | those files are charged what changed from their commit to the tree | `N test files last ran at <commit>, before the journal's commit <commit>, so they are charged what changed from <commit> to the tree, read in the journal's lines` |
+| Some test files last ran at the merge base with the ref | every file changed between the merge base and the journal's commit is charged whole to them | `N file(s) changed between the merge base with <ref> and <commit> are read whole for the M test(s) read from it` |
 
 A package bump is not by itself a doubt. When the lockfile can be compared, the
 files that import a moved package are read as changed whole, and a note names
