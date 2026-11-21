@@ -34,64 +34,9 @@ main questions; pick the one that fits what you hold, each is one command:
 
 ## Fill a gap with a run of what it names
 
-An answer gives what the record has and names what it lacks — its gap. Fill a
-gap with what it names: a record fetched from the mainline, or a recorded run of
-the tests it names with the project's own runner. Never fill it by running the
-whole suite again over a record that exists:
-
-- **A suite with no recording** — `covering`'s `unrecorded`. When the refusal
-  names `variance share --suite <name>`, run that: it fetches the mainline's
-  record of a suite the root config gives `"carry": "share"`, with no run.
-  Otherwise wire the suite's producer, as [producers](references/producers.md)
-  says, and record one run of the suite: that first run is the record.
-- **A domain no producer wrote.** Wire the producer, as
-  [producers](references/producers.md) says, then run again the tests whose
-  answer lacked it.
-- **A case, or a test file.** Run that file, filtered to the case by its name
-  with the runner's own filter: `-t` under Vitest, Jest and Rstest, `--grep`
-  under Playwright.
-- **A file the record is older than** — `covering`'s `older`: the commit the
-  record was made at did not hold the file, so the file is new. Run
-  `variance index`, then `variance reach --since <commit>` with the commit the
-  refusal names: it takes every file added since the record at once, with no
-  record needed, and lists the files each one reaches over imports. Run the
-  test files in that list. A ref such as `origin/main` diffs from its merge base
-  with `HEAD`, which can already hold the file.
-- **Lines written since the recording, or recorded over another text since, in
-  a file the record holds** — `covering` answers a line your edit wrote with no
-  case and names it in `written`. A line a case ran over, where a run over
-  another text has landed since, is named in `overwritten`, under any frame:
-  which case ran it is not known. A line the record cannot say a case ran over,
-  since it does not say which text one that crossed the file ran, is named in
-  `unknown`, with `why`. A `stale` frame or a `moved` range is the
-  same gap. Record: the test files the gap names, the ones `variance select`
-  runs for the file, among them every test file the record holds only in part.
-  Run what the gap's `Run with the suite's own runner:` line names, `gap.run`
-  under `--format json`.
-- **A file the suite never loaded** — `covering`'s `Not loaded by`
-  (`unloaded`). The file is in the record's commit, and the recorded run of the
-  suite loaded it by no import at all — static, dynamic, or a setup file's.
-  Running the same tests again records the same thing. A test file added since
-  the recording is the diff's: `variance reach --since <commit>`, with the
-  commit the record was made at, names it when it imports the file. Otherwise
-  the gap is a test that loads the file, which no run fills.
-- **A base the answer cannot compare against** — `undiffed`. The base names a
-  commit this clone lacks or cannot diff from, or names none, or `--since` names
-  a ref that reads as no diff. This gap is the one no run fills: fetch that commit, for example by deepening a shallow
-  clone, or ask without the base.
-
-`reach` and `discover` follow imports. A suite that drives the code from another
-process, such as Playwright over a running app or a built Storybook, has no
-import from a spec to the file, so for a new or an unloaded file the source
-names none of its specs. Run the specs that drive the page, route or story the
-file serves, filtered with `--grep`, against a build that carries
-`testSelectionProbes()`, so the run measures the file.
-
-Inside the edit loop, `VARIANCE_AUTHORITY_SINCE= <runner>` already selects
-what each edit reached, both legs, as [test selection](references/test-selection.md#test-an-edit-in-a-loop)
-says; these bullets fill one answer's gap. A run of the whole suite is the gate
-before a change is done, and it is how the record is brought up to a commit. It
-is not how one answer's gap is filled.
+When an answer names missing recording evidence, follow
+[the gap it names](references/recording-gaps.md). That reference gives the
+bounded run or fetch for each gap.
 
 ## Run the installed binary
 
@@ -163,37 +108,9 @@ when its condition holds, not before.
 
 ## Follow a golden path
 
-When the task is an outcome rather than one question, its golden path on the
-site owns the order of the steps and links the page for each; it describes the
-latest release. Below, each path names the references that cover its steps.
-
-- **Make CI faster** ([path](https://variance-authority.dev/docs/path-faster-ci)):
-  shard by recorded time ([combine CI shard records](references/test-selection.md#combine-ci-shard-records)),
-  select on a pull request ([selection wiring](references/selection-wiring.md)),
-  carry the record to the next push (the same reference), then
-  [test an edit in a loop](references/test-selection.md#test-an-edit-in-a-loop).
-  All four start from the record main publishes.
-- **Review a visual change** ([path](https://variance-authority.dev/docs/path-visual-review)):
-  [check an edit](references/check-an-edit.md), then [ask a run](references/ask-a-run.md).
-- **Review a pull request** ([path](https://variance-authority.dev/docs/path-code-review)):
-  the handover, then [covering](references/covering.md) for a function it flags
-  🔴 and [the whole change](references/covering.md#ask-about-the-whole-change-at-review-time),
-  then `variance layers`, then `review --fail-on-uncovered` or `--fail-on-lost` as the [gate](#what-each-command-needs).
-- **Keep a test suite lean** ([path](https://variance-authority.dev/docs/path-lean-suite)):
-  [covering](references/covering.md), then
-  [case preconditions](references/case-preconditions.md), then
-  [distill](references/distill.md).
-- **Orient a coding agent in a codebase** ([path](https://variance-authority.dev/docs/path-agent-orientation)):
-  for a concrete feature task, start with [coding start points](references/code-orientation.md).
-  For the architecture, use [orient](references/orient.md#orient),
-  [stack](references/orient.md#stack), [packages](references/workspace-api.md#packages)
-  and `variance layers` as needed. Before editing, ask
-  [covering](references/covering.md) about the lines to change.
-- **Find out why a test failed or hangs** ([path](https://variance-authority.dev/docs/path-test-failure)):
-  [story](references/story.md) from the wrapped suite's record (a visual run
-  starts at [ask a run](references/ask-a-run.md)), then where it [parted from a passing test](https://variance-authority.dev/docs/journeys);
-  a run that has not ended starts at [live run](references/live-run.md), then
-  [interrogate the test](https://variance-authority.dev/agents/interrogate).
+For an outcome spanning several questions, follow
+[its workflow](references/workflows.md). Each path links its site guide and
+the references for its steps.
 
 ## Rules every answer shares
 
