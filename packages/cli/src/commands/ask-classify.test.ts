@@ -103,6 +103,22 @@ async function run(argv: readonly string[]): Promise<{ code: number; out: string
 }
 
 describe('variance ask classify', () => {
+  it('ranks an area by feature words found only in its nested directories', async () => {
+    const root = families();
+    const feature = join(root, 'packages/tools/tools-0/src/migrations/alpha-to-beta');
+    mkdirSync(feature, { recursive: true });
+    writeFileSync(join(feature, 'index.ts'), 'export function run(): number { return 1; }\n');
+    writeFileSync(join(feature, 'transform.ts'), 'export function rewrite(): number { return 2; }\n');
+    execFileSync('git', ['add', '-A'], { cwd: root, stdio: 'pipe' });
+    execFileSync('git', ['commit', '--quiet', '-m', 'a nested feature'], { cwd: root, stdio: 'pipe' });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const asked = await run(['ask', 'classify', '--query', 'alpha beta']);
+
+    expect(asked.code).toBe(EXIT_CLEAN);
+    expect(asked.out).toMatch(/^ {2}\. — \d+ files · holds alpha beta$/m);
+  });
+
   it('places each named package and export in the area that lists its package, at its dependency layer', async () => {
     families();
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
