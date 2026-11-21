@@ -46,7 +46,8 @@
 import { readFile, rm } from 'node:fs/promises';
 import { followRowsIn } from './case-cuts.js';
 import { editsBetween } from './region-edit.js';
-import { casesRan, dropsCasesWithoutAny, layCases, textsIn, unansweredOver, type FreshCases, type ModuleTexts } from './case-landing.js';
+import { casesRan, dropsCasesWithoutAny, layCases, textsIn, unansweredOver, type ModuleTexts } from './case-landing.js';
+import type { FreshCases } from './case-fold.js';
 import { landedChecks } from './checks-record.js';
 import { inputsOf } from './case-readings.js';
 import { casesRecordedOver, recordOfCases, withCaseSections, withoutChecks } from './case-record.js';

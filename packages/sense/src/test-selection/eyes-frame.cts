@@ -3,30 +3,15 @@
  * worker to the fold.
  *
  * A journal is closed in the test's `afterEach`, after the runner's case scope
- * has already closed around the body: Vitest wraps the test function and
- * nothing else, and Jest's `test_fn_start` is the body too. So the scope keeps a
- * second, longer bracket beside the one it logs crossings under, *attending*:
+ * has closed around the body, so the scope keeps a longer bracket, *attending*:
  * opened when the runner starts an attempt, named by the case the attempt
- * enters, and closed once the attempt's hooks are done. A journal handed over
- * inside it is written under that case and the attempt the scope counted.
+ * enters, and closed once its hooks are done. What is handed over inside it is
+ * written under that case and the attempt the scope counted.
  *
- * Each journal is its own frame in the file's `.vac`, beside the case frames,
- * so it rides the same transport and lands in the same write. A frame names its
- * case by the packed coordinate the case frames use, and the fold joins the two
- * by it. A frame with no journal says the case opened one: a case that watched
- * and handed nothing over is told apart from a case that never watched.
- *
- * The frame is JSON behind its own magic: a journal is Eyes' to read, and a
- * handful per case is nothing beside the case's crossings.
- *
- * A `checked` call in a case writes a frame that names the check instead of a
- * journal (`checked.ts`): the attempt that entered it is the one the scope
- * counted, so an attempt that failed after entering a check never lends it to
- * the attempt after. It needs no checkout to be spelled against, so the scope
- * keeps it whether or not Eyes is attended.
- *
- * CommonJS for the same reason as `journal-format.cts`: Jest evaluates the
- * collector inside the sandbox, from `node_modules`, untransformed.
+ * Each is a JSON frame behind its own magic in the file's `.vac`, beside the
+ * case frames and joined to them by the same packed coordinate. CommonJS for
+ * the same reason as `journal-format.cts`: Jest evaluates the collector inside
+ * the sandbox, from `node_modules`, untransformed.
  */
 
 /** `VAEYS` and a format version. A case frame opens with `VAJRN` instead. */
@@ -38,9 +23,17 @@ interface EyesFrame {
   readonly case: string;
   /** Counted from 1, per case, in the worker that ran it. */
   readonly attempt: number;
-  /** The journal as Eyes handed it over; absent with no `check`, the case opened one. */
+  /**
+   * The journal as Eyes handed it over; absent with no `check`, the case opened
+   * one: a case that watched and handed nothing over is told apart from one that
+   * never watched.
+   */
   readonly journal?: Readonly<Record<string, unknown>>;
-  /** The id of a check the attempt entered; a frame names a check or a journal, never both. */
+  /**
+   * The id of a check the attempt entered (`checked.ts`); a frame names a check
+   * or a journal, never both. Kept under the attempt that entered it, so a failed
+   * attempt never lends its checks to the retry, and kept with or without Eyes.
+   */
   readonly check?: string;
 }
 

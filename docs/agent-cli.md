@@ -403,7 +403,7 @@ each one a passing attempt did not enter:
 
 ```text
 Declared checks not executed:
-  expected check create-event/submitted-title did not execute in case create-event > submits the form (case tests/create-event.test.ts:12, check line 18), which passed
+  expected check create-event/submitted-title did not execute in case create-event > submits the form (case tests/create-event.spec.ts:12, check line 18), which passed
 0 declared check(s) entered.
 ```
 

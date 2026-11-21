@@ -1,4 +1,4 @@
-import type { FreshCases, LaidRun } from './case-landing.js';
+import type { LaidRun } from './case-landing.js';
 import type { ModuleId } from '../instrument/index.js';
 import { native } from '../addon.js';
 import type { CapturedModule } from './instrumented-modules.js';
@@ -11,6 +11,16 @@ import { checksOf, type EnteredCheck, type RanCase } from './case-checks.js';
 import type { ChecksSection } from './checks-record.js';
 import { nativeModule, whyAbsent } from './native-modules.js';
 import type { Reading } from './readings.js';
+
+/** One run's own case index, and what the run tells the index about its files. */
+export interface FreshCases {
+  readonly fresh: Uint8Array;
+  readonly run: LaidRun;
+  /** The cases that opened Eyes journals and the journals they handed over; absent when no case composed Eyes. */
+  readonly eyes?: EyesSection;
+  /** The checks the run's cases declare and what each attempt entered; absent when no case declares one, and then the record keeps none. */
+  readonly checks?: ChecksSection;
+}
 
 /** A run's case journals, folded into the case index's bytes. */
 export interface CaseFold {

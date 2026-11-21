@@ -199,8 +199,7 @@ function flat(holder: Holder): Collector {
  * @param story Where each case's story goes as the case settles, when the run
  * asked for stories.
  * @param root The checkout the record names files against. Given, the scope
- * also keeps what Eyes hands each case, as `eyes-frame.cts` describes; the
- * checks a case enters are kept either way.
+ * also keeps what Eyes hands each case, as `eyes-frame.cts` describes.
  * @param siteNamed How a warning names a precondition's call site, given by a
  * host that can load the addon; a sandboxed realm prints the site as it was
  * spelled.
@@ -436,7 +435,8 @@ function scoped(
     const key = running();
     return key === undefined ? undefined : journeyOf(key);
   };
-  // A tangled file writes no case frame, so it keeps no journal or check either.
+  // A tangled file writes no case frame, so it keeps no journal or check either;
+  // a check is kept with or without a checkout, a journal only with one.
   const attention = eyesFrames.attending(root, () => (tangled ? null : running()), (frame) => frames.push(frame));
   const { phase, within, where } = recorder;
   // One edge starts an attempt for both: what a `beforeEach` said for a case
