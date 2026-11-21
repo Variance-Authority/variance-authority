@@ -203,13 +203,20 @@ two areas are combined, not intersected. A path has three widths and no others:
 everything under it at any depth. Write the parent with the file name —
 `Provider.tsx` alone is not unique. A path is a fact about the source tree, so
 ask from a checkout at the revision you are asking about.
+On `uses`, `--from` only sorts the workspace-wide import sites; it does not
+narrow them. For importers in one area, cross `discover --imports <file#name>`
+with `--path <regex>`.
 
 **Name the code before you open it.** Ask `search` for meaning, `symbol` for
 a name, or `discover --path <regex> --declares <regex>` for declarations in
 an area. Once an answer names a plausible feature owner, read its named lines
 and imports; these verbs are choices, not a sequence to complete first.
-Then use `discover --from <file>` or `--to <file>` with the names the source
-gave you to find the next responsibility. A historical symptom may be gone:
+Find the next responsibility by crossing what you know: `discover --from <file>
+--declares <regex>` for a dependency, `discover --to <file> --path <regex>` for
+an example or caller, or `discover --imports <file#name> --path <regex>` for
+direct importers in an area. Take import names from the source you read. When
+each fact is already a complete question, cross them with `intersection`.
+A historical symptom may be gone:
 establish the current feature's owners before searching for the old predicate.
 A file explicitly named by the task can be read directly. Any other file no
 answer named takes `orient --files <path>` before the read.

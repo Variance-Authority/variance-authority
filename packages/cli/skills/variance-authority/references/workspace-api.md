@@ -107,7 +107,10 @@ Ask by what you hold:
 | You hold | Ask |
 |---|---|
 | A request, in the asker's words | `classify`, for which of its words are names |
-| A name | `symbol`, then `uses` |
+| A name whose signature or declaration you need | `symbol` |
+| Every importer of a name | `uses`; `--from` sorts, it does not narrow |
+| A known file or import, and a related responsibility to find | `discover`, crossing the relation with `--declares` or `--path` |
+| Two facts already expressed as complete file questions | `intersection` |
 | A meaning, in words | `search`, with each likely spelling |
 | A local name, a string or a pattern in code | `grep --from <path>`, from where you are working |
 | Text outside the source: YAML, JSON, Markdown, shell, workflows, logs | `rg` or `git grep` |
@@ -137,9 +140,27 @@ search; ask `symbol` when you need its contract, or `uses` for its import sites.
 
 Directory membership, import reach and runtime loading answer different
 questions. `discover --path <regex>` selects paths; `--from` and `--to` follow
-imports, including type imports. Cross a graph operand with `--declares` to
-find a related responsibility, such as a mock reached by an example that
-imports a component. A loader naming a transform as a path string creates no
+imports, including type imports. Cross those relations with a declaration or
+path predicate for the responsibility you still need. For example, find an
+example that imports a component, then the mock that example imports:
+
+```bash
+variance ask discover --to src/PriceCard.tsx --path '(^|/)(examples|stories)/' --limit 6
+variance ask discover --from examples/PriceCard.examples.tsx --path '(^|/)mocks/' --limit 6
+```
+
+Use the actual example path returned by the first question in the second.
+The mock need not import the component: those are two legs of the graph.
+For direct users of a known import inside one area, cross `--imports` with
+`--path`, rather than listing every importer with `uses`:
+
+```bash
+variance ask discover --imports src/currency/codes.ts#CURRENCY_CODES --path '^src/currency/' --limit 6
+```
+
+`uses --from` only orders its workspace-wide inventory. Keep that full inventory
+when changing a name's contract; use `discover` to select related code while
+orienting. A loader naming a transform as a path string creates no
 import edge: ask scoped `grep` for that string. For a data-shape change, inspect
 the example or fixture representing the requested state as well as the code
 that consumes it. An import alone proves neither that state nor its behaviour.
