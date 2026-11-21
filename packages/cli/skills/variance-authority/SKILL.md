@@ -196,9 +196,10 @@ when it spells a name or a phrase: `node id` finds `NodeId`.
 source index takes `rg` or `git grep`, as the workspace reference explains.
 
 **Say where you are standing.** On a large repository a common word matches
-everywhere the product uses its own name. `--from <path>` narrows to what that
-path imports, at any depth; `--to <path>` to what imports it. Give both and the
-two areas are combined, not intersected. A path has three widths and no others:
+everywhere the product uses its own name. On `search`, `grep` and `classify`,
+`--from <path>` narrows to what that path imports, at any depth; `--to <path>`
+to what imports it. Give both and the two areas are combined. `discover`
+intersects its operands instead. A path has three widths and no others:
 `src/a/File.ts` is that file, `src/a/*` is that folder's own files, `src/a/` is
 everything under it at any depth. Write the parent with the file name —
 `Provider.tsx` alone is not unique. A path is a fact about the source tree, so
@@ -213,9 +214,10 @@ an area. Once an answer names a plausible feature owner, read its named lines
 and imports; these verbs are choices, not a sequence to complete first.
 Find the next responsibility by crossing what you know: `discover --from <file>
 --declares <regex>` for a dependency, `discover --to <file> --path <regex>` for
-an example or caller, or `discover --imports <file#name> --path <regex>` for
-direct importers in an area. Take import names from the source you read. When
-each fact is already a complete question, cross them with `intersection`.
+an example or other importer, or `discover --imports <file#name> --path <regex>`
+for importers of a name in an area, through re-exports too. Take import names
+from the source you read. When each fact is already a complete question, cross
+them with `intersection`.
 A historical symptom may be gone:
 establish the current feature's owners before searching for the old predicate.
 A file explicitly named by the task can be read directly. Any other file no

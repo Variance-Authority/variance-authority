@@ -151,8 +151,8 @@ variance ask discover --from examples/PriceCard.examples.tsx --path '(^|/)mocks/
 
 Use the actual example path returned by the first question in the second.
 The mock need not import the component: those are two legs of the graph.
-For direct users of a known import inside one area, cross `--imports` with
-`--path`, rather than listing every importer with `uses`:
+For importers of a known name inside one area, through re-exports too, cross
+`--imports` with `--path`, rather than listing every importer with `uses`:
 
 ```bash
 variance ask discover --imports src/currency/codes.ts#CURRENCY_CODES --path '^src/currency/' --limit 6
