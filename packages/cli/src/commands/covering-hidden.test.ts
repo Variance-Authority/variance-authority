@@ -67,7 +67,7 @@ describe('the whole-file answer over a range a case also ran in another text', (
     const ranges = [{ startLine: 4, endLine: 8, state: 'walked' as const, tests: [adds], stopped: [], overwritten: [keeps] }];
 
     expect(formatCovering({ ...answer, ranges }, 'text', Date.now())).toContain([
-      '  a.test.ts — 1 case',
+      '  a.test.ts — 1/1',
       '    adds',
       'lines 4-8 — walked',
       "  it is also in a text a case ran over, but a run over another text has landed there since, so which other case ran it is not known",
@@ -82,7 +82,7 @@ describe('the whole-file answer over a one-line region no case entered', () => {
 
     expect(formatCovering(answer, 'text', Date.now())).toBe([
       'src/cart.ts — 3 recorded ranges, 1 named test in 1 test file',
-      '  a.test.ts — 1 case',
+      '  a.test.ts — 1/1',
       '    adds',
       'line 6 — alone',
       '  no case entered the branch on line 6, and every case that could have reached it finished: unwalked.',

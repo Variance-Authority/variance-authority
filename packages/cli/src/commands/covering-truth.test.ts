@@ -87,7 +87,7 @@ describe('a module every test file imports, asked whole', () => {
 
     expect(text).toBe([
       'src/hub.ts — 1 recorded range, 1 named test in 1 test file, and 2 more that ran it only while their file imported it',
-      '  a.test.ts — 1 case',
+      '  a.test.ts — 1/1',
       '    runs',
       'The record does not say which text of src/hub.ts its lines are numbered in, so they are given as recorded.',
       'Where and when the 3 test files named here last ran is not known: the record names no commit.',
@@ -100,7 +100,7 @@ describe('a module every test file imports, asked whole', () => {
     const twice = formatCovering(await covering(parse(['--file', 'src/hub.ts', '--root', root, '--execution', split])), 'text', Date.now());
 
     expect(twice).toContain('src/hub.ts — 3 recorded ranges, 1 named test in 1 test file, and 2 more');
-    expect(twice).toContain('\n  a.test.ts — 1 case\n    runs\n');
+    expect(twice).toContain('\n  a.test.ts — 1/1\n    runs\n');
     expect(twice.split('a.test.ts').length - 1).toBe(1);
     expect(twice).toContain('\nlines 4-5');
   });
