@@ -174,22 +174,3 @@ fn ranks_as_the_javascript_ranking_it_replaced() {
         assert_eq!(found, expected, "case {at}: {:?}", case.query);
     }
 }
-
-#[test]
-fn source_trees_read_packages_extensions_and_tests_as_containment_did() {
-    let packages: HashSet<&str> = ["packages/a", "packages/a/nested"].into_iter().collect();
-
-    assert_eq!(package_owner(&packages, "packages/a/nested/src/x.ts"), "packages/a/nested");
-    assert_eq!(package_owner(&packages, "packages/a/src/x.ts"), "packages/a");
-    assert_eq!(package_owner(&packages, "tools/x.ts"), ".");
-    assert_eq!(extension("src/.eslintrc"), "");
-    assert_eq!(extension("src/a.b/file"), "");
-    assert_eq!(extension("src/x.test.ts"), ".ts");
-    let tests = TestPaths::new();
-    for test in ["src/x.test.ts", "a/__tests__/x.ts", "a/Tests/x.ts", "x_test.go", "test_x.py", "a/FooTest.java", "spec/x_spec.rb", "a/fixtures/x.ts"] {
-        assert!(tests.holds(test), "{test} is a test");
-    }
-    for source in ["src/x.ts", "src/latest.ts", "src/contest/x.ts", "Test.java"] {
-        assert!(!tests.holds(source), "{source} is no test");
-    }
-}

@@ -11,8 +11,8 @@ import { BASELINE, unbounded } from './repo-sized.mjs';
  * question — a top-N, a page, a count, one file, or a set the caller named.
  *
  * `repo-sized.mjs` finds every napi export that takes or returns a collection
- * and every place shipped TypeScript lists files itself (`ls-files`,
- * `ls-tree`, a glob, a recursive directory walk). Each passes when the comment
+ * and every place TypeScript lists files itself or drains a list the addon
+ * answers. Each passes when the comment
  * above it says what bounds it on a `bound:` line. What was unbounded when the
  * rule came in is held in the baseline, which only shrinks.
  *

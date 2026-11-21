@@ -11,27 +11,24 @@
 //!
 //! Every file `HEAD` holds is read here, from git, and the names they declare
 //! from the help store and the source index: only the ten areas answered cross
-//! to JavaScript. A start point scopes the files by the walks it made over the
+//! to JavaScript. Which dictionary terms reduce to the request's stems is the
+//! one rule `search` resolves them by, in JavaScript, and those terms are what
+//! cross here. A start point scopes the files by the walks it made over the
 //! source tree, read where they were walked.
-//!
-//! The same file says which trees hold source, for `containment`: the one
-//! other question that read every file `HEAD` holds.
 
 // compass: variance-authority.report.agent-surface
 
 use std::collections::{BTreeMap, HashMap, HashSet};
-use std::process::{Command, Stdio};
 
 use napi::bindgen_prelude::Buffer;
 use napi_derive::napi;
-use regex::Regex;
 
 use crate::dependency_lexicon::describing::code_words;
-use crate::dependency_lexicon::purposes::stem;
 use crate::help_declared::{declared, private_words, Matching};
 use crate::help_publish::{open_index, opened_chain};
 use crate::help_store::{FORMAT, NONE, VERSION};
 use crate::source_query::{reached_by, SourceWalk};
+use crate::source_trees::head_files;
 use crate::stored::Stored;
 
 /// The most files one area holds: a directory holding more is read as its children.
@@ -42,9 +39,6 @@ const AREAS_SHOWN: usize = 10;
 
 /// How much a path's own words count against one file's name: its words name everything under it.
 const PATH_WEIGHT: u64 = 3;
-
-/// The command `HEAD`'s files are listed with, as a refusal names it.
-const LS_TREE: [&str; 5] = ["ls-tree", "-r", "-z", "--name-only", "HEAD"];
 
 /// One area the request's words point to.
 #[napi(object)]
@@ -71,7 +65,7 @@ pub struct ClassifiedAreas {
     pub reached: u32,
     /// How many of those import something the scan could not resolve.
     pub unresolved: u32,
-    /// Why git could not list the files `HEAD` holds, as the command failed; nothing was ranked.
+    /// What the addon ran and what git said, when it could not list the files `HEAD` holds; nothing was ranked.
     pub refused: Option<String>,
 }
 
@@ -86,7 +80,9 @@ pub(crate) struct DeclaredWords {
 
 /// The areas `query`'s words point to among the files `HEAD` holds under
 /// `root`, scored with the names the help store in `store` and the source index
-/// at `index` say they declare. `within` is the workspace's offset below the
+/// at `index` say they declare. `terms` are, per stem of the request in the
+/// order `describedWords` gives them, the store's dictionary terms that reduce
+/// to it. `within` is the workspace's offset below the
 /// index's root, empty when they are one. When `scoped`, only the files the
 /// walks `from` and `to` reached together are ranked; a start point that was
 /// said and refused passes neither, and ranks nothing.
@@ -97,6 +93,7 @@ pub(crate) struct DeclaredWords {
 pub fn classify_areas(
     root: String,
     query: String,
+    terms: Vec<Vec<u32>>,
     store: Option<Buffer>,
     index: String,
     within: String,
@@ -130,7 +127,10 @@ pub fn classify_areas(
         return Ok(answer(Vec::new(), None));
     }
     let stems: Vec<String> = asked.keys().cloned().collect();
-    let mut words = store_words(&stored, &stems).map_err(napi::Error::from_reason)?;
+    if terms.len() != stems.len() {
+        return Err(napi::Error::from_reason(format!("classify was given the terms of {} stems for a request of {}", terms.len(), stems.len())));
+    }
+    let mut words = store_words(&stored, &stems, &terms).map_err(napi::Error::from_reason)?;
     opened_chain(&opened, |layers| {
         // A file's own top-level names, which no export binds, are its words too,
         // read from the index the host read the tree from: a nested workspace's
@@ -158,43 +158,17 @@ pub fn classify_areas(
     Ok(answer(rank(&asked, &paths, &words, AREA_FILES), None))
 }
 
-/// The files `HEAD` holds under `root`, spelled from it: the tree the log ends
-/// at, not what is staged. A failure reads as Node's `execFileSync` says it,
-/// which is what this question said before it was read here.
-fn head_files(root: &str) -> Result<Vec<String>, String> {
-    let output = Command::new("git")
-        .args(LS_TREE)
-        .current_dir(root)
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .output()
-        .map_err(|error| match error.kind() {
-            std::io::ErrorKind::NotFound => "spawnSync git ENOENT".to_owned(),
-            _ => format!("spawnSync git {error}"),
-        })?;
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        let said = if stderr.is_empty() { String::new() } else { format!("\n{stderr}") };
-        return Err(format!("Command failed: git {}{said}", LS_TREE.join(" ")));
-    }
-    Ok(String::from_utf8_lossy(&output.stdout).split('\0').filter(|path| !path.is_empty()).map(str::to_owned).collect())
-}
-
 /// What the help store says the files declare: per stem, the files whose
-/// exported names hold a term that reduces to it, read the way `search` reads
-/// the dictionary; per file, how many words its exported names hold.
-fn store_words(stored: &Stored, stems: &[String]) -> Result<DeclaredWords, String> {
+/// exported names hold one of its `terms`; per file, how many words its
+/// exported names hold.
+fn store_words(stored: &Stored, stems: &[String], terms: &[Vec<u32>]) -> Result<DeclaredWords, String> {
     let name_count = stored.u32s("names.name")?.len();
     let exp_off = stored.u32s("names.expOff")?;
     let exp = stored.u32s("names.exp")?;
     let exp_at = stored.u32s("exp.at")?;
-    let term_off = stored.u32s("terms.off")?;
-    let term_blob = stored.u8s("terms.blob")?;
     let term_name_off = stored.u32s("terms.nameOff")?;
     let term_name = stored.u32s("terms.name")?;
-    let term_count = term_off.len().saturating_sub(1);
-    let term_bytes = |term: usize| &term_blob[term_off.at(term) as usize..term_off.at(term + 1) as usize];
+    let term_count = term_name_off.len().saturating_sub(1);
     // Every export is written at a file; a row without one names none.
     let exported_at = |row: u32| Some(exp_at.at(row as usize)).filter(|&at| at != NONE).map(|at| stored.text(at));
     // A name counts once per file, even when its type and value are both exported there.
@@ -202,14 +176,13 @@ fn store_words(stored: &Stored, stems: &[String]) -> Result<DeclaredWords, Strin
     let named = |term: usize| term_name_off.range(term).map(|at| term_name.at(at));
 
     let mut found = DeclaredWords::default();
-    for stem_of in stems {
-        let wanted = stem_of.as_bytes();
-        let first = crate::stored::partition(term_count, |term| term_bytes(term) < wanted);
+    for (stem_of, terms) in stems.iter().zip(terms) {
         let mut names = HashSet::new();
-        for term in (first..term_count).take_while(|&term| term_bytes(term).starts_with(wanted)) {
-            if stem(&String::from_utf8_lossy(term_bytes(term))) == *stem_of {
-                names.extend(named(term));
+        for &term in terms {
+            if (term as usize) >= term_count {
+                return Err(format!("term {term} is not in the help store's dictionary of {term_count}"));
             }
+            names.extend(named(term as usize));
         }
         let mut files: HashMap<String, u64> = HashMap::new();
         for name in names {
@@ -391,80 +364,6 @@ fn base_name(path: &str) -> &str {
     match name.rfind('.') {
         Some(dot) if dot > 0 => &name[..dot],
         _ => name,
-    }
-}
-
-/// The trees of the files `HEAD` holds under `root` that hold source: each
-/// listed package in `packages` holding a file with one of `extensions` that
-/// is no test, and each top folder holding one outside every package. What
-/// `containment` counts a package or a test-only tree by.
-///
-/// bound: the checkout's listed packages and top-level folders
-#[napi(catch_unwind)]
-pub fn source_trees(root: String, packages: Vec<String>, extensions: Vec<String>) -> napi::Result<Vec<String>> {
-    let listed = head_files(&root).map_err(napi::Error::from_reason)?;
-    let packages: HashSet<&str> = packages.iter().map(String::as_str).collect();
-    let extensions: HashSet<&str> = extensions.iter().map(String::as_str).collect();
-    let tests = TestPaths::new();
-    let mut trees: HashSet<&str> = HashSet::new();
-    for file in &listed {
-        let owner = package_owner(&packages, file);
-        let inside = if owner == "." { file.as_str() } else { &file[owner.len() + 1..] };
-        if !extensions.contains(extension(file)) || tests.holds(inside) {
-            continue;
-        }
-        let tree = match file.find('/') {
-            Some(slash) if owner == "." => &file[..slash],
-            _ => owner,
-        };
-        trees.insert(tree);
-    }
-    let mut trees: Vec<String> = trees.into_iter().map(str::to_owned).collect();
-    trees.sort_unstable_by(|a, b| crate::order::code_unit(a, b));
-    Ok(trees)
-}
-
-/// The deepest of `packages` over `file`, or `.` when it is in none, as `packageOwner` says it.
-fn package_owner<'a>(packages: &HashSet<&str>, file: &'a str) -> &'a str {
-    let mut end = file.len();
-    while let Some(slash) = file[..end].rfind('/') {
-        if slash == 0 {
-            break;
-        }
-        if packages.contains(&file[..slash]) {
-            return &file[..slash];
-        }
-        end = slash;
-    }
-    "."
-}
-
-/// `extname` as Node says it: the base name's last `.` and what follows, empty
-/// when the name has none or starts with its only one.
-fn extension(file: &str) -> &str {
-    let name = file.rfind('/').map_or(file, |slash| &file[slash + 1..]);
-    match name.rfind('.') {
-        Some(dot) if dot > 0 => &name[dot..],
-        _ => "",
-    }
-}
-
-/// `isTestPath` in `packages/sense/src/test-path.ts`: a test by its name, or by a folder only tests are kept in.
-struct TestPaths {
-    named: Regex,
-    with_the_tests: Regex,
-}
-
-impl TestPaths {
-    fn new() -> Self {
-        TestPaths {
-            named: Regex::new(r"\.(test|spec|cy|e2e|stories|story)\.[cm]?[jt]sx?$|_test\.(go|py|[cm]?[jt]sx?)$|(^|/)test_[^/]+\.py$|_spec\.rb$|[a-z0-9]Tests?\.(java|kt)$").expect("a test name pattern"),
-            with_the_tests: Regex::new(r"(?i)(^|/)(__tests?__|__mocks__|__fixtures?__|__snapshots__|__stories__|\.storybook|fixtures|testdata|tests?|e2e|cypress)/").expect("a test folder pattern"),
-        }
-    }
-
-    fn holds(&self, file: &str) -> bool {
-        self.named.is_match(file) || self.with_the_tests.is_match(file)
     }
 }
 

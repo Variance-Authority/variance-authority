@@ -1,6 +1,6 @@
 [
   {
-    "at": "packages/cli/src/commands/doctor-skills.ts sameTree",
+    "at": "packages/cli/src/commands/doctor-skills.ts files",
     "count": 1
   },
   {
@@ -28,6 +28,38 @@
     "count": 1
   },
   {
+    "at": "packages/help/src/store-value.ts exported",
+    "count": 1
+  },
+  {
+    "at": "packages/help/src/tools/discover.ts holesOf",
+    "count": 1
+  },
+  {
+    "at": "packages/help/src/tools/discover.ts pathOf",
+    "count": 1
+  },
+  {
+    "at": "packages/mcp/src/tools/tree.ts distances",
+    "count": 2
+  },
+  {
+    "at": "packages/mcp/src/tools/tree.ts files",
+    "count": 1
+  },
+  {
+    "at": "packages/mcp/src/tools/tree.ts reachedFrom",
+    "count": 1
+  },
+  {
+    "at": "packages/mcp/src/tools/tree.ts reaching",
+    "count": 1
+  },
+  {
+    "at": "packages/mcp/src/tools/tree.ts unknownFiles",
+    "count": 1
+  },
+  {
     "at": "packages/package/src/manifest.ts namedWithExtension",
     "count": 1
   },
@@ -38,6 +70,14 @@
   {
     "at": "packages/package/src/members.ts members",
     "count": 2
+  },
+  {
+    "at": "packages/package/src/read-usage.ts walk",
+    "count": 1
+  },
+  {
+    "at": "packages/route-collector/src/serve.ts walk",
+    "count": 1
   },
   {
     "at": "packages/route-collector/src/source.ts walk",
@@ -516,12 +556,28 @@
     "count": 2
   },
   {
+    "at": "packages/sense/src/reuse.ts shapeOf",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/src/source-index-reader.ts keys",
+    "count": 2
+  },
+  {
+    "at": "packages/sense/src/source-index-reader.ts readSourceIndexChain",
+    "count": 1
+  },
+  {
     "at": "packages/sense/src/test-selection/cargo-recording.ts packageFiles",
     "count": 1
   },
   {
     "at": "packages/sense/src/test-selection/cargo-recording.ts rerunIfChanged",
     "count": 1
+  },
+  {
+    "at": "packages/sense/src/test-selection/case-fold.ts foldCases",
+    "count": 2
   },
   {
     "at": "packages/sense/src/test-selection/job-recording.ts stepOf",
@@ -536,7 +592,23 @@
     "count": 2
   },
   {
+    "at": "packages/sense/src/test-support/scan.ts scanning",
+    "count": 3
+  },
+  {
+    "at": "packages/sense/src/tree.ts directories",
+    "count": 1
+  },
+  {
     "at": "packages/sense/src/tree.ts gitDigests",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/src/tree.ts nativeTree",
+    "count": 1
+  },
+  {
+    "at": "packages/sense/src/tree.ts paths",
     "count": 1
   },
   {
@@ -549,14 +621,14 @@
   },
   {
     "at": "packages/store/src/lfs-fetch.ts namesakes",
-    "count": 1
+    "count": 2
   },
   {
     "at": "packages/store/src/retention.ts isEmptyTree",
     "count": 1
   },
   {
-    "at": "packages/store/src/share-git.ts createGitLineCell",
+    "at": "packages/store/src/share-git.ts store",
     "count": 1
   },
   {

@@ -14,7 +14,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, relative, sep } from 'node:path';
 import type { Tool } from '@variance-authority/mcp/tools';
 import { members } from '@variance-authority/package';
-import { firstParentChanges, sourceTrees } from '@variance-authority/sense';
+import { firstParentChanges, pathKinds } from '@variance-authority/sense';
 import { operatorError } from '../operator.js';
 import { SOURCE_EXTENSIONS, countContainment, type ContainmentCount, type Share } from './containment-count.js';
 
@@ -62,9 +62,11 @@ export function containmentOf(root: string, input: Readonly<Record<string, unkno
   const after = typeof said === 'string' ? dateOf(said) : twoWeeksBefore(new Date());
   const { commits, shallow } = fromGit(() => firstParentChanges(root, after));
   const packages = packageDirectories(root);
+  const kinds = pathKinds(packages, SOURCE_EXTENSIONS);
   // The trees of what HEAD holds that hold source, read by the addon: only the trees cross.
-  const holdingSource = fromGit(() => new Set(sourceTrees(root, packages, SOURCE_EXTENSIONS)));
-  return { reading: 'co-occurrence', after, packages: packages.length, shallow, ...countContainment(commits, holdingSource, packages) };
+  const read = kinds.sourceTrees(root);
+  if (read.refused != null) throw operatorError(`git could not list the files HEAD holds: ${read.refused}`);
+  return { reading: 'co-occurrence', after, packages: packages.length, shallow, ...countContainment(commits, new Set(read.trees), kinds) };
 }
 
 function shared({ count, of }: Share): string {

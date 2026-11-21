@@ -13,8 +13,7 @@
 
 // compass: variance-authority.report.agent-surface
 
-import { extname } from 'node:path';
-import { CODE_EXTENSIONS, isTestPath, packageOwner, type CommitChange } from '@variance-authority/sense';
+import { CODE_EXTENSIONS, type CommitChange, type PathKind, type PathKinds } from '@variance-authority/sense';
 
 const BOT = /\[bot\]|[-_ ]bot$|^(renovate|dependabot|github-actions)$/iu;
 
@@ -65,32 +64,21 @@ interface Touched {
 }
 
 /**
- * Counts `commits`, with each path's package taken from `packages`, and
- * `holdingSource` saying which of them and which top folders hold source now:
- * a tree holding a file with one of {@link SOURCE_EXTENSIONS} that is no test.
+ * Counts `commits`, each path read by `kinds`, the rule the addon read
+ * `holdingSource` by: which packages and top folders hold source now, a tree
+ * holding a file with one of {@link SOURCE_EXTENSIONS} that is no test.
  */
-export function countContainment(commits: readonly CommitChange[], holdingSource: ReadonlySet<string>, packages: readonly string[]): ContainmentCount {
-  const ownerOf = packageOwner(packages);
-  const inside = (file: string): string => {
-    const owner = ownerOf(file);
-    return owner === '.' ? file : file.slice(owner.length + 1);
-  };
-  const isTest = (file: string): boolean => isTestPath(inside(file));
-  const isSource = (file: string): boolean => SOURCE_EXTENSIONS.has(extname(file)) && !isTest(file);
-  /** The package a file is in, or the top folder when it is in none: `.` for a file at the root. */
-  const treeOf = (file: string): string => {
-    const owner = ownerOf(file);
-    const slash = file.indexOf('/');
-    return owner !== '.' || slash === -1 ? owner : file.slice(0, slash);
-  };
+export function countContainment(commits: readonly CommitChange[], holdingSource: ReadonlySet<string>, kinds: PathKinds): ContainmentCount {
   const isPackage = (owner: string): boolean => owner !== '.' && holdingSource.has(owner);
-  const inTestOnlyTree = (file: string): boolean => treeOf(file) !== '.' && !holdingSource.has(treeOf(file));
+  const inTestOnlyTree = ({ tree }: PathKind): boolean => tree !== '.' && !holdingSource.has(tree);
 
   const leftOut = { noParent: 0, bot: 0, noSource: 0, noPackage: 0 };
   const touched: Touched[] = [];
   for (const commit of commits) {
-    const source = commit.files.filter(isSource);
-    const own = new Set(source.map(ownerOf).filter(isPackage));
+    // A commit's own files, read by the addon a commit at a time.
+    const files = kinds.of([...commit.files]);
+    const source = files.filter((file) => file.source);
+    const own = new Set(source.map((file) => file.owner).filter(isPackage));
     if (!commit.compared) leftOut.noParent += 1;
     else if (BOT.test(commit.author)) leftOut.bot += 1;
     else if (source.length === 0) leftOut.noSource += 1;
@@ -98,9 +86,9 @@ export function countContainment(commits: readonly CommitChange[], holdingSource
     else {
       touched.push({
         own,
-        packages: new Set(commit.files.map(ownerOf).filter(isPackage)),
-        tests: new Set(commit.files.filter(isTest).map(ownerOf)),
-        inTree: commit.files.some((file) => isTest(file) && inTestOnlyTree(file)),
+        packages: new Set(files.map((file) => file.owner).filter(isPackage)),
+        tests: new Set(files.filter((file) => file.test).map((file) => file.owner)),
+        inTree: files.some((file) => file.test && inTestOnlyTree(file)),
       });
     }
   }

@@ -2,11 +2,12 @@
 
 import { START_POINT_SCHEMA, saysStartPoint, startPointArg, type Tool } from '@variance-authority/mcp/tools';
 import type { Help } from '@variance-authority/package/help';
-import { classifiedAreas, packageLayers, sourceIndexPath } from '@variance-authority/sense';
-import { storeBytesOf } from '../snapshot.js';
+import { classifiedAreas, describedWordsNative, packageLayers, sourceIndexPath } from '@variance-authority/sense';
+import { searchIndexOf, storeBytesOf } from '../snapshot.js';
 import { reachLine, reachOf } from './area.js';
 import { classifyWords, formatClassified, placedAreas, type CodeMapPlaces, type StartPoint } from './classify-words.js';
 import { noCodeMap, unfoldedCodeMap } from './code-map-format.js';
+import { termsOfStems } from './loose.js';
 
 /**
  * Every package on the code map beside the source index, with its innermost
@@ -79,8 +80,12 @@ export const classify: Tool<Help> = {
         ? undefined
         : { ...(from === undefined ? {} : { from: [from].flat() }), ...(to === undefined ? {} : { to: [to].flat() }) };
     const reach = said === undefined ? undefined : reachOf(from, to, invocation?.tree);
+    // A stem admits the dictionary terms `search` admits for it, resolved here once.
+    const store = storeBytesOf(help);
+    const terms = store === undefined ? [] : termsOfStems(searchIndexOf(help), describedWordsNative(query).map(([stem]) => stem));
     const ranked = classifiedAreas(root, query, {
-      store: storeBytesOf(help),
+      terms,
+      store,
       ...(invocation?.sourceIndex === undefined ? {} : { index: invocation.sourceIndex.index, within: invocation.sourceIndex.within }),
       ...(reach === undefined ? {} : { scope: reach.walks }),
     });

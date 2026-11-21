@@ -1,7 +1,7 @@
 /**
- * The areas of a checkout a request's words point to, and the trees of it that
- * hold source: the two questions that read every file `HEAD` holds, asked of
- * the addon, which lists them from git and keeps them. Only the answer crosses.
+ * The areas of a checkout a request's words point to: a question that reads
+ * every file `HEAD` holds, asked of the addon, which lists them from git and
+ * keeps them. Only the answer crosses.
  */
 
 // compass: variance-authority.report.agent-surface
@@ -30,12 +30,18 @@ export interface ClassifiedAreas {
   readonly reached: number;
   /** How many of those import something the scan could not resolve. */
   readonly unresolved: number;
-  /** Why git could not list the files `HEAD` holds, as the command failed; nothing was ranked. */
+  /** What the addon ran and what git said, when it could not list the files `HEAD` holds; nothing was ranked. */
   readonly refused?: string | null;
 }
 
 /** Where {@link classifiedAreas} reads the names from, and which files it ranks. */
 export interface AreasAsked {
+  /**
+   * Per stem of the request, in the order `describedWordsNative` gives them,
+   * the help store's dictionary terms that reduce to it: what `termsOfStems`
+   * resolves for `search`, so a stem admits the same terms in both.
+   */
+  readonly terms: readonly (readonly number[])[];
   /** The help store's bytes, which name the exported declarations; absent for a value read from no store. */
   readonly store: Uint8Array | undefined;
   /** The source index the tree was read off, which names the top-level declarations no export binds. */
@@ -60,6 +66,7 @@ export function classifiedAreas(root: string, query: string, asked: AreasAsked):
   return entry('classifyAreas')(
     root,
     query,
+    asked.terms.map((terms) => [...terms]),
     asked.store ?? null,
     asked.index ?? sourceIndexPath(root),
     asked.within ?? '',
@@ -67,13 +74,4 @@ export function classifiedAreas(root: string, query: string, asked: AreasAsked):
     scope?.from ?? null,
     scope?.to ?? null,
   );
-}
-
-/**
- * The trees of the files `HEAD` holds under `root` that hold source: each of
- * `packages` holding a file with one of `extensions` that is no test, and each
- * top folder holding one outside every package, in code-unit order.
- */
-export function sourceTrees(root: string, packages: Iterable<string>, extensions: Iterable<string>): readonly string[] {
-  return entry('sourceTrees')(root, [...packages], [...extensions]);
 }
