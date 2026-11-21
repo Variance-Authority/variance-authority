@@ -2,7 +2,7 @@
 
 import { START_POINT_SCHEMA, saysStartPoint, startPointArg, type Tool, type ToolInvocation } from '@variance-authority/mcp/tools';
 import type { Help } from '@variance-authority/package/help';
-import { declaredDescribedOf, describedWordsNative, packageLayers, sourceIndexPath, trackedFiles } from '@variance-authority/sense';
+import { declaredDescribedOf, describedWordsNative, packageLayers, privateWordsOf, sourceIndexPath, trackedFiles } from '@variance-authority/sense';
 import { searchIndexOf } from '../snapshot.js';
 import { areaLine, areaOf } from './area.js';
 import { rankedAreas, type Declared } from './classify-areas.js';
@@ -29,7 +29,7 @@ function placesOf(root: string): CodeMapPlaces | string {
  * What the source index says the files declare: for each of the request's
  * stems, the files declaring a name that holds it — an exported name, read the
  * way `search` reads the dictionary, or a top-level one no export binds — and
- * for each file how many words its exported names hold.
+ * for each file how many words its exported and private names hold.
  */
 function declaredOf(help: Help, root: string, query: string, sourceIndex: ToolInvocation<unknown>['sourceIndex']): Declared {
   const index = searchIndexOf(help);
@@ -70,6 +70,11 @@ function declaredOf(help: Help, root: string, query: string, sourceIndex: ToolIn
       const file = index.exportedAt(row);
       words.set(file, (words.get(file) ?? 0) + held);
     }
+  }
+  for (const row of privateWordsOf(root, undefined, sourceIndex?.index) ?? []) {
+    if (!row.at.startsWith(under) || row.words === 0) continue;
+    const file = row.at.slice(under.length);
+    words.set(file, (words.get(file) ?? 0) + row.words);
   }
   return { holding, words };
 }

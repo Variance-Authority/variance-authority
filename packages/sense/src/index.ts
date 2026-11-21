@@ -243,9 +243,11 @@ export {
   declaredOf,
   declaredTermsOf,
   nameTermsOf,
+  privateWordsOf,
   type DeclaredName,
   type DeclaredNames,
   type DescribedFile,
+  type PrivateWords,
 } from './declared-names.js';
 export {
   aliasesOf,

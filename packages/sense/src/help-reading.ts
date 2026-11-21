@@ -14,7 +14,7 @@
 
 import { native, nativeRefusal } from './addon.js';
 import type { NativeAsked, NativeImporters, NativeIndexedUsage } from './native-orient.js';
-import type { DeclaredNames, NameTerms } from './declared-names.js';
+import type { DeclaredNames, NameTerms, PrivateWords } from './declared-names.js';
 import { sourceIndexPath } from './source-index.js';
 import type { Mention, WalkedHelp } from './help-walked.js';
 import { mocking } from './source-tree.js';
@@ -253,6 +253,7 @@ export interface NativeHelp {
   declaredOf?(root: string, index: OpenedIndex, query: string, containing: boolean, files: string[] | null): DeclaredNames | null;
   declaredDescribedOf?(root: string, index: OpenedIndex, query: string, stems: string[], files: string[] | null): DeclaredNames | null;
   declaredTermsOf?(index: OpenedIndex, files: string[] | null): string[] | null;
+  privateWordsOf?(index: OpenedIndex, files: string[] | null): PrivateWords[] | null;
   nameTerms?(names: string[]): NameTerms;
   declaredLooseOf?(root: string, index: OpenedIndex, groups: string[][], files: string[] | null): DeclaredNames | null;
   /** ripgrep's matching lines of `files` under `root`, as columns; throws `ripgrep refused the pattern: …` for an invalid one. */

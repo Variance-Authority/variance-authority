@@ -102,7 +102,47 @@ async function run(argv: readonly string[]): Promise<{ code: number; out: string
   return { code, out, err };
 }
 
+/** Equal declaration vocabularies, one private, beside a focused package. */
+function declarationAreas(): string {
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'va-classify-vocabulary-')));
+  const names = ['alpha', 'beta', 'gamma'];
+  writeFileSync(join(root, '.gitignore'), 'node_modules\n');
+  writeFileSync(join(root, 'package.json'), JSON.stringify({ private: true, workspaces: names }));
+  const unrelated = Array.from({ length: 100 }, (_, at) => `function unrelatedName${at}() { return ${at}; }`).join('\n');
+  for (const name of names) {
+    mkdirSync(join(root, name));
+    writeFileSync(join(root, name, 'package.json'), JSON.stringify({ name: `@t/${name}`, exports: './index.ts' }));
+    const source = `function restartWorker() {}\n${name === 'gamma' ? '' : unrelated}`;
+    writeFileSync(join(root, name, 'index.ts'), name === 'beta' ? `export {};\n${source}` : source.replaceAll('function ', 'export function '));
+  }
+  // Classification splits directories above 500 tracked files into separate areas.
+  mkdirSync(join(root, 'padding'));
+  for (let at = 0; at < 501; at += 1) writeFileSync(join(root, 'padding', `${at}.txt`), 'padding\n');
+  for (const args of [['init', '--quiet', '--initial-branch', 'main'], ['config', 'user.email', 'fixture@example.test'], ['config', 'user.name', 'Fixture'], ['add', '-A'], ['commit', '--quiet', '-m', 'declaration vocabulary']]) {
+    execFileSync('git', args, { cwd: root, stdio: 'pipe' });
+  }
+  process.chdir(root);
+  return root;
+}
+
 describe('variance ask classify', () => {
+  it('normalizes private and exported declaration vocabularies equally, including names outside the query', async () => {
+    const root = declarationAreas();
+    expect((await run(['index', '--wait'])).code).toBe(EXIT_CLEAN);
+    const privateNames = await run(['ask', 'classify', '--query', 'restart worker']);
+    expect(privateNames.code).toBe(EXIT_CLEAN);
+    const areas = (text: string): string[] => [...text.matchAll(/^ {2}(\S+) — /gm)].map((match) => match[1] ?? '');
+
+    expect(areas(privateNames.out)).toEqual(['gamma', 'alpha', 'beta']);
+
+    const exported = ['export function restartWorker() {}', ...Array.from({ length: 100 }, (_, at) => `export function unrelatedName${at}() { return ${at}; }`)].join('\n');
+    writeFileSync(join(root, 'beta', 'index.ts'), exported);
+    expect((await run(['index', '--wait'])).code).toBe(EXIT_CLEAN);
+    const exportedNames = await run(['ask', 'classify', '--query', 'restart worker']);
+    expect(exportedNames.code).toBe(EXIT_CLEAN);
+    expect(areas(exportedNames.out)).toEqual(areas(privateNames.out));
+  });
+
   it('ranks an area by feature words found only in its nested directories', async () => {
     const root = families();
     const feature = join(root, 'packages/tools/tools-0/src/migrations/alpha-to-beta');

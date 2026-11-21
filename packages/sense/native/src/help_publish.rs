@@ -23,7 +23,7 @@ use sha2::{Digest, Sha256};
 
 use crate::compact::Layer;
 use crate::help_aliases::{aliases, Alias};
-use crate::help_declared::{declared, declared_terms, Declared, Matching};
+use crate::help_declared::{declared, declared_terms, private_words, Declared, Matching, PrivateWords};
 use crate::off_thread::{off_thread, OffThread};
 use crate::help_join::{mentions, Joined, OpeningSkeleton, Skeleton};
 use crate::help_store::{encode, DeepRef, StoreDeep, StoreMeta, StoreRef};
@@ -244,6 +244,13 @@ pub fn names_filter_of(index: &OpenedIndex, imports: Vec<ImportAsked>, declares:
 #[napi(catch_unwind)]
 pub fn declared_terms_of(index: &OpenedIndex, files: Option<Vec<String>>) -> napi::Result<Option<Vec<String>>> {
     opened_chain(index, |layers| declared_terms(layers, files.as_deref()))
+}
+
+/// Per-file search-term counts for private top-level names, including names
+/// unrelated to the question. `None` when there is no index.
+#[napi(catch_unwind)]
+pub fn private_words_of(index: &OpenedIndex, files: Option<Vec<String>>) -> napi::Result<Option<Vec<PrivateWords>>> {
+    opened_chain(index, |layers| private_words(layers, files.as_deref()))
 }
 
 /// The declarations no export binds whose name's terms hold one of every

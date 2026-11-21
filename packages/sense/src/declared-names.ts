@@ -132,6 +132,23 @@ export function declaredTermsOf(root: string, files?: Iterable<string>, index: s
   return onIndex(index, (opened) => entry('declaredTermsOf')(opened, files === undefined ? null : [...files])) ?? undefined;
 }
 
+/** One harvested file's search-term count for its private top-level names. */
+export interface PrivateWords {
+  readonly at: string;
+  readonly words: number;
+}
+
+/**
+ * Per-file counts of the distinct search terms in each private top-level
+ * declaration name, counted once per name, including names unrelated to a
+ * query. Exported locals are excluded because the search index counts them.
+ * Files without harvested declarations are absent, rather than zero.
+ * `undefined` when no index was published; throws when the index does not read.
+ */
+export function privateWordsOf(root: string, files?: Iterable<string>, index: string = sourceIndexPath(root)): readonly PrivateWords[] | undefined {
+  return onIndex(index, (opened) => entry('privateWordsOf')(opened, files === undefined ? null : [...files])) ?? undefined;
+}
+
 /**
  * Every top-level declaration the index at `index` holds that no export of its
  * file binds, whose name's terms hold one of every group of `groups`: the
