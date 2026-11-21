@@ -190,6 +190,12 @@ export function createExecutionRecorder(
   // The checks each attempt of each case entered, in the order it entered them.
   const entered = new Map<string, EnteredCheck[]>();
   const add = (key: string, duration: number): void => void spent.set(key, (spent.get(key) ?? 0) + duration);
+  // Appends what a case's attempt handed over to the case's list in `map`, making the case on first sight.
+  const keep = <Value>(map: Map<string, Value[]>, owner: string, subject: ObservedTest, ...values: Value[]): void => {
+    caseOf(owner, subject);
+    const key = caseKey(owner, subject.id);
+    map.set(key, [...(map.get(key) ?? []), ...values]);
+  };
   // The medium is opened on the first execution that could use it, and only when
   // a head was named: a suite with one realm has nothing to reach it from
   // another process, and a listener nobody can find is a port for nothing.
@@ -213,21 +219,9 @@ export function createExecutionRecorder(
         }),
     owner: (testInfo) => ownerOf(root, testInfo),
     arranged: (owner, subject) => listener?.held(caseKey(owner, subject.id)),
-    eyes: (owner, subject, attempt, journal) => {
-      caseOf(owner, subject);
-      const key = caseKey(owner, subject.id);
-      looked.set(key, [...(looked.get(key) ?? []), ...(journal === undefined ? [] : [{ attempt, journal }])]);
-    },
-    checked: (owner, subject, attempt, check) => {
-      caseOf(owner, subject);
-      const key = caseKey(owner, subject.id);
-      entered.set(key, [...(entered.get(key) ?? []), { attempt, check }]);
-    },
-    ended: (owner, subject, attempt) => {
-      caseOf(owner, subject);
-      const key = caseKey(owner, subject.id);
-      tried.set(key, [...(tried.get(key) ?? []), attempt]);
-    },
+    eyes: (owner, subject, attempt, journal) => keep(looked, owner, subject, ...(journal === undefined ? [] : [{ attempt, journal }])),
+    checked: (owner, subject, attempt, check) => keep(entered, owner, subject, { attempt, check }),
+    ended: (owner, subject, attempt) => keep(tried, owner, subject, attempt),
     note: async (page, owner, subject, line, hook, opens) => {
       const journal = await quietly(page, () => drainExecution(page, opens));
       if (journal === undefined) {
