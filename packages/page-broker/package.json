@@ -1,12 +1,14 @@
 {
   "name": "@variance-authority/page-broker",
   "version": "0.34.0",
-  "description": "Declare where a Playwright action can end, and learn which outcome the app reached.",
+  "description": "Declare where an action on a page can end, over a document or a browser, and learn which outcome the app reached.",
   "keywords": [
     "variance-authority",
-    "playwright",
-    "e2e",
     "page-object",
+    "model-based-testing",
+    "playwright",
+    "testing-library",
+    "jsdom",
     "flaky-tests"
   ],
   "license": "MIT",
@@ -26,6 +28,14 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./dom": {
+      "types": "./dist/dom.d.ts",
+      "default": "./dist/dom.js"
+    },
+    "./playwright": {
+      "types": "./dist/playwright.d.ts",
+      "default": "./dist/playwright.js"
     }
   },
   "main": "./dist/index.js",
@@ -39,6 +49,19 @@
     "build": "tsc --build"
   },
   "peerDependencies": {
-    "@playwright/test": ">=1.55 <2"
+    "@testing-library/dom": ">=10.4 <11",
+    "playwright-core": ">=1.55 <2"
+  },
+  "peerDependenciesMeta": {
+    "@testing-library/dom": {
+      "optional": true
+    },
+    "playwright-core": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@testing-library/dom": "10.4.2",
+    "playwright-core": "1.64.1"
   }
 }

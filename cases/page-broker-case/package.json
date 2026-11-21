@@ -8,6 +8,10 @@
     "@variance-authority/page-broker": "workspace:^"
   },
   "devDependencies": {
+    "@headlessui/react": "2.2.10",
+    "@testing-library/dom": "^10.4.2",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
     "vitest": "^5.1.0"
   }
 }

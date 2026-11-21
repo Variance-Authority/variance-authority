@@ -1,20 +1,6 @@
 // compass: variance-authority.harness
-import type { Page, Request } from '@playwright/test';
-
-/**
- * How an action learns that the app has finished answering it. What an action
- * does with the answer does not depend on how it was come by: another sign of
- * pending work is another `Quiet`.
- */
-export interface Quiet {
-  /** Resolves once the act is done and the page has been quiet since. Asked for when the act is done. */
-  settled(): Promise<'quiet'>;
-  /** Whether nothing has begun since the page last went quiet. */
-  still(): boolean;
-  /** What holds the quiet off, in words, and absent when nothing does. */
-  held(): string | undefined;
-  stop(): void;
-}
+import type { Page, Request } from 'playwright-core';
+import type { Quiet } from './surface.js';
 
 /**
  * The kinds of request that are no sign of an answer on its way: a stream the

@@ -1,12 +1,6 @@
 // compass: variance-authority.harness
-import type { Frame, Page, Request } from '@playwright/test';
-
-/** Whether the app, since the action began, went somewhere that is no part of the page it was on. */
-export interface Elsewhere {
-  /** Where it went, in words, and absent while it is where it was. */
-  left(): Promise<string | undefined>;
-  stop(): void;
-}
+import type { Frame, Page, Request } from 'playwright-core';
+import type { Elsewhere } from './surface.js';
 
 /**
  * Follows the three ways an app leaves the page a test declared outcomes on:

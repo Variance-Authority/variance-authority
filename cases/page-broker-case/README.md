@@ -12,6 +12,10 @@ tests:
 
 `src/declared.config.mjs` is their Playwright config.
 
+`src/third-party/` runs the same kind of model over jsdom, on a combobox from
+Headless UI: a component this repository did not write, which selects on the
+press of the mouse rather than the click.
+
 ## Run it
 
 CI runs it from `src/workflow.chromium.test.js` in the chromium slice: the shop
