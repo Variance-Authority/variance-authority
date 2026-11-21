@@ -43,7 +43,7 @@
 
 // compass: variance-authority.reach
 
-import { readFile } from 'node:fs/promises';
+import { readFile, rm } from 'node:fs/promises';
 import { followRowsIn } from './case-cuts.js';
 import { editsBetween } from './region-edit.js';
 import { casesRan, dropsCasesWithoutAny, layCases, textsIn, unansweredOver, type FreshCases, type ModuleTexts } from './case-landing.js';
@@ -274,17 +274,17 @@ export async function landRun(
  * for section; a record with none to keep is the cases alone, which a reader
  * answers *unmeasured* for (`RecordWithoutCoverage`); and a run that kept no
  * cases, or ones a record of no index does not take (`unansweredOver`), writes
- * nothing but its checks ({@link landChecks}).
+ * nothing but its checks ({@link landChecks}), or drops the record's where it has none.
  *
  * The runs record and the ledger are left as they were: they say where tests
  * stand, and this run measured nothing for a test to stand on.
  */
 async function landUncovered(coverageFile: string, root: string, cases: FreshCases | undefined, checks: Uint8Array | undefined): Promise<void> {
-  if (cases === undefined) return checks === undefined ? undefined : landChecks(coverageFile, checks);
+  if (cases === undefined) return landChecks(coverageFile, checks);
   const snapshot = await recordedSnapshot(coverageFile);
   const previous = withoutChecks(casesRecordedOver(coverageFile));
   if (unansweredOver(previous, snapshot?.tests, cases.run.tests, root).length > 0) {
-    return checks === undefined ? undefined : landChecks(coverageFile, checks);
+    return landChecks(coverageFile, checks);
   }
   const stands = snapshot?.commit;
   const over = await recordBytes(coverageFile);
@@ -298,14 +298,19 @@ async function landUncovered(coverageFile: string, root: string, cases: FreshCas
 /**
  * Lay `checks` over the record at `coverageFile` and change nothing else in it:
  * a run that landed no case still says what it was asked and what it entered,
- * so the run before it never answers for it. Where no record stands, the checks
- * are the record; the caller has laid the checkout's base first.
+ * so the run before it never answers for it. A run with no checks drops the
+ * record's, because it declared none missing, and a record that held nothing
+ * else is no record. Where no record stands, the checks are the record; the
+ * caller has laid the checkout's base first.
  */
-export async function landChecks(coverageFile: string, checks: Uint8Array): Promise<void> {
+export async function landChecks(coverageFile: string, checks: Uint8Array | undefined): Promise<void> {
   const over = await recordBytes(coverageFile);
-  if (over === undefined) return writeCoverageBytes(coverageFile, recordOfCases({ checks }));
-  const sections = { ...casesRecordedOver(coverageFile), checks };
+  if (over === undefined) return checks === undefined ? undefined : writeCoverageBytes(coverageFile, recordOfCases({ checks }));
+  const recorded = casesRecordedOver(coverageFile);
+  if (checks === undefined && recorded.checks === undefined) return;
+  const sections = { ...withoutChecks(recorded), ...(checks === undefined ? {} : { checks }) };
   const held = coveredRecord(coverageFile, over);
+  if (held === undefined && Object.keys(sections).length === 0) return rm(coverageFile, { force: true });
   return writeCoverageBytes(coverageFile, held === undefined ? recordOfCases(sections) : withCaseSections(held, sections));
 }
 

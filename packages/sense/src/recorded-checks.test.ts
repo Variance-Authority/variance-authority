@@ -1,13 +1,14 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { checksAt } from './recorded-checks.js';
 import { recordOfCases } from './test-selection/case-record.js';
 import { encodeChecks, landedChecks, type ChecksSection } from './test-selection/checks-record.js';
-import { commitRunsFile, landChecks } from './test-selection/commit-runs.js';
+import { commitRunsFile, landChecks, landRun } from './test-selection/commit-runs.js';
 import { commitRunsText } from './test-selection/commit-runs-text.js';
 import { encodeTestCoverage } from './test-selection/format.js';
+import type { TestCoverage } from './test-selection/index.js';
 
 const section: ChecksSection = {
   complete: true,
@@ -49,5 +50,22 @@ describe('checksAt', () => {
     const read = checksAt(recording);
     expect(read).toMatchObject({ commit: 'c'.repeat(40), missing: [{ check: 'event/titled' }] });
     expect(Date.parse((read as { landed: string }).landed)).toBeGreaterThanOrEqual(before);
+  });
+
+  it('keeps no checks of the run before one that measured nothing and declared none', async () => {
+    const recording = record();
+    writeFileSync(recording, recordOfCases({ checks: encodeChecks(section), base: Buffer.from('{}') }));
+    const measuredNothing: TestCoverage = { version: 3, instrumentation: 'fixture', commit: 'c'.repeat(40), tests: [{ file: 'a.test.ts', complete: true, preconditions: [] }], modules: [] };
+    await landRun(recording, measuredNothing, join(recording, '..'));
+
+    expect(checksAt(recording)).toEqual({ unkept: true });
+  });
+
+  it('leaves no record where the checks of the run before were all it held', async () => {
+    const recording = record();
+    await landChecks(recording, encodeChecks(section));
+    await landChecks(recording, undefined);
+
+    expect(existsSync(recording)).toBe(false);
   });
 });
