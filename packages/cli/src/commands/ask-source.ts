@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { countingShown, generationSourceIndex, readNamedTree, readSearchForAnswer, readWorkspaceForAnswer, workspaceGeneration, type AnsweringOptions, type Unopened } from '@variance-authority/help';
-import { answerSearch, containmentOf, discover, formatContainment, importingOf, intersection, journeyMapTool, namesWanted, orient, retriedTests, slowestTests, testCompositionTool, type Containment, type Help, type SearchAnswer, searchIndexOf, searchNames, searchQuestionOf } from '@variance-authority/help/tools';
+import { answerSearch, containmentOf, discover, formatContainment, importingOf, intersection, namesWanted, type Containment, type Help, type SearchAnswer, searchIndexOf, searchNames, searchQuestionOf } from '@variance-authority/help/tools';
 import { spellingOf, type Tool, type Tree } from '@variance-authority/mcp/tools';
 import { sourceIndexPath } from '@variance-authority/sense';
 import { taintFile as readTaintFile, type Taint } from '@variance-authority/sense/taint';
@@ -105,28 +105,9 @@ export async function intersectionSource(
   };
 }
 
-/**
- * `orient` reads no workspace value and draws no tree: `git grep` says where
- * the words are, and the addon opens the published index and recording itself,
- * both from `root`. So nothing is read before it is asked, and there is no
- * generation to date the answer with.
- */
-export function orientSource(root: string, input: Readonly<Record<string, unknown>>): Answering {
-  return { answer: () => orient.run(undefined, input, invocationOf({ root })), at: undefined };
-}
-
-/**
- * `slowest-tests` is `orient`'s shape for the same reason: it opens the
- * recording a run published and nothing else, so there is no workspace value
- * to read first and no generation to date the answer with.
- */
-export function slowestSource(root: string, input: Readonly<Record<string, unknown>>): Answering {
-  return { answer: () => slowestTests.run(undefined, input, invocationOf({ root })), at: undefined };
-}
-
-/** `retried-tests` opens the same recording `slowest-tests` does, and dates nothing for the same reason. */
-export function retriedSource(root: string, input: Readonly<Record<string, unknown>>): Answering {
-  return { answer: () => retriedTests.run(undefined, input, invocationOf({ root })), at: undefined };
+/** One of `RECORDED`, asked of the checkout at `root`: nothing is read before it, and no generation dates it. */
+export function rootedSource(tool: Tool<unknown>, root: string, input: Readonly<Record<string, unknown>>): Answering {
+  return { answer: () => tool.run(undefined, input, invocationOf({ root })), at: undefined };
 }
 
 export async function readSource(root: string, options: SourceReadOptions = {}): Promise<Sourced> {
@@ -167,18 +148,8 @@ export async function readChanged(path: string): Promise<readonly string[]> {
   return text.split(/\r?\n/).map((line) => line.trim()).filter((line) => line !== '');
 }
 
-/** `journey-map` opens the same recording `slowest-tests` does, and dates nothing for the same reason. */
-export function journeyMapSource(root: string, input: Readonly<Record<string, unknown>>): Answering {
-  return { answer: () => journeyMapTool.run(undefined, input, invocationOf({ root })), at: undefined };
-}
-
 /** `containment` reads git and the workspace list, so it has no generation to date it by. */
 export function containmentSource(root: string, input: Readonly<Record<string, unknown>>): Answering {
   const figures = containmentOf(root, input);
   return { answer: () => formatContainment(figures), data: () => figures, at: undefined };
-}
-
-/** `test-composition` opens the same recording `journey-map` does, and dates nothing for the same reason. */
-export function testCompositionSource(root: string, input: Readonly<Record<string, unknown>>): Answering {
-  return { answer: () => testCompositionTool.run(undefined, input, invocationOf({ root })), at: undefined };
 }

@@ -8,7 +8,7 @@ import { OperatorError } from '../exit.js';
 import { readClaims } from './adjudicate.js';
 import { argumentsOf, ignored, inputFor, invocationOf, questionFor, unasked, wordless, type Question } from './asking.js';
 import { foundNothingAnswer, readWorkspaceForAnswer, refusalFooter, snapshotLine, unopenedLine } from '@variance-authority/help';
-import { containment, discover, intersection, journeyMapTool, orient, retriedTests, search, slowestTests, testCompositionTool, type Help } from '@variance-authority/help/tools';
+import { containment, discover, intersection, RECORDED, search, type Help } from '@variance-authority/help/tools';
 import { asOneQuestion } from '@variance-authority/sense';
 import type { Taint } from '@variance-authority/sense/taint';
 import { repositoryRoot } from '@variance-authority/sense/test-selection';
@@ -17,7 +17,7 @@ import { flagged, type Flagged } from './ask-flagged.js';
 import { intersectionInput } from './ask-intersection.js';
 import { ASKED, record, recorded } from './ask-previous.js';
 import { questions } from './ask-questions.js';
-import { type Answering, containmentSource, discoverSource, intersectionSource, journeyMapSource, orientSource, readChanged, readSource, readTaint, retriedSource, searchSource, slowestSource, testCompositionSource, wholeSource } from './ask-source.js';
+import { type Answering, containmentSource, discoverSource, intersectionSource, readChanged, readSource, readTaint, rootedSource, searchSource, wholeSource } from './ask-source.js';
 import { readingFor } from './report-source.js';
 import type { Here } from './share.js';
 import { readVantage } from './watch.js';
@@ -53,7 +53,7 @@ import { readVantage } from './watch.js';
  * The checkout is the third. The tools `@variance-authority/help` serves read
  * the source tree under the working directory: what each package publishes,
  * who imports a name, where a thing somebody can only describe is declared.
- * `orient`, `slowest-tests` and `retried-tests` also read the latest recording. No config has
+ * `orient`, `slowest-tests`, `retried-tests` and `not-run` also read the latest recording. No config has
  * to exist, which is why they answer before one is read. They are here because `locate` is here:
  * a reader with a description and no name should not have to know whether the
  * names live in a report or in the code before they can ask.
@@ -308,15 +308,12 @@ async function sourceAnswering(request: SourceRequest, tool: Tool<Help>, input: 
   // `search` opens its own published file in place rather than the whole
   // value, which is most of what a large repository's question costs. The
   // answer is the tool's, over the same generation.
+  const rooted = RECORDED.find((one) => one.name === tool.name);
   return request.source !== undefined ? await wholeSource(request.source, tool, input, reading)
     : tool.name === search.name ? await searchSource(process.cwd(), input, reading)
     : tool.name === discover.name ? await discoverSource(process.cwd(), input, reading)
     : tool.name === intersection.name ? await intersectionSource(process.cwd(), input, reading)
-    : tool.name === orient.name ? orientSource(process.cwd(), input)
-    : tool.name === slowestTests.name ? slowestSource(process.cwd(), input)
-    : tool.name === retriedTests.name ? retriedSource(process.cwd(), input)
-    : tool.name === journeyMapTool.name ? journeyMapSource(process.cwd(), input)
-    : tool.name === testCompositionTool.name ? testCompositionSource(process.cwd(), input)
+    : rooted !== undefined ? rootedSource(rooted, process.cwd(), input)
     : tool.name === containment.name ? containmentSource(process.cwd(), input)
     : await wholeSource(readSource, tool, input, reading);
 }

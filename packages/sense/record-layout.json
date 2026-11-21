@@ -91,6 +91,10 @@
       [
         "readings",
         "cases.readings"
+      ],
+      [
+        "checks",
+        "run.checks"
       ]
     ],
     "blockKinds": [

@@ -389,6 +389,30 @@ own attempts are listed: Vitest's `retry` and `repeats`, Jest's
 `repeats` are not attempts. A case the
 record does not hold has none, as every case of a file recorded as a whole.
 
+## Find the checks a passing test did not run
+
+```bash
+variance ask not-run
+```
+
+A test that passed says only that nothing it ran failed. A Playwright test that
+declares its check with the annotation `variance:check` and runs it as a step of
+the same title is recorded with the checks each attempt entered, as
+[Declare what a test checks](../packages/playwright-test/README.md#declare-what-a-test-checks)
+sets up, and `not-run` names each one an attempt passed without:
+
+```text
+Declared checks not executed:
+  expected check create-event/submitted-title did not execute in case create event > submits the form (tests/create-event.spec.ts:42, project chromium), which passed
+0 declared check(s) entered.
+Scope: project chromium; a case outside it was not asked about.
+```
+
+The scope is what the run covered: its projects, `grep` and shard. A case
+outside it was not asked about and is not named. A run stopped before its runner
+ended it names no check, and a record that kept no checks says so rather than
+that every check ran.
+
 ## Find where the suite's time goes
 
 ```bash

@@ -12,7 +12,7 @@ const READING = readHelp(WORKSPACE);
 
 describe('a verb is a tool, not a second implementation of one', () => {
   it('names every tool the server lists, with the wire prefix dropped', () => {
-    expect(verbs().map(([verb]) => verb)).toEqual(['packages', 'classify', 'entrypoint', 'symbol', 'uses', 'search', 'grep', 'discover', 'intersection', 'orient', 'slowest-tests', 'retried-tests', 'journey-map', 'test-composition', 'containment', 'stack', 'gaps']);
+    expect(verbs().map(([verb]) => verb)).toEqual(['packages', 'classify', 'entrypoint', 'symbol', 'uses', 'search', 'grep', 'discover', 'intersection', 'orient', 'slowest-tests', 'retried-tests', 'not-run', 'journey-map', 'test-composition', 'containment', 'stack', 'gaps']);
   });
 
   it('dispatches to the same value the server would have called', () => {
@@ -32,7 +32,7 @@ describe('a verb is a tool, not a second implementation of one', () => {
 
   it('names what it answers when a verb is not one of them', () => {
     // A model handed "unknown verb" has one move left, which is to guess again.
-    expect(() => toolNamed('symbols')).toThrow(/packages, classify, entrypoint, symbol, uses, search, grep, discover, intersection, orient, slowest-tests, retried-tests, journey-map, test-composition, containment, stack, gaps/);
+    expect(() => toolNamed('symbols')).toThrow(/packages, classify, entrypoint, symbol, uses, search, grep, discover, intersection, orient, slowest-tests, retried-tests, not-run, journey-map, test-composition, containment, stack, gaps/);
   });
 });
 

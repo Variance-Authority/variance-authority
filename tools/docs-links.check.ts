@@ -46,6 +46,7 @@ const FOREIGN: Readonly<Record<string, string>> = {
   'cart.spec.ts': "a reader's own spec file, quoted from a transcript about it",
   'tests/checkout.spec.ts': "a reader's own spec file, quoted from a watcher transcript",
   'tests/cart.spec.ts': "a reader's own spec file, quoted from a watcher transcript",
+  'tests/create-event.spec.ts': "a reader's own spec file, quoted from a sample answer of not-run",
   'src/checkout/CartSummary.tsx': "a reader's own component, quoted from a sample report",
   'src/ds.tsx': "a reader's own design-system module, quoted from a sample answer",
   'packages/core/dist/hash.js': 'a build artifact named in a quoted bundler error',

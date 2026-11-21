@@ -1343,7 +1343,10 @@ window — one named UI state you asked for and can ask for again, such as
 per window the driver closed, each an `owner`, the drained `journal`, optional
 `preconditions`, and `complete`, which is false for a subject that did not
 finish and keeps it from ever justifying a skip. `commit` overrides where the
-recording stands, which otherwise reads the checkout's `HEAD`.
+recording stands, which otherwise reads the checkout's `HEAD`. `checks` holds
+which declared checks each case's attempts entered and the scope the run was
+asked for, as the Playwright reporter records them for `variance ask not-run`;
+it replaces what the record held, and absent, the record keeps none.
 
 Recording refuses in one direction only. Each of these records **nothing** and
 prints why, costing the next run its full suite:

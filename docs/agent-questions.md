@@ -32,6 +32,7 @@ A missing domain is unavailable, never an empty measurement.
 | a recorded test run | Which lines that write this text did one test run, and in which branch or function did it go elsewhere from the others? | `variance ask grep --query <pattern> --test <file> [--name <words>]` | `docs_grep` with `test` on the workspace API server |
 | a recorded test run | Which test cases are closest to their limit, and which test files and cases did the runner spend longest in, under these tests or in the tests that ran this code? | `variance ask slowest-tests [--from <path>[,...]] [--to <path>[,...]] [--over <time>] [--limit <n>]` | `docs_slowest_tests` on the workspace API server |
 | a recorded test run | Which test cases did the runner retry in the recorded run, and which of them failed on one attempt and passed on another? | `variance ask retried-tests [--limit <n>]` | `docs_retried_tests` on the workspace API server |
+| a recorded test run | Which checks did a test declare and an attempt of it pass without executing? | `variance ask not-run` | `docs_not_run` on the workspace API server |
 
 For [source orientation](orientation.md), ask three questions in this order:
 
