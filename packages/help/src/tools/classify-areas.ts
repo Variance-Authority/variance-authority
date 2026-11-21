@@ -39,6 +39,8 @@ export interface RankedArea {
   /** The request's words it holds, as the request wrote them, the one weighing most there first. */
   readonly words: readonly string[];
   readonly score: number;
+  /** Whether one of its files declares a name the source index read: only such an area is a start point the source tree holds. */
+  readonly declares: boolean;
 }
 
 /** How much a path's own words count against one file's name: its words name everything under it. */
@@ -50,6 +52,7 @@ interface Area {
   /** How many words it holds, the request's or not: BM25's document length. */
   length: number;
   readonly held: Map<string, number>;
+  declares: boolean;
 }
 
 /**
@@ -73,7 +76,7 @@ export function rankedAreas(
     const directory = areaDirectory(path, under, most);
     let area = areas.get(directory);
     if (area === undefined) {
-      area = { files: 0, length: 0, held: new Map() };
+      area = { files: 0, length: 0, held: new Map(), declares: false };
       for (const segment of directory.split('/')) {
         const cut = stemsOf(segment);
         area.length += cut.words * PATH_WEIGHT;
@@ -90,13 +93,16 @@ export function rankedAreas(
     fileOf.set(path, area);
     const cut = stemsOf(baseName(path));
     area.length += cut.words + (declared.words.get(path) ?? 0);
+    if (declared.words.has(path)) area.declares = true;
     for (const stem of cut.stems) count(area.held, stem, 1);
   }
   for (const [stem, files] of declared.holding) {
     if (!stems.has(stem)) continue;
     for (const [file, names] of files) {
       const area = fileOf.get(file);
-      if (area !== undefined) count(area.held, stem, names);
+      if (area === undefined) continue;
+      count(area.held, stem, names);
+      area.declares = true;
     }
   }
   const holders = new Map<string, number>();
@@ -119,6 +125,7 @@ export function rankedAreas(
       // `asked` is in stem order, and the sort is stable, so equal weights keep it.
       words: asked.filter(([stem]) => weighs.has(stem)).sort(([one], [other]) => (weighs.get(other) ?? 0) - (weighs.get(one) ?? 0)).map(([, word]) => word),
       score,
+      declares: area.declares,
     });
   }
   return ranked.sort((a, b) => b.score - a.score || codeUnitOrder(a.path, b.path)).slice(0, AREAS_SHOWN);

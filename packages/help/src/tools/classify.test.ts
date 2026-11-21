@@ -137,9 +137,9 @@ describe('docs_classify', () => {
 
   it('lists the areas the words point to, best first, each in its package, and asks `search` from the best for its two weightiest words', () => {
     const areas = [
-      { path: 'x-pack/plugins/task_manager/server', files: 3, words: ['manager', 'task', 'claiming'], score: 2900, package: '@acme/sense' },
-      { path: 'x-pack/plugins/alerting/server', files: 1, words: ['task'], score: 700, package: '@acme/alerting' },
-      { path: 'docs', files: 1, words: ['task'], score: 500 },
+      { path: 'x-pack/plugins/task_manager/server', files: 3, words: ['manager', 'task', 'claiming'], score: 2900, declares: true, package: '@acme/sense' },
+      { path: 'x-pack/plugins/alerting/server', files: 1, words: ['task'], score: 700, declares: true, package: '@acme/alerting' },
+      { path: 'docs', files: 1, words: ['task'], score: 500, declares: true },
     ];
     const text = formatClassified(classifyWords('task manager claiming', HELP, MAPPED), PLACED, areas);
 
@@ -157,7 +157,7 @@ describe('docs_classify', () => {
       ['shop', { layer: 1, directory: 'packages/shop' }],
       ['shop (packages/old/shop)', { layer: 1, directory: 'packages/old/shop' }],
     ]);
-    const area = (path: string) => ({ path, files: 1, words: ['shop'], score: 1 });
+    const area = (path: string) => ({ path, files: 1, words: ['shop'], score: 1, declares: true });
 
     expect(placedAreas([area('packages/old/shop/src'), area('packages/shop'), area('packages/old'), area('.')], packages)).toEqual([
       { ...area('packages/old/shop/src'), package: 'shop (packages/old/shop)' },
@@ -168,10 +168,21 @@ describe('docs_classify', () => {
   });
 
   it('keeps the start point the asker said when the best area is the whole tree it reached', () => {
-    const areas = [{ path: '.', files: 40, words: ['task', 'manager'], score: 900 }];
+    const areas = [{ path: '.', files: 40, words: ['task', 'manager'], score: 900, declares: true }];
     const text = formatClassified(classifyWords('task manager claiming', HELP, MAPPED), PLACED, areas, { from: ['x-pack/plugins/task_manager/'] });
 
     expect(text).toContain("variance ask search --query 'task manager' --from x-pack/plugins/task_manager/");
+  });
+
+  it('asks `search` from the best area a file of which declares a name, as one that declares none is no start point', () => {
+    const areas = [
+      { path: 'docs/task_manager', files: 4, words: ['task', 'manager'], score: 900, declares: false },
+      { path: 'x-pack/plugins/task_manager/server', files: 3, words: ['manager', 'task'], score: 800, declares: true },
+    ];
+    const text = formatClassified(classifyWords('task manager claiming', HELP, MAPPED), PLACED, areas);
+
+    expect(text).toContain("variance ask search --query 'manager task' --from x-pack/plugins/task_manager/server");
+    expect(text).not.toContain('--from docs/task_manager');
   });
 
   it('says the map is older than the source index when it was folded from an earlier one', () => {

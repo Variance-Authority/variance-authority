@@ -192,12 +192,13 @@ export function formatClassified(
     return area === undefined ? [] : [`variance ask orient --area ${shell(area.id)}`];
   }));
   // `search` takes the words of one name, so the best area is asked for the
-  // two that weigh most there; the root is no start point, so it is asked from
-  // the start point the asker said, or whole when none was.
-  const best = areas[0];
+  // two that weigh most there. An area that declares no name is no start point
+  // the source tree holds, and neither is the root, so they are asked from the
+  // start point the asker said, or whole when none was.
+  const best = areas.find((area) => area.declares) ?? areas[0];
   if (best !== undefined) {
     const flags = Object.entries(said).flatMap(([which, paths]) => (paths ?? []).map((path) => ` --${which} ${shell(path)}`));
-    const from = best.path === '.' ? flags.join('') : ` --from ${shell(best.path)}`;
+    const from = best.path === '.' || !best.declares ? flags.join('') : ` --from ${shell(best.path)}`;
     asks.push(`variance ask search --query ${shell(best.words.slice(0, 2).join(' '))}${from}`);
   }
   lines.push(...narrower([...new Set(asks)]));

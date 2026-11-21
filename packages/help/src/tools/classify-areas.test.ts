@@ -68,6 +68,15 @@ describe('rankedAreas', () => {
     expect(one.map((area) => area.path)).toEqual(['a', 'b']);
   });
 
+  it('says which areas hold a file the source index read a name from, the ones `search` can start in', () => {
+    const paths = [...filesUnder('docs/task', ['claiming.md']), ...filesUnder('src/task', ['claimer.ts'])];
+    const declared: Declared = { holding: new Map(), words: new Map([['src/task/claimer.ts', 2]]) };
+
+    const areas = rankedAreas('task claiming', paths, declared, { most: 1 });
+
+    expect(Object.fromEntries(areas.map((area) => [area.path, area.declares]))).toEqual({ docs: false, src: true });
+  });
+
   it('ranks nothing for a request with no word to describe', () => {
     expect(rankedAreas('a the of', PATHS, NONE, { most: 3 })).toEqual([]);
   });
