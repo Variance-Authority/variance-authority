@@ -3125,6 +3125,7 @@
         "tierMoves": "function",
         "tierOf": "function",
         "trackedFiles": "function",
+        "trackedPaths": "function",
         "treeShapeOf": "function",
         "tsconfigUse": "function",
         "updateSourceIndex": "function",
@@ -3137,7 +3138,8 @@
         "checkoutListing": "function",
         "checkoutPath": "function",
         "existedAt": "function",
-        "existingAt": "function"
+        "existingAt": "function",
+        "trackedPaths": "function"
       },
       "./read": {
         "Binding": "interface",

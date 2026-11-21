@@ -1,5 +1,6 @@
 // compass: variance-authority.report.agent-surface
 
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import { rarity } from '@variance-authority/mcp/tools';
 import { describedWordsNative } from '@variance-authority/sense';
 
@@ -122,7 +123,7 @@ export function rankedAreas(
       score,
     });
   }
-  return ranked.sort((a, b) => b.score - a.score || (a.path < b.path ? -1 : a.path > b.path ? 1 : 0)).slice(0, shown);
+  return ranked.sort((a, b) => b.score - a.score || codeUnitOrder(a.path, b.path)).slice(0, shown);
 }
 
 function count(counts: Map<string, number>, key: string, by: number): void {
