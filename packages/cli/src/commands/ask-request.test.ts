@@ -1,13 +1,13 @@
 import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { ask } from './ask.js';
 import { questions } from './ask-questions.js';
 
 /**
- * `ask` as the package exports it, called without the CLI in front: a caller
- * that passes no `warn` still hears what was answered past, on standard error.
+ * `ask` as the package exports it, called without the CLI in front: the
+ * catalogue and refusals need no report.
  */
 
 const read = (): never => {
@@ -15,22 +15,15 @@ const read = (): never => {
 };
 
 describe('`ask` called directly', () => {
-  it('names an unknown flag on standard error beside the list of questions, with no `warn` given', async () => {
-    const written: string[] = [];
-    const stderr = vi.spyOn(process.stderr, 'write').mockImplementation((chunk) => {
-      written.push(String(chunk));
-      return true;
-    });
-    try {
-      const unknown = [{ flag: '--verbose', typed: '--verbose', next: 0 }];
+  it('lists questions without reading a report when no arguments were supplied', async () => {
+    expect(await ask({ report: '', read })).toBe(questions());
+  });
 
-      expect(await ask({ report: '', read, unknown })).toBe(questions());
-      expect(written).toEqual([
-        'variance: `--verbose` is not an argument `variance ask` takes, so the list of questions is what it is without it; a flag goes after its question.\n',
-      ]);
-    } finally {
-      stderr.mockRestore();
-    }
+  it.each([
+    { query: 'token' },
+    { unknown: [{ flag: '--verbose', typed: '--verbose' }] },
+  ])('refuses arguments without a question before reading a report: %j', async (args) => {
+    await expect(ask({ report: '', read, ...args })).rejects.toThrow('`variance ask` needs a question before its arguments.');
   });
 
   it('reads `--claims` at the question that takes it', async () => {

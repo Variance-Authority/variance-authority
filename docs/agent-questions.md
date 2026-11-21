@@ -80,7 +80,7 @@ find-references. Use `variance` for
 declarations, imports, the module graph and the recording, and the language's
 type checker for anything that needs a value's type.
 
-`variance ask` with no question lists every report, watcher and source question
+Bare `variance ask` lists every report, watcher and source question
 and its arguments. The source questions read the index `variance index`
 published for the working directory and need no `variance.config.json`; the same nine are on the
 `variance-authority-help` binary for a workspace that installs nothing else. `variance_observability` inventories the domains supplied to a

@@ -74,13 +74,14 @@ export async function constantAnswer(
   streams: Pick<Streams, 'out' | 'err'>,
 ): Promise<ExitCode | undefined> {
   if (parsed.command !== 'ask') return undefined;
-  const [{ askSource }, { questions }, { questionFor, unasked }] = await Promise.all([
+  const [{ askSource }, { questions }, { questionFor }, { unasked }] = await Promise.all([
     import('./ask.js'),
     import('./ask-questions.js'),
     import('./asking.js'),
+    import('./ask-flagged.js'),
   ]);
   if (parsed.question === undefined) {
-    unasked(parsed.unknown ?? [], (message) => streams.err(`variance: ${message}\n`));
+    unasked(parsed);
     streams.out(questions());
     return EXIT_CLEAN;
   }

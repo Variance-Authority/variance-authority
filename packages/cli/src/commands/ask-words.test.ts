@@ -72,12 +72,12 @@ describe('a word a question about the code does not take', () => {
     expect(parseArgs(['ask', 'packages', '--verbose', '--help'])).toEqual({ command: 'help', topic: 'ask' });
   });
 
-  it('is named beside the list of questions when no question was asked', async () => {
+  it('is refused when its question is missing', async () => {
     const { code, out, err } = await run(['ask', '--verbose']);
 
-    expect(code).toBe(0);
-    expect(out).toContain('ABOUT THE LAST RUN');
-    expect(err).toContain('variance: `--verbose` is not an argument `variance ask` takes, so the list of questions is what it is without it; a flag goes after its question.');
+    expect(code).toBe(EXIT_OPERATOR);
+    expect(out).toBe('');
+    expect(err).toContain('`variance ask` needs a question before its arguments.');
   });
 
   it('is refused after a flag value that ran on past one word, naming what the question takes', async () => {

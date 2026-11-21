@@ -6,14 +6,14 @@ import type { Unknown } from '../args.js';
 import type { Crossing } from '../ask-args.js';
 import { OperatorError } from '../exit.js';
 import { readClaims } from './adjudicate.js';
-import { argumentsOf, ignored, inputFor, invocationOf, questionFor, unasked, wordless, type Question } from './asking.js';
+import { argumentsOf, ignored, inputFor, invocationOf, questionFor, wordless, type Question } from './asking.js';
 import { foundNothingAnswer, readWorkspaceForAnswer, refusalFooter, snapshotLine, unopenedLine } from '@variance-authority/help';
 import { containment, discover, intersection, RECORDED, search, type Help } from '@variance-authority/help/tools';
 import { asOneQuestion } from '@variance-authority/sense';
 import type { Taint } from '@variance-authority/sense/taint';
 import { repositoryRoot } from '@variance-authority/sense/test-selection';
 import { cutFor, verbOf, type CostsSubject, type Reviewed, type ReviewTool, type Tool, type Tree } from '@variance-authority/mcp/tools';
-import { flagged, type Flagged } from './ask-flagged.js';
+import { flagged, unasked, type Flagged } from './ask-flagged.js';
 import { intersectionInput } from './ask-intersection.js';
 import { ASKED, record, recorded } from './ask-previous.js';
 import { questions } from './ask-questions.js';
@@ -82,7 +82,7 @@ import { readVantage } from './watch.js';
  */
 
 export interface AskRequest extends Crossing {
-  /** The question. Absent asks for the list of them, which is the MCP handshake. */
+  /** The question. Absent lists them only when no question arguments are supplied. */
   readonly question?: string;
   /** The flags no question takes, each answered past and named beside the answer. */
   readonly unknown?: readonly Unknown[];
@@ -192,7 +192,7 @@ export interface Sourced {
 /** One question, answered from the artifact or the watcher. Never re-runs and never renders. */
 export async function ask(request: AskRequest): Promise<string> {
   if (request.question === undefined) {
-    unasked(request.unknown ?? [], ignoring(request));
+    unasked(request);
     return questions();
   }
 

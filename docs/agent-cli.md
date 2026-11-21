@@ -465,6 +465,11 @@ reading and the skill's counterfactual verification loop are described in
 
 ## Arguments are per-question
 
+Bare `variance ask` lists the questions, and `variance ask --help` prints help.
+Question arguments such as `--query` and `--to` require a question first:
+`variance ask <question> ...`. Without it, the command prints a short diagnostic
+and exits `2`.
+
 Each question takes only the arguments its own contract declares. An argument
 the question does not take, or a flag no question takes, is named on standard
 error and the question is answered from the rest, exit `0`. The line says the

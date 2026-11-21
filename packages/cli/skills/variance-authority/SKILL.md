@@ -84,8 +84,11 @@ CLI's output, and `yarn -s variance` fails before the CLI starts. If the
 package is missing, add it as a devDependency with the project's
 package manager.
 
-`variance ask` with no question prints every question and what each one needs.
-It reads no config and no run, so it is the whole install check.
+Bare `variance ask` prints every question and what each one needs. It reads no
+config and no run, so it is the whole install check. Question arguments such as
+`--query` and `--to` require a question first: `variance ask <question> ...`.
+Without it, the command prints a short diagnostic and exits `2`. Explicit
+`variance ask --help` still prints help.
 
 ## What each command needs
 
