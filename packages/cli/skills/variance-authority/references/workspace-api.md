@@ -123,7 +123,7 @@ Read [classify](workspace-classify.md) for its arguments and answer contract.
 
 Read [entrypoint](workspace-entrypoint.md) for its arguments and answer contract.
 
-### `symbol --name <name> [--package <name>] [--from <path>] [--line <file>:<line>] [--limit <n>]`
+### `symbol --name <name>[,...] [--package <name>] [--from <path>] [--line <file>:<line>] [--limit <n>]`
 
 Read [symbol](workspace-symbol.md) for its arguments and answer contract.
 

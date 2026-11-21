@@ -1,6 +1,9 @@
-# `symbol --name <name> [--package <name>] [--from <path>] [--line <file>:<line>] [--limit <n>]`
+# `symbol --name <name>[,...] [--package <name>] [--from <path>] [--line <file>:<line>] [--limit <n>]`
 
-The name is matched **exactly**. `--package` takes a package name or a
+The name is matched **exactly**. Several names, as `--name a,b,c`, are each
+answered as one is, in the order given, a blank line apart; a name nothing
+declares is answered in its place, and the others still answer; each
+flag below applies to each name. `--package` takes a package name or a
 specifier, and only narrows: it answers from that package instead of from every
 specifier that publishes the name.
 
