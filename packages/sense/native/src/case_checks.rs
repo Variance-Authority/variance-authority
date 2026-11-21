@@ -42,9 +42,10 @@ pub struct DeclaredChecks {
     pub checks: Vec<DeclaredCheck>,
 }
 
-/// The checks each case declares, in the order asked; `None` for a case whose
-/// file cannot be read or whose body is not found by its name. Each file is
-/// read and parsed once.
+/// The checks each case declares, in the order asked; `None` for a case that
+/// declares none the source spells: its file cannot be read or does not name
+/// the entry, or its body is not found by its name or holds no check. Each
+/// file is read once, and parsed only when its text names the entry.
 #[napi(catch_unwind)]
 pub fn declared_checks(root: String, cases: Vec<CheckedCaseAsk>) -> Vec<Option<DeclaredChecks>> {
     let mut parsed: HashMap<String, Option<Parsed>> = HashMap::new();
@@ -53,6 +54,10 @@ pub fn declared_checks(root: String, cases: Vec<CheckedCaseAsk>) -> Vec<Option<D
         .map(|case| {
             let file = parsed.entry(case.file.clone()).or_insert_with(|| {
                 let text = std::fs::read_to_string(Path::new(&root).join(&case.file)).ok()?;
+                // Most test files call no check: their text is not parsed for one.
+                if !text.contains(ENTRY) {
+                    return None;
+                }
                 journeys_parse::parse(&case.file, &text)
             });
             let (line, checks) = declared(file.as_ref()?, &case.name)?;
@@ -61,7 +66,8 @@ pub fn declared_checks(root: String, cases: Vec<CheckedCaseAsk>) -> Vec<Option<D
         .collect()
 }
 
-/// The line of `name`'s body and the checks it declares, each with its line.
+/// The line of `name`'s body and the checks it declares, each with its line;
+/// `None` when no body is registered under `name` or it declares no check.
 fn declared(parsed: &Parsed, name: &str) -> Option<(u32, Vec<(String, u32)>)> {
     let sites: HashMap<u32, u32> = parsed.calls.iter().filter_map(|call| call.callback.map(|at| (at, call.line))).collect();
     let site = |at: u32| sites.get(&at).copied().unwrap_or(parsed.fns[at as usize].line);
@@ -77,10 +83,10 @@ fn declared(parsed: &Parsed, name: &str) -> Option<(u32, Vec<(String, u32)>)> {
             _ => None,
         })
         .collect();
-    let mut checks: Vec<(String, u32)> = Vec::new();
     if callees.is_empty() {
-        return Some((site(body), checks));
+        return None;
     }
+    let mut checks: Vec<(String, u32)> = Vec::new();
     let is_check = |at: usize| {
         parsed.fns[at].hint.as_deref().and_then(|hint| hint.split_once(".arg")).is_some_and(|(callee, arg)| arg == "1" && callees.contains(callee))
     };
@@ -111,7 +117,7 @@ fn declared(parsed: &Parsed, name: &str) -> Option<(u32, Vec<(String, u32)>)> {
         }
     }
     checks.sort_by_key(|(_, line)| *line);
-    Some((site(body), checks))
+    (!checks.is_empty()).then(|| (site(body), checks))
 }
 
 /// Whether function `at` is `scope` or written inside it.
@@ -181,16 +187,16 @@ it('retries', { retry: 1 }, () => {
         let checks = |list: &[(&str, u32)]| list.iter().map(|(id, line)| ((*id).to_owned(), *line)).collect::<Vec<_>>();
         assert_eq!(read(SOURCE, "form > sends"), Some((6, checks(&[("title", 8), ("body", 9), ("helper", 14)]))));
         assert_eq!(read(SOURCE, "form sends"), read(SOURCE, "form > sends"));
-        assert_eq!(read(SOURCE, "form > drafts"), Some((16, Vec::new())));
+        assert_eq!(read(SOURCE, "form > drafts"), None);
         assert_eq!(read(SOURCE, "retries"), Some((18, checks(&[("again", 19)]))));
     }
 
     #[test]
-    fn names_no_body_a_name_does_not_spell_and_no_check_a_file_does_not_import() {
+    fn declares_nothing_for_a_name_no_body_spells_nor_a_check_the_file_does_not_import() {
         assert_eq!(read(SOURCE, "sends"), None);
         assert_eq!(read(SOURCE, "other > sends"), None);
         let unimported = SOURCE.replacen("@variance-authority/sense/checked", "./checked", 1);
-        assert_eq!(read(&unimported, "form > sends"), Some((6, Vec::new())));
+        assert_eq!(read(&unimported, "form > sends"), None);
         let renamed = SOURCE.replacen("{ checked }", "{ checked as check }", 1).replace("  checked(", "  check(");
         assert_eq!(read(&renamed, "retries").map(|(_, checks)| checks.len()), Some(1));
     }

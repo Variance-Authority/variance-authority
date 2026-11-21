@@ -283,7 +283,8 @@ export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon
   /**
    * For each case, by its test file from `root` and its name, the line of its
    * body's call and the checks that body declares, each at its line; `null`
-   * where the file cannot be read or no body is registered under the name
+   * where it declares none the source spells — its file cannot be read or does
+   * not import `checked`, or no body under the name holds a check
    * (`native/src/case_checks.rs`).
    */
   declaredChecks?(root: string, cases: { file: string; name: string }[]): ({ line: number; checks: { id: string; line: number }[] } | null)[];
