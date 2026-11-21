@@ -258,6 +258,7 @@ describe('page-broker over a document', () => {
         this.readyState = this.OPENED;
       }
       send(): void {
+        // The server's latency, which the case is about: longer than the quiet period.
         setTimeout(() => {
           this.readyState = 4;
           this.responseText = 'payment';
@@ -267,6 +268,9 @@ describe('page-broker over a document', () => {
       }
     }
     vi.stubGlobal('XMLHttpRequest', Request);
+    const on = surface(document);
+    const quiet = on.quiet(100);
+    let heldAtAnswer: string | undefined;
     const form = document.querySelector('form')!;
     form.replaceWith(form.cloneNode(true));
     document.querySelector('form')!.addEventListener('submit', (event) => {
@@ -274,17 +278,13 @@ describe('page-broker over a document', () => {
       const request = new XMLHttpRequest();
       request.open('POST', '/api/billing');
       request.addEventListener('load', () => {
+        heldAtAnswer = quiet.held();
         (document.querySelector('[aria-label=Payment]') as HTMLElement).hidden = request.responseText !== 'payment';
       });
       request.send();
     });
-    const on = surface(document);
-    const quiet = on.quiet(100);
-    const reached = (await Billing.on(on)).submit();
-    await new Promise((done) => setTimeout(done, 50));
-
-    expect(quiet.held()).toBe('POST /api/billing still in flight');
-    await expect(reached).resolves.toMatchObject({ outcome: 'payment' });
+    await expect((await Billing.on(on)).submit()).resolves.toMatchObject({ outcome: 'payment' });
+    expect(heldAtAnswer).toBe('POST /api/billing still in flight');
     quiet.stop();
   });
 
@@ -300,7 +300,6 @@ describe('page-broker over a document', () => {
   it('hears the answer an app gives when its request failed', async () => {
     checkout('nothing');
     vi.stubGlobal('fetch', async () => {
-      await new Promise((done) => setTimeout(done, 20));
       throw new TypeError('Failed to fetch');
     });
     const form = document.querySelector('form')!;

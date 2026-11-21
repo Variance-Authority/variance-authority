@@ -19,14 +19,11 @@ const ORIGIN = 'https://shop.test';
 
 /**
  * A checkout that announces nothing. `?answer=` picks where Continue ends —
- * `elsewhere`, `window` and `help` are places no case declares: another
- * document, a new page and a modal dialog, `gone` the billing form hidden, `helpShown` a modal dialog on the
- * page hidden until then, `frame` is a frame inside the
- * page going to one, and `next` a new address for the same document —
- * `?after=` how long the server takes, `?open=` what is on the page before
- * anybody acts, `?stream` has Continue open a server-sent stream that never ends
- * and ask for a picture that never loads, and `?then=` has the page ask again
- * that long after the answer, for `?second=`.
+ * `elsewhere`, `window` and `help`: another document, a new page and a modal
+ * dialog, no case declares; `gone` hides the form; `helpShown` shows a hidden
+ * dialog; `frame` moves a frame; `next` a new address for the same document.
+ * `?after=` is the server's delay, `?open=` what is on the page first,
+ * `?stream` a stream and a picture that never end, `?then=` asks `?second=` later.
  */
 const CHECKOUT = `<!doctype html>
 <main>
@@ -148,12 +145,8 @@ const OTHER = '<main>Elsewhere</main>';
 /** One page for every case; a case that closes it gets the next one. */
 async function fresh(): Promise<void> {
   page = await context.newPage();
-  await page.route(`${ORIGIN}/checkout**`, (route) =>
-    route.fulfill({ contentType: 'text/html', body: CHECKOUT }),
-  );
-  await page.route(`${ORIGIN}/checkout/elsewhere`, (route) =>
-    route.fulfill({ contentType: 'text/html', body: elsewhere }),
-  );
+  await page.route(`${ORIGIN}/checkout**`, (route) => route.fulfill({ contentType: 'text/html', body: CHECKOUT }));
+  await page.route(`${ORIGIN}/checkout/elsewhere`, (route) => route.fulfill({ contentType: 'text/html', body: elsewhere }));
   // Never answered: the stream stays in flight until the document goes.
   await page.route(`${ORIGIN}/api/stream`, () => undefined);
   await page.route(`${ORIGIN}/api/picture`, () => undefined);
@@ -174,8 +167,7 @@ async function fresh(): Promise<void> {
 
 // One browser, one context and one page, on Playwright alone: the package
 // never joins the playwright packages, so `browsers.ts` and `PagePool` are
-// not its to lease from. Each case
-// moves the page to its own document.
+// not its to lease from. Each case moves the page to its own document.
 beforeAll(async () => {
   if (!BROWSER_AVAILABLE) return;
   browser = await chromium.launch({ headless: true });

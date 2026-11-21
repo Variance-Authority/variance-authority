@@ -20,9 +20,7 @@ describe('page-broker over a document the test opened itself', () => {
     const document = window.document;
     document.querySelector('form')!.addEventListener('submit', (event) => {
       event.preventDefault();
-      setTimeout(() => {
-        (document.querySelector('[role=dialog]') as HTMLElement).hidden = false;
-      }, 20);
+      (document.querySelector('[role=dialog]') as HTMLElement).hidden = false;
     });
     const signIn = broker('signIn', { probe: { role: 'dialog', name: 'Sign in' } });
     const billing = broker('billing', {

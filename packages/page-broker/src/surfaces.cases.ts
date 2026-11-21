@@ -6,19 +6,10 @@ import { broker, stay, Unreached } from './index.js';
 import type { Surface } from './surface.js';
 
 /**
- * A checkout on the surface, announcing nothing: a Billing form with a Street
- * field, a Delivery choice of `standard` or `express`, a Gift box, a summary of
- * the three whose test id is `summary`, and a Continue button that submits it
- * whose answer, after `after` ms, is `answer` — `payment`
- * shows the Payment form, `signIn` the Sign in dialog, `help` opens a modal
- * dialog, `helpShown` shows a modal dialog that was on the page hidden, `next`
- * moves the page to `/checkout/next` with the form still on it, `gone` hides
- * the form and shows nothing in its place, `nothing` leaves the page as it was,
- * `alert` shows a native alert, `link` follows a link to `/checkout/elsewhere`,
- * `blank` follows one to a new page, `hash` one to `#billing` in the same
- * document, `post` submits a form there, none of them prevented, `window`
- * opens a new page by script,
- * and answers joined by a comma happen together.
+ * A checkout on the surface, announcing nothing: a Billing form — Street,
+ * Delivery, Gift, a `summary` output and Continue — whose server answers
+ * `answer` after `after` ms. Each answer is what the app then does, as the
+ * fixture's `show` draws it; answers joined by a comma happen together.
  */
 export type Checkout = (
   answer: 'payment' | 'signIn' | 'help' | 'helpShown' | 'next' | 'next,help' | 'gone' | 'nothing' | 'alert' | 'link' | 'blank' | 'hash' | 'post' | 'window',
