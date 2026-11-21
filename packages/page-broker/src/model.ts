@@ -61,9 +61,10 @@ export interface Action<Name extends string, Args extends readonly unknown[], S 
 }
 
 /**
- * Why an action did not end where it should: it was not where it starts, it
- * ended at another outcome than the one insisted on, at two at once, somewhere
- * undeclared, at none in time, or with the page still busy when time ran out.
+ * Why an action did not end where it should: it was not where it starts, or
+ * started where its outcomes could not be told apart; it ended at another
+ * outcome than the one insisted on, at two at once, somewhere undeclared, at
+ * none in time, or with the page still busy when time ran out.
  */
 export type Reason = 'start' | 'expected' | 'both' | 'elsewhere' | 'late' | 'unquiet';
 
@@ -188,11 +189,11 @@ async function perform<Name extends string, Handle>(
   // told the way staying is, once the page is quiet and it is still there.
   const before = await look(parts);
   if (before.length > 1) {
-    throw new Error(`${declared.name}: ${before.map((part) => part.name).join(' and ')} are on the page before the action, so they could not be told apart`);
+    throw fail(`${before.map((part) => part.name).join(' and ')} are on the page before the action, so they could not be told apart`, 'start');
   }
   const resting = before[0] === undefined ? undefined : parts.find((part) => part.name === before[0]!.name);
   if (resting !== undefined && declared.staying !== undefined) {
-    throw new Error(`${declared.name}: ${resting.name} is on the page before the action, and ${declared.staying} stays, so they could not be told apart`);
+    throw fail(`${resting.name} is on the page before the action, and ${declared.staying} stays, so they could not be told apart`, 'start');
   }
   const arriving = parts.filter((part) => part !== resting);
   const rests = resting !== undefined || declared.staying !== undefined;

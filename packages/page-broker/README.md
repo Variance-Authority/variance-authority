@@ -119,7 +119,8 @@ Before the act, every declared region is looked for.
   reported the way staying is — once the page is quiet and it is still there.
   An action that likes a product, ending on the product it started on, declares
   it so. Beside `stay` it is refused, since the two could not be told apart, and
-  two regions on the page before the act are refused for the same reason.
+  two regions on the page before the act are refused for the same reason. A
+  refusal is an `Unreached` whose reason is `start`, and the act does not run.
 
 After the act, whichever comes first — a declared region becoming visible, or
 the page going quiet — every region is looked at once.

@@ -89,7 +89,11 @@ describe('page-broker over a document', () => {
     checkout('nothing');
     const typing = quick('type', { to: { billing, idle: stay } }, (s) => s.fill({ label: 'Street' }, 'x'));
 
-    await expect(typing(surface(document))).rejects.toThrow('type: billing is on the page before the action, and idle stays');
+    await expect(typing(surface(document))).rejects.toMatchObject({
+      name: 'Unreached',
+      reason: 'start',
+      message: 'type: billing is on the page before the action, and idle stays, so they could not be told apart',
+    });
   });
 
   it('puts back every global it followed, however many actions overlap on the document', async () => {
