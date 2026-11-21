@@ -1560,7 +1560,6 @@
         "flagOf": "function",
         "heldWeight": "function",
         "limitOf": "function",
-        "listArg": "function",
         "nextPage": "function",
         "notObservedSentence": "function",
         "notShown": "function",

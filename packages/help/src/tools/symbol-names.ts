@@ -1,5 +1,5 @@
 import type { FileSet } from '@variance-authority/mcp/tools';
-import { listArg } from '@variance-authority/mcp/tools';
+import { listArg } from './discover-operands.js';
 import { FoundNothing } from './find.js';
 
 /** Input, as a tool is handed it. */

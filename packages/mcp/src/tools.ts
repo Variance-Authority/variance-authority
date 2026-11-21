@@ -24,7 +24,7 @@ import { runSignals } from './tools/run-signals.js';
 import { self } from './tools/self.js';
 import { testSignals } from './tools/test-signals.js';
 import { waiting } from './tools/waiting.js';
-import { NO_ARGS, listArg, stringArg, type Tool } from './tools/tool.js';
+import { NO_ARGS, stringArg, type Tool } from './tools/tool.js';
 import { trace } from './tools/trace-component.js';
 import { variations } from './tools/variations.js';
 
@@ -128,7 +128,7 @@ export type { StateDifference };
 // The tool-authoring contract, not an implementation detail of this set. A
 // server over another subject writes tools against the same interface, and the
 // first thing any tool does with a model's argument is refuse it or narrow it.
-export { NO_ARGS, listArg, stringArg };
+export { NO_ARGS, stringArg };
 // A host's half of a tool that names regions: the modules it asked for, cut from the checkout.
 export { cutFor } from './tools/cut.js';
 export type { CutModule, CutModules, CutRegion } from './tools/tool.js';

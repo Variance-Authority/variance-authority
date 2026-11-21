@@ -28,7 +28,7 @@
 // compass: variance-authority.report.agent-surface
 
 import type { Tool } from '@variance-authority/mcp/tools';
-import { listArg, spellingOf } from '@variance-authority/mcp/tools';
+import { spellingOf } from '@variance-authority/mcp/tools';
 import { basename } from 'node:path';
 import { codeMapPage, journeysAround, orientAround, recordedCases, type JourneysAsk } from '@variance-authority/sense';
 import { formatCodeMapPage, noCodeMap, unfoldedCodeMap } from './code-map-format.js';
@@ -41,8 +41,11 @@ const TITLES = 3;
 
 /** The files as they were said, each once, in the order said. */
 export function filesOf(input: Readonly<Record<string, unknown>>): readonly string[] {
-  const files = listArg(input, 'files')
-    .map((file) => file.replace(/^\.\//u, ''))
+  const said = input['files'];
+  const listed = typeof said === 'string' ? [said] : Array.isArray(said) ? said : [];
+  const files = listed
+    .filter((file): file is string => typeof file === 'string')
+    .map((file) => file.trim().replace(/^\.\//u, ''))
     .filter((file) => file !== '');
   return [...new Set(files)];
 }

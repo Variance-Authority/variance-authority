@@ -208,18 +208,3 @@ export function stringArg(input: Readonly<Record<string, unknown>>, name: string
   }
   return value;
 }
-
-/**
- * A list argument as it was said, each entry trimmed and once, in the order
- * said: an array, as a schema's `type: 'array'` asks for, or one string, which
- * a host that does not split it hands as one entry. An empty entry is dropped.
- */
-export function listArg(input: Readonly<Record<string, unknown>>, name: string): readonly string[] {
-  const said = input[name];
-  const listed: readonly unknown[] = typeof said === 'string' ? [said] : Array.isArray(said) ? said : [];
-  const entries = listed
-    .filter((entry): entry is string => typeof entry === 'string')
-    .map((entry) => entry.trim())
-    .filter((entry) => entry !== '');
-  return [...new Set(entries)];
-}
