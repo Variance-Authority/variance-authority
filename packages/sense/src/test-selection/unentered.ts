@@ -66,13 +66,8 @@ export function sameUnentered(left: readonly Unentered[] | undefined, right: rea
  * `no case entered the branch on line 6`, then {@link whyUnentered}.
  */
 export function unenteredSentence(region: Unentered): string {
-  return `no case entered ${unenteredPlace(region)}${whyUnentered(region.stopped)}`;
-}
-
-/** Where a region stands, as a sentence about it names it: `the branch on line 6`. */
-export function unenteredPlace(region: Unentered): string {
   const lines = region.startLine === region.endLine ? `line ${region.startLine}` : `lines ${region.startLine}-${region.endLine}`;
-  return `the ${region.kind} on ${lines}`;
+  return `no case entered the ${region.kind} on ${lines}${whyUnentered(region.stopped)}`;
 }
 
 /**

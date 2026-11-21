@@ -43,9 +43,9 @@ describe('a covering answer an agent reads', () => {
   it('names each test file of a whole file once, the most cases first, and pages past ten', async () => {
     const text = await ask(['--file', 'src/hub.ts']);
 
-    expect(text).toContain('src/hub.ts — 2 recorded ranges, 78 named tests in 12 test files\n  t00.test.ts — 12 cases\n');
+    expect(text).toContain('src/hub.ts — 2 recorded ranges, 78 named tests in 12 test files\n  t00.test.ts — 12/12\n');
     expect(text.split('t00.test.ts').length - 1).toBe(1);
-    expect(text).toContain('  t09.test.ts — 3 cases\n');
+    expect(text).toContain('  t09.test.ts — 3/3\n');
     expect(text).not.toContain('t10.test.ts');
     expect(text).toContain('2 more not shown; `--offset` 10 shows the next 2.');
     expect(text).not.toContain('lines 1-5');
@@ -77,5 +77,10 @@ describe('a covering answer an agent reads', () => {
   it('refuses a page that is not a whole number', () => {
     expect(() => parse(['--file', 'src/hub.ts', '--offset', 'x'])).toThrow(OperatorError);
     expect(() => parse(['--file', 'src/hub.ts', '--limit', '0'])).toThrow(/--limit/);
+  });
+
+  it('refuses a page beside `--since`, whose answer is not a page of test files', () => {
+    expect(() => parse(['--since', 'HEAD~1', '--limit', '1'])).toThrow(/`--since` and `--limit`/);
+    expect(() => parse(['--since', 'HEAD~1', '--offset', '10'])).toThrow(/`--since` and `--offset`/);
   });
 });

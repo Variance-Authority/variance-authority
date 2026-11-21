@@ -8,15 +8,12 @@
 
 import {
   formatCoveringChange,
-  unenteredPlace,
   unenteredSentence,
   whyUnentered,
   type CoveringTest,
   type ExecutionTest,
   type HeldLines,
-  type Unentered,
 } from '@variance-authority/sense/test-selection';
-import { codeUnitOrder } from '@variance-authority/core/segment';
 import { nextPage, pageAt, paged, spellingOf, type Page } from '@variance-authority/mcp/tools';
 import { FIRST_PAGE } from '../covering-args.js';
 import { runsOfLines, runsText, targetText, type UnrunPart } from './covering-at.js';
@@ -234,13 +231,12 @@ function wholeFile(answer: Covering, ranges: readonly CoveringRange[], page: Pag
   // every test file imports, those are most of the suite, and say who imports the file rather than who runs it.
   const loading = new Set(ranges.flatMap((range) => range.tests.filter((test) => test.loaded === true).map((test) => test.id)));
   for (const id of named.keys()) loading.delete(id);
-  const byFile = [...casesByFile([...named.values()], [])].sort(([left, a], [right, b]) =>
-    b.length - a.length || codeUnitOrder(left, right));
+  const files = new Set([...named.values()].map((test) => test.file)).size;
   const lines = [
     `${file} — ${ranges.length} recorded range${ranges.length === 1 ? '' : 's'}, ${named.size} named test${named.size === 1 ? '' : 's'}${
-      named.size === 0 ? '' : ` in ${byFile.length} test file${byFile.length === 1 ? '' : 's'}`
+      named.size === 0 ? '' : ` in ${files} test file${files === 1 ? '' : 's'}`
     }${loading.size === 0 ? '' : `, and ${loading.size} more that ran it only while their file imported it`}`,
-    ...fileRows(byFile, '  ', page, (_, cases) => ` — ${cases.length} case${cases.length === 1 ? '' : 's'}`),
+    ...caseLines([...named.values()], '  ', answer.files, page),
   ];
   const quiet = ranges.filter(isQuiet);
   for (const range of ranges) if (!quiet.includes(range)) lines.push(...rangeNote(answer, range));
@@ -248,7 +244,6 @@ function wholeFile(answer: Covering, ranges: readonly CoveringRange[], page: Pag
     const runs = quiet.filter((range) => range.state === state);
     lines.push(`No case called into ${single(runs) ? 'line' : 'lines'} ${runsText(runs)}: ${state}.`);
   }
-  lines.push(...unenteredText(ranges));
   lines.push(...narrowedText(answer));
   return lines.join('\n');
 }
@@ -276,6 +271,7 @@ function rangeNote(answer: Covering, range: CoveringRange): readonly string[] {
     notes.push(...loadedOnly(carried));
   }
   if (range.tests.length > 0 && range.overwritten !== undefined) notes.push(`  it is also ${lostText({ other: true, it: 'it' })}`);
+  notes.push(...unenteredLines(range));
   if (notes.length === 0 && range.tests.length > 0 && range.moved !== true) return [];
   const place = range.startLine === range.endLine ? `line ${range.startLine}` : `lines ${range.startLine}-${range.endLine}`;
   return [`${place}${range.state === undefined ? '' : ` — ${range.state}`}${range.moved === true ? ', edited since the recording' : ''}`, ...notes];
@@ -283,41 +279,26 @@ function rangeNote(answer: Covering, range: CoveringRange): readonly string[] {
 
 /**
  * A range whose state says all there is: no case called into it, none stopped
- * short of it, and no edit or overwrite on it. Said in one line per state for
+ * short of it, and no edit, overwrite or unentered region on it. Said in one line per state for
  * the whole file, not a header per range.
  */
 function isQuiet(range: CoveringRange): boolean {
   return range.tests.length === 0 &&
     (range.state === 'unwalked' || range.state === 'loaded' || range.state === 'hole') &&
     (range.state === 'loaded' || (range.stopped ?? []).length === 0) &&
-    range.moved !== true && range.overwritten === undefined;
+    range.moved !== true && range.overwritten === undefined && (range.unentered ?? []).length === 0;
 }
 
 /**
- * The regions nobody entered, once each, though a function's opening and
- * closing lines sit on two ranges: the range's cases are the ones an edit to its
- * lines selects, and a region with no line of its own would read as theirs
- * (`unentered.ts` in sense). The unwalked ones are one sentence; a hole keeps
- * its own, with the cases that stopped before it.
+ * The regions on a range nobody entered: the range's cases are the ones an
+ * edit to its lines selects, and a region with no line of its own would read as
+ * theirs (`unentered.ts` in sense).
  */
-function unenteredText(ranges: readonly CoveringRange[]): readonly string[] {
-  const regions = new Map<string, Unentered>();
-  for (const region of ranges.flatMap((range) => range.unentered ?? [])) {
-    regions.set(`${region.kind}:${region.startLine}:${region.endLine}`, region);
-  }
-  const all = [...regions.values()];
-  const lines: string[] = [];
-  for (const stopped of [[], undefined] as const) {
-    const plain = all.filter((region) => (region.stopped === undefined) === (stopped === undefined) && (region.stopped ?? []).length === 0);
-    if (plain.length === 0) continue;
-    const why = whyUnentered(stopped);
-    lines.push(`No case entered ${plain.map(unenteredPlace).join(', ')}${plain.length === 1 ? why : why.replace('reached it', 'reached them')}`);
-  }
-  for (const region of all.filter((one) => (one.stopped ?? []).length > 0)) {
-    lines.push(`N${unenteredSentence(region).slice(1)}`,
-      ...(region.stopped ?? []).map((test) => `  stopped: ${test.file} > ${caseName(test)}`));
-  }
-  return lines;
+function unenteredLines(range: CoveringRange): readonly string[] {
+  return (range.unentered ?? []).flatMap((region) => [
+    `  ${unenteredSentence(region)}`,
+    ...(region.stopped ?? []).map((test) => `    stopped: ${test.file} > ${caseName(test)}`),
+  ]);
 }
 
 /** The cases that reached a range only while their file imported its module, counted where no case called into it. */

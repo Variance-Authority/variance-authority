@@ -34,7 +34,7 @@ export {
 export { type SourceTestTarget } from './source-target.js';
 export { overwrittenIn, overwrittenOn, type OverwrittenOn } from './overwritten.js';
 export { anyStopped } from './stopped.js';
-export { unenteredPlace, unenteredSentence, whyUnentered, type Unentered } from './unentered.js';
+export { unenteredSentence, whyUnentered, type Unentered } from './unentered.js';
 export { blocksOfTarget, functionsUnder, innermostAt, lineGrain, marksLoadTime } from './source-target.js';
 export { NAME_BOUNDARY, NameGrammarError, nameIndex, parseNameGrammar, structuralParent } from './name-grammar.js';
 export type { AxisStep, GrammarAxis, NameGrammar, NameIndex, NamedAxis, StructuralLink, StructuralName } from './name-grammar.js';

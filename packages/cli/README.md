@@ -447,9 +447,8 @@ file, and the answer says so.
 
 Over a whole file, a region no case entered on a line the function around it
 also charges, such as a one-line branch or the line that opens a longer one,
-gets a range of its own, and the answer says once that no case entered it, and
-whether that is unwalked or a hole; `--format json` lists it under the range's
-`unentered`.
+gets a range of its own and a line saying no case entered it, and whether that
+is unwalked or a hole; `--format json` lists it under the range's `unentered`.
 A narrowed answer and a file edited since the run say the same, at the line the
 region stands on now.
 
@@ -495,7 +494,7 @@ lines 41-48 — loaded
 ```
 
 The text shows ten test files and three cases under each, counts the rest, and
-ends with the `--offset` that shows the next page; `--limit` and `--offset`
+says under them the `--offset` that shows the next page; `--limit` and `--offset`
 page it as they page every `ask` listing, and `--format json` names every case
 and range.
 

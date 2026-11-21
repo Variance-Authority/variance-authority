@@ -179,6 +179,13 @@ export function parseCoveringArgs(flags: Flags): ParsedCovering {
           'which is one origin and has one answer.',
       );
     }
+    for (const other of ['--limit', '--offset'] as const) {
+      if (flags.values.get(other) === undefined) continue;
+      throw new OperatorError(
+        `\`--since\` and \`${other}\` do not compose. A diff is answered per changed region, ` +
+          'not as a page of test files; ask a file or a line to page its test files.',
+      );
+    }
     const against = flags.values.get('--against');
     if (against === '') throw new OperatorError('`--against` takes the case index the base recorded.');
     return { ...executionAnd(flags), since, ...(against === undefined ? {} : { against }) };
