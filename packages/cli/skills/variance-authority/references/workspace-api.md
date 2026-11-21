@@ -140,9 +140,9 @@ search; ask `symbol` when you need its contract, or `uses` for its import sites.
 
 Directory membership, import reach and runtime loading answer different
 questions. `discover --path <regex>` selects paths; `--from` and `--to` follow
-imports, including type imports. Cross those relations with a declaration or
+imports at any depth, including type imports. Cross those relations with a declaration or
 path predicate for the responsibility you still need. For example, find an
-example that imports a component, then the mock that example imports:
+example that transitively imports a component, then a mock that example reaches:
 
 ```bash
 variance ask discover --to src/PriceCard.tsx --path '(^|/)(examples|stories)/' --limit 6
