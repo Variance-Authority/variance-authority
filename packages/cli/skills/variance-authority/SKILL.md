@@ -14,8 +14,8 @@ same read-only commands.
 
 ## Questions about the code
 
-`variance ask` answers about the source `variance index` read. Pick the
-question that fits what you hold; each is one command:
+`variance ask` answers about the source `variance index` read. These are its
+main questions; pick the one that fits what you hold, each is one command:
 
 | You hold | Ask | Example |
 |---|---|---|
@@ -224,20 +224,15 @@ intersects its operands instead. A path has three widths and no others:
 everything under it at any depth. Write the parent with the file name —
 `Provider.tsx` alone is not unique. A path is a fact about the source tree, so
 ask from a checkout at the revision you are asking about.
-On `uses`, `--from` only sorts the workspace-wide import sites; it does not
-narrow them. For importers in one area, cross `discover --imports <file#name>`
-with `--path <regex>`.
 
 **Name the code before you open it.** Ask `search` for meaning, `symbol` for
 a name, or `discover --path <regex> --declares <regex>` for declarations in
 an area. Once an answer names a plausible feature owner, read its named lines
 and imports; these verbs are choices, not a sequence to complete first.
-Find the next responsibility by crossing what you know: `discover --from <file>
---declares <regex>` for a dependency, `discover --to <file> --path <regex>` for
-an example or other importer, or `discover --imports <file#name> --path <regex>`
-for importers of a name in an area, through re-exports too. Take import names
-from the source you read. When each fact is already a complete question, cross
-them with `intersection`.
+Find the next responsibility by crossing what you know, with the `discover`
+and `intersection` rows of [the table](#questions-about-the-code);
+`discover --imports` follows re-exports too. Take import names from the source
+you read.
 A historical symptom may be gone:
 establish the current feature's owners before searching for the old predicate.
 A file explicitly named by the task can be read directly. Any other file no
