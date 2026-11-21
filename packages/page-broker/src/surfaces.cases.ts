@@ -12,10 +12,13 @@ import type { Surface } from './surface.js';
  * dialog, `helpShown` shows a modal dialog that was on the page hidden, `next`
  * moves the page to `/checkout/next` with the form still on it, `gone` hides
  * the form and shows nothing in its place, `nothing` leaves the page as it was,
+ * `alert` shows a native alert, `link` follows a link to `/checkout/elsewhere`,
+ * `blank` follows one to a new page and `post` submits a form there, none of
+ * them prevented,
  * and answers joined by a comma happen together.
  */
 export type Checkout = (
-  answer: 'payment' | 'signIn' | 'help' | 'helpShown' | 'next' | 'next,help' | 'gone' | 'nothing',
+  answer: 'payment' | 'signIn' | 'help' | 'helpShown' | 'next' | 'next,help' | 'gone' | 'nothing' | 'alert' | 'link' | 'blank' | 'post',
   after: number,
 ) => Promise<Surface>;
 
@@ -137,6 +140,22 @@ export function cases(checkout: Checkout): void {
     const billing = await Billing.on(await checkout('next,help', 20));
 
     await expect(billing.next()).rejects.toMatchObject({ reason: 'elsewhere', went: 'a modal dialog opened' });
+  });
+
+  it('does not stay under a native dialog', async () => {
+    const billing = await Billing.on(await checkout('alert', 20));
+
+    await expect(billing.next()).rejects.toMatchObject({ reason: 'elsewhere', went: 'a native alert dialog opened' });
+  });
+
+  it.each([
+    ['link', 'a new document at /checkout/elsewhere'],
+    ['post', 'a new document at /checkout/elsewhere'],
+    ['blank', 'a new page opened'],
+  ] as const)('does not stay when the app followed %s, which the page does not prevent', async (answer, went) => {
+    const billing = await Billing.on(await checkout(answer, 20));
+
+    await expect(billing.next()).rejects.toMatchObject({ reason: 'elsewhere', went });
   });
 
   it('does not stay once it has left the page, though nothing declared took its place', async () => {

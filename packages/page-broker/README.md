@@ -142,13 +142,13 @@ the page going quiet — every outcome is looked at once.
   that starts within it begins the wait again, so a slow answer that leads
   somewhere is not mistaken for staying. A new address that still shows the
   broker is staying — "next product" moves to `/product/2` — but a new
-  document, a new page or a modal dialog never is, even with the address
-  changed in the same action.
+  document, a new page, a native dialog or a modal dialog never is, even with
+  the address changed in the same action.
 - **None, quiet, and the app went somewhere you did not declare**: the action
   fails and says where — `billing.submit: reached none of payment, signIn, and
   the page went to /help, which no outcome declares`. Somewhere is the page
   navigating, a hash or history change included, a new document loading, a
-  new page opening, or a modal dialog opening.
+  new page opening, or a native or modal dialog opening.
 - **None, and the broker has left the page**: staying is not the answer, so the
   action waits on and fails at the timeout — `billing left the page, and
   reached none of payment, signIn within 5000 ms`.
@@ -172,19 +172,23 @@ Both surfaces answer the same questions from what each can see.
 | Finds a broker | Testing Library's queries | Playwright's locators |
 | Visible | not hidden, not `display: none` or `visibility: hidden`, itself or around it | Playwright's visibility, from layout |
 | Pending | a `fetch` or `XMLHttpRequest` in flight, or a change to the document | a request in flight |
-| Elsewhere | the location changing, `window.open`, a new modal dialog | a navigation, a new page, a new modal dialog |
+| Elsewhere | the location changing, a link or form followed, `window.open`, `alert`, `confirm` or `prompt`, a new modal dialog | a navigation, a new page, a native dialog, a new modal dialog |
 | Acts | the events a user's input makes: a click is pointer and mouse down, up, then click | Playwright's actions |
 
-Over a document, `fetch`, `XMLHttpRequest` and `window.open` are wrapped while
+Over a document, `fetch`, `XMLHttpRequest`, `window.open`, `alert`, `confirm`
+and `prompt` are wrapped while
 an action runs, so its work and where it went can be seen, and put back when the
 last action overlapping it has finished. A document has no layout, so an
-element drawn off screen or covered still reads as visible there.
+element drawn off screen or covered still reads as visible there. jsdom loads
+no new document, so a link or form the app does not prevent counts as followed:
+to its address, or to a new page when it targets one.
 
 On both, a modal dialog is one `:modal` matches or one marked
 `aria-modal="true"`, as component libraries draw them; jsdom has no `:modal`,
 so there only the mark counts. One is new when it is shown and was not before
 the act, so a dialog kept on the page hidden and then shown opens like one
-added. Over a document, a `fetch` is pending until its body has arrived, not
+added. Over a browser, a native dialog is dismissed when nothing else listens
+for it, as Playwright does. Over a document, a `fetch` is pending until its body has arrived, not
 only its headers.
 
 ## What it does not do
@@ -195,9 +199,9 @@ Know these before you rely on it:
   before it is ready to answer them loses them with or without this package.
 - **Staying does not mean the page is unchanged.** It means the broker is still
   there, none of the declared brokers appeared, and the app did not navigate
-  away from it, open a page or open a modal dialog. A panel, a popover or a dialog that is not modal, opened in the page
-  and not declared, still reads as staying, so declare every place the action
-  can lead.
+  away from it, open a page or open a native or modal dialog. A panel, a
+  popover or a dialog that is not modal, opened in the page and not declared,
+  still reads as staying, so declare every place the action can lead.
 - **An undeclared destination is caught once the page is quiet there, or at
   the timeout.** An app that leaves and keeps working is named when time runs
   out, not before.

@@ -23,6 +23,20 @@ function checkout(answer: string, after = 20): void {
   document.querySelector('form')!.addEventListener('submit', async (event) => {
     event.preventDefault();
     for (const said of (await (await fetch('/api/billing')).text()).split(',')) {
+      const follow = (target?: string) => {
+        const link = document.body.appendChild(document.createElement('a'));
+        link.href = '/checkout/elsewhere';
+        if (target) link.target = target;
+        link.click();
+      };
+      if (said === 'alert') window.alert('Saved');
+      if (said === 'link') follow();
+      if (said === 'blank') follow('_blank');
+      if (said === 'post') {
+        const away = document.body.appendChild(document.createElement('form'));
+        away.action = '/checkout/elsewhere';
+        away.requestSubmit();
+      }
       if (said === 'payment') (document.querySelector('[aria-label=Payment]') as HTMLElement).hidden = false;
       if (said === 'signIn') (document.querySelector('[role=dialog]') as HTMLElement).hidden = false;
       if (said === 'helpShown') (document.querySelector('[aria-label=Help]') as HTMLElement).hidden = false;

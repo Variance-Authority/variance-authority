@@ -1,11 +1,14 @@
 // compass: variance-authority.harness
 import { quietPeriod } from './quiet-period.js';
-import type { Elsewhere, Quiet } from './surface.js';
+import type { Elsewhere, Left, Quiet } from './surface.js';
 
 interface Host {
   fetch?: typeof fetch;
   XMLHttpRequest?: typeof XMLHttpRequest;
   open?: Window['open'];
+  alert?: Window['alert'];
+  confirm?: Window['confirm'];
+  prompt?: Window['prompt'];
 }
 
 /** The globals an app in this document calls: its window, and the test's global where that is another object. */
@@ -162,34 +165,69 @@ export function pending(document: Document, period: number): Quiet {
 }
 
 /**
- * Follows the three ways an app leaves the document a test declared outcomes
- * on: its location changes, a hash or history change included, it opens
- * another window, or a modal dialog covers it.
+ * Follows the ways an app leaves the document a test declared outcomes on: a
+ * link or a form it does not prevent, which a document such as jsdom's never
+ * carries out, another window, a native dialog, a modal dialog over it, or its
+ * location changing, a hash or history change included.
  */
 export function away(document: Document): Elsewhere {
   const href = document.location.href;
   const before = modals(document);
   let opened = false;
+  let native: string | undefined;
   const follower = (): void => {
     opened = true;
   };
   const undo: (() => void)[] = [];
   for (const host of hosts(document)) {
-    if (host.open === undefined) continue;
-    undo.push(
-      hook(host, 'open', follower, (original: Window['open'], followers) =>
-        function (this: unknown, ...args: Parameters<Window['open']>): Window | null {
-          for (const each of followers) each();
-          return original.apply(this, args);
-        },
-      ),
-    );
+    if (host.open !== undefined) {
+      undo.push(
+        hook(host, 'open', follower, (original: Window['open'], followers) =>
+          function (this: unknown, ...args: Parameters<Window['open']>): Window | null {
+            for (const each of followers) each();
+            return original.apply(this, args);
+          },
+        ),
+      );
+    }
+    for (const kind of ['alert', 'confirm', 'prompt'] as const) {
+      if (host[kind] === undefined) continue;
+      const shown = (): void => {
+        native ??= kind;
+      };
+      undo.push(
+        hook(host, kind, shown, (original: (...args: unknown[]) => unknown, followers) =>
+          function (this: unknown, ...args: unknown[]): unknown {
+            for (const each of followers) each();
+            return original.apply(this, args);
+          },
+        ),
+      );
+    }
   }
+  // Read at the look, not at the event: a handler after this one may still
+  // prevent it.
+  const ways: Event[] = [];
+  const way = (event: Event): void => {
+    ways.push(event);
+  };
+  const view = document.defaultView;
+  view?.addEventListener('click', way);
+  view?.addEventListener('submit', way);
+  undo.push(() => {
+    view?.removeEventListener('click', way);
+    view?.removeEventListener('submit', way);
+  });
   return {
     left: async () => {
-      // A new page or a modal is told before a new address: either rules out
-      // staying, and an address change alone does not.
+      // A new document, a new page or a modal is told before a new address:
+      // each rules out staying, and an address change alone does not.
+      for (const event of ways) {
+        const to = followed(event, document);
+        if (to !== undefined) return to;
+      }
       if (opened) return { by: 'page', words: 'a new page opened' };
+      if (native !== undefined) return { by: 'modal', words: `a native ${native} dialog opened` };
       // Shown now and not before: a dialog mounted hidden and then shown opened just the same.
       if ([...modals(document)].some((each) => !before.has(each))) return { by: 'modal', words: 'a modal dialog opened' };
       if (document.location.href === href) return undefined;
@@ -200,6 +238,31 @@ export function away(document: Document): Elsewhere {
       for (const each of undo) each();
     },
   };
+}
+
+/** Where a click on a link, or a form's submission, takes the app when nothing prevented it. */
+function followed(event: Event, document: Document): Left | undefined {
+  if (event.defaultPrevented) return undefined;
+  let to: string | undefined;
+  let target = '';
+  if (event.type === 'submit') {
+    const form = event.target as HTMLFormElement;
+    to = form.action;
+    target = form.target;
+  } else {
+    const click = event as MouseEvent;
+    const link = (event.target as Element | null)?.closest?.('a[href], area[href]') as HTMLAnchorElement | null;
+    if (link === null || link === undefined || link.hasAttribute('download')) return undefined;
+    to = link.href;
+    target = link.target;
+    if (click.ctrlKey || click.metaKey || click.shiftKey) target = '_blank';
+  }
+  if (target !== '' && target !== '_self') return { by: 'page', words: 'a new page opened' };
+  const url = new URL(to, document.location.href);
+  const here = new URL(document.location.href);
+  // A link to a hash in this document is an address change, which the document carries out.
+  if (url.href.replace(/#.*$/, '') === here.href.replace(/#.*$/, '') && url.hash !== '') return undefined;
+  return { by: 'document', words: `a new document at ${url.pathname}${url.search}${url.hash}` };
 }
 
 /** The modal dialogs open and shown now: by `:modal` where the document knows it, and by `aria-modal` everywhere. */

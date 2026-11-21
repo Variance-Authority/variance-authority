@@ -39,6 +39,20 @@ const CHECKOUT = `<!doctype html>
   const query = new URLSearchParams(location.search);
   const show = (answer) => {
     for (const part of answer.split(',')) {
+      const follow = (target) => {
+        const link = document.body.appendChild(document.createElement('a'));
+        link.href = '/checkout/elsewhere';
+        if (target) link.target = target;
+        link.click();
+      };
+      if (part === 'alert') window.alert('Saved');
+      if (part === 'link') follow();
+      if (part === 'blank') follow('_blank');
+      if (part === 'post') {
+        const away = document.body.appendChild(document.createElement('form'));
+        away.action = '/checkout/elsewhere';
+        away.requestSubmit();
+      }
       if (part === 'payment') document.querySelector('[aria-label=Payment]').hidden = false;
       if (part === 'signIn') document.querySelector('dialog').show();
       if (part === 'elsewhere') location.assign('/checkout/elsewhere');
