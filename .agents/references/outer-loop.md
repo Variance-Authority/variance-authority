@@ -80,11 +80,11 @@ is still reviewed: the public pages are the project's face.
 **Every check but `site`, until each has finished**, with the watch above.
 
 **CodeRabbit.** It reports as the `CodeRabbit` check, and the check says
-whether it reviewed the push, not whether it said anything. Automatic reviews
-are off here, so the check reads `SKIPPED` on most pull requests, while its
-summary comment still carries the pre-merge checks `.coderabbit.yaml` declares
-and a merge-risk note. A skip, a rate limit or a failed review is named in the
-report, never waited for. Everything it wrote — the summary comment, each
+whether it reviewed the push, not whether it said anything: a push it skipped
+or was rate limited on still gets a summary comment carrying the pre-merge
+checks `.coderabbit.yaml` declares and a merge-risk note. A skip, a rate limit
+or a failed review is named in the report, by the check's own title, never
+waited for. Everything it wrote — the summary comment, each
 review's body with the comments outside the diff and the nitpicks, and each
 inline comment — comes from one command, which posts nothing:
 
@@ -92,8 +92,11 @@ inline comment — comes from one command, which posts nothing:
 yarn review:coderabbit <n>
 ```
 
-Read it whole. A part marked as written before the head judged an older tree:
-classify it against the head, and read again once the check finishes. An
+Read it whole. It prints each body as CodeRabbit wrote it, less the tips and
+the autofix box it marks as its own. A review or an inline comment that judged
+an older commit says which, and the summary names the commits it reviewed:
+classify an older part against the head, and read again once the check
+finishes. An
 **Alignment** check that reads failed asks the same questions as the
 `alignment` reviewer of the pushed diff. Its finding is classified like a
 comment; one that is real goes back to the inner loop. So is the merge-risk
