@@ -111,9 +111,9 @@ export function filesNamed(
   cap: number,
 ): ReadonlyMap<string, { readonly files: readonly string[]; readonly count: number }> | { readonly unread: string } {
   const asked = [...new Set(bases)].filter((base) => base !== '' && !/[/*?[\]\\:]/u.test(base));
-  // bound: the files named by one of the asked bases, `cap` of each kept
   const named = new Map<string, string[]>();
   if (asked.length === 0) return new Map();
+  // bound: the files git names by one of the asked bases, of which `cap` each are returned
   const listed = gitNames(root, ['ls-files', '-z', '--cached', '--', ...asked.flatMap((base) => [`:(glob)**/${base}`, `:(glob)**/${base}.*`])], false);
   if ('unread' in listed) return listed;
   const wanted = new Set(asked);
