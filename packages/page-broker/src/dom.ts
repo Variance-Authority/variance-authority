@@ -94,7 +94,7 @@ function all(document: Document, query: Query): Element[] {
  * Whether a person could see the element, as far as a document without layout
  * can tell: neither it nor any element around it is hidden or not displayed.
  */
-export function shown(element: Element): boolean {
+function shown(element: Element): boolean {
   const view = element.ownerDocument.defaultView;
   for (let at: Element | null = element; at !== null; at = at.parentElement) {
     if ((at as HTMLElement).hidden) return false;

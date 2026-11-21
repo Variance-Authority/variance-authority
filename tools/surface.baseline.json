@@ -1794,7 +1794,6 @@
       },
       "./dom": {
         "DocumentSurface": "type",
-        "shown": "function",
         "surface": "function"
       },
       "./playwright": {
