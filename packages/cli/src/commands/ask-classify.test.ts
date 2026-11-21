@@ -65,6 +65,36 @@ function families(): string {
   return root;
 }
 
+/**
+ * A workspace in `app/` whose `@t/b` imports `@t/a` beside it and `@t/shared`
+ * outside its directory, so its graph is read from the repository's root.
+ */
+function nested(): string {
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'va-classify-nested-')));
+  const write = (path: string, text: string): void => {
+    mkdirSync(dirname(join(root, path)), { recursive: true });
+    writeFileSync(join(root, path), text);
+  };
+  write('.gitignore', 'node_modules\n');
+  write('app/package.json', JSON.stringify({ private: true, workspaces: ['packages/*', '../shared'] }));
+  write('shared/package.json', JSON.stringify({ name: '@t/shared', exports: { '.': './src/index.ts' } }));
+  write('shared/src/index.ts', 'export const shared = 1;\n');
+  write('app/packages/a/package.json', JSON.stringify({ name: '@t/a', exports: { '.': './src/index.ts' } }));
+  write('app/packages/a/src/ledger.ts', 'function reconcileLedger(): number { return 1; }\nexport const ledger = reconcileLedger();\n');
+  write('app/packages/a/src/index.ts', "import { ledger } from './ledger.js';\nexport const a = ledger;\n");
+  write('app/packages/b/package.json', JSON.stringify({ name: '@t/b', exports: { '.': './src/index.ts' }, dependencies: { '@t/a': '*' } }));
+  write('app/packages/b/src/index.ts', "import { shared } from '@t/shared';\nimport { a } from '@t/a';\nexport const b = a + shared;\n");
+  mkdirSync(join(root, 'app/node_modules/@t'), { recursive: true });
+  symlinkSync('../../../shared', join(root, 'app/node_modules/@t/shared'));
+  symlinkSync('../../packages/a', join(root, 'app/node_modules/@t/a'));
+  symlinkSync('../../packages/b', join(root, 'app/node_modules/@t/b'));
+  for (const args of [['init', '--quiet', '--initial-branch', 'main'], ['config', 'user.email', 'fixture@example.test'], ['config', 'user.name', 'Fixture'], ['add', '-A'], ['commit', '--quiet', '-m', 'the checkout']]) {
+    execFileSync('git', args, { cwd: root, stdio: 'pipe' });
+  }
+  process.chdir(join(root, 'app'));
+  return root;
+}
+
 async function run(argv: readonly string[]): Promise<{ code: number; out: string; err: string }> {
   let out = '';
   let err = '';
@@ -120,5 +150,15 @@ describe('variance ask classify', () => {
 
     expect(asked.code).toBe(EXIT_CLEAN);
     expect(asked.out).toMatch(/^ {2}\. — \d+ files · holds reconcile$/m);
+  });
+
+  it('ranks the reached files of a nested workspace whose members reach beside it, named from the workspace', async () => {
+    nested();
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const asked = await run(['ask', 'classify', '--query', 'reconcile', '--from', 'packages/b/src/index.ts']);
+
+    expect(asked.code).toBe(EXIT_CLEAN);
+    expect(asked.out).toMatch(/^ {2}\S+ — \d+ files · holds reconcile$/m);
   });
 });

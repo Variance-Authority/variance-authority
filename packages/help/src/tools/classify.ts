@@ -31,7 +31,7 @@ function placesOf(root: string): CodeMapPlaces | string {
  * way `search` reads the dictionary, or a top-level one no export binds — and
  * for each file how many words its exported names hold.
  */
-function declaredOf(help: Help, root: string, query: string): Declared {
+function declaredOf(help: Help, root: string, query: string, sourceIndex: ToolInvocation<unknown>['sourceIndex']): Declared {
   const index = searchIndexOf(help);
   const stems = [...new Set((describedWordsNative(query) as readonly (readonly [string, string])[]).map(([stem]) => stem))];
   const holding = new Map<string, Map<string, number>>();
@@ -47,12 +47,16 @@ function declaredOf(help: Help, root: string, query: string): Declared {
     }
     holding.set(stems[at] ?? '', files);
   });
-  // A file's own top-level names, which no export binds, are its words too.
-  for (const declared of declaredDescribedOf(root, query, stems)?.names ?? []) {
-    if (declared.holder != null || declared.on != null) continue;
+  // A file's own top-level names, which no export binds, are its words too,
+  // read from the index the host read the tree from: a nested workspace's names
+  // its files from the graph's root, so they are named from the workspace.
+  const under = sourceIndex === undefined || sourceIndex.within === '' ? '' : `${sourceIndex.within}/`;
+  for (const declared of declaredDescribedOf(root, query, stems, undefined, sourceIndex?.index)?.names ?? []) {
+    if (declared.holder != null || declared.on != null || !declared.at.startsWith(under)) continue;
+    const file = declared.at.slice(under.length);
     for (const at of declared.named ?? []) {
       const files = holding.get(stems[at] ?? '');
-      if (files !== undefined) files.set(declared.at, (files.get(declared.at) ?? 0) + 1);
+      if (files !== undefined) files.set(file, (files.get(file) ?? 0) + 1);
     }
   }
   // Each term lists the names holding it, so a name holds as many words as terms list it.
@@ -152,7 +156,7 @@ export const classify: Tool<Help> = {
       return `${formatClassified(classified, places)}\n\nNo area is ranked: git could not list the files HEAD holds (${why}).`;
     }
     const scoped = scopedPaths(tracked, input, invocation);
-    const areas = scoped.paths.length === 0 ? [] : rankedAreas(query, scoped.paths, declaredOf(help, root, query));
+    const areas = scoped.paths.length === 0 ? [] : rankedAreas(query, scoped.paths, declaredOf(help, root, query, invocation?.sourceIndex));
     const answer = formatClassified(classified, places, placedAreas(areas, places.packages), scoped.said);
     return scoped.line === undefined ? answer : `${scoped.line}\n\n${answer}`;
   },

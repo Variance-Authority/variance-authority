@@ -174,6 +174,14 @@ describe('docs_classify', () => {
     expect(text).toContain("variance ask search --query 'task manager' --from x-pack/plugins/task_manager/");
   });
 
+  it('keeps the start point the asker said over the best area, whose directory holds files that start point never reached', () => {
+    const areas = [{ path: 'x-pack/plugins/task_manager/server', files: 3, words: ['manager', 'task'], score: 800, declares: true }];
+    const text = formatClassified(classifyWords('task manager claiming', HELP, MAPPED), PLACED, areas, { from: ['x-pack/plugins/alerting/'] });
+
+    expect(text).toMatch(/variance ask search --query 'manager task' --from x-pack\/plugins\/alerting\/$/);
+    expect(text).not.toContain('--from x-pack/plugins/task_manager/server');
+  });
+
   it('asks `search` from the best area a file of which declares a name, as one that declares none is no start point', () => {
     const areas = [
       { path: 'docs/task_manager', files: 4, words: ['task', 'manager'], score: 900, declares: false },
