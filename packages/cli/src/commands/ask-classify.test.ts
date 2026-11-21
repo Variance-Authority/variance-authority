@@ -161,4 +161,13 @@ describe('variance ask classify', () => {
     expect(asked.code).toBe(EXIT_CLEAN);
     expect(asked.out).toMatch(/^ {2}\S+ — \d+ files · holds reconcile$/m);
   });
+  it('reads a nested workspace\'s own names from the index its graph was read into, with no start point said', async () => {
+    nested();
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const asked = await run(['ask', 'classify', '--query', 'reconcile']);
+
+    expect(asked.code).toBe(EXIT_CLEAN);
+    expect(asked.out).toMatch(/^ {2}\S+ — \d+ files · holds reconcile$/m);
+  });
 });
