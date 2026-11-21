@@ -56,6 +56,12 @@ describe('limit', () => {
     expect(nextPage({ offset: 5, limit: 5 }, 7, SHELL)).toEqual([]);
   });
 
+  it('names the whole question of the next page when the caller can spell it', () => {
+    const asked = (offset: number) => `\`variance covering --file a.ts --offset ${offset}\``;
+    expect(nextPage({ offset: 0, limit: 5 }, 7, SHELL, asked)).toEqual(['2 more not shown; the next 2: `variance covering --file a.ts --offset 5`.']);
+    expect(nextPage({ offset: 5, limit: 5 }, 7, SHELL, asked)).toEqual([]);
+  });
+
   it('says which rows a page shows when it does not start at the first, and that one past the last row shows none', () => {
     expect(pageAt({ offset: 0, limit: 5 }, 7, SHELL)).toEqual([]);
     expect(pageAt({ offset: 5, limit: 5 }, 7, SHELL)).toEqual(['Rows 6–7 of 7.']);

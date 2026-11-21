@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { coveringTestsInFile, type ExecutionIndex } from './reverse.js';
 import { reachOf, stateOf } from './range-state.js';
-import { sameUnentered, unenteredSentence, type Unentered } from './unentered.js';
+import { sameUnentered, unenteredSaid, unenteredSentence, type Unentered } from './unentered.js';
 
 /**
  * `total` spans lines 4-8, and the branch on line 6 is one line long: every
@@ -81,6 +81,37 @@ describe('the sentence for a region no case entered', () => {
     expect(unenteredSentence({ ...branch, stopped: [index.tests[0]!] }))
       .toBe('no case entered the branch on lines 6-8 — a hole: a case that could have reached it stopped first, so the record cannot see it.');
     expect(unenteredSentence(branch)).toBe('no case entered the branch on lines 6-8.');
+  });
+});
+
+describe('what a file says once about the regions no case entered on its ranges', () => {
+  const at = (kind: string, startLine: number, endLine: number, stopped?: Unentered['stopped']): Unentered =>
+    ({ kind, name: `f${startLine}`, path: 'entry', startLine, endLine, ...(stopped === undefined ? {} : { stopped }) });
+  const stops = [index.tests[0]!];
+
+  it('names a region its opening and closing lines both hold once, and the unwalked ones in one sentence by kind', () => {
+    const said = unenteredSaid([
+      at('function', 60, 69, []), at('function', 60, 69, []), at('function', 95, 95, []),
+      at('branch', 134, 134, []), at('function', 134, 134, []), at('branch', 188, 188, []),
+    ]);
+
+    expect(said).toEqual([{
+      sentence: 'No case entered the functions on lines 60-69, 95 and 134, or the branches on lines 134 and 188, and every case that could have reached them finished: unwalked.',
+    }]);
+  });
+
+  it('keeps each hole apart with the cases that stopped short of it, and one region in the sentence a range says', () => {
+    const said = unenteredSaid([at('branch', 6, 8, stops), at('branch', 12, 12, []), at('branch', 6, 8, stops), at('function', 20, 22)]);
+
+    expect(said).toEqual([
+      { sentence: 'No case entered the branch on lines 6-8 — a hole: a case that could have reached it stopped first, so the record cannot see it.', stopped: stops },
+      { sentence: 'No case entered the branch on line 12, and every case that could have reached it finished: unwalked.' },
+      { sentence: 'No case entered the function on lines 20-22.' },
+    ]);
+  });
+
+  it('says nothing over no region', () => {
+    expect(unenteredSaid([])).toEqual([]);
   });
 });
 
