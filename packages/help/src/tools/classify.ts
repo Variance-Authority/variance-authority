@@ -3,7 +3,7 @@
 import { relative } from 'node:path';
 import { START_POINT_SCHEMA, saysStartPoint, startPointArg, type Tool, type ToolInvocation } from '@variance-authority/mcp/tools';
 import type { Help } from '@variance-authority/package/help';
-import { describedWordsNative, packageLayers, sourceIndexPath, trackedPaths } from '@variance-authority/sense';
+import { declaredDescribedOf, describedWordsNative, packageLayers, sourceIndexPath, trackedPaths } from '@variance-authority/sense';
 import { searchIndexOf } from '../snapshot.js';
 import { areaLine, areaOf } from './area.js';
 import { rankedAreas, type Declared } from './classify-areas.js';
@@ -28,11 +28,12 @@ function placesOf(root: string): CodeMapPlaces | string {
 
 /**
  * What the source index says the files declare: for each of the request's
- * stems, the files declaring an exported name that holds it, read the way
- * `search` reads the dictionary, and for each file how many words its exported
- * names hold. Nothing when this value was read from no store.
+ * stems, the files declaring a name that holds it — an exported name, read the
+ * way `search` reads the dictionary, or a top-level one no export binds — and
+ * for each file how many words its exported names hold. Nothing when this value
+ * was read from no store.
  */
-function declaredOf(help: Help, query: string): Declared {
+function declaredOf(help: Help, root: string, query: string): Declared {
   let index;
   try {
     index = searchIndexOf(help);
@@ -53,6 +54,14 @@ function declaredOf(help: Help, query: string): Declared {
     }
     holding.set(stems[at] ?? '', files);
   });
+  // A file's own top-level names, which no export binds, are its words too.
+  for (const declared of declaredDescribedOf(root, query, stems)?.names ?? []) {
+    if (declared.holder != null || declared.on != null) continue;
+    for (const at of declared.named ?? []) {
+      const files = holding.get(stems[at] ?? '');
+      if (files !== undefined) files.set(declared.at, (files.get(declared.at) ?? 0) + 1);
+    }
+  }
   // Each term lists the names holding it, so a name holds as many words as terms list it.
   const wordsOf = new Uint32Array(index.nameCount);
   for (let term = 0; term < index.termCount; term += 1) for (const name of index.termNames(term)) wordsOf[name] = (wordsOf[name] ?? 0) + 1;
@@ -109,8 +118,8 @@ export const classify: Tool<Help> = {
     'published exported name (as spelled); a word that is only part of a name is not one. Each entity is listed with ' +
     'what it names, its package\'s area and dependency layer on the code map as docs_orient numbers them, then the ' +
     'words that name nothing on one line. Then the areas of the tree the words point to, ten at most, best first: a directory of at ' +
-    'most 500 tracked files, scored by the request\'s words, by stem, that its path, its files\' names and the exported names its files ' +
-    'declare hold, a word held by fewer areas counting for more. With `from` or `to`, only the files that start point reaches along the ' +
+    'most 500 tracked files, scored by the request\'s words, by stem, that its path, its files\' names and the top-level names its files ' +
+    'declare, exported or not, hold, a word held by fewer areas counting for more. With `from` or `to`, only the files that start point reaches along the ' +
     'imports are ranked: a product\'s folder and the shared code it imports. Ask it first when holding a request in words and no name.',
   inputSchema: {
     type: 'object',
@@ -139,7 +148,7 @@ export const classify: Tool<Help> = {
     // cannot list ranks no area, and the entities are answered all the same.
     const tracked = trackedPaths(root);
     const scoped = 'unread' in tracked ? { paths: [] } : scopedPaths(tracked, input, invocation);
-    const areas = scoped.paths.length === 0 ? [] : rankedAreas(query, scoped.paths, declaredOf(help, query));
+    const areas = scoped.paths.length === 0 ? [] : rankedAreas(query, scoped.paths, declaredOf(help, root, query));
     const answer = formatClassified(classifyWords(query, help, places.packages.keys()), places, areas);
     return scoped.line === undefined ? answer : `${scoped.line}\n\n${answer}`;
   },

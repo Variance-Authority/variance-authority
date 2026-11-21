@@ -108,4 +108,17 @@ describe('variance ask classify', () => {
     expect(asked.out).toMatch(/^ {2}\. — 5 files · holds shop$/m);
     expect(asked.out).toContain("variance ask search --query shop\n");
   });
+
+  it('reads the names a file keeps to itself as its area\'s words, as it reads the exported ones', async () => {
+    const root = families();
+    writeFileSync(join(root, 'packages/admin/admin-0/src/ledger.ts'), 'function reconcileLedger(): void {}\nreconcileLedger();\n');
+    execFileSync('git', ['add', '-A'], { cwd: root, stdio: 'pipe' });
+    execFileSync('git', ['commit', '--quiet', '-m', 'a ledger'], { cwd: root, stdio: 'pipe' });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const asked = await run(['ask', 'classify', '--query', 'reconcile']);
+
+    expect(asked.code).toBe(EXIT_CLEAN);
+    expect(asked.out).toMatch(/^ {2}\. — \d+ files · holds reconcile$/m);
+  });
 });

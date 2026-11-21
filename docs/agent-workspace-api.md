@@ -450,7 +450,7 @@ command whatever the caller: `symbol` (`docs_symbol`) for an exported name,
 question when the map placed it in no area. After the entities it ranks the
 areas of the tree the request's words point to, best first — a directory of at
 most 500 tracked files, scored by the words its path, its files' names and the
-exported names its files declare hold, a rare word counting for more — and asks
+top-level names its files declare, exported or not, hold, a rare word counting for more — and asks
 `search` (`docs_search`) from the best one. A request that names nothing still
 gets its areas. Given `from` or `to`, it ranks only the files that start point
 reaches along the imports, so a product's folder ranks that product and the
