@@ -21,9 +21,9 @@ because selection runs the whole suite:
   `gap.next`, as [Fast, Smart, Deep](fsd.md#an-answer-ends-with-its-gap) describes.
 - **A file the record is older than** — `covering`'s `older`: the commit the
   record was made at did not hold the file, so the file is new. Run
-  `variance index`, then the test files `variance select` names for the file,
-  including every test file the record holds only in part. Follow the gap's
-  named whole-suite run when selection declines to narrow. Then run
+  `variance index`, then run what the gap's `Run with the suite's own runner:`
+  line names, `gap.run` under `--format json`. This includes partially recorded
+  test files, or the whole suite when selection declines to narrow. Then run
   `variance reach --since <commit>` with the commit the
   refusal names: it takes every file added since the record at once, with no
   record needed, and lists the files each one reaches over imports. Run the
