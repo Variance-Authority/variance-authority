@@ -191,7 +191,8 @@ pub(crate) fn scan_batch_with_oids(
         tsconfig,
         condition_names,
     } = options;
-    let root_path = Path::new(&root);
+    let root_path = crate::resolve::checkout_root(Path::new(&root));
+    let root_path = root_path.as_path();
     let resolvers = Resolvers::over(tsconfig, condition_names, Emitted::listed(root_path, listing));
     let (read, answered) = match oids {
         Some(oids) => read_kept(&root, store, &files, oids, largest_file, digests, readers, kept, from_blob),

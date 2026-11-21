@@ -142,9 +142,11 @@ pub struct Emitted {
 
 impl Emitted {
     /// A file system that reads which configs a directory holds from git's
-    /// listing of `root`, and from the disk where git has none.
+    /// listing of `root`, and from the disk where git has none. `root` is the
+    /// entry's [`crate::resolve::checkout_root`], the namespace the resolver
+    /// asks in.
     pub fn listed(root: &Path, listing: Option<Arc<Listing>>) -> Self {
-        let listed = listing.and_then(|listing| Some((std::fs::canonicalize(root).ok()?, listing)));
+        let listed = listing.map(|listing| (root.to_path_buf(), listing));
         Self { listed, ..Self::default() }
     }
 

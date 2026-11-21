@@ -481,3 +481,11 @@ mod tests;
 
 #[path = "resolve_witness.rs"]
 mod witness;
+
+/// The root a scan resolves from: the resolver follows links and answers with
+/// canonical paths, so a repository path is cut from the canonical root, and
+/// every importer is spelled from it. An entry that takes a root calls this
+/// once; a root that cannot be read stays as given.
+pub(crate) fn checkout_root(root: &Path) -> PathBuf {
+    std::fs::canonicalize(root).unwrap_or_else(|_| root.to_owned())
+}

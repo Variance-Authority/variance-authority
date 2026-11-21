@@ -207,3 +207,28 @@ describe('built output, read as the source it is built from', () => {
     expect(native()!.scanBatch(root, [file]).targets).toEqual(['vendor/linked/src/index.ts']);
   });
 });
+
+describe('a root reached through a link', () => {
+  it.runIf(nativeAvailable())('lands the imports its canonical spelling lands, a rootDirs redirect among them', async () => {
+    // macOS spells every temporary directory through `/var`, a link to
+    // `/private/var`; the link is made here so Linux runs the case too.
+    const base = await mkdtemp(join(tmpdir(), 'variance-linked-root-'));
+    roots.push(base);
+    const real = join(base, 'real');
+    const files: Record<string, string> = {
+      'tsconfig.json': '{ "compilerOptions": { "rootDirs": ["src", "generated"] } }',
+      'src/a.ts': "import './b';\nimport './c';\n",
+      'src/b.ts': 'export {};\n',
+      'generated/c.ts': 'export {};\n',
+    };
+    for (const [path, text] of Object.entries(files)) {
+      await mkdir(dirname(join(real, path)), { recursive: true });
+      await writeFile(join(real, path), text);
+    }
+    const linked = join(base, 'linked');
+    await symlink(real, linked);
+
+    expect(native()!.scanBatch(realPath(real), ['src/a.ts']).targets).toEqual(['src/b.ts', 'generated/c.ts']);
+    expect(native()!.scanBatch(linked, ['src/a.ts']).targets).toEqual(['src/b.ts', 'generated/c.ts']);
+  });
+});
