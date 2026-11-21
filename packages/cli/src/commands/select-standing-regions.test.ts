@@ -71,6 +71,21 @@ describe('what changed after a test last ran is read region by region', () => {
     expect(said.out).toBe('test/far.test.ts\ntest/near.test.ts\n');
   });
 
+  it('skips a test for a comment the tree writes in a function it ran, in a file the run after it did not move', async () => {
+    // `far` stands at P, and `shared.ts` is the same at P and at C, where `near` alone ran.
+    const repo = checkout();
+    const P = repo.commit({ ...TESTS, 'test/near.test.ts': "import '../src/near.js';\n", 'src/shared.ts': shared('n + 1', 'n * 2'), 'src/near.ts': NEAR }, 'P');
+    await landRun(repo.file, run(repo.root, P, ['far', 'near'], { near: 'src/near.ts' }), repo.root);
+    repo.commit({ 'src/near.ts': 'export const near = 2;\n' }, 'C');
+    await landRun(repo.file, run(repo.root, repo.git('rev-parse', 'HEAD'), ['near'], { near: 'src/near.ts' }), repo.root);
+    writeFileSync(join(repo.root, 'src/shared.ts'), shared('/* a comment */ n + 1', 'n * 2'));
+
+    const said = await repo.select();
+
+    expect(said.err).toContain(`1 test file last ran at ${P.slice(0, 12)}`);
+    expect(said.out).toBe('test/far.test.ts\ntest/near.test.ts\n');
+  });
+
   // The run at C lands over a tree holding `held` in `shared.ts`, which it did
   // not load, so the landing keeps that text for `far`'s carried rows, which
   // were never re-cut. The tree is then put back to C, which `far` never ran.

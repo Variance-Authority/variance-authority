@@ -519,9 +519,11 @@ a test file it ran only in part. Each of those test files is measured from the
 commit a run last finished it at: what changed from that commit to your tree is
 charged to the regions it falls in, in the record's lines, so a test runs for an
 edit to a region it entered and not for one elsewhere in the same file, and a
-file your tree holds as that test ran it charges nothing. That change is charged
-by its lines and not read by the parser, so an edit that runs nothing
-differently, such as a comment, still runs a test that entered its region. The install is compared from
+file your tree holds as that test ran it charges nothing. A file that differs
+between that commit and the record's is charged by its lines and not read by
+the parser, so an edit there that runs nothing differently, such as a comment,
+still runs a test that entered its region; every other file is read as a change
+in your tree is. The install is compared from
 that commit too. A patch you hand in with `--diff` is read as the whole change
 for every test. A test that last ran before the record's commit is then not
 charged with what changed between its commit and the record's, so it can be

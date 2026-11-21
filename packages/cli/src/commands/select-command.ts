@@ -324,9 +324,8 @@ async function untested(request: SuiteRequest): Promise<SuiteReading> {
   // A diff git could not write charges every file the stand or the tree moved whole, which selects more and never skips.
   const standChange = async (stand: string, record: string | undefined, installed: readonly string[]) => {
     const since = record === undefined ? undefined : await diffSince(base, [], stand, { cwd: here, unified: 0 });
-    const change = since === undefined
-      ? selection.changeOfFiles([...changed, ...stands.find((one) => one.commit === stand)!.changed])
-      : selection.standChange(record!, since);
+    const differs = stands.find((one) => one.commit === stand)!.changed;
+    const change = since === undefined ? selection.changeOfFiles([...changed, ...differs]) : selection.standChange(record!, since, differs);
     return { lines: new Map([...change.lines, ...installed.map((file) => [file, []] as const)]), hunks: change.hunks };
   };
   const ask = async (question: StandQuestion) =>

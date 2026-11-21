@@ -30,16 +30,16 @@
  * charges the region of the snapshot's text it falls in. The snapshot commit's
  * text is a map of lines here and never a side of the change.
  *
- * That change is lines with no hunks: no text is arrived at from the one the
- * rows were cut from, so none is read for what the edit did. A landing over a
- * dirty tree carries the rows onto the text on disk instead, and keeps that
- * text (`kept-texts.ts`); with no hunks to move its lines onto the kept one,
- * such a file is stale for the stand's tests and charged whole, which selects
- * more inside it and never skips.
+ * A file the stand and the snapshot's commit hold alike has the same change
+ * to the tree from both, so its hunks are the snapshot commit's and are read
+ * as the tree's change is. A file they differ on has lines and no hunks: no
+ * text is arrived at from the one the rows were cut from, so the parser does
+ * not read what the edit did, and a kept text (`kept-texts.ts`) is stale for
+ * the stand's tests and charged whole. Both select more and never skip.
  */
 
 import { codeUnitOrder } from '@variance-authority/core/segment';
-import type { Change } from './change.js';
+import { changeOfDiff, type Change } from './change.js';
 import type { CommitRuns } from './commit-runs.js';
 import { sameInstall, type KeptInstall } from './kept-install.js';
 import { whatLanded } from './landings.js';
@@ -378,9 +378,14 @@ export const standDiff = (git: Git, commit: string, stand: string): string =>
  * snapshot's commit to the same tree, both written with no context lines.
  * Every file `stand` names is charged, and only those: a file the tree holds as
  * the stand had it has no hunk there, wherever the snapshot's commit stands.
+ * A file not in `differs`, the files the stand and the snapshot's commit hold
+ * differently, keeps the hunks `record` wrote for it, which are in those lines.
  */
-export function standChange(record: string, stand: string): Change {
-  return { lines: changeInRecord(record, { lines: changedLines(stand), hunks: hunksByFile(stand) }), hunks: new Map() };
+export function standChange(record: string, stand: string, differs: readonly string[]): Change {
+  const lines = changeInRecord(record, { lines: changedLines(stand), hunks: hunksByFile(stand) });
+  const apart = new Set(differs);
+  const hunks = [...changeOfDiff(record).hunks].filter(([file]) => lines.has(file) && !apart.has(file));
+  return { lines, hunks: new Map(hunks) };
 }
 
 /**
