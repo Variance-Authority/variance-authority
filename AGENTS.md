@@ -320,9 +320,11 @@ Look around:
 
 - Every check but `site`, until each has finished, with the watch in
   [validate and correct](.agents/references/outer-loop.md).
-- CodeRabbit's inline comments, when its check reads `Review completed`. It is
-  an opportunity, never a blocker: a push it skipped or was rate limited on is
-  named, not waited for.
+- Everything CodeRabbit said: `yarn review:coderabbit <n>` prints its summary
+  comment, with the pre-merge checks and the merge risk, its review bodies and
+  its inline comments. It is an opportunity, never a blocker: a push it skipped
+  or was rate limited on is named, not waited for, and its summary is read all
+  the same.
 - What Codex finds on the open PR: `yarn review:codex <n>`, a reader from another
   model family that knows nothing but the PR. A run that could not happen is
   named, not waited for.
