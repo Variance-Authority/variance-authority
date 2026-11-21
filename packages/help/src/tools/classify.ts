@@ -4,6 +4,7 @@ import { START_POINT_SCHEMA, saysStartPoint, startPointArg, type Tool, type Tool
 import type { Help } from '@variance-authority/package/help';
 import { declaredDescribedOf, describedWordsNative, packageLayers, privateWordsOf, sourceIndexPath, trackedFiles } from '@variance-authority/sense';
 import { searchIndexOf } from '../snapshot.js';
+import type { SearchIndex } from '../search-index.js';
 import { areaLine, areaOf } from './area.js';
 import { rankedAreas, type Declared } from './classify-areas.js';
 import { classifyWords, formatClassified, placedAreas, type CodeMapPlaces, type StartPoint } from './classify-words.js';
@@ -25,6 +26,11 @@ function placesOf(root: string): CodeMapPlaces | string {
   };
 }
 
+/** A name contributes once per file, even when its type and value are both exported. */
+function exportedFilesOf(index: SearchIndex, name: number): ReadonlySet<string> {
+  return new Set([...index.exportedOf(name)].map((row) => index.exportedAt(row)));
+}
+
 /**
  * What the source index says the files declare: for each of the request's
  * stems, the files declaring a name that holds it — an exported name, read the
@@ -40,8 +46,7 @@ function declaredOf(help: Help, root: string, query: string, sourceIndex: ToolIn
     const names = new Set<number>();
     for (const term of terms) for (const name of index.termNames(term)) names.add(name);
     for (const name of names) {
-      for (const row of index.exportedOf(name)) {
-        const file = index.exportedAt(row);
+      for (const file of exportedFilesOf(index, name)) {
         files.set(file, (files.get(file) ?? 0) + 1);
       }
     }
@@ -66,12 +71,11 @@ function declaredOf(help: Help, root: string, query: string, sourceIndex: ToolIn
   for (let name = 0; name < index.nameCount; name += 1) {
     const held = wordsOf[name] ?? 0;
     if (held === 0) continue;
-    for (const row of index.exportedOf(name)) {
-      const file = index.exportedAt(row);
+    for (const file of exportedFilesOf(index, name)) {
       words.set(file, (words.get(file) ?? 0) + held);
     }
   }
-  for (const row of privateWordsOf(root, undefined, sourceIndex?.index) ?? []) {
+  for (const row of privateWordsOf(root, sourceIndex?.index) ?? []) {
     if (!row.at.startsWith(under) || row.words === 0) continue;
     const file = row.at.slice(under.length);
     words.set(file, (words.get(file) ?? 0) + row.words);

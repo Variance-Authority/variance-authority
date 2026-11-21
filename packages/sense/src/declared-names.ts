@@ -145,8 +145,8 @@ export interface PrivateWords {
  * Files without harvested declarations are absent, rather than zero.
  * `undefined` when no index was published; throws when the index does not read.
  */
-export function privateWordsOf(root: string, files?: Iterable<string>, index: string = sourceIndexPath(root)): readonly PrivateWords[] | undefined {
-  return onIndex(index, (opened) => entry('privateWordsOf')(opened, files === undefined ? null : [...files])) ?? undefined;
+export function privateWordsOf(root: string, index: string = sourceIndexPath(root)): readonly PrivateWords[] | undefined {
+  return onIndex(index, (opened) => entry('privateWordsOf')(opened)) ?? undefined;
 }
 
 /**

@@ -71,11 +71,10 @@ fn private_word_counts_include_unasked_names_once_and_exclude_exported_locals() 
     let source = "function restartWorker() {}\ninterface unrelatedName {}\nconst unrelatedName = 1;\nfunction publishedLocal() {}\nexport { publishedLocal as renamed };\n";
     let (records, parses) = chain(&[("src/private.ts", "git:a", source), ("src/public.ts", "git:b", "export function restartWorker() {}")]);
     let layers = [Layer::open(&records).unwrap(), Layer::open(&parses).unwrap()];
-    let found = super::private_words(&layers, None);
+    let found = super::private_words(&layers);
     let rows: Vec<(&str, u32)> = found.iter().map(|row| (row.at.as_str(), row.words)).collect();
     let expected = ["restartWorker", "unrelatedName"].iter().map(|name| crate::help_search::name_terms(name).len() as u32).sum();
     assert_eq!(rows, vec![("src/private.ts", expected), ("src/public.ts", 0)]);
-    let scoped = super::private_words(&layers, Some(&["src/public.ts".to_owned()]));
-    assert_eq!(scoped.len(), 1);
-    assert_eq!(scoped[0].at, "src/public.ts");
+    let unmatched = declared("/nonexistent-root", &layers, "notDeclaredAnywhere", Matching::Exact, None);
+    assert!(unmatched.names.is_empty());
 }

@@ -249,8 +249,8 @@ pub fn declared_terms_of(index: &OpenedIndex, files: Option<Vec<String>>) -> nap
 /// Per-file search-term counts for private top-level names, including names
 /// unrelated to the question. `None` when there is no index.
 #[napi(catch_unwind)]
-pub fn private_words_of(index: &OpenedIndex, files: Option<Vec<String>>) -> napi::Result<Option<Vec<PrivateWords>>> {
-    opened_chain(index, |layers| private_words(layers, files.as_deref()))
+pub fn private_words_of(index: &OpenedIndex) -> napi::Result<Option<Vec<PrivateWords>>> {
+    opened_chain(index, private_words)
 }
 
 /// The declarations no export binds whose name's terms hold one of every

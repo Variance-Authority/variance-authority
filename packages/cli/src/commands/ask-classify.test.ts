@@ -103,7 +103,7 @@ async function run(argv: readonly string[]): Promise<{ code: number; out: string
 }
 
 /** Equal declaration vocabularies, one private, beside a focused package. */
-function declarationAreas(): string {
+function declarationAreas({ privateArea = 'beta', merged = false }: { privateArea?: string; merged?: boolean } = {}): string {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'va-classify-vocabulary-')));
   const names = ['alpha', 'beta', 'gamma'];
   writeFileSync(join(root, '.gitignore'), 'node_modules\n');
@@ -112,8 +112,8 @@ function declarationAreas(): string {
   for (const name of names) {
     mkdirSync(join(root, name));
     writeFileSync(join(root, name, 'package.json'), JSON.stringify({ name: `@t/${name}`, exports: './index.ts' }));
-    const source = `function restartWorker() {}\n${name === 'gamma' ? '' : unrelated}`;
-    writeFileSync(join(root, name, 'index.ts'), name === 'beta' ? `export {};\n${source}` : source.replaceAll('function ', 'export function '));
+    const source = `function restartWorker() {}\n${merged ? 'interface restartWorker {}\n' : ''}${name === 'gamma' ? '' : unrelated}`;
+    writeFileSync(join(root, name, 'index.ts'), name === privateArea ? `export {};\n${source}` : source.replaceAll('function ', 'export function ').replaceAll('interface ', 'export interface '));
   }
   // Classification splits directories above 500 tracked files into separate areas.
   mkdirSync(join(root, 'padding'));
@@ -126,6 +126,22 @@ function declarationAreas(): string {
 }
 
 describe('variance ask classify', () => {
+  it.each(['alpha', 'beta'])('counts a merged type and value name once regardless of export visibility (%s)', async (privateArea) => {
+    const root = declarationAreas({ privateArea, merged: true });
+    expect((await run(['index', '--wait'])).code).toBe(EXIT_CLEAN);
+    const privateNames = await run(['ask', 'classify', '--query', 'restart worker']);
+    expect(privateNames.code).toBe(EXIT_CLEAN);
+    const areas = (text: string): string[] => [...text.matchAll(/^ {2}(\S+) — /gm)].map((match) => match[1] ?? '');
+    expect(areas(privateNames.out)).toEqual(['gamma', 'alpha', 'beta']);
+
+    const exported = ['export function restartWorker() {}', 'export interface restartWorker {}', ...Array.from({ length: 100 }, (_, at) => `export function unrelatedName${at}() { return ${at}; }`)].join('\n');
+    writeFileSync(join(root, privateArea, 'index.ts'), exported);
+    expect((await run(['index', '--wait'])).code).toBe(EXIT_CLEAN);
+    const exportedNames = await run(['ask', 'classify', '--query', 'restart worker']);
+    expect(exportedNames.code).toBe(EXIT_CLEAN);
+    expect(areas(exportedNames.out)).toEqual(areas(privateNames.out));
+  });
+
   it('normalizes private and exported declaration vocabularies equally, including names outside the query', async () => {
     const root = declarationAreas();
     expect((await run(['index', '--wait'])).code).toBe(EXIT_CLEAN);
