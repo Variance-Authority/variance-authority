@@ -287,7 +287,7 @@ fn prepare(root: &str, index: &str, snapshot: Option<Listed>, relisted: bool, wo
         .map(|(at, bytes)| Layer::open(bytes).map_err(|error| format!("segment {at}: {error}")))
         .collect::<Result<_, _>>()
         .map_err(fail)?;
-    let emitted = Emitted::listed(std::path::Path::new(root), snapshot.as_ref().map(|snapshot| Arc::clone(&snapshot.files)));
+    let emitted = Emitted::listed(&crate::resolve::checkout_root(std::path::Path::new(root)), snapshot.as_ref().map(|snapshot| Arc::clone(&snapshot.files)));
     let resolvers = Resolvers::over(tsconfig, None, emitted);
     let mut unmarked = false;
     let read = std::thread::scope(|scope| {
