@@ -24,3 +24,17 @@ export function rarity(population: number, holders: number): number {
 export function heldWeight<Held>(held: readonly Held[], rarityOf: (one: Held) => number, fieldOf: (one: Held) => number): number {
   return held.reduce((sum, one) => sum + rarityOf(one) * fieldOf(one), 0);
 }
+
+/**
+ * BM25's saturation of a term held `held` times in a row of `length`, in
+ * thousandths, against the mean of `rows` rows of `total` in all. With `k1`
+ * six fifths and `b` three quarters,
+ * `1000 h (k1 + 1) / (h + k1 (1 - b) + k1 b L / A)` is
+ * `22000 h A / (10 h A + 3 A + 9 L)`, here with `A` as `total / rows`
+ * multiplied through: a term held once in a row of the mean length counts
+ * 1000, in an empty one 1692, in one ten times the mean 213. With no length to
+ * measure against, every row is of the mean length.
+ */
+export function saturation(held: number, length: number, total: number, rows: number): number {
+  return total === 0 ? Math.floor((22000 * held) / (10 * held + 12)) : Math.floor((22000 * held * total) / (10 * held * total + 3 * total + 9 * length * rows));
+}

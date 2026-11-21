@@ -58,12 +58,14 @@ describe('rankedAreas', () => {
   });
 
   it('ranks the same on every run, in integers, ties in code-unit order of the path', () => {
-    const one = rankedAreas('index', PATHS, NONE, { most: 3 });
+    // Two areas alike in every count tie, and the earlier path in code-unit order ranks first.
+    const paths = [...filesUnder('b', ['restart.ts', 'other.ts']), ...filesUnder('a', ['restart.ts', 'other.ts'])];
+    const one = rankedAreas('restart', paths, NONE, { most: 2 });
 
-    expect(one).toEqual(rankedAreas('index', PATHS, NONE, { most: 3 }));
+    expect(one).toEqual(rankedAreas('restart', paths, NONE, { most: 2 }));
     expect(one.every((area) => Number.isInteger(area.score))).toBe(true);
-    const paths = one.map((area) => area.path);
-    expect(paths).toEqual(paths.toSorted());
+    expect(one[0]?.score).toBe(one[1]?.score);
+    expect(one.map((area) => area.path)).toEqual(['a', 'b']);
   });
 
   it('ranks nothing for a request with no word to describe', () => {

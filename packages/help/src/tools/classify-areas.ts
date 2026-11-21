@@ -1,7 +1,7 @@
 // compass: variance-authority.report.agent-surface
 
 import { codeUnitOrder } from '@variance-authority/core/segment';
-import { rarity } from '@variance-authority/mcp/tools';
+import { rarity, saturation } from '@variance-authority/mcp/tools';
 import { describedWordsNative } from '@variance-authority/sense';
 
 /**
@@ -54,14 +54,14 @@ interface Area {
 
 /**
  * The areas of `paths`, every tracked file of a checkout, that `query`'s words
- * point to, best first and at most `shown`; ties in code-unit order of the
+ * point to, best first and at most {@link AREAS_SHOWN}; ties in code-unit order of the
  * path. `declared` adds the names the files declare.
  */
 export function rankedAreas(
   query: string,
   paths: readonly string[],
   declared: Declared,
-  { most = AREA_FILES, shown = AREAS_SHOWN }: { readonly most?: number; readonly shown?: number } = {},
+  { most = AREA_FILES }: { readonly most?: number } = {},
 ): readonly RankedArea[] {
   const asked = describedWordsNative(query) as readonly (readonly [string, string])[];
   if (asked.length === 0) return [];
@@ -107,11 +107,9 @@ export function rankedAreas(
   const ranked: RankedArea[] = [];
   for (const [directory, area] of areas) {
     if (area.held.size === 0) continue;
-    // BM25's length norm: 0.25 + 0.75 × the area's words / the mean area's words.
-    const norm = 250 + Math.floor((750 * area.length * population) / Math.max(1, length));
     const weighs = new Map<string, number>();
     for (const [stem, held] of area.held) {
-      weighs.set(stem, Math.floor((rarity(population, holders.get(stem) ?? 0) * held * 2200) / (held * 1000 + Math.floor((1200 * norm) / 1000))));
+      weighs.set(stem, Math.floor((rarity(population, holders.get(stem) ?? 0) * saturation(held, area.length, length, population)) / 1000));
     }
     let score = 0;
     for (const weight of weighs.values()) score += weight;
@@ -123,7 +121,7 @@ export function rankedAreas(
       score,
     });
   }
-  return ranked.sort((a, b) => b.score - a.score || codeUnitOrder(a.path, b.path)).slice(0, shown);
+  return ranked.sort((a, b) => b.score - a.score || codeUnitOrder(a.path, b.path)).slice(0, AREAS_SHOWN);
 }
 
 function count(counts: Map<string, number>, key: string, by: number): void {

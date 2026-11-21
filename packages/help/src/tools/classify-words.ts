@@ -129,15 +129,18 @@ function where(placed: Placed | undefined): string {
   return `${area} · layer ${placed.layer}`;
 }
 
+/** An area of the tree, with the package it sits in when a manifest at or above it names one. */
+export type PlacedArea = RankedArea & { readonly package?: string };
+
 /**
  * The entities, one line per thing each names with its place on the code map,
  * then the plain words on one line, then the areas of the tree the words point
- * to, best first.
+ * to, best first, each with its package and that package's place on the map.
  */
 export function formatClassified(
   { entities, plain }: Classified,
   { current, packages }: CodeMapPlaces,
-  areas: readonly RankedArea[] = [],
+  areas: readonly PlacedArea[] = [],
 ): string {
   const lines = [
     entities.length === 0
@@ -150,7 +153,10 @@ export function formatClassified(
   if (plain.length > 0) lines.push(`Not entities: ${plain.join(' ')}`);
   if (areas.length > 0) {
     lines.push('', 'Areas its words point to, best first:');
-    for (const area of areas) lines.push(`  ${area.path} — ${plural(area.files, 'file')} · holds ${area.words.join(' ')}`);
+    for (const area of areas) {
+      const placed = area.package === undefined ? '' : ` · in ${area.package}${where(packages.get(area.package))}`;
+      lines.push(`  ${area.path} — ${plural(area.files, 'file')} · holds ${area.words.join(' ')}${placed}`);
+    }
   }
   // What each entity is asked next: an exported name is read by `symbol`, a
   // published package or entrypoint counted by `entrypoint`, and a package that

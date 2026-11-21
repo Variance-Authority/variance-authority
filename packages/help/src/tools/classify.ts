@@ -2,7 +2,7 @@
 
 import { relative } from 'node:path';
 import { START_POINT_SCHEMA, saysStartPoint, startPointArg, type Tool, type ToolInvocation } from '@variance-authority/mcp/tools';
-import type { Help } from '@variance-authority/package/help';
+import { ownership, type Help } from '@variance-authority/package/help';
 import { declaredDescribedOf, describedWordsNative, packageLayers, sourceIndexPath, trackedFiles } from '@variance-authority/sense';
 import { searchIndexOf } from '../snapshot.js';
 import { areaLine, areaOf } from './area.js';
@@ -30,16 +30,10 @@ function placesOf(root: string): CodeMapPlaces | string {
  * What the source index says the files declare: for each of the request's
  * stems, the files declaring a name that holds it — an exported name, read the
  * way `search` reads the dictionary, or a top-level one no export binds — and
- * for each file how many words its exported names hold. Nothing when this value
- * was read from no store.
+ * for each file how many words its exported names hold.
  */
 function declaredOf(help: Help, root: string, query: string): Declared {
-  let index;
-  try {
-    index = searchIndexOf(help);
-  } catch {
-    return { holding: new Map(), words: new Map() };
-  }
+  const index = searchIndexOf(help);
   const stems = [...new Set((describedWordsNative(query) as readonly (readonly [string, string])[]).map(([stem]) => stem))];
   const holding = new Map<string, Map<string, number>>();
   termsOfStems(index, stems).forEach((terms, at) => {
@@ -80,7 +74,9 @@ function declaredOf(help: Help, root: string, query: string): Declared {
 /**
  * The tracked paths a start point reaches along the imports, with the line
  * that says which; every tracked path when none was said. The walk names files
- * from the graph's root, which a nested workspace sits below the checkout's.
+ * from the graph's root, which a nested workspace sits below, so a file is
+ * named from the workspace by the part after the workspace's own path, and
+ * one outside the workspace is no tracked path of it.
  */
 function scopedPaths(
   paths: readonly string[],
@@ -93,8 +89,8 @@ function scopedPaths(
   const tree = invocation?.tree;
   const area = areaOf(from, to, tree);
   if (area.refused !== undefined || tree === undefined) throw new Error(`\`classify\` ranked nothing: ${areaLine(area)}`);
-  const within = tree.graphRoot === undefined ? '' : relative(tree.root, tree.graphRoot).replaceAll('\\', '/');
-  const reached = new Set(within === '' ? area.files : [...area.files].map((file) => `${within}/${file}`));
+  const within = tree.graphRoot === undefined ? '' : `${relative(tree.graphRoot, tree.root).replaceAll('\\', '/')}/`;
+  const reached = new Set([...area.files].flatMap((file) => (file.startsWith(within) ? [file.slice(within.length)] : [])));
   return { paths: paths.filter((path) => reached.has(path)), line: areaLine(area) };
 }
 
@@ -119,7 +115,7 @@ export const classify: Tool<Help> = {
     'what it names, its package\'s area and dependency layer on the code map as docs_orient numbers them, then the ' +
     'words that name nothing on one line. Then the areas of the tree the words point to, ten at most, best first: a directory of at ' +
     'most 500 tracked files, scored by the request\'s words, by stem, that its path, its files\' names and the top-level names its files ' +
-    'declare, exported or not, hold, a word held by fewer areas counting for more. With `from` or `to`, only the files that start point reaches along the ' +
+    'declare, exported or not, hold, a word held by fewer areas counting for more; each with the package whose manifest is nearest at or above it, and that package\'s area and layer. With `from` or `to`, only the files that start point reaches along the ' +
     'imports are ranked: a product\'s folder and the shared code it imports. Ask it first when holding a request in words and no name.',
   inputSchema: {
     type: 'object',
@@ -144,17 +140,25 @@ export const classify: Tool<Help> = {
     // The map names the packages, so without one nothing is classified.
     const places = placesOf(root);
     if (typeof places === 'string') return places;
+    const classified = classifyWords(query, help, places.packages.keys());
     // The tree the words point to, read from what HEAD holds; a checkout git
-    // cannot list ranks no area, and the entities are answered all the same.
-    let tracked: readonly string[] = [];
+    // cannot list ranks no area, says why, and answers the entities all the same.
+    let tracked: readonly string[];
     try {
       tracked = trackedFiles(root);
-    } catch {
-      // No commit to read, or no checkout: no area is ranked.
+    } catch (error) {
+      const why = error instanceof Error ? error.message.split('\n')[0] : String(error);
+      return `${formatClassified(classified, places)}\n\nNo area is ranked: git could not list the files HEAD holds (${why}).`;
     }
-    const scoped = tracked.length === 0 ? { paths: [] } : scopedPaths(tracked, input, invocation);
+    const scoped = scopedPaths(tracked, input, invocation);
     const areas = scoped.paths.length === 0 ? [] : rankedAreas(query, scoped.paths, declaredOf(help, root, query));
-    const answer = formatClassified(classifyWords(query, help, places.packages.keys()), places, areas);
+    // An area's package is the nearest manifest at or above its directory, as the scanner draws them.
+    const ownerOf = ownership(root);
+    const owned = areas.map((area) => {
+      const owner = ownerOf(area.path === '.' ? '' : `${area.path}/`);
+      return owner === '' ? area : { ...area, package: owner };
+    });
+    const answer = formatClassified(classified, places, owned);
     return scoped.line === undefined ? answer : `${scoped.line}\n\n${answer}`;
   },
 };
