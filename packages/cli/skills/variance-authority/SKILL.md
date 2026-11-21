@@ -160,11 +160,11 @@ latest release. Below, each path names the references that cover its steps.
   [case preconditions](references/case-preconditions.md), then
   [distill](references/distill.md).
 - **Orient a coding agent in a codebase** ([path](https://variance-authority.dev/docs/path-agent-orientation)):
-  ask through [the installed binary](#run-the-installed-binary) or
-  [MCP](references/mcp.md), then [orient](references/orient.md#orient), then
-  what is installed ([stack](references/orient.md#stack) and
-  [packages](references/workspace-api.md#packages)), then `variance layers`,
-  then [covering](references/covering.md) for each changed line.
+  for a concrete feature task, start with [names, then relations](references/workspace-api.md#names-then-relations).
+  For the architecture, use [orient](references/orient.md#orient),
+  [stack](references/orient.md#stack), [packages](references/workspace-api.md#packages)
+  and `variance layers` as needed. Before editing, ask
+  [covering](references/covering.md) about the lines to change.
 - **Find out why a test failed or hangs** ([path](https://variance-authority.dev/docs/path-test-failure)):
   [story](references/story.md) from the wrapped suite's record (a visual run
   starts at [ask a run](references/ask-a-run.md)), then where it [parted from a passing test](https://variance-authority.dev/docs/journeys);
@@ -188,8 +188,9 @@ letters has no stem, so the reading of a description only keeps its place: ask
 `session store`, not `session id store`. It still counts as written, so keep it
 when it spells a name or a phrase: `node id` finds `NodeId`.
 
-**`search` lists candidates, not every match.** For every tracked line that
-writes a word, run `git grep -i <word>`.
+**`search` lists candidates, not every matching source line.** Ask
+`grep --query <pattern> --from <path>` for source lines. Text outside the
+source index takes `rg` or `git grep`, as the workspace reference explains.
 
 **Say where you are standing.** On a large repository a common word matches
 everywhere the product uses its own name. `--from <path>` narrows to what that
@@ -200,15 +201,14 @@ everything under it at any depth. Write the parent with the file name —
 `Provider.tsx` alone is not unique. A path is a fact about the source tree, so
 ask from a checkout at the revision you are asking about.
 
-**Name the code before you open it.** Reading a file and then the files it
-imports branches faster than you can prune it, and on a large repository the
-session runs out while it is still exploring. Ask first, then read: a few
-`search` queries, one for each likely spelling, name the candidates; `symbol`
-pins down the one you mean; `uses` lists the files that import it, and
-`discover --to <file>#<name>` walks on to what depends on those, at any
-depth. Open the files those answers named, at the lines they named. A file that
-no answer named, but that you want to open, is the next question rather than
-the next read: ask `orient --files <path>` about it.
+**Name the code before you open it.** Ask `search` for meaning, `symbol` for
+a name, or `discover --path <regex> --declares <regex>` for declarations in
+an area. Once an answer names a plausible feature owner, read its named lines
+and imports; these verbs are choices, not a sequence to complete first.
+Then use `discover --from <file>` or `--to <file>` with the names the source
+gave you to find the next responsibility. A historical symptom may be gone:
+establish the current feature's owners before searching for the old predicate.
+A file no answer named takes `orient --files <path>` before the read.
 
 **The uses of a name you change are part of the change.** Before you change
 what a name takes, returns or means, or rename it, list the files that import
