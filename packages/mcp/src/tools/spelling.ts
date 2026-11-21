@@ -68,7 +68,9 @@ export interface Spelling {
 const wired = (value: unknown): string => (typeof value === 'string' ? value : JSON.stringify(value));
 
 const asShell = (verb: string, input: Readonly<Record<string, unknown>>): string =>
-  [verb, ...Object.entries(input).map(([property, value]) => `${flagOf(property)} ${wordOf(value)}`)].join(' ');
+  [verb, ...Object.entries(input).flatMap(([property, value]) =>
+    value === false ? [] : [value === true ? flagOf(property) : `${flagOf(property)} ${wordOf(value)}`],
+  )].join(' ');
 
 /** The wire's spelling: every name as the schemas publish it. */
 const WIRE: Spelling = {

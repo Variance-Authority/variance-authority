@@ -26,12 +26,15 @@ import { formatJourneys } from './orient-journeys-format.js';
 export interface OrientReading {
   /** The files asked about, in the order asked. */
   readonly files: readonly string[];
-  /** Original inputs, retaining line selectors when a command replays the question. */
-  readonly asks?: readonly string[];
   /** Print every reached declaration entry, rather than the initial three. */
   readonly declarations?: boolean;
   readonly around: PackagesAround;
-  readonly external?: { readonly index: string; readonly orientation?: ExternalOrientation };
+  readonly external?: {
+    readonly index: string;
+    readonly orientation?: ExternalOrientation;
+    /** The complete declaration question, spelled for the caller's CLI or MCP surface. */
+    readonly declarationsQuestion: string;
+  };
   readonly recorded: readonly RecordedCases[];
   /** Each suite's journeys; absent when they were not asked for. */
   readonly journeys?: readonly JourneysAround[];
@@ -229,8 +232,9 @@ function namedIn(flows: OrientFlows): { readonly name: string; readonly package?
 /** Commands that ask about one name or one file this answer printed. */
 export function followUps(reading: OrientReading): readonly string[] {
   const commands: string[] = [];
-  if (reading.declarations !== true && reading.external?.orientation?.dependencies.some((dependency) => dependency.declaredIn.length > DECLARATIONS_SHOWN)) {
-    commands.push(`variance ask orient --files ${shell((reading.asks ?? reading.files).join(','))} --declarations`);
+  const external = reading.external;
+  if (reading.declarations !== true && external?.orientation?.dependencies.some((dependency) => dependency.declaredIn.length > DECLARATIONS_SHOWN)) {
+    commands.push(external.declarationsQuestion);
   }
   const asked = reading.around.orientation?.packages ?? [];
   // The first name another package uses, from the first asked package anybody uses.

@@ -28,6 +28,7 @@
 // compass: variance-authority.report.agent-surface
 
 import type { Tool } from '@variance-authority/mcp/tools';
+import { spellingOf } from '@variance-authority/mcp/tools';
 import { basename } from 'node:path';
 import { codeMapPage, journeysAround, orientAround, recordedCases, type JourneysAsk } from '@variance-authority/sense';
 import { formatCodeMapPage, noCodeMap, unfoldedCodeMap } from './code-map-format.js';
@@ -124,10 +125,9 @@ export const orient: Tool<unknown> = {
     const { packages: around, external } = orientAround(root, files, LIMITS, { rows: 8, names: 3 });
     return formatOrientation({
       files,
-      asks: said,
       declarations,
       around,
-      external,
+      external: { ...external, declarationsQuestion: spellingOf(invocation).question(orient, { files: said, declarations: true }) },
       recorded: recordedCases(root, files, TITLES),
       ...journeysOf(root, asks),
     });

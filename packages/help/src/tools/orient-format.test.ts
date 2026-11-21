@@ -205,6 +205,7 @@ describe('an orientation, said', () => {
       ...READING,
       external: {
         index: '/cache/source-index.bin',
+        declarationsQuestion: "variance ask orient --files 'packages/checkout/src/total.ts,packages/cart/src/price.ts,README.md,test/total.test.ts' --declarations",
         orientation: {
           dependencies: [{
             package: 'state-kit', files: 1, imports: 1, moreSites: 0,
