@@ -280,6 +280,13 @@ export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon
   followCaseCuts?(index: Uint8Array, cuts: NativeCaseCut[], edit: (file: string) => NativeCaseEdit | undefined): Buffer | null;
   /** Whether a case index's cut of a module stands at other text than a snapshot row's cut of it: `native/src/case_layer_landing.rs`. */
   caseCutApart?(index: readonly NativeCaseRegion[], snapshot: readonly NativeCaseRegion[]): boolean;
+  /**
+   * For each case, by its test file from `root` and its name, the line of its
+   * body's call and the checks that body declares, each at its line; `null`
+   * where the file cannot be read or no body is registered under the name
+   * (`native/src/case_checks.rs`).
+   */
+  declaredChecks?(root: string, cases: { file: string; name: string }[]): ({ line: number; checks: { id: string; line: number }[] } | null)[];
   /** Read a run's case journals for the case index a reporter lays. */
   openCaseJournals?(directory: string, root: string): NativeCaseJournals;
   /** A journey file cut down to the changed modules, with cases only on the regions the change can ask about. */

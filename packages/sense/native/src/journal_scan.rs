@@ -199,22 +199,34 @@ impl<'a> Reader<'a> {
     }
 }
 
-/// An Eyes frame's case, attempt and journal text, as `decodeEyesFrame` in
-/// `eyes-frame.cts` reads them; the journal stays text, its keys in the order
-/// written, for the caller to parse.
-pub(crate) fn eyes_of(frame: &[u8]) -> Result<(String, f64, Option<String>), String> {
+/// What an Eyes frame says of its case's attempt, as `decodeEyesFrame` in
+/// `eyes-frame.cts` reads it.
+#[derive(Debug, PartialEq)]
+pub(crate) enum Said {
+    /// The case opened a journal.
+    Watched,
+    /// The journal Eyes handed over, as text, its keys in the order written,
+    /// for the caller to parse.
+    Journal(String),
+    /// The id of a check the attempt entered.
+    Check(String),
+}
+
+/// An Eyes frame's case, attempt and what it says of them.
+pub(crate) fn eyes_of(frame: &[u8]) -> Result<(String, f64, Said), String> {
     let refused = || "not a variance-authority eyes frame".to_owned();
     let body = std::str::from_utf8(&frame[EYES_MAGIC.len()..]).map_err(|_| refused())?;
     let fields: std::collections::HashMap<String, &serde_json::value::RawValue> =
         serde_json::from_str(body).map_err(|_| refused())?;
     let case: String = fields.get("case").and_then(|raw| serde_json::from_str(raw.get()).ok()).ok_or_else(refused)?;
     let attempt: f64 = fields.get("attempt").and_then(|raw| serde_json::from_str(raw.get()).ok()).ok_or_else(refused)?;
-    let journal = match fields.get("journal") {
-        None => None,
-        Some(raw) if raw.get().trim_start().starts_with('{') => Some(raw.get().to_owned()),
-        Some(_) => return Err(refused()),
+    let said = match (fields.get("journal"), fields.get("check")) {
+        (None, None) => Said::Watched,
+        (Some(raw), None) if raw.get().trim_start().starts_with('{') => Said::Journal(raw.get().to_owned()),
+        (None, Some(raw)) => Said::Check(serde_json::from_str(raw.get()).map_err(|_| refused())?),
+        _ => return Err(refused()),
     };
-    Ok((case, attempt, journal))
+    Ok((case, attempt, said))
 }
 
 fn word(raw: &[u8], at: usize) -> Result<u32, String> {

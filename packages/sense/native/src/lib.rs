@@ -20,6 +20,7 @@ mod acquire;
 mod append_index;
 mod assigned_object;
 mod batch;
+mod case_checks;
 mod case_fold;
 mod case_id;
 mod case_lines;

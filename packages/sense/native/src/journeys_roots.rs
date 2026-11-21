@@ -61,7 +61,7 @@ pub(crate) fn registered(hint: Option<&str>) -> bool {
     )
 }
 
-fn describe(hint: Option<&str>) -> bool {
+pub(crate) fn describe(hint: Option<&str>) -> bool {
     hint == Some("describe.arg1")
 }
 
