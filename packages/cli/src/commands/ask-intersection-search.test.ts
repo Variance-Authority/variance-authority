@@ -26,6 +26,7 @@ beforeAll(async () => {
   }));
   write('.gitignore', 'node_modules/\n');
   write('src/base.ts', 'export const original = 1;\n');
+  write('src/qualified.ts', 'export const redToken = true;\nexport const blueBanner = true;\nexport const gateHandler = true;\nexport const routeModel = true;\n');
   for (let n = 0; n < 32; n++) {
     const id = String(n).padStart(2, '0');
     write(`src/private/p${id}.ts`, 'const privateNeedle = 1;\nexport {};\n');
@@ -80,6 +81,30 @@ const search = (query: string) => askSource({ question: 'search', query });
 const cross = (query: string, path: string) => askSource({ question: 'intersection', reports: [query, `discover --path '^${path}$'`] });
 
 describe('the same search alone and as an intersection operand', () => {
+  it('keeps near-match qualifications beside each operand in the composed answer', async () => {
+    expect(await search('red blue')).toContain('Near matches, not exact');
+    expect(await search('gate route')).toContain('Near matches, not exact');
+    const together = await askSource({ question: 'intersection', reports: [
+      "search --query 'red blue' --from src/qualified.ts",
+      "search --query 'gate route' --from src/qualified.ts",
+    ] });
+    expect(together).toContain('1 file in all of them:');
+    expect(together).toContain('src/qualified.ts — 1: lines 1, 2 (near matches, not exact) · 2: lines 3, 4 (near matches, not exact)');
+  });
+
+  it('distinguishes query evidence from near evidence in the same common file', async () => {
+    const together = await askSource({ question: 'intersection', reports: [
+      'search --query red --from src/qualified.ts',
+      "search --query 'gate route' --from src/qualified.ts",
+    ] });
+    expect(together).toContain('src/qualified.ts — 1: line 1 · 2: lines 3, 4 (near matches, not exact)');
+  });
+
+  it('keeps loose qualifications on candidates beyond the operand display cap', async () => {
+    const together = await cross("search --query 'conect tunel'", 'src/loose/l31.ts');
+    expect(together).toContain('src/loose/l31.ts — 1: line 1 (loose matches, not exact) · 2: the file');
+  });
+
   it.each([
     ['privateNeedle', 'src/private/p31.ts', 'line 1'],
     ['heldNeedle', 'src/held/h31.ts', 'line 1'],
@@ -102,7 +127,8 @@ describe('the same search alone and as an intersection operand', () => {
     if (query === 'publicNeedle') expect(alone).toContain('42 published matches');
     const together = await cross(`search --query '${query}'`, path);
     expect(together).toContain('1 file in all of them:');
-    expect(together).toContain(`${path} — 1: ${lines} · 2: the file`);
+    expect(together).toContain(`${path} — 1: ${lines}`);
+    expect(together).toContain(' · 2: the file');
   });
 
   it.each([
@@ -110,7 +136,8 @@ describe('the same search alone and as an intersection operand', () => {
     ['exportNeedle31', 'src/exported/z-copy.ts', 'line 1'],
   ])('keeps another matching file of a grouped name for %s', async (query, path, lines) => {
     const together = await cross(`search --query '${query}'`, path);
-    expect(together).toContain(`${path} — 1: ${lines} · 2: the file`);
+    expect(together).toContain(`${path} — 1: ${lines}`);
+    expect(together).toContain(' · 2: the file');
   });
 
   it('keeps all matching lines once, in ascending order', async () => {

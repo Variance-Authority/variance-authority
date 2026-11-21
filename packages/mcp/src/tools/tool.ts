@@ -110,6 +110,8 @@ export type CutModules = ReadonlyMap<string, ReadonlyMap<string, CutModule>>;
  */
 export interface FileSet {
   readonly files: ReadonlyMap<string, readonly number[]>;
+  /** The producer's qualification of each file's evidence, displayed unchanged beside that operand. */
+  readonly qualifications?: ReadonlyMap<string, string>;
   readonly unread?: readonly string[];
 }
 
