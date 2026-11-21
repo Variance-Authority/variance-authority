@@ -132,7 +132,9 @@ the page going quiet — every region is looked at once.
 
 - **One is visible**: that is the outcome.
 - **Two are visible at once**: the action fails, naming both. The order you
-  wrote them in never decides.
+  wrote them in never decides. A region the action could rest in is not one of
+  them: it was there before the act, so one that appears over it — a cart
+  drawer over the product — is the outcome.
 - **None, and the action can rest or stay**: that outcome is reported once the
   act has finished and nothing has been pending for the quiet period. Work that
   starts within it begins the wait again, so a slow answer that leads somewhere

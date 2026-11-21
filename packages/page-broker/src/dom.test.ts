@@ -148,6 +148,16 @@ describe('page-broker over a document', () => {
     await expect(submit(surface(document))).resolves.toMatchObject({ outcome: 'payment' });
   });
 
+  it('leaves an ARIA checkbox that is already checked as it is', async () => {
+    document.body.innerHTML = `<div role="checkbox" aria-checked="true" aria-label="Terms" tabindex="0"></div>`;
+    const box = document.querySelector('[role=checkbox]')!;
+    box.addEventListener('click', () => box.setAttribute('aria-checked', String(box.getAttribute('aria-checked') !== 'true')));
+
+    await surface(document).check({ role: 'checkbox', name: 'Terms' });
+
+    expect(box.getAttribute('aria-checked')).toBe('true');
+  });
+
   it('looks for no outcome once the action has answered', async () => {
     checkout('nothing');
     const on = surface(document);

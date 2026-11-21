@@ -51,7 +51,12 @@ export function surface(document: Document): DocumentSurface {
     },
     check: async (query) => {
       const element = await one(query);
-      if (!(element as HTMLInputElement).checked) await user.click(element);
+      // A drawn checkbox says its state by `aria-checked`, as Playwright's `check` reads it.
+      const checked =
+        element instanceof document.defaultView!.HTMLInputElement
+          ? element.checked
+          : element.getAttribute('aria-checked') === 'true';
+      if (!checked) await user.click(element);
     },
     select: async (query, value) => {
       const element = (await one(query)) as HTMLSelectElement;
