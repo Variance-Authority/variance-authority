@@ -171,7 +171,10 @@ export function intersectionOf<Subject>(operands: readonly Tool<Subject>[]): Too
 
       // The answer first, then the questions it crossed, then one row per file.
       const rows = paged(common, page).map(
-        (file) => `${file} — ${sets.map((set, at) => `${at + 1}: ${evidenceOf(set.files.get(file)!)}`).join(' · ')}`,
+        (file) => `${file} — ${sets.map((set, at) => {
+          const qualification = set.qualifications?.get(file);
+          return `${at + 1}: ${evidenceOf(set.files.get(file)!)}${qualification === undefined ? '' : ` (${qualification})`}`;
+        }).join(' · ')}`,
       );
       return [`${counted(common.length)} in all of them:`, ...lines, ...pageAt(page, common.length, spell), ...rows, ...nextPage(page, common.length, spell)].join(
         '\n',

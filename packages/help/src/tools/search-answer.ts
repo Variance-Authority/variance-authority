@@ -1,4 +1,4 @@
-import type { Tree } from '@variance-authority/mcp/tools';
+import type { FileSet, Tree } from '@variance-authority/mcp/tools';
 import { describedWordsNative, wordStemsNative } from '@variance-authority/sense';
 import type { SearchIndex } from '../search-index.js';
 import { tokensOf } from '../search-index.js';
@@ -213,19 +213,32 @@ function matched(index: SearchIndex, question: SearchQuestion, tree: Tree | unde
  * section contributes its matching coordinates, including described and loose
  * candidates when those passes run. Installed names identify no workspace file.
  */
-export function searchedFiles(index: SearchIndex, question: SearchQuestion, tree?: Tree, root?: string): ReadonlyMap<string, readonly number[]> {
-  const files = new Map<string, Set<number>>();
-  const found = searchedBy(index, question, tree, root, undefined, (at, line) => {
-    const lines = files.get(at) ?? new Set<number>();
-    if (line !== undefined) lines.add(line);
-    files.set(at, lines);
+export function searchedFiles(index: SearchIndex, question: SearchQuestion, tree?: Tree, root?: string): FileSet {
+  const files = new Map<string, { lines: Set<number>; kinds: Set<MatchKind> }>();
+  const found = searchedBy(index, question, tree, root, undefined, (at, line, kind = 'query') => {
+    const one = files.get(at) ?? { lines: new Set<number>(), kinds: new Set<MatchKind>() };
+    if (line !== undefined) one.lines.add(line);
+    one.kinds.add(kind);
+    files.set(at, one);
   });
   if (found.answer.refused !== undefined) throw new Error(`\`search\` searched nothing: ${found.answer.refused}.`);
-  return new Map([...files].map(([at, lines]) => [at, [...lines].sort((left, right) => left - right)]));
+  const qualifications = new Map<string, string>();
+  for (const [at, { kinds }] of files) {
+    if (kinds.size === 1 && kinds.has('query')) continue;
+    const labels = (['query', 'near', 'loose'] as const).filter((kind) => kinds.has(kind)).map((kind) => `${kind} matches`);
+    qualifications.set(at, `${labels.join(' and ')}${kinds.has('query') ? '' : ', not exact'}`);
+  }
+  return {
+    files: new Map([...files].map(([at, { lines }]) => [at, [...lines].sort((left, right) => left - right)])),
+    ...(qualifications.size === 0 ? {} : { qualifications }),
+  };
 }
 
+type MatchKind = 'query' | 'near' | 'loose';
+type MatchingFile = (at: string, line?: number, kind?: MatchKind) => void;
+
 /** Matched index rows as file coordinates, without decoding hidden signatures or docs. */
-function indexedFiles(index: SearchIndex, published: Iterable<number>, exported: Iterable<number>, file: (at: string, line?: number) => void): void {
+function indexedFiles(index: SearchIndex, published: Iterable<number>, exported: Iterable<number>, file: MatchingFile): void {
   for (const row of published) file(index.publishedAt(row));
   for (const row of exported) file(index.exportedAt(row), index.exportedLine(row));
 }
@@ -243,7 +256,7 @@ export function searched(index: SearchIndex, question: SearchQuestion, tree?: Tr
   return { ...found, publishing: count.publishing(), ...(unread === undefined ? {} : { answer: { ...found.answer, importsUnread: unread } }) };
 }
 
-function searchedBy(index: SearchIndex, question: SearchQuestion, tree: Tree | undefined, root: string | undefined, importingOf: ImportingOf | undefined, file?: (at: string, line?: number) => void): Searched {
+function searchedBy(index: SearchIndex, question: SearchQuestion, tree: Tree | undefined, root: string | undefined, importingOf: ImportingOf | undefined, file?: MatchingFile): Searched {
   const found = matched(index, question, tree);
   if ('refused' in found) return { answer: { query: found.query, refused: found.refused }, area: found.area };
   const { query, said, area, within, named, hits, answered, rest, byDoc } = found;
@@ -312,11 +325,12 @@ function searchedBy(index: SearchIndex, question: SearchQuestion, tree: Tree | u
   const carried = described?.flatMap((one) => carriedThrough(one, carries) ?? []);
   const recordCarried = (rows: NonNullable<typeof carried>): void => {
     if (file === undefined) return;
+    const nearFile: MatchingFile = (at, line) => file(at, line, 'near');
     for (const one of rows) {
-      if ('match' in one) file(one.match.at, one.match.line);
-      else if ('file' in one) file(one.file.at);
+      if ('match' in one) nearFile(one.match.at, one.match.line);
+      else if ('file' in one) nearFile(one.file.at);
       else for (const { through } of one.picks) {
-        indexedFiles(index, through.kind === 'published' ? [through.row] : [], through.kind === 'exported' ? [through.row] : [], file);
+        indexedFiles(index, through.kind === 'published' ? [through.row] : [], through.kind === 'exported' ? [through.row] : [], nearFile);
       }
     }
   };
@@ -351,12 +365,13 @@ function searchedBy(index: SearchIndex, question: SearchQuestion, tree: Tree | u
   const alsoHits = loose.size === 0 ? [] : surface(index, publishedOf(index, loose), area, within);
   const alsoFound = published(index, alsoHits, cap(LOOSE_CAP), said, importingOf);
   const alsoRest = exported(index, loose, new Set(alsoHits.map((hit) => hit.name)), within, said, viaDoc);
-  if (file !== undefined) indexedFiles(index, alsoHits.map((hit) => hit.row), alsoRest.rows(), file);
+  const looseFile: MatchingFile | undefined = file === undefined ? undefined : (at, line) => file(at, line, 'loose');
+  if (looseFile !== undefined) indexedFiles(index, alsoHits.map((hit) => hit.row), alsoRest.rows(), looseFile);
   // A name its file keeps to itself is in no dictionary row: the source index
   // answers for it, by the same rule, after every name that is.
   const describedHere = new Set((carried ?? []).flatMap((one) => ('match' in one ? [declaredKey(one.match)] : [])));
   const kept = looseDeclarations(root, query, FUZZY, area?.files, describedHere) ?? [];
-  if (file !== undefined) for (const one of kept) file(one.at, one.line);
+  if (looseFile !== undefined) for (const one of kept) looseFile(one.at, one.line);
   recordCarried(carried ?? []);
   const heldRows = described === undefined || carried === undefined ? undefined : shownOf(carried, cap(DESCRIBED_CAP));
   const reachedNames = [...alsoFound.shown, ...alsoRest.head(cap(LOOSE_CAP) - alsoFound.shown.length)];
