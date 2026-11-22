@@ -290,6 +290,10 @@ export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon
     kept: Uint8Array | undefined,
     inputs?: string[][],
   ): Promise<{ layers: NativeCaseLayers; readings: Buffer | null }>;
+  /** The id of each of `rows` in the case index `index`, `null` for a row it does not hold: `native/src/case_last_napi.rs`. */
+  caseRowIds?(index: Uint8Array, rows: number[]): (string | null)[];
+  /** The cases the last-run layer `last` names, by test file in `index`'s order: `native/src/case_last_napi.rs`. */
+  casesRanOf?(last: Uint8Array, index: Uint8Array): { file: string; cases: string[] }[];
   /** What the runs at one commit retired, as one before: `retired` laid over `kept`. */
   layerCaseBefore?(kept: Uint8Array | undefined, retired: Uint8Array | undefined, ran: string[]): Buffer | null;
   /** The case index with each module `cuts` names laid onto that cut; `null` when every one already stands at it. `edit` is asked only of a module laid onto another cut. */

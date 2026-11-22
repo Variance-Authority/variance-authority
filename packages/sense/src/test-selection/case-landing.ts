@@ -14,7 +14,10 @@ import { codeUnitOrder } from '@variance-authority/core/segment';
 import { layCaseRun, layerBefore } from './case-layer.js';
 import { landAttempts, layAttempts, readableAttempts, type RecordedAttempt, type ShardAttempts } from './attempts-record.js';
 import { inputsIn } from './case-readings.js';
-import { caseSectionsAt, withoutChecks, type CaseSections } from './case-record.js';
+import { caseSectionsAt, recordedCases, withoutChecks, type CaseSections } from './case-record.js';
+import { native } from '../addon.js';
+import { whyAbsent } from './native-modules.js';
+import type { NativeScanner } from '../native.js';
 import { decodeExecutionIndex, decodeExecutionTests } from './execution-format.js';
 import { encodeAsSetExecutionIndex, openSetExecutionIndex } from './execution-set-format.js';
 import { layEyes, readableEyes, type EyesSection } from './eyes-record.js';
@@ -261,6 +264,13 @@ function textsOfBefore(
   return texts;
 }
 
+/** The addon's `name`, which reading a case index's last-run layer requires. */
+function caseIndexAddon<K extends 'caseRowIds' | 'casesRanOf'>(name: K): NonNullable<NativeScanner[K]> {
+  const found = native()?.[name];
+  if (found === undefined) throw new Error(`reading a case index's last run requires the Sense native addon: ${whyAbsent(name)}`);
+  return found as NonNullable<NativeScanner[K]>;
+}
+
 /** The run that wrote the case index last, or `undefined` when none named itself or its name cannot be read. */
 export function lastCaseRunOf(sections: CaseSections): LastCaseRun | undefined {
   if (sections.last === undefined) return undefined;
@@ -272,11 +282,15 @@ export function lastCaseRunOf(sections: CaseSections): LastCaseRun | undefined {
     if (Array.isArray(run.cases)) return run.cases.every((id) => typeof id === 'string') ? { ...run, cases: run.cases } : undefined;
     const references = (run.cases as { readonly references?: unknown } | undefined)?.references;
     if (!Array.isArray(references)) return undefined;
-    const tests = references.some((id) => typeof id === 'number') ? decodeExecutionTests(sections.index!) : [];
-    const cases = references.map((id: unknown) => {
+    if (!references.every((id) => typeof id === 'string' || (typeof id === 'number' && Number.isInteger(id) && id >= 0))) return undefined;
+    const rows = references.filter((id): id is number => typeof id === 'number');
+    const ids = rows.length === 0 ? [] : caseIndexAddon('caseRowIds')(recordedCases(sections.index!), rows);
+    let row = 0;
+    const cases = references.map((id: string | number) => {
       if (typeof id === 'string') return id;
-      if (typeof id !== 'number' || !Number.isInteger(id) || id < 0 || tests[id] === undefined) throw new Error('unresolved last-run case row');
-      return tests[id]!.id;
+      const resolved = ids[row++];
+      if (resolved == null) throw new Error('unresolved last-run case row');
+      return resolved;
     });
     return { ...run, cases };
   } catch {
@@ -292,12 +306,8 @@ export function lastCaseRunOf(sections: CaseSections): LastCaseRun | undefined {
  * its index holds.
  */
 export function casesRan(sections: CaseSections): ReadonlyMap<string, readonly string[]> {
-  const last = new Set(lastCaseRunOf(sections)!.cases);
   const ran = new Map<string, string[]>();
-  if (last.size === 0) return ran;
-  for (const test of decodeExecutionTests(sections.index!)) {
-    if (last.has(test.id)) ran.set(test.file, [...(ran.get(test.file) ?? []), test.id]);
-  }
+  for (const { file, cases } of caseIndexAddon('casesRanOf')(sections.last!, recordedCases(sections.index!))) ran.set(file, cases);
   for (const ids of ran.values()) ids.sort(codeUnitOrder);
   return ran;
 }
