@@ -1,6 +1,7 @@
 import type { FileSet, Spelling, Tool, ToolInvocation } from '@variance-authority/mcp/tools';
 import { limitOf, notShownPast, START_POINT_SCHEMA, spellingOf, startPointArg, stringArg } from '@variance-authority/mcp/tools';
 import type { Help, Named } from '@variance-authority/package/help';
+import { BINDING } from '@variance-authority/sense';
 import { how, sitesByPath, type PathSite } from './by-path.js';
 import { FoundNothing, nowhere, specifierOf } from './find.js';
 import { memberRows } from './container.js';
@@ -219,6 +220,8 @@ export function declaredInCheckout(help: Help, input: Readonly<Record<string, un
 /** The files that declare a name, each at its lines, and every name each `file:line` is written by there. */
 export interface Declared extends FileSet {
   readonly spelled: ReadonlyMap<string, readonly string[]>;
+  /** Each `file:line` whose declaration only binds the name, kind `binding`, to a value defined elsewhere. */
+  readonly bound: ReadonlySet<string>;
 }
 
 /**
@@ -259,15 +262,22 @@ function declaredIn(help: Help, input: Readonly<Record<string, unknown>>, invoca
       if (declared !== undefined) at.push([declared.at, declared.line, declared.name]);
     }
   }
+  const bound = new Set<string>();
+  const binding = (one: { readonly at: string; readonly line: number; readonly kind: string } | undefined): void => {
+    if (one?.kind === BINDING) bound.add(`${one.at}:${one.line}`);
+  };
   const exported = unpublishedExports(help, invocation?.root, name, wanted, published.length > 0 ? published.map((one) => [one.at, one.declared] as const) : at.map(([file]) => [file, name] as const));
   for (const held of exports(exported)) {
     // `export { shout as format }` declares nothing: the function it binds, in the same file, is the declaration.
     const local = boundOf(invocation?.root, held);
     at.push(local !== undefined && local.at === held.at ? [local.at, local.line, local.name, held.name] : [held.at, held.line, held.name]);
+    binding(local);
     const origin = originOf(help, invocation?.root, held);
     if (origin !== undefined) at.push([origin.at, origin.line, origin.name]);
+    binding(origin);
   }
   const declared = declaredAt(help, invocation?.root, name, wanted);
+  for (const one of declared) binding(one);
   at.push(...declared.filter((one) => !isNested(one)).map((one) => [one.at, one.line, one.name] as const));
   if (aliases) at.push(...localNames(help, invocation?.root, name, wanted).files);
   // A member stands beside every other declaration, as `run` answers it.
@@ -289,7 +299,7 @@ function declaredIn(help: Help, input: Readonly<Record<string, unknown>>, invoca
     written.push(...names.filter((one) => !written.includes(one)));
     spelled.set(`${file}:${line}`, written);
   }
-  return { files, spelled };
+  return { files, spelled, bound };
 }
 
 /**
