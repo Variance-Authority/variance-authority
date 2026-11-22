@@ -341,6 +341,17 @@ describe('variance ask classify', () => {
     expect(asked.out).toMatch(/^Not entities: check the checkout$/m);
   });
 
+  it('says no word was looked up as a file when git cannot list the tracked files, rather than calling it no entity', async () => {
+    const root = unpackaged();
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+    rmSync(join(root, '.git'), { recursive: true, force: true });
+
+    const asked = await run(['ask', 'classify', '--query', 'who spawns child_process']);
+
+    expect(asked.code).toBe(EXIT_CLEAN);
+    expect(asked.out).toMatch(/^No word is looked up as a file: git could not list the tracked files \(.+\)\.$/m);
+  });
+
   it('names the entities and says why no area is ranked when git cannot list the files HEAD holds', async () => {
     const root = families();
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);

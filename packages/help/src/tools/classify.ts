@@ -47,12 +47,14 @@ interface Found {
  * Where each identifier-shaped word is declared, as `symbol` answers it, and
  * which tracked files are named it: ordinary source before tests and stories,
  * then the files more files import first, then by path in code units and
- * line. The first few of each kind are kept, and the rest counted.
+ * line. The first few of each kind are kept, and the rest counted. Why git
+ * listed no file, when it could not, goes to `unread`.
  */
-function locating(help: Help, root: string, places: CodeMapPlaces, invocation: ToolInvocation<Help> | undefined): Locate {
+function locating(help: Help, root: string, places: CodeMapPlaces, invocation: ToolInvocation<Help> | undefined, unread: { why?: string }): Locate {
   return (words) => {
     const owning = ownerOf(places.packages);
     const files = filesNamed(root, words, FILES_READ);
+    if ('unread' in files) unread.why = files.unread;
     const named = 'unread' in files ? new Map<string, { readonly files: readonly string[]; readonly count: number }>() : files;
     const declared = new Map(words.map((word) => [word, declaredBy(help, word, invocation)] as const));
     // One read of the import graph counts every path either kind holds.
@@ -148,13 +150,16 @@ export const classify: Tool<Help> = {
     // The map names the packages, so without one nothing is classified.
     const places = placesOf(root);
     if (typeof places === 'string') return places;
-    const classified = classifyWords(query, help, places.packages.keys(), locating(help, root, places, invocation));
+    const unread: { why?: string } = {};
+    const classified = classifyWords(query, help, places.packages.keys(), locating(help, root, places, invocation, unread));
+    // A word git could not look up as a file is not said to name none.
+    const unlisted = unread.why === undefined ? '' : `\n\nNo word is looked up as a file: git could not list the tracked files (${unread.why}).`;
     // The addon lists what HEAD holds and ranks it, scoped by the start point's
     // walks; only the ten areas cross.
     const from = startPointArg(input, 'from');
     const to = startPointArg(input, 'to');
     if (from === undefined && to === undefined && classified.entities.length > 0 && classified.plain.length === 0) {
-      return formatClassified(classified, places);
+      return `${formatClassified(classified, places)}${unlisted}`;
     }
     const said: StartPoint | undefined =
       from === undefined && to === undefined
@@ -173,11 +178,11 @@ export const classify: Tool<Help> = {
     // A checkout git cannot list ranks no area, says why, and answers the entities all the same.
     if (ranked.refused != null) {
       const why = ranked.refused.split('\n')[0];
-      return `${formatClassified(classified, places)}\n\nNo area is ranked: git could not list the files HEAD holds (${why}).`;
+      return `${formatClassified(classified, places)}${unlisted}\n\nNo area is ranked: git could not list the files HEAD holds (${why}).`;
     }
-    if (reach === undefined) return formatClassified(classified, places, placedAreas(ranked.areas, places.packages));
+    if (reach === undefined) return `${formatClassified(classified, places, placedAreas(ranked.areas, places.packages))}${unlisted}`;
     const line = reachLine({ ...reach, files: ranked.reached, unresolved: ranked.unresolved });
     if (reach.refused !== undefined) throw new Error(`\`classify\` ranked nothing: ${line}`);
-    return `${line}\n\n${formatClassified(classified, places, placedAreas(ranked.areas, places.packages), said)}`;
+    return `${line}\n\n${formatClassified(classified, places, placedAreas(ranked.areas, places.packages), said)}${unlisted}`;
   },
 };
