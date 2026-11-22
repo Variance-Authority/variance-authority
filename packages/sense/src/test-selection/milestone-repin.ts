@@ -129,11 +129,12 @@ async function repin(coverageFile: string, record: LastFetched, root: string, la
     .filter((state) => state.files.length > 0);
   const kept = new Set(states.flatMap((state) => state.files));
   const dropped = [...new Set(layer.ran.flatMap((state) => state.files))].filter((file) => !kept.has(file));
-  // The record names the commit its rows were cut at: this checkout's last
-  // run while it keeps a test of it, else the milestone's, whose rows it then
-  // holds alone. A commit none of them ran at would charge each test the
-  // change between that commit and the milestone, which none of them saw.
-  const commit = kept.size > 0 ? own.commit : record.commit;
+  // The record names a commit its rows were cut at: this checkout's last run's
+  // while it keeps a test that run left there, else the milestone's, and every
+  // test it keeps from an earlier run stands where that run left it. A commit
+  // none of them ran at would charge each test the change between that commit
+  // and the milestone, which none of them saw.
+  const commit = states.some((state) => state.commit === own.commit) ? own.commit : record.commit;
   // Under the milestone's probes, so a subset of nothing lays the milestone as it is.
   const subset = { ...ownSubset(own, kept), instrumentation, ...(commit === undefined ? {} : { commit }) };
   const bytes = layCoverage(milestone, subset, await carriedSources(root, milestone, subset));
