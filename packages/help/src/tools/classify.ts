@@ -45,12 +45,20 @@ interface Found {
 
 /**
  * Where each identifier-shaped word is declared, as `symbol` answers it, and
- * which tracked files are named it: ordinary source before tests and stories,
- * then the files more files import first, then by path in code units and
+ * which tracked files are named it: under a start point the files it reaches
+ * first, then ordinary source before tests and stories, then the files more
+ * files import first, then by path in code units and
  * line. The first few of each kind are kept, and the rest counted. Why git
  * listed no file, when it could not, goes to `unread`.
  */
-function locating(help: Help, root: string, places: CodeMapPlaces, invocation: ToolInvocation<Help> | undefined, unread: { why?: string }): Locate {
+function locating(
+  help: Help,
+  root: string,
+  places: CodeMapPlaces,
+  invocation: ToolInvocation<Help> | undefined,
+  unread: { why?: string },
+  inReach: ((file: string) => boolean) | undefined,
+): Locate {
   return (words) => {
     const owning = ownerOf(places.packages);
     const files = filesNamed(root, words, FILES_READ);
@@ -61,7 +69,9 @@ function locating(help: Help, root: string, places: CodeMapPlaces, invocation: T
     const paths = [...new Set([...[...declared.values()].flatMap((found) => found.map((one) => one.at)), ...[...named.values()].flatMap((one) => one.files)])];
     const counts = invocation?.tree === undefined || paths.length === 0 ? [] : invocation.tree.importers(paths);
     const importers = new Map(paths.map((path, at) => [path, counts[at] ?? 0]));
+    const outside = (found: Found): number => Number(inReach !== undefined && !inReach(found.at));
     const order = (one: Found, other: Found): number =>
+      outside(one) - outside(other) ||
       Number(one.test) - Number(other.test) ||
       (importers.get(other.at) ?? 0) - (importers.get(one.at) ?? 0) ||
       codeUnitOrder(one.at, other.at) ||
@@ -96,20 +106,28 @@ function namedFileBlock(
   classified: ReturnType<typeof classifyWords>,
   root: string,
   sourceIndex: ToolInvocation<Help>['sourceIndex'],
-  walks: Reach['walks'] | undefined,
+  inReach: ((file: string) => boolean) | undefined,
 ): string {
   // Under a start point a named file it does not reach is not the answer to it.
-  const reached = walks === undefined ? undefined : [walks.from, walks.to].flatMap((walk) => (walk === undefined ? [] : [walk]));
-  const files = namedFiles(classified, reached === undefined ? undefined : (file) => reached.some((walk) => walk.chain(file).length > 0));
+  const files = namedFiles(classified, inReach);
   if (files.length === 0) return '';
+  // Words left over, or a word that names no file here, leave the files answering part of the request.
+  const rest = classified.plain.length > 0 || classified.entities.some((entity) => namedFiles({ entities: [entity], plain: [] }, inReach).length === 0);
   // A generation the host read from above the workspace spells its files from there.
   const prefix = sourceIndex === undefined || sourceIndex.within === '' ? '' : `${sourceIndex.within}/`;
   const read = declarationsOf(root, files.map((file) => `${prefix}${file}`), DECLARATION_LINES, sourceIndex?.index);
   return formatNamedFiles(
     files,
     read?.map((one) => ({ ...one, file: one.file.slice(prefix.length) })),
-    { rest: classified.plain.length > 0, unshown: unshownFiles(classified) },
+    { rest, unshown: unshownFiles(classified) },
   );
+}
+
+/** Whether a start point's walks reach a file; nothing to ask without one. */
+function reachTest(walks: Reach['walks'] | undefined): ((file: string) => boolean) | undefined {
+  if (walks === undefined) return undefined;
+  const reached = [walks.from, walks.to].flatMap((walk) => (walk === undefined ? [] : [walk]));
+  return (file) => reached.some((walk) => walk.chain(file).length > 0);
 }
 
 /**
@@ -179,24 +197,25 @@ export const classify: Tool<Help> = {
     // The map names the packages, so without one nothing is classified.
     const places = placesOf(root);
     if (typeof places === 'string') return places;
-    const unread: { why?: string } = {};
-    const classified = classifyWords(query, help, places.packages.keys(), locating(help, root, places, invocation, unread));
-    // A word git could not look up as a file is not said to name none, and the
-    // named files come last: they are the answer the rest leads to.
-    const unlisted = unread.why === undefined ? '' : `\n\nNo word is looked up as a file: git could not list the tracked files (${unread.why}).`;
     // The addon lists what HEAD holds and ranks it, scoped by the start point's
     // walks; only the ten areas cross.
     const from = startPointArg(input, 'from');
     const to = startPointArg(input, 'to');
-    if (from === undefined && to === undefined && classified.entities.length > 0 && classified.plain.length === 0) {
-      return `${formatClassified(classified, places)}${unlisted}${namedFileBlock(classified, root, invocation?.sourceIndex, undefined)}`;
-    }
     const said: StartPoint | undefined =
       from === undefined && to === undefined
         ? undefined
         : { ...(from === undefined ? {} : { from: [from].flat() }), ...(to === undefined ? {} : { to: [to].flat() }) };
     const reach = said === undefined ? undefined : reachOf(from, to, invocation?.tree);
-    const tail = (refusal = ''): string => `${unlisted}${refusal}${namedFileBlock(classified, root, invocation?.sourceIndex, reach?.walks)}`;
+    const inReach = reachTest(reach?.walks);
+    const unread: { why?: string } = {};
+    const classified = classifyWords(query, help, places.packages.keys(), locating(help, root, places, invocation, unread, inReach));
+    // A word git could not look up as a file is not said to name none, and the
+    // named files come last: they are the answer the rest leads to.
+    const unlisted = unread.why === undefined ? '' : `\n\nNo word is looked up as a file: git could not list the tracked files (${unread.why}).`;
+    if (from === undefined && to === undefined && classified.entities.length > 0 && classified.plain.length === 0) {
+      return `${formatClassified(classified, places)}${unlisted}${namedFileBlock(classified, root, invocation?.sourceIndex, inReach)}`;
+    }
+    const tail = (refusal = ''): string => `${unlisted}${refusal}${namedFileBlock(classified, root, invocation?.sourceIndex, inReach)}`;
     // A stem admits the dictionary terms `search` admits for it, resolved here once.
     const store = storeBytesOf(help);
     const terms = store === undefined ? [] : termsOfStems(searchIndexOf(help), describedWordsNative(query).map(([stem]) => stem));

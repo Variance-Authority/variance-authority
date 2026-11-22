@@ -317,6 +317,34 @@ describe('variance ask classify', () => {
     expect(block).not.toContain('admin-2');
   });
 
+  it('keeps a declarer the start point reaches among the few it shows, ahead of more imported ones it does not', async () => {
+    const root = families();
+    // Three declarers out of reach sort first by importers, then path; the one `shop-4` reaches sorts fourth.
+    for (const at of ['tools/tools-0', 'admin/admin-0', 'data/data-0', 'shop/shop-0']) {
+      writeFileSync(join(root, `packages/${at}/src/index.ts`), `function auditTrail() { return 1; }\nexport const ${at.split('/')[1]!.replace('-', '')} = [auditTrail()];\n`);
+    }
+    execFileSync('git', ['commit', '--quiet', '-am', 'auditTrail'], { cwd: root, stdio: 'pipe' });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const asked = await run(['ask', 'classify', '--query', 'auditTrail', '--from', 'packages/shop/shop-4/src/index.ts']);
+
+    expect(asked.code).toBe(EXIT_CLEAN);
+    expect(asked.out).toContain('\n  packages/shop/shop-0/src/index.ts — auditTrail\n');
+  });
+
+  it('says the named files answer only their words when a word it recognized names no file', async () => {
+    const root = families();
+    writeFileSync(join(root, 'packages/shop/shop-0/src/index.ts'), 'function auditTrail() { return 1; }\nexport const shop0 = [auditTrail()];\n');
+    execFileSync('git', ['commit', '--quiet', '-am', 'auditTrail'], { cwd: root, stdio: 'pipe' });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const asked = await run(['ask', 'classify', '--query', 'shop-2 auditTrail']);
+
+    expect(asked.code).toBe(EXIT_CLEAN);
+    expect(asked.out).toContain('They answer the words that name them, not the rest of the request');
+    expect(asked.out).toContain('\n  packages/shop/shop-0/src/index.ts — auditTrail\n');
+  });
+
   it('names a declared name of a checkout with no package at the line that declares it, before a test that declares it too', async () => {
     unpackaged();
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
