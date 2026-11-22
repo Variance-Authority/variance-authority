@@ -57,10 +57,11 @@ pub struct NestedSymbol {
     pub holder_line: u32,
 }
 
-/// Every kind a grammar reader gives a declaration, each with the nodes the
-/// grammars spell it by: `kind_of` in `languages/mod.rs` reads it from the
-/// node, and a parse read back from the index from the word it stored.
-pub const KINDS: [(&str, &[&str]); 17] = [
+/// Every kind a declaration is harvested with, each with the nodes the grammars
+/// spell it by: `kind_of` in `languages/mod.rs` reads it from the node, and a
+/// parse read back from the index from the word it stored. A kind only the
+/// JavaScript reader gives has no node.
+pub const KINDS: [(&str, &[&str]); 24] = [
     ("function", &["function_item", "function_definition", "function_declaration"]),
     ("struct", &["struct_item"]),
     ("enum", &["enum_item", "enum_declaration"]),
@@ -78,11 +79,17 @@ pub const KINDS: [(&str, &[&str]); 17] = [
     ("object", &["object_declaration"]),
     ("protocol", &["protocol_declaration"]),
     ("property", &["property_declaration"]),
+    ("var", &[]),
+    ("let", &[]),
+    ("using", &[]),
+    ("await using", &[]),
+    ("namespace", &[]),
+    ("import", &[]),
+    (BINDING, &[]),
 ];
 
 /// The kind of a top-level name a file binds to a value it did not define
 /// there: one destructured out of a value, or one taken off a module it loads.
-/// No grammar reader gives it, so it stays out of [`KINDS`].
 pub const BINDING: &str = "binding";
 
 /// The word of [`KINDS`] spelled `word`.
