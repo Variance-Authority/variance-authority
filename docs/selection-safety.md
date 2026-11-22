@@ -109,7 +109,6 @@ against that text before it is compared with your diff.
 | The record names no commit, and `--since` names the base | every test that ran a changed module | `the journal names no commit, so none of its line ranges could be checked against the text they were cut from; every changed module with a row was charged whole` |
 | Some test files last ran at an earlier commit | those files are charged what changed from their commit to the tree | `N test files last ran at <commit>, before the journal's commit <commit>, so they are charged what changed from <commit> to the tree, read in the journal's lines` |
 | git cannot write the diff from an earlier commit to the tree | the test files that last ran at that commit | `git could not write the diff from <commit>, where N test files last ran, to the tree, so they run` |
-| Some test files last ran at the merge base with the ref | every file changed between the merge base and the journal's commit is charged whole to them, beside what changed from the journal's commit to the tree | `N test files last ran at <merge base>, before the journal's commit <commit>, so they are charged the K files changed between the two whole` |
 
 A package bump is not by itself a doubt. When the lockfile can be compared, the
 files that import a moved package are read as changed whole, and a note names

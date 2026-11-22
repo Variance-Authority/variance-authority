@@ -27,7 +27,7 @@ export interface Group {
   readonly stand?: Stand;
   /** The change from there to the tree, with no context lines; absent when git could not write it. */
   readonly diff?: string;
-  /** The files the group is charged: the change's, and what a merge-base stand charges whole. */
+  /** The files the group's change names. */
   readonly changed: readonly string[];
 }
 
@@ -38,16 +38,14 @@ export type Hit =
   | { readonly kind: 'before'; readonly says: string; readonly rests: readonly string[] };
 
 /**
- * The journal's group first, charged `diff`, then one per stand. A stand the
- * runs recorded is read from its commit to `tree`; the merge base with a ref
- * is read through `diff`, with the files it charges whole.
+ * The journal's group first, charged `diff`, then one per stand, read from
+ * its commit to `tree`.
  */
 export async function groupsOf(stands: readonly Stand[], diff: string, tree: string | undefined, here: string): Promise<readonly Group[]> {
   const selection = await import('@variance-authority/sense/test-selection');
   const names = (change: string) => [...selection.changedLines(change).keys()];
   const own = names(diff);
   const theirs = await Promise.all(stands.map(async (stand): Promise<Group> => {
-    if (stand.whole.length > 0) return { stand, diff, changed: [...new Set([...own, ...stand.whole])] };
     const since = tree === undefined ? undefined : await diffToTree(stand.commit, tree, { cwd: here, unified: 0 });
     return since === undefined ? { stand, changed: [] } : { stand, diff: since, changed: names(since) };
   }));

@@ -199,6 +199,24 @@ describe('a test that did not run at the journal commit', () => {
     expect(said.err).toContain(`1 test file last ran at ${P.slice(0, 12)}`);
   });
 
+  it('runs a test that last ran before a file the suite rests on moved, where the journal group moved nothing', async () => {
+    // The repository rests on `vitest.config.ts`. `far` last ran at P, before
+    // C moved it; the run at C ran `near` alone. The config moved for `far`,
+    // from P, and not for `near`, from C.
+    const repo = checkout();
+    const P = repo.commit({ ...sources(1, NAMES), 'vitest.config.ts': 'export default { a: 1 };\n', 'variance.config.json': '{ "before": ["vitest.config.ts"] }\n' }, 'P');
+    await landRun(repo.file, run(repo.root, P, NAMES), repo.root);
+    const C = repo.commit({ 'vitest.config.ts': 'export default { a: 2 };\n' }, 'C');
+    await landRun(repo.file, run(repo.root, C, ['near']), repo.root);
+
+    const said = await repo.select();
+
+    expect(said.out).toBe('test/near.test.ts\n');
+    expect(said.err).toContain(
+      `every suite here rests on vitest.config.ts before any test imports it, through the \`before\` entry \`vitest.config.ts\`, and the diff from ${P.slice(0, 12)} moves it, so the test file that last ran there runs.\n`,
+    );
+  });
+
   it('runs a test that imports a file the install moved since it ran, at symbol, where the tree edits only a comment in it', async () => {
     // As above, in a suite that reads by export. `other` imports `far` and its
     // record enters only `src/other.ts`, so the import graph alone reaches it.

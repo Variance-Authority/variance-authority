@@ -416,9 +416,7 @@ function standingNotes(reading: StandReading, commit: string): readonly string[]
     (stand) =>
       `${many(stand.tests.length, 'test file')} last ran at ${stand.commit.slice(0, 12)}, before the journal's commit ` +
       `${commit.slice(0, 12)}, so ${stand.tests.length === 1 ? 'it is' : 'they are'} ` +
-      (stand.whole.length === 0
-        ? `charged what changed from ${stand.commit.slice(0, 12)} to the tree, read in the journal's lines`
-        : `charged the ${many(stand.whole.length, 'file')} changed between the two whole`),
+      `charged what changed from ${stand.commit.slice(0, 12)} to the tree, read in the journal's lines`,
   );
   if (reading.widened !== undefined) notes.push(reading.widened);
   if (reading.assumed !== undefined) notes.push(reading.assumed);
