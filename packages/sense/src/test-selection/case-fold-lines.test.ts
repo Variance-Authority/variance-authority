@@ -103,7 +103,7 @@ describe('the bounded case fold keeps the test line that reached each region', (
     ]));
     const modules = new Map([['src/branch.ts', captured('src/branch.ts', 'src/branch.ts', 4)]]);
 
-    const folded = foldCases(cases, '/repo', modules, { budget: 64 });
+    const folded = await foldCases(cases, '/repo', modules, { budget: 64 });
 
     const table = openSetColumns(folded.bytes)!.testLines;
     const [one, two] = [linesOf(table, 0)!, linesOf(table, 1)!];
@@ -129,7 +129,7 @@ describe('the bounded case fold keeps the test line that reached each region', (
     ]));
     const modules = new Map([['src/branch.ts', captured('src/branch.ts', 'src/branch.ts', 3)]]);
 
-    const folded = foldCases(cases, '/repo', modules, { budget: 64 });
+    const folded = await foldCases(cases, '/repo', modules, { budget: 64 });
 
     const two = linesOf(openSetColumns(folded.bytes)!.testLines, 1);
     expect(two).toBeDefined();
@@ -146,7 +146,7 @@ describe('the bounded case fold keeps the test line that reached each region', (
     ]));
     const modules = new Map([['src/branch.ts', captured('src/branch.ts', 'src/branch.ts', 3)]]);
 
-    const folded = foldCases(cases, '/repo', modules, { budget: 64 });
+    const folded = await foldCases(cases, '/repo', modules, { budget: 64 });
 
     const table = openSetColumns(folded.bytes)!.testLines;
     expect(linesOf(table, 0)).toBeDefined();
@@ -160,7 +160,7 @@ describe('the bounded case fold keeps the test line that reached each region', (
     ]));
     const modules = new Map([['src/branch.ts', captured('src/branch.ts', 'src/branch.ts', 2)]]);
 
-    const folded = foldCases(cases, '/repo', modules, { budget: 64 });
+    const folded = await foldCases(cases, '/repo', modules, { budget: 64 });
 
     expect(openSetColumns(folded.bytes)!.testLines).toBeUndefined();
   });

@@ -22,7 +22,7 @@ import { projectPath, readWritten } from './instrumented-modules.js';
 import { coverageModule } from './coverage-rows.js';
 import { joinReadings, ownCut } from './readings.js';
 import { runCrossings, runModuleIds } from './run-crossings.js';
-import { freshCases } from './case-fold.js';
+import { foldCases, freshCases } from './case-fold.js';
 import { caseAttempts } from './case-attempts.js';
 import { caseDurations, caseLimits } from './case-durations.js';
 import {
@@ -93,6 +93,21 @@ export function foldRun(
     }
     // A file the run read twice is one record, and every row is read in it.
     const joined = joinReadings(modules, ownCut(root, mode));
+    // The case fold runs off this thread while the run's own work goes on:
+    // started here, it is folded by the time the record wants its bytes.
+    // `run.cases` is whether the run could record a case: one whose files ran
+    // in a page could not.
+    const folding = run.cases
+      ? foldCases(caseDirectory, root, joined.modules, {
+          durations: caseDurations(finished, root),
+          limits: caseLimits(finished, root),
+          tried: caseAttempts(finished, root),
+          readings: joined.readings,
+        })
+      : undefined;
+    // A refusal below lands before the fold is awaited, and the fold's own
+    // failure is read where it is.
+    folding?.catch(() => {});
     const crossings = runCrossings(written, pages, root, joined.readings, modules.keys());
     const unplaced = new Set(crossings.journals.filter((journal) => !journal.placed).map((journal) => journal.test));
     if (destination.derive !== true && unplaced.size > 0) {
@@ -135,20 +150,11 @@ export function foldRun(
         ))
         .sort((left, right) => codeUnitOrder(left.file, right.file)),
     };
-    // In the record, with the coverage, in one write. `run.cases` is whether
-    // the run could record a case: one whose files ran in a page could not.
-    // One that could, and recorded no case and finished no file — no worker
-    // loaded this seam's modules — has none to lay, and the record's cases
-    // stay as they were.
-    const cases = run.cases
-      ? await freshCases(caseDirectory, root, joined.modules, {
-          tests,
-          ...(commit === undefined ? {} : { commit }),
-          durations: caseDurations(files, root),
-          limits: caseLimits(files, root),
-          tried: caseAttempts(files, root),
-        }, joined.readings)
-      : undefined;
+    // In the record, with the coverage, in one write. A run that could record
+    // a case, and recorded none and finished no file — no worker loaded this
+    // seam's modules — has none to lay, and the record's cases stay as they
+    // were.
+    const cases = folding && await freshCases(folding, { tests, ...(commit === undefined ? {} : { commit }) });
     const merged = await withIndexLock(coverageFile, async (lock) => {
       // The repository's snapshot becomes this checkout's before the first run
       // lands on it, so a worktree layers onto months of recording rather than

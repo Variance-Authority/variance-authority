@@ -103,7 +103,7 @@ describe.runIf(nativeAvailable())('the native case fold', () => {
 
     native()!.foldJourneyTo!(cases, '/repo', [], output);
     const answered = decodeExecutionIndex(await readFile(output));
-    const folded = decodeExecutionIndex(foldCases(cases, '/repo', new Map(), { budget: 64 }).bytes);
+    const folded = decodeExecutionIndex((await foldCases(cases, '/repo', new Map(), { budget: 64 })).bytes);
 
     const row = (index: typeof folded) => Object.fromEntries(index.tests.map((test) => [test.name, rowOf(test)]));
     expect(row(answered)).toEqual(row(folded));
@@ -138,7 +138,7 @@ describe.runIf(nativeAvailable())('the native case fold', () => {
 
     native()!.foldJourneyTo!(cases, '/repo', [], output);
     const answered = decodeExecutionIndex(await readFile(output));
-    const folded = decodeExecutionIndex(foldCases(cases, '/repo', new Map(), { budget: 64 }).bytes);
+    const folded = decodeExecutionIndex((await foldCases(cases, '/repo', new Map(), { budget: 64 })).bytes);
 
     const row = (index: typeof folded) => index.tests.map((test) => [test.id, rowOf(test)]);
     expect(row(answered)).toEqual(row(folded));
@@ -172,7 +172,7 @@ describe.runIf(nativeAvailable())('the native case fold', () => {
       ),
     ]));
 
-    const caseIndex = foldCases(cases, '/repo', new Map([['src/branch.ts', module]]), { budget: 64 });
+    const caseIndex = await foldCases(cases, '/repo', new Map([['src/branch.ts', module]]), { budget: 64 });
     const answered = native()!.foldJourney!(
       cases,
       '/repo',
@@ -212,7 +212,7 @@ describe.runIf(nativeAvailable())('the native case fold', () => {
 
     native()!.foldJourneyTo!(cases, '/repo', [nativeModule(module)], output);
     const owners = (bytes: Uint8Array) => openSetExecutionIndex(bytes)!.modules.map((row) => [...row.owner ?? []]);
-    const caseIndex = foldCases(cases, '/repo', new Map([['src/branch.ts', module]]), { budget: 64 });
+    const caseIndex = await foldCases(cases, '/repo', new Map([['src/branch.ts', module]]), { budget: 64 });
 
     expect(owners(await readFile(output))).toEqual(owners(caseIndex.bytes));
     expect(owners(await readFile(output))).toEqual([[NO_OWNER, 0, 1, 1]]);
@@ -238,16 +238,16 @@ describe('the case fold without the native addon', () => {
   };
 
   it('refuses to fold a run, naming why the addon did not load', async () => {
-    const { freshCases } = await loaded(() => undefined);
+    const { foldCases: fold } = await loaded(() => undefined);
 
-    await expect(freshCases('/cases', '/repo', new Map(), { tests: [] }))
+    await expect(fold('/cases', '/repo', new Map()))
       .rejects.toThrow('the case fold requires the Sense native addon: @variance-authority/sense-linux-x64-gnu is not installed');
   });
 
   it('refuses to fold with an addon that has no case fold, naming the missing call', async () => {
     const { foldCases: fold } = await loaded(() => ({}));
 
-    expect(() => fold('/cases', '/repo', new Map()))
-      .toThrow('the case fold requires the Sense native addon: the loaded addon has no `openCaseJournals`');
+    await expect(fold('/cases', '/repo', new Map()))
+      .rejects.toThrow('the case fold requires the Sense native addon: the loaded addon has no `openCaseJournals`');
   });
 });

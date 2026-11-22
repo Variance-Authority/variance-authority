@@ -25,7 +25,7 @@ import { instrumentationId, type InstrumentMode } from '../instrument/index.js';
 import { probesRegions } from '../instrument/identity.js';
 import { askedForStories } from '../story/directory.js';
 import { CUT_VARIABLE, cutFiles, removeCut } from './case-cut.js';
-import { freshCases } from './case-fold.js';
+import { foldCases, freshCases } from './case-fold.js';
 import { caseAttempts } from './case-attempts.js';
 import { jestAttempts, type JestAttempts } from './jest-attempts.js';
 import { caseDurations, finishedCase } from './case-durations.js';
@@ -270,12 +270,10 @@ class JestCoverageReporter {
     }));
     const cases = caseDirectory === undefined
       ? undefined
-      : await freshCases(caseDirectory, root, modules, {
-          tests,
-          ...(commit === undefined ? {} : { commit }),
-          durations: caseDurations(reported, root),
-          tried: caseAttempts(reported, root),
-        });
+      : await freshCases(
+          foldCases(caseDirectory, root, modules, { durations: caseDurations(reported, root), tried: caseAttempts(reported, root) }),
+          { tests, ...(commit === undefined ? {} : { commit }) },
+        );
     const merged = await withIndexLock(coverageFile, async (lock) => {
       // The repository's snapshot becomes this checkout's before the first run
       // lands on it, so a worktree layers onto months of recording rather than

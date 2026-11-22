@@ -66,8 +66,8 @@ describe('what a run wrote, read back', () => {
   it('names the cases the same whichever worker finished first', async () => {
     const root = await mkdtemp(resolve(tmpdir(), 'variance-authority-write-order-'));
     temporary.push(root);
-    const forwards = foldCases((await finishedIn(root, workers)).caseDirectory, root, new Map());
-    const backwards = foldCases((await finishedIn(root, [...workers].reverse())).caseDirectory, root, new Map());
+    const forwards = await foldCases((await finishedIn(root, workers)).caseDirectory, root, new Map());
+    const backwards = await foldCases((await finishedIn(root, [...workers].reverse())).caseDirectory, root, new Map());
 
     expect(decodeExecutionIndex(backwards.bytes).tests).toEqual(decodeExecutionIndex(forwards.bytes).tests);
     expect(backwards.cases).toBe(workers.length);
