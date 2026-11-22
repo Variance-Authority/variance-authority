@@ -310,7 +310,6 @@ export function formatNamedFiles(
   read: readonly FileDeclarations[] | undefined,
   { rest = false, scoped = false, unshown = [] }: { readonly rest?: boolean; readonly scoped?: boolean; readonly unshown?: readonly { readonly word: string; readonly more: number }[] } = {},
 ): string {
-  if (asked.length === 0) return '';
   const held = new Map((read ?? []).map((file) => [file.file, file] as const));
   const rows = asked.map((at) => {
     if (read === undefined) return `  ${at} — no source index was published; \`variance index\` reads it`;
