@@ -37,16 +37,7 @@ export function foldModules(modules: ReadonlyMap<ModuleId, CapturedModule>): Nat
   const end = new Uint32Array(count);
   const source = new Uint8Array(count);
   const owner = new Uint32Array(count);
-  const strings: string[] = [];
-  const held = new Map<string, number>();
-  const string = (value: string): number => {
-    let at = held.get(value);
-    if (at === undefined) {
-      at = strings.push(value) - 1;
-      held.set(value, at);
-    }
-    return at;
-  };
+  const { strings, at: string } = stringTable();
   const ids: string[] = [];
   const files: string[] = [];
   let at = 0;
@@ -69,6 +60,27 @@ export function foldModules(modules: ReadonlyMap<ModuleId, CapturedModule>): Nat
   }
   blocks[ids.length] = at;
   return { ids, files, blocks, ordinal, kind, name, path, start, end, source, owner, strings };
+}
+
+/**
+ * A list of strings each held once, in the order first asked, and `at`, a
+ * string's index in it: how a column of strings is handed to the addon, so a
+ * string named by many rows crosses over once.
+ */
+export function stringTable(): { readonly strings: string[]; readonly at: (value: string) => number } {
+  const strings: string[] = [];
+  const held = new Map<string, number>();
+  return {
+    strings,
+    at: (value) => {
+      let at = held.get(value);
+      if (at === undefined) {
+        at = strings.push(value) - 1;
+        held.set(value, at);
+      }
+      return at;
+    },
+  };
 }
 
 /** What stopped the addon loading, or which export the addon that did load lacks. */

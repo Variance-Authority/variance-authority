@@ -57,9 +57,12 @@ export interface NativeCoverageRows {
   readonly blockOrdinal: Uint32Array;
   readonly blockKind: Uint8Array;
   readonly blockOwner: Uint32Array;
-  readonly blockDigest: string[];
-  readonly blockName: string[];
-  readonly blockPath: string[];
+  /** A region's digest, name and path, as indexes into `blockStrings`. */
+  readonly blockDigest: Uint32Array;
+  readonly blockName: Uint32Array;
+  readonly blockPath: Uint32Array;
+  /** The strings regions name, each once. */
+  readonly blockStrings: string[];
   readonly blockStart: Uint32Array;
   readonly blockEnd: Uint32Array;
   readonly blockSource: Uint8Array;

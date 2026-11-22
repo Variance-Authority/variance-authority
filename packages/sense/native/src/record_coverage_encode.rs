@@ -50,9 +50,12 @@ pub struct CoverageRows {
     pub block_ordinal: Uint32Array,
     pub block_kind: Uint8Array,
     pub block_owner: Uint32Array,
-    pub block_digest: Vec<String>,
-    pub block_name: Vec<String>,
-    pub block_path: Vec<String>,
+    /// A region's digest, name and path, as indexes into `block_strings`.
+    pub block_digest: Uint32Array,
+    pub block_name: Uint32Array,
+    pub block_path: Uint32Array,
+    /// The strings regions name, each once.
+    pub block_strings: Vec<String>,
     pub block_start: Uint32Array,
     pub block_end: Uint32Array,
     pub block_source: Uint8Array,
@@ -142,6 +145,11 @@ fn columns(rows: &CoverageRows) -> Result<Vec<Column>, String> {
         ids.dedup();
         Ok(pool.intern(&ids))
     };
+    // A region's strings are interned once each, as the first region naming one reaches it.
+    let mut block_ids: Vec<Option<u32>> = vec![None; rows.block_strings.len()];
+    let mut block_string = |at: u32, dictionary: &mut Dictionary| -> u32 {
+        *block_ids[at as usize].get_or_insert_with(|| dictionary.id(&rows.block_strings[at as usize]))
+    };
     let mut written: Vec<Module> = Vec::with_capacity(modules);
     for module in module_order {
         let range = rows.module_blocks[module] as usize..rows.module_blocks[module + 1] as usize;
@@ -156,9 +164,9 @@ fn columns(rows: &CoverageRows) -> Result<Vec<Column>, String> {
                 kind: rows.block_kind[block],
                 source: rows.block_source[block],
                 owner: rows.block_owner[block],
-                digest: dictionary.id(&rows.block_digest[block]),
-                name: dictionary.id(&rows.block_name[block]),
-                path: dictionary.id(&rows.block_path[block]),
+                digest: block_string(rows.block_digest[block], &mut dictionary),
+                name: block_string(rows.block_name[block], &mut dictionary),
+                path: block_string(rows.block_path[block], &mut dictionary),
                 start: rows.block_start[block],
                 end: rows.block_end[block],
                 called,
@@ -225,6 +233,12 @@ fn shaped(rows: &CoverageRows, tests: usize, modules: usize, blocks: usize) -> R
         let sound = offsets.first() == Some(&0) && offsets.windows(2).all(|pair| pair[0] <= pair[1]) && offsets.last().is_some_and(|end| *end as usize == within);
         if sound { Ok(()) } else { Err(format!("coverage rows' {name} offsets do not cover what they index")) }
     };
+    let table = rows.block_strings.len();
+    for (name, column) in [("blocks.digest", &rows.block_digest), ("blocks.name", &rows.block_name), ("blocks.path", &rows.block_path)] {
+        if let Some(at) = column.iter().find(|at| **at as usize >= table) {
+            return Err(format!("coverage rows' {name} names string {at}, past the {table} held"));
+        }
+    }
     bounded("tests.preconditions", &rows.test_preconditions, rows.precondition_name.len())?;
     bounded("modules.blocks", &rows.module_blocks, blocks)?;
     bounded("blocks.called", &rows.called_offsets, rows.called.len())?;

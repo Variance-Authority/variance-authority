@@ -20,6 +20,7 @@ import { native, nativeRefusal } from '../addon.js';
 import type { NativeCoverageRows } from '../native-record.js';
 import type { NativeRunCrossed } from '../native-run-crossings.js';
 import { openTestCoverage } from './format-view.js';
+import { stringTable } from './native-modules.js';
 import { NO_LINE, writtenLines } from './written-lines.js';
 
 /**
@@ -77,23 +78,16 @@ export function coverageRows(coverage: RunCoverage): NativeCoverageRows {
   const blockOrdinal = new Uint32Array(blockCount);
   const blockKind = new Uint8Array(blockCount);
   const blockOwner = new Uint32Array(blockCount);
-  const blockDigest: string[] = [];
-  const blockName: string[] = [];
-  const blockPath: string[] = [];
+  // A region's strings are handed over once each: a path is named by every region of its module.
+  const blockDigest = new Uint32Array(blockCount);
+  const blockName = new Uint32Array(blockCount);
+  const blockPath = new Uint32Array(blockCount);
+  const { strings: blockStrings, at: blockString } = stringTable();
   const blockStart = new Uint32Array(blockCount);
   const blockEnd = new Uint32Array(blockCount);
   const blockSource = new Uint8Array(blockCount);
   // A crosser is named once, and a region names it by its index.
-  const members: string[] = [];
-  const memberIds = new Map<string, number>();
-  const member = (testFile: string): number => {
-    let id = memberIds.get(testFile);
-    if (id === undefined) {
-      id = members.push(testFile) - 1;
-      memberIds.set(testFile, id);
-    }
-    return id;
-  };
+  const { strings: members, at: member } = stringTable();
   const calledOffsets = new Uint32Array(blockCount + 1);
   const called: number[] = [];
   const loadedOffsets = new Uint32Array(blockCount + 1);
@@ -105,9 +99,9 @@ export function coverageRows(coverage: RunCoverage): NativeCoverageRows {
       blockOrdinal[blockIndex] = block.ordinal;
       blockKind[blockIndex] = kindId(block.kind);
       blockOwner[blockIndex] = block.owner ?? NO_OWNER;
-      blockDigest.push(block.digest);
-      blockName.push(block.name);
-      blockPath.push(block.path);
+      blockDigest[blockIndex] = blockString(block.digest);
+      blockName[blockIndex] = blockString(block.name);
+      blockPath[blockIndex] = blockString(block.path);
       blockStart[blockIndex] = block.startLine ?? NO_LINE;
       blockEnd[blockIndex] = block.endLine ?? NO_LINE;
       blockSource[blockIndex] = block.source ? 1 : 0;
@@ -145,6 +139,7 @@ export function coverageRows(coverage: RunCoverage): NativeCoverageRows {
     blockDigest,
     blockName,
     blockPath,
+    blockStrings,
     blockStart,
     blockEnd,
     blockSource,
