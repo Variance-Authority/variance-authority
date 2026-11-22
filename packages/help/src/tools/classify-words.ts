@@ -229,10 +229,12 @@ export function formatClassified(
     }
   }
   // What each entity is asked next: a word that names a source file nothing, since the
-  // file is already the answer; an exported or a declared name is read by `symbol`, a published package or
+  // file is already the answer, unless a start point was said, which the file may lie
+  // outside, and then the named-file block leaves it out; an exported or a declared name is read by `symbol`, a published package or
   // entrypoint counted by `entrypoint`, and a package that publishes nothing
   // placed by `orient` on its area, if one took it.
-  const asks = entities.flatMap(({ word, names }) => names.some(namesSource) ? [] : names.flatMap((named) => {
+  const scoped = (said.from?.length ?? 0) > 0 || (said.to?.length ?? 0) > 0;
+  const asks = entities.flatMap(({ word, names }) => !scoped && names.some(namesSource) ? [] : names.flatMap((named) => {
     if (named.kind === 'export' || named.kind === 'declared') return [`variance ask symbol --name ${shell(word)}`];
     if (named.published) return [`variance ask entrypoint --package ${shell(named.specifier)}`];
     const area = packages.get(named.package)?.area;
@@ -318,7 +320,11 @@ export function formatNamedFiles(
       .filter((one) => LISTED_KINDS.has(one.kind))
       .sort((one, other) => Number(other.exported === true) - Number(one.exported === true) || one.line - other.line);
     const past = file.more > 0 ? `; ${plural(file.more, 'more top-level declaration')} past the budget, not read here` : '';
-    if (listed.length === 0) return `  ${file.file} — declares no function or class at the top level${past}`;
+    // Absent is not empty: past the budget, a function or a class may still be declared.
+    if (listed.length === 0)
+      return file.more > 0
+        ? `  ${file.file} — declares no function or class among the top-level declarations read; ${file.more} more past the budget, not read here`
+        : `  ${file.file} — declares no function or class at the top level`;
     const kept = listed.slice(0, LISTED_CAP).map((one) => `${one.name}${one.exported === true ? ' (exported)' : ''}`);
     const left = listed.length - kept.length;
     const unknown = file.declarations.some((one) => one.exported === undefined || one.exported === null)

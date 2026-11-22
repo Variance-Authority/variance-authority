@@ -313,7 +313,7 @@ describe('docs_classify', () => {
 
     expect(text.split('\n').slice(3)).toEqual([
       '  lib/unread.js — the index holds no parse of its declarations',
-      '  lib/consts.js — declares no function or class at the top level; 3 more top-level declarations past the budget, not read here',
+      '  lib/consts.js — declares no function or class among the top-level declarations read; 3 more past the budget, not read here',
       '  lib/bare.js — run (the index kept no exports of it, so none is marked exported)',
       '  lib/new_thing.js — the source index holds no record of it; `variance index` reads it',
     ]);
@@ -332,6 +332,13 @@ describe('docs_classify', () => {
 
     expect(namedFiles(located)).toEqual(['lib/child_process.js']);
     expect(formatClassified(located, PLACED)).not.toContain('variance ask symbol --name child_process');
+  });
+
+  it('still asks `symbol` for a word that names a source file when a start point may not reach that file', () => {
+    const file: Named = { kind: 'file', specifier: 'lib/child_process.js', file: 'lib/child_process.js', package: '', published: false };
+    const user: Named = { kind: 'declared', specifier: 'lib/aaa_user.js:1', file: 'lib/aaa_user.js', package: '', published: false };
+
+    expect(formatClassified({ entities: [{ word: 'child_process', names: [user, file] }], plain: [] }, PLACED, [], { from: ['app'] })).toContain('variance ask symbol --name child_process');
   });
 
   it('takes a declared word\'s first source declarer, past the tests before it', () => {
