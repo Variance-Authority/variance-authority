@@ -1431,9 +1431,6 @@
   "packages/help/src/tools/entrypoint.ts docblock": [
     17
   ],
-  "packages/help/src/tools/exported-matches.ts docblock": [
-    16
-  ],
   "packages/help/src/tools/find.ts docblock": [
     12
   ],
