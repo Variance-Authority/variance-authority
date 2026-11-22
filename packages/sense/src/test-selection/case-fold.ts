@@ -122,10 +122,8 @@ export async function foldCases(
  * `run.tests`, not worked out again from the case journals. The cases decide
  * and the modules do not: the fold keeps a module only when a case entered it.
  *
- * The fold arrives in flight: the caller starts {@link foldCases} as soon as
- * it holds the modules, and the run's own work goes on while the addon folds.
- * The caller hands the result to `landRun`, which lays it under the record's
- * lock in the same write as the coverage.
+ * `folding` is {@link foldCases} already in flight; `landRun` lays the result
+ * in the same write as the coverage.
  */
 export async function freshCases(folding: Promise<CaseFold>, run: LaidRun): Promise<FreshCases | undefined> {
   const folded = await folding;

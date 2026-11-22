@@ -12,10 +12,10 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 
 use rayon::prelude::*;
-use rustc_hash::FxHashMap;
 
+use crate::case_charge::Charge;
 use crate::case_lines;
-use crate::case_owner;
+use crate::case_reach::Reach;
 use crate::crossing_sets::{Encoded, SetPool};
 use crate::journal_scan::{self, Visitor};
 use crate::journey_format::EncodedModule;
@@ -270,70 +270,6 @@ struct Lines<'a> {
     reach: Reach,
 }
 
-/// The line each frame first reached a region of the slice at: keyed by the
-/// case for its own frame and by the file's first case for an ambient one,
-/// each map cut into shards by key so many replays' reaches merge at once.
-struct Reach {
-    width: u64,
-    own: Vec<FxHashMap<u64, u64>>,
-    ambient: Vec<FxHashMap<u64, u64>>,
-}
-
-const SHARDS: usize = 64;
-
-fn shard(key: u64) -> usize {
-    (key.wrapping_mul(0x9E37_79B9_7F4A_7C15) >> 58) as usize
-}
-
-impl Reach {
-    fn new(width: usize) -> Self {
-        let maps = || (0..SHARDS).map(|_| FxHashMap::default()).collect();
-        Reach { width: width as u64, own: maps(), ambient: maps() }
-    }
-
-    fn key(&self, test: u32, local: usize) -> u64 {
-        u64::from(test) * self.width + local as u64
-    }
-
-    fn reached(&mut self, test: u32, local: usize, line: u32, ambient: bool) {
-        let key = self.key(test, local);
-        let held = if ambient { &mut self.ambient } else { &mut self.own };
-        held[shard(key)].entry(key).or_insert(u64::from(line) * 2 + u64::from(ambient));
-    }
-
-    fn get(&self, ambient: bool, test: u32, local: usize) -> Option<u64> {
-        let key = self.key(test, local);
-        let held = if ambient { &self.ambient } else { &self.own };
-        held[shard(key)].get(&key).copied()
-    }
-
-    /// The replays' reaches as one, earliest first: a region keeps the line
-    /// of the first replay that reached it, as one replay in order would.
-    fn merged(width: usize, reaches: Vec<Reach>) -> Reach {
-        let mut own: Vec<Vec<FxHashMap<u64, u64>>> = (0..SHARDS).map(|_| Vec::with_capacity(reaches.len())).collect();
-        let mut ambient: Vec<Vec<FxHashMap<u64, u64>>> = (0..SHARDS).map(|_| Vec::with_capacity(reaches.len())).collect();
-        for reach in reaches {
-            for (at, map) in reach.own.into_iter().enumerate() {
-                own[at].push(map);
-            }
-            for (at, map) in reach.ambient.into_iter().enumerate() {
-                ambient[at].push(map);
-            }
-        }
-        let first = |maps: Vec<FxHashMap<u64, u64>>| {
-            let mut maps = maps.into_iter();
-            let mut held = maps.next().unwrap_or_default();
-            for later in maps {
-                for (key, line) in later {
-                    held.entry(key).or_insert(line);
-                }
-            }
-            held
-        };
-        Reach { width: width as u64, own: own.into_par_iter().map(first).collect(), ambient: ambient.into_par_iter().map(first).collect() }
-    }
-}
-
 impl<'a> Lines<'a> {
     fn new(run: &CaseRun, lined: &'a [bool]) -> Self {
         let mut file_start = vec![0; run.tests.len()];
@@ -372,94 +308,6 @@ impl<'a> Lines<'a> {
             .map(|(builder, lined)| if *lined { builder.unwrap_or_default().finish(None) } else { Vec::new() })
             .collect()
     }
-}
-
-/// Where the frame being replayed is charged: one case, a case file's range,
-/// or the cases a part frame's journey belongs to. The fold and the count of
-/// unrecorded modules resolve frames through this one reading, so the two
-/// cannot disagree on who ran what.
-pub(crate) struct Charge<'a> {
-    run: &'a CaseRun,
-    case_frame: usize,
-    test_first: u32,
-    test_last: u32,
-    /// Whether the frame is a file's ambient one, charged to its whole range.
-    ambient: bool,
-    /// The cases a part frame is charged to; cases themselves use the range.
-    targets: &'a [u32],
-    /// The part file being replayed, once the case frames are done.
-    part: Option<usize>,
-}
-
-impl<'a> Charge<'a> {
-    pub(crate) fn new(run: &'a CaseRun) -> Self {
-        Self::at(run, 0)
-    }
-
-    /// Charge from the `case_frame`th case frame on, as a journal replayed on its own begins.
-    fn at(run: &'a CaseRun, case_frame: usize) -> Self {
-        Charge { run, case_frame, test_first: 0, test_last: 0, ambient: false, targets: &[], part: None }
-    }
-
-    /// Whether the frame is charged to no case.
-    pub(crate) fn nobody(&self) -> bool {
-        self.test_first == self.test_last && self.targets.is_empty()
-    }
-
-    pub(crate) fn test(&mut self, packed: &str) -> Result<(), String> {
-        let run = self.run;
-        self.ambient = false;
-        if let Some(part) = self.part {
-            let journey = case_owner::journey_of(packed);
-            self.test_first = 0;
-            self.test_last = 0;
-            // A journey no case handed out is work the writer did for nobody in
-            // particular: a trace its tracer started at import, or a request
-            // from outside the run. That is every case it served, the same as
-            // work under no journey at all.
-            self.targets = if journey.is_empty() {
-                &run.part_tests[part]
-            } else {
-                run.journey_tests.get(journey).map_or(&run.part_tests[part], Vec::as_slice)
-            };
-            return Ok(());
-        }
-        let (file, name, id, _) = case_owner::unpack_case(packed);
-        if name.is_empty() && id.is_empty() {
-            let normalized = case_owner::project_path(&run.root, file);
-            let range = run.tests_by_file.get(&normalized).copied().unwrap_or((0, 0));
-            self.test_first = range.0;
-            self.test_last = range.1;
-            self.ambient = true;
-        } else {
-            let test = run
-                .frame_tests
-                .get(self.case_frame)
-                .copied()
-                .ok_or_else(|| "case journal replay changed while it was being folded".to_owned())?;
-            self.case_frame += 1;
-            self.test_first = test;
-            self.test_last = test + 1;
-        }
-        Ok(())
-    }
-}
-
-pub(crate) trait Charged<'a>: Visitor {
-    fn charge(&mut self) -> &mut Charge<'a>;
-}
-
-/// Replay every case journal, then every part, charging each frame.
-pub(crate) fn replay_run<'a>(run: &CaseRun, visitor: &mut impl Charged<'a>) -> Result<(), String> {
-    journal_scan::replay(&run.paths, visitor)?;
-    if visitor.charge().case_frame != run.frame_tests.len() {
-        return Err("case journal replay changed while it was being folded".to_owned());
-    }
-    for (at, path) in run.parts.iter().enumerate() {
-        visitor.charge().part = Some(at);
-        journal_scan::replay_part(path, visitor)?;
-    }
-    Ok(())
 }
 
 /// What every journal's replay of one module slice shares.

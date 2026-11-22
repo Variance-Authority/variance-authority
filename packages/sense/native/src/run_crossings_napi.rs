@@ -51,6 +51,7 @@ fn carried(journals: Vec<CarriedJournal>) -> Vec<Carried> {
 }
 
 /// Every module id the journals name, each once.
+/// bound: the modules one run's journals name
 #[napi(catch_unwind)]
 pub fn run_module_ids(journals: Vec<Buffer>, pages: Vec<CarriedJournal>) -> napi::Result<Vec<String>> {
     let frames: Vec<&[u8]> = journals.iter().map(|bytes| bytes.as_ref()).collect();
@@ -60,6 +61,7 @@ pub fn run_module_ids(journals: Vec<Buffer>, pages: Vec<CarriedJournal>) -> napi
 /// The run's journals — the workers' frames, then the pages' — folded into
 /// crossings under the checkout at `root`. `placed`, when given, is every module
 /// the run could place.
+/// bound: the modules one run's journals name
 #[napi(catch_unwind)]
 pub fn run_crossings(
     journals: Vec<Buffer>,

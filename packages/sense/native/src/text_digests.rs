@@ -25,6 +25,7 @@ pub fn text_digests(paths: Vec<String>) -> Result<Vec<String>> {
 
 /// Each path's text digest, in the order given: `null` where no file is there,
 /// as `readTexts` has it, and any other failure to read an error naming the file.
+/// bound: the paths the caller names
 #[napi(catch_unwind)]
 pub fn read_digests(paths: Vec<String>) -> Result<Vec<Option<String>>> {
     paths

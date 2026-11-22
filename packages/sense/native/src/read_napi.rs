@@ -41,6 +41,7 @@ pub fn read_language(_language: String, _source: String) -> Option<String> {
 /// file is there, as `readFileSync`'s `ENOENT`. Bytes that are not UTF-8 read as
 /// U+FFFD, as `readFileSync(path, 'utf8')` reads them; any other failure to
 /// read is an error naming the file.
+/// bound: the paths the caller names
 #[napi(catch_unwind)]
 pub fn read_texts(paths: Vec<String>) -> napi::Result<Vec<Option<String>>> {
     use rayon::prelude::*;

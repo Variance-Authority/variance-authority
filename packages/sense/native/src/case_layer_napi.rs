@@ -141,6 +141,7 @@ pub struct CaseRunLaid {
 /// meanwhile. `edits` holds every module the run recorded from another text
 /// than `same_text` names, read before; `kept` is the record's readings
 /// section and `inputs` each test file's inputs as `[file, digest]`.
+/// bound: the modules one run recorded and its test files
 #[napi(ts_return_type = "Promise<CaseRunLaid>")]
 pub fn lay_case_run(previous: Option<Buffer>, fresh: Buffer, files: CaseRunFiles, edits: Vec<CaseGivenEdit>, kept: Option<Buffer>, inputs: Option<Vec<Vec<String>>>) -> napi::Result<AsyncTask<OffThread<CaseRunLaid>>> {
     let inputs = inputs

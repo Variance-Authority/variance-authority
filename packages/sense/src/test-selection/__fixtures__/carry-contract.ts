@@ -484,7 +484,7 @@ export function touching(text: string, label: string): string {
 /** The exact cases the record names as its last run. */
 export async function lastCases(walk: Walk): Promise<readonly string[]> {
   // Defer the reader so the fault-injection harness installs its edit-reading mock before the landing loads.
-  const { lastCaseRunOf } = await import('../case-landing.js');
+  const { lastCaseRunOf } = await import('../case-last-run.js');
   return lastCaseRunOf(caseSectionsAt(walk.coverageFile))!.cases;
 }
 

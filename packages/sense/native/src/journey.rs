@@ -31,7 +31,8 @@ pub(crate) mod case_layer_modules;
 #[path = "case_layer_napi.rs"]
 pub(crate) mod case_layer_napi;
 
-use journey_fold::{fold, replay_run, Charge, Charged, Folded, Placed};
+use crate::case_charge::{replay_run, Charge, Charged};
+use journey_fold::{fold, Folded, Placed};
 
 const DEFAULT_BUDGET: usize = 512 * 1_048_576;
 

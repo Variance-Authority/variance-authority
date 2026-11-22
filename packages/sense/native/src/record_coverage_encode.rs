@@ -72,12 +72,14 @@ pub struct CoverageRows {
 }
 
 /// The coverage record `rows` describe, or a refusal naming what is wrong with them.
+/// bound: the modules and tests of one record
 #[napi(catch_unwind)]
 pub fn encode_coverage(rows: CoverageRows) -> napi::Result<Buffer> {
     encoded(&rows).map(Buffer::from).map_err(napi::Error::from_reason)
 }
 
 /// What each test file of `rows` ran over, as `[file, digest]` in row order.
+/// bound: one run's test files
 #[napi(catch_unwind)]
 pub fn coverage_inputs(rows: CoverageRows) -> napi::Result<Vec<Vec<String>>> {
     let inputs = record_coverage_crossers::inputs(&rows).map_err(napi::Error::from_reason)?;

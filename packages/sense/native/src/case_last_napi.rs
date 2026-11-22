@@ -41,6 +41,7 @@ impl Rows {
 }
 
 /// The id of each of `rows` in `index`, absent for a row the index does not hold.
+/// bound: the rows the caller names
 #[napi(catch_unwind)]
 pub fn case_row_ids(index: napi::bindgen_prelude::Buffer, rows: Vec<u32>) -> napi::Result<Vec<Option<String>>> {
     let held = Rows::open(&index).map_err(napi::Error::from_reason)?;
@@ -59,6 +60,7 @@ pub struct CasesOfFile {
 
 /// The cases the last-run layer `last` names, by test file in the order
 /// `index` first holds each, each file's cases in index order.
+/// bound: the cases one run executed
 #[napi(catch_unwind)]
 pub fn cases_ran_of(last: napi::bindgen_prelude::Buffer, index: napi::bindgen_prelude::Buffer) -> napi::Result<Vec<CasesOfFile>> {
     ran(&last, &index).map_err(napi::Error::from_reason)

@@ -3,7 +3,8 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, expect, it } from 'vitest';
-import { lastCaseRunOf, layCases } from './case-landing.js';
+import { layCases } from './case-landing.js';
+import { lastCaseRunOf } from './case-last-run.js';
 import { encodeAsSetExecutionIndex } from './execution-set-format.js';
 
 let root: string;
