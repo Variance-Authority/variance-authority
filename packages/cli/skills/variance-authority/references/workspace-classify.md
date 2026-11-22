@@ -5,8 +5,8 @@ request's words are, whole, a package's name or that name without its scope, an
 entrypoint's specifier (both matched without case), or a published exported
 name (matched as spelled). A word shaped as an identifier — a capital past its
 first letter, an underscore, or a digit after a letter — that is none of those
-is then looked up as spelled among the top-level names files declare, exported
-or not, and the tracked files whose name without its extension it is:
+is then looked up as spelled among the lines `symbol --name` names as
+declaring it, and the tracked files whose name before its first dot it is:
 in Node.js, `ModuleLoader` is declared in the ESM loader's file, at its line,
 and `child_process` is the file of that name under `lib/`. Ordinary source comes before
 tests and stories, then the file more files import; three of each are shown and

@@ -136,7 +136,7 @@ function unpackaged(): string {
     mkdirSync(dirname(join(root, path)), { recursive: true });
     writeFileSync(join(root, path), text);
   };
-  write('test/loader.test.js', "'use strict';\n\nclass ModuleLoader {}\n\nmodule.exports = { ModuleLoader };\n");
+  write('test/loader.test.js', "'use strict';\n\nclass ModuleLoader {}\n\nnew ModuleLoader();\n");
   write('lib/loader.js', "'use strict';\n\nclass ModuleLoader {\n  load() { return 1; }\n}\n\nmodule.exports = { ModuleLoader };\n");
   write('lib/child_process.js', "'use strict';\n\nfunction spawn() { return 0; }\n\nmodule.exports = { spawn };\n");
   write('lib/checkout.js', "'use strict';\n\nfunction checkoutPath() { return '.'; }\n\nmodule.exports = { checkoutPath };\n");
@@ -310,8 +310,14 @@ describe('variance ask classify', () => {
     const asked = await run(['ask', 'classify', '--query', 'ModuleLoader loader']);
 
     expect(asked.code).toBe(EXIT_CLEAN);
-    expect(asked.out).toMatch(/^ModuleLoader — declared lib\/loader\.js:3 · in no package$/m);
-    expect(asked.out).toMatch(/^ {12} — declared test\/loader\.test\.js:3 · in no package$/m);
+    // `symbol --name ModuleLoader` names the same lines: the binding `lib/main.js` destructures is one of them.
+    expect(asked.out).toContain(
+      [
+        'ModuleLoader — declared lib/loader.js:3 · in no package',
+        '             — declared lib/main.js:3 · in no package',
+        '             — declared test/loader.test.js:3 · in no package',
+      ].join('\n'),
+    );
     expect(asked.out).toContain('variance ask symbol --name ModuleLoader');
   });
 

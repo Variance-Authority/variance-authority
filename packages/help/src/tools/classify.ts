@@ -1,6 +1,6 @@
 // compass: variance-authority.report.agent-surface
 
-import { START_POINT_SCHEMA, saysStartPoint, startPointArg, type Tool, type Tree } from '@variance-authority/mcp/tools';
+import { START_POINT_SCHEMA, saysStartPoint, startPointArg, type Tool, type ToolInvocation } from '@variance-authority/mcp/tools';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import { kindOf, type Help } from '@variance-authority/package/help';
 import { classifiedAreas, describedWordsNative, filesNamed, packageLayers, sourceIndexPath } from '@variance-authority/sense';
@@ -8,9 +8,9 @@ import { searchIndexOf, storeBytesOf } from '../snapshot.js';
 import { reachLine, reachOf } from './area.js';
 import { classifyWords, formatClassified, identifier, ownerOf, placedAreas, wordsOf, type CodeMapPlaces, type Locate, type Named, type StartPoint } from './classify-words.js';
 import { noCodeMap, unfoldedCodeMap } from './code-map-format.js';
-import { answering, says } from './declaration-key.js';
-import { declarations } from './declared.js';
+import { FoundNothing } from './find.js';
 import { termsOfStems } from './loose.js';
+import { declaredInCheckout } from './symbol.js';
 
 /** How many declarations or files of one word are written out before the rest are counted. */
 const LOCATED_CAP = 3;
@@ -44,33 +44,20 @@ interface Found {
 }
 
 /**
- * Where each identifier-shaped word is declared at top level, exported or not,
- * and which tracked files are named it: ordinary source before tests and
- * stories, then the files more files import first, then by path in code units
- * and line. The first few of each kind are kept, and the rest counted.
+ * Where each identifier-shaped word is declared, as `symbol` answers it, and
+ * which tracked files are named it: ordinary source before tests and stories,
+ * then the files more files import first, then by path in code units and
+ * line. The first few of each kind are kept, and the rest counted.
  */
-function locating(help: Help, root: string, places: CodeMapPlaces, tree: Tree | undefined): Locate {
+function locating(help: Help, root: string, places: CodeMapPlaces, invocation: ToolInvocation<Help> | undefined): Locate {
   return (words) => {
     const owning = ownerOf(places.packages);
     const files = filesNamed(root, words, FILES_READ);
     const named = 'unread' in files ? new Map<string, { readonly files: readonly string[]; readonly count: number }>() : files;
-    const declared = new Map<string, readonly Found[]>();
-    for (const word of words) {
-      const read = declarations(root, word);
-      const kept = 'refused' in read ? [] : read.names.filter((one) => one.holderLine == null && one.on == null);
-      const found = new Map<string, Found>();
-      for (const one of kept) found.set(`${one.at}:${one.line}`, { at: one.at, line: one.line, test: one.fileKind !== 'source' });
-      // An export binds a declaration of its own file; one only passing a name on declares nothing.
-      for (const one of answering(help, root, word)) {
-        if (one.bound === undefined || !(says(one.name, word) || one.bound === word)) continue;
-        const line = one.boundLine ?? one.line;
-        found.set(`${one.at}:${line}`, { at: one.at, line, test: kindOf(one.at) !== 'source' });
-      }
-      declared.set(word, [...found.values()]);
-    }
+    const declared = new Map(words.map((word) => [word, declaredBy(help, word, invocation)] as const));
     // One read of the import graph counts every path either kind holds.
     const paths = [...new Set([...[...declared.values()].flatMap((found) => found.map((one) => one.at)), ...[...named.values()].flatMap((one) => one.files)])];
-    const counts = tree === undefined || paths.length === 0 ? [] : tree.importers(paths);
+    const counts = invocation?.tree === undefined || paths.length === 0 ? [] : invocation.tree.importers(paths);
     const importers = new Map(paths.map((path, at) => [path, counts[at] ?? 0]));
     const order = (one: Found, other: Found): number =>
       Number(one.test) - Number(other.test) ||
@@ -96,6 +83,23 @@ function locating(help: Help, root: string, places: CodeMapPlaces, tree: Tree | 
 }
 
 /**
+ * The lines `symbol --name <word>` names as declaring the word, written by it
+ * as spelled, so the next question classify offers answers with the same
+ * files; none when `symbol` finds nothing.
+ */
+function declaredBy(help: Help, word: string, invocation: ToolInvocation<Help> | undefined): readonly Found[] {
+  try {
+    const { files, spelled } = declaredInCheckout(help, { name: word }, invocation);
+    return [...files].flatMap(([at, lines]) =>
+      lines.filter((line) => spelled.get(`${at}:${line}`)?.includes(word) === true).map((line) => ({ at, line, test: kindOf(at) !== 'source' })),
+    );
+  } catch (error) {
+    if (error instanceof FoundNothing) return [];
+    throw error;
+  }
+}
+
+/**
  * `docs_classify` — which words of the asker's own sentence are names this
  * workspace publishes, each placed on the code map.
  *
@@ -111,8 +115,8 @@ export const classify: Tool<Help> = {
     'Which words of a request, as written, name a package on the code map or what this workspace publishes. A word is an entity when it is, ' +
     'whole, the name of a package on the code map or that name without its scope, an entrypoint\'s specifier (both without case), or a ' +
     'published exported name (as spelled). A word shaped as an identifier (a capital past its first letter, an underscore, or a digit ' +
-    'after a letter) that is none of those is then, as spelled, a top-level name a file declares, exported or not, and the base name of a ' +
-    'tracked file without its extension: ordinary source before tests, then the more imported file first, three of each and the rest ' +
+    'after a letter) that is none of those is then, as spelled, a name docs_symbol finds a file declaring, and the base name of a ' +
+    'tracked file before its first dot: ordinary source before tests, then the more imported file first, three of each and the rest ' +
     'counted, each in the map package nearest at or above it, or in no package. A plain lowercase word is never looked up so, and a word ' +
     'that is only part of a name is not one. Each entity is listed with ' +
     'what it names, its package\'s area and dependency layer on the code map as docs_orient numbers them, then the ' +
@@ -144,7 +148,7 @@ export const classify: Tool<Help> = {
     // The map names the packages, so without one nothing is classified.
     const places = placesOf(root);
     if (typeof places === 'string') return places;
-    const classified = classifyWords(query, help, places.packages.keys(), locating(help, root, places, invocation?.tree));
+    const classified = classifyWords(query, help, places.packages.keys(), locating(help, root, places, invocation));
     // The addon lists what HEAD holds and ranks it, scoped by the start point's
     // walks; only the ten areas cross.
     const from = startPointArg(input, 'from');
