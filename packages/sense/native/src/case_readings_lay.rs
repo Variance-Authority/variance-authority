@@ -133,7 +133,7 @@ impl Index {
         }
         let rows: Vec<u32> = by_id.values().copied().collect();
         let regions = regions_of(self, &rows)?;
-        rows.into_iter()
+        rows.into_par_iter()
             .zip(regions)
             .map(|(row, regions)| {
                 let stopped = match self.stopped.as_ref().map(|column| column[row as usize]) {
@@ -225,37 +225,54 @@ pub(crate) fn lay(kept: Option<&[u8]>, previous: Option<&[u8]>, landed: Option<&
     let (held_back, (now, there)) = rayon::join(
         || -> Result<_, String> {
             let earlier = reads(&before, &known)?;
+            // Each case decodes on its own thread; the rows are then applied in
+            // order, so an id stored twice reads as its last row.
+            let decoded = stored
+                .par_iter()
+                .map(|(id, bytes)| Ok((id.as_str(), expanded(&decode_case(bytes).map_err(refused)?, earlier.get(id).map(|read| read.regions.as_slice())))))
+                .collect::<Result<Vec<_>, String>>()?;
             let mut holding: HashMap<&str, Vec<Reading>> = HashMap::new();
-            for (id, bytes) in &stored {
-                match expanded(&decode_case(bytes).map_err(refused)?, earlier.get(id).map(|read| read.regions.as_slice())) {
+            for (id, readings) in decoded {
+                match readings {
                     Some(readings) if !readings.is_empty() => holding.insert(id, readings),
-                    _ => holding.remove(id.as_str()),
+                    _ => holding.remove(id),
                 };
             }
             Ok((earlier, holding))
         },
         || rayon::join(|| reads(&fresh, &ran.iter().map(String::as_str).collect()), || reads(&opened, &known)),
     );
-    let ((earlier, mut holding), now, there) = (held_back?, now?, there?);
-    let mut laid: HashMap<String, Vec<Reading>> = HashMap::new();
-    for (id, reading) in &now {
-        let prior = match (holding.remove(id.as_str()), earlier.get(id)) {
-            (Some(readings), _) => readings,
-            (None, Some(was)) => vec![Reading { count: 1, stopped: was.stopped, regions: was.regions.clone() }],
-            (None, None) => Vec::new(),
-        };
-        let inputs = run.and_then(|run| run.inputs.as_ref()).and_then(|inputs| inputs.get(&reading.file));
-        let stands = inputs == held.get(&reading.file) && entered(earlier.get(id), &prior).chain(&reading.modules).all(|module| same(module));
-        let mut readings = if prior.is_empty() || !stands { Vec::new() } else { prior };
-        let found = readings.iter().position(|one| alike(one, Some(reading))).map(|at| readings.remove(at));
-        let first = match found {
-            None => Reading { count: 1, stopped: reading.stopped, regions: reading.regions.clone() },
-            Some(found) => Reading { count: found.count + 1, ..found },
-        };
-        readings.insert(0, first);
-        readings.truncate(LAYOUT.cases.readings);
-        laid.insert(id.clone(), readings);
-    }
+    let ((mut earlier, mut holding), now, there) = (held_back?, now?, there?);
+    // A file the run carried keeps what it ran over when it last ran.
+    let read: HashSet<String> = now.values().map(|reading| reading.file.clone()).collect();
+    // Each recorded case takes what was held of it out first, so the cases lay
+    // on their own threads and move their regions rather than copy them. Nothing
+    // below reads a recorded case's earlier readings again.
+    let taken: Vec<(String, Read, Option<Vec<Reading>>, Option<Read>)> =
+        now.into_iter().map(|(id, reading)| (holding.remove(id.as_str()), earlier.remove(&id), id, reading)).map(|(prior, was, id, reading)| (id, reading, prior, was)).collect();
+    let mut laid: HashMap<String, Vec<Reading>> = taken
+        .into_par_iter()
+        .map(|(id, reading, prior, mut was)| {
+            // Held readings stand in for the case's earlier read; without them,
+            // the read itself is the one reading, its regions moved, not copied.
+            let prior = match prior {
+                Some(readings) => readings,
+                None => was.as_mut().map(|was| vec![Reading { count: 1, stopped: was.stopped, regions: std::mem::take(&mut was.regions) }]).unwrap_or_default(),
+            };
+            let inputs = run.and_then(|run| run.inputs.as_ref()).and_then(|inputs| inputs.get(&reading.file));
+            let stands = inputs == held.get(&reading.file) && entered(was.as_ref(), &prior).chain(&reading.modules).all(|module| same(module));
+            let mut readings = if prior.is_empty() || !stands { Vec::new() } else { prior };
+            let Read { stopped, regions, .. } = reading;
+            let found = readings.iter().position(|one| one.stopped == stopped && one.regions == regions).map(|at| readings.remove(at));
+            let first = match found {
+                None => Reading { count: 1, stopped, regions },
+                Some(found) => Reading { count: found.count + 1, ..found },
+            };
+            readings.insert(0, first);
+            readings.truncate(LAYOUT.cases.readings);
+            (id, readings)
+        })
+        .collect();
     // A case the run did not record keeps its readings while the code they
     // read stands: a module the run recorded at another text drops them.
     let moved: HashSet<&str> = recorded.iter().copied().filter(|file| !same(file)).collect();
@@ -271,11 +288,9 @@ pub(crate) fn lay(kept: Option<&[u8]>, previous: Option<&[u8]>, landed: Option<&
     // One run, as the index holds it, is what the index already says.
     laid.retain(|id, readings| !(readings.len() == 1 && readings[0].count == 1 && alike(&readings[0], there.get(id))));
     let files = opened.as_ref().map(Index::test_files).transpose()?.unwrap_or_default();
-    // A file the run carried keeps what it ran over when it last ran.
-    let read: HashSet<&str> = now.values().map(|reading| reading.file.as_str()).collect();
     let mut inputs = held.clone();
     for (file, digest) in run.and_then(|run| run.inputs.as_ref()).into_iter().flatten() {
-        if read.contains(file.as_str()) {
+        if read.contains(file) {
             inputs.insert(file.clone(), digest.clone());
         }
     }
@@ -316,11 +331,9 @@ fn expanded(stored: &[Stored], base: Option<&[Region]>) -> Option<Vec<Reading>> 
         return None;
     }
     let newest = applied(first, base.unwrap_or_default());
-    Some(stored.iter().enumerate().map(|(at, reading)| Reading {
-        count: reading.count,
-        stopped: reading.stopped,
-        regions: if at == 0 { newest.clone() } else { applied(reading, &newest) },
-    }).collect())
+    // The older readings are applied over the newest first, so the newest is moved in last rather than copied.
+    let rest: Vec<Reading> = stored[1..].iter().map(|reading| Reading { count: reading.count, stopped: reading.stopped, regions: applied(reading, &newest) }).collect();
+    Some(std::iter::once(Reading { count: first.count, stopped: first.stopped, regions: newest }).chain(rest).collect())
 }
 
 /// Every module a case's readings entered, as often as its regions name it in a row.
