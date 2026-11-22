@@ -9,7 +9,7 @@ use napi::bindgen_prelude::{AsyncTask, Buffer, Function};
 use napi_derive::napi;
 use rustc_hash::{FxHashMap, FxHashSet};
 
-use crate::case_readings_lay::{self, Run};
+use crate::case_readings_lay::{self, Announced, Run};
 use crate::off_thread::{off_thread, OffThread};
 
 use crate::journey_record::Block;
@@ -160,10 +160,20 @@ pub fn lay_case_run(previous: Option<Buffer>, fresh: Buffer, files: CaseRunFiles
             same_text: Some(same.iter().cloned().collect()),
             same_before_text: same_before_text.map(|files| files.into_iter().collect::<FxHashSet<_>>()),
         };
-        let layers = layer(previous.as_deref(), &fresh, &laid, base.as_deref(), before).map_err(napi::Error::from_reason)?;
-        let cases: HashSet<String> = layers.cases.iter().cloned().collect();
-        let run = Run { fresh: &fresh, announced: layers.announced.iter().cloned().collect(), same: same.into_iter().collect(), inputs };
-        let readings = case_readings_lay::lay(kept.as_deref(), previous.as_deref(), Some(&layers.merged), &cases, Some(&run)).map_err(napi::Error::from_reason)?;
+        // The readings read the record's and the run's indexes while the run is laid, and the landed one once it is.
+        let run = Run { fresh: &fresh, announced: Announced::OfFiles(laid.ran.iter().cloned().collect()), same: same.into_iter().collect(), inputs };
+        let ((layers, _), readings) = case_readings_lay::lay_while(
+            kept.as_deref(),
+            previous.as_deref(),
+            Some(&run),
+            || {
+                let layers = layer(previous.as_deref(), &fresh, &laid, base.as_deref(), before)?;
+                let cases: HashSet<String> = layers.cases.iter().cloned().collect();
+                Ok((layers, cases))
+            },
+            |(layers, cases)| (Some(layers.merged.as_slice()), cases),
+        )
+        .map_err(napi::Error::from_reason)?;
         Ok(CaseRunLaid { layers: layers_of(layers), readings: readings.map(Buffer::from) })
     }))
 }

@@ -6,7 +6,7 @@ use std::collections::{HashMap, HashSet};
 use napi::bindgen_prelude::Buffer;
 use napi_derive::napi;
 
-use super::{lay, open, readings_of, Region, Run};
+use super::{lay, open, readings_of, Announced, Region, Run};
 
 /// Lay a run's case readings over the record's; see `layReadings`. `same` is
 /// every file the run recorded from the text the landed index holds it at,
@@ -29,7 +29,7 @@ pub fn lay_readings(
             Err(_) => Err(napi::Error::from_reason("an input is a file and its digest")),
         }).collect::<napi::Result<HashMap<_, _>>>())
         .transpose()?;
-    let run = fresh.as_deref().map(|fresh| Run { fresh, announced: announced.into_iter().collect(), same: same.into_iter().collect(), inputs });
+    let run = fresh.as_deref().map(|fresh| Run { fresh, announced: Announced::Cases(announced.into_iter().collect()), same: same.into_iter().collect(), inputs });
     let cases: HashSet<String> = cases.into_iter().collect();
     lay(kept.as_deref(), previous.as_deref(), landed.as_deref(), &cases, run.as_ref()).map(|bytes| bytes.map(Buffer::from)).map_err(napi::Error::from_reason)
 }

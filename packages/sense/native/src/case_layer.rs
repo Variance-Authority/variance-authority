@@ -222,43 +222,53 @@ pub(crate) fn layer(previous: Option<&[u8]>, fresh: &[u8], files: &Files, base: 
     let lines = LaidLines::open(&held.lines, &run.lines, &cases.held_at, &cases.run_at, count)?;
     let mut layer = Layer { sets, from_held: Translation::from(pool_of(&held), cases.held_at.clone()), lines, ran };
     let run_modules = run_rows(&run);
-    let mut laid: Vec<Laid> = Vec::new();
-    for (row, recorded) in module_union(&held, &run, &run_modules) {
-        let Some(at) = recorded else {
-            let row = row.expect("a union entry names a side");
-            if let Some(kept) = layer.carried_row(&held.modules[row], &held_cuts[row], false)? {
-                if let Some(lines) = layer.lines.as_mut() {
-                    lines.carried(laid.len() as u32, row as u32)?;
+    // The before layer reads only the two indexes and the run's files, so it is
+    // cut on its own thread while the run is laid. A scoped thread, not rayon's
+    // pool: an edit may be asked of the JavaScript thread this runs on.
+    let (ran_files, same_text, same_before_text) = (&files.ran, files.same_text.as_ref(), files.same_before_text.as_ref());
+    let (held_ref, held_cuts_ref, run_ref, run_cuts_ref, run_modules_ref) = (&held, &held_cuts, &run, &run_cuts, &run_modules);
+    std::thread::scope(|scope| {
+        let cutting = before.then(|| scope.spawn(move || cut_before(held_ref, held_cuts_ref, run_ref, run_cuts_ref, run_modules_ref, ran_files, same_text, same_before_text, base)));
+        let mut laid: Vec<Laid> = Vec::new();
+        for (row, recorded) in module_union(&held, &run, &run_modules) {
+            let Some(at) = recorded else {
+                let row = row.expect("a union entry names a side");
+                if let Some(kept) = layer.carried_row(&held.modules[row], &held_cuts[row], false)? {
+                    if let Some(lines) = layer.lines.as_mut() {
+                        lines.carried(laid.len() as u32, row as u32)?;
+                    }
+                    laid.push(kept);
                 }
-                laid.push(kept);
-            }
-            continue;
+                continue;
+            };
+            let (module, cut) = (&run.modules[at], &run_cuts[at]);
+            let recorded = Recorded { file: &module.file, blocks: &cut.blocks, owners: cut.owners.as_deref(), called: &module.called, loaded: &module.loaded, overwritten: &module.overwritten };
+            // The held cases land through the edit from the text they were cut at
+            // to the text this run recorded: the regions it left alone, where it places them.
+            let over = match row {
+                Some(row) => {
+                    let edit = files.edit(&module.file)?;
+                    Some(Over { row: row as u32, module: &held.modules[row], pairing: landed_through(&held_cuts[row].blocks, &cut.blocks, cut.owners.as_deref(), edit.as_deref()) })
+                }
+                None => None,
+            };
+            let at_out = laid.len() as u32;
+            laid.push(layer.laid_on(&recorded, Some(&mut from_run), over.as_ref(), at_out, at as u32)?);
+        }
+        let ids = cases.order.iter().map(|case| match case {
+            Case::Held(row) => held.tests[*row].id.clone(),
+            Case::Run(at) => run.tests[*at].id.clone(),
+        });
+        let ids: Vec<String> = ids.collect();
+        let lines = layer.lines.take().map(LaidLines::finish);
+        let owned = held_cuts.iter().any(|cut| cut.owners.is_some());
+        let merged = write(&held, Some(&run), &cases.order, &laid, layer.sets, lines, owned)?;
+        let (before, unlined) = match cutting {
+            Some(cutting) => cutting.join().map_err(|_| "cutting the before layer panicked".to_owned())??,
+            None => (None, Vec::new()),
         };
-        let (module, cut) = (&run.modules[at], &run_cuts[at]);
-        let recorded = Recorded { file: &module.file, blocks: &cut.blocks, owners: cut.owners.as_deref(), called: &module.called, loaded: &module.loaded, overwritten: &module.overwritten };
-        // The held cases land through the edit from the text they were cut at
-        // to the text this run recorded: the regions it left alone, where it places them.
-        let over = match row {
-            Some(row) => {
-                let edit = files.edit(&module.file)?;
-                Some(Over { row: row as u32, module: &held.modules[row], pairing: landed_through(&held_cuts[row].blocks, &cut.blocks, cut.owners.as_deref(), edit.as_deref()) })
-            }
-            None => None,
-        };
-        let at_out = laid.len() as u32;
-        laid.push(layer.laid_on(&recorded, Some(&mut from_run), over.as_ref(), at_out, at as u32)?);
-    }
-    let ids = cases.order.iter().map(|case| match case {
-        Case::Held(row) => held.tests[*row].id.clone(),
-        Case::Run(at) => run.tests[*at].id.clone(),
-    });
-    let ids: Vec<String> = ids.collect();
-    let lines = layer.lines.take().map(LaidLines::finish);
-    let owned = held_cuts.iter().any(|cut| cut.owners.is_some());
-    let merged = write(&held, Some(&run), &cases.order, &laid, layer.sets, lines, owned)?;
-    let mut unlined = Vec::new();
-    let before = if before { cut_before(&held, &held_cuts, &run, &run_cuts, &run_modules, files, base, &mut unlined)? } else { None };
-    Ok(Layers { merged, cases: ids, last, announced, before, unlined })
+        Ok(Layers { merged, cases: ids, last, announced, before, unlined })
+    })
 }
 
 /// The before layer: the index the run is laid over, or `base`, cut to the
@@ -271,19 +281,21 @@ fn cut_before(
     run: &Shard,
     run_cuts: &[Inventory],
     run_modules: &FxHashMap<&str, usize>,
-    files: &Files,
+    ran: &FxHashSet<String>,
+    same_text: Option<&FxHashSet<String>>,
+    same_before_text: Option<&FxHashSet<String>>,
     base: Option<&[u8]>,
-    unlined: &mut Vec<String>,
-) -> Result<Option<Vec<u8>>, String> {
+) -> Result<(Option<Vec<u8>>, Vec<String>), String> {
+    let mut unlined = Vec::new();
     let based = match base {
         Some(bytes) => match opened(bytes) {
             Some(opened) => Some(opened),
-            None => return Ok(None),
+            None => return Ok((None, unlined)),
         },
         None => None,
     };
     let (cut, cut_cuts) = based.as_ref().map_or((held, held_cuts), |(shard, cuts)| (shard, cuts.as_slice()));
-    let ran_files: FxHashSet<&str> = files.ran.iter().map(String::as_str).chain(run.tests.iter().map(|test| test.file.as_str())).collect();
+    let ran_files: FxHashSet<&str> = ran.iter().map(String::as_str).chain(run.tests.iter().map(|test| test.file.as_str())).collect();
     let held_rows = (based.is_some()).then(|| {
         let mut last: FxHashMap<&str, usize> = FxHashMap::default();
         for (row, module) in held.modules.iter().enumerate() {
@@ -296,9 +308,9 @@ fn cut_before(
         let named = cut.modules[row].file.as_str();
         let Some(held_rows) = &held_rows else {
             let at = *run_modules.get(named)?;
-            return files.same_text.as_ref().is_some_and(|same| same.contains(named)).then(|| (named, run_cuts[at].blocks.as_slice()));
+            return same_text.is_some_and(|same| same.contains(named)).then(|| (named, run_cuts[at].blocks.as_slice()));
         };
-        if !files.same_before_text.as_ref().unwrap_or(&empty).contains(named) {
+        if !same_before_text.unwrap_or(&empty).contains(named) {
             return None;
         }
         // A landing's earlier shard may have recorded what this one did not; the
@@ -308,7 +320,8 @@ fn cut_before(
             None => held_rows.get(named).map(|row| (named, held_cuts[*row].blocks.as_slice())),
         }
     };
-    before_run(cut, cut_cuts, &ran_files, recorded_of, unlined).map(Some)
+    let laid = before_run(cut, cut_cuts, &ran_files, recorded_of, &mut unlined)?;
+    Ok((Some(laid), unlined))
 }
 
 /// Each file the run recorded, at its last module of that file.

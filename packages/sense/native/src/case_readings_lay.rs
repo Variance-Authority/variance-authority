@@ -108,6 +108,17 @@ impl Index {
         self.module_files.iter().map(|file| string(&self.strings, *file)).collect()
     }
 
+    /// The id of every case whose test file is one of `files`.
+    fn announced(&self, files: &HashSet<String>) -> Result<HashSet<String>, String> {
+        let mut ids = HashSet::new();
+        for (id, file) in self.ids.iter().zip(&self.files) {
+            if files.contains(string(&self.strings, *file)?) {
+                ids.insert(string(&self.strings, *id)?.to_owned());
+            }
+        }
+        Ok(ids)
+    }
+
     fn test_files(&self) -> Result<HashSet<&str>, String> {
         self.files.iter().map(|file| string(&self.strings, *file)).collect()
     }
@@ -186,29 +197,91 @@ impl Walked for Index {
 /// What a run tells the readings of the cases it ran: `ReadingsRun`.
 pub(crate) struct Run<'a> {
     pub fresh: &'a [u8],
-    pub announced: HashSet<String>,
+    pub announced: Announced,
     pub same: HashSet<String>,
     pub inputs: Option<HashMap<String, String>>,
+}
+
+/// The cases a run announced: named, or every case of `fresh` whose test file is one of these.
+pub(crate) enum Announced {
+    Cases(HashSet<String>),
+    OfFiles(HashSet<String>),
 }
 
 /// The readings section once `run` is laid over `previous` into `landed`, as
 /// `layReadings` documents it; absent when no case holds a reading the index
 /// does not, and no file has inputs to name.
 pub(crate) fn lay(kept: Option<&[u8]>, previous: Option<&[u8]>, landed: Option<&[u8]>, cases: &HashSet<String>, run: Option<&Run>) -> Result<Option<Vec<u8>>, String> {
+    laid_over(kept, previous, run, || Some((landed, cases)))
+}
+
+/// What `landing` lays, and the readings laid over it: everything the
+/// readings need of the other three indexes is read on another thread while
+/// `landing` runs on this one, and `view` reads what it laid as the landed
+/// index and its cases.
+pub(crate) fn lay_while<T: Send + Sync>(
+    kept: Option<&[u8]>,
+    previous: Option<&[u8]>,
+    run: Option<&Run>,
+    landing: impl FnOnce() -> Result<T, String>,
+    view: impl Fn(&T) -> (Option<&[u8]>, &HashSet<String>) + Sync,
+) -> Result<(T, Option<Vec<u8>>), String> {
+    let laid: std::sync::OnceLock<T> = std::sync::OnceLock::new();
+    let (done, landed) = std::sync::mpsc::channel::<()>();
+    let (bytes, outcome) = std::thread::scope(|scope| {
+        let (laid, view) = (&laid, &view);
+        let readings = scope.spawn(move || laid_over(kept, previous, run, || landed.recv().ok().and_then(|()| laid.get()).map(view)));
+        let outcome = landing().map(|value| {
+            let _ = laid.set(value);
+            let _ = done.send(());
+        });
+        drop(done);
+        (readings.join(), outcome)
+    });
+    outcome?;
+    let bytes = bytes.map_err(|_| "laying the readings panicked".to_owned())??;
+    Ok((laid.into_inner().expect("set once the landing succeeded"), bytes))
+}
+
+/// What the readings read before the landed index is there to read.
+struct Early<'k> {
+    before: Option<Index>,
+    fresh: Option<Index>,
+    stored: Vec<(String, &'k [u8])>,
+    held: HashMap<String, String>,
+    ran: HashSet<String>,
+}
+
+fn before_landing<'k>(kept: Option<&'k [u8]>, previous: Option<&'k [u8]>, run: Option<&'k Run<'k>>) -> Result<Early<'k>, String> {
     // The three indexes are independent until the readings meet, so each is opened and read on its own thread.
-    let ((before, kept), (fresh, opened)) = rayon::join(
+    let ((before, kept), fresh) = rayon::join(
         || rayon::join(|| previous.map(open).transpose(), || kept.map(read_readings).transpose().map_err(refused)),
-        || rayon::join(|| run.map(|run| open(run.fresh)).transpose(), || landed.map(open).transpose()),
+        || run.map(|run| open(run.fresh)).transpose(),
     );
-    let (before, opened) = (before?.flatten(), opened?.flatten());
+    let before = before?.flatten();
     let (stored, held) = kept?.map_or_else(|| (Vec::new(), HashMap::new()), |section| (section.cases, section.inputs.into_iter().collect::<HashMap<_, _>>()));
     let fresh = match fresh? {
         None => None,
         Some(index) => Some(index.ok_or_else(|| "a case fold wrote an index it cannot open".to_owned())?),
     };
+    let ran = match run.map(|run| &run.announced) {
+        None => HashSet::new(),
+        Some(Announced::Cases(cases)) => cases.clone(),
+        Some(Announced::OfFiles(files)) => fresh.as_ref().map(|index| index.announced(files)).transpose()?.unwrap_or_default(),
+    };
+    Ok(Early { before, fresh, stored, held, ran })
+}
+
+/// The readings section over the index `landing` hands over once it is laid, which is asked for only once nothing else is left to read.
+fn laid_over<'k, 'l>(
+    kept: Option<&'k [u8]>,
+    previous: Option<&'k [u8]>,
+    run: Option<&'k Run<'k>>,
+    landing: impl FnOnce() -> Option<(Option<&'l [u8]>, &'l HashSet<String>)>,
+) -> Result<Option<Vec<u8>>, String> {
+    let Early { before, fresh, stored, held, ran } = before_landing(kept, previous, run)?;
+    let ran = &ran;
     let recorded = fresh.as_ref().map(Index::modules).transpose()?.unwrap_or_default();
-    let nothing = HashSet::new();
-    let ran = run.map_or(&nothing, |run| &run.announced);
     let same = |file: &str| run.is_none_or(|run| run.same.contains(file));
     // The landed index is read for every case the record holds, a superset of
     // those still holding readings, so it need not wait on them.
@@ -216,7 +289,7 @@ pub(crate) fn lay(kept: Option<&[u8]>, previous: Option<&[u8]>, landed: Option<&
     fn reads<'i>(index: &'i Option<Index>, wanted: &HashSet<&str>) -> Result<HashMap<String, Read<'i>>, String> {
         index.as_ref().map_or_else(|| Ok(HashMap::new()), |index| index.reads(wanted))
     }
-    let (held_back, (now, there)) = rayon::join(
+    let (held_back, now) = rayon::join(
         || -> Result<_, String> {
             let earlier = reads(&before, &known)?;
             // Each case decodes on its own thread; the rows are then applied in
@@ -234,9 +307,9 @@ pub(crate) fn lay(kept: Option<&[u8]>, previous: Option<&[u8]>, landed: Option<&
             }
             Ok((earlier, holding))
         },
-        || rayon::join(|| reads(&fresh, &ran.iter().map(String::as_str).collect()), || reads(&opened, &known)),
+        || reads(&fresh, &ran.iter().map(String::as_str).collect()),
     );
-    let ((mut earlier, mut holding), now, there) = (held_back?, now?, there?);
+    let ((mut earlier, mut holding), now) = (held_back?, now?);
     // A file the run carried keeps what it ran over when it last ran.
     let read: HashSet<String> = now.values().map(|reading| reading.file.clone()).collect();
     // Each recorded case takes what was held of it out first, so the cases lay
@@ -267,6 +340,9 @@ pub(crate) fn lay(kept: Option<&[u8]>, previous: Option<&[u8]>, landed: Option<&
             (id, readings)
         })
         .collect();
+    // Everything above is read before the run's index has landed; what follows reads it.
+    let (landed, cases) = landing().ok_or_else(|| "the case index was not laid".to_owned())?;
+    let opened = landed.map(open).transpose()?.flatten();
     // A case the run did not record keeps its readings while the code they
     // read stands: a module the run recorded at another text drops them.
     let moved: HashSet<&str> = recorded.iter().copied().filter(|file| !same(file)).collect();
@@ -280,7 +356,9 @@ pub(crate) fn lay(kept: Option<&[u8]>, previous: Option<&[u8]>, landed: Option<&
         laid.insert(id.to_owned(), readings);
     }
     // One run, as the index holds it, is what the index already says.
-    laid.retain(|id, readings| !(readings.len() == 1 && readings[0].count == 1 && alike(&readings[0], there.get(id))));
+    let there = reads(&opened, &laid.keys().map(String::as_str).collect())?;
+    let told: HashSet<String> = laid.par_iter().filter(|(id, readings)| readings.len() == 1 && readings[0].count == 1 && alike(&readings[0], there.get(id.as_str()))).map(|(id, _)| id.clone()).collect();
+    laid.retain(|id, _| !told.contains(id));
     let files = opened.as_ref().map(Index::test_files).transpose()?.unwrap_or_default();
     let mut inputs = held.clone();
     for (file, digest) in run.and_then(|run| run.inputs.as_ref()).into_iter().flatten() {
