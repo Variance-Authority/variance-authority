@@ -28,6 +28,8 @@ export interface CaseLayers {
    * before it. Absent when there was no index to take them from.
    */
   readonly before?: Buffer;
+  /** The file of every module `before` holds, in its order. Absent with `before`. */
+  readonly beforeModules?: readonly string[];
   /** The modules of `before` cut at another text than the one they are named at, whose lines nothing could carry onto it. */
   readonly unlined?: readonly string[];
 }
@@ -50,13 +52,13 @@ export interface CaseLayers {
 export function layerCaseIndex(previous: Uint8Array | undefined, fresh: Uint8Array, files: CaseRunFiles, edit?: EditOf): CaseLayers {
   const layer = native()?.layerCaseIndex;
   if (layer === undefined) throw new Error(`the case layering requires the Sense native addon: ${whyAbsent('layerCaseIndex')}`);
-  const { merged, cases, last, announced, before, unlined } = layer(previous, fresh, files, edit === undefined ? undefined : (file) => nativeEdit(edit(file)));
+  const { merged, cases, last, announced, before, beforeModules, unlined } = layer(previous, fresh, files, edit === undefined ? undefined : (file) => nativeEdit(edit(file)));
   return {
     merged,
     cases,
     last,
     announced,
-    ...(before == null ? {} : { before }),
+    ...(before == null ? {} : { before, beforeModules }),
     ...(unlined.length === 0 ? {} : { unlined }),
   };
 }
@@ -88,13 +90,13 @@ export async function layCaseRun(
   if (lay === undefined) throw new Error(`the case layering requires the Sense native addon: ${whyAbsent('layCaseRun')}`);
   const given = Array.from(edits, ([file, edit]) => edit instanceof Error ? { file, error: edit.message } : { file, edit: nativeEdit(edit) });
   const { layers, readings } = await lay(previous, fresh, files, given, kept, inputs === undefined ? undefined : [...inputs]);
-  const { merged, cases, last, announced, before, unlined } = layers;
+  const { merged, cases, last, announced, before, beforeModules, unlined } = layers;
   return {
     merged,
     cases,
     last,
     announced,
-    ...(before == null ? {} : { before }),
+    ...(before == null ? {} : { before, beforeModules }),
     ...(unlined.length === 0 ? {} : { unlined }),
     ...(readings === null ? {} : { readings }),
   };

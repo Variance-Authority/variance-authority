@@ -117,6 +117,8 @@ pub(crate) struct Layers {
     pub announced: Vec<String>,
     /// The cases the run replaced, for the files it announced, as they stood before it.
     pub before: Option<Vec<u8>>,
+    /// The file of every module `before` holds, in its order; empty without one.
+    pub before_modules: Vec<String>,
     /// The modules of `before` cut at another text whose lines nothing could carry onto it.
     pub unlined: Vec<String>,
 }
@@ -211,7 +213,7 @@ pub(crate) fn layer(previous: Option<&[u8]>, fresh: &[u8], files: &Files, base: 
     let last: Vec<String> = run.tests.iter().map(|test| test.id.clone()).collect();
     let announced = run.tests.iter().filter(|test| files.ran.contains(&test.file)).map(|test| test.id.clone()).collect();
     let Some((held, held_cuts)) = previous.and_then(opened) else {
-        return Ok(Layers { merged: fresh.to_vec(), cases: last.clone(), last, announced, before: None, unlined: Vec::new() });
+        return Ok(Layers { merged: fresh.to_vec(), cases: last.clone(), last, announced, before: None, before_modules: Vec::new(), unlined: Vec::new() });
     };
     let cases = layered_cases(&held, &run.tests, |file| files.finished.contains(file) || !files.present(file))?;
     let count = cases.order.len();
@@ -267,7 +269,8 @@ pub(crate) fn layer(previous: Option<&[u8]>, fresh: &[u8], files: &Files, base: 
             Some(cutting) => cutting.join().map_err(|_| "cutting the before layer panicked".to_owned())??,
             None => (None, Vec::new()),
         };
-        Ok(Layers { merged, cases: ids, last, announced, before, unlined })
+        let (before, before_modules) = before.map_or((None, Vec::new()), |(bytes, modules)| (Some(bytes), modules));
+        Ok(Layers { merged, cases: ids, last, announced, before, before_modules, unlined })
     })
 }
 
@@ -285,7 +288,7 @@ fn cut_before(
     same_text: Option<&FxHashSet<String>>,
     same_before_text: Option<&FxHashSet<String>>,
     base: Option<&[u8]>,
-) -> Result<(Option<Vec<u8>>, Vec<String>), String> {
+) -> Result<(Option<(Vec<u8>, Vec<String>)>, Vec<String>), String> {
     let mut unlined = Vec::new();
     let based = match base {
         Some(bytes) => match opened(bytes) {

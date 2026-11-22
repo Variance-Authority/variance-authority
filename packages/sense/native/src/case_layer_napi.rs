@@ -57,6 +57,8 @@ pub struct CaseLayers {
     pub last: Vec<String>,
     pub announced: Vec<String>,
     pub before: Option<Buffer>,
+    /// The file of every module `before` holds, in its order; empty without one.
+    pub before_modules: Vec<String>,
     pub unlined: Vec<String>,
 }
 
@@ -94,6 +96,7 @@ fn layers_of(layers: super::case_layer::Layers) -> CaseLayers {
         last: layers.last,
         announced: layers.announced,
         before: layers.before.map(Buffer::from),
+        before_modules: layers.before_modules,
         unlined: layers.unlined,
     }
 }

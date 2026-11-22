@@ -168,6 +168,8 @@ export interface NativeCaseLayers {
   readonly last: string[];
   readonly announced: string[];
   readonly before?: Buffer | null;
+  /** The file of every module `before` holds, in its order; empty without one. */
+  readonly beforeModules: string[];
   readonly unlined: string[];
 }
 

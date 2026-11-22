@@ -168,7 +168,8 @@ export async function layCases(
       return [[file, error instanceof Error ? error : new Error(String(error))]];
     }
   }));
-  const { merged, cases, last, announced, before: retired, unlined, readings } = await layCaseRun(previous.index, fresh, {
+  // The prior run is read from `previous` alone, while the lay runs off this thread.
+  const laying = layCaseRun(previous.index, fresh, {
     ran: [...ran],
     finished: [...new Set(run.tests.filter((test) => test.complete).map((test) => test.file))],
     presentUnder: root,
@@ -183,6 +184,7 @@ export async function layCases(
     before: true,
   }, given, previous.readings, run.inputs);
   const prior = lastCaseRunOf(previous);
+  const { merged, cases, last, announced, before: retired, beforeModules, unlined, readings } = await laying;
   const again = run.commit !== undefined && prior?.commit === run.commit;
   // FIXME: a run at the same commit that is not a later shard of one landing
   // — a second local invocation, or a second landing — has only the index the
@@ -192,8 +194,8 @@ export async function layCases(
   // them; keeping the base's cut of every module would keep a second index.
   const before = again ? layerBefore(previous.before, retired, ran) : retired;
   const beforeTexts = textsOfBefore(
-    before,
-    retired,
+    again && before !== undefined ? openSetExecutionIndex(before)?.modules.map((module) => module.file) : beforeModules,
+    beforeModules,
     base === undefined ? held : base.texts,
     again ? prior.beforeTexts : undefined,
     new Set(unlined),
@@ -223,7 +225,7 @@ export async function layCases(
   const attempts = layAttempts(previous.attempts, run.attempts, () => cases, announced);
   return {
     index: merged,
-    last: spelledLast(named, merged),
+    last: spelledLast(named, cases),
     // Absent is not empty: with no index to take them from, there is no before.
     ...(before === undefined ? {} : { before }),
     ...(journals === undefined ? {} : { eyes: journals }),
@@ -243,18 +245,16 @@ export async function layCases(
  * commit that kept it at those lines named a text they do not stand at.
  */
 function textsOfBefore(
-  before: Uint8Array | undefined,
-  retired: Uint8Array | undefined,
+  before: readonly string[] | undefined,
+  retired: readonly string[] | undefined,
   cut: ModuleTexts | undefined,
   kept: Readonly<Record<string, string>> | undefined,
   unlined: ReadonlySet<string>,
 ): Record<string, string> | undefined {
   if (before === undefined || (cut === undefined && kept === undefined)) return undefined;
-  const modules = openSetExecutionIndex(before)?.modules;
-  if (modules === undefined) return undefined;
-  const ownRegions = new Set(retired === undefined ? [] : openSetExecutionIndex(retired)?.modules.map((module) => module.file));
+  const ownRegions = new Set(retired);
   const texts: Record<string, string> = {};
-  for (const { file } of modules) {
+  for (const file of before) {
     const text = unlined.has(file) ? undefined : ownRegions.has(file) ? cut?.get(file) : kept?.[file];
     if (text !== undefined) texts[file] = text;
   }
@@ -449,12 +449,12 @@ function lastOfEveryShard(sections: CaseSections, ran: ReadonlySet<string>): Cas
   const last = lastCaseRunOf(sections)!;
   const index = openSetExecutionIndex(sections.index!)!;
   const cases = index.tests.flatMap((test) => (ran.has(test.id) ? [test.id] : []));
-  return { ...sections, last: spelledLast({ ...last, cases }, sections.index!) };
+  return { ...sections, last: spelledLast({ ...last, cases }, index.tests.map((test) => test.id)) };
 }
 
-/** The last-run section: references into its index, with an exact identity for a case the index no longer holds. */
-function spelledLast(named: LastCaseRun, index: Uint8Array): Buffer {
-  const rows = new Map(decodeExecutionTests(index).map((test, at) => [test.id, at]));
+/** The last-run section: references into its index, whose case ids are `ids` in row order, with an exact identity for a case the index no longer holds. */
+function spelledLast(named: LastCaseRun, ids: readonly string[]): Buffer {
+  const rows = new Map(ids.map((id, at) => [id, at]));
   // References name this index's case rows, never files inferred from them.
   // An identity the index retired remains exact rather than disappearing.
   const references = named.cases.map((id) => rows.get(id) ?? id);
