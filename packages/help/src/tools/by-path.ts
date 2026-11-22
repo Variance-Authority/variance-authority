@@ -67,6 +67,24 @@ export function sitesByPath(help: Help, name: string, within?: string): readonly
   return sites;
 }
 
+/**
+ * Of `files`, the one other packages import `name` from by path the most,
+ * counted by importing file, ties in code-unit order: where `owner` is entered
+ * for it. A package's imports of itself are left out. None when no other
+ * package imports `name` from any of them.
+ */
+export function enteredThrough(help: Help, name: string, files: readonly string[], owner: string): string | undefined {
+  const wanted = new Set(files);
+  const importers = new Map<string, Set<string>>();
+  for (const { held } of sitesByPath(help, name, owner)) {
+    if (held.to === undefined || !wanted.has(held.to) || held.by === owner) continue;
+    let one = importers.get(held.to);
+    if (one === undefined) importers.set(held.to, (one = new Set()));
+    one.add(held.at);
+  }
+  return [...importers].sort(([a, left], [b, right]) => right.size - left.size || codeUnitOrder(a, b))[0]?.[0];
+}
+
 /** How a site names what it imports, as a suffix to `<by>`. */
 export function how(site: Pick<PathSite, 'held' | 'kind'>): string {
   if (site.kind === 'deep') return `, deep import of ${site.held.specifier}`;

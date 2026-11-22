@@ -11,6 +11,8 @@ import { casesUnder, describedRow, exportedLine, isPublished, matchLine, publish
 import { unreadStop } from './members.js';
 import { CAP, ELSEWHERE_CAP, LOOSE_CAP, NEAR_CAP, searched, searchedFiles } from './search-answer.js';
 import { type ImportingOf, importingOf } from './published-match.js';
+import { declarationLookupsOf } from './declaration-key.js';
+import type { DeclarationLookups } from './exported-matches.js';
 import { named } from './format.js';
 import { orient } from './orient.js';
 import { symbol } from './symbol.js';
@@ -134,9 +136,10 @@ export function answerSearch(
   root?: string,
   importing?: ImportingOf,
   spell: Spelling = spellingOf(undefined),
+  declarations?: DeclarationLookups,
 ): string {
   const question = searchQuestionOf(input, spell);
-  return spoken(searched(index, question, tree, root, importing), question, root, spell);
+  return spoken(searched(index, question, tree, root, importing, declarations), question, root, spell);
 }
 
 /** The line a list cut at what it shows ends with, set apart from its rows; nothing when it shows all `total`. */
@@ -417,6 +420,8 @@ export const search: Tool<Help> = {
   run: (help, input, invocation) =>
     spoken(searchedOnce(help, input, invocation), searchQuestionOf(input, spellingOf(invocation)), invocation?.root, spellingOf(invocation)),
 
+  // The file set is the files that matched, every file exporting a name, and
+  // walks no declaration: one outside an area is the row's to name, not the set's.
   files: (help, input, invocation): FileSet =>
     searchedFiles(searchIndexOf(help), searchQuestionOf(input, spellingOf(invocation)), invocation?.tree, invocation?.root),
 };
@@ -430,7 +435,7 @@ function searchedOnce(help: Help, input: Readonly<Record<string, unknown>>, invo
   const asked = JSON.stringify([question, invocation?.root]);
   const last = lastSearched.get(help);
   if (last?.asked === asked && last.tree === invocation?.tree) return last.found;
-  const found = searched(searchIndexOf(help), question, invocation?.tree, invocation?.root, importingOf(help, invocation?.root));
+  const found = searched(searchIndexOf(help), question, invocation?.tree, invocation?.root, importingOf(help, invocation?.root), declarationLookupsOf(help, invocation?.root));
   lastSearched.set(help, { asked, tree: invocation?.tree, found });
   return found;
 }

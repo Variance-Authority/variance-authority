@@ -12,7 +12,7 @@ import { queryDependencyLexicon } from '../dependency-lexicon.js';
 import { aliasMatches, declaredMatches, declaredTold, exactness } from './declared.js';
 import { saidFor, type Said } from './held-sentence.js';
 import { membersUnreadOf } from './members.js';
-import { docRows, exported, exportedOrder, first } from './exported-matches.js';
+import { docRows, exported, exportedOrder, first, type DeclarationLookups } from './exported-matches.js';
 import { counting, type ImportingOf, type InArea, type PublishedMatch } from './published-match.js';
 import type { DescribedMatch, Matches, SearchAnswer, SearchArea, Searched, SearchQuestion } from './search-matches.js';
 import { docsSaying } from './phrase.js';
@@ -215,7 +215,7 @@ function matched(index: SearchIndex, question: SearchQuestion, tree: Tree | unde
  */
 export function searchedFiles(index: SearchIndex, question: SearchQuestion, tree?: Tree, root?: string): FileSet {
   const files = new Map<string, { lines: Set<number>; kinds: Set<MatchKind> }>();
-  const found = searchedBy(index, question, tree, root, undefined, (at, line, kind = 'query') => {
+  const found = searchedBy(index, question, tree, root, undefined, undefined, (at, line, kind = 'query') => {
     const one = files.get(at) ?? { lines: new Set<number>(), kinds: new Set<MatchKind>() };
     if (line !== undefined) one.lines.add(line);
     one.kinds.add(kind);
@@ -246,17 +246,26 @@ function indexedFiles(index: SearchIndex, published: Iterable<number>, exported:
 /**
  * The search over an opened index, and the area the text answer names. Each
  * published row shown is counted by `importingOf` when it is given, as `uses`
- * counts that name.
+ * counts that name, and each exported row is shown where `declarations` say it
+ * is declared and entered.
  */
-export function searched(index: SearchIndex, question: SearchQuestion, tree?: Tree, root?: string, importingOf?: ImportingOf): Searched {
+export function searched(index: SearchIndex, question: SearchQuestion, tree?: Tree, root?: string, importingOf?: ImportingOf, declarations?: DeclarationLookups): Searched {
   const count = importingOf === undefined ? undefined : counting(importingOf);
-  const found = searchedBy(index, question, tree, root, count?.of);
+  const found = searchedBy(index, question, tree, root, count?.of, declarations);
   if (count === undefined) return found;
   const unread = count.unread();
   return { ...found, publishing: count.publishing(), ...(unread === undefined ? {} : { answer: { ...found.answer, importsUnread: unread } }) };
 }
 
-function searchedBy(index: SearchIndex, question: SearchQuestion, tree: Tree | undefined, root: string | undefined, importingOf: ImportingOf | undefined, file?: MatchingFile): Searched {
+function searchedBy(
+  index: SearchIndex,
+  question: SearchQuestion,
+  tree: Tree | undefined,
+  root: string | undefined,
+  importingOf: ImportingOf | undefined,
+  declaredAt: DeclarationLookups | undefined,
+  file?: MatchingFile,
+): Searched {
   const found = matched(index, question, tree);
   if ('refused' in found) return { answer: { query: found.query, refused: found.refused }, area: found.area };
   const { query, said, area, within, named, hits, answered, rest, byDoc } = found;
@@ -288,7 +297,7 @@ function searchedBy(index: SearchIndex, question: SearchQuestion, tree: Tree | u
     query,
     ...(counted === undefined ? {} : { area: counted }),
     published: published(index, hits, cap(CAP), said, importingOf),
-    exported: { total: rest.total, shown: rest.head(cap(ELSEWHERE_CAP)) },
+    exported: { total: rest.total, shown: rest.head(cap(ELSEWHERE_CAP), declaredAt) },
     ...(declared === undefined ? {} : { declared }),
     ...(inside === undefined ? {} : { held: { total: inside.length, shown: inside.slice(0, cap(ELSEWHERE_CAP)) } }),
     ...(aliases === undefined ? {} : { aliases: { total: aliases.length, shown: aliases.slice(0, cap(ELSEWHERE_CAP)) } }),
@@ -342,7 +351,7 @@ function searchedBy(index: SearchIndex, question: SearchQuestion, tree: Tree | u
       const { through } = one;
       const row = through.kind === 'published'
         ? published(index, surface(index, [through.row], area, within), 1, said, importingOf).shown[0]
-        : exported(index, [one.name], new Set(), within, said, new Map([[one.name, new Set([through.row])]])).head(1)[0];
+        : exported(index, [one.name], new Set(), within, said, new Map([[one.name, new Set([through.row])]])).head(1, declaredAt)[0];
       return row === undefined ? [] : [{ ...row, words: one.words }];
     });
   if (direct) {
@@ -374,7 +383,7 @@ function searchedBy(index: SearchIndex, question: SearchQuestion, tree: Tree | u
   if (looseFile !== undefined) for (const one of kept) looseFile(one.at, one.line);
   recordCarried(carried ?? []);
   const heldRows = described === undefined || carried === undefined ? undefined : shownOf(carried, cap(DESCRIBED_CAP));
-  const reachedNames = [...alsoFound.shown, ...alsoRest.head(cap(LOOSE_CAP) - alsoFound.shown.length)];
+  const reachedNames = [...alsoFound.shown, ...alsoRest.head(cap(LOOSE_CAP) - alsoFound.shown.length, declaredAt)];
   const shown = [...reachedNames, ...kept.slice(0, cap(LOOSE_CAP) - reachedNames.length).map(told)];
   const membersUnread = root === undefined || (inside?.length ?? 0) > 0 || (tests?.total ?? 0) > 0 ? [] : membersUnreadOf(root, question.query);
   const loosely: SearchAnswer = { ...answer, ...(membersUnread.length === 0 ? {} : { membersUnread }), loose: { total: alsoFound.total + alsoRest.total + kept.length, shown } };
@@ -423,6 +432,6 @@ function ascending(left: readonly number[], right: readonly number[]): readonly 
  * counted by `importingOf` when it is given, as `uses` counts that name, and
  * the rows shown are ordered by that count.
  */
-export function searchNames(index: SearchIndex, question: SearchQuestion, tree?: Tree, root?: string, importingOf?: ImportingOf): SearchAnswer {
-  return searched(index, question, tree, root, importingOf).answer;
+export function searchNames(index: SearchIndex, question: SearchQuestion, tree?: Tree, root?: string, importingOf?: ImportingOf, declarations?: DeclarationLookups): SearchAnswer {
+  return searched(index, question, tree, root, importingOf, declarations).answer;
 }

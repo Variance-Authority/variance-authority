@@ -36,16 +36,38 @@ export interface SearchQuestion {
   readonly limit?: number;
 }
 
+/** A line of a file. */
+export interface Place {
+  readonly at: string;
+  readonly line: number;
+}
+
 /** A name the source exports without publishing. */
 export interface ExportedMatch {
   readonly source: 'exported';
   readonly name: string;
   /** The package that holds it; absent at the repository root. */
   readonly package?: string;
-  /** The file shown: the row that ranks it, where the question was found first, then `exportedOrder`; in the described section, the row it is weighed through. */
+  /**
+   * Where it is declared, when the source index walks to it; else the file
+   * shown: the row that ranks it, where the question was found first, then
+   * `exportedOrder`; in the described section, the row it is weighed through.
+   */
   readonly at: string;
   readonly line: number;
-  /** How many files export it, the one shown included. */
+  /** Set when `at` and `line` are the declaration's, walked to by the source index. */
+  readonly declared?: true;
+  /**
+   * The file another package enters the declaring package through — a source
+   * one of its entries opens, or the file its imports resolve to — that passes
+   * the declaration on, and the line that exports it there; no line for an
+   * `export *`. Absent when no other package enters through such a file.
+   */
+  readonly exportedFrom?: { readonly at: string; readonly line?: number };
+  /**
+   * How many files export it, the one shown included. With `declared`, the
+   * files that pass that declaration on count as the one shown.
+   */
   readonly files: number;
   /**
    * What the shown row's own documentation says of the question, on one line,

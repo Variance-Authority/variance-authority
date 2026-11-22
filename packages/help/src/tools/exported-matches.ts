@@ -2,7 +2,7 @@ import type { SearchIndex } from '../search-index.js';
 import { rowTextOrder } from './described.js';
 import { rowWithin } from './loose.js';
 import type { Said } from './held-sentence.js';
-import type { ExportedMatch } from './search-matches.js';
+import type { ExportedMatch, Place } from './search-matches.js';
 
 // compass: variance-authority.report.agent-surface
 
@@ -24,6 +24,21 @@ export function first<T>(items: readonly T[], count: number, before: (a: T, b: T
     if (best.length > count) best.pop();
   }
   return best;
+}
+
+/**
+ * What the source index and the package reading answer about the exported rows
+ * shown: `of`, the declaration the export of `name` in `at` binds; `passersOf`,
+ * for each declaration asked, every file that passes it on, `export *`
+ * included; and `entered`, of
+ * some files, the one other packages import a name from by path the most. Given to
+ * `head`, they show a name where it is declared and at the file its package is
+ * entered through.
+ */
+export interface DeclarationLookups {
+  of(at: string, name: string): (Place & { readonly name: string; readonly doc?: string | null }) | undefined;
+  passersOf(declared: readonly { readonly at: string; readonly name: string }[]): readonly (readonly string[])[] | undefined;
+  entered(name: string, files: readonly string[], by: string): string | undefined;
 }
 
 /**
@@ -56,7 +71,7 @@ export function exported(
   through?: ReadonlyMap<number, ReadonlySet<number>>,
   openings?: ReadonlySet<number>,
   exact?: ReadonlyMap<number, number>,
-): { readonly total: number; head(count: number): readonly ExportedMatch[]; rows(): readonly number[] } {
+): { readonly total: number; head(count: number, declarations?: DeclarationLookups): readonly ExportedMatch[]; rows(): readonly number[] } {
   const found: { name: number; count: number; field: number }[] = [];
   // The file that exports it, against the closure. A name exported from a
   // barrel inside the area and declared outside it arrives here twice, under
@@ -88,27 +103,74 @@ export function exported(
   return {
     total: found.length,
     rows: () => found.flatMap(({ name }) => reached(name)),
-    head: (count) =>
-      first(found, count, (a, b) => a.field - b.field || b.count - a.count || a.name - b.name).flatMap(({ name, count: files }) => {
+    head: (count, declarations) => {
+      const picked = first(found, count, (a, b) => a.field - b.field || b.count - a.count || a.name - b.name).flatMap(({ name, count: files }) => {
         // `count` is the number of these rows, so one is always chosen.
         const chosen = exportedShown(index, reached(name), fieldOf(name));
         if (chosen === undefined) return [];
         const row = index.exported(chosen);
-        // The row's own doc, or none: another row of the same name is another
-        // file, whose comment says nothing about this one.
-        const doc = row.doc;
+        // A declaration counts when its own file exports the shown name: one
+        // written under another name, `export { a as b }`, is not where `b` is.
+        const bound = declarations?.of(row.at, row.name);
+        const home = bound === undefined || bound.name !== row.name
+          ? undefined
+          : [...index.exportedOf(name)].map((one) => index.exported(one)).find((one) => one.at === bound.at);
+        return [{ name, files, chosen, row, declared: home === undefined ? undefined : bound, by: home?.by ?? row.by }];
+      });
+      const resolved = picked.flatMap((one) => (one.declared === undefined ? [] : [one.declared]));
+      const passers = resolved.length === 0 ? undefined : declarations?.passersOf(resolved);
+      return picked.map(({ name, files, chosen, row, declared, by }) => {
+        const passing = declared === undefined ? [] : (passers?.[resolved.indexOf(declared)] ?? []);
+        const door = declared === undefined || passers === undefined || declarations === undefined
+          ? undefined
+          : publishedThrough(index, rowsOf(name), declared, by, passing, declarations);
+        // Resolved, the files that pass this declaration on are the one shown;
+        // a file exporting another declaration of the name is still counted.
+        const passed = new Set(passing);
+        const others = declared === undefined
+          ? files
+          : 1 + rowsOf(name).filter((one) => { const at = index.exported(one).at; return at !== declared.at && !passed.has(at); }).length;
+        // The doc a search matched is the one shown; otherwise the shown file's,
+        // or none: another file's comment says nothing about this one.
+        const doc = declared === undefined || declared.at === row.at || through?.get(name)?.has(chosen) === true
+          ? row.doc
+          : (declared.doc ?? undefined);
         const match: ExportedMatch = {
           source: 'exported',
           name: row.name,
-          ...(row.by === '' ? {} : { package: row.by }),
-          at: row.at,
-          line: row.line,
-          files,
+          ...(by === '' ? {} : { package: by }),
+          at: declared?.at ?? row.at,
+          line: declared?.line ?? row.line,
+          ...(declared === undefined ? {} : { declared: true as const }),
+          ...(door === undefined ? {} : { exportedFrom: door }),
+          files: others,
           ...(doc === undefined ? {} : { summary: said(doc) }),
         };
-        return [match];
-      }),
+        return match;
+      });
+    },
   };
+}
+
+/**
+ * Of `passers`, the files that pass `declared` on, the one other packages
+ * import its name from by path the most: where `by`, the declaring package, is
+ * entered for it. Its line is its export row's when it exports the name
+ * itself; an `export *` has none. None when no other package imports it from
+ * any of them.
+ */
+function publishedThrough(
+  index: SearchIndex,
+  rows: readonly number[],
+  declared: Place & { readonly name: string },
+  by: string,
+  passers: readonly string[],
+  declarations: DeclarationLookups,
+): { readonly at: string; readonly line?: number } | undefined {
+  const at = by === '' ? undefined : declarations.entered(declared.name, passers.filter((one) => one !== declared.at), by);
+  if (at === undefined) return undefined;
+  const line = rows.map((row) => index.exported(row)).find((row) => row.at === at)?.line;
+  return line === undefined ? { at } : { at, line };
 }
 
 /**

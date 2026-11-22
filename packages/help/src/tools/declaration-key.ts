@@ -20,6 +20,8 @@ import type { Help, Named } from '@variance-authority/package/help';
 import { aliasesOf, declarationExported, importersOf, type ExportedDeclaration } from '@variance-authority/sense';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import { exportedAmong, exportedIn } from './rows.js';
+import type { DeclarationLookups } from './exported-matches.js';
+import { enteredThrough } from './by-path.js';
 import { searchIndexOf } from '../snapshot.js';
 import { nearestTo } from './shared-segments.js';
 
@@ -156,6 +158,20 @@ export function answering(help: Help, root: string | undefined, name: string): r
  */
 export function boundOf(root: string | undefined, held: Pick<Named, 'at' | 'name'>): ExportedDeclaration | undefined {
   return root === undefined ? undefined : (whenRead(() => declarationExported(root, held.at, held.name)) ?? undefined);
+}
+
+/**
+ * For each of `declared`, every file that passes it on, `export *` included,
+ * in code-unit order. None when the index does not read.
+ */
+function passersOf(root: string, declared: readonly Pick<Named, 'at' | 'name'>[]): readonly (readonly string[])[] | undefined {
+  return whenRead(() => importersOf(root, declared.map((one) => [{ file: one.at, name: one.name }])))?.groups.map((group) => group.through);
+}
+
+/** What the source index and the package reading answer about the exported rows `search` shows; none when no checkout is named. */
+export function declarationLookupsOf(help: Help, root: string | undefined): DeclarationLookups | undefined {
+  if (root === undefined) return undefined;
+  return { of: (at, name) => boundOf(root, { at, name }), passersOf: (declared) => passersOf(root, declared), entered: (name, files, by) => enteredThrough(help, name, files, by) };
 }
 
 /**

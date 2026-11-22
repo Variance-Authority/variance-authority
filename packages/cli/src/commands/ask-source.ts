@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { generationSourceIndex, readNamedTree, readSearchForAnswer, readWorkspaceForAnswer, workspaceGeneration, type AnsweringOptions, type Unopened } from '@variance-authority/help';
-import { answerSearch, containmentOf, discover, formatContainment, importingOf, intersection, namesWanted, type Containment, type Help, type SearchAnswer, searchIndexOf, searchNames, searchQuestionOf } from '@variance-authority/help/tools';
+import { answerSearch, containmentOf, declarationLookupsOf, discover, formatContainment, importingOf, intersection, namesWanted, type Containment, type Help, type SearchAnswer, searchIndexOf, searchNames, searchQuestionOf } from '@variance-authority/help/tools';
 import { spellingOf, type Tool, type Tree } from '@variance-authority/mcp/tools';
 import { sourceIndexPath } from '@variance-authority/sense';
 import { taintFile as readTaintFile, type Taint } from '@variance-authority/sense/taint';
@@ -43,7 +43,7 @@ export async function wholeSource(
   const drawn = tree === undefined ? {} : { tree, sourceIndex: generationSourceIndex(sourced.help, root, sourceIndexPath(root)) };
   return {
     answer: () => tool.run(sourced.help, input, invocationOf({ ...drawn, root })),
-    data: () => searchNames(searchIndexOf(sourced.help), searchQuestionOf(input, spellingOf(invocationOf({ root }))), tree, root, importingOf(sourced.help, root)),
+    data: () => searchNames(searchIndexOf(sourced.help), searchQuestionOf(input, spellingOf(invocationOf({ root }))), tree, root, importingOf(sourced.help, root), declarationLookupsOf(sourced.help, root)),
     at: workspaceGeneration(sourced.help),
   };
 }
@@ -64,9 +64,10 @@ export async function searchSource(
   const { index, compared, help, unopened } = read;
   const spell = spellingOf(invocationOf({ root }));
   const importing = importingOf(help, root);
+  const declarations = declarationLookupsOf(help, root);
   return {
-    answer: () => answerSearch(index, input, tree, root, importing, spell),
-    data: () => searchNames(index, searchQuestionOf(input, spell), tree, root, importing),
+    answer: () => answerSearch(index, input, tree, root, importing, spell, declarations),
+    data: () => searchNames(index, searchQuestionOf(input, spell), tree, root, importing, declarations),
     at: index.generation?.generatedAt,
     unseen: !compared,
     ...(unopened === undefined ? {} : { unopened }),

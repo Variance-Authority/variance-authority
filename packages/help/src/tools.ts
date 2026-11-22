@@ -165,6 +165,8 @@ export type {
 } from './tools/search-matches.js';
 export { searchNames } from './tools/search-answer.js';
 export { importingOf, type ImportingOf, type ImportingOne, type InArea, type PublishedMatch } from './tools/published-match.js';
+export { declarationLookupsOf } from './tools/declaration-key.js';
+export type { DeclarationLookups } from './tools/exported-matches.js';
 export type { ImportedIn } from './tools/uses-count.js';
 export type { Help };
 export { audience, block, importing, line, reach, said } from './tools/format.js';

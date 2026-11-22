@@ -38,10 +38,12 @@ export function publishedLine(match: PublishedMatch): string {
 
 /** One exported match: the name, who holds it, and the file and line to open. */
 export function exportedLine(match: ExportedMatch): string {
+  const door = match.exportedFrom;
+  const from = door === undefined ? '' : ` · exported from ${door.at}${door.line === undefined ? '' : `:${door.line}`}`;
   const rest = match.files - 1;
   const more = rest === 0 ? '' : ` (+${rest} more ${rest === 1 ? 'file' : 'files'})`;
   const said = match.summary === undefined ? '' : ` — ${match.summary}`;
-  return `${match.name} — ${match.package ?? 'the repository'} · ${match.at}:${match.line}${more}${said}`;
+  return `${match.name} — ${match.package ?? 'the repository'} · ${match.at}:${match.line}${from}${more}${said}`;
 }
 
 /** One described file: the path, who holds it, and what the doc it opens with says first. */
