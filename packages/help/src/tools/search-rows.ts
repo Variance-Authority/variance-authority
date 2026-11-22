@@ -40,8 +40,7 @@ export function publishedLine(match: PublishedMatch): string {
 export function exportedLine(match: ExportedMatch): string {
   const door = match.exportedFrom;
   const from = door === undefined ? '' : ` · exported from ${door.at}${door.line === undefined ? '' : `:${door.line}`}`;
-  // Unresolved, the row is one of several exporting files: count the rest.
-  const rest = match.declared === true ? 0 : match.files - 1;
+  const rest = match.files - 1;
   const more = rest === 0 ? '' : ` (+${rest} more ${rest === 1 ? 'file' : 'files'})`;
   const said = match.summary === undefined ? '' : ` — ${match.summary}`;
   return `${match.name} — ${match.package ?? 'the repository'} · ${match.at}:${match.line}${from}${more}${said}`;

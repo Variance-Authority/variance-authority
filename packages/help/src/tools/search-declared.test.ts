@@ -48,6 +48,10 @@ async function workspace(): Promise<string> {
     'packages/kit/src/lone/index.ts': "export { loneThing } from './thing.js';\n",
     'packages/kit/src/alias/base.ts': 'export const baseValue = 1;\n',
     'packages/aa/alias.ts': "export { baseValue as renamedValue } from '../kit/src/alias/base.js';\n",
+    'packages/kit/src/twin.ts': 'export const twinValue = 1;\n',
+    'packages/other/src/twin.ts': 'export const twinValue = 2;\n',
+    'packages/kit/src/said/thing.ts': 'export const saidThing = 1;\n',
+    'packages/kit/src/said/index.ts': "/** Paints zebra stripes. */\nexport { saidThing } from './thing.js';\n",
   };
   for (const [path, value] of Object.entries(files)) {
     mkdirSync(dirname(join(root, path)), { recursive: true });
@@ -106,4 +110,18 @@ it('keeps a renamed re-export at its own row, since the declaration is written u
   const out = search.run(await readWorkspaceForAnswer(root), { query: 'renamedValue' }, { root });
   const row = out.split('\n').find((line) => line.startsWith('renamedValue — '));
   expect(row, out).toBe('renamedValue — aa · packages/aa/alias.ts:1');
+});
+
+it('keeps the count of files that export a second declaration of the same name', async () => {
+  const root = await workspace();
+  const out = search.run(await readWorkspaceForAnswer(root), { query: 'twinValue' }, { root });
+  const row = out.split('\n').find((line) => line.startsWith('twinValue — '));
+  expect(row, out).toMatch(/^twinValue — \S+ · packages\/\S+\/src\/twin\.ts:1 \(\+1 more file\)$/);
+});
+
+it('keeps the summary of the comment a doc search matched, when that comment sits on a re-export', async () => {
+  const root = await workspace();
+  const out = search.run(await readWorkspaceForAnswer(root), { query: 'zebra stripes' }, { root });
+  const row = out.split('\n').find((line) => line.startsWith('saidThing — '));
+  expect(row, out).toBe('saidThing — kit · packages/kit/src/said/thing.ts:1 — Paints zebra stripes.');
 });

@@ -115,16 +115,26 @@ export function exported(
         const home = bound === undefined || bound.name !== row.name
           ? undefined
           : [...index.exportedOf(name)].map((one) => index.exported(one)).find((one) => one.at === bound.at);
-        return [{ name, files, row, declared: home === undefined ? undefined : bound, by: home?.by ?? row.by }];
+        return [{ name, files, chosen, row, declared: home === undefined ? undefined : bound, by: home?.by ?? row.by }];
       });
       const resolved = picked.flatMap((one) => (one.declared === undefined ? [] : [one.declared]));
       const passers = resolved.length === 0 ? undefined : declarations?.passersOf(resolved);
-      return picked.map(({ name, files, row, declared, by }) => {
+      return picked.map(({ name, files, chosen, row, declared, by }) => {
+        const passing = declared === undefined ? [] : (passers?.[resolved.indexOf(declared)] ?? []);
         const door = declared === undefined || passers === undefined || declarations === undefined
           ? undefined
-          : publishedThrough(index, rowsOf(name), declared, by, passers[resolved.indexOf(declared)] ?? [], declarations);
-        // The doc of the file shown, or none: another file's comment says nothing about this one.
-        const doc = declared === undefined || declared.at === row.at ? row.doc : (declared.doc ?? undefined);
+          : publishedThrough(index, rowsOf(name), declared, by, passing, declarations);
+        // Resolved, the files that pass this declaration on are the one shown;
+        // a file exporting another declaration of the name is still counted.
+        const passed = new Set(passing);
+        const others = declared === undefined
+          ? files
+          : 1 + rowsOf(name).filter((one) => { const at = index.exported(one).at; return at !== declared.at && !passed.has(at); }).length;
+        // The doc a search matched is the one shown; otherwise the shown file's,
+        // or none: another file's comment says nothing about this one.
+        const doc = declared === undefined || declared.at === row.at || through?.get(name)?.has(chosen) === true
+          ? row.doc
+          : (declared.doc ?? undefined);
         const match: ExportedMatch = {
           source: 'exported',
           name: row.name,
@@ -133,7 +143,7 @@ export function exported(
           line: declared?.line ?? row.line,
           ...(declared === undefined ? {} : { declared: true as const }),
           ...(door === undefined ? {} : { exportedFrom: door }),
-          files,
+          files: others,
           ...(doc === undefined ? {} : { summary: said(doc) }),
         };
         return match;

@@ -64,7 +64,10 @@ export interface ExportedMatch {
    * `export *`. Absent when no other package enters through such a file.
    */
   readonly exportedFrom?: { readonly at: string; readonly line?: number };
-  /** How many files export it, the one shown included. */
+  /**
+   * How many files export it, the one shown included. With `declared`, the
+   * files that pass that declaration on count as the one shown.
+   */
   readonly files: number;
   /**
    * What the shown row's own documentation says of the question, on one line,
