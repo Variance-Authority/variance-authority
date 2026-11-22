@@ -120,26 +120,45 @@ export interface NativeJourneyStitch {
 export type NativeJourneyStitchResult = Omit<NativeJourneyStitch, 'bytes'>;
 
 /** One run's case journals, read once into the cases they name (`native/src/case_run.rs`). */
+/**
+ * The modules a case fold is over, as columns: a region's kind, name and path
+ * are indexes into `strings`, each string handed over once; `blocks` says where
+ * each module's regions start, one more entry than modules; an owner is the
+ * region's position among its module's regions, or `NO_OWNER`.
+ */
+export interface NativeFoldModules {
+  ids: string[];
+  files: string[];
+  blocks: Uint32Array;
+  ordinal: Uint32Array;
+  kind: Uint32Array;
+  name: Uint32Array;
+  path: Uint32Array;
+  start: Uint32Array;
+  end: Uint32Array;
+  source: Uint8Array;
+  owner: Uint32Array;
+  strings: string[];
+}
+
 export interface NativeCaseJournals {
   /** Every case, in the case index's order; `runner` is the id its runner gave it. */
   cases(): { id: string; file: string; name: string; runner: string; project?: string | null }[];
   /** What Eyes handed the cases that watched, each journal as JSON text; `null` when none did. */
   eyes(): { watched: string[]; journals: { case: string; attempt: number; journal: string }[] } | null;
   /**
-   * The case index's bytes over `modules`. `ordinals` holds each module's
-   * region ordinals; `readings` join a reading into its file's record, a land
+   * The case index's bytes over `modules`; `readings` join a reading into its file's record, a land
    * of `0xFFFFFFFF` where the region has no place there; `durations` and
    * `limits` follow `cases()`, `NaN` where the runner reported none;
    * `budgetBytes` bounds the test-by-region relation one slice holds.
    */
   fold(
-    modules: NativeJourneyModule[],
-    ordinals: number[][],
+    modules: NativeFoldModules,
     readings: { id: string; target: string; lands: number[] }[],
     durations: number[],
     limits: number[],
     budgetBytes?: number,
-  ): { bytes: Buffer; passes: number; crossings: number };
+  ): Promise<{ bytes: Buffer; passes: number; crossings: number }>;
 }
 
 /** One module's edit between two texts, as git's `-U0` hunks and the selector's reading. */
@@ -168,6 +187,8 @@ export interface NativeCaseLayers {
   readonly last: string[];
   readonly announced: string[];
   readonly before?: Buffer | null;
+  /** The file of every module `before` holds, in its order; empty without one. */
+  readonly beforeModules: string[];
   readonly unlined: string[];
 }
 

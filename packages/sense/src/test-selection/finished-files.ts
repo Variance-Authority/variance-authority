@@ -16,7 +16,6 @@
 
 import type { Digest } from '@variance-authority/core/format';
 import type { ModuleId } from '../instrument/index.js';
-import journalFormat from './journal-format.cjs';
 import {
   projectPath,
   readWritten,
@@ -24,6 +23,7 @@ import {
   type ReadJournal,
 } from './instrumented-modules.js';
 import type { CoveragePrecondition, CoverageTest, FilePhases } from './index.js';
+import type { RunCrossings } from './run-crossings.js';
 import { reportedDuration, reportedPhases, summedPhases } from './reported-time.js';
 import type { ExecutedModule } from './probes.js';
 import { BROWSER_JOURNAL } from './worker-source.js';
@@ -396,8 +396,10 @@ export function coverageTest(
   preconditionFiles: readonly string[],
   /** Every file's text digest, from `textDigests`, read once for the whole run. */
   digests: ReadonlyMap<string, Digest>,
-  journals: readonly ReadJournal[],
-  modules: ReadonlyMap<ModuleId, CapturedModule>,
+  /** The run's crossings, which name every journal by its file. */
+  crossings: RunCrossings,
+  /** The run's modules by number, from {@link RunCrossings.numbered}. */
+  modules: readonly (CapturedModule | undefined)[],
 ): CoverageTest {
   const file = projectPath(root, task.filepath);
   // By name, because the same fact can arrive more than once: a file two
@@ -422,14 +424,13 @@ export function coverageTest(
   // with an empty reach: a record that says it entered nothing, which excludes
   // it from every diff there will ever be. Material UI has four such files, and
   // three of them break when a module they import throws at load.
-  let recorded = false;
+  const journals = crossings.journalsOf(file);
+  const recorded = journals.length > 0;
   for (const journal of journals) {
-    if (projectPath(root, journal.testFile) !== file) continue;
-    recorded = true;
     for (const entered of journal.modules) {
-      const module = modules.get(entered.id);
+      const module = modules[entered];
       if (module === undefined) {
-        throw new Error(`variance-authority lost the source identity for module ${entered.id}`);
+        throw new Error(`variance-authority lost the source identity for module ${crossings.ids[entered]}`);
       }
       // Only what the instrument could not see inside. An instrumented module's
       // text is already a digest on its own row, and a change to it is caught by
@@ -486,7 +487,3 @@ export async function readFinished(directory: string): Promise<readonly Finished
   }));
 }
 
-/** The journals a run's workers wrote, in the order of what they hold. */
-export async function readJournals(directory: string): Promise<readonly ReadJournal[]> {
-  return (await readWritten(directory)).map((bytes) => journalFormat.decodeJournal(bytes));
-}

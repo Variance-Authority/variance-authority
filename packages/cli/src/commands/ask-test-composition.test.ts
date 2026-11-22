@@ -102,6 +102,6 @@ async function recorded(): Promise<void> {
     tests,
     modules: [{ file: 'src/price.ts', blocks: [block([0, 1])] }, { file: 'src/order.ts', blocks: [block([1])] }],
   }) }));
-  const { sections } = landCases(at, {}, root, [{ path: shard, coverage: { tests: files.map((file) => ({ file, complete: true })) } }]);
+  const { sections } = await landCases(at, {}, root, [{ path: shard, coverage: { tests: files.map((file) => ({ file, complete: true })) } }]);
   writeFileSync(at, withCaseSections(readFileSync(at), sections));
 }

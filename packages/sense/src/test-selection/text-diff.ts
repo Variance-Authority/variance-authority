@@ -3,11 +3,11 @@
  *
  * Git owns the hunk arithmetic every other reading of a change here takes, so a
  * change read against a text only the cache holds is written by the same
- * `diff`, over two scratch files, rather than by a second implementation.
+ * `diff`, over scratch files, rather than by a second implementation.
  */
 
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { changedLines, type LineRange } from './diff-lines.js';
@@ -15,17 +15,31 @@ import { applied, hunksOf, type Hunk } from './patch.js';
 
 /** The `-U0` hunks, headers and bodies, that turn `before` into `after`; empty when they are equal. */
 export function diffTexts(before: string, after: string): string {
-  if (before === after) return '';
+  return diffTextPairs([[before, after]])[0]!;
+}
+
+/**
+ * The `-U0` hunks for each pair, as {@link diffTexts} gives them, from one git
+ * process: a run asks for hundreds, and a process apiece cost more than the diffs.
+ */
+export function diffTextPairs(pairs: readonly (readonly [before: string, after: string])[]): string[] {
+  const bodies = pairs.map(() => '');
+  const asked = pairs.flatMap(([before, after], at) => (before === after ? [] : [at]));
+  if (asked.length === 0) return bodies;
   const directory = mkdtempSync(join(tmpdir(), 'variance-texts-'));
   try {
-    writeFileSync(join(directory, 'before'), before);
-    writeFileSync(join(directory, 'after'), after);
+    mkdirSync(join(directory, 'before'));
+    mkdirSync(join(directory, 'after'));
+    for (const at of asked) {
+      writeFileSync(join(directory, 'before', String(at)), pairs[at]![0]);
+      writeFileSync(join(directory, 'after', String(at)), pairs[at]![1]);
+    }
     let output: string;
     try {
       output = execFileSync(
         'git',
-        ['diff', '--no-index', '--no-color', '--no-ext-diff', '-U0', 'before', 'after'],
-        { cwd: directory, encoding: 'utf8', maxBuffer: 1 << 28 },
+        ['diff', '--no-index', '--no-color', '--no-ext-diff', '--no-renames', '-U0', 'before', 'after'],
+        { cwd: directory, encoding: 'utf8', maxBuffer: Infinity },
       );
     } catch (error) {
       // `diff --no-index` exits 1 when the texts differ, which is the case
@@ -34,8 +48,14 @@ export function diffTexts(before: string, after: string): string {
       if (status !== 1 || typeof stdout !== 'string') throw error;
       output = stdout;
     }
-    const first = output.search(/^@@ /mu);
-    return first === -1 ? '' : output.slice(first);
+    // Each pair's section opens with its header, which names the pair by its file.
+    for (const section of output.split(/^(?=diff --git )/mu)) {
+      const named = /^diff --git a\/before\/(\d+) b\/after\/\1$/mu.exec(section);
+      if (named === null) continue;
+      const first = section.search(/^@@ /mu);
+      bodies[Number(named[1])] = first === -1 ? '' : section.slice(first);
+    }
+    return bodies;
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }

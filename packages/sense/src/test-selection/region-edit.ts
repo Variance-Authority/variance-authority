@@ -20,7 +20,7 @@ import { reaches, readEdit, type EditReading } from './edit-readings.js';
 import { keptTexts } from './kept-texts.js';
 import { hunksOf, placeThrough, type HeldLines, type Hunk } from './placed.js';
 import { blobsAt, textAtRecording } from './recorded-text.js';
-import { diffTexts } from './text-diff.js';
+import { diffTextPairs } from './text-diff.js';
 import { NO_LINE } from './written-lines.js';
 
 /** What an edit did to a module: git's `-U0` hunks between the two texts, and how far it reaches what runs. */
@@ -65,7 +65,7 @@ export function editsBetween(
   cacheRoot: string | undefined,
   commits: readonly (string | undefined)[],
   names: TextNames = {},
-): Edits {
+): Edits & { readonly ahead: (asked: Iterable<readonly [file: string, from: string, to: string]>) => void } {
   const kept = keptTexts(root, cacheRoot);
   const atRecording = textAtRecording(root, []);
   const at = [...new Set(commits)].filter((commit) => commit !== undefined);
@@ -103,21 +103,38 @@ export function editsBetween(
     return text;
   };
   const edits = new Map<string, Edit | undefined>();
-  return (file, from, to) => {
+  // Reads the edits not read yet, all their diffs from one git process.
+  const read = (asked: Iterable<readonly [file: string, from: string, to: string]>): void => {
+    const pending = new Map<string, readonly [file: string, before: string, after: string]>();
+    for (const [file, from, to] of asked) {
+      const key = `${file}\0${from}\0${to}`;
+      if (from === to || edits.has(key) || pending.has(key)) continue;
+      const [before, after] = [textOf(file, from), textOf(file, to)];
+      if (before === undefined || after === undefined) edits.set(key, undefined);
+      else pending.set(key, [file, before, after]);
+    }
+    const diffs = diffTextPairs([...pending.values()].map(([, before, after]) => [before, after] as const));
+    let at = 0;
+    for (const [key, [file, before, after]] of pending) {
+      const reading = readEdit(root, file, before, after);
+      edits.set(key, { hunks: hunksOf(diffs[at++]!), ...(reading === undefined ? {} : { reading }) });
+    }
+  };
+  const edit = (file: string, from: string, to: string): Edit | undefined => {
     if (from === to) return NO_EDIT;
     const key = `${file}\0${from}\0${to}`;
-    if (edits.has(key)) return edits.get(key);
-    const [before, after] = [textOf(file, from), textOf(file, to)];
-    const edit = before === undefined || after === undefined ? undefined : editOf(root, file, before, after);
-    edits.set(key, edit);
-    return edit;
+    if (!edits.has(key)) read([[file, from, to]]);
+    return edits.get(key);
   };
-}
-
-/** The edit `file` went through from the text `before` to the text `after`, both in hand. */
-function editOf(root: string, file: string, before: string, after: string): Edit {
-  const reading = readEdit(root, file, before, after);
-  return { hunks: hunksOf(diffTexts(before, after)), ...(reading === undefined ? {} : { reading }) };
+  // Reading ahead only saves the processes: an edit it could not read is read alone when asked, and fails then.
+  const ahead = (asked: Iterable<readonly [file: string, from: string, to: string]>): void => {
+    try {
+      read(asked);
+    } catch {
+      // Left unread.
+    }
+  };
+  return Object.assign(edit, { ahead });
 }
 
 function hashingTo(text: string | undefined, digest: string): string | undefined {

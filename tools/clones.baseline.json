@@ -393,20 +393,6 @@
   },
   {
     "files": [
-      "packages/sense/src/test-selection/execution-format.ts",
-      "packages/sense/src/test-selection/format.ts"
-    ],
-    "count": 1
-  },
-  {
-    "files": [
-      "packages/sense/src/test-selection/jest-reporter.ts",
-      "packages/sense/src/test-selection/selection-fold.ts"
-    ],
-    "count": 1
-  },
-  {
-    "files": [
       "packages/sense/src/test-selection/journey-parts.ts",
       "packages/sense/src/test-selection/journey.ts"
     ],

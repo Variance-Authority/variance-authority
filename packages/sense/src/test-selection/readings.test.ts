@@ -1,6 +1,10 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
 import { decodeTestCoverage, encodeTestCoverage } from './format.js';
-import { joinedJournals, joinReadings } from './readings.js';
+import { joinReadings, ownCut } from './readings.js';
+import { runCrossings } from './run-crossings.js';
 import type { CapturedModule } from './instrumented-modules.js';
 import type { CoverageBlock } from './index.js';
 
@@ -40,7 +44,7 @@ const build = reading('dist/cart.js', [
 ]);
 
 /** The file's own cut, as its text on disk gives it: the source's. */
-const cut = (file: string) => (file === 'src/cart.ts' ? source : undefined);
+const cut = (files: readonly string[]) => files.map((file) => (file === 'src/cart.ts' ? source : undefined));
 
 describe('one file read twice', () => {
   it('is held under the file\'s own cut, whichever readings of it the run loaded', () => {
@@ -69,10 +73,12 @@ describe('one file read twice', () => {
       ],
     };
 
-    expect(joinedJournals([journal], readings)).toEqual([{
-      testFile: 'test/cart.test.ts',
-      modules: [{ id: 'src/cart.ts', hits: [0, 1, 2], shared: [0], loaded: [0] }],
-    }]);
+    const crossings = runCrossings([], [journal], '/', readings, readings.keys());
+
+    expect(crossings.ids).toEqual(['src/cart.ts']);
+    expect([0, 1, 2, 3].map((ordinal) => crossings.observed('src/cart.ts', ordinal)))
+      .toEqual([['test/cart.test.ts'], ['test/cart.test.ts'], ['test/cart.test.ts'], []]);
+    expect([0, 1].map((ordinal) => crossings.early('src/cart.ts', ordinal))).toEqual([['test/cart.test.ts'], []]);
   });
 
   it('is uninstrumented when either reading was, since what that one ran is unknown', () => {
@@ -84,7 +90,7 @@ describe('one file read twice', () => {
   });
 
   it('is uninstrumented when the file is not there to cut', () => {
-    const joined = joinReadings(new Map([['dist/cart.js', build]]), () => undefined);
+    const joined = joinReadings(new Map([['dist/cart.js', build]]), (files) => files.map(() => undefined));
 
     expect(joined.modules.get('dist/cart.js')).toMatchObject({ file: 'src/cart.ts', instrumented: false, blocks: [] });
     expect(joined.readings.get('dist/cart.js')).toEqual({ id: 'dist/cart.js', lands: [] });
@@ -92,13 +98,13 @@ describe('one file read twice', () => {
 
   it('is uninstrumented when the file on disk is not the text a reading was cut from', () => {
     const edited = { ...source, sourceDigest: 'v1:edited' };
-    const joined = joinReadings(new Map([['dist/cart.js', build]]), () => edited);
+    const joined = joinReadings(new Map([['dist/cart.js', build]]), (files) => files.map(() => edited));
 
     expect(joined.modules.get('src/cart.ts')).toMatchObject({ sourceDigest: 'v1:edited', instrumented: false, blocks: [] });
   });
 
   it('is its reading when the run read it once, as itself', () => {
-    const joined = joinReadings(new Map([['src/cart.ts', source]]), () => undefined);
+    const joined = joinReadings(new Map([['src/cart.ts', source]]), (files) => files.map(() => undefined));
 
     expect(joined.modules.get('src/cart.ts')).toBe(source);
     expect(joined.readings.size).toBe(0);
@@ -117,6 +123,29 @@ describe('one file read twice', () => {
 
     expect(joined.readings.get('dist/cart.js')).toEqual({ id: 'src/cart.ts', lands: [0, undefined, 1, 2] });
     expect(decodeTestCoverage(encodeTestCoverage(record)).modules[0]!.blocks).toHaveLength(3);
+  });
+});
+
+describe('the own cut of a file', () => {
+  const root = mkdtempSync(join(tmpdir(), 'own-cut-'));
+  afterAll(() => rmSync(root, { recursive: true, force: true }));
+  writeFileSync(join(root, 'cart.ts'), 'export function total(items) {\n  return items.length;\n}\n');
+
+  it('is the run\'s own cut of it, where the run cut it as itself at the text on disk, and none where no file is there', () => {
+    const [cut] = ownCut(root, undefined)(['cart.ts']);
+    const run = new Map([[cut!.id, { ...cut! }]]);
+
+    const [again, missing] = ownCut(root, undefined, run)(['cart.ts', 'gone.ts']);
+
+    expect(again).toBe(run.get(cut!.id));
+    expect(missing).toBeUndefined();
+  });
+
+  it('is cut again from the disk where the run cut another text of it', () => {
+    const [cut] = ownCut(root, undefined)(['cart.ts']);
+    const stale = { ...cut!, id: 'cart.ts@0000', sourceDigest: 'v1:0000' };
+
+    expect(ownCut(root, undefined, new Map([[stale.id, stale]]))(['cart.ts'])).toEqual([cut]);
   });
 });
 

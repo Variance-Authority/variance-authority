@@ -131,8 +131,8 @@ impl Layer<'_> {
             };
             let here = carried_in.map_or(mine, |carried| self.sets.union(mine, carried));
             if let Some(lines) = self.lines.as_mut() {
-                let landed = held.zip(carried_in).map(|(over, carried)| (over.row, from as u32, self.sets.members(carried)));
-                lines.recorded(at, block as u32, run_module, self.sets.members(mine), landed)?;
+                let landed = held.zip(carried_in).map(|(over, carried)| (over.row, from as u32, carried));
+                lines.recorded(at, block as u32, run_module, mine, landed);
             }
             loaded.push(recorded.loaded[block] || held.is_some_and(|over| from >= 0 && over.module.loaded[from as usize]));
             let landed_over = match held {

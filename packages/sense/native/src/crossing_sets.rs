@@ -10,6 +10,12 @@ use std::collections::HashMap;
 
 use crate::record_layout::LAYOUT;
 
+/// A set encoded by [`SetPool::encode`], not yet interned.
+pub struct Encoded {
+    bytes: Vec<u8>,
+    hash: u32,
+}
+
 pub struct SetPool {
     test_count: usize,
     bytes: Vec<u8>,
@@ -53,8 +59,18 @@ impl SetPool {
     }
 
     pub fn intern(&mut self, members: &[u32]) -> u32 {
-        let encoded = encode_set(members, self.test_count);
-        let hash = hash_of(&encoded);
+        let encoded = self.encode(members);
+        self.intern_encoded(encoded)
+    }
+
+    /// `members` as the pool would lay it, for [`Self::intern_encoded`]: what
+    /// does not touch the pool, so many sets are encoded at once.
+    pub fn encode(&self, members: &[u32]) -> Encoded {
+        let bytes = encode_set(members, self.test_count);
+        Encoded { hash: hash_of(&bytes), bytes }
+    }
+
+    pub fn intern_encoded(&mut self, Encoded { bytes: encoded, hash }: Encoded) -> u32 {
         if let Some(candidates) = self.hashes.get(&hash) {
             for id in candidates {
                 let from = self.offsets[*id as usize] as usize;

@@ -3,7 +3,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { lastCaseRunOf } from './case-landing.js';
+import { lastCaseRunOf } from './case-last-run.js';
 import { caseSectionsAt, sharedRecord, withCaseSections } from './case-record.js';
 import { landRun } from './commit-runs.js';
 import { CrossingSets } from './crossing-sets.js';

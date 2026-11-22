@@ -6,7 +6,8 @@ import { digestString } from '../digest.js';
 import { EVALUATING, type ModuleId } from '../instrument/index.js';
 import { native } from '../addon.js';
 import { foldCases, freshCases } from './case-fold.js';
-import { layCases, lastCaseRunOf } from './case-landing.js';
+import { layCases } from './case-landing.js';
+import { lastCaseRunOf } from './case-last-run.js';
 import type { CaseSections } from './case-record.js';
 import { AMBIENT, packCase, packFrames } from './cases.js';
 import { rowOf } from './case-said.js';
@@ -106,7 +107,7 @@ describe('the bounded case fold', () => {
     await writeFile(resolve(cases, 'worker.vac'), packFrames(frames));
     const modules = new Map<ModuleId, CapturedModule>([['src/branch.ts', captured('src/branch.ts', 'src/branch.ts', 3)]]);
 
-    const folded = foldCases(cases, '/repo', modules, { budget: 64 });
+    const folded = await foldCases(cases, '/repo', modules, { budget: 64 });
     const decoded = decodeExecutionIndex(folded.bytes);
 
     expect(decoded.tests.map((test) => test.id)).toEqual([
@@ -133,7 +134,7 @@ describe('the bounded case fold', () => {
     // The runner's report names the file from the root, `..` and all.
     const durations = (named: string, name: string) => (named === '../shared/a.test.ts' && name === 'pays' ? 120 : undefined);
 
-    const decoded = decodeExecutionIndex(foldCases(cases, '/repo', modules, { budget: 64, durations }).bytes);
+    const decoded = decodeExecutionIndex((await foldCases(cases, '/repo', modules, { budget: 64, durations })).bytes);
 
     expect(decoded.tests.map(({ id, file: named, duration }) => [id, named, duration])).toEqual([
       ['../shared/a.test.ts > pays', '../shared/a.test.ts', 120],
@@ -160,7 +161,7 @@ describe('the bounded case fold', () => {
       blocks: [root!, helper, { ...below!, owner: 1 }, { ...deepest!, owner: 2 }],
     };
 
-    const folded = foldCases(cases, '/repo', new Map([['src/branch.ts', module]]), { budget: 64 });
+    const folded = await foldCases(cases, '/repo', new Map([['src/branch.ts', module]]), { budget: 64 });
 
     expect(openSetExecutionIndex(folded.bytes)!.modules[0]!.owner).toEqual(Uint32Array.from([NO_OWNER, 0, 1]));
   });
@@ -182,7 +183,7 @@ describe('the bounded case fold', () => {
       ['src/early.ts', captured('src/early.ts', 'src/early.ts', 2)],
     ]);
 
-    const folded = foldCases(cases, '/repo', modules, { budget: 8 });
+    const folded = await foldCases(cases, '/repo', modules, { budget: 8 });
     const decoded = decodeExecutionIndex(folded.bytes);
 
     expect(decoded.tests.map((test) => test.id)).toEqual([
@@ -197,7 +198,7 @@ describe('the bounded case fold', () => {
     });
     expect(folded.passes).toBeGreaterThan(1);
 
-    const first = layCases({}, (await freshCases(cases, '/repo', modules, { tests: [] }))!.fresh, '/repo', { tests: [] });
+    const first = await layCases({}, (await freshCases(foldCases(cases, '/repo', modules), { tests: [] }))!.fresh, '/repo', { tests: [] });
     expect(decodeExecutionIndex(first.index!)).toEqual(decoded);
     // The first lay has nothing to lay over: the run is the index and the last
     // run both, and there is no before.
@@ -206,11 +207,11 @@ describe('the bounded case fold', () => {
 
     // The same run again lands over the first, and keeps what it replaced: every
     // case of a file whose cases the journals carry, announced or not.
-    const again = (await freshCases(cases, '/repo', modules, {
+    const again = (await freshCases(foldCases(cases, '/repo', modules), {
       tests: [{ file: 'test/early.test.ts', complete: true }],
       commit: 'abc',
     }))!;
-    const second = layCases(first, again.fresh, '/repo', again.run);
+    const second = await layCases(first, again.fresh, '/repo', again.run);
     expect(decodeExecutionIndex(second.index!)).toEqual(decoded);
     expect(decodeExecutionIndex(second.before!).tests.map((test) => test.id))
       .toEqual(decoded.tests.map((test) => test.id));
@@ -230,7 +231,7 @@ describe('the bounded case fold', () => {
     ]));
     const modules = new Map<ModuleId, CapturedModule>([['src/branch.ts', captured('src/branch.ts', 'src/branch.ts', 3)]]);
 
-    const folded = foldCases(cases, '/repo', modules, { budget: 64 });
+    const folded = await foldCases(cases, '/repo', modules, { budget: 64 });
     const decoded = decodeExecutionIndex(folded.bytes);
 
     expect(decoded.tests.map((test) => test.id)).toEqual(['test/eyes.test.ts > crosses', 'test/eyes.test.ts > watches']);
@@ -259,7 +260,7 @@ describe('the bounded case fold', () => {
     ]));
     const modules = new Map<ModuleId, CapturedModule>([['src/pay.ts', captured('src/pay.ts', 'src/pay.ts', 2)]]);
 
-    const folded = decodeExecutionIndex(foldCases(cases, '/repo', modules, { budget: 64 }).bytes);
+    const folded = decodeExecutionIndex((await foldCases(cases, '/repo', modules, { budget: 64 })).bytes);
 
     expect(folded.tests.map(({ name, limit }) => [name, limit])).toEqual([['bound', 8000], ['free', undefined]]);
   });
@@ -285,7 +286,7 @@ describe('the bounded case fold', () => {
     ]));
     const modules = new Map<ModuleId, CapturedModule>([['src/pay.ts', captured('src/pay.ts', 'src/pay.ts', 2)]]);
 
-    const folded = decodeExecutionIndex(foldCases(cases, '/repo', modules, { budget: 64 }).bytes);
+    const folded = decodeExecutionIndex((await foldCases(cases, '/repo', modules, { budget: 64 })).bytes);
 
     // A retry's second frame reached nothing, and the case is still one row.
     expect(reach(folded)).toEqual({
@@ -335,7 +336,7 @@ describe('the bounded case fold', () => {
       ]),
     );
 
-    const folded = foldCases(cases, '/repo', modules, { budget: 256 * 1024 });
+    const folded = await foldCases(cases, '/repo', modules, { budget: 256 * 1024 });
 
     expect(folded.crossings).toBe(crossingCount);
     expect(folded.passes).toBeGreaterThan(1);
@@ -354,7 +355,7 @@ describe('the bounded case fold', () => {
     await writeFile(resolve(cases, 'worker.vac'), packFrames([branch('pays', '0'), branch('pays', '1'), branch('pays#1', '2')]));
     const refusal = 'cannot number the cases of test/branch.test.ts: "pays#1" is the name of one case and the number of a repeated "pays". Rename one of them.';
 
-    expect(() => foldCases(cases, '/repo', new Map([['src/branch.ts', module]]))).toThrow(refusal);
+    await expect(foldCases(cases, '/repo', new Map([['src/branch.ts', module]]))).rejects.toThrow(refusal);
     expect(() => native()!.foldJourney!(cases, '/repo', [nativeModule(module)], 1)).toThrow(refusal);
   });
 
@@ -373,12 +374,12 @@ describe('the bounded case fold', () => {
       await mkdir(from);
       await writeFile(resolve(from, 'w.vac'), packFrames(Object.entries(calls).map(([file, branch]) =>
         journalFormat.encodeJournal(packCase(resolve(root, 'test', file), 'case', '1'), new Map([['src/x.ts', counters(3, [branch])]])))));
-      const fresh = (await freshCases(from, root, modules, {
+      const fresh = (await freshCases(foldCases(from, root, modules), {
         tests: Object.keys(calls).map((file) => ({ file: `test/${file}`, complete: true })),
         commit,
       }))!;
       // Every invocation records `src/x.ts` from one text, so no edit moves a region between them.
-      sections = layCases(sections, fresh.fresh, root, { ...fresh.run, modules: [{ file: 'src/x.ts', sourceDigest: 'v1:x' }] },
+      sections = await layCases(sections, fresh.fresh, root, { ...fresh.run, modules: [{ file: 'src/x.ts', sourceDigest: 'v1:x' }] },
         undefined, new Map([['src/x.ts', 'v1:x']]));
     };
     const before = async (): Promise<Record<string, number[]>> => {
@@ -432,11 +433,11 @@ describe('the bounded case fold', () => {
       await mkdir(from);
       await writeFile(resolve(from, 'w.vac'), packFrames(Object.entries(calls).map(([file, branch]) =>
         journalFormat.encodeJournal(packCase(resolve(root, 'test', file), 'case', '1'), new Map([['src/x.ts', counters(3, [branch])]])))));
-      const fresh = (await freshCases(from, root, modules, {
+      const fresh = (await freshCases(foldCases(from, root, modules), {
         tests: Object.keys(calls).map((file) => ({ file: `test/${file}`, complete: true })),
         commit,
       }))!;
-      sections = layCases(sections, fresh.fresh, root, fresh.run);
+      sections = await layCases(sections, fresh.fresh, root, fresh.run);
     };
     const last = async () => lastCaseRunOf(sections)!;
 

@@ -13,28 +13,24 @@
 
 import { rm } from 'node:fs/promises';
 import { codeUnitOrder } from '@variance-authority/core/segment';
-import { instrumentationId, type InstrumentMode, type ModuleId } from '../instrument/index.js';
+import { instrumentationId } from '../instrument/index.js';
 import { runTexts } from '../text-digests.js';
 import { deriveModules } from './captured-modules.js';
 import { commitOf } from './commit.js';
+import { landedTree } from './kept-texts.js';
 import { laidProbes, landRun } from './commit-runs.js';
-import {
-  crossingsOf,
-  loadedOf,
-  projectPath,
-  type CapturedModule,
-  type ReadJournal,
-} from './instrumented-modules.js';
-import { coverageModule } from './coverage-rows.js';
-import { joinedJournals, joinReadings, ownCut } from './readings.js';
-import { freshCases } from './case-fold.js';
+import { projectPath, readWritten } from './instrumented-modules.js';
+import { crossedModules } from './coverage-rows.js';
+import type { RunCoverage } from './format.js';
+import { joinReadings, ownCut } from './readings.js';
+import { runCrossings, runModuleIds } from './run-crossings.js';
+import { foldCases, freshCases } from './case-fold.js';
 import { caseAttempts } from './case-attempts.js';
 import { caseDurations, caseLimits } from './case-durations.js';
 import {
   coverageTest,
   noteAnEmptyRecord,
   oneRowPerFile,
-  readJournals,
   type FinishedFile,
 } from './finished-files.js';
 import { noteABusyIndex, withIndexLock } from './index-lock.js';
@@ -42,7 +38,6 @@ import { removeSeamModules, type SelectionRun } from './selection-run.js';
 import { governingPreconditions } from './governing-config.js';
 import { markCheckout } from './cache-layers.js';
 import { repositoryRoot } from './repository-root.js';
-import type { CoverageModule, TestCoverage } from './index.js';
 import { prepareRecord } from './replaced-record.js';
 
 /** Where a fold writes, and which of this seam's own files it clears up after. */
@@ -92,17 +87,52 @@ export function foldRun(
   const record = async (finished: readonly FinishedFile[]): Promise<void> => {
     // A worker wrote its journal down; a page handed its own to the runner,
     // which carried it here on the file.
-    const written = [
-      ...await readJournals(runDirectory),
-      ...finished.flatMap((file) => (file.journal === undefined ? [] : [file.journal])),
+    // What git says of the working tree is the slowest answer the write needs,
+    // and nothing the fold does changes it: ask before the fold, not after.
+    const landing = landedTree(root);
+    landing.catch(() => {});
+    const written = await readWritten(runDirectory);
+    // The run's scratch is four unrelated trees, and each one's removal waits on
+    // nothing but its last reader: the journals and the finished files are in
+    // memory by now, and the case fold reads its own tree. So they go under the
+    // fold rather than after it, and the fold resolves once they are gone.
+    const cleared: Array<Promise<void>> = [
+      rm(runDirectory, { recursive: true, force: true }),
+      rm(run.finishedDirectory, { recursive: true, force: true }),
+      rm(run.cutFile, { force: true }),
     ];
-    const placed = destination.derive === true
-      ? await placeFrom(written, modules, root, mode)
-      : { journals: written, unplaced: new Set<string>() };
-    const { unplaced } = placed;
+    const pages = finished.flatMap((file) => (file.journal === undefined ? [] : [file.journal]));
+    if (destination.derive === true) {
+      for (const [id, module] of await deriveModules(root, runModuleIds(written, pages), mode)) modules.set(id, module);
+    }
     // A file the run read twice is one record, and every row is read in it.
-    const joined = joinReadings(modules, ownCut(root, mode));
-    const journals = joinedJournals(placed.journals, joined.readings);
+    const joined = joinReadings(modules, ownCut(root, mode, modules));
+    // The case fold runs off this thread while the run's own work goes on:
+    // started here, it is folded by the time the record wants its bytes.
+    // `run.cases` is whether the run could record a case: one whose files ran
+    // in a page could not.
+    const folding = run.cases
+      ? foldCases(caseDirectory, root, joined.modules, {
+          durations: caseDurations(finished, root),
+          limits: caseLimits(finished, root),
+          tried: caseAttempts(finished, root),
+          readings: joined.readings,
+        })
+      : undefined;
+    // A refusal below lands before the fold is awaited, and the fold's own
+    // failure is read where it is.
+    folding?.catch(() => {});
+    const removeCases = () => rm(caseDirectory, { recursive: true, force: true });
+    cleared.push(folding === undefined ? removeCases() : folding.then(removeCases, removeCases));
+    // A refusal below lands before the removals are awaited; theirs are read where they are.
+    const clearing = Promise.all(cleared);
+    clearing.catch(() => {});
+    const crossings = runCrossings(written, pages, root, joined.readings, modules.keys());
+    const unplaced = new Set(crossings.journals.filter((journal) => !journal.placed).map((journal) => journal.test));
+    if (destination.derive !== true && unplaced.size > 0) {
+      const lost = runModuleIds(written, pages).find((id) => !modules.has(id));
+      throw new Error(`variance-authority lost the source identity for module ${lost}`);
+    }
     // A file the selection ran in part is incomplete too: the cases it skipped
     // keep the reach they had. See `case-cut.ts`.
     // FIXME: so the next selection runs that file whole, and a loop of edits
@@ -110,14 +140,7 @@ export function foldRun(
     // skipped cases' reach for the file to read whole after a cut.
     const files = finished.map((file) =>
       unplaced.has(projectPath(root, file.filepath)) || run.cut.has(file.filepath) ? { ...file, complete: false } : file);
-    // A journal names modules by id, so nothing here re-keys paths; the id is
-    // what the map is keyed by too.
-    const rows = journals.map((journal) => ({
-      testFile: projectPath(root, journal.testFile),
-      modules: journal.modules,
-    }));
-    const observed = crossingsOf(rows);
-    const early = loadedOf(rows);
+    const numbered = crossings.numbered(joined.modules);
 
     // One row per path, not per project run of it: two projects that both match
     // a file are two announcements of one test file, and the snapshot is keyed
@@ -129,37 +152,22 @@ export function foldRun(
       root,
       governing,
       texts.digests,
-      journals,
-      joined.modules,
+      crossings,
+      numbered,
     ));
     const commit = await commitOf(root);
-    const current: TestCoverage = {
+    const current: RunCoverage = {
       version: 3,
       instrumentation: instrumentationId(mode),
       ...(commit === undefined ? {} : { commit }),
       tests: tests.sort((left, right) => codeUnitOrder(left.file, right.file)),
-      modules: [...joined.modules]
-        .map(([id, module]): CoverageModule => coverageModule(
-          module,
-          (block) => [...(observed.get(id)?.get(block.ordinal) ?? [])],
-          (block) => [...(early.get(id)?.get(block.ordinal) ?? [])],
-        ))
-        .sort((left, right) => codeUnitOrder(left.file, right.file)),
+      ...crossedModules(joined.modules, crossings),
     };
-    // In the record, with the coverage, in one write. `run.cases` is whether
-    // the run could record a case: one whose files ran in a page could not.
-    // One that could, and recorded no case and finished no file — no worker
-    // loaded this seam's modules — has none to lay, and the record's cases
-    // stay as they were.
-    const cases = run.cases
-      ? await freshCases(caseDirectory, root, joined.modules, {
-          tests,
-          ...(commit === undefined ? {} : { commit }),
-          durations: caseDurations(files, root),
-          limits: caseLimits(files, root),
-          tried: caseAttempts(files, root),
-        }, joined.readings)
-      : undefined;
+    // In the record, with the coverage, in one write. A run that could record
+    // a case, and recorded none and finished no file — no worker loaded this
+    // seam's modules — has none to lay, and the record's cases stay as they
+    // were.
+    const cases = folding && await freshCases(folding, { tests, ...(commit === undefined ? {} : { commit }) });
     const merged = await withIndexLock(coverageFile, async (lock) => {
       // The repository's snapshot becomes this checkout's before the first run
       // lands on it, so a worktree layers onto months of recording rather than
@@ -167,7 +175,7 @@ export function foldRun(
       // and not asked by a shard that is a part of one whole run. A cached record
       // under other probes goes first, whichever run this is.
       await prepareRecord(lock, root, laidProbes(current), { alone: run.alone });
-      await landRun(coverageFile, current, root, undefined, cases);
+      await landRun(coverageFile, current, root, undefined, cases, undefined, landing);
       markCheckout(repositoryRoot(root));
     });
     // A run that placed no module says so once the snapshot saying every file
@@ -175,10 +183,7 @@ export function foldRun(
     // warning is the whole story.
     if (merged.held) noteAnEmptyRecord(files.length, modules.size, destination.unreached);
     else noteABusyIndex(coverageFile);
-    await rm(runDirectory, { recursive: true, force: true });
-    await rm(caseDirectory, { recursive: true, force: true });
-    await rm(run.finishedDirectory, { recursive: true, force: true });
-    await rm(run.cutFile, { force: true });
+    await clearing;
     run.cut.clear();
   };
 
@@ -191,33 +196,5 @@ export function foldRun(
       // A watching runner loads them again for every rerun; its close takes them off.
       if (!run.watching) removeSeamModules(run, destination.shims);
     }
-  };
-}
-
-/**
- * Every module the journals name, cut again into the run, and the files whose
- * journal named one the checkout no longer has.
- */
-async function placeFrom(
-  journals: readonly ReadJournal[],
-  modules: Map<ModuleId, CapturedModule>,
-  root: string,
-  mode: InstrumentMode,
-): Promise<{ journals: readonly ReadJournal[]; unplaced: ReadonlySet<string> }> {
-  const read = await deriveModules(
-    root,
-    journals.flatMap((journal) => journal.modules.map((entered) => entered.id)),
-    mode,
-  );
-  for (const [id, module] of read) modules.set(id, module);
-  const unplaced = new Set<string>();
-  return {
-    journals: journals.map((journal) => {
-      const placed = journal.modules.filter((entered) => modules.has(entered.id));
-      if (placed.length === journal.modules.length) return journal;
-      unplaced.add(projectPath(root, journal.testFile));
-      return { ...journal, modules: placed };
-    }),
-    unplaced,
   };
 }

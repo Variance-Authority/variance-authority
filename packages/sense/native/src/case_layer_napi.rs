@@ -3,9 +3,14 @@
 
 use std::path::PathBuf;
 
-use napi::bindgen_prelude::{Buffer, Function};
+use std::collections::{HashMap, HashSet};
+
+use napi::bindgen_prelude::{AsyncTask, Buffer, Function};
 use napi_derive::napi;
-use rustc_hash::FxHashSet;
+use rustc_hash::{FxHashMap, FxHashSet};
+
+use crate::case_readings_lay::{self, Announced, Run};
+use crate::off_thread::{off_thread, OffThread};
 
 use crate::journey_record::Block;
 
@@ -52,6 +57,8 @@ pub struct CaseLayers {
     pub last: Vec<String>,
     pub announced: Vec<String>,
     pub before: Option<Buffer>,
+    /// The file of every module `before` holds, in its order; empty without one.
+    pub before_modules: Vec<String>,
     pub unlined: Vec<String>,
 }
 
@@ -74,6 +81,26 @@ fn asked(edit: &Function<String, Option<CaseEdit>>, file: &str) -> Result<Option
     edit.call(file.to_owned()).map(|found| found.map(edit_of)).map_err(|error| error.reason.clone())
 }
 
+fn present_of(under: Option<String>, among: Option<Vec<String>>) -> Present {
+    match (under, among) {
+        (_, Some(among)) => Present::Among(among.into_iter().collect()),
+        (Some(root), None) => Present::Under(PathBuf::from(root)),
+        (None, None) => Present::All,
+    }
+}
+
+fn layers_of(layers: super::case_layer::Layers) -> CaseLayers {
+    CaseLayers {
+        merged: layers.merged.into(),
+        cases: layers.cases,
+        last: layers.last,
+        announced: layers.announced,
+        before: layers.before.map(Buffer::from),
+        before_modules: layers.before_modules,
+        unlined: layers.unlined,
+    }
+}
+
 /// One run's case index laid over the one it replaces. `edit` answers a
 /// module's edit from the text the index cut it at to the text the run
 /// recorded, `undefined` where it could not be read; it is asked only of a
@@ -81,28 +108,78 @@ fn asked(edit: &Function<String, Option<CaseEdit>>, file: &str) -> Result<Option
 #[napi(catch_unwind)]
 pub fn layer_case_index(previous: Option<Buffer>, fresh: Buffer, files: CaseRunFiles, edit: Option<Function<String, Option<CaseEdit>>>) -> napi::Result<CaseLayers> {
     let ask = |file: &str| asked(edit.as_ref().expect("asked only with an edit"), file);
-    let present = match (files.present_under, files.present_among) {
-        (_, Some(among)) => Present::Among(among.into_iter().collect()),
-        (Some(root), None) => Present::Under(PathBuf::from(root)),
-        (None, None) => Present::All,
-    };
     let laid = Files {
         ran: files.ran.into_iter().collect(),
         finished: files.finished.into_iter().collect(),
-        present,
+        present: present_of(files.present_under, files.present_among),
         edits: if edit.is_some() { Edits::Asked(&ask) } else { Edits::One },
         same_text: files.same_text.map(|files| files.into_iter().collect::<FxHashSet<_>>()),
         same_before_text: files.same_before_text.map(|files| files.into_iter().collect::<FxHashSet<_>>()),
     };
     let layers = layer(previous.as_deref(), &fresh, &laid, files.base.as_deref(), files.before).map_err(napi::Error::from_reason)?;
-    Ok(CaseLayers {
-        merged: layers.merged.into(),
-        cases: layers.cases,
-        last: layers.last,
-        announced: layers.announced,
-        before: layers.before.map(Buffer::from),
-        unlined: layers.unlined,
-    })
+    Ok(layers_of(layers))
+}
+
+/// One module's edit, read before the layering; `edit` absent where it could
+/// not be read, and `error` why reading it failed, raised only if the layer asks for it.
+#[napi(object)]
+pub struct CaseGivenEdit {
+    pub file: String,
+    pub edit: Option<CaseEdit>,
+    pub error: Option<String>,
+}
+
+/// What a run's case lay writes: the layered index and the readings section laid with it.
+#[napi(object)]
+pub struct CaseRunLaid {
+    pub layers: CaseLayers,
+    pub readings: Option<Buffer>,
+}
+
+/// One run's case index laid over the one it replaces, and its readings over
+/// the record's, off the JavaScript thread, so the caller lays the coverage
+/// meanwhile. `edits` holds every module the run recorded from another text
+/// than `same_text` names, read before; `kept` is the record's readings
+/// section and `inputs` each test file's inputs as `[file, digest]`.
+/// bound: the modules one run recorded and its test files
+#[napi(ts_return_type = "Promise<CaseRunLaid>")]
+pub fn lay_case_run(previous: Option<Buffer>, fresh: Buffer, files: CaseRunFiles, edits: Vec<CaseGivenEdit>, kept: Option<Buffer>, inputs: Option<Vec<Vec<String>>>) -> napi::Result<AsyncTask<OffThread<CaseRunLaid>>> {
+    let inputs = inputs
+        .map(|pairs| pairs.into_iter().map(|pair| match <[String; 2]>::try_from(pair) {
+            Ok([file, digest]) => Ok((file, digest)),
+            Err(_) => Err(napi::Error::from_reason("an input is a file and its digest")),
+        }).collect::<napi::Result<HashMap<_, _>>>())
+        .transpose()?;
+    let edits: FxHashMap<String, Result<Option<Edit>, String>> = edits.into_iter().map(|given| (given.file, match given.error { Some(error) => Err(error), None => Ok(given.edit.map(edit_of)) })).collect();
+    let (previous, fresh, base, kept) = (previous.map(|bytes| bytes.to_vec()), fresh.to_vec(), files.base.map(|bytes| bytes.to_vec()), kept.map(|bytes| bytes.to_vec()));
+    let same: Vec<String> = files.same_text.unwrap_or_default();
+    let (ran, finished, present, same_before_text) = (files.ran, files.finished, present_of(files.present_under, files.present_among), files.same_before_text);
+    let before = files.before;
+    Ok(off_thread(move || {
+        let laid = Files {
+            ran: ran.into_iter().collect(),
+            finished: finished.into_iter().collect(),
+            present,
+            edits: Edits::Given(edits),
+            same_text: Some(same.iter().cloned().collect()),
+            same_before_text: same_before_text.map(|files| files.into_iter().collect::<FxHashSet<_>>()),
+        };
+        // The readings read the record's and the run's indexes while the run is laid, and the landed one once it is.
+        let run = Run { fresh: &fresh, announced: Announced::OfFiles(laid.ran.iter().cloned().collect()), same: same.into_iter().collect(), inputs };
+        let ((layers, _), readings) = case_readings_lay::lay_while(
+            kept.as_deref(),
+            previous.as_deref(),
+            Some(&run),
+            || {
+                let layers = layer(previous.as_deref(), &fresh, &laid, base.as_deref(), before)?;
+                let cases: HashSet<String> = layers.cases.iter().cloned().collect();
+                Ok((layers, cases))
+            },
+            |(layers, cases)| (Some(layers.merged.as_slice()), cases),
+        )
+        .map_err(napi::Error::from_reason)?;
+        Ok(CaseRunLaid { layers: layers_of(layers), readings: readings.map(Buffer::from) })
+    }))
 }
 
 /// What the runs at one commit retired, as one before: `retired` laid over `kept`.

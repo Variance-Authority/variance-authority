@@ -2,10 +2,13 @@ use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use rayon::prelude::*;
+
 use crate::case_id::{self, CaseIds};
 use crate::case_owner::{self, journey_of, project_of, project_path, unpack_case};
 use crate::case_said::{self, Heard};
 use crate::case_times;
+use crate::journal_files::{head_of, listed};
 use crate::journal_scan::{self, replay, replay_part, Visitor};
 use crate::order;
 
@@ -51,6 +54,9 @@ pub struct CaseRun {
     pub paths: Vec<PathBuf>,
     pub tests: Vec<Test>,
     pub frame_tests: Vec<u32>,
+    /// The first of `frame_tests` each of `paths` writes, so one journal can be
+    /// replayed apart from the others.
+    pub path_frames: Vec<usize>,
     pub wanted: HashSet<ModuleId>,
     pub tests_by_file: HashMap<String, (u32, u32)>,
     /// Frames written beyond a fence, one file per writer, read after the run.
@@ -143,18 +149,23 @@ pub fn inspect_cases(directory: &Path, root: &Path) -> Result<CaseRun, String> {
 // FIXME: `detailed` also decides which cases exist: an Eyes-only case is in the case index and not in the journey artifact, and part files are in the artifact and not in the case index.
 fn inspect_with(directory: &Path, root: &Path, parts: &[String], detailed: bool) -> Result<CaseRun, String> {
     let paths = listed(directory, None)?;
-    let mut visitor = InspectVisitor {
-        root,
-        coordinates: Vec::new(),
-        at: HashMap::new(),
-        wanted: HashSet::new(),
-        frame: 0,
-        detailed,
-        scanning: Scanning::Nothing,
-        cut_files: HashSet::new(),
-        looked: Vec::new(),
-    };
-    replay(&paths, &mut visitor)?;
+    // Each journal is read on its own core, and taken in the order one replay
+    // would have read them: every case's answer across its frames is the same
+    // whichever frames it meets first.
+    let journals = paths
+        .par_iter()
+        .map(|path| {
+            let mut visitor = InspectVisitor::new(root, detailed);
+            replay(std::slice::from_ref(path), &mut visitor)?;
+            Ok(visitor)
+        })
+        .collect::<Result<Vec<_>, String>>()?;
+    let mut visitor = InspectVisitor::new(root, detailed);
+    let mut path_frames = Vec::with_capacity(paths.len());
+    for journal in journals {
+        path_frames.push(visitor.frame);
+        visitor.absorb(journal)?;
+    }
     let mut order: Vec<usize> = (0..visitor.coordinates.len()).collect();
     let coordinates = &visitor.coordinates;
     order.sort_by(|&left, &right| {
@@ -256,6 +267,7 @@ fn inspect_with(directory: &Path, root: &Path, parts: &[String], detailed: bool)
         paths,
         tests,
         frame_tests,
+        path_frames,
         wanted: visitor.wanted,
         tests_by_file,
         parts: part_paths,
@@ -266,43 +278,6 @@ fn inspect_with(directory: &Path, root: &Path, parts: &[String], detailed: bool)
         heads,
         detail,
     })
-}
-
-/// The head a part file came from: its name without the `-<uuid>.vac` every
-/// writer appends, which is what makes two processes' files distinct.
-fn head_of(path: &Path) -> String {
-    let stem = path.file_stem().map_or_else(|| path.to_string_lossy(), |stem| stem.to_string_lossy());
-    let at = stem.len().saturating_sub(37);
-    match (stem.get(..at), stem.get(at..)) {
-        (Some(head), Some(tail)) if tail.starts_with('-') && is_uuid(&tail[1..]) => head.to_owned(),
-        _ => stem.into_owned(),
-    }
-}
-
-fn is_uuid(text: &str) -> bool {
-    text.len() == 36
-        && text.char_indices().all(|(at, character)| match at {
-            8 | 13 | 18 | 23 => character == '-',
-            _ => character.is_ascii_hexdigit(),
-        })
-}
-
-fn listed(directory: &Path, extension: Option<&str>) -> Result<Vec<PathBuf>, String> {
-    let mut paths: Vec<PathBuf> = match fs::read_dir(directory) {
-        Ok(entries) => entries
-            .filter_map(Result::ok)
-            .map(|entry| entry.path())
-            .filter(|path| {
-                extension.is_none_or(|wanted| path.extension().and_then(|value| value.to_str()) == Some(wanted))
-            })
-            .collect(),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Vec::new(),
-        Err(error) => return Err(error.to_string()),
-    };
-    paths.sort_unstable_by(|left, right| {
-        order::code_unit(&left.to_string_lossy(), &right.to_string_lossy())
-    });
-    Ok(paths)
 }
 
 struct PartInspectVisitor<'a> {
@@ -355,7 +330,64 @@ enum Scanning {
 
 type Key = (String, String, String, Option<String>);
 
-impl InspectVisitor<'_> {
+impl<'a> InspectVisitor<'a> {
+    fn new(root: &'a Path, detailed: bool) -> Self {
+        InspectVisitor {
+            root,
+            coordinates: Vec::new(),
+            at: HashMap::new(),
+            wanted: HashSet::new(),
+            frame: 0,
+            detailed,
+            scanning: Scanning::Nothing,
+            cut_files: HashSet::new(),
+            looked: Vec::new(),
+        }
+    }
+
+    /// Take in what a later journal said, as though its frames had been read here.
+    fn absorb(&mut self, later: InspectVisitor<'_>) -> Result<(), String> {
+        let offset = self.frame;
+        let mut moved = Vec::with_capacity(later.coordinates.len());
+        for coordinate in later.coordinates {
+            let key = (coordinate.file, coordinate.name, coordinate.id, coordinate.project);
+            let (at, was_held) = self.held(key, coordinate.settled);
+            let held = &mut self.coordinates[at];
+            held.frames.extend(coordinate.frames.iter().map(|frame| frame + offset));
+            if was_held {
+                held.settled = settled_across(held.settled, coordinate.settled);
+                held.heard = case_said::join(held.heard.take(), coordinate.heard);
+                for journey in coordinate.journeys {
+                    if !held.journeys.contains(&journey) {
+                        held.journeys.push(journey);
+                    }
+                }
+                let detail = &mut held.detail;
+                detail.limit = limit_across(detail.limit, coordinate.detail.limit);
+                detail.times = case_times::across(&detail.times, &coordinate.detail.times)?.to_vec();
+                detail.cut |= coordinate.detail.cut;
+                detail.uncut |= coordinate.detail.uncut;
+            } else {
+                held.heard = coordinate.heard;
+                held.journeys = coordinate.journeys;
+                held.detail = Detail { looked: None, ..coordinate.detail };
+            }
+            moved.push(at);
+        }
+        for (at, rows) in later.looked {
+            let at = moved[at];
+            let row = *self.coordinates[at].detail.looked.get_or_insert_with(|| {
+                self.looked.push((at, Vec::new()));
+                self.looked.len() - 1
+            });
+            self.looked[row].1.extend(rows);
+        }
+        self.wanted.extend(later.wanted);
+        self.cut_files.extend(later.cut_files);
+        self.frame += later.frame;
+        Ok(())
+    }
+
     /// The coordinate `key` names, held from here on.
     fn held(&mut self, key: Key, settled: u8) -> (usize, bool) {
         if let Some(&held) = self.at.get(&key) {

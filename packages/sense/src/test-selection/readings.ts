@@ -18,13 +18,13 @@
  * journal row is read through that.
  */
 
-import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { InstrumentMode, ModuleId } from '../instrument/index.js';
 import { native, nativeRefusal } from '../addon.js';
 import { captureModule, heldOriginal, pathOf } from './captured-modules.js';
-import { fileOrNone, type CapturedModule, type ReadJournal } from './instrumented-modules.js';
+import type { CapturedModule } from './instrumented-modules.js';
+import { sameCut } from './region-landing.js';
 import { isWritten } from './written-lines.js';
 
 /** Where one reading's ordinals are in its file's record. */
@@ -42,8 +42,8 @@ export interface JoinedReadings {
   readonly readings: ReadonlyMap<ModuleId, Reading>;
 }
 
-/** A file's own cut, by its repository-relative path; `undefined` where the file is not there to cut. */
-export type OwnCut = (file: string) => CapturedModule | undefined;
+/** Each file's own cut, by its repository-relative path, in the order asked; `undefined` where the file is not there to cut. */
+export type OwnCut = (files: readonly string[]) => readonly (CapturedModule | undefined)[];
 
 /**
  * Each file's readings as one record.
@@ -61,16 +61,20 @@ export type OwnCut = (file: string) => CapturedModule | undefined;
 export function joinReadings(modules: ReadonlyMap<ModuleId, CapturedModule>, cut: OwnCut): JoinedReadings {
   const byFile = new Map<string, ModuleId[]>();
   for (const [id, module] of modules) byFile.set(module.file, [...byFile.get(module.file) ?? [], id]);
+  const itself = (file: string, ids: readonly ModuleId[]) => ids.length === 1 && pathOf(ids[0]!) === file;
+  const held = [...byFile].filter(([file, ids]) => !itself(file, ids)).map(([file]) => file);
+  const cuts = cut(held);
+  const owns = new Map(held.map((file, at) => [file, cuts[at]]));
   const joined = new Map<ModuleId, CapturedModule>();
   const readings = new Map<ModuleId, Reading>();
   for (const [file, ids] of byFile) {
-    if (ids.length === 1 && pathOf(ids[0]!) === file) {
+    if (itself(file, ids)) {
       joined.set(ids[0]!, modules.get(ids[0]!)!);
       continue;
     }
     ids.sort(codeUnitOrder);
     const read = ids.map((each) => modules.get(each)!);
-    const own = cut(file);
+    const own = owns.get(file);
     const fits = (module: CapturedModule) => module.instrumented && module.sourceDigest === own?.sourceDigest;
     if (own === undefined || !own.instrumented || !read.every(fits)) {
       const id = own?.id ?? ids[0]!;
@@ -82,7 +86,13 @@ export function joinReadings(modules: ReadonlyMap<ModuleId, CapturedModule>, cut
     joined.set(own.id, own);
     const table = own.blocks.filter(isWritten);
     const placed = read.map((module) => module.blocks.filter(isWritten));
-    const lands = landed(table, placed);
+    // A reading cut as the file is lands region for region; only the rest are the addon's to place.
+    const apart = placed.filter((blocks) => !sameCut({ blocks: table }, { blocks }));
+    const placedApart = apart.length === 0 ? [] : landed(table, apart);
+    const lands = placed.map((blocks) => {
+      const at = apart.indexOf(blocks);
+      return at === -1 ? blocks.map((_, index) => index) : placedApart[at]!;
+    });
     for (const [at, each] of ids.entries()) {
       const ordinals: (number | undefined)[] = [];
       for (const [index, block] of placed[at]!.entries()) {
@@ -110,56 +120,45 @@ function landed(table: readonly Placed[], placed: readonly (readonly Placed[])[]
 
 /**
  * Each file's own cut, as the transform that probes it ahead of every other
- * one cuts it: from its text on disk under `root`.
+ * one cuts it: from its text on disk under `root`, every file read at once by
+ * the addon.
+ *
+ * Cutting is deterministic, so a file the run already cut as itself, at the
+ * text on disk now, is that cut, found in `run` under the id it reports; only
+ * the rest are read and cut again.
  */
-export function ownCut(root: string, mode: InstrumentMode | undefined): OwnCut {
-  return (file) => {
-    const path = resolve(root, file);
-    const disk = fileOrNone(path, (at) => readFileSync(at, 'utf8'));
-    return disk === undefined ? undefined : captureModule(root, path, disk, () => true, mode, heldOriginal(path, disk))?.module;
+export function ownCut(root: string, mode: InstrumentMode | undefined, run: ReadonlyMap<ModuleId, CapturedModule> = new Map()): OwnCut {
+  return (files) => {
+    // A bundler's virtual module names no file: `\0` reads as no text, as `fileOrNone` has it.
+    const paths = files.map((file) => resolve(root, file));
+    const read = paths.filter((path) => !path.includes('\0'));
+    const digested = digests(read);
+    const digest = new Map(read.map((path, at) => [path, digested[at]]));
+    const held = paths.map((path, at) => {
+      const text = digest.get(path);
+      return text == null ? undefined : run.get(`${files[at]!}@${text.slice(text.indexOf(':') + 1)}`);
+    });
+    const rest = paths.filter((path, at) => held[at] === undefined && digest.get(path) != null);
+    const text = readTexts(rest);
+    const texts = new Map(rest.map((path, at) => [path, text[at]]));
+    return paths.map((path, at) => {
+      const disk = texts.get(path) ?? undefined;
+      return held[at] ?? (disk === undefined ? undefined : captureModule(root, path, disk, () => true, mode, heldOriginal(path, disk))?.module);
+    });
   };
 }
 
-/**
- * Every journal row read in its file's record: the ordinals of a joined reading
- * become the record's, and two readings one file loaded become one row.
- *
- * An ordinal entered while the module evaluated in either reading stays so:
- * it credits every file that consumed the module, which may credit more than ran
- * it and never fewer.
- */
-export function joinedJournals(
-  journals: readonly ReadJournal[],
-  readings: ReadonlyMap<ModuleId, Reading>,
-): ReadJournal[] {
-  if (readings.size === 0) return [...journals];
-  return journals.map((journal) => {
-    const rows = new Map<ModuleId, { hits: Set<number>; shared: Set<number>; loaded: Set<number> }>();
-    for (const module of journal.modules) {
-      const reading = readings.get(module.id);
-      const id = reading?.id ?? module.id;
-      const row = rows.get(id) ?? { hits: new Set(), shared: new Set(), loaded: new Set() };
-      for (const [into, ordinals] of [
-        [row.hits, module.hits],
-        [row.shared, module.shared],
-        [row.loaded, module.loaded],
-      ] as const) {
-        for (const ordinal of ordinals) {
-          const landed = reading === undefined ? ordinal : reading.lands[ordinal];
-          if (landed !== undefined) into.add(landed);
-        }
-      }
-      rows.set(id, row);
-    }
-    const ascending = (ordinals: Set<number>): number[] => [...ordinals].sort((left, right) => left - right);
-    return {
-      ...journal,
-      modules: [...rows].map(([id, row]) => ({
-        id,
-        hits: ascending(row.hits),
-        shared: ascending(row.shared),
-        loaded: ascending(row.loaded),
-      })),
-    };
-  });
+/** Each path's text digest, read by the addon on every core; `null` where no file is there. */
+const digests = (paths: readonly string[]): readonly (string | null)[] => perFile('readDigests')([...paths]);
+
+/** Each path's text, read by the addon on every core; `null` where no file is there. */
+const readTexts = (paths: readonly string[]): readonly (string | null)[] => perFile('readTexts')([...paths]);
+
+/** The addon's reader of every path at once, or a refusal that says why it cannot read them. */
+function perFile(name: 'readDigests' | 'readTexts'): (paths: string[]) => (string | null)[] {
+  const read = native()?.[name];
+  if (read === undefined) {
+    throw new Error(`cutting each file read twice requires the Sense native addon: ${nativeRefusal() ?? `the loaded addon has no \`${name}\``}`);
+  }
+  return read;
 }

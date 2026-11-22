@@ -6,7 +6,7 @@ use std::collections::{HashMap, HashSet};
 use napi::bindgen_prelude::Buffer;
 use napi_derive::napi;
 
-use super::{lay, open, readings_of, Region, Run};
+use super::{lay, open, readings_of, Announced, Region, Run};
 
 /// Lay a run's case readings over the record's; see `layReadings`. `same` is
 /// every file the run recorded from the text the landed index holds it at,
@@ -29,7 +29,7 @@ pub fn lay_readings(
             Err(_) => Err(napi::Error::from_reason("an input is a file and its digest")),
         }).collect::<napi::Result<HashMap<_, _>>>())
         .transpose()?;
-    let run = fresh.as_deref().map(|fresh| Run { fresh, announced: announced.into_iter().collect(), same: same.into_iter().collect(), inputs });
+    let run = fresh.as_deref().map(|fresh| Run { fresh, announced: Announced::Cases(announced.into_iter().collect()), same: same.into_iter().collect(), inputs });
     let cases: HashSet<String> = cases.into_iter().collect();
     lay(kept.as_deref(), previous.as_deref(), landed.as_deref(), &cases, run.as_ref()).map(|bytes| bytes.map(Buffer::from)).map_err(napi::Error::from_reason)
 }
@@ -56,12 +56,12 @@ pub struct CaseRegion {
 /// The readings of case `id`; see `readingsOf`.
 #[napi(catch_unwind)]
 pub fn readings_of_case(section: Buffer, index: Option<Buffer>, id: String) -> napi::Result<Option<Vec<CaseReading>>> {
-    let readings = readings_of(&section, index.as_deref(), &id).map_err(napi::Error::from_reason)?;
-    Ok(readings.map(|readings| readings.into_iter().map(|reading| CaseReading {
+    readings_of(&section, index.as_deref(), &id, |reading| CaseReading {
         count: reading.count as f64,
         stopped: reading.stopped,
         regions: reading.regions.into_iter().map(region).collect(),
-    }).collect()))
+    })
+    .map_err(napi::Error::from_reason)
 }
 
 /// The regions case `id` crossed as `index` holds its newest run; see `newestRegions`.
@@ -72,7 +72,7 @@ pub fn newest_regions_of_case(index: Buffer, id: String) -> napi::Result<Option<
     Ok(read.map(|read| read.regions.into_iter().map(region).collect()))
 }
 
-fn region(region: Region) -> CaseRegion {
+fn region(region: Region<'_>) -> CaseRegion {
     CaseRegion {
         module: region.module.to_string(),
         name: region.name.to_string(),

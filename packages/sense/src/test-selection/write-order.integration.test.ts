@@ -13,7 +13,8 @@ import { resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { foldCases } from './case-fold.js';
 import { decodeExecutionIndex } from './execution-format.js';
-import { readJournals } from './finished-files.js';
+import { readWritten } from './instrumented-modules.js';
+import journalFormat from './journal-format.cjs';
 // The runner's modules `require` the collectors, so they are loaded built, and
 // through the export a runner's author imports.
 const { observeTestFile, startRecording, RECORDING_VARIABLE } =
@@ -57,15 +58,16 @@ describe('what a run wrote, read back', () => {
     const forwards = await finishedIn(root, workers);
     const backwards = await finishedIn(root, [...workers].reverse());
 
-    expect(JSON.stringify(await readJournals(backwards.runDirectory)))
-      .toBe(JSON.stringify(await readJournals(forwards.runDirectory)));
+    const journals = async (directory: string) => (await readWritten(directory)).map((bytes) => journalFormat.decodeJournal(bytes));
+    expect(JSON.stringify(await journals(backwards.runDirectory)))
+      .toBe(JSON.stringify(await journals(forwards.runDirectory)));
   });
 
   it('names the cases the same whichever worker finished first', async () => {
     const root = await mkdtemp(resolve(tmpdir(), 'variance-authority-write-order-'));
     temporary.push(root);
-    const forwards = foldCases((await finishedIn(root, workers)).caseDirectory, root, new Map());
-    const backwards = foldCases((await finishedIn(root, [...workers].reverse())).caseDirectory, root, new Map());
+    const forwards = await foldCases((await finishedIn(root, workers)).caseDirectory, root, new Map());
+    const backwards = await foldCases((await finishedIn(root, [...workers].reverse())).caseDirectory, root, new Map());
 
     expect(decodeExecutionIndex(backwards.bytes).tests).toEqual(decodeExecutionIndex(forwards.bytes).tests);
     expect(backwards.cases).toBe(workers.length);

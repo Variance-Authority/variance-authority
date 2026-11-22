@@ -26,7 +26,7 @@ pub(crate) fn before_run<'a>(
     ran_files: &FxHashSet<&str>,
     recorded_of: impl Fn(usize) -> Option<(&'a str, &'a [Block])>,
     unlined: &mut Vec<String>,
-) -> Result<Vec<u8>, String> {
+) -> Result<(Vec<u8>, Vec<String>), String> {
     let kept_rows: Vec<bool> = cut.tests.iter().map(|test| ran_files.contains(test.file.as_str())).collect();
     let order: Vec<Case> = (0..cut.tests.len()).filter(|row| kept_rows[*row]).map(Case::Held).collect();
     let at: FxHashMap<&str, usize> = order
@@ -63,8 +63,8 @@ pub(crate) fn before_run<'a>(
         }
     }
     laid.sort_by(|left, right| code_unit(left.0, right.0));
-    let laid: Vec<Laid> = laid.into_iter().map(|(_, laid)| laid).collect();
-    write(cut, None, &order, &laid, layer.sets, None, cuts.iter().any(|cut| cut.owners.is_some()))
+    let (modules, laid): (Vec<String>, Vec<Laid>) = laid.into_iter().map(|(file, laid)| (file.to_owned(), laid)).unzip();
+    Ok((write(cut, None, &order, &laid, layer.sets, None, cuts.iter().any(|cut| cut.owners.is_some()))?, modules))
 }
 
 /// The held module at the lines `recorded` stands its regions on: each kept

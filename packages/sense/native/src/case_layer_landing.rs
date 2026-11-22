@@ -161,24 +161,34 @@ pub(crate) fn landed_through(held: &[Block], recorded: &[Block], owners: Option<
         .collect();
     let occupied: FxHashSet<i32> = seated.iter().copied().filter(|from| *from >= 0).collect();
     let top = held.iter().position(|block| block.kind == "module");
-    let alike = addressed_alike(held.iter().map(address), recorded.iter().map(address));
-    let mut held_seen = FxHashMap::default();
-    let mut addressed = FxHashMap::default();
-    for (at, block) in held.iter().enumerate() {
-        addressed.insert(address_key(address(block), &mut held_seen), at);
-    }
-    let mut seen = FxHashMap::default();
+    // A cut the edit left at its lines seats every region, and takes no address apart.
+    let by_address = recorded.iter().enumerate().any(|(at, block)| seated[at] < 0 && !(top.is_some() && block.kind == "module"));
+    let addresses = by_address.then(|| {
+        let alike = addressed_alike(held.iter().map(address), recorded.iter().map(address));
+        let mut held_seen = FxHashMap::default();
+        let mut addressed = FxHashMap::default();
+        for (at, block) in held.iter().enumerate() {
+            addressed.insert(address_key(address(block), &mut held_seen), at);
+        }
+        let mut seen = FxHashMap::default();
+        let found: Vec<Option<usize>> = recorded
+            .iter()
+            .map(|block| {
+                let key = address_key(address(block), &mut seen);
+                if alike(&block.name, &block.path) { addressed.get(&key).copied() } else { None }
+            })
+            .collect();
+        found
+    });
     let mut decided = vec![-1_i32; recorded.len()];
     for (at, block) in recorded.iter().enumerate() {
-        let key = address_key(address(block), &mut seen);
         if seated[at] >= 0 {
             (decided[at], lands[at]) = (seated[at], seated[at]);
             continue;
         }
         let was = match top {
             Some(top) if block.kind == "module" => Some(top),
-            _ if alike(&block.name, &block.path) => addressed.get(&key).copied(),
-            _ => None,
+            _ => addresses.as_ref().and_then(|found| found[at]),
         };
         let owner = owners.and_then(|owners| owners.get(at)).copied().unwrap_or(NO_OWNER);
         decided[at] = match was {

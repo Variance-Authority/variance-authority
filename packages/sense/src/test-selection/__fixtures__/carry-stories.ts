@@ -220,7 +220,7 @@ export async function importEditedThenRunElsewhere(compare: Compare): Promise<vo
 /** A later partial run names its own cases after a carried edit changes the index's row numbering. */
 export async function lastRunAfterCarry(ask: Ask, scope: (walk: Walk) => Promise<readonly string[]>): Promise<void> {
   // Defer the reader so the fault-injection harness installs its edit-reading mock before the landing loads.
-  const { lastCaseRunOf } = await import('../case-landing.js');
+  const { lastCaseRunOf } = await import('../case-last-run.js');
   await walking(effects(), { [A]: ['top', 'outer', 'first'], [B]: ['top', 'outer', 'second'] }, async (walk) => {
     await runTests(walk, [B, A]);
     const first = caseSectionsAt(walk.coverageFile);

@@ -7,10 +7,8 @@
  * reads the section; selection never decodes it.
  */
 
-import { codeUnitOrder } from '@variance-authority/core/segment';
 import { native, nativeRefusal } from '../addon.js';
-import { digestString } from '../digest.js';
-import type { CoverageModule, CoverageTest, TestCoverage } from './index.js';
+import { coverageRows, type RunCoverage } from './format.js';
 import { decodeReadings, type ReadRegion } from './readings-bytes.js';
 
 /**
@@ -43,17 +41,10 @@ export interface ReadingsRun {
  * region of which it entered or loaded, at the text it was recorded from, and
  * the file's preconditions — its source, setup, configuration and mocks.
  */
-export function inputsOf(coverage: Pick<TestCoverage, 'modules'> & { readonly tests: readonly Pick<CoverageTest, 'file' | 'preconditions'>[] }): Map<string, string> {
-  const read = new Map<string, Set<CoverageModule>>(coverage.tests.map((test) => [test.file, new Set()]));
-  for (const module of coverage.modules) {
-    for (const block of module.blocks) {
-      for (const file of [...block.testFiles, ...block.loadedBy ?? []]) read.get(file)?.add(module);
-    }
-  }
-  return new Map(coverage.tests.map((test) => [test.file, digestString(JSON.stringify([
-    [...read.get(test.file)!].map((module) => [module.file, module.sourceDigest]).sort(([left], [right]) => codeUnitOrder(left!, right!)),
-    [...test.preconditions].map((input) => [input.name, input.digest]).sort(([left], [right]) => codeUnitOrder(left!, right!)),
-  ]))]));
+export function inputsOf(coverage: RunCoverage): Map<string, string> {
+  const inputs = native()?.coverageInputs;
+  if (inputs === undefined) throw new Error(`digesting a run's inputs requires the Sense native addon: ${nativeRefusal() ?? 'the loaded addon has no `coverageInputs`'}`);
+  return new Map(inputs(coverageRows(coverage)).map(([file, digest]) => [file!, digest!]));
 }
 
 /**

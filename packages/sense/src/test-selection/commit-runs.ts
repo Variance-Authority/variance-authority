@@ -46,17 +46,19 @@
 import { readFile, rm } from 'node:fs/promises';
 import { followRowsIn } from './case-cuts.js';
 import { editsBetween } from './region-edit.js';
-import { casesRan, dropsCasesWithoutAny, layCases, textsIn, unansweredOver, type FreshCases, type ModuleTexts } from './case-landing.js';
+import { dropsCasesWithoutAny, layCases, textsIn, unansweredOver, type FreshCases, type ModuleTexts } from './case-landing.js';
+import { casesRan } from './case-last-run.js';
 import { inputsOf } from './case-readings.js';
 import { casesRecordedOver, recordOfCases, withCaseSections, withoutChecks } from './case-record.js';
 import { commitRunsIn, commitRunsText } from './commit-runs-text.js';
 import { askCoverageFile } from './coverage-file.js';
 import { anotherBuilds, layeredOver, recordBytes } from './format-layer.js';
+import type { RunCoverage } from './format.js';
 import { RecordWithoutCoverage } from './format-validation.js';
 import { openTestCoverage } from './format-view.js';
 import type { TestCoverage } from './index.js';
 import { keepRecordedInstall, type KeptInstall } from './kept-install.js';
-import { keepRecordedTexts, landedTree, ranOverTexts, type KeptTexts } from './kept-texts.js';
+import { keepRecordedTexts, landedTree, ranOverTexts, type KeptTexts, type LandedTree } from './kept-texts.js';
 import { landingsAfter, observedBy, whatLanded, type Landing, type RanTests } from './landings.js';
 import { ownLayerAfter, readOwnLayer, workingTree, writeOwnLayer } from './own-layer.js';
 import { recordBase, takeReadFor } from './record-base.js';
@@ -198,11 +200,12 @@ export function laidProbes(current: Pick<TestCoverage, 'instrumentation' | 'modu
  */
 export async function landRun(
   coverageFile: string,
-  current: TestCoverage,
+  current: RunCoverage,
   root: string,
   cacheRoot?: string,
   cases?: FreshCases,
   checks?: Uint8Array,
+  landing?: Promise<LandedTree | undefined>,
 ): Promise<void> {
   if (laidProbes(current) === undefined) return landUncovered(coverageFile, root, cases, checks);
   if (current.modules.length === 0) {
@@ -211,7 +214,7 @@ export async function landRun(
     // probes fired where nothing could place them.
     const selecting = current.tests.filter((test) => !test.complete);
     if (selecting.length < current.tests.length) {
-      return landRun(coverageFile, { ...current, tests: selecting }, root, cacheRoot, cases, checks);
+      return landRun(coverageFile, { ...current, tests: selecting }, root, cacheRoot, cases, checks, landing);
     }
   }
   const before = await recordedSnapshot(coverageFile);
@@ -223,16 +226,21 @@ export async function landRun(
   const texts = cases === undefined && previous.index === undefined ? undefined : recordedTexts(coverageFile);
   // The run's cases are laid over the record's (`case-landing.ts`), over no index
   // only once it finished the snapshot's files. A run that kept none leaves the
-  // record's, or none once it finished a file.
-  const laid = cases === undefined
-    ? (dropsCasesWithoutAny(current) ? {} : previous)
+  // record's, or none once it finished a file. The addon lays them off this
+  // thread while the coverage is layered below; they are awaited where they are due.
+  const laying = cases === undefined
+    ? Promise.resolve(dropsCasesWithoutAny(current) ? {} : previous)
     : unansweredOver(previous, before?.tests, cases.run.tests, root).length > 0
-      ? previous
+      ? Promise.resolve(previous)
       : layCases(previous, cases.fresh, root, { ...cases.run, modules: current.modules, inputs: inputsOf(current) }, cases.eyes, texts, before?.commit, undefined, cacheRoot);
+  // Handled at once: it may fail while the awaits below are pending, or be left
+  // unawaited by a throw; its own failure is read where it is awaited.
+  laying.catch(() => undefined);
   const over = await recordBytes(coverageFile);
   // What differs from `HEAD` is asked once, for the rows' names and the texts kept.
-  const landed = current.commit === undefined ? undefined : await landedTree(root, cacheRoot);
+  const landed = current.commit === undefined ? undefined : await (landing ?? landedTree(root, cacheRoot));
   const coverage = await layeredOver(coverageFile, over, current, root, cacheRoot, landed);
+  const laid = await laying;
   // The rows of a module this run did not record may have been re-cut to the
   // text on disk; the cases held for it are laid onto the same cut (`case-cuts.ts`).
   const followed = laid.index === undefined ? laid : followRowsIn(laid, openTestCoverage(coverage), texts, editsBetween(root, cacheRoot, [before?.commit, current.commit]));
@@ -288,7 +296,7 @@ async function landUncovered(coverageFile: string, root: string, cases: FreshCas
   }
   const stands = snapshot?.commit;
   const over = await recordBytes(coverageFile);
-  const laid = layCases(previous, cases.fresh, root, cases.run, cases.eyes, undefined, stands);
+  const laid = await layCases(previous, cases.fresh, root, cases.run, cases.eyes, undefined, stands);
   const held = coveredRecord(coverageFile, over);
   const based = { ...laid, base: recordBase(over, cases.run.commit, stands, takeReadFor(coverageFile)), ...(checks === undefined ? {} : { checks }) };
   if (held !== undefined) return writeCoverageBytes(coverageFile, withCaseSections(held, based));

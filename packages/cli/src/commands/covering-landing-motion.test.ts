@@ -117,7 +117,7 @@ describe('the before layer of a landing', () => {
     };
     const shards = [await shard('shard-1.bin', DISCOUNTS, 'applyDiscount'), await shard('shard-2.bin', CHECKS_OUT, 'round')];
     const execution = join(dir, 'coverage.bin');
-    const { sections } = landCases(execution, previous, root, shards, new Map([['src/total.ts', digestString(BASE_TEXT)]]), base);
+    const { sections } = await landCases(execution, previous, root, shards, new Map([['src/total.ts', digestString(BASE_TEXT)]]), base);
     await writeTestCoverage(execution, { version: 3, instrumentation: 'fixture-instrumentation', tests: [], modules: [] }, sections);
 
     const full = decodeExecutionIndex(sections.index!);

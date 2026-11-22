@@ -7,7 +7,7 @@ import type { RecordedAttempt } from './attempts-record.js';
 import { triedAttempts, type CaseAttempts } from './case-attempts.js';
 import { UNLIMITED, UNTIMED, type CaseDurations, type CaseLimits } from './case-durations.js';
 import type { EyesSection } from './eyes-record.js';
-import { nativeModule, whyAbsent } from './native-modules.js';
+import { foldModules, whyAbsent } from './native-modules.js';
 import type { Reading } from './readings.js';
 
 /** A run's case journals, folded into the case index's bytes. */
@@ -43,30 +43,30 @@ export interface CaseFoldOptions {
  * Fold the case journals in `directory` over `modules` into the case index's
  * bytes. The addon reads and replays the journals a module slice at a time
  * (`native/src/case_run.rs`); what only the runner knows — durations, limits,
- * attempts — is asked of the caller by each case it names.
+ * attempts — is asked of the caller by each case it names. The fold itself runs
+ * off the JavaScript thread, so a caller that starts it early overlaps it with
+ * its own work and awaits it when the bytes are due.
  */
-export function foldCases(
+export async function foldCases(
   directory: string,
   root: string,
   modules: ReadonlyMap<ModuleId, CapturedModule>,
   options: CaseFoldOptions = {},
-): CaseFold {
+): Promise<CaseFold> {
   const open = native()?.openCaseJournals;
   if (open === undefined) throw new Error(`the case fold requires the Sense native addon: ${whyAbsent('openCaseJournals')}`);
   const journals = open(directory, root);
   const cases = journals.cases();
   const durations = options.durations ?? UNTIMED;
   const limits = options.limits ?? UNLIMITED;
-  const shaped = [...modules].map(([id, module]) => ({ ...nativeModule(module), id }));
   const readings = [...(options.readings ?? new Map<ModuleId, Reading>())].map(([id, reading]) => ({
     id,
     target: reading.id,
     // `lands` is sparse, and `map` keeps a hole a hole: `Array.from` visits it.
     lands: Array.from(reading.lands, (land) => land ?? 0xFFFF_FFFF),
   }));
-  const folded = journals.fold(
-    shaped,
-    [...modules.values()].map((module) => module.blocks.map((block) => block.ordinal)),
+  const folding = journals.fold(
+    foldModules(modules),
     readings,
     cases.map((held) => durations(held.file, held.name, held.runner) ?? Number.NaN),
     cases.map((held) => limits(held.file, held.name) ?? Number.NaN),
@@ -85,6 +85,7 @@ export function foldCases(
     watched: looked.watched,
     journals: looked.journals.map((row) => ({ case: row.case, attempt: row.attempt, journal: JSON.parse(row.journal) })),
   };
+  const folded = await folding;
   return {
     bytes: folded.bytes,
     passes: folded.passes,
@@ -121,19 +122,12 @@ export function foldCases(
  * `run.tests`, not worked out again from the case journals. The cases decide
  * and the modules do not: the fold keeps a module only when a case entered it.
  *
- * The caller hands the result to `landRun`, which lays it under the record's
- * lock in the same write as the coverage.
+ * `folding` is {@link foldCases} already in flight; `landRun` lays the result
+ * in the same write as the coverage.
  */
-export async function freshCases(
-  directory: string,
-  root: string,
-  modules: ReadonlyMap<ModuleId, CapturedModule>,
-  run: CaseRunTests,
-  readings: ReadonlyMap<ModuleId, Reading> = new Map(),
-): Promise<FreshCases | undefined> {
-  const finished = run.tests.some((test) => test.complete);
-  const folded = foldCases(directory, root, modules, { durations: run.durations, limits: run.limits, tried: run.tried, readings });
-  if (folded.cases === 0 && !finished) return undefined;
+export async function freshCases(folding: Promise<CaseFold>, run: LaidRun): Promise<FreshCases | undefined> {
+  const folded = await folding;
+  if (folded.cases === 0 && !run.tests.some((test) => test.complete)) return undefined;
   return {
     fresh: folded.bytes,
     run: {
@@ -143,14 +137,4 @@ export async function freshCases(
     },
     ...(folded.eyes === undefined ? {} : { eyes: folded.eyes }),
   };
-}
-
-/** What a run tells the case index about itself. */
-export interface CaseRunTests extends LaidRun {
-  /** Each case's duration as the runner reported it; absent, no case is timed. */
-  readonly durations?: CaseDurations;
-  /** Each case's limit, where the runner reports it only outside the case. */
-  readonly limits?: CaseLimits;
-  /** Each case's attempts as the runner reported them; absent, the run keeps none. */
-  readonly tried?: CaseAttempts | undefined;
 }

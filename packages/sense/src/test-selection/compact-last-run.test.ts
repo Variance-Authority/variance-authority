@@ -3,7 +3,8 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, expect, it } from 'vitest';
-import { lastCaseRunOf, layCases } from './case-landing.js';
+import { layCases } from './case-landing.js';
+import { lastCaseRunOf } from './case-last-run.js';
 import { encodeAsSetExecutionIndex } from './execution-set-format.js';
 
 let root: string;
@@ -14,20 +15,20 @@ beforeEach(async () => {
 });
 afterEach(async () => { await rm(root, { recursive: true, force: true }); });
 
-it('names the exact run by index rows without repeating long case identities', () => {
+it('names the exact run by index rows without repeating long case identities', async () => {
   const tests = Array.from({ length: 80 }, (_, at) => {
     const name = `case ${at} ${'with a descriptive parameter '.repeat(16)}`;
     return { id: `test/a.test.ts > ${name}`, name, file: 'test/a.test.ts', stopped: at === 7 };
   });
   const fresh = encodeAsSetExecutionIndex({ tests, modules: [] });
-  const sections = layCases({}, fresh, root, { commit: 'first', tests: [{ file: 'test/a.test.ts', complete: false }] });
+  const sections = await layCases({}, fresh, root, { commit: 'first', tests: [{ file: 'test/a.test.ts', complete: false }] });
   const last = lastCaseRunOf(sections)!;
   expect(last.cases).toEqual(tests.map((test) => test.id));
   expect(sections.last!.length).toBeLessThan(Buffer.byteLength(JSON.stringify(last)) / 5);
   expect(JSON.parse(Buffer.from(sections.last!).toString()).cases).toEqual({ references: tests.map((_, at) => at) });
 
   // A completed later run retires all but one case and changes its row.
-  const next = layCases(sections, encodeAsSetExecutionIndex({ tests: [tests[7]!], modules: [] }), root, {
+  const next = await layCases(sections, encodeAsSetExecutionIndex({ tests: [tests[7]!], modules: [] }), root, {
     commit: 'second', tests: [{ file: 'test/a.test.ts', complete: true }],
   });
   expect(lastCaseRunOf(next)?.cases).toEqual([tests[7]!.id]);

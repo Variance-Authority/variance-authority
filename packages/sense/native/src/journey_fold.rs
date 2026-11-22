@@ -9,10 +9,14 @@
 //! reached each region of a cut case (spec 0100).
 
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 
+use rayon::prelude::*;
+
+use crate::case_charge::Charge;
 use crate::case_lines;
-use crate::case_owner;
-use crate::crossing_sets::SetPool;
+use crate::case_reach::Reach;
+use crate::crossing_sets::{Encoded, SetPool};
 use crate::journal_scan::{self, Visitor};
 use crate::journey_format::EncodedModule;
 use crate::journey_journal::{CaseRun, ModuleId};
@@ -94,7 +98,7 @@ pub(crate) fn fold(
 
     let block_count = module_blocks[placed.len()];
     let mut called_sets = vec![0; block_count];
-    let mut loaded_flags = vec![false; block_count];
+    let mut loaded_flags: Vec<AtomicBool> = (0..block_count).map(|_| AtomicBool::new(false)).collect();
     let mut module_entered = vec![false; placed.len()];
     let mut sets = SetPool::new(run.tests.len());
     let empty = sets.intern(&[]);
@@ -114,7 +118,6 @@ pub(crate) fn fold(
     // The module the collection has reached, and how many before it a case entered.
     let mut encoded_row = 0;
     let mut encoded_at = 0_u32;
-    let mut scratch = Vec::with_capacity(run.tests.len());
     while first < placed.len() {
         let mut last = first;
         let mut held = 0;
@@ -128,12 +131,8 @@ pub(crate) fn fold(
         }
         let first_block = module_blocks[first];
         let local_blocks = module_blocks[last] - first_block;
-        let mut called = vec![0_u32; local_blocks * words];
-        if let Some(lines) = lines.as_mut() {
-            lines.slice(local_blocks);
-        }
-        let mut visitor = FoldVisitor {
-            charge: Charge::new(run),
+        let called: Vec<AtomicU32> = (0..local_blocks * words).map(|_| AtomicU32::new(0)).collect();
+        let slice = Slice {
             row_of: &row_of,
             readings,
             ordinal_offsets: &ordinal_offsets,
@@ -142,38 +141,81 @@ pub(crate) fn fold(
             last,
             first_block,
             words,
-            called: &mut called,
-            loaded: &mut loaded_flags[first_block..first_block + local_blocks],
-            module_row: 0,
-            lands: None,
-            cut: false,
-            lines: lines.as_mut(),
+            called: &called,
+            loaded: &loaded_flags[first_block..first_block + local_blocks],
+            gathers: lines.is_some(),
         };
-        replay_run(run, &mut visitor)?;
+        // Every journal at once: each one's frames are charged from its own
+        // first frame, and the line that first reached a region is the first
+        // journal's to reach it, as one replay in order would find it.
+        let reaches = (0..run.paths.len())
+            .into_par_iter()
+            .map(|at| {
+                let frames = run.path_frames.get(at + 1).copied().unwrap_or(run.frame_tests.len());
+                let mut visitor = FoldVisitor::new(&slice, Charge::at(run, run.path_frames[at]));
+                journal_scan::replay(std::slice::from_ref(&run.paths[at]), &mut visitor)?;
+                if visitor.charge.case_frame != frames {
+                    return Err("case journal replay changed while it was being folded".to_owned());
+                }
+                Ok(visitor.reach)
+            })
+            .collect::<Result<Vec<Reach>, String>>()?;
+        // A part's frames are charged to the cases its journeys belong to,
+        // after every case's: each part replayed on its own, merged in order.
+        let parts = (0..run.parts.len())
+            .into_par_iter()
+            .map(|at| {
+                let mut charge = Charge::at(run, run.frame_tests.len());
+                charge.part = Some(at);
+                let mut visitor = FoldVisitor::new(&slice, charge);
+                journal_scan::replay_part(&run.parts[at], &mut visitor)?;
+                Ok(visitor.reach)
+            })
+            .collect::<Result<Vec<Reach>, String>>()?;
+        if let Some(lines) = lines.as_mut() {
+            lines.reach = Reach::merged(local_blocks, reaches.into_iter().chain(parts).collect());
+        }
+        let called: Vec<u32> = called.into_iter().map(AtomicU32::into_inner).collect();
         passes += 1;
 
-        for local in 0..local_blocks {
-            scratch.clear();
-            collect(&called, local * words, words, &mut scratch);
+        // Each region's crossers, its set encoded and the line each lined
+        // crosser first reached it at, every region at once; then interned
+        // and handed to the cases in region order.
+        let held = lines.as_ref();
+        let gathered: Vec<(Encoded, u64, Vec<(u32, u64)>)> = (0..local_blocks)
+            .into_par_iter()
+            .with_min_len(64)
+            .map(|local| {
+                let mut members = Vec::new();
+                collect(&called, local * words, words, &mut members);
+                let values = match held {
+                    Some(lines) if written[first_block + local].is_some() => lines.values(local, &members),
+                    _ => Vec::new(),
+                };
+                (sets.encode(&members), members.len() as u64, values)
+            })
+            .collect();
+        for (local, (encoded, count, values)) in gathered.into_iter().enumerate() {
             let block = first_block + local;
-            called_sets[block] = sets.intern(&scratch);
-            crossings += scratch.len() as u64;
-            if !scratch.is_empty() || loaded_flags[block] {
+            called_sets[block] = sets.intern_encoded(encoded);
+            crossings += count;
+            if count > 0 || *loaded_flags[block].get_mut() {
                 module_entered[module_of(&module_blocks, first, last, block)] = true;
             }
             let (Some(lines), Some(place)) = (lines.as_mut(), written[block]) else { continue };
-            if scratch.is_empty() {
+            if count == 0 {
                 continue;
             }
             while module_blocks[encoded_row + 1] <= block {
                 encoded_at += u32::from(module_entered[encoded_row]);
                 encoded_row += 1;
             }
-            lines.region(local, &scratch, encoded_at, place);
+            lines.add(&values, encoded_at, place);
         }
         first = last;
     }
 
+    let loaded_flags: Vec<bool> = loaded_flags.into_iter().map(AtomicBool::into_inner).collect();
     let lines = lines.map(Lines::finish).unwrap_or_default();
     let entered: Vec<usize> = (0..placed.len()).filter(|row| module_entered[*row]).collect();
     if case.is_none() {
@@ -225,9 +267,7 @@ struct Lines<'a> {
     file_start: Vec<u32>,
     /// Each case's lines, its modules closed into runs as the next begins.
     builders: Vec<Option<case_lines::Builder>>,
-    width: u64,
-    own: HashMap<u64, u64>,
-    ambient: HashMap<u64, u64>,
+    reach: Reach,
 }
 
 impl<'a> Lines<'a> {
@@ -236,31 +276,27 @@ impl<'a> Lines<'a> {
         for &(first, last) in run.tests_by_file.values() {
             file_start[first as usize..last as usize].fill(first);
         }
-        Lines { lined, file_start, builders: lined.iter().map(|_| None).collect(), width: 0, own: HashMap::new(), ambient: HashMap::new() }
+        Lines { lined, file_start, builders: lined.iter().map(|_| None).collect(), reach: Reach::new(0) }
     }
 
-    fn slice(&mut self, width: usize) {
-        self.width = width as u64;
-        self.own.clear();
-        self.ambient.clear();
+    /// The value each lined member of a region's crossers takes there.
+    fn values(&self, local: usize, members: &[u32]) -> Vec<(u32, u64)> {
+        let reach = &self.reach;
+        members
+            .iter()
+            .filter(|test| self.lined[**test as usize])
+            .map(|&test| {
+                let value = reach
+                    .get(false, test, local)
+                    .or_else(|| reach.get(true, self.file_start[test as usize], local))
+                    .unwrap_or(1);
+                (test, value)
+            })
+            .collect()
     }
 
-    fn reached(&mut self, test: u32, local: usize, line: u32, ambient: bool) {
-        let held = if ambient { &mut self.ambient } else { &mut self.own };
-        held.entry(u64::from(test) * self.width + local as u64).or_insert(u64::from(line) * 2 + u64::from(ambient));
-    }
-
-    fn region(&mut self, local: usize, members: &[u32], module: u32, block: u32) {
-        for &test in members {
-            if !self.lined[test as usize] {
-                continue;
-            }
-            let value = self
-                .own
-                .get(&(u64::from(test) * self.width + local as u64))
-                .or_else(|| self.ambient.get(&(u64::from(self.file_start[test as usize]) * self.width + local as u64)))
-                .copied()
-                .unwrap_or(1);
+    fn add(&mut self, values: &[(u32, u64)], module: u32, block: u32) {
+        for &(test, value) in values {
             self.builders[test as usize].get_or_insert_with(case_lines::Builder::default).add(module, block, value).expect("the fold hands a case's regions over in order");
         }
     }
@@ -274,116 +310,40 @@ impl<'a> Lines<'a> {
     }
 }
 
-/// Where the frame being replayed is charged: one case, a case file's range,
-/// or the cases a part frame's journey belongs to. The fold and the count of
-/// unrecorded modules resolve frames through this one reading, so the two
-/// cannot disagree on who ran what.
-pub(crate) struct Charge<'a> {
-    run: &'a CaseRun,
-    case_frame: usize,
-    test_first: u32,
-    test_last: u32,
-    /// Whether the frame is a file's ambient one, charged to its whole range.
-    ambient: bool,
-    /// The cases a part frame is charged to; cases themselves use the range.
-    targets: &'a [u32],
-    /// The part file being replayed, once the case frames are done.
-    part: Option<usize>,
-}
-
-impl<'a> Charge<'a> {
-    pub(crate) fn new(run: &'a CaseRun) -> Self {
-        Charge { run, case_frame: 0, test_first: 0, test_last: 0, ambient: false, targets: &[], part: None }
-    }
-
-    /// Whether the frame is charged to no case.
-    pub(crate) fn nobody(&self) -> bool {
-        self.test_first == self.test_last && self.targets.is_empty()
-    }
-
-    pub(crate) fn test(&mut self, packed: &str) -> Result<(), String> {
-        let run = self.run;
-        self.ambient = false;
-        if let Some(part) = self.part {
-            let journey = case_owner::journey_of(packed);
-            self.test_first = 0;
-            self.test_last = 0;
-            // A journey no case handed out is work the writer did for nobody in
-            // particular: a trace its tracer started at import, or a request
-            // from outside the run. That is every case it served, the same as
-            // work under no journey at all.
-            self.targets = if journey.is_empty() {
-                &run.part_tests[part]
-            } else {
-                run.journey_tests.get(journey).map_or(&run.part_tests[part], Vec::as_slice)
-            };
-            return Ok(());
-        }
-        let (file, name, id, _) = case_owner::unpack_case(packed);
-        if name.is_empty() && id.is_empty() {
-            let normalized = case_owner::project_path(&run.root, file);
-            let range = run.tests_by_file.get(&normalized).copied().unwrap_or((0, 0));
-            self.test_first = range.0;
-            self.test_last = range.1;
-            self.ambient = true;
-        } else {
-            let test = run
-                .frame_tests
-                .get(self.case_frame)
-                .copied()
-                .ok_or_else(|| "case journal replay changed while it was being folded".to_owned())?;
-            self.case_frame += 1;
-            self.test_first = test;
-            self.test_last = test + 1;
-        }
-        Ok(())
-    }
-}
-
-pub(crate) trait Charged<'a>: Visitor {
-    fn charge(&mut self) -> &mut Charge<'a>;
-}
-
-/// Replay every case journal, then every part, charging each frame.
-pub(crate) fn replay_run<'a>(run: &CaseRun, visitor: &mut impl Charged<'a>) -> Result<(), String> {
-    journal_scan::replay(&run.paths, visitor)?;
-    if visitor.charge().case_frame != run.frame_tests.len() {
-        return Err("case journal replay changed while it was being folded".to_owned());
-    }
-    for (at, path) in run.parts.iter().enumerate() {
-        visitor.charge().part = Some(at);
-        journal_scan::replay_part(path, visitor)?;
-    }
-    Ok(())
-}
-
-struct FoldVisitor<'a, 'l> {
-    charge: Charge<'a>,
+/// What every journal's replay of one module slice shares.
+struct Slice<'a, 'l> {
     row_of: &'a HashMap<ModuleId, usize>,
     readings: Option<&'a HashMap<ModuleId, (ModuleId, Vec<u32>)>>,
-    ordinal_offsets: &'a [usize],
+    ordinal_offsets: &'l [usize],
     /// Each module's regions by ordinal, [`NONE`] for an ordinal it holds none at.
-    ordinal_blocks: &'a [usize],
+    ordinal_blocks: &'l [usize],
     first: usize,
     last: usize,
     first_block: usize,
     words: usize,
-    called: &'l mut [u32],
-    /// One flag per region in this pass, and no test: what ran while a module
+    called: &'l [AtomicU32],
+    /// One flag per region in this slice, and no test: what ran while a module
     /// evaluated is answered through the import graph, not credited here.
-    loaded: &'l mut [bool],
+    loaded: &'l [AtomicBool],
+    /// Whether the line each cut hit was first reached at is gathered.
+    gathers: bool,
+}
+
+struct FoldVisitor<'a, 's> {
+    slice: &'s Slice<'a, 's>,
+    charge: Charge<'a>,
     module_row: usize,
     /// The record's ordinal for each of the wanted row's, where it is a reading
     /// of a file read again.
     lands: Option<&'a [u32]>,
     /// Whether the wanted row carries the line each hit was first reached at.
     cut: bool,
-    lines: Option<&'l mut Lines<'a>>,
+    reach: Reach,
 }
 
-impl<'a> Charged<'a> for FoldVisitor<'a, '_> {
-    fn charge(&mut self) -> &mut Charge<'a> {
-        &mut self.charge
+impl<'a, 's> FoldVisitor<'a, 's> {
+    fn new(slice: &'s Slice<'a, 's>, charge: Charge<'a>) -> Self {
+        FoldVisitor { slice, charge, module_row: 0, lands: None, cut: false, reach: Reach::new(slice.loaded.len()) }
     }
 }
 
@@ -393,11 +353,12 @@ impl Visitor for FoldVisitor<'_, '_> {
     }
 
     fn wants(&mut self, id: &ModuleId, cut: bool) -> bool {
-        let reading = self.readings.and_then(|readings| readings.get(id));
-        let Some(row) = self.row_of.get(reading.map_or(id, |(target, _)| target)).copied() else {
+        let slice = self.slice;
+        let reading = slice.readings.and_then(|readings| readings.get(id));
+        let Some(row) = slice.row_of.get(reading.map_or(id, |(target, _)| target)).copied() else {
             return false;
         };
-        if row < self.first || row >= self.last || self.charge.nobody() {
+        if row < slice.first || row >= slice.last || self.charge.nobody() {
             return false;
         }
         self.module_row = row;
@@ -407,8 +368,9 @@ impl Visitor for FoldVisitor<'_, '_> {
     }
 
     fn module(&mut self, _: &ModuleId, hits: &[u32], shared: &[u32], _: &[u32], reached: Option<&[u32]>) {
-        let base = self.ordinal_offsets[self.module_row];
-        let span = self.ordinal_offsets[self.module_row + 1] - base;
+        let slice = self.slice;
+        let base = slice.ordinal_offsets[self.module_row];
+        let span = slice.ordinal_offsets[self.module_row + 1] - base;
         let mut shared_at = 0;
         for (at, &hit) in hits.iter().enumerate() {
             while shared_at < shared.len() && shared[shared_at] < hit {
@@ -418,29 +380,36 @@ impl Visitor for FoldVisitor<'_, '_> {
                 None => hit as usize,
                 Some(lands) => lands.get(hit as usize).filter(|land| **land != NO_LAND).map_or(span, |land| *land as usize),
             };
-            if ordinal >= span || self.ordinal_blocks[base + ordinal] == NONE {
+            if ordinal >= span || slice.ordinal_blocks[base + ordinal] == NONE {
                 continue;
             }
-            let block = self.ordinal_blocks[base + ordinal] - self.first_block;
+            let block = slice.ordinal_blocks[base + ordinal] - slice.first_block;
             if shared.get(shared_at) == Some(&hit) {
-                self.loaded[block] = true;
+                slice.loaded[block].store(true, Ordering::Relaxed);
                 continue;
             }
             let charge = &self.charge;
-            mark_range(self.called, block * self.words, charge.test_first as usize, charge.test_last as usize);
+            mark_range(slice.called, block * slice.words, charge.test_first as usize, charge.test_last as usize);
             for test in charge.targets {
-                self.called[block * self.words + (*test as usize >> 5)] |= 1 << (test & 31);
+                slice.called[block * slice.words + (*test as usize >> 5)].fetch_or(1 << (test & 31), Ordering::Relaxed);
             }
-            if let (true, Some(lines), Some(reached)) = (self.cut, self.lines.as_deref_mut(), reached) {
-                lines.reached(charge.test_first, block, reached[at], charge.ambient);
+            if let (true, true, Some(reached)) = (self.cut, slice.gathers, reached) {
+                self.reach.reached(charge.test_first, block, reached[at], charge.ambient);
             }
         }
     }
 }
 
-fn mark_range(bits: &mut [u32], at: usize, first: usize, last: usize) {
-    for test in first..last {
-        bits[at + (test >> 5)] |= 1 << (test & 31);
+/// Set the bits of tests `first..last`, a word at a time.
+fn mark_range(bits: &[AtomicU32], at: usize, first: usize, last: usize) {
+    let mut test = first;
+    while test < last {
+        let word = test >> 5;
+        let low = test & 31;
+        let high = ((word + 1) << 5).min(last) - (word << 5);
+        let mask = if high - low == 32 { u32::MAX } else { ((1_u32 << (high - low)) - 1) << low };
+        bits[at + word].fetch_or(mask, Ordering::Relaxed);
+        test = (word + 1) << 5;
     }
 }
 

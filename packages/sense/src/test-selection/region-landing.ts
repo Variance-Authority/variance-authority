@@ -11,19 +11,19 @@ import type { SetExecutionModule } from './execution-set-format.js';
 
 /**
  * Whether two cuts hold the same regions at the same lines, in one order: one
- * cut of one text, read without pairing a region. A run that re-cut nothing
- * leaves most modules so.
+ * cut of one text, read without pairing a region, so each region lands on its
+ * own place. A run that re-cut nothing leaves most modules so.
  */
 export function sameCut(left: Cut, right: Cut): boolean {
   return left.blocks.length === right.blocks.length && left.blocks.every((block, at) => {
     const other = right.blocks[at]!;
     return block.startLine === other.startLine && block.endLine === other.endLine &&
-      block.kind === other.kind && block.name === other.name && block.path === other.path;
+      block.kind === other.kind && block.name === other.name && block.path === other.path && block.source === other.source;
   });
 }
 
-/** What one cut of a module says of a region: its address, its kind and the lines it stands at. */
-type Region = Pick<SetExecutionModule['blocks'][number], 'kind' | 'name' | 'path' | 'startLine' | 'endLine'>;
+/** What one cut of a module says of a region: its address, its kind, its lines, and whether they are the file's where the cut says. */
+type Region = Pick<SetExecutionModule['blocks'][number], 'kind' | 'name' | 'path' | 'startLine' | 'endLine'> & { readonly source?: boolean };
 
 /** A module as one cut of its text: a case index's module, or a snapshot's rows of it. */
 export interface Cut {

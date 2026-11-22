@@ -11,14 +11,15 @@
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { codeUnitOrder } from '@variance-authority/core/segment';
-import { layerBefore, layerCaseIndex } from './case-layer.js';
+import { layCaseRun, layerBefore } from './case-layer.js';
 import { landAttempts, layAttempts, readableAttempts, type RecordedAttempt, type ShardAttempts } from './attempts-record.js';
-import { inputsIn, layReadings } from './case-readings.js';
+import { inputsIn } from './case-readings.js';
 import { caseSectionsAt, withoutChecks, type CaseSections } from './case-record.js';
+import { lastCaseRunOf, type LastCaseRun } from './case-last-run.js';
 import { decodeExecutionIndex, decodeExecutionTests } from './execution-format.js';
 import { encodeAsSetExecutionIndex, openSetExecutionIndex } from './execution-set-format.js';
 import { layEyes, readableEyes, type EyesSection } from './eyes-record.js';
-import { editsBetween } from './region-edit.js';
+import { editsBetween, type Edit } from './region-edit.js';
 import type { TestCoverageView } from './format-view.js';
 import type { CoverageModule, CoverageTest } from './index.js';
 import type { ExecutionTest } from './reverse.js';
@@ -61,56 +62,12 @@ export interface FreshCases {
 }
 
 /**
- * The run that wrote the case index last. Its cases are in the index itself,
- * as that run left them, so this names them and holds nothing else.
- */
-export interface LastCaseRun {
-  readonly commit?: string;
-  /**
-   * The commit the cases in the before layer were recorded at: the commit of
-   * the run that wrote the index before the first run at this one, or, when
-   * the record crossed a checkout and names no such run, the commit its
-   * snapshot stands at. Absent when neither names one, and when a run at this
-   * commit ran a file again, because that file's before is then this commit's
-   * own.
-   */
-  readonly before?: string;
-  readonly at: string;
-  /** Every test file the runs at this commit announced, so a run can tell whether it ran one again. */
-  readonly files: readonly string[];
-  /**
-   * Files of `files` the before layer cannot answer for: a run at this commit
-   * laid them over no index, or over one that began at this commit, and none
-   * has run them since. What came before them is not known, which is not the
-   * same as no case. Absent when every file has a base.
-   */
-  readonly unbased?: readonly string[];
-  /**
-   * The text each module of the before layer was cut from, by file, as the
-   * coverage beside the index it was cut from named it. A reader compares it
-   * with the text at `before` and reads no region of a module cut from another
-   * text, since those regions stand on lines that commit does not have. A
-   * module it does not name was cut from a text nobody here knew. Absent when
-   * no run named one, which says nothing either way.
-   */
-  readonly beforeTexts?: Readonly<Record<string, string>>;
-  /**
-   * True when the first run at this commit was laid over no index, so every
-   * case in it began at this commit and a file first run here has no base.
-   * Absent when an earlier commit's index was under it.
-   */
-  readonly began?: true;
-  /** The cases the last run recorded, by id. */
-  readonly cases: readonly string[];
-}
-
-/**
  * The case sections once one run's case index is laid over `previous`, the
  * sections of the record it lands in.
  *
  * `fresh` is the run's own index: the cases it recorded and the regions they
  * called. The files the run finished are replaced, every other case is carried
- * — see {@link layerCaseIndex}. A run at the commit the last one was made at is
+ * — see {@link layCaseRun}. A run at the commit the last one was made at is
  * one more invocation of the same suite, not a new change, so what the runs
  * before it retired stays under what this one retired.
  *
@@ -138,7 +95,7 @@ export interface LastCaseRun {
  * the coverage it lands, in one write under the record's lock, so the two
  * always answer for the same runs.
  */
-export function layCases(
+export async function layCases(
   previous: CaseSections,
   fresh: Uint8Array,
   root: string,
@@ -148,12 +105,28 @@ export function layCases(
   stands?: string,
   base?: { readonly index: Uint8Array; readonly texts?: ModuleTexts; readonly recorded?: ModuleTexts },
   cacheRoot?: string,
-): CaseSections {
+): Promise<CaseSections> {
   const ran = new Set(run.tests.map((test) => test.file));
   const recorded = textsOf(run);
   const edits = editsBetween(root, cacheRoot, [stands, run.commit]);
   const sameText = [...recorded].filter(([file, text]) => text === held?.get(file)).map(([file]) => file);
-  const { merged, cases, last, announced, before: retired, unlined } = layerCaseIndex(previous.index, fresh, {
+  // A module whose text is not known on both sides is unread: it is given no edit, and read as changed whole.
+  // An edit is read before the lay, which may not ask for it, so one that fails to read fails only when asked.
+  edits.ahead(Array.from(recorded).flatMap(([file, to]) => {
+    const from = held?.get(file);
+    return from === undefined || from === to ? [] : [[file, from, to] as const];
+  }));
+  const given = new Map(Array.from(recorded).flatMap(([file, to]): (readonly [string, Edit | undefined | Error])[] => {
+    const from = held?.get(file);
+    if (from === undefined || from === to) return [];
+    try {
+      return [[file, edits(file, from, to)]];
+    } catch (error) {
+      return [[file, error instanceof Error ? error : new Error(String(error))]];
+    }
+  }));
+  // The prior run is read from `previous` alone, while the lay runs off this thread.
+  const laying = layCaseRun(previous.index, fresh, {
     ran: [...ran],
     finished: [...new Set(run.tests.filter((test) => test.complete).map((test) => test.file))],
     presentUnder: root,
@@ -166,12 +139,9 @@ export function layCases(
       }),
     }),
     before: true,
-  }, (file) => {
-    // A module whose text is not known on both sides is unread.
-    const [from, to] = [held?.get(file), recorded.get(file)];
-    return from === undefined || to === undefined ? undefined : edits(file, from, to);
-  });
+  }, given, previous.readings, run.inputs);
   const prior = lastCaseRunOf(previous);
+  const { merged, cases, last, announced, before: retired, beforeModules, unlined, readings } = await laying;
   const again = run.commit !== undefined && prior?.commit === run.commit;
   // FIXME: a run at the same commit that is not a later shard of one landing
   // — a second local invocation, or a second landing — has only the index the
@@ -181,8 +151,8 @@ export function layCases(
   // them; keeping the base's cut of every module would keep a second index.
   const before = again ? layerBefore(previous.before, retired, ran) : retired;
   const beforeTexts = textsOfBefore(
-    before,
-    retired,
+    again && before !== undefined ? openSetExecutionIndex(before)?.modules.map((module) => module.file) : beforeModules,
+    beforeModules,
     base === undefined ? held : base.texts,
     again ? prior.beforeTexts : undefined,
     new Set(unlined),
@@ -210,15 +180,9 @@ export function layCases(
   };
   const journals = layEyes(previous.eyes, eyes, () => cases, announced);
   const attempts = layAttempts(previous.attempts, run.attempts, () => cases, announced);
-  const readings = layReadings(previous.readings, previous.index, merged, new Set(cases), {
-    fresh,
-    announced: new Set(announced),
-    same: sameText,
-    ...(run.inputs === undefined ? {} : { inputs: run.inputs }),
-  });
   return {
     index: merged,
-    last: spelledLast(named, merged),
+    last: spelledLast(named, cases),
     // Absent is not empty: with no index to take them from, there is no before.
     ...(before === undefined ? {} : { before }),
     ...(journals === undefined ? {} : { eyes: journals }),
@@ -238,63 +202,20 @@ export function layCases(
  * commit that kept it at those lines named a text they do not stand at.
  */
 function textsOfBefore(
-  before: Uint8Array | undefined,
-  retired: Uint8Array | undefined,
+  before: readonly string[] | undefined,
+  retired: readonly string[] | undefined,
   cut: ModuleTexts | undefined,
   kept: Readonly<Record<string, string>> | undefined,
   unlined: ReadonlySet<string>,
 ): Record<string, string> | undefined {
   if (before === undefined || (cut === undefined && kept === undefined)) return undefined;
-  const modules = openSetExecutionIndex(before)?.modules;
-  if (modules === undefined) return undefined;
-  const ownRegions = new Set(retired === undefined ? [] : openSetExecutionIndex(retired)?.modules.map((module) => module.file));
+  const ownRegions = new Set(retired);
   const texts: Record<string, string> = {};
-  for (const { file } of modules) {
+  for (const file of before) {
     const text = unlined.has(file) ? undefined : ownRegions.has(file) ? cut?.get(file) : kept?.[file];
     if (text !== undefined) texts[file] = text;
   }
   return texts;
-}
-
-/** The run that wrote the case index last, or `undefined` when none named itself or its name cannot be read. */
-export function lastCaseRunOf(sections: CaseSections): LastCaseRun | undefined {
-  if (sections.last === undefined) return undefined;
-  try {
-    const run = JSON.parse(Buffer.from(sections.last).toString('utf8')) as Omit<LastCaseRun, 'cases'> & {
-      readonly cases: readonly string[] | { readonly references: readonly (number | string)[] };
-    };
-    if (run === null || !Array.isArray(run.files)) return undefined;
-    if (Array.isArray(run.cases)) return run.cases.every((id) => typeof id === 'string') ? { ...run, cases: run.cases } : undefined;
-    const references = (run.cases as { readonly references?: unknown } | undefined)?.references;
-    if (!Array.isArray(references)) return undefined;
-    const tests = references.some((id) => typeof id === 'number') ? decodeExecutionTests(sections.index!) : [];
-    const cases = references.map((id: unknown) => {
-      if (typeof id === 'string') return id;
-      if (typeof id !== 'number' || !Number.isInteger(id) || id < 0 || tests[id] === undefined) throw new Error('unresolved last-run case row');
-      return tests[id]!.id;
-    });
-    return { ...run, cases };
-  } catch {
-    return undefined;
-  }
-}
-
-/**
- * The cases the run that wrote `sections` last executed, by test file, each
- * file's in code-unit order: the ones it laid, which the runs record names of
- * the files that run finished only in part (`landings.ts`). The sections are
- * what `layCases` or `landCases` wrote, whose last-run layer names only cases
- * its index holds.
- */
-export function casesRan(sections: CaseSections): ReadonlyMap<string, readonly string[]> {
-  const last = new Set(lastCaseRunOf(sections)!.cases);
-  const ran = new Map<string, string[]>();
-  if (last.size === 0) return ran;
-  for (const test of decodeExecutionTests(sections.index!)) {
-    if (last.has(test.id)) ran.set(test.file, [...(ran.get(test.file) ?? []), test.id]);
-  }
-  for (const ids of ran.values()) ids.sort(codeUnitOrder);
-  return ran;
 }
 
 /**
@@ -370,7 +291,7 @@ export function unansweredOver(
  * the record held but its last run's checks, which a landing never carries, as the run it was, in the order the shards were named; their
  * attempts are laid once, as one run's ({@link landAttempts}). Nothing is written here: the landing writes the sections under the record's lock.
  */
-export function landCases(
+export async function landCases(
   record: string,
   standing: CaseSections,
   root: string,
@@ -379,7 +300,7 @@ export function landCases(
   stands?: string,
   cacheRoot?: string,
   snapshot?: readonly { readonly file: string }[],
-): { readonly landing: CaseLanding; readonly sections: CaseSections } {
+): Promise<{ readonly landing: CaseLanding; readonly sections: CaseSections }> {
   const previous = withoutChecks(standing);
   let sections = previous;
   // `held` is the text each module of `previous`'s index was cut from. A shard
@@ -408,7 +329,7 @@ export function landCases(
       // A section this build cannot read is laid as a shard that opened none.
       // `stands`, the commit the snapshot stands at, names the before layer when
       // `previous` names no last run, and is where a text not kept is looked for.
-      sections = layCases(sections, fresh.bytes, root, run, readableEyes(kept.eyes), texts, stands, base && { ...base, recorded: new Map(recorded) }, cacheRoot);
+      sections = await layCases(sections, fresh.bytes, root, run, readableEyes(kept.eyes), texts, stands, base && { ...base, recorded: new Map(recorded) }, cacheRoot);
       for (const [file, text] of textsOf(run)) {
         texts.set(file, text);
         recorded.set(file, text);
@@ -444,12 +365,12 @@ function lastOfEveryShard(sections: CaseSections, ran: ReadonlySet<string>): Cas
   const last = lastCaseRunOf(sections)!;
   const index = openSetExecutionIndex(sections.index!)!;
   const cases = index.tests.flatMap((test) => (ran.has(test.id) ? [test.id] : []));
-  return { ...sections, last: spelledLast({ ...last, cases }, sections.index!) };
+  return { ...sections, last: spelledLast({ ...last, cases }, index.tests.map((test) => test.id)) };
 }
 
-/** The last-run section: references into its index, with an exact identity for a case the index no longer holds. */
-function spelledLast(named: LastCaseRun, index: Uint8Array): Buffer {
-  const rows = new Map(decodeExecutionTests(index).map((test, at) => [test.id, at]));
+/** The last-run section: references into its index, whose case ids are `ids` in row order, with an exact identity for a case the index no longer holds. */
+function spelledLast(named: LastCaseRun, ids: readonly string[]): Buffer {
+  const rows = new Map(ids.map((id, at) => [id, at]));
   // References name this index's case rows, never files inferred from them.
   // An identity the index retired remains exact rather than disappearing.
   const references = named.cases.map((id) => rows.get(id) ?? id);

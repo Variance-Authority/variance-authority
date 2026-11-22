@@ -33,6 +33,7 @@ import type { NativePaths } from './package-owner.js';
 import type { NativeSourceIndexes } from './native-source-index.js';
 import type { NativeDistill } from './native-distill.js';
 import type { NativeSaid } from './native-said.js';
+import type { NativeRunCrossingsFold } from './native-run-crossings.js';
 import type { NativeJourneys, NativeJourneysListing } from './native-journeys.js';
 import type { NativeRecords } from './native-record.js';
 import type { NativeModuleReaders, NativeModuleReferences, NativeModuleVerdict } from './native-module-reads.js';
@@ -139,7 +140,7 @@ export interface NativeScanBatch extends Omit<NativeReadBatch, 'guessed'> {
   readonly records?: string;
 }
 
-export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon, NativeJourneys, NativeRecords, NativeDistill, NativeSaid, NativeCommitTexts, NativeSourceIndexes, NativePaths {
+export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon, NativeJourneys, NativeRecords, NativeDistill, NativeSaid, NativeRunCrossingsFold, NativeCommitTexts, NativeSourceIndexes, NativePaths {
   /**
    * `instrument()`'s walk and splice, or `null` for a source that does not
    * parse. With a `module`, the header reporting under it is in the text.
@@ -227,6 +228,10 @@ export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon
   readLanguage(language: string, source: string): string | null;
   /** Each path's text digest, as `digestString(readFile(path, 'utf8'))` has it, read in parallel; throws naming the first it cannot read. */
   textDigests?(paths: string[]): string[];
+  /** Each path's text digest, as {@link readTexts}' text digested by `digestString`, read in parallel, in the order asked; `null` where no file is there. */
+  readDigests?(paths: string[]): (string | null)[];
+  /** Each path's text, as `readFileSync(path, 'utf8')` has it, read in parallel, in the order asked; `null` where no file is there. */
+  readTexts(paths: string[]): (string | null)[];
   /** One module's parse, as JSON, for source text already in hand. */
   readSource(file: string, source: string): string;
   /**
@@ -276,6 +281,19 @@ export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon
   stitchJourneysTo?(files: string[], output: string): NativeJourneyStitchResult;
   /** One run's case index laid over the one it replaces, and the before it retired: `native/src/case_layer.rs`. */
   layerCaseIndex?(previous: Uint8Array | undefined, fresh: Uint8Array, files: NativeCaseRunFiles, edit?: (file: string) => NativeCaseEdit | undefined): NativeCaseLayers;
+  /** {@link layerCaseIndex} with each changed module's edit given, and the readings section laid with it, off the JavaScript thread: `native/src/case_layer_napi.rs`. */
+  layCaseRun?(
+    previous: Uint8Array | undefined,
+    fresh: Uint8Array,
+    files: NativeCaseRunFiles,
+    edits: { file: string; edit?: NativeCaseEdit | undefined; error?: string | undefined }[],
+    kept: Uint8Array | undefined,
+    inputs?: string[][],
+  ): Promise<{ layers: NativeCaseLayers; readings: Buffer | null }>;
+  /** The id of each of `rows` in the case index `index`, `null` for a row it does not hold: `native/src/case_last_napi.rs`. */
+  caseRowIds?(index: Uint8Array, rows: number[]): (string | null)[];
+  /** The cases the last-run layer `last` names, by test file in `index`'s order: `native/src/case_last_napi.rs`. */
+  casesRanOf?(last: Uint8Array, index: Uint8Array): { file: string; cases: string[] }[];
   /** What the runs at one commit retired, as one before: `retired` laid over `kept`. */
   layerCaseBefore?(kept: Uint8Array | undefined, retired: Uint8Array | undefined, ran: string[]): Buffer | null;
   /** The case index with each module `cuts` names laid onto that cut; `null` when every one already stands at it. `edit` is asked only of a module laid onto another cut. */

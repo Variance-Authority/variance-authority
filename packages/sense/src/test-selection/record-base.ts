@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { closeSync, openSync, readSync } from 'node:fs';
-import { lastCaseRunOf } from './case-landing.js';
+import { lastCaseRunOf } from './case-last-run.js';
 import { caseSectionsOf } from './case-record.js';
 
 /** The base of a run that read no record and was laid over none. */

@@ -304,8 +304,15 @@ fn written(previous: &Coverage, current: &Coverage, fresh: Option<&Coverage>, re
         let claimed = claims[module];
         if let Some(row) = claimed {
             let held_source = before[previous.module_source[row] as usize];
+            // Two cuts that hold the same addresses in the same order agree on every
+            // one, and saying so takes no address apart: most modules a run
+            // records again are cut as they were.
+            let ranked = |block: usize, ranks: &[u32], coverage: &Coverage| (ranks[coverage.block_name[block] as usize], ranks[coverage.block_path[block] as usize]);
+            let same = previous.blocks(row).len() == blocks.len()
+                && previous.blocks(row).zip(blocks.clone()).all(|(held, block)| ranked(held, before, previous) == ranked(block, now, current));
             let address = |coverage: &Coverage, strings: Text, block: usize| (strings.at(coverage.block_name[block]).to_owned(), strings.at(coverage.block_path[block]).to_owned());
-            let alike = addressed_alike(previous.blocks(row).map(|block| address(previous, ps, block)), blocks.clone().map(|block| address(current, cs, block)));
+            let alike = (!same).then(|| addressed_alike(previous.blocks(row).map(|block| address(previous, ps, block)), blocks.clone().map(|block| address(current, cs, block))));
+            let alike = |name: &str, path: &str| alike.as_ref().is_none_or(|alike| alike(name, path));
             let measured = current.module_instrumented[module] == 1 && previous.module_instrumented[row] == 1;
             let mut seen: FxHashMap<(u32, u32), u32> = FxHashMap::default();
             let mut addressed = FxHashMap::default();

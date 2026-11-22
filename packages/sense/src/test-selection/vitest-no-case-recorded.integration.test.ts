@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import { instrumentationId } from '../instrument/index.js';
-import { lastCaseRunOf } from './case-landing.js';
+import { lastCaseRunOf } from './case-last-run.js';
 import { caseSectionsAt, keepsCases } from './case-record.js';
 import { CrossingSets } from './crossing-sets.js';
 import { decodeExecutionIndex } from './execution-format.js';

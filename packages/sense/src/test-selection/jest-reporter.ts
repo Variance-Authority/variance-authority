@@ -21,11 +21,11 @@ import { dirname, isAbsolute, resolve, sep } from 'node:path';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { Digest } from '@variance-authority/core/format';
 import { runTexts } from '../text-digests.js';
-import { instrumentationId, type InstrumentMode, type ModuleId } from '../instrument/index.js';
+import { instrumentationId, type InstrumentMode } from '../instrument/index.js';
 import { probesRegions } from '../instrument/identity.js';
 import { askedForStories } from '../story/directory.js';
 import { CUT_VARIABLE, cutFiles, removeCut } from './case-cut.js';
-import { freshCases } from './case-fold.js';
+import { foldCases, freshCases } from './case-fold.js';
 import { caseAttempts } from './case-attempts.js';
 import { jestAttempts, type JestAttempts } from './jest-attempts.js';
 import { caseDurations, finishedCase } from './case-durations.js';
@@ -38,14 +38,10 @@ import { noteABusyIndex, withIndexLock } from './index-lock.js';
 import { laidProbes, landRun } from './commit-runs.js';
 import { markCheckout } from './cache-layers.js';
 import { repositoryRoot } from './repository-root.js';
-import {
-  crossingsOf,
-  loadedOf,
-  projectPath,
-  type CapturedModule,
-  type ReadJournal,
-} from './instrumented-modules.js';
-import { coverageModule } from './coverage-rows.js';
+import { projectPath, type CapturedModule } from './instrumented-modules.js';
+import { runCrossings, runModuleIds, type RunCrossings, type RunJournal } from './run-crossings.js';
+import { crossedModules } from './coverage-rows.js';
+import type { RunCoverage } from './format.js';
 import { deriveModules } from './captured-modules.js';
 import {
   CASE_DIRECTORY_VARIABLE,
@@ -59,7 +55,6 @@ import {
 import {
   type CoveragePrecondition,
   type CoverageTest,
-  type TestCoverage,
 } from './index.js';
 import { prepareRecord } from './replaced-record.js';
 import { recordsAlone } from './mainline-layer.js';
@@ -226,25 +221,15 @@ class JestCoverageReporter {
       return;
     }
 
-    const written = await readProjectJournals(runDirectory);
-    const journals = written.map((entry) => entry.journal);
+    const { journals, projects } = await readProjectJournals(runDirectory);
     // A module whose file is gone is left out, and the file that entered it is
     // recorded incomplete: a crossing nobody can place is one this run may not
     // let a later run skip on.
-    const modules = await deriveModules(
-      root,
-      journals.flatMap((journal) => journal.modules.map((entered) => entered.id)),
-      mode,
-    );
+    const modules = await deriveModules(root, runModuleIds(journals, []), mode);
     const selection = this.#config;
     const { coverageFile } = selection;
-
-    const rows = journals.map((journal) => ({
-      testFile: projectPath(root, journal.testFile),
-      modules: journal.modules.filter((entered) => modules.has(entered.id)),
-    }));
-    const observed = crossingsOf(rows);
-    const early = loadedOf(rows);
+    const crossings = runCrossings(journals, [], root, new Map(), modules.keys());
+    const numbered = crossings.numbered(modules);
 
     const governed = results.testResults.map((result) => ({
       result,
@@ -258,22 +243,17 @@ class JestCoverageReporter {
       selection,
       governing,
       texts.digests,
-      journalsOf(written, projectNamed(result.displayName)),
-      modules,
+      journalsOf(crossings.journalsOf(projectPath(root, result.testFilePath)), projects, projectNamed(result.displayName)),
+      crossings,
+      numbered,
     )));
     const commit = await commitOf(root);
-    const current: TestCoverage = {
+    const current: RunCoverage = {
       version: 3,
       instrumentation,
       ...(commit === undefined ? {} : { commit }),
       tests: tests.sort((left, right) => codeUnitOrder(left.file, right.file)),
-      modules: [...modules]
-        .map(([id, module]) => coverageModule(
-          module,
-          (block) => [...(observed.get(id)?.get(block.ordinal) ?? [])],
-          (block) => [...(early.get(id)?.get(block.ordinal) ?? [])],
-        ))
-        .sort((left, right) => codeUnitOrder(left.file, right.file)),
+      ...crossedModules(modules, crossings),
     };
     // In the record, with the coverage, in one write. A run that recorded no
     // case and finished no file has none to lay, and the record's cases stay
@@ -284,12 +264,10 @@ class JestCoverageReporter {
     }));
     const cases = caseDirectory === undefined
       ? undefined
-      : await freshCases(caseDirectory, root, modules, {
-          tests,
-          ...(commit === undefined ? {} : { commit }),
-          durations: caseDurations(reported, root),
-          tried: caseAttempts(reported, root),
-        });
+      : await freshCases(
+          foldCases(caseDirectory, root, modules, { durations: caseDurations(reported, root), tried: caseAttempts(reported, root) }),
+          { tests, ...(commit === undefined ? {} : { commit }) },
+        );
     const merged = await withIndexLock(coverageFile, async (lock) => {
       // The repository's snapshot becomes this checkout's before the first run
       // lands on it, so a worktree layers onto months of recording rather than
@@ -341,8 +319,11 @@ function coverageTest(
   governing: readonly string[],
   /** Every file's text digest, from `textDigests`, read once for the whole run. */
   digests: ReadonlyMap<string, Digest>,
-  journals: readonly ReadJournal[],
-  modules: ReadonlyMap<ModuleId, CapturedModule>,
+  /** This result's project's journals of the file. */
+  journals: readonly RunJournal[],
+  crossings: RunCrossings,
+  /** The run's modules by number, as {@link RunCrossings.numbered} gives them. */
+  modules: readonly (CapturedModule | undefined)[],
 ): CoverageTest {
   const file = projectPath(config.root, result.testFilePath);
   const preconditions: CoveragePrecondition[] = [];
@@ -365,15 +346,15 @@ function coverageTest(
   let recorded = false;
   const marks: number[] = [];
   for (const journal of journals) {
-    if (projectPath(config.root, journal.testFile) !== file) continue;
     recorded = true;
     if (journal.collected !== undefined) marks.push(journal.collected);
+    if (!journal.placed) placed = false;
     for (const entered of journal.modules) {
-      const module = modules.get(entered.id);
-      if (module === undefined) placed = false;
+      const module = modules[entered];
+      if (module === undefined) throw new Error(`variance-authority lost the source identity for module ${crossings.ids[entered]}`);
       // Only what the instrument could not see inside, as `vitest.ts` says at
       // more length: an instrumented module already carries its own digest.
-      else if (!module.instrumented) {
+      if (!module.instrumented) {
         preconditions.push({ name: module.file, digest: module.sourceDigest });
       }
     }

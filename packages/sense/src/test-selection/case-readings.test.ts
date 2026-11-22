@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { CaseLinesBuilder, lineValue } from './case-lines.js';
 import { inputsOf, layReadings, readingsOf } from './case-readings.js';
+import { MODEL } from './format-layout.js';
 import { LAYOUT } from './record-layout.js';
 import { CrossingSets } from './crossing-sets.js';
 import { encodeSetExecutionIndex, openSetExecutionIndex, type SetExecutionModule } from './execution-set-format.js';
@@ -306,15 +307,18 @@ describe('layReadings', () => {
 
 describe('inputsOf', () => {
   /** `a.test.ts` entered `src/page.ts` and only loaded `src/config.ts`; `b.test.ts` reached neither. */
+  const block = { ordinal: 0, kind: 'module', digest: 'd', name: 'module', path: 'module', source: true } as const;
   const coverage = (texts: { readonly page: string; readonly config: string }, setup = 'one') => inputsOf({
+    version: MODEL,
+    instrumentation: 'test',
     tests: [
-      { file: 'a.test.ts', preconditions: [{ name: 'vitest.setup.ts', digest: setup }] },
-      { file: 'b.test.ts', preconditions: [] },
+      { file: 'a.test.ts', complete: true, preconditions: [{ name: 'vitest.setup.ts', digest: setup }] },
+      { file: 'b.test.ts', complete: true, preconditions: [] },
     ],
     modules: [
-      { file: 'src/page.ts', sourceDigest: texts.page, instrumented: true, blocks: [{ testFiles: ['a.test.ts'] }] },
-      { file: 'src/config.ts', sourceDigest: texts.config, instrumented: true, blocks: [{ testFiles: [], loadedBy: ['a.test.ts'] }] },
-    ] as never,
+      { file: 'src/page.ts', sourceDigest: texts.page, instrumented: true, blocks: [{ ...block, testFiles: ['a.test.ts'] }] },
+      { file: 'src/config.ts', sourceDigest: texts.config, instrumented: true, blocks: [{ ...block, testFiles: [], loadedBy: ['a.test.ts'] }] },
+    ],
   });
   const base = coverage({ page: '1', config: '1' });
 
