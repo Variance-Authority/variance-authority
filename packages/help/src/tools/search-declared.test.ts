@@ -48,6 +48,12 @@ async function workspace(): Promise<string> {
     'packages/kit/src/lone/index.ts': "export { loneThing } from './thing.js';\n",
     'packages/kit/src/alias/base.ts': 'export const baseValue = 1;\n',
     'packages/aa/alias.ts': "export { baseValue as renamedValue } from '../kit/src/alias/base.js';\n",
+    'packages/kit/src/two/thing.ts': 'export const twoDoors = 1;\n',
+    'packages/kit/src/two/a.ts': "export { twoDoors } from './thing.js';\n",
+    'packages/kit/src/two/b.ts': "export { twoDoors } from './thing.js';\n",
+    'packages/other/src/two-a.ts': "import { twoDoors } from 'kit/src/two/a';\nexport const fromA = twoDoors;\n",
+    'packages/other/src/two-b1.ts': "import { twoDoors } from 'kit/src/two/b';\nexport const fromB1 = twoDoors;\n",
+    'packages/other/src/two-b2.ts': "import { twoDoors } from 'kit/src/two/b';\nexport const fromB2 = twoDoors;\n",
     'packages/kit/src/twin.ts': 'export const twinValue = 1;\n',
     'packages/other/src/twin.ts': 'export const twinValue = 2;\n',
     'packages/kit/src/said/thing.ts': 'export const saidThing = 1;\n',
@@ -124,4 +130,11 @@ it('keeps the summary of the comment a doc search matched, when that comment sit
   const out = search.run(await readWorkspaceForAnswer(root), { query: 'zebra stripes' }, { root });
   const row = out.split('\n').find((line) => line.startsWith('saidThing — '));
   expect(row, out).toBe('saidThing — kit · packages/kit/src/said/thing.ts:1 — Paints zebra stripes.');
+});
+
+it('names as the door the file that passes a name on which most files of other packages import it from', async () => {
+  const root = await workspace();
+  const out = search.run(await readWorkspaceForAnswer(root), { query: 'twoDoors' }, { root });
+  const row = out.split('\n').find((line) => line.startsWith('twoDoors — '));
+  expect(row, out).toBe('twoDoors — kit · packages/kit/src/two/thing.ts:1 · exported from packages/kit/src/two/b.ts:1');
 });
