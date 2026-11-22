@@ -52,6 +52,8 @@ export interface SourceTree {
   unknownFiles(): string[];
   /** Every file reachable from `seeds` along the imports, or against them. */
   walk(seeds: string[], against: boolean): SourceWalk;
+  /** How many files import each of `paths` directly, each importer once; zero for a path the tree does not hold. */
+  importers(paths: string[]): number[];
 }
 
 /** The tree in `bytes`, as a workspace `workspace` below its root sees it; `''` for the root. */

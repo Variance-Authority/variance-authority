@@ -96,15 +96,56 @@ function batchesOf(paths: readonly string[]): readonly (readonly string[])[] {
   return batches;
 }
 
-/** The names a git listing gives, or the first line git gave for not answering. */
-function gitNames(root: string, args: readonly string[]): readonly string[] | { readonly unread: string } {
+/**
+ * The files git tracks whose name, from its first dot on dropped, is one of
+ * `bases` — `lib/child_process.js` and `child_process.d.ts` for
+ * `child_process` — keyed by that base, the first `cap` of each in git's path
+ * order and how many there are; a base no file is named is absent. Git matches
+ * the names and JS keeps `cap` of each, counting the rest as it scans. A base
+ * that holds `/`, a glob character or nothing is no file name, and is not asked.
+ */
+export function filesNamed(
+  root: string,
+  bases: readonly string[],
+  cap: number,
+): ReadonlyMap<string, { readonly files: readonly string[]; readonly count: number }> | { readonly unread: string } {
+  const asked = [...new Set(bases)].filter((base) => base !== '' && !/[/*?[\]\\:]/u.test(base));
+  if (asked.length === 0) return new Map();
+  // bound: one listing string git writes, scanned in place; `cap` files of each asked base are kept
+  const listed = gitListing(root, ['ls-files', '-z', '--cached', '--', ...asked.flatMap((base) => [`:(glob)**/${base}`, `:(glob)**/${base}.*`])], false);
+  if (typeof listed !== 'string') return listed;
+  const wanted = new Set(asked);
+  const named = new Map<string, { files: string[]; count: number }>();
+  for (let start = 0; start < listed.length; ) {
+    const end = listed.indexOf('\0', start);
+    const file = listed.slice(start, end < 0 ? listed.length : end);
+    start = end < 0 ? listed.length : end + 1;
+    const name = file.slice(file.lastIndexOf('/') + 1);
+    const dot = name.indexOf('.', 1);
+    const base = dot > 0 ? name.slice(0, dot) : name;
+    if (!wanted.has(base)) continue;
+    const held = named.get(base) ?? { files: [], count: 0 };
+    held.count += 1;
+    if (held.files.length < cap) held.files.push(file);
+    named.set(base, held);
+  }
+  return named;
+}
+
+/** What a git listing writes, or the first line git gave for not answering; `literal` reads every pathspec as a path, never as a pattern. */
+function gitListing(root: string, args: readonly string[], literal: boolean): string | { readonly unread: string } {
   try {
-    const listed = execFileSync('git', ['--literal-pathspecs', ...args], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
-    return listed.split('\0').filter((name) => name !== '');
+    return execFileSync('git', [...(literal ? ['--literal-pathspecs'] : []), ...args], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
   } catch (error) {
     const said = error instanceof Error && 'stderr' in error ? String(error.stderr) : String(error);
     return { unread: said.trim().split('\n')[0] || `git could not list ${path(args)}` };
   }
+}
+
+/** The names a git listing gives, or the first line git gave for not answering; every pathspec is read as a path. */
+function gitNames(root: string, args: readonly string[]): readonly string[] | { readonly unread: string } {
+  const listed = gitListing(root, args, true);
+  return typeof listed === 'string' ? listed.split('\0').filter((name) => name !== '') : listed;
 }
 
 function path(args: readonly string[]): string {

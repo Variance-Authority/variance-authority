@@ -125,6 +125,28 @@ function declarationAreas({ privateArea = 'beta', merged = false }: { privateAre
   return root;
 }
 
+/**
+ * A checkout with no manifest at all, as node's is at its root: its names are
+ * declared in plain files under `lib/`, and a test file declares one of them too.
+ */
+function unpackaged(): string {
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'va-classify-unpackaged-')));
+  const write = (path: string, text: string): void => {
+    mkdirSync(dirname(join(root, path)), { recursive: true });
+    writeFileSync(join(root, path), text);
+  };
+  write('test/loader.test.js', "'use strict';\n\nclass ModuleLoader {}\n\nnew ModuleLoader();\n");
+  write('lib/loader.js', "'use strict';\n\nclass ModuleLoader {\n  load() { return 1; }\n}\n\nmodule.exports = { ModuleLoader };\n");
+  write('lib/child_process.js', "'use strict';\n\nfunction spawn() { return 0; }\n\nmodule.exports = { spawn };\n");
+  write('lib/checkout.js', "'use strict';\n\nfunction checkoutPath() { return '.'; }\n\nmodule.exports = { checkoutPath };\n");
+  write('lib/main.js', "'use strict';\n\nconst { ModuleLoader } = require('./loader');\nconst { spawn } = require('./child_process');\nconst { checkoutPath } = require('./checkout');\n\nmodule.exports = () => [new ModuleLoader(), spawn(), checkoutPath()];\n");
+  for (const args of [['init', '--quiet', '--initial-branch', 'main'], ['config', 'user.email', 'fixture@example.test'], ['config', 'user.name', 'Fixture'], ['add', '-A'], ['commit', '--quiet', '-m', 'the checkout']]) {
+    execFileSync('git', args, { cwd: root, stdio: 'pipe' });
+  }
+  process.chdir(root);
+  return root;
+}
+
 describe('variance ask classify', () => {
   it.each(['alpha', 'beta'])('counts a merged type and value name once regardless of export visibility (%s)', async (privateArea) => {
     const root = declarationAreas({ privateArea, merged: true });
@@ -280,6 +302,56 @@ describe('variance ask classify', () => {
 
     expect(asked.code).not.toBe(EXIT_CLEAN);
     expect(asked.err + asked.out).toContain('`classify` ranked nothing');
+  });
+
+  it('names a declared name of a checkout with no package at the line that declares it, before a test that declares it too', async () => {
+    unpackaged();
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const asked = await run(['ask', 'classify', '--query', 'ModuleLoader loader']);
+
+    expect(asked.code).toBe(EXIT_CLEAN);
+    // `symbol --name ModuleLoader` names the same lines: the binding `lib/main.js` destructures is one of them.
+    expect(asked.out).toContain(
+      [
+        'ModuleLoader — declared lib/loader.js:3 · in no package',
+        '             — declared lib/main.js:3 · in no package',
+        '             — declared test/loader.test.js:3 · in no package',
+      ].join('\n'),
+    );
+    expect(asked.out).toContain('variance ask symbol --name ModuleLoader');
+  });
+
+  it('names a word that is a tracked file\'s base name as that file', async () => {
+    unpackaged();
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const asked = await run(['ask', 'classify', '--query', 'who spawns child_process']);
+
+    expect(asked.code).toBe(EXIT_CLEAN);
+    expect(asked.out).toMatch(/^child_process — file lib\/child_process\.js · in no package$/m);
+    expect(asked.out).toContain('variance ask orient --files lib/child_process.js');
+  });
+
+  it('keeps a plain word that is only part of a declared name plain', async () => {
+    unpackaged();
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const asked = await run(['ask', 'classify', '--query', 'check the checkout']);
+
+    expect(asked.code).toBe(EXIT_CLEAN);
+    expect(asked.out).toMatch(/^Not entities: check the checkout$/m);
+  });
+
+  it('says no word was looked up as a file when git cannot list the tracked files, rather than calling it no entity', async () => {
+    const root = unpackaged();
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+    rmSync(join(root, '.git'), { recursive: true, force: true });
+
+    const asked = await run(['ask', 'classify', '--query', 'who spawns child_process']);
+
+    expect(asked.code).toBe(EXIT_CLEAN);
+    expect(asked.out).toMatch(/^No word is looked up as a file: git could not list the tracked files \(.+\)\.$/m);
   });
 
   it('names the entities and says why no area is ranked when git cannot list the files HEAD holds', async () => {

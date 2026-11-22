@@ -443,9 +443,12 @@ row goes to `docs_entrypoint` as `package`, exactly as printed.
 
 Holding a request in words rather than a name, call `docs_classify` with it as
 `query` instead. It says which of its words are, whole, a package, an
-entrypoint or an exported name, each with its area and layer on the code map,
+entrypoint or an exported name, and then which identifier-shaped words left —
+`ModuleLoader`, `child_process` — are a name `docs_symbol` finds declared or a
+tracked file's name before its first dot, each with its area and layer on the code map,
 and ends with the question each one takes next, written as the `variance ask`
-command whatever the caller: `symbol` (`docs_symbol`) for an exported name,
+command whatever the caller: `symbol` (`docs_symbol`) for an exported or
+declared name, `orient --files` (`docs_orient`) for a file,
 `entrypoint` (`docs_entrypoint`) for a published package or entrypoint, and
 `orient --area` (`docs_orient`) for a package that publishes nothing, or no
 question when the map placed it in no area. When words remain unrecognized or

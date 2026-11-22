@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { checkoutPath, existedAt, existingAt } from './checkout-path.js';
+import { checkoutPath, existedAt, existingAt, filesNamed } from './checkout-path.js';
 
 /** What a commit held, asked of a real repository: of one path, and of many in one listing. */
 
@@ -66,5 +66,17 @@ describe('checkoutPath', () => {
     expect(checkoutPath(root, '../elsewhere.ts')).toEqual({
       outside: `../elsewhere.ts is outside the checkout at ${root}, and the recording holds only paths inside it.`,
     });
+  });
+});
+
+describe('filesNamed', () => {
+  it('names the tracked files of a base, its later dots too, keeping the first `cap` in path order and counting all', async () => {
+    for (const at of ['a/loader.js', 'b/loader.d.ts', 'c/loader.test.js', 'd/loaders.js']) {
+      await mkdir(join(root, at, '..'), { recursive: true });
+      await writeFile(join(root, at), '\n');
+    }
+    git('add', '-A');
+
+    expect(filesNamed(root, ['loader', 'absent'], 2)).toEqual(new Map([['loader', { files: ['a/loader.js', 'b/loader.d.ts'], count: 3 }]]));
   });
 });

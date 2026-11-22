@@ -312,6 +312,25 @@ impl SourceTree {
         (graph.lo..graph.hi).filter(|&id| graph.unknown[id as usize]).map(|id| graph.path(id).to_owned()).collect()
     }
 
+    /// How many files import each of `paths` directly, each importer counted
+    /// once however many imports it writes; zero for a path the tree does not hold.
+    /// bound: the paths the caller asked
+    #[napi]
+    pub fn importers(&self, paths: Vec<String>) -> Vec<u32> {
+        let graph = &self.graph;
+        paths
+            .iter()
+            .map(|path| {
+                graph.seed(path).map_or(0, |id| {
+                    let mut from: Vec<u32> = graph.backward.of(id).map(|edge| graph.backward.target[edge]).collect();
+                    from.sort_unstable();
+                    from.dedup();
+                    from.len() as u32
+                })
+            })
+            .collect()
+    }
+
     /// Every file reachable from `seeds` along the imports, or against them
     /// when `against`. A seed the tree does not hold reaches nothing.
     #[napi]
