@@ -10,8 +10,9 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use crate::help_search::postings;
 use crate::name_table::{marked, row_of, NameColumn, Names, Scope};
-use crate::segment::{u32s, u8s, Column};
+use crate::segment::{u32s, u8s, Collected, Column, Strings};
 use crate::stored::{Stored, U32s};
 
 use super::Api;
@@ -22,20 +23,18 @@ const TEXT: (&str, &str) = ("finds.text", "finds.text.off");
 /// Whether a package silent about every name has a README to answer from instead: one beside its manifest that read.
 pub(super) fn told_by_readme(api: &Api) -> bool { api.readme.as_ref().is_some_and(|readme| readme.unreadable.is_none()) }
 
-/// Keys in byte order, each with the ascending entries that hold it.
-fn keyed(prefix: [&'static str; 4], table: &BTreeMap<String, BTreeSet<u32>>) -> [Column; 4] {
-    let (mut blob, mut keys, mut held, mut entries) = (Vec::new(), vec![0u32], vec![0u32], Vec::new());
-    for (key, holders) in table {
-        blob.extend_from_slice(key.as_bytes());
-        keys.push(blob.len() as u32);
-        entries.extend(holders);
-        held.push(entries.len() as u32);
-    }
-    [u8s(prefix[0], blob), u32s(prefix[1], keys), u32s(prefix[2], held), u32s(prefix[3], entries)]
-}
+/// The sections of the exact-name and the stem table: per string of the catalogue's dictionary, the ascending
+/// entries that hold it.
+const NAMES: (&str, &str) = ("finds.names.off", "finds.names.entries");
+const STEMS: (&str, &str) = ("finds.stems.off", "finds.stems.entries");
 
-const NAMES: [&str; 4] = ["finds.names", "finds.names.off", "finds.names.held", "finds.names.entries"];
-const STEMS: [&str; 4] = ["finds.stems", "finds.stems.off", "finds.stems.held", "finds.stems.entries"];
+/// `table` as postings over the dictionary's ids: a string no entry holds keeps an empty list.
+fn posted(sections: (&'static str, &'static str), table: &BTreeMap<String, BTreeSet<u32>>, strings: &Strings) -> [Column; 2] {
+    let mut lists = vec![Vec::new(); strings.len()];
+    for (key, holders) in table { lists[strings.id(key) as usize] = holders.iter().copied().collect(); }
+    let (off, entries) = postings(&lists.iter().map(Vec::as_slice).collect::<Vec<_>>());
+    [u32s(sections.0, off), u32s(sections.1, entries)]
+}
 
 /// The tables as a refresh made them from the readings it holds, before they are written. A reading the refresh
 /// could not encode is `None`: the question decodes no entry the tables mark unreadable.
@@ -73,11 +72,17 @@ impl Made {
         made
     }
 
-    pub fn columns(&self) -> Vec<Column> {
+    /// The names and stems the tables key, for the catalogue's dictionary.
+    pub fn collect<'s>(&'s self, collected: &mut Collected<'s>) {
+        collected.extend(self.names.keys().chain(self.stems.keys()).map(String::as_str));
+    }
+
+    /// The columns, keyed by the ids of `strings`, which holds what [`Self::collect`] collected.
+    pub fn columns(&self, strings: &Strings) -> Vec<Column> {
         let mut text = NameColumn::default();
         for (name, doc) in &self.text { text.push(name, doc.is_some(), Some(doc.as_deref())); }
-        let mut columns = Vec::from(keyed(NAMES, &self.names));
-        columns.extend(keyed(STEMS, &self.stems));
+        let mut columns = Vec::from(posted(NAMES, &self.names, strings));
+        columns.extend(posted(STEMS, &self.stems, strings));
         columns.extend([u32s("finds.unavailable", self.unavailable.clone()), u32s("finds.told", self.told.clone()),
             u8s("finds.readable", self.readable.clone()), u32s("finds.text.first", self.first.clone())]);
         columns.extend(text.written(TEXT));
@@ -85,34 +90,27 @@ impl Made {
     }
 }
 
-struct Keys<'a> { blob: &'a [u8], keys: U32s<'a>, held: U32s<'a>, entries: U32s<'a> }
+/// A table read in place: per dictionary id, the entries that hold that string.
+struct Posted<'a> { off: U32s<'a>, entries: U32s<'a> }
 
-impl<'a> Keys<'a> {
-    fn open(stored: &Stored<'a>, prefix: [&str; 4], rows: usize) -> Result<Self, String> {
-        let blob = stored.u8s(prefix[0])?;
-        let count = stored.u32s(prefix[1])?.len().saturating_sub(1);
-        let entries = stored.u32s(prefix[3])?;
-        let keys = Self { blob, keys: stored.offsets(prefix[1], count, blob.len())?,
-            held: stored.offsets(prefix[2], count, entries.len())?, entries };
-        if !keys.entries.every(|entry| (entry as usize) < rows) { return Err(format!("{} names an entry past its table", prefix[3])); }
-        Ok(keys)
+impl<'a> Posted<'a> {
+    fn open(stored: &Stored<'a>, sections: (&str, &str), rows: usize) -> Result<Self, String> {
+        let entries = stored.u32s(sections.1)?;
+        let posted = Self { off: stored.offsets(sections.0, stored.string_count(), entries.len())?, entries };
+        if !posted.entries.every(|entry| (entry as usize) < rows) { return Err(format!("{} names an entry past its table", sections.1)); }
+        Ok(posted)
     }
 
-    fn key(&self, at: usize) -> &'a [u8] { &self.blob[self.keys.range(at)] }
-
-    /// The entries that hold `key`.
-    fn holders(&self, key: &str) -> impl Iterator<Item = u32> + '_ {
-        let count = self.keys.len() - 1;
-        let at = crate::stored::partition(count, |at| self.key(at) < key.as_bytes());
-        let range = if at < count && self.key(at) == key.as_bytes() { self.held.range(at) } else { 0..0 };
-        range.map(|at| self.entries.at(at))
+    /// The entries that hold the string under `id`; none for a string the dictionary does not hold.
+    fn holders(&self, id: Option<u32>) -> impl Iterator<Item = u32> + '_ {
+        id.map_or(0..0, |id| self.off.range(id as usize)).map(|at| self.entries.at(at))
     }
 }
 
 /// The tables, read in place.
 pub(super) struct Finds<'a> {
-    names: Keys<'a>,
-    stems: Keys<'a>,
+    names: Posted<'a>,
+    stems: Posted<'a>,
     unavailable: U32s<'a>,
     told: U32s<'a>,
     readable: &'a [u8],
@@ -124,8 +122,8 @@ impl<'a> Finds<'a> {
     pub fn open(stored: &Stored<'a>, rows: usize) -> Result<Self, String> {
         let names = stored.u32s(TEXT.1)?.len().saturating_sub(1);
         let finds = Self {
-            names: Keys::open(stored, NAMES, rows)?,
-            stems: Keys::open(stored, STEMS, rows)?,
+            names: Posted::open(stored, NAMES, rows)?,
+            stems: Posted::open(stored, STEMS, rows)?,
             unavailable: stored.u32s("finds.unavailable")?,
             told: stored.u32s("finds.told")?,
             readable: stored.codes("finds.readable", 1)?,
@@ -141,9 +139,10 @@ impl<'a> Finds<'a> {
     /// Whether the entry's blob decoded when the tables were written.
     pub fn readable(&self, entry: u32) -> bool { self.readable[entry as usize] != 0 }
 
-    /// The entries that may answer an exact `name`: those that declare it, and those silent about every name — of
-    /// those, only the ones with a README to answer from, unless the question named the package.
-    pub fn named(&self, name: &str, named_package: bool, wanted: &mut [bool]) {
+    /// The entries that may answer an exact name, `name` being its dictionary id: those that declare it, and those
+    /// silent about every name — of those, only the ones with a README to answer from, unless the question named
+    /// the package.
+    pub fn named(&self, name: Option<u32>, named_package: bool, wanted: &mut [bool]) {
         let silent = if named_package { &self.unavailable } else { &self.told };
         for entry in self.names.holders(name).chain((0..silent.len()).map(|at| silent.at(at))) {
             wanted[entry as usize] = true;
@@ -157,8 +156,8 @@ impl<'a> Finds<'a> {
         for row in rows { wanted[row_of(self.first, wanted.len(), row)] = true; }
     }
 
-    /// The entries whose purpose holds at least `needed` of `stems`.
-    pub fn stemmed<'s>(&self, stems: impl Iterator<Item = &'s str>, needed: usize, wanted: &mut [bool]) {
+    /// The entries whose purpose holds at least `needed` of `stems`, each a dictionary id.
+    pub fn stemmed(&self, stems: impl Iterator<Item = Option<u32>>, needed: usize, wanted: &mut [bool]) {
         let mut held = BTreeMap::<u32, usize>::new();
         for stem in stems { for entry in self.stems.holders(stem) { *held.entry(entry).or_default() += 1; } }
         for (entry, count) in held { if count >= needed { wanted[entry as usize] = true; } }

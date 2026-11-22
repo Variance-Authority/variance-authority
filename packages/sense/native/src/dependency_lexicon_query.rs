@@ -130,10 +130,10 @@ pub fn query_dependency_lexicon(path: String, sites: String, query: String, file
     // The entries that can answer: decoded below as before, so the tables decide only what is not decoded.
     let candidates = catalogue.finds().map(|finds| {
         let mut wanted_entries = vec![false; catalogue.entries()];
-        if exact { finds.named(&query, package.is_some(), &mut wanted_entries) } else {
+        if exact { finds.named(catalogue.id_of(&query), package.is_some(), &mut wanted_entries) } else {
             finds.containing(&query, &mut wanted_entries);
             if let Some((stems, needed)) = wanted(&query).filter(|_| describing) {
-                finds.stemmed(stems.iter().map(String::as_str), needed, &mut wanted_entries);
+                finds.stemmed(stems.iter().map(|stem| catalogue.id_of(stem)), needed, &mut wanted_entries);
             }
         }
         wanted_entries

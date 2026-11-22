@@ -61,13 +61,11 @@ fn offsets<T>(groups: &[T], length: impl Fn(&T) -> usize) -> Vec<u32> {
 
 impl Made {
     pub fn encode(&self) -> Vec<u8> {
-        let mut all = self.columns();
-        all.extend(self.finds.columns());
-        encode_as(FORMAT, VERSION, all)
+        encode_as(FORMAT, VERSION, self.columns(true))
     }
 
-    /// Every column but the finds tables.
-    fn columns(&self) -> Vec<Column> {
+    /// Every column, the finds tables only when `finds`.
+    fn columns(&self, finds: bool) -> Vec<Column> {
         let mut collected = Collected::default();
         for owner in &self.owners {
             collected.extend([owner.manifest.as_str(), owner.directory.as_str(), owner.name.as_str()]);
@@ -82,6 +80,7 @@ impl Made {
         }
         collected.extend(self.entries.iter().map(|entry| entry.0.as_str()));
         for (at, value) in &self.stamps { collected.extend([at.as_str(), value.as_str()]); }
+        if finds { self.finds.collect(&mut collected); }
         let mut strings = Strings::of(collected);
         let ids = |values: &mut dyn Iterator<Item = &str>| values.map(|value| strings.id(value)).collect::<Vec<_>>();
         let kinds: Vec<_> = self.owners.iter().flat_map(|owner| owner.kinds.iter()).collect();
@@ -116,14 +115,16 @@ impl Made {
             u32s("stamps.value", ids(&mut self.stamps.iter().map(|stamp| stamp.1.as_str()))),
             u32s("summary", self.summary.to_vec()),
         ];
+        let found = if finds { self.finds.columns(&strings) } else { Vec::new() };
         let mut all = strings.columns().into_iter().collect::<Vec<_>>();
         all.extend(columns);
+        all.extend(found);
         all
     }
 
     /// The catalogue as the release before the finds tables wrote it.
     #[cfg(test)]
-    pub fn encode_before_finds(&self) -> Vec<u8> { encode_as(FORMAT, FINDS - 1, self.columns()) }
+    pub fn encode_before_finds(&self) -> Vec<u8> { encode_as(FORMAT, FINDS - 1, self.columns(false)) }
 }
 
 /// A catalogue read in place.
@@ -240,4 +241,7 @@ impl<'a> Catalogue<'a> {
 
     /// The tables a question finds its entries by; absent from a catalogue written before them.
     pub fn finds(&self) -> Option<&Finds<'a>> { self.finds.as_ref() }
+
+    /// A string's id in the dictionary the finds tables are keyed by; none for a string the catalogue never wrote.
+    pub fn id_of(&self, value: &str) -> Option<u32> { self.stored.id_of(value) }
 }
