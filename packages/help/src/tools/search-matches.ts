@@ -36,15 +36,27 @@ export interface SearchQuestion {
   readonly limit?: number;
 }
 
+/** A line of a file. */
+export interface Place {
+  readonly at: string;
+  readonly line: number;
+}
+
 /** A name the source exports without publishing. */
 export interface ExportedMatch {
   readonly source: 'exported';
   readonly name: string;
   /** The package that holds it; absent at the repository root. */
   readonly package?: string;
-  /** The file shown: the row that ranks it, where the question was found first, then `exportedOrder`; in the described section, the row it is weighed through. */
+  /**
+   * Where it is declared, when the source index walks to it; else the file
+   * shown: the row that ranks it, where the question was found first, then
+   * `exportedOrder`; in the described section, the row it is weighed through.
+   */
   readonly at: string;
   readonly line: number;
+  /** The file nearest its package's root that passes the declaration on; absent when only the declaring file exports it. */
+  readonly exportedFrom?: Place;
   /** How many files export it, the one shown included. */
   readonly files: number;
   /**

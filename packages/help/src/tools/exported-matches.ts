@@ -2,7 +2,7 @@ import type { SearchIndex } from '../search-index.js';
 import { rowTextOrder } from './described.js';
 import { rowWithin } from './loose.js';
 import type { Said } from './held-sentence.js';
-import type { ExportedMatch } from './search-matches.js';
+import type { ExportedMatch, Place } from './search-matches.js';
 
 // compass: variance-authority.report.agent-surface
 
@@ -26,6 +26,9 @@ export function first<T>(items: readonly T[], count: number, before: (a: T, b: T
   return best;
 }
 
+/** Where the export of `name` in `at` is declared, as the source index walks to it; none when the walk does not read. */
+export type DeclarationOf = (at: string, name: string) => Place | undefined;
+
 /**
  * Exported names given by id, nearest thing to a ranking.
  *
@@ -46,6 +49,10 @@ export function first<T>(items: readonly T[], count: number, before: (a: T, b: T
  * published half orders: a name its own words reached, then one a doc opens
  * with, then one a doc says later. `exact` holds the names that are the question
  * whole and where each orders, before all of them.
+ *
+ * `declarationOf`, when `head` is given it, turns the row shown into the two sides of one
+ * export: where it is declared, and the file nearest its package's root that
+ * passes that declaration on, the door an importer walks through.
  */
 export function exported(
   index: SearchIndex,
@@ -56,7 +63,7 @@ export function exported(
   through?: ReadonlyMap<number, ReadonlySet<number>>,
   openings?: ReadonlySet<number>,
   exact?: ReadonlyMap<number, number>,
-): { readonly total: number; head(count: number): readonly ExportedMatch[]; rows(): readonly number[] } {
+): { readonly total: number; head(count: number, declarationOf?: DeclarationOf): readonly ExportedMatch[]; rows(): readonly number[] } {
   const found: { name: number; count: number; field: number }[] = [];
   // The file that exports it, against the closure. A name exported from a
   // barrel inside the area and declared outside it arrives here twice, under
@@ -88,7 +95,7 @@ export function exported(
   return {
     total: found.length,
     rows: () => found.flatMap(({ name }) => reached(name)),
-    head: (count) =>
+    head: (count, declarationOf) =>
       first(found, count, (a, b) => a.field - b.field || b.count - a.count || a.name - b.name).flatMap(({ name, count: files }) => {
         // `count` is the number of these rows, so one is always chosen.
         const chosen = exportedShown(index, reached(name), fieldOf(name));
@@ -97,18 +104,40 @@ export function exported(
         // The row's own doc, or none: another row of the same name is another
         // file, whose comment says nothing about this one.
         const doc = row.doc;
+        const declared = declarationOf?.(row.at, row.name);
+        const door = declared === undefined ? undefined : doorOf(index, rowsOf(name), row.by, declared, declarationOf as DeclarationOf);
         const match: ExportedMatch = {
           source: 'exported',
           name: row.name,
           ...(row.by === '' ? {} : { package: row.by }),
-          at: row.at,
-          line: row.line,
+          at: declared?.at ?? row.at,
+          line: declared?.line ?? row.line,
+          ...(door === undefined ? {} : { exportedFrom: door }),
           files,
           ...(doc === undefined ? {} : { summary: said(doc) }),
         };
         return [match];
       }),
   };
+}
+
+/**
+ * The file of `rows` in package `by` nearest the package's root, and not the
+ * declaring file, whose export binds `declared`: where the declaration is
+ * published from. Rows are walked shallowest first, so the walk usually ends at
+ * the first; none when only the declaring file exports it.
+ */
+function doorOf(index: SearchIndex, rows: readonly number[], by: string, declared: Place, declarationOf: DeclarationOf): Place | undefined {
+  const depth = (at: string): number => at.split('/').length;
+  const doors = rows
+    .map((row) => index.exported(row))
+    .filter((row) => row.by === by && row.at !== declared.at)
+    .sort((a, b) => depth(a.at) - depth(b.at) || (a.at < b.at ? -1 : a.at > b.at ? 1 : 0));
+  for (const row of doors) {
+    const bound = declarationOf(row.at, row.name);
+    if (bound?.at === declared.at && bound.line === declared.line) return { at: row.at, line: row.line };
+  }
+  return undefined;
 }
 
 /**

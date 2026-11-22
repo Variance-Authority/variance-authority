@@ -12,7 +12,8 @@ import { queryDependencyLexicon } from '../dependency-lexicon.js';
 import { aliasMatches, declaredMatches, declaredTold, exactness } from './declared.js';
 import { saidFor, type Said } from './held-sentence.js';
 import { membersUnreadOf } from './members.js';
-import { docRows, exported, exportedOrder, first } from './exported-matches.js';
+import { docRows, exported, exportedOrder, first, type DeclarationOf } from './exported-matches.js';
+import { boundOf } from './declaration-key.js';
 import { counting, type ImportingOf, type InArea, type PublishedMatch } from './published-match.js';
 import type { DescribedMatch, Matches, SearchAnswer, SearchArea, Searched, SearchQuestion } from './search-matches.js';
 import { docsSaying } from './phrase.js';
@@ -272,6 +273,8 @@ function searchedBy(index: SearchIndex, question: SearchQuestion, tree: Tree | u
   const thirdParty = root === undefined ? undefined : queryDependencyLexicon(root, query, area === undefined ? undefined : [...area.from, ...area.to], false, undefined, question.limit);
   const told = declaredTold(said);
   const cap = (shown: number): number => question.limit ?? shown;
+  // An exported row shown is shown where it is declared and where it is published from.
+  const declarationOf: DeclarationOf | undefined = root === undefined ? undefined : (at, name) => boundOf(root, { at, name });
   const read = declaredMatches(root, question.query, area?.files, cap(ELSEWHERE_CAP), told, file);
   const declared = read?.declared;
   const aliases = aliasMatches(root, question.query, area?.files);
@@ -288,7 +291,7 @@ function searchedBy(index: SearchIndex, question: SearchQuestion, tree: Tree | u
     query,
     ...(counted === undefined ? {} : { area: counted }),
     published: published(index, hits, cap(CAP), said, importingOf),
-    exported: { total: rest.total, shown: rest.head(cap(ELSEWHERE_CAP)) },
+    exported: { total: rest.total, shown: rest.head(cap(ELSEWHERE_CAP), declarationOf) },
     ...(declared === undefined ? {} : { declared }),
     ...(inside === undefined ? {} : { held: { total: inside.length, shown: inside.slice(0, cap(ELSEWHERE_CAP)) } }),
     ...(aliases === undefined ? {} : { aliases: { total: aliases.length, shown: aliases.slice(0, cap(ELSEWHERE_CAP)) } }),
@@ -342,7 +345,7 @@ function searchedBy(index: SearchIndex, question: SearchQuestion, tree: Tree | u
       const { through } = one;
       const row = through.kind === 'published'
         ? published(index, surface(index, [through.row], area, within), 1, said, importingOf).shown[0]
-        : exported(index, [one.name], new Set(), within, said, new Map([[one.name, new Set([through.row])]])).head(1)[0];
+        : exported(index, [one.name], new Set(), within, said, new Map([[one.name, new Set([through.row])]])).head(1, declarationOf)[0];
       return row === undefined ? [] : [{ ...row, words: one.words }];
     });
   if (direct) {
@@ -374,7 +377,7 @@ function searchedBy(index: SearchIndex, question: SearchQuestion, tree: Tree | u
   if (looseFile !== undefined) for (const one of kept) looseFile(one.at, one.line);
   recordCarried(carried ?? []);
   const heldRows = described === undefined || carried === undefined ? undefined : shownOf(carried, cap(DESCRIBED_CAP));
-  const reachedNames = [...alsoFound.shown, ...alsoRest.head(cap(LOOSE_CAP) - alsoFound.shown.length)];
+  const reachedNames = [...alsoFound.shown, ...alsoRest.head(cap(LOOSE_CAP) - alsoFound.shown.length, declarationOf)];
   const shown = [...reachedNames, ...kept.slice(0, cap(LOOSE_CAP) - reachedNames.length).map(told)];
   const membersUnread = root === undefined || (inside?.length ?? 0) > 0 || (tests?.total ?? 0) > 0 ? [] : membersUnreadOf(root, question.query);
   const loosely: SearchAnswer = { ...answer, ...(membersUnread.length === 0 ? {} : { membersUnread }), loose: { total: alsoFound.total + alsoRest.total + kept.length, shown } };

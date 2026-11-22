@@ -143,7 +143,9 @@ parseViewport — @variance-authority/cli · packages/cli/src/config-sections.ts
 ```
 
 A published name is API and comes with the specifier you would import it from.
-An exported name shows a file and a line, because nothing else was read for it.
+An exported name shows the file and line that declare it and, when a barrel
+passes it on, the file nearest its package's root that does, as
+`· exported from index.ts:2`: where it is defined and where it is imported from.
 
 `symbol` answers with the one thing you asked about, in full.
 Run `variance-authority-help symbol Viewport`:
