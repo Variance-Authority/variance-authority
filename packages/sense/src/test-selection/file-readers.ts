@@ -8,7 +8,8 @@
 import { askCoverageFile } from './coverage-file.js';
 import { deviationFromView } from './deviation.js';
 import { distanceFromView, type DistanceOptions, type TestDistance } from './distance.js';
-import { narrowByExecutionFromView, selectTestFilesFromView } from './select.js';
+import type { Change } from './change.js';
+import { narrowByChangeFromView, narrowByExecutionFromView, selectTestFilesFromView } from './select.js';
 import type { DeviationOptions, VariationDeviation } from './index.js';
 import type { ExecutionNarrowing, ExecutionNarrowingOptions } from './narrowing.js';
 
@@ -34,15 +35,19 @@ export async function selectTestFiles(
  * could not answer, and why each selected test is there.
  *
  * Read this rather than `selectTestFiles` whenever the answer will *exclude*
- * something. See `ExecutionNarrowing`.
+ * something. See `ExecutionNarrowing`. The change is a diff, or a value a
+ * caller already read (`change.ts`).
  */
 export async function narrowByExecution(
   file: string,
-  diff: string,
+  diff: string | Change,
   options: ExecutionNarrowingOptions = {},
 ): Promise<ExecutionNarrowing> {
-  return askCoverageFile(file, (coverage) => narrowByExecutionFromView(coverage, diff, options));
+  return askCoverageFile(file, (coverage) => narrowingOf(coverage, diff, options));
 }
+
+const narrowingOf = (coverage: Parameters<typeof narrowByExecutionFromView>[0], diff: string | Change, options: ExecutionNarrowingOptions): ExecutionNarrowing =>
+  typeof diff === 'string' ? narrowByExecutionFromView(coverage, diff, options) : narrowByChangeFromView(coverage, diff, options);
 
 /**
  * The same query, and how far the change had to travel to reach each test it
@@ -54,11 +59,11 @@ export async function narrowByExecution(
  */
 export async function distanceByExecution(
   file: string,
-  diff: string,
+  diff: string | Change,
   options: ExecutionNarrowingOptions & DistanceOptions = {},
 ): Promise<{ readonly narrowing: ExecutionNarrowing; readonly distances: readonly TestDistance[] }> {
   return askCoverageFile(file, (coverage) => {
-    const narrowing = narrowByExecutionFromView(coverage, diff, options);
+    const narrowing = narrowingOf(coverage, diff, options);
     return { narrowing, distances: distanceFromView(coverage, narrowing, options) };
   });
 }

@@ -129,8 +129,14 @@ async function repin(coverageFile: string, record: LastFetched, root: string, la
     .filter((state) => state.files.length > 0);
   const kept = new Set(states.flatMap((state) => state.files));
   const dropped = [...new Set(layer.ran.flatMap((state) => state.files))].filter((file) => !kept.has(file));
+  // The record names a commit its rows were cut at: this checkout's last run's
+  // while it keeps a test that run left there, else the milestone's, and every
+  // test it keeps from an earlier run stands where that run left it. A commit
+  // none of them ran at would charge each test the change between that commit
+  // and the milestone, which none of them saw.
+  const commit = states.some((state) => state.commit === own.commit) ? own.commit : record.commit;
   // Under the milestone's probes, so a subset of nothing lays the milestone as it is.
-  const subset = { ...ownSubset(own, kept), instrumentation };
+  const subset = { ...ownSubset(own, kept), instrumentation, ...(commit === undefined ? {} : { commit }) };
   const bytes = layCoverage(milestone, subset, await carriedSources(root, milestone, subset));
 
   const ownCases = caseSectionsOf(ownBytes);
@@ -149,7 +155,7 @@ async function repin(coverageFile: string, record: LastFetched, root: string, la
   const cases = laid === undefined ? undefined : followRowsIn({ index: laid }, view, texts, edits).index;
   const eyes = repinnedEyes(milestoneCases.eyes, ownCases, cases, kept);
   const recorded = Array.from(view.testPath.all(), (path) => view.string(path));
-  const runs = repinnedRuns(await readCommitRuns(coverageFile), own.commit, record, published, recorded, kept);
+  const runs = repinnedRuns(await readCommitRuns(coverageFile), commit, record, published, recorded, kept);
 
   // The snapshot first: its new rows beside the old runs record read the
   // milestone's tests from the old pin, which only widens, where the new runs

@@ -28,10 +28,10 @@
 // compass: variance-authority.reach
 
 import { execFileSync } from 'node:child_process';
-import { copyFileSync, mkdtempSync, rmSync } from 'node:fs';
+import { copyFileSync, mkdirSync, mkdtempSync, rmSync, statSync, utimesSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { delimiter, join, resolve } from 'node:path';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import { writeCoverageBytes } from './record-location.js';
 
@@ -59,7 +59,11 @@ export function pinOf(fetched: Pinned): Pinned {
 /** Tests one or more runs of this checkout observed over one state. */
 export interface OwnState {
   readonly commit: string;
-  /** The git tree of the working state, when the run was made over uncommitted edits. */
+  /**
+   * The git tree of the working state, when the run was made over uncommitted
+   * edits. It only names the state: its objects are let go once written, so
+   * the id is compared, never opened.
+   */
   readonly tree?: string;
   /** In code-unit order. */
   readonly files: readonly string[];
@@ -123,23 +127,64 @@ export function ownTests(layer: OwnLayer): ReadonlySet<string> {
  * The git tree of the working state of `repository`, untracked files included
  * and ignored ones not, written through a copy of the index so the user's own
  * is never touched. `undefined` when it is HEAD's own tree, or git cannot
- * write one.
+ * write one. The tree only names the state, so its objects are let go at once.
  */
 export function workingTree(repository: string): string | undefined {
-  let scratch: string | undefined;
+  const snapshot = snapshotTree(repository);
+  if (!('tree' in snapshot)) return undefined;
+  snapshot.close();
   try {
-    const index = execFileSync('git', ['rev-parse', '--git-path', 'index'], { cwd: repository, encoding: 'utf8' }).trim();
-    scratch = mkdtempSync(join(tmpdir(), 'variance-tree-'));
-    const copy = join(scratch, 'index');
-    copyFileSync(resolve(repository, index), copy);
-    const env = { ...process.env, GIT_INDEX_FILE: copy };
-    execFileSync('git', ['add', '-A'], { cwd: repository, env, stdio: 'ignore' });
-    const tree = execFileSync('git', ['write-tree'], { cwd: repository, env, encoding: 'utf8' }).trim();
-    const committed = execFileSync('git', ['rev-parse', 'HEAD^{tree}'], { cwd: repository, encoding: 'utf8' }).trim();
-    return tree === committed ? undefined : tree;
+    return snapshot.tree === execFileSync('git', ['rev-parse', 'HEAD^{tree}'], { cwd: repository, encoding: 'utf8' }).trim() ? undefined : snapshot.tree;
   } catch {
     return undefined;
-  } finally {
-    if (scratch !== undefined) rmSync(scratch, { recursive: true, force: true });
+  }
+}
+
+/**
+ * The working state written as one tree, readable until `close`: run git with
+ * `env` to read it. Or why git could not write it, in git's words, its lines
+ * joined by `; ` so a note holds it on one line.
+ */
+export type Snapshot =
+  | { readonly tree: string; readonly env: Readonly<Record<string, string>>; readonly close: () => void }
+  | { readonly unwritten: string };
+
+/**
+ * The git tree of the working state of `repository`, as {@link workingTree}
+ * writes it, whether or not HEAD holds the same: one tree every diff of a
+ * reading names, so the files moving while it reads move none of its answers.
+ *
+ * Its objects go to a scratch store that borrows the repository's own, as git
+ * quarantines a push it has not accepted yet: a selection run on every save
+ * would otherwise leave a loose object per edited file in `.git/objects`.
+ * A read through `env` borrows the scratch store in turn and keeps the
+ * repository's as its own, so a blob a partial clone fetches for it stays.
+ * `close` removes the scratch store, and the tree with it.
+ */
+export function snapshotTree(repository: string): Snapshot {
+  const scratch = mkdtempSync(join(tmpdir(), 'variance-tree-'));
+  const close = () => rmSync(scratch, { recursive: true, force: true });
+  try {
+    const path = (name: string) => resolve(repository, execFileSync('git', ['rev-parse', '--git-path', name], { cwd: repository, encoding: 'utf8' }).trim());
+    const real = path('index');
+    const alternates = (process.env['GIT_ALTERNATE_OBJECT_DIRECTORIES'] ?? '').split(delimiter).filter((dir) => dir !== '');
+    const objects = join(scratch, 'objects');
+    mkdirSync(objects);
+    const copy = join(scratch, 'index');
+    copyFileSync(real, copy);
+    // The copy keeps the index's time: git reads an entry as new as it again, so an edit in that second is not taken for clean.
+    const { atime, mtime } = statSync(real);
+    utimesSync(copy, atime, mtime);
+    const store = { GIT_OBJECT_DIRECTORY: objects, GIT_ALTERNATE_OBJECT_DIRECTORIES: [path('objects'), ...alternates].join(delimiter) };
+    const writing = { cwd: repository, env: { ...process.env, ...store, GIT_INDEX_FILE: copy }, encoding: 'utf8' as const, stdio: 'pipe' as const };
+    execFileSync('git', ['add', '-A'], writing);
+    // A read keeps the repository's store as its own and borrows the scratch one, so a blob a partial clone fetches for it stays.
+    const env = { GIT_ALTERNATE_OBJECT_DIRECTORIES: [objects, ...alternates].join(delimiter) };
+    return { tree: execFileSync('git', ['write-tree'], writing).trim(), env, close };
+  } catch (error) {
+    close();
+    const stderr = (error as { stderr?: unknown }).stderr;
+    const said = typeof stderr === 'string' ? stderr.trim().split(/\s*\n\s*/).join('; ') : '';
+    return { unwritten: said !== '' ? said : error instanceof Error ? error.message : String(error) };
   }
 }

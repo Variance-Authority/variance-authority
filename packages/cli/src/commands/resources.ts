@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path';
 import type { HistoryStore } from '@variance-authority/history';
 import type { PngDecoder } from '@variance-authority/png';
 import {
+  type Change,
   type ExecutionNarrowing,
   type Stand,
   type StandQuestion,
@@ -177,7 +178,7 @@ export async function suiteJourney(
  */
 export async function recordAgainst(
   root: string,
-  diff: string,
+  diff: string | Change,
   options: {
     readonly relations?: Relations | undefined;
     readonly at?: string | undefined;
@@ -188,12 +189,6 @@ export async function recordAgainst(
     /** The suite's precision; absent reads regions. */
     readonly precision?: Precision | undefined;
     readonly distances?: boolean;
-    /**
-     * `false` for a diff whose new side is not the text the landing kept a
-     * text against: a module recorded over an edit then reads `stale` and is
-     * charged whole, rather than read from the kept text to that side.
-     */
-    readonly keptTexts?: false;
     /**
      * `false` for a diff that is the whole change as given, a patch handed in:
      * a module recorded over a kept text it does not name is left unread,
@@ -206,15 +201,11 @@ export async function recordAgainst(
   const selection = await import('@variance-authority/sense/test-selection');
   // FIXME: reads what this machine holds, not the record `select` reads, so a new worktree answers from a stale record (#962).
   const file = at ?? (await suiteRecord(root));
-  const sourceAt = selection.textAtRecording(root, selection.changedLines(diff).keys());
+  const sourceAt = selection.textAtRecording(root, (typeof diff === 'string' ? selection.changedLines(diff) : diff.lines).keys());
   const asked = {
     sourceAt,
-    ...(options.keptTexts === false
-      ? {}
-      : {
-          keptText: selection.keptTexts(checkout),
-          ...(options.undone === false ? {} : { keptDigests: selection.keptDigests(checkout) }),
-        }),
+    keptText: selection.keptTexts(checkout),
+    ...(options.undone === false ? {} : { keptDigests: selection.keptDigests(checkout) }),
     root,
     ...(relations === undefined ? {} : { relations }),
     ...(unmeasured === undefined ? {} : { unmeasured }),

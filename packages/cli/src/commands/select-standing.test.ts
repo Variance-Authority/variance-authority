@@ -1,20 +1,13 @@
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { digestString } from '@variance-authority/core/format';
-import { INSTRUMENTATION_ID } from '@variance-authority/sense/instrument';
-import {
-  commitRunsFile,
-  landRun,
-  readCommitRuns,
-  testCoverageFile,
-  type TestCoverage,
-} from '@variance-authority/sense/test-selection';
+import { commitRunsFile, landRun, readCommitRuns, testCoverageFile } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
 import { selectOutput } from './select-command.js';
 import { indexOutput } from './index-command.js';
+import { checkout, NAMES, run, sources } from './select-standing.fixture.js';
 
 /**
  * A runner handed the skip list runs only what it was not told to skip, and
@@ -206,6 +199,67 @@ describe('a test that did not run at the journal commit', () => {
     expect(said.err).toContain(`1 test file last ran at ${P.slice(0, 12)}`);
   });
 
+  it('runs a test whose install cannot be compared since it ran, where the journal group moved nothing', async () => {
+    // P holds no lockfile; C adds one and runs only `near`. The tree holds C's
+    // lockfile, so the journal's install is unmoved, and `far`'s has nothing at P
+    // to be compared against.
+    const repo = checkout();
+    const P = repo.commit(sources(1, NAMES), 'P');
+    await landRun(repo.file, run(repo.root, P, NAMES), repo.root);
+    const C = repo.commit({ 'package-lock.json': npmLock('1.4.0') }, 'C');
+    await landRun(repo.file, run(repo.root, C, ['near']), repo.root);
+
+    const said = await repo.select();
+
+    expect(said.out).toBe('test/near.test.ts\n');
+    const at = P.slice(0, 12);
+    expect(said.err).toContain(
+      `1 test file last ran at ${at}, and package-lock.json is not in the tree at ${at}, where this install is compared from, so there is no install to compare it against and any package in it may have moved, so it runs.\n`,
+    );
+  });
+
+  it('runs a test that last ran before a file the suite rests on moved, where the journal group moved nothing', async () => {
+    // The repository rests on `vitest.config.ts`. `far` last ran at P, before
+    // C moved it; the run at C ran `near` alone. The config moved for `far`,
+    // from P, and not for `near`, from C.
+    const repo = checkout();
+    const P = repo.commit({ ...sources(1, NAMES), 'vitest.config.ts': 'export default { a: 1 };\n', 'variance.config.json': '{ "before": ["vitest.config.ts"] }\n' }, 'P');
+    await landRun(repo.file, run(repo.root, P, NAMES), repo.root);
+    const C = repo.commit({ 'vitest.config.ts': 'export default { a: 2 };\n' }, 'C');
+    await landRun(repo.file, run(repo.root, C, ['near']), repo.root);
+
+    const said = await repo.select();
+
+    expect(said.out).toBe('test/near.test.ts\n');
+    expect(said.err).toContain(
+      `every suite here rests on vitest.config.ts before any test imports it, through the \`before\` entry \`vitest.config.ts\`, and the diff from ${P.slice(0, 12)} moves it, so the test file that last ran there runs.\n`,
+    );
+  });
+
+  it('runs a test that imports a file the install moved since it ran, at symbol, where the tree edits only a comment in it', async () => {
+    // As above, in a suite that reads by export. `other` imports `far` and its
+    // record enters only `src/other.ts`, so the import graph alone reaches it.
+    // `src/far.ts` is the same at P and C, and the tree writes a comment in it:
+    // the install charges it whole, so its importers are walked whole, not by
+    // the exports the comment moved.
+    const root = mkdtempSync(join(tmpdir(), 'va-select-standing-'));
+    writeFileSync(join(root, 'variance.config.json'), JSON.stringify({ suites: { unit: { kind: 'unit', precision: 'symbol' } } }));
+    const repo = checkout(root);
+    const names = [...NAMES, 'other'];
+    const other = { 'test/other.test.ts': "import { far } from '../src/far.js';\nimport '../src/other.js';\n" };
+    const P = repo.commit({ ...sources(1, names), ...other, 'src/far.ts': FAR_PAD, 'package-lock.json': npmLock('1.3.0') }, 'P');
+    const file = testCoverageFile(root, { suite: 'unit' });
+    await landRun(file, run(root, P, names), root);
+    const C = repo.commit({ 'package-lock.json': npmLock('1.4.0') }, 'C');
+    await landRun(file, run(root, C, ['near']), root);
+    writeFileSync(join(root, 'src/far.ts'), `// a comment\n${FAR_PAD}`);
+
+    const said = await repo.select();
+
+    expect(said.err).toContain(`2 test files last ran at ${P.slice(0, 12)}`);
+    expect(said.out).toBe('test/near.test.ts\n');
+  });
+
   it('charges a package only to the group whose install it moved', async () => {
     // Both import left-pad. The bump from P to C is behind `far`, which ran at
     // P, and not behind `near`, which ran on it at C.
@@ -355,51 +409,8 @@ describe('a test that did not run at the journal commit', () => {
   }
 });
 
-const NAMES = ['far', 'near'];
-
 const NEAR_PAD = "import leftPad from 'left-pad';\n\nexport const near = leftPad('1', 2);\n";
 const FAR_PAD = "import leftPad from 'left-pad';\n\nexport const far = leftPad('1', 2);\n";
-
-/**
- * Each module at `value`, and a test file for each, as the tree holds them. The
- * module writes `value` where its importer can see it, so a change to it is
- * charged to the test that loads the module, from either side of a commit.
- */
-function sources(value: number, names: readonly string[] = [...NAMES, 'gone']): Record<string, string> {
-  return Object.fromEntries(
-    names.flatMap((name) => [
-      [`src/${name}.ts`, `export const ${name} = ${value};\nglobalThis.${name} = ${value};\n`],
-      [`test/${name}.test.ts`, `import '../src/${name}.js';\n`],
-    ]),
-  );
-}
-
-/** A repository with its journal, committing whatever is written into it. */
-function checkout(root = mkdtempSync(join(tmpdir(), 'va-select-standing-'))) {
-  const git = (...args: string[]): string => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
-  git('init', '--quiet', '--initial-branch', 'main');
-  git('config', 'user.email', 'fixture@example.test');
-  git('config', 'user.name', 'Fixture');
-  return {
-    root,
-    git,
-    file: testCoverageFile(root),
-    commit(files: Readonly<Record<string, string>>, message: string): string {
-      for (const [path, text] of Object.entries(files)) {
-        mkdirSync(dirname(join(root, path)), { recursive: true });
-        writeFileSync(join(root, path), text);
-      }
-      git('add', '-A');
-      git('commit', '--quiet', '-m', message);
-      return git('rev-parse', 'HEAD');
-    },
-    async select() {
-      process.chdir(root);
-      await indexOutput({ cwd: root });
-      return await selectOutput({ cwd: root, format: 'plain' });
-    },
-  };
-}
 
 function npmLock(version: string): string {
   return JSON.stringify(
@@ -418,37 +429,4 @@ function npmLock(version: string): string {
     null,
     2,
   );
-}
-
-/**
- * What a run records: the tests it ran, and the module each loaded, with the
- * digest of the text on disk. Recorded under the recipe the seam records with,
- * so the landing re-cuts a carried module whose text moved and demotes the
- * test on the edited region, as it does after a real partial run.
- */
-function run(root: string, commit: string, names: readonly string[]): TestCoverage {
-  return {
-    version: 3,
-    instrumentation: INSTRUMENTATION_ID,
-    commit,
-    tests: names.map((name) => ({ file: `test/${name}.test.ts`, complete: true, preconditions: [] })),
-    modules: names.map((name) => ({
-      file: `src/${name}.ts`,
-      sourceDigest: digestString(readFileSync(join(root, `src/${name}.ts`), 'utf8')),
-      instrumented: true,
-      blocks: [
-        {
-          ordinal: 0,
-          kind: 'module' as const,
-          digest: `block:${name}`,
-          name: '',
-          path: 'module',
-          startLine: 1,
-          endLine: 1,
-          source: true,
-          testFiles: [`test/${name}.test.ts`],
-        },
-      ],
-    })),
-  };
 }

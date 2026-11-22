@@ -19,30 +19,27 @@
  * commit's text ran, so the branch's files are charged whole: a ref named on
  * purpose reads the whole branch rather than the runs.
  *
- * What changed between where a test stands and the snapshot's commit is read
- * for that test from both texts, as the change in the tree is, and the two
- * answers are kept together. The merge carries the rows such a test recorded
- * onto the text the snapshot's commit holds, by each region's address, so its
- * line numbers are that commit's; but it never ran that text. Read the other
- * way — from the snapshot commit's text back to the text the test ran — the
- * change is in the rows' own coordinates, and the regions it charges are the
- * ones the test's run and the snapshot's text disagree on. A run that would go
- * another way through the edit first goes another way in a region the test
- * entered, and that region is charged; a region the edit wrote takes the
- * crossings of the region around it. No other reading judges that pair: the
- * hunks from the test's commit are numbered in the text the rows no longer
- * are, and the snapshot commit's text against the tree leaves out the edit
- * before it.
+ * A test placed at a stand is charged with one change, from its stand to the
+ * tree: a file the tree holds as the stand had it is no change for it, however
+ * far the snapshot's commit moved it, and what the stand already ran is not
+ * charged again. The rows are numbered in the snapshot commit's text, as the
+ * merge carries each region a test recorded onto that text by its address, so
+ * the change is read in those lines ({@link standChange}): each line it changed
+ * is carried back through the snapshot commit's own diff to the tree, a hunk
+ * both diffs wrote is charged whole, and a line that stands only at the stand
+ * charges the region of the snapshot's text it falls in. The snapshot commit's
+ * text is a map of lines here and never a side of the change.
  *
- * A landing over a dirty tree carries the rows onto the text on disk instead,
- * and keeps that text (`kept-texts.ts`). Those rows were never re-cut onto the
- * snapshot commit's text, and the diff back to the stand is not written from
- * the kept one, so the stand's question reads no kept text: such a file is
- * stale for it and charged whole, which selects more inside it and never
- * skips.
+ * A file the stand and the snapshot's commit hold alike has the same change
+ * to the tree from both, so its hunks are the snapshot commit's and are read
+ * as the tree's change is. A file they differ on has lines and no hunks: no
+ * text is arrived at from the one the rows were cut from, so the parser does
+ * not read what the edit did, and a kept text (`kept-texts.ts`) is stale for
+ * the stand's tests and charged whole. Both select more and never skip.
  */
 
 import { codeUnitOrder } from '@variance-authority/core/segment';
+import { changeOfDiff, type Change } from './change.js';
 import type { CommitRuns } from './commit-runs.js';
 import { sameInstall, type KeptInstall } from './kept-install.js';
 import { whatLanded } from './landings.js';
@@ -50,6 +47,8 @@ import { testPlaces } from './test-places.js';
 import { askCoverageFile } from './coverage-file.js';
 import { nearestFirst, type TestDistance } from './distance.js';
 import type { ExecutionNarrowing, SelectionReason } from './narrowing.js';
+import { changeInRecord, hunksByFile } from './placed.js';
+import { changedLines } from './diff-lines.js';
 import { native } from '../addon.js';
 
 /** One git invocation, answering its stdout and throwing when git fails. */
@@ -63,7 +62,7 @@ export interface Stand {
   /** Every file changed from `commit` to the snapshot's commit, in code-unit order. */
   readonly changed: readonly string[];
   /**
-   * The files charged whole for `tests` rather than read from both texts:
+   * The files charged whole for `tests` rather than read by their change to the tree:
    * `changed`, for the merge base with a ref, which reads the whole branch;
    * empty for a stand the runs recorded.
    */
@@ -267,7 +266,7 @@ export function readingFrom({
     const count = these.reduce((sum, stand) => sum + stand.tests.length, 0);
     return whole
       ? [`${files} file(s) changed between the merge base with ${ref} and ${at} are read whole for the ${count} test(s) read from it`]
-      : [`${files} file(s) changed between the commits ${count} test(s) last ran at and ${at}, where the snapshot was recorded, are read from both texts for them`];
+      : [`${count} test(s) that last ran before ${at}, where the snapshot was recorded, are charged what changed from where each ran to the tree, in the snapshot's lines`];
   });
   return { base: commit, from: first, stands: read, says: `${reason}${note}; ${readings.join('; ')}${said}`, ...also };
 }
@@ -374,11 +373,27 @@ export const standDiff = (git: Git, commit: string, stand: string): string =>
   );
 
 /**
+ * The change from a stand to the tree, in the lines the rows are numbered in:
+ * `stand` is the diff from the stand to the tree and `record` the diff from the
+ * snapshot's commit to the same tree, both written with no context lines.
+ * Every file `stand` names is charged, and only those: a file the tree holds as
+ * the stand had it has no hunk there, wherever the snapshot's commit stands.
+ * A file not in `differs`, the files the stand and the snapshot's commit hold
+ * differently, keeps the hunks `record` wrote for it, which are in those lines.
+ */
+export function standChange(record: string, stand: string, differs: readonly string[]): Change {
+  const lines = changeInRecord(record, { lines: changedLines(stand), hunks: hunksByFile(stand) });
+  const apart = new Set(differs);
+  const hunks = [...changeOfDiff(record).hunks].filter(([file]) => lines.has(file) && !apart.has(file));
+  return { lines, hunks: new Map(hunks) };
+}
+
+/**
  * One question `askPerStand` puts to a selector. `tree` reads the change from
  * the snapshot's commit to the tree, on the install at `at`, with `whole`
- * charged whole and left out of the hunks; `stand` reads the change from the
- * snapshot's commit to `at`, from both texts, with no install of its own and
- * no kept text, so a module a landing kept a text for is charged whole.
+ * charged whole and left out of the hunks; `stand` reads the change from `at`
+ * to the tree, in the snapshot commit's lines ({@link standChange}), on the
+ * install at `at`.
  */
 export type StandQuestion =
   | { readonly read: 'tree'; readonly at: string | undefined; readonly whole: readonly string[] }
@@ -396,11 +411,10 @@ export interface StandAnswer<Distance extends TestDistance> {
  * asked for. One question over every stand at once would read a test that ran
  * after an edit as though it had not.
  *
- * A stand is asked twice: what the tree changed since the snapshot's commit, on
- * the install the stand's tests ran on, and what the snapshot's commit changed
- * since the stand. A test either reading charges is entered, for the reasons
- * both name, at the nearer distance. A stand that charges its files whole, the
- * merge base with a ref, is asked the first question alone. Each selector
+ * A stand is asked once: what the tree changed since the stand, on the install
+ * its tests ran on. A stand that charges its files whole, the merge base with a
+ * ref, is asked what the tree changed since the snapshot's commit, with those
+ * files charged whole. Each selector
  * builds and asks the diff itself, because each brings the hunks into its own
  * coordinates. `whole`, `readings` and the rest of the narrowing are the
  * snapshot commit's answer; `unread`, `stale` and `ignored` are every answer's.
@@ -437,8 +451,7 @@ export async function askPerStand<Distance extends TestDistance>(
   const here = await ask({ read: 'tree', at: undefined, whole: [] });
   keep(here, -1);
   for (const [at, stand] of stands.entries()) {
-    keep(await ask({ read: 'tree', at: stand.commit, whole: stand.whole }), at);
-    if (stand.whole.length === 0 && stand.changed.length > 0) keep(await ask({ read: 'stand', at: stand.commit }), at);
+    keep(await ask(stand.whole.length === 0 ? { read: 'stand', at: stand.commit } : { read: 'tree', at: stand.commit, whole: stand.whole }), at);
   }
   const order = [...entered];
   return {

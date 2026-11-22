@@ -99,11 +99,16 @@ against that text before it is compared with your diff.
 | The record holds no coverage | every test file | `the record at <path> holds no coverage` / `the run that wrote it instrumented no module, so every test file runs` |
 | The record holds no test file whole | every test file | `the journal holds no whole observation of any test file` / `nothing recorded whole, so every test file runs` |
 | git cannot produce the diff | every test file | `cannot read what changed since <ref>` / `no diff, so every test file runs` |
+| git cannot write the working state as a tree | every test file | `git could not write the working state as a tree to read what changed since <commit>: <what git said>` / `no diff, so every test file runs` |
 | The install cannot be compared with the one the record ran over | every test file | the reason the lockfile could not be compared, then `a package bump shows in no covered line, so every test file runs` |
 | The diff moves a file the suite declares in `before` | every test file | `` the suite <name> rests on <files> before any test imports it, through its `before` entry `<entry>`, and this diff moves it `` / `what a suite rests on runs before every test in it, so every test file runs` |
+| The diff from the commit some test files last ran at moves a file the suite declares in `before` | those test files | `` the suite <name> rests on <files> before any test imports it, through its `before` entry `<entry>`, and the diff from <commit> moves it, so the N test files that last ran there run `` |
+| The diff from the journal's commit moves a file the suite declares in `before`, or its install cannot be compared, while some test files last ran elsewhere | the test files read from the journal's commit | the `before` sentence or the install's reason, then `, so every test file read from the journal's commit <commit> runs` |
+| The install cannot be compared with the one some test files last ran over | those test files | `N test files last ran at <commit>, and <the reason>, so they run` |
 | A changed module was recorded from a text nobody kept | every test that ran any region of it | `N changed modules were recorded from a text the journal's own commit does not hold and the cache did not keep, so every region of them was charged rather than read` |
 | The record names no commit, and `--since` names the base | every test that ran a changed module | `the journal names no commit, so none of its line ranges could be checked against the text they were cut from; every changed module with a row was charged whole` |
-| Some test files last ran at an earlier commit | those files are read against both texts | `N test files last ran at <commit>, before the journal's commit <commit>, so the K files changed between the two are read from both texts for them` |
+| Some test files last ran at an earlier commit | those files are charged what changed from their commit to the tree | `N test files last ran at <commit>, before the journal's commit <commit>, so they are charged what changed from <commit> to the tree, read in the journal's lines` |
+| git cannot write the diff from an earlier commit to the tree | the test files that last ran at that commit | `git could not write the diff from <commit>, where N test files last ran, to the tree, so they run` |
 
 A package bump is not by itself a doubt. When the lockfile can be compared, the
 files that import a moved package are read as changed whole, and a note names

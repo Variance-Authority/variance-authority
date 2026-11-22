@@ -2,7 +2,7 @@ import { mkdtemp, readdir, readFile, realpath, rm, writeFile } from 'node:fs/pro
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { commitRunsFile, landRun, readCommitRuns, type TestCoverage } from '@variance-authority/sense/test-selection';
+import { commitRunsFile, landRun, readCommitRuns, readTestCoverage, type TestCoverage } from '@variance-authority/sense/test-selection';
 import { git, laidWorktree, LOCAL, publishedNext, ranAlone, refetch } from './milestone-pin.fixture.js';
 import { suiteBase } from './suite-base.js';
 
@@ -49,6 +49,46 @@ describe('the runs record under a repinned checkout', () => {
     expect(await suiteBase(worktree, { env: LOCAL })).toMatchObject({ repin: { repinned: true, to: next, kept: ['test/other.test.ts', 'test/total.test.ts'] } });
 
     expect(await readCommitRuns(own)).toEqual({ commit: later, over: next, latest: held.latest, runs: held.runs, standing: held.standing, landings: held.landings });
+  });
+
+  it('names the milestone as the record commit when the repin drops every run, which ran off its line', async () => {
+    const { ci, worktree, own } = await laidWorktree(home);
+    // The checkout runs on a branch the newer snapshot does not descend from, then merges main.
+    await git(worktree, 'commit', '--quiet', '--allow-empty', '-m', 'branch');
+    const branch = await git(worktree, 'rev-parse', 'HEAD');
+    await landRun(own, ranAlone(branch, 'test/other.test.ts'), worktree);
+    const next = await publishedNext(home, ci);
+    await git(worktree, 'fetch', '--quiet', 'origin');
+    await git(worktree, 'merge', '--quiet', '--no-edit', next);
+    await refetch(home, worktree, next);
+
+    expect(await suiteBase(worktree, { env: LOCAL })).toMatchObject({ repin: { repinned: true, to: next, kept: [] } });
+
+    // No row of the record was cut at the branch: its tests stand where the milestone ran them.
+    expect([(await readCommitRuns(own))!.commit, (await readTestCoverage(own))!.commit]).toEqual([next, next]);
+  });
+
+  it('names the milestone as the record commit when the repin drops the last run and keeps an earlier one', async () => {
+    const { ci, first, worktree, own } = await laidWorktree(home);
+    const next = await publishedNext(home, ci);
+    await git(worktree, 'fetch', '--quiet', 'origin');
+    await git(worktree, 'checkout', '--quiet', '--detach', next);
+    await git(worktree, 'commit', '--quiet', '--allow-empty', '-m', 'later');
+    const later = await git(worktree, 'rev-parse', 'HEAD');
+    await landRun(own, ranAlone(later, 'test/total.test.ts'), worktree);
+    // The checkout then runs on a side commit off the newer snapshot's line, and comes back.
+    await git(worktree, 'checkout', '--quiet', '--detach', first);
+    await git(worktree, 'commit', '--quiet', '--allow-empty', '-m', 'side');
+    await landRun(own, ranAlone(await git(worktree, 'rev-parse', 'HEAD'), 'test/other.test.ts'), worktree);
+    await git(worktree, 'checkout', '--quiet', '--detach', later);
+    await refetch(home, worktree, next);
+
+    expect(await suiteBase(worktree, { env: LOCAL })).toMatchObject({ repin: { repinned: true, to: next, kept: ['test/total.test.ts'] } });
+
+    // The kept test stands where it ran; no row of the record was cut at the side commit.
+    const runs = (await readCommitRuns(own))!;
+    expect([runs.commit, (await readTestCoverage(own))!.commit]).toEqual([next, next]);
+    expect(runs.standing?.find((stand) => stand.files.includes('test/total.test.ts'))?.commit).toBe(later);
   });
 
   it('drops a run that ran a test file in part when the file moves to the newer snapshot', async () => {

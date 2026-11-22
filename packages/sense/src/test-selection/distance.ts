@@ -212,6 +212,11 @@ export function nearestFirst(left: TestDistance, right: TestDistance): number {
   return codeUnitOrder(left.test, right.test);
 }
 
+/** A test a precondition selected: nothing is nearer than *this change is this test*. */
+export function preconditionDistance(test: string, name: string): TestDistance {
+  return { test, bearing: 'precondition', hops: 0, from: name, trail: [name] };
+}
+
 /**
  * One test placed against every changed file that selected it.
  *
@@ -230,7 +235,7 @@ function place(
   const changed = new Set<string>();
   for (const reason of cause.via) {
     if (reason.kind === 'precondition') {
-      return { test: cause.test, bearing: 'precondition', hops: 0, from: reason.name, trail: [reason.name] };
+      return preconditionDistance(cause.test, reason.name);
     }
     // A reader is measured from the file that declares the value it reads:
     // that is the file the change is in.

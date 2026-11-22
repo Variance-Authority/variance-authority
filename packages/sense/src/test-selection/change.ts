@@ -16,6 +16,7 @@ import { changedLines } from './diff-lines.js';
 import { hunksOf, type Hunk } from './patch.js';
 import { ignoredBy, withoutPaths } from './route.js';
 
+/** A change: the lines it moved in each file it names, and the hunks that move them, in the record's coordinates. */
 export interface Change {
   /**
    * The old-side lines each changed file moved, in the coordinates the record
@@ -58,4 +59,18 @@ export function changeOfPaths(change: Change, paths: Iterable<string>): Change {
  */
 export function changeOfFiles(paths: Iterable<string>): Change {
   return { lines: new Map([...new Set(paths)].sort(codeUnitOrder).map((path) => [path, []])), hunks: new Map() };
+}
+
+/**
+ * `change` with each of `paths` changed whole. A file it already moved loses
+ * its lines and its hunks: whole is what the caller made of it, and a selector
+ * that read both would answer for the hunks alone.
+ */
+export function withWholeFiles(change: Change, paths: Iterable<string>): Change {
+  const whole = new Set(paths);
+  if (whole.size === 0) return change;
+  return {
+    lines: new Map([...[...change.lines].filter(([file]) => !whole.has(file)), ...[...whole].map((file) => [file, []] as const)]),
+    hunks: new Map([...change.hunks].filter(([file]) => !whole.has(file))),
+  };
 }
