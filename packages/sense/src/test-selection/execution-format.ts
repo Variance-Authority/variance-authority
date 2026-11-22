@@ -225,8 +225,14 @@ export function isRowSpelledExecutionIndex(bytes: Uint8Array): boolean {
  * settled and what its runner reported it took — without decoding a region.
  */
 export function decodeExecutionTests(bytes: Uint8Array): readonly ExecutionTest[] {
-  return executionTestsOf(recordedCases(bytes), [EXECUTION_FORMAT, UNTIMED_ROWS, UNFLAGGED_ROWS]);
+  let tests = decodedTests.get(bytes);
+  if (tests === undefined) decodedTests.set(bytes, (tests = Object.freeze(executionTestsOf(recordedCases(bytes), [EXECUTION_FORMAT, UNTIMED_ROWS, UNFLAGGED_ROWS]))));
+  return tests;
 }
+
+// A landing asks one index for its cases from the case lay, the last-run
+// section and the runs record in turn; the bytes it wrote do not change after.
+const decodedTests = new WeakMap<Uint8Array, readonly ExecutionTest[]>();
 
 /**
  * Read a column-encoded index back, whole.
