@@ -352,7 +352,7 @@ describe('variance ask classify', () => {
     const asked = await run(['ask', 'classify', '--query', 'ModuleLoader loader']);
 
     expect(asked.code).toBe(EXIT_CLEAN);
-    // `lib/main.js` only destructures the name out of `./loader`, so it declares nothing.
+    // `lib/main.js` only destructures the name out of `./loader`, so classify leaves its file out.
     expect(asked.out).toContain(
       [
         'ModuleLoader — declared lib/loader.js:3 · in no package',

@@ -89,7 +89,7 @@ pub const KINDS: [(&str, &[&str]); 24] = [
 ];
 
 /// The kind of a top-level name a file binds to a value it did not define
-/// there: one destructured out of a value, or one taken off a module it loads.
+/// there: one destructured out of a value.
 pub const BINDING: &str = "binding";
 
 /// The word of [`KINDS`] spelled `word`.
