@@ -20,7 +20,8 @@ import { commitOf } from './commit.js';
 import { landedTree } from './kept-texts.js';
 import { laidProbes, landRun } from './commit-runs.js';
 import { projectPath, readWritten } from './instrumented-modules.js';
-import { coverageModule } from './coverage-rows.js';
+import { crossedModules } from './coverage-rows.js';
+import type { RunCoverage } from './format.js';
 import { joinReadings, ownCut } from './readings.js';
 import { runCrossings, runModuleIds } from './run-crossings.js';
 import { foldCases, freshCases } from './case-fold.js';
@@ -37,7 +38,6 @@ import { removeSeamModules, type SelectionRun } from './selection-run.js';
 import { governingPreconditions } from './governing-config.js';
 import { markCheckout } from './cache-layers.js';
 import { repositoryRoot } from './repository-root.js';
-import type { CoverageModule, TestCoverage } from './index.js';
 import { prepareRecord } from './replaced-record.js';
 
 /** Where a fold writes, and which of this seam's own files it clears up after. */
@@ -156,18 +156,12 @@ export function foldRun(
       numbered,
     ));
     const commit = await commitOf(root);
-    const current: TestCoverage = {
+    const current: RunCoverage = {
       version: 3,
       instrumentation: instrumentationId(mode),
       ...(commit === undefined ? {} : { commit }),
       tests: tests.sort((left, right) => codeUnitOrder(left.file, right.file)),
-      modules: [...joined.modules]
-        .map(([id, module]): CoverageModule => coverageModule(
-          module,
-          (block) => crossings.observed(id, block.ordinal),
-          (block) => crossings.early(id, block.ordinal),
-        ))
-        .sort((left, right) => codeUnitOrder(left.file, right.file)),
+      ...crossedModules(joined.modules, crossings),
     };
     // In the record, with the coverage, in one write. A run that could record
     // a case, and recorded none and finished no file — no worker loaded this

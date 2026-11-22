@@ -40,7 +40,8 @@ import { markCheckout } from './cache-layers.js';
 import { repositoryRoot } from './repository-root.js';
 import { projectPath, type CapturedModule } from './instrumented-modules.js';
 import { runCrossings, runModuleIds, type RunCrossings, type RunJournal } from './run-crossings.js';
-import { coverageModule } from './coverage-rows.js';
+import { crossedModules } from './coverage-rows.js';
+import type { RunCoverage } from './format.js';
 import { deriveModules } from './captured-modules.js';
 import {
   CASE_DIRECTORY_VARIABLE,
@@ -54,7 +55,6 @@ import {
 import {
   type CoveragePrecondition,
   type CoverageTest,
-  type TestCoverage,
 } from './index.js';
 import { prepareRecord } from './replaced-record.js';
 import { recordsAlone } from './mainline-layer.js';
@@ -248,18 +248,12 @@ class JestCoverageReporter {
       numbered,
     )));
     const commit = await commitOf(root);
-    const current: TestCoverage = {
+    const current: RunCoverage = {
       version: 3,
       instrumentation,
       ...(commit === undefined ? {} : { commit }),
       tests: tests.sort((left, right) => codeUnitOrder(left.file, right.file)),
-      modules: [...modules]
-        .map(([id, module]) => coverageModule(
-          module,
-          (block) => crossings.observed(id, block.ordinal),
-          (block) => crossings.early(id, block.ordinal),
-        ))
-        .sort((left, right) => codeUnitOrder(left.file, right.file)),
+      ...crossedModules(modules, crossings),
     };
     // In the record, with the coverage, in one write. A run that recorded no
     // case and finished no file has none to lay, and the record's cases stay

@@ -4,7 +4,7 @@ import { digestString } from '../digest.js';
 import { instrumentModeOf } from '../instrument/index.js';
 import { probesRegions } from '../instrument/identity.js';
 import type { Bytes } from './columns.js';
-import { encodeTestCoverage } from './format.js';
+import { encodeTestCoverage, type RunCoverage } from './format.js';
 import { openTestCoverage } from './format-view.js';
 import { carriedSources } from './carried-sources.js';
 import { sourceCut } from './coverage-rows.js';
@@ -74,7 +74,7 @@ export function foreignProbes(previous: Uint8Array | Bytes, run: string | undefi
  */
 export function layCoverage(
   previous: Uint8Array | undefined,
-  current: TestCoverage,
+  current: RunCoverage,
   onDisk: ReadonlyMap<string, string> = new Map(),
   readings?: EditReadings,
   names: ReadonlyMap<string, string> = new Map(),
@@ -145,7 +145,7 @@ export async function recordBytes(file: string): Promise<Buffer | undefined> {
 export async function layeredOver(
   file: string,
   previous: Buffer | undefined,
-  current: TestCoverage,
+  current: RunCoverage,
   root: string,
   cacheRoot?: string,
   tree?: LandedTree,
@@ -162,7 +162,7 @@ export async function layeredOver(
 }
 
 /** `current` with each module named by `names`, git's name for its text, where that holds one. */
-function named(current: TestCoverage, names: ReadonlyMap<string, string>): TestCoverage {
+function named(current: RunCoverage, names: ReadonlyMap<string, string>): RunCoverage {
   if (names.size === 0) return current;
   return {
     ...current,

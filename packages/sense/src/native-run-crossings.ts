@@ -34,6 +34,9 @@ export interface NativeRunCrossings {
   readonly unplaced: Uint32Array;
 }
 
+/** A fold's crossings as a coverage write reads them: `modules` is the id of each module the write's rows hold, in their order. */
+export type NativeRunCrossed = Pick<NativeRunCrossings, 'tests' | 'ids' | 'hits' | 'loaded'> & { readonly modules: string[] };
+
 export interface NativeRunCrossingsFold {
   /** Every module id the journals name, each once, in the order first named. */
   runModuleIds?(journals: Buffer[], pages: NativeCarriedJournal[]): string[];

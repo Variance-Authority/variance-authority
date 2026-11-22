@@ -52,6 +52,7 @@ import { casesRecordedOver, recordOfCases, withCaseSections, withoutChecks } fro
 import { commitRunsIn, commitRunsText } from './commit-runs-text.js';
 import { askCoverageFile } from './coverage-file.js';
 import { anotherBuilds, layeredOver, recordBytes } from './format-layer.js';
+import type { RunCoverage } from './format.js';
 import { RecordWithoutCoverage } from './format-validation.js';
 import { openTestCoverage } from './format-view.js';
 import type { TestCoverage } from './index.js';
@@ -198,7 +199,7 @@ export function laidProbes(current: Pick<TestCoverage, 'instrumentation' | 'modu
  */
 export async function landRun(
   coverageFile: string,
-  current: TestCoverage,
+  current: RunCoverage,
   root: string,
   cacheRoot?: string,
   cases?: FreshCases,

@@ -161,6 +161,7 @@ mod record_combine;
 mod record_coverage;
 mod record_coverage_address;
 mod record_coverage_columns;
+mod record_coverage_crossers;
 mod record_coverage_dictionary;
 mod record_coverage_encode;
 mod record_coverage_fold;

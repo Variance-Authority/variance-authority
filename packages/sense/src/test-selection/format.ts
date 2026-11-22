@@ -17,6 +17,8 @@ import {
   kindId,
 } from './format-layout.js';
 import { native, nativeRefusal } from '../addon.js';
+import type { NativeCoverageRows } from '../native-record.js';
+import type { NativeRunCrossed } from '../native-run-crossings.js';
 import { openTestCoverage } from './format-view.js';
 import { NO_LINE, writtenLines } from './written-lines.js';
 
@@ -36,7 +38,7 @@ import { NO_LINE, writtenLines } from './written-lines.js';
  * The addon writes it: the order, the dictionary and the sets are its, as they
  * are for every other record it writes. This turns the objects into its columns.
  */
-export function encodeTestCoverage(coverage: TestCoverage): Buffer {
+export function encodeTestCoverage(coverage: RunCoverage): Buffer {
   if (coverage.version !== MODEL) {
     throw new Error(`unsupported test coverage version: ${coverage.version}`);
   }
@@ -44,7 +46,20 @@ export function encodeTestCoverage(coverage: TestCoverage): Buffer {
   if (encode === undefined) {
     throw new Error(`writing a coverage record requires the Sense native addon: ${nativeRefusal() ?? 'the loaded addon has no `encodeCoverage`'}`);
   }
-  const { tests, modules } = coverage;
+  return encode(coverageRows(coverage));
+}
+
+/**
+ * Coverage as a run holds it before it is written: a region's crossers either
+ * named in its `testFiles` and `loadedBy`, or, with `crossed`, left in the
+ * columns the run's fold answered, which the addon reads in their place — every
+ * region's `testFiles` is then empty and none has `loadedBy`.
+ */
+export type RunCoverage = TestCoverage & { readonly crossed?: NativeRunCrossed };
+
+/** `coverage` as the columns the addon reads it from. */
+export function coverageRows(coverage: RunCoverage): NativeCoverageRows {
+  const { tests, modules, crossed } = coverage;
   const testPreconditions = new Uint32Array(tests.length + 1);
   const preconditionName: string[] = [];
   const preconditionDigest: string[] = [];
@@ -97,9 +112,11 @@ export function encodeTestCoverage(coverage: TestCoverage): Buffer {
       blockEnd[blockIndex] = block.endLine ?? NO_LINE;
       blockSource[blockIndex] = block.source ? 1 : 0;
       calledOffsets[blockIndex] = called.length;
-      for (const testFile of block.testFiles) called.push(member(testFile));
       loadedOffsets[blockIndex] = loaded.length;
-      for (const testFile of block.loadedBy ?? []) loaded.push(member(testFile));
+      if (crossed === undefined) {
+        for (const testFile of block.testFiles) called.push(member(testFile));
+        for (const testFile of block.loadedBy ?? []) loaded.push(member(testFile));
+      }
       blockIndex += 1;
     }
   }
@@ -107,7 +124,7 @@ export function encodeTestCoverage(coverage: TestCoverage): Buffer {
   calledOffsets[blockCount] = called.length;
   loadedOffsets[blockCount] = loaded.length;
 
-  return encode({
+  return {
     instrumentation: coverage.instrumentation,
     ...(coverage.commit === undefined ? {} : { commit: coverage.commit }),
     testPath: tests.map((test) => test.file),
@@ -136,7 +153,8 @@ export function encodeTestCoverage(coverage: TestCoverage): Buffer {
     called: Uint32Array.from(called),
     loadedOffsets,
     loaded: Uint32Array.from(loaded),
-  });
+    ...(crossed === undefined ? {} : { crossed }),
+  };
 }
 
 /** `tests.phases` for these tests: {@link PHASE_NAMES} words each, a phase nobody reported as {@link NO_DURATION}. */

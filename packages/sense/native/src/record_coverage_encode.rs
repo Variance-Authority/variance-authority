@@ -9,18 +9,19 @@
 //! of exactly the strings the output names, sorted.
 //!
 //! A region's crossers are named by index into `members`, a list of test files
-//! the caller keeps once; a name no test row holds is refused, as is a test
-//! row whose path another already holds.
+//! the caller keeps once, or read from a run's crossings
+//! (`record_coverage_crossers`); a name no test row holds is refused, as is a
+//! test row whose path another already holds.
 
 use napi::bindgen_prelude::{Buffer, Uint32Array, Uint8Array};
 use napi_derive::napi;
-use rustc_hash::FxHashMap;
 
 use crate::crossing_sets::SetPool;
 use crate::journey_columns::{self, Column};
 use crate::order;
 use crate::record_coverage::{Phases, PHASES};
 use crate::record_coverage_columns::{Columns, Region};
+use crate::record_coverage_crossers::{self, Crossers, RunCrossed};
 use crate::record_coverage_dictionary::{Dictionary, Spelled};
 use crate::record_layout::LAYOUT;
 
@@ -63,12 +64,21 @@ pub struct CoverageRows {
     /// Per region, where what loaded it starts in `loaded`; one more entry than regions.
     pub loaded_offsets: Uint32Array,
     pub loaded: Uint32Array,
+    /// A run's crossings, read in place of `members`, `called` and `loaded`, which are then empty.
+    pub crossed: Option<RunCrossed>,
 }
 
 /// The coverage record `rows` describe, or a refusal naming what is wrong with them.
 #[napi(catch_unwind)]
 pub fn encode_coverage(rows: CoverageRows) -> napi::Result<Buffer> {
     encoded(&rows).map(Buffer::from).map_err(napi::Error::from_reason)
+}
+
+/// What each test file of `rows` ran over, as `[file, digest]` in row order.
+#[napi(catch_unwind)]
+pub fn coverage_inputs(rows: CoverageRows) -> napi::Result<Vec<Vec<String>>> {
+    let inputs = record_coverage_crossers::inputs(&rows).map_err(napi::Error::from_reason)?;
+    Ok(inputs.into_iter().map(|(file, digest)| vec![file, digest]).collect())
 }
 
 pub(crate) fn encoded(rows: &CoverageRows) -> Result<Vec<u8>, String> {
@@ -112,13 +122,7 @@ fn columns(rows: &CoverageRows) -> Result<Vec<Column>, String> {
     }
     let paths: Vec<u32> = rows.test_path.iter().map(|path| dictionary.id(path)).collect();
 
-    // A crosser's name as its final test id, looked up once per name.
-    let by_path: FxHashMap<&str, u32> = (0..tests).map(|test| (rows.test_path[test].as_str(), final_test[test])).collect();
-    let member_ids = rows
-        .members
-        .iter()
-        .map(|member| by_path.get(member.as_str()).copied().ok_or_else(|| format!("coverage crossing names an unobserved test: {member}")))
-        .collect::<Vec<_>>();
+    let crossers = Crossers::of(rows)?;
 
     struct Module {
         path: u32,
@@ -128,16 +132,15 @@ fn columns(rows: &CoverageRows) -> Result<Vec<Column>, String> {
         blocks: Vec<Region>,
     }
     let mut pool = SetPool::new(tests);
-    let mut crossers: Vec<u32> = Vec::new();
-    let mut set = |offsets: &Uint32Array, members: &Uint32Array, block: usize| -> Result<u32, String> {
-        crossers.clear();
-        for member in &members[offsets[block] as usize..offsets[block + 1] as usize] {
-            let id = member_ids.get(*member as usize).ok_or_else(|| format!("coverage crossing names member {member}, past the {} held", member_ids.len()))?;
-            crossers.push(id.clone()?);
+    let mut ids: Vec<u32> = Vec::new();
+    let mut set = |module: usize, block: usize, loaded: bool| -> Result<u32, String> {
+        ids.clear();
+        for row in crossers.rows_of(module, block, loaded) {
+            ids.push(final_test[row? as usize]);
         }
-        crossers.sort_unstable();
-        crossers.dedup();
-        Ok(pool.intern(&crossers))
+        ids.sort_unstable();
+        ids.dedup();
+        Ok(pool.intern(&ids))
     };
     let mut written: Vec<Module> = Vec::with_capacity(modules);
     for module in module_order {
@@ -146,8 +149,8 @@ fn columns(rows: &CoverageRows) -> Result<Vec<Column>, String> {
         order.sort_by_key(|block| rows.block_ordinal[*block]);
         let mut regions = Vec::with_capacity(order.len());
         for block in order {
-            let called = set(&rows.called_offsets, &rows.called, block)?;
-            let loaded = set(&rows.loaded_offsets, &rows.loaded, block)?;
+            let called = set(module, block, false)?;
+            let loaded = set(module, block, true)?;
             regions.push(Region {
                 ordinal: rows.block_ordinal[block],
                 kind: rows.block_kind[block],

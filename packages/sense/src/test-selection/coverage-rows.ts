@@ -10,10 +10,12 @@
 
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import { digestString } from '../digest.js';
-import type { Block } from '../instrument/index.js';
+import type { Block, ModuleId } from '../instrument/index.js';
 import { spliced, type WalkMode } from '../instrument/spliced.js';
 import type { CoverageBlock, CoverageModule } from './index.js';
 import type { CapturedModule } from './instrumented-modules.js';
+import type { RunCoverage } from './format.js';
+import type { RunCrossings } from './run-crossings.js';
 import { sourceLines, type ExtentOf, type RecordedFrame } from './source-lines.js';
 
 /** The coverage row a captured module makes once its crossings are known. */
@@ -34,6 +36,18 @@ export function coverageModule(
         ...(loadedBy.length === 0 ? {} : { loadedBy }),
       };
     }),
+  };
+}
+
+/**
+ * A run's modules as its record holds them, in code-unit order of their files,
+ * with the crossers left in the columns `crossings` folded (`RunCoverage`).
+ */
+export function crossedModules(modules: Iterable<readonly [ModuleId, CapturedModule]>, crossings: RunCrossings): Pick<RunCoverage, 'modules' | 'crossed'> {
+  const sorted = [...modules].sort(([, left], [, right]) => codeUnitOrder(left.file, right.file));
+  return {
+    modules: sorted.map(([, module]) => coverageModule(module, () => [])),
+    crossed: crossings.crossed(sorted.map(([id]) => id)),
   };
 }
 

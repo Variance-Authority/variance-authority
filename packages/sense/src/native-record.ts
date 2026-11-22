@@ -1,4 +1,5 @@
 import type { NativeRegion } from './native-journey.js';
+import type { NativeRunCrossed } from './native-run-crossings.js';
 
 /** One shard a combine read, in the order the shards were named. */
 export interface NativeCombinedShard {
@@ -67,6 +68,8 @@ export interface NativeCoverageRows {
   readonly called: Uint32Array;
   readonly loadedOffsets: Uint32Array;
   readonly loaded: Uint32Array;
+  /** A run's crossings, read in place of `members`, `called` and `loaded`, which are then empty. */
+  readonly crossed?: NativeRunCrossed;
 }
 
 /** What the addon answers about records: combining shards, laying one over another, and joining one file's regions. */
@@ -76,6 +79,11 @@ export interface NativeRecords {
    * and crossers sorted and distinct. A test file twice, or a crosser no test row holds, throws.
    */
   encodeCoverage?(rows: NativeCoverageRows): Buffer;
+  /**
+   * What each test file of `rows` ran over, as `[file, digest]` in row order: every module some
+   * region of which it crossed or loaded, at its source digest, and its preconditions.
+   */
+  coverageInputs?(rows: NativeCoverageRows): string[][];
   /**
    * Fold shard records into the one record at `output`: coverage, cases and their parts, and nothing else.
    * Shards whose records name two records their runs started from fail as unstable sharding.

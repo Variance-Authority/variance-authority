@@ -11,7 +11,7 @@
 
 import { native } from '../addon.js';
 import type { ModuleId } from '../instrument/index.js';
-import type { NativeCarriedJournal, NativeRunCrossings } from '../native-run-crossings.js';
+import type { NativeCarriedJournal, NativeRunCrossed, NativeRunCrossings } from '../native-run-crossings.js';
 import type { CapturedModule, ReadJournal } from './instrumented-modules.js';
 import type { Reading } from './readings.js';
 import { whyAbsent } from './native-modules.js';
@@ -41,6 +41,12 @@ export interface RunCrossings {
   readonly journals: readonly RunJournal[];
   /** The journals of one test file, by its project path; none when it left none. */
   journalsOf(test: string): readonly RunJournal[];
+  /**
+   * The columns the crossers came in, for a record of `modules` — each id in
+   * the order its rows are — to read in place of {@link observed} and
+   * {@link early}, so no region's crossers become strings (`RunCoverage`).
+   */
+  crossed(modules: readonly ModuleId[]): NativeRunCrossed;
   /** `modules` by module number, aligned with {@link ids}. */
   numbered(modules: ReadonlyMap<ModuleId, CapturedModule>): readonly (CapturedModule | undefined)[];
 }
@@ -97,6 +103,7 @@ function read(said: NativeRunCrossings): RunCrossings {
     early: lookup(said.loaded, ids, tests),
     journals,
     journalsOf: (test) => byTest.get(test) ?? [],
+    crossed: (modules) => ({ tests, ids, hits: said.hits, loaded: said.loaded, modules: [...modules] }),
     numbered: (modules) => ids.map((id) => modules.get(id)),
   };
 }
