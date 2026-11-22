@@ -4,7 +4,7 @@
  * group judged on its own change to one tree.
  *
  * The journal's commit is where most tests ran, and a stand is where the rest
- * did ([`stands.ts`](../../../sense/src/test-selection/stands.ts)). Every
+ * did (`standsOf`, in sense). Every
  * group's change is read to the same tree object, written once of the working
  * state, so a file that moves while the reading runs moves no group apart from
  * another. A group is charged its own change and nothing else: what moved since

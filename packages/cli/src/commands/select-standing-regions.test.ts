@@ -16,12 +16,9 @@ vi.mock('./since.js', async (original) => {
 });
 
 /**
- * A test a partial run left out stands on the text it last ran, and its rows
- * are carried onto the text the run recorded. What changed from its text to the
- * tree is mapped into the recorded text's lines and charged to it: the regions
- * it entered that differ, and nothing else in a file it loaded. These
- * cases record real regions, a function each test runs, through `landRun`, the
- * way the seam does, and read them through `variance select`.
+ * A test a partial run left out is charged what changed from the text it last
+ * ran to the tree, region by region. Regions are recorded through `landRun`
+ * and read through `variance select`.
  */
 describe('what changed after a test last ran is read region by region', () => {
   const cwd = process.cwd();
@@ -96,12 +93,9 @@ describe('what changed after a test last ran is read region by region', () => {
   });
 
   it('runs a test for an edit to a function it ran, when the tree changes while select reads it', async () => {
-    // `far` runs `forFar`, below `forNear`, and last ran at P; C runs `near`
-    // alone over the same `shared.ts`. The tree edits `forFar` under four
-    // comment lines, and the comments go while select is reading. Read from
-    // the tree with them, the comments touch the module both tests ran, so
-    // both run; read from the tree without, `forFar` alone moved, so `far`
-    // runs. Either tree runs `far`; only two trees read as one could skip it.
+    // `far` runs `forFar` and last ran at P; C runs `near` alone. The comments
+    // above `forFar` go while select reads: either tree alone runs `far`, and
+    // only two trees read as one could skip it.
     const nearFirst = (far: string): string => `export function forNear(n) {\n  return n * 2;\n}\n\nexport function forFar(n) {\n  return ${far};\n}\n`;
     const repo = checkout();
     const P = repo.commit({ ...TESTS, 'src/shared.ts': nearFirst('n + 1') }, 'P');

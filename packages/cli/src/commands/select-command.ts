@@ -213,15 +213,9 @@ async function untested(request: SuiteRequest): Promise<SuiteReading> {
   // to other tests. `--since` names the base only when the journal cannot. A
   // patch handed in with `--diff` is the change as given.
   const base = from ?? 'HEAD';
-  // The journal's commit is the commit of its latest run, and a partial run —
-  // a runner handed the last skip list — leaves every test it did not run on the
-  // text it last ran on. The runs recorded beside the journal say where each
-  // one stands, and each group of tests is charged what changed from where it
-  // ran to one tree, written once of the working state (`select-groups.ts`). A
-  // test the runs do not place is read from the journal's commit, or from where
-  // its runs started, and a note says so. A patch handed in is the whole change,
-  // so it is read for every test alike, and a note says when some test last ran
-  // before the journal's commit.
+  // A partial run leaves the tests it skipped on the text they last ran; each
+  // group is charged from where it ran to one tree (`select-groups.ts`). A
+  // patch handed in is the whole change, read for every test alike.
   // The stands, the diff, the installs and the import graph are named from the top
   // of the checkout `cwd` is in, as git spells it, which is how the journal names files.
   const top = await topLevel(request.root);
@@ -255,19 +249,10 @@ async function untested(request: SuiteRequest): Promise<SuiteReading> {
   }
   const groups = handed ? [{ diff, changed: [...selection.changedLines(diff).keys()] }] : await groupsOf(stands, diff, tree, here);
 
-  // Read at the commit each group of tests last ran at — the journal's own, or
-  // a stand's, exactly, on whatever line it is — or at the merge base with
-  // `--since` when the journal names none, so a bump is one made after those
-  // tests ran and not one `main` made since, and a bump made and undone after a
-  // test ran is no bump for it. Keyed by the stand's commit, `undefined` for
-  // the journal's own. `undefined` is no lockfile to compare, which moves
-  // nothing; a comparison that could not be made — from a commit git could not
-  // resolve here — runs that group whole. The lockfile on disk is parsed once
-  // for every group. Where the runs record kept the install a group's tests ran
-  // on, its commit is read through it: a bump they ran on uncommitted is no
-  // bump for them, and one undone since is. A kept text this checkout cannot
-  // read is half an install, so the commit's is read whole and a note says so,
-  // one for each commit it happened at.
+  // Each group's install is read from the commit it last ran at, through the
+  // install its runs kept, keyed by that commit (`undefined` for the journal's).
+  // A comparison that could not be made runs that group whole; a kept text this
+  // checkout cannot read is read whole, with one note per commit.
   const installs = new Map<string | undefined, InstallDiff | undefined>();
   const unkept = new Set<string>();
   const ranOver = new Set<string | undefined>();
