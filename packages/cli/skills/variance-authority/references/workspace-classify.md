@@ -23,9 +23,10 @@ as `orient` numbers them. The words that name nothing follow on one line, and
 the answer asks a `symbol` question per exported or declared name, an
 `entrypoint` question per published package or entrypoint, and an `orient
 --area` question per package that publishes nothing, or none when the map
-placed that package in no area. A file is asked nothing further: it is already
-the answer. The answer ends with the source files the request names — each file
-a word names, and the first file that declares each declared word — each with
+placed that package in no area. A source file is asked nothing further: it is
+already the answer. The answer ends with the source files the request names —
+each source file a word names, else the first source file that declares it,
+else the tests and stories it names — each with
 up to eight functions and classes it declares at its top level,
 exported first, from its parse in the source index. They sit under a line saying
 they are the answer — to the words that name them alone, when other words are
@@ -34,7 +35,7 @@ request uses, never for sharing their folder. Under `--from` or `--to` only the
 files the start point reaches are named. A file with nothing to list still gets
 its row, saying why: the index holds no parse of it, or it declares no function
 or class; a word naming more tracked files than are shown gets a row counting
-the rest. A word the
+the rest across the checkout, reached from the start point or not. A word the
 request spells another way — a plural, two words for a hyphenated name, a
 domain word no name carries — is not an entity.
 

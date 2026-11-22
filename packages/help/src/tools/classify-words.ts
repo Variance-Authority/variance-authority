@@ -224,11 +224,11 @@ export function formatClassified(
       lines.push(`  ${area.path} — ${plural(area.files, 'file')} · holds ${area.words.join(' ')}${placed}`);
     }
   }
-  // What each entity is asked next: a word that names a file nothing, since the
+  // What each entity is asked next: a word that names a source file nothing, since the
   // file is already the answer; an exported or a declared name is read by `symbol`, a published package or
   // entrypoint counted by `entrypoint`, and a package that publishes nothing
   // placed by `orient` on its area, if one took it.
-  const asks = entities.flatMap(({ word, names }) => names.some((named) => named.kind === 'file') ? [] : names.flatMap((named) => {
+  const asks = entities.flatMap(({ word, names }) => names.some(namesSource) ? [] : names.flatMap((named) => {
     if (named.kind === 'export' || named.kind === 'declared') return [`variance ask symbol --name ${shell(word)}`];
     if (named.published) return [`variance ask entrypoint --package ${shell(named.specifier)}`];
     const area = packages.get(named.package)?.area;
@@ -251,19 +251,26 @@ export function formatClassified(
   return lines.join('\n');
 }
 
+/** Whether a name is a tracked source file the word names: a test or a story sharing the word is not what it means. */
+function namesSource(named: Named): boolean {
+  return named.kind === 'file' && named.file !== undefined && kindOf(named.file) === 'source';
+}
+
 /**
- * The files a classified request names, in the order its words name them: each
- * file a word names, and for a word that names no file, the first source file
- * that declares it — an export's declaring file, or else the first declarer in
- * the order classify lists them. Under a start point, `inReach` says which
- * files it reaches, and a file it does not reach is not named.
+ * The files a classified request names, in the order its words name them: the
+ * source files a word names, else the first source file that declares it — an
+ * export's declaring file, or else the first declarer in the order classify
+ * lists them — else the tests and stories it names. Under a start point,
+ * `inReach` says which files it reaches, and a file it does not reach is not
+ * named.
  */
 export function namedFiles({ entities }: Classified, inReach: (file: string) => boolean = () => true): readonly string[] {
   return [...new Set(entities.flatMap(({ names }) => {
-    const files = names.filter((named) => named.kind === 'file');
-    if (files.length > 0) return files.flatMap((named) => (named.file === undefined || !inReach(named.file) ? [] : [named.file]));
+    const files = names.flatMap((named) => (named.kind !== 'file' || named.file === undefined || !inReach(named.file) ? [] : [named.file]));
+    const sources = files.filter((file) => kindOf(file) === 'source');
+    if (sources.length > 0) return sources;
     const first = names.find((named) => (named.kind === 'export' || named.kind === 'declared') && named.file !== undefined && kindOf(named.file) === 'source' && inReach(named.file));
-    return first?.file === undefined ? [] : [first.file];
+    return first?.file === undefined ? files : [first.file];
   }))];
 }
 
@@ -293,7 +300,7 @@ const LISTED_CAP = 8;
 export function formatNamedFiles(
   asked: readonly string[],
   read: readonly FileDeclarations[] | undefined,
-  { rest = false, unshown = [] }: { readonly rest?: boolean; readonly unshown?: readonly { readonly word: string; readonly more: number }[] } = {},
+  { rest = false, scoped = false, unshown = [] }: { readonly rest?: boolean; readonly scoped?: boolean; readonly unshown?: readonly { readonly word: string; readonly more: number }[] } = {},
 ): string {
   if (asked.length === 0) return '';
   const held = new Map((read ?? []).map((file) => [file.file, file] as const));
@@ -320,6 +327,6 @@ export function formatNamedFiles(
     '',
     `The files the request names, each with the functions and classes it declares, exported first. ${rest ? 'They answer the words that name them, not the rest of the request: a file beside them joins only' : 'They are the answer: a file beside them joins it only'} when it declares a name the request uses, never for sharing their folder.`,
     ...rows,
-    ...unshown.map(({ word, more }) => `  and ${plural(more, 'more tracked file')} named \`${word}\`, not read here`),
+    ...unshown.map(({ word, more }) => `  and ${plural(more, 'more tracked file')} named \`${word}\`${scoped ? ' across the checkout, reached from the start point or not' : ''}, not read here`),
   ].join('\n');
 }

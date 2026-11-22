@@ -375,6 +375,21 @@ describe('docs_classify', () => {
     expect(unshownFiles({ entities: [{ word: 'loader', names: [file('a/loader.js'), file('b/loader.js', 4)] }, { word: 'wrap', names: [file('wrap.js')] }], plain: [] })).toEqual([{ word: 'loader', more: 4 }]);
   });
 
+  it('names a word\'s declaring source file over the tests that share its name, and still asks `symbol` for it', () => {
+    const file: Named = { kind: 'file', specifier: 'test/auditTrail.test.ts', file: 'test/auditTrail.test.ts', package: '', published: false };
+    const declared: Named = { kind: 'declared', specifier: 'src/audit.ts:3', file: 'src/audit.ts', package: '', published: false };
+    const located = { entities: [{ word: 'auditTrail', names: [declared, file] }], plain: [] };
+
+    expect(namedFiles(located)).toEqual(['src/audit.ts']);
+    expect(formatClassified(located, PLACED)).toContain('variance ask symbol --name auditTrail');
+  });
+
+  it('says the files past the rows are counted across the checkout when a start point narrows the rows', () => {
+    const text = formatNamedFiles(['lib/loader.js'], undefined, { scoped: true, unshown: [{ word: 'loader', more: 4 }] });
+
+    expect(text).toContain('  and 4 more tracked files named `loader` across the checkout, reached from the start point or not, not read here');
+  });
+
   it('takes a word as an identifier by an inner capital, an underscore or a digit after a letter, and nothing else', () => {
     expect(['ModuleLoader', 'run_main', 'utf8', 'ESM'].filter(identifier)).toEqual(['ModuleLoader', 'run_main', 'utf8', 'ESM']);
     expect(['loader', 'Loader', '2fa', 'CJS-ESM', 'lib/loader.js'].filter(identifier)).toEqual([]);

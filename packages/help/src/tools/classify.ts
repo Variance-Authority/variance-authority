@@ -119,7 +119,7 @@ function namedFileBlock(
   return formatNamedFiles(
     files,
     read?.map((one) => ({ ...one, file: one.file.slice(prefix.length) })),
-    { rest, unshown: unshownFiles(classified) },
+    { rest, scoped: inReach !== undefined, unshown: unshownFiles(classified) },
   );
 }
 
