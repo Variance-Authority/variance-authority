@@ -99,6 +99,7 @@ against that text before it is compared with your diff.
 | The record holds no coverage | every test file | `the record at <path> holds no coverage` / `the run that wrote it instrumented no module, so every test file runs` |
 | The record holds no test file whole | every test file | `the journal holds no whole observation of any test file` / `nothing recorded whole, so every test file runs` |
 | git cannot produce the diff | every test file | `cannot read what changed since <ref>` / `no diff, so every test file runs` |
+| git cannot write the working state as a tree | every test file | `git could not write the working state as a tree to read what changed since <commit>` / `no diff, so every test file runs` |
 | The install cannot be compared with the one the record ran over | every test file | the reason the lockfile could not be compared, then `a package bump shows in no covered line, so every test file runs` |
 | The diff moves a file the suite declares in `before` | every test file | `` the suite <name> rests on <files> before any test imports it, through its `before` entry `<entry>`, and this diff moves it `` / `what a suite rests on runs before every test in it, so every test file runs` |
 | The diff from the commit some test files last ran at moves a file the suite declares in `before` | those test files | `` the suite <name> rests on <files> before any test imports it, through its `before` entry `<entry>`, and the diff from <commit> moves it, so the N test files that last ran there run `` |

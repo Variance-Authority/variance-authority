@@ -117,7 +117,12 @@ export type SelectGround =
     }
   | { readonly kind: 'no-journal' }
   | { readonly kind: 'no-coverage' }
-  | { readonly kind: 'no-diff'; readonly from: string }
+  | {
+      readonly kind: 'no-diff';
+      readonly from: string;
+      /** Git could not write the working state as the tree every diff is read to, so no diff was asked. */
+      readonly unwritten?: true;
+    }
   | { readonly kind: 'no-install'; readonly whole: string }
   | {
       readonly kind: 'before';
@@ -285,7 +290,9 @@ export function skippableTests(input: SelectInput): TestSelection {
   if (input.ground.kind === 'no-diff') {
     return {
       ...base,
-      widened: `cannot read what changed since ${input.ground.from}`,
+      widened: input.ground.unwritten
+        ? `git could not write the working state as a tree to read what changed since ${input.ground.from}`
+        : `cannot read what changed since ${input.ground.from}`,
       because: 'no diff, so every test file runs',
     };
   }

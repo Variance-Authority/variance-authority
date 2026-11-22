@@ -46,7 +46,7 @@ import { budgetedSuite } from './select-budget.js';
 import { explainedOutput } from './select-explain.js';
 import { journeyAgainst, recordAgainst, recordPerStand } from './resources.js';
 import { commitPoint, diffPoint, diffSince, diffToTree, gitIn, topLevel } from './since.js';
-import { everyTest, groupsOf, hitNote, type Group, type Hit } from './select-groups.js';
+import { everyTest, groupsOf, hitNote, suiteHit, unreadHits, type Group } from './select-groups.js';
 import { many } from './prose-counts.js';
 import { restingOf } from './select-before.js';
 import { withCases } from './select-cases.js';
@@ -250,7 +250,7 @@ async function untested(request: SuiteRequest): Promise<SuiteReading> {
       ? await diffSince(request.since ?? base, [], undefined, { cwd: here, unified: 0 })
       : tree === undefined ? undefined : await diffToTree(commit, tree, { cwd: here, unified: 0 });
   if (diff === undefined) {
-    const ground: SelectGround = { kind: 'no-diff', from: base };
+    const ground: SelectGround = tree === undefined && !handed && commit !== undefined ? { kind: 'no-diff', from: commit.slice(0, 12), unwritten: true } : { kind: 'no-diff', from: base };
     return said({ ...recorded, ground });
   }
   const groups = handed ? [{ diff, changed: [...selection.changedLines(diff).keys()] }] : await groupsOf(stands, diff, tree, here);
@@ -294,18 +294,11 @@ async function untested(request: SuiteRequest): Promise<SuiteReading> {
     const answers = await installDiffs(asked, here);
     read.forEach(({ stand }, index) => installs.set(stand?.commit, answers[index]));
   }
-  // A group whose change git could not write, or whose install could not be compared, runs whole.
-  const hits = new Map<Group, Hit>();
-  for (const group of groups) {
-    const installed = installs.get(group.stand?.commit);
-    if (group.diff === undefined) hits.set(group, { kind: 'undiffable' });
-    else if (installed !== undefined && 'whole' in installed) hits.set(group, { kind: 'install', whole: installed.whole });
-  }
-  const journal = groups[0]!;
-  const first = hits.get(journal);
+  const hits = unreadHits(groups, installs);
   // Only every group running whole runs the suite, before the graph is scanned for an answer nobody will read.
-  if (hits.size === groups.length && first?.kind === 'install') {
-    return said({ ...recorded, ground: { kind: 'no-install', whole: first.whole } }, { changed: [...new Set(groups.flatMap((group) => group.changed))] });
+  const unread = suiteHit(groups, hits);
+  if (unread?.kind === 'install') {
+    return said({ ...recorded, ground: { kind: 'no-install', whole: unread.whole } }, { changed: [...new Set(groups.flatMap((group) => group.changed))] });
   }
 
   const stale = request.relations === undefined ? await indexUpToCheckout(here, undefined, !request.noGit) : undefined;
@@ -331,20 +324,15 @@ async function untested(request: SuiteRequest): Promise<SuiteReading> {
   const install = installReached(installs, beyond, (stand) =>
     handed ? 'before the patch' : `${ranOver.has(stand) ? 'the install recorded ' : ''}at ${(stand ?? commit)?.slice(0, 12) ?? base}`,
   );
-  const befores = groups.flatMap((group) => {
-    const hit = hits.get(group);
-    return hit?.kind === 'before' ? [hit] : [];
-  });
-  const all = hits.size === groups.length;
-  const hitNotes = all ? [] : groups.flatMap((group) => {
+  const whole = suiteHit(groups, hits);
+  const hitNotes = whole !== undefined ? [] : groups.flatMap((group) => {
     const hit = hits.get(group);
     return hit === undefined ? [] : [hitNote(group, hit, commit)];
   });
   const notes = [...(recorded.standing ?? []), ...unkept, ...hitNotes];
   const rested = { ...recorded, ...(notes.length === 0 ? {} : { standing: notes }), ...(resting.length === 0 ? {} : { resting }), ...(install === undefined ? {} : { install }) };
-  if (all) {
-    const says = (first?.kind === 'before' ? first : befores[0]!).says;
-    return said({ ...rested, ground: { kind: 'before', whole: says, rests: [...new Set(befores.flatMap((hit) => hit.rests))].sort() } }, { changed: moved, relations });
+  if (whole?.kind === 'before') {
+    return said({ ...rested, ground: { kind: 'before', whole: whole.says, rests: whole.rests } }, { changed: moved, relations });
   }
   // Each group is charged the install that moved since it ran. A placed test is
   // charged one change, from its stand to the tree, in the journal's lines

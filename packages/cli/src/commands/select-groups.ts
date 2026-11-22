@@ -17,6 +17,7 @@
  */
 
 import { preconditionDistance, type ExecutionNarrowing, type SelectionReason, type Stand, type TestDistance } from '@variance-authority/sense/test-selection';
+import type { InstallDiff } from './installed.js';
 import { many } from './prose-counts.js';
 import { diffToTree } from './since.js';
 
@@ -51,6 +52,39 @@ export async function groupsOf(stands: readonly Stand[], diff: string, tree: str
     return since === undefined ? { stand, changed: [] } : { stand, diff: since, changed: names(since) };
   }));
   return [{ diff, changed: own }, ...theirs];
+}
+
+/**
+ * The groups that run whole before the graph is read: a change git could not
+ * write, or an install that could not be compared. `installs` is keyed by the
+ * stand's commit, `undefined` for the journal's own.
+ */
+export function unreadHits(groups: readonly Group[], installs: ReadonlyMap<string | undefined, InstallDiff | undefined>): Map<Group, Hit> {
+  const hits = new Map<Group, Hit>();
+  for (const group of groups) {
+    const installed = installs.get(group.stand?.commit);
+    if (group.diff === undefined) hits.set(group, { kind: 'undiffable' });
+    else if (installed !== undefined && 'whole' in installed) hits.set(group, { kind: 'install', whole: installed.whole });
+  }
+  return hits;
+}
+
+/**
+ * Why the suite runs whole, when every group in `hits` does; `undefined` while
+ * one group is still read. A `before` hit answers first, with every rest any
+ * group moved, then the journal's install: the journal's own change is never
+ * unwritten, since without it nothing is selected at all.
+ */
+export function suiteHit(groups: readonly Group[], hits: ReadonlyMap<Group, Hit>): Exclude<Hit, { kind: 'undiffable' }> | undefined {
+  if (hits.size < groups.length) return undefined;
+  const journal = hits.get(groups[0]!)!;
+  const befores = groups.flatMap((group) => {
+    const hit = hits.get(group)!;
+    return hit.kind === 'before' ? [hit] : [];
+  });
+  if (befores.length === 0) return journal.kind === 'install' ? journal : undefined;
+  const says = (journal.kind === 'before' ? journal : befores[0]!).says;
+  return { kind: 'before', says, rests: [...new Set(befores.flatMap((hit) => hit.rests))].sort() };
 }
 
 /** The note a group that runs whole gives, after the verdict; none for the journal's group when every group runs. */
