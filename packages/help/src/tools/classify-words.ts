@@ -8,10 +8,10 @@
 
 // compass: variance-authority.report.agent-surface
 
-import { everyEntry, type Help } from '@variance-authority/package/help';
+import { everyEntry, kindOf, type Help } from '@variance-authority/package/help';
 import { STALE_MAP, unscoped } from './code-map-format.js';
 import { specifierOf } from './find.js';
-import type { RankedArea } from '@variance-authority/sense';
+import type { FileDeclarations, RankedArea } from '@variance-authority/sense';
 import { narrower, plural, shell } from './format.js';
 
 /**
@@ -22,6 +22,8 @@ export interface Named {
   readonly kind: 'package' | 'entrypoint' | 'export' | 'declared' | 'file';
   /** The package, the entrypoint, the specifier the name is imported from, the declaring file and line as `at:line`, or the file. */
   readonly specifier: string;
+  /** For a declaration or a file: the file, without the line. */
+  readonly file?: string;
   /** The package it is or is in; for a declaration or a file, the map package nearest at or above it, empty when none is. */
   readonly package: string;
   /** Whether the reading publishes it; a package the map holds may publish nothing, and a declaration or a file is not published. */
@@ -31,7 +33,7 @@ export interface Named {
 }
 
 /** Where the identifier-shaped words that name nothing published are declared, and which files are named them: at most a few of each, in the order to show them. */
-export type Locate = (words: readonly string[]) => ReadonlyMap<string, readonly Named[]>;
+export type Locate = (words: readonly string[], filesOnly?: ReadonlySet<string>) => ReadonlyMap<string, readonly Named[]>;
 
 /** A word that names something, with everything it names: packages first, then entrypoints, then exports. */
 export interface Entity {
@@ -106,7 +108,7 @@ function dictionaryOf(help: Help, packages: Iterable<string>): { readonly folded
     }
   }
   for (const [published, opening, entry] of everyEntry(help)) {
-    add(exact, entry.name, { kind: 'export', specifier: specifierOf(published, opening), package: published.name, published: true });
+    add(exact, entry.name, { kind: 'export', specifier: specifierOf(published, opening), file: entry.at, package: published.name, published: true });
   }
   return { folded, exact };
 }
@@ -114,14 +116,18 @@ function dictionaryOf(help: Help, packages: Iterable<string>): { readonly folded
 /**
  * The words of `text` that are, whole, one of `packages` (scoped or not) or an
  * entrypoint `help` publishes, both without case, or an export it publishes as
- * spelled; or, shaped as an identifier and none of those, a name `locate` finds
- * declared or a file it finds named; and the words that are not.
+ * spelled; or, shaped as an identifier and no package or entrypoint, a name
+ * `locate` finds declared or a file it finds named — of an export, only the
+ * files, as the export already says where it is declared; and the words that
+ * are not.
  */
 export function classifyWords(text: string, help: Help, packages: Iterable<string>, locate?: Locate): Classified {
   const { folded, exact } = dictionaryOf(help, packages);
   const words = wordsOf(text);
-  const asked = locate === undefined ? [] : [...new Set(words.filter((word) => identifier(word) && !folded.has(word.toLowerCase()) && !exact.has(word)))];
-  const located = asked.length === 0 || locate === undefined ? new Map<string, readonly Named[]>() : locate(asked);
+  const asked = locate === undefined ? [] : [...new Set(words.filter((word) => identifier(word) && !folded.has(word.toLowerCase())))];
+  const exported = new Set(asked.filter((word) => exact.has(word)));
+  const found = asked.length === 0 || locate === undefined ? new Map<string, readonly Named[]>() : locate(asked, exported);
+  const located = new Map([...found].map(([word, names]) => [word, exported.has(word) ? names.filter((named) => named.kind === 'file') : names] as const));
   const entities: Entity[] = [];
   const plain = new Set<string>();
   const listed = new Set<string>();
@@ -222,13 +228,16 @@ export function formatClassified(
       lines.push(`  ${area.path} — ${plural(area.files, 'file')} · holds ${area.words.join(' ')}${placed}`);
     }
   }
-  // What each entity is asked next: an exported or a declared name is read by
-  // `symbol`, a file by `orient` on its files, a published package or
+  // What each entity is asked next: a word that names a source file nothing, since the
+  // file is already the answer, unless a start point was said, which the file may lie
+  // outside, and then the named-file block leaves it out; an exported or a declared name is read by `symbol`, a published package or
   // entrypoint counted by `entrypoint`, and a package that publishes nothing
   // placed by `orient` on its area, if one took it.
-  const asks = entities.flatMap(({ word, names }) => names.flatMap((named) => {
+  const scoped = (said.from?.length ?? 0) > 0 || (said.to?.length ?? 0) > 0;
+  const asks = entities.flatMap(({ word, names }) => !scoped && names.some(namesSource) ? [] : names.flatMap((named) => {
     if (named.kind === 'export' || named.kind === 'declared') return [`variance ask symbol --name ${shell(word)}`];
-    if (named.kind === 'file') return [`variance ask orient --files ${shell(named.specifier)}`];
+    // A file is itself the place: its package's area would only widen it.
+    if (named.kind === 'file') return [];
     if (named.published) return [`variance ask entrypoint --package ${shell(named.specifier)}`];
     const area = packages.get(named.package)?.area;
     return area === undefined ? [] : [`variance ask orient --area ${shell(area.id)}`];
@@ -248,4 +257,87 @@ export function formatClassified(
   if (unfolded !== undefined) lines.push('', unfolded);
   else if (!current) lines.push('', STALE_MAP);
   return lines.join('\n');
+}
+
+/** Whether a name is a tracked source file the word names: a test or a story sharing the word is not what it means. */
+function namesSource(named: Named): boolean {
+  return named.kind === 'file' && named.file !== undefined && kindOf(named.file) === 'source';
+}
+
+/**
+ * The files a classified request names, in the order its words name them: the
+ * source files a word names, else the first source file that declares it — an
+ * export's declaring file, or else the first declarer in the order classify
+ * lists them — else the tests and stories it names. Under a start point,
+ * `inReach` says which files it reaches, and a file it does not reach is not
+ * named.
+ */
+export function namedFiles({ entities }: Classified, inReach: (file: string) => boolean = () => true): readonly string[] {
+  return [...new Set(entities.flatMap(({ names }) => {
+    const files = names.flatMap((named) => (named.kind !== 'file' || named.file === undefined || !inReach(named.file) ? [] : [named.file]));
+    const sources = files.filter((file) => kindOf(file) === 'source');
+    if (sources.length > 0) return sources;
+    const first = names.find((named) => (named.kind === 'export' || named.kind === 'declared') && named.file !== undefined && kindOf(named.file) === 'source' && inReach(named.file));
+    return first?.file === undefined ? files : [first.file];
+  }))];
+}
+
+/** The words whose tracked files outnumber the rows classify shows, with how many it left out. */
+export function unshownFiles({ entities }: Classified): readonly { readonly word: string; readonly more: number }[] {
+  return entities.flatMap(({ word, names }) => {
+    const more = names.filter((named) => named.kind === 'file').reduce((sum, named) => sum + (named.more ?? 0), 0);
+    return more > 0 ? [{ word, more }] : [];
+  });
+}
+
+/** The kinds a named file's row lists: what a request names and an answer cites. */
+const LISTED_KINDS: ReadonlySet<string> = new Set(['class', 'function']);
+
+/** How many functions and classes of one named file are written out before the rest are counted. */
+const LISTED_CAP = 8;
+
+/**
+ * The block classify ends with: one row per named file with the functions and
+ * classes it declares at its top level, exported first, then by line, under a
+ * line saying they are the answer, since a reader handed files and no reason to
+ * stop at them answers with their folder. Every file in `asked` gets its row,
+ * one `read` holds nothing of or one with nothing to list saying why, and every
+ * row says so when `read` is absent, as no index was published; nothing at all
+ * when no file is named.
+ */
+export function formatNamedFiles(
+  asked: readonly string[],
+  read: readonly FileDeclarations[] | undefined,
+  { rest = false, scoped = false, unshown = [] }: { readonly rest?: boolean; readonly scoped?: boolean; readonly unshown?: readonly { readonly word: string; readonly more: number }[] } = {},
+): string {
+  const held = new Map((read ?? []).map((file) => [file.file, file] as const));
+  const rows = asked.map((at) => {
+    if (read === undefined) return `  ${at} — no source index was published; \`variance index\` reads it`;
+    const file = held.get(at);
+    if (file === undefined) return `  ${at} — the source index holds no record of it; \`variance index\` reads it`;
+    // Absent is not empty: a file whose declarations were not read may declare anything.
+    if (!file.read) return `  ${file.file} — the index holds no parse of its declarations`;
+    const listed = file.declarations
+      .filter((one) => LISTED_KINDS.has(one.kind))
+      .sort((one, other) => Number(other.exported === true) - Number(one.exported === true) || one.line - other.line);
+    const past = file.more > 0 ? `; ${plural(file.more, 'more top-level declaration')} past the budget, not read here` : '';
+    // Absent is not empty: past the budget, a function or a class may still be declared.
+    if (listed.length === 0)
+      return file.more > 0
+        ? `  ${file.file} — declares no function or class among the top-level declarations read; ${file.more} more past the budget, not read here`
+        : `  ${file.file} — declares no function or class at the top level`;
+    const kept = listed.slice(0, LISTED_CAP).map((one) => `${one.name}${one.exported === true ? ' (exported)' : ''}`);
+    const left = listed.length - kept.length;
+    const unknown = file.declarations.some((one) => one.exported === undefined || one.exported === null)
+      ? ' (the index kept no exports of it, so none is marked exported)'
+      : '';
+    return `  ${file.file} — ${kept.join(', ')}${left > 0 ? `, and ${left} more` : ''}${past}${unknown}`;
+  });
+  return [
+    '',
+    '',
+    `The files the request names, each with the functions and classes it declares, exported first. ${rest ? 'They answer the words that name them, not the rest of the request: a file beside them joins only' : 'They are the answer: a file beside them joins it only'} when it declares a name the request uses, never for sharing their folder.`,
+    ...rows,
+    ...unshown.map(({ word, more }) => `  and ${plural(more, 'more tracked file')} named \`${word}\`${scoped ? ' across the checkout, reached from the start point or not' : ''}, not read here`),
+  ].join('\n');
 }

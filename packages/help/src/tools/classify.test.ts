@@ -6,7 +6,8 @@ import type { Documented, Entry, Help } from '@variance-authority/package/help';
 import * as sense from '@variance-authority/sense';
 import { HELP_TOOLS } from '../tools.js';
 import { classify } from './classify.js';
-import { classifyWords, formatClassified, identifier, placedAreas, type CodeMapPlaces, type Named } from './classify-words.js';
+import { classifyWords, formatClassified, formatNamedFiles, identifier, namedFiles, placedAreas, unshownFiles, type CodeMapPlaces, type Named } from './classify-words.js';
+import { FoundNothing } from './find.js';
 import * as symbol from './symbol.js';
 
 // `symbol`'s own answer, as classify reads it, unless a case says it fails.
@@ -232,7 +233,7 @@ describe('docs_classify', () => {
     expect(text).not.toContain('--from docs/task_manager');
   });
 
-  it('looks up only the identifier-shaped words no published name took, and counts past the ones it shows', () => {
+  it('looks up the identifier-shaped words no package took, keeps only the files an exported name names, and counts past the ones it shows', () => {
     const asked: string[][] = [];
     const declared = (at: string, more?: number): Named => ({ kind: 'declared', specifier: at, package: '', published: false, ...(more === undefined ? {} : { more }) });
     const located = classifyWords('ModuleLoader checkoutPath loader child_process', HELP, MAPPED, (words) => {
@@ -240,15 +241,170 @@ describe('docs_classify', () => {
       return new Map([
         ['ModuleLoader', [declared('lib/a.js:3'), declared('lib/b.js:9'), declared('test/c.test.js:1', 4)]],
         ['child_process', [{ kind: 'file', specifier: 'lib/child_process.js', package: '@acme/sense', published: false }]],
+        ['checkoutPath', [declared('packages/sense/src/checkoutPath.ts:1'), { kind: 'file', specifier: 'lib/checkoutPath.js', file: 'lib/checkoutPath.js', package: '', published: false }]],
       ]);
     });
     const text = formatClassified(located, PLACED);
 
-    expect(asked).toEqual([['ModuleLoader', 'child_process']]);
+    expect(asked).toEqual([['ModuleLoader', 'checkoutPath', 'child_process']]);
+    expect(text).toContain('file lib/checkoutPath.js');
+    expect(text).not.toContain('declared packages/sense/src/checkoutPath.ts:1');
+    expect(namedFiles(located)).toContain('lib/checkoutPath.js');
     expect(text).toContain('ModuleLoader — declared lib/a.js:3 · in no package\n             — declared lib/b.js:9 · in no package\n             — declared test/c.test.js:1 · in no package\n             — and 4 more\n');
     expect(text).toMatch(/^child_process — file lib\/child_process\.js · in @acme\/sense · area 4 around core, sense · layer 3$/m);
-    expect(text).toContain('variance ask orient --files lib/child_process.js');
+    expect(text).not.toContain('variance ask orient --files');
     expect(text).toContain('Not entities: loader');
+  });
+
+  it('ends with what each named file declares, functions and classes only, exported first, eight at most, and says they are the answer', () => {
+    vi.spyOn(sense, 'packageLayers').mockReturnValue({ current: true, packages: [] });
+    vi.spyOn(sense, 'filesNamed').mockReturnValue(new Map([['run_main', { files: ['lib/run_main.js'], count: 1 }]]));
+    vi.mocked(symbol.declaredInCheckout).mockImplementation((_, { name }) => {
+      if (name !== 'ModuleLoader') throw new FoundNothing(name);
+      return { files: new Map([['lib/loader.js', [3]]]), spelled: new Map([['lib/loader.js:3', ['ModuleLoader']]]) } as unknown as ReturnType<typeof symbol.declaredInCheckout>;
+    });
+    const declaration = (name: string, line: number, kind = 'function', exported = false) => ({ name, kind, line, exported, members: [] });
+    const orient = vi.spyOn(sense, 'declarationsOf').mockReturnValue([
+        { file: 'lib/loader.js', read: true, more: 0, moreMembers: 0, declarations: [
+          declaration('helper', 1), declaration('CACHE', 2, 'const', true), declaration('ModuleLoader', 3, 'class', true),
+          ...['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'].map((name, at) => declaration(name, 10 + at)),
+        ] },
+        { file: 'lib/run_main.js', read: true, more: 0, moreMembers: 0, declarations: [declaration('runEntryPointWithESMLoader', 5, 'function', true)] },
+    ]);
+
+    const text = classify.run(HELP, { query: 'ModuleLoader run_main' }, { root: '/unused' });
+
+    expect(orient.mock.calls[0]?.[1]).toEqual(['lib/loader.js', 'lib/run_main.js']);
+    expect(text.endsWith([
+      '',
+      'The files the request names, each with the functions and classes it declares, exported first. They are the answer: a file beside them joins it only when it declares a name the request uses, never for sharing their folder.',
+      '  lib/loader.js — ModuleLoader (exported), helper, a, b, c, d, e, f, and 2 more',
+      '  lib/run_main.js — runEntryPointWithESMLoader (exported)',
+    ].join('\n'))).toBe(true);
+  });
+
+  it('names the file that declares an exported word, and reads every named file from the index the host read, spelled from its workspace', () => {
+    vi.spyOn(sense, 'packageLayers').mockReturnValue({ current: true, packages: [] });
+    vi.spyOn(sense, 'filesNamed').mockReturnValue(new Map());
+    vi.mocked(symbol.declaredInCheckout).mockImplementation((_, { name }) => {
+      if (name !== 'ModuleLoader') throw new FoundNothing(name);
+      return { files: new Map([['lib/loader.js', [3]]]), spelled: new Map([['lib/loader.js:3', ['ModuleLoader']]]) } as unknown as ReturnType<typeof symbol.declaredInCheckout>;
+    });
+    const read = vi.spyOn(sense, 'declarationsOf').mockReturnValue([
+      { file: 'app/packages/sense/src/checkoutPath.ts', read: true, more: 0, moreMembers: 0, declarations: [{ name: 'checkoutPath', kind: 'function', line: 1, exported: true, members: [] }] },
+      { file: 'app/lib/loader.js', read: true, more: 0, moreMembers: 0, declarations: [{ name: 'ModuleLoader', kind: 'class', line: 3, exported: true, members: [] }] },
+    ]);
+
+    const text = classify.run(HELP, { query: 'checkoutPath ModuleLoader' }, { root: '/unused', sourceIndex: { index: '/scoped/source-index.bin', within: 'app' } });
+
+    expect(read.mock.calls[0]).toEqual(['/unused', ['app/packages/sense/src/checkoutPath.ts', 'app/lib/loader.js'], 400, '/scoped/source-index.bin']);
+    expect(text.split('\n').slice(-2)).toEqual([
+      '  packages/sense/src/checkoutPath.ts — checkoutPath (exported)',
+      '  lib/loader.js — ModuleLoader (exported)',
+    ]);
+  });
+
+  it('gives a named file it can list nothing of a row that says why', () => {
+    const text = formatNamedFiles(['lib/unread.js', 'lib/consts.js', 'lib/bare.js', 'lib/new_thing.js'], [
+      { file: 'lib/unread.js', read: false, more: 0, moreMembers: 0, declarations: [] },
+      { file: 'lib/consts.js', read: true, more: 3, moreMembers: 0, declarations: [{ name: 'A', kind: 'const', line: 1, exported: true, members: [] }] },
+      { file: 'lib/bare.js', read: true, more: 0, moreMembers: 0, declarations: [{ name: 'run', kind: 'function', line: 1, exported: null, members: [] }] },
+    ] as unknown as Parameters<typeof formatNamedFiles>[0]);
+
+    expect(text.split('\n').slice(3)).toEqual([
+      '  lib/unread.js — the index holds no parse of its declarations',
+      '  lib/consts.js — declares no function or class among the top-level declarations read; 3 more past the budget, not read here',
+      '  lib/bare.js — run (the index kept no exports of it, so none is marked exported)',
+      '  lib/new_thing.js — the source index holds no record of it; `variance index` reads it',
+    ]);
+  });
+
+  it('still gives every named file its row when no source index was published', () => {
+    expect(formatNamedFiles(['lib/loader.js'], undefined).split('\n').slice(3)).toEqual([
+      '  lib/loader.js — no source index was published; `variance index` reads it',
+    ]);
+  });
+
+  it('takes no declaring file from a word that names a file, and asks it nothing', () => {
+    const file: Named = { kind: 'file', specifier: 'lib/child_process.js', file: 'lib/child_process.js', package: '', published: false };
+    const user: Named = { kind: 'declared', specifier: 'lib/aaa_user.js:1', file: 'lib/aaa_user.js', package: '', published: false };
+    const located = { entities: [{ word: 'child_process', names: [user, file] }], plain: [] };
+
+    expect(namedFiles(located)).toEqual(['lib/child_process.js']);
+    expect(formatClassified(located, PLACED)).not.toContain('variance ask symbol --name child_process');
+  });
+
+  it('asks no area question of a file a word names, whose package the map places in an area', () => {
+    const test: Named = { kind: 'file', specifier: 'packages/sense/src/walk.test.ts', file: 'packages/sense/src/walk.test.ts', package: '@acme/sense', published: false };
+
+    expect(formatClassified({ entities: [{ word: 'walk', names: [test] }], plain: [] }, PLACED, [], { from: ['packages/sense'] })).not.toContain('variance ask orient --area');
+  });
+
+  it('still asks `symbol` for a word that names a source file when a start point may not reach that file', () => {
+    const file: Named = { kind: 'file', specifier: 'lib/child_process.js', file: 'lib/child_process.js', package: '', published: false };
+    const user: Named = { kind: 'declared', specifier: 'lib/aaa_user.js:1', file: 'lib/aaa_user.js', package: '', published: false };
+
+    expect(formatClassified({ entities: [{ word: 'child_process', names: [user, file] }], plain: [] }, PLACED, [], { from: ['app'] })).toContain('variance ask symbol --name child_process');
+  });
+
+  it('takes a declared word\'s first source declarer, past the tests before it', () => {
+    const at = (where: string, more?: number): Named => ({
+      kind: 'declared', specifier: `${where}:1`, file: where, package: '', published: false, ...(more === undefined ? {} : { more }),
+    });
+    const named = namedFiles({
+      entities: [
+        { word: 'ModuleJob', names: [at('lib/module_job.js'), at('test/module_job.test.js', 2)] },
+        { word: 'ModuleLoader', names: [at('lib/a.test.js'), at('lib/a.js'), at('lib/b.js')] },
+        { word: 'Wrap', names: [at('lib/wrap.test.js', 1)] },
+      ],
+      plain: [],
+    });
+
+    expect(named).toEqual(['lib/module_job.js', 'lib/a.js']);
+  });
+
+  it('names only the files a start point reaches: a word\'s first declarer in reach, and its file rows in reach', () => {
+    const at = (kind: 'declared' | 'file', where: string): Named => ({ kind, specifier: kind === 'file' ? where : `${where}:1`, file: where, package: '', published: false });
+    const located = {
+      entities: [
+        { word: 'ModuleLoader', names: [at('declared', 'lib/far.js'), at('declared', 'lib/near.js')] },
+        { word: 'loader', names: [at('file', 'lib/loader.js'), at('file', 'deps/loader.js')] },
+        { word: 'Wrap', names: [at('declared', 'deps/wrap.js')] },
+      ],
+      plain: [],
+    };
+
+    expect(namedFiles(located, (file) => file.startsWith('lib/') && file !== 'lib/far.js')).toEqual(['lib/near.js', 'lib/loader.js']);
+  });
+
+  it('says the named files answer only their words when other words are left, and counts the files past the rows shown', () => {
+    const read = [{ file: 'lib/loader.js', read: true, more: 0, declarations: [] }] as unknown as Parameters<typeof formatNamedFiles>[1];
+    const text = formatNamedFiles(['lib/loader.js'], read, { rest: true, unshown: [{ word: 'loader', more: 4 }] });
+
+    expect(text).toContain('They answer the words that name them, not the rest of the request: a file beside them joins only when it declares a name the request uses');
+    expect(text).not.toContain('They are the answer');
+    expect(text.split('\n').at(-1)).toBe('  and 4 more tracked files named `loader`, not read here');
+  });
+
+  it('counts the tracked files a word names past the rows classify shows', () => {
+    const file = (where: string, more?: number): Named => ({ kind: 'file', specifier: where, file: where, package: '', published: false, ...(more === undefined ? {} : { more }) });
+
+    expect(unshownFiles({ entities: [{ word: 'loader', names: [file('a/loader.js'), file('b/loader.js', 4)] }, { word: 'wrap', names: [file('wrap.js')] }], plain: [] })).toEqual([{ word: 'loader', more: 4 }]);
+  });
+
+  it('names a word\'s declaring source file over the tests that share its name, and still asks `symbol` for it', () => {
+    const file: Named = { kind: 'file', specifier: 'test/auditTrail.test.ts', file: 'test/auditTrail.test.ts', package: '', published: false };
+    const declared: Named = { kind: 'declared', specifier: 'src/audit.ts:3', file: 'src/audit.ts', package: '', published: false };
+    const located = { entities: [{ word: 'auditTrail', names: [declared, file] }], plain: [] };
+
+    expect(namedFiles(located)).toEqual(['src/audit.ts']);
+    expect(formatClassified(located, PLACED)).toContain('variance ask symbol --name auditTrail');
+  });
+
+  it('says the files past the rows are counted across the checkout when a start point narrows the rows', () => {
+    const text = formatNamedFiles(['lib/loader.js'], undefined, { scoped: true, unshown: [{ word: 'loader', more: 4 }] });
+
+    expect(text).toContain('  and 4 more tracked files named `loader` across the checkout, reached from the start point or not, not read here');
   });
 
   it('takes a word as an identifier by an inner capital, an underscore or a digit after a letter, and nothing else', () => {

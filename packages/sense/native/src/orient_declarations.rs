@@ -21,6 +21,7 @@ use napi_derive::napi;
 use crate::chain_lookup::record;
 use crate::compact::Layer;
 use crate::help_declared::exported_locals;
+use crate::help_publish::{opened_chain, OpenedIndex};
 use crate::help_members::{members_of_row, ContainerMember};
 use crate::package_graph::{join_parses, Crossing};
 use crate::package_owners::NO_OWNER;
@@ -65,6 +66,16 @@ pub(crate) fn declarations_of(layers: &[Layer], files: &[String], budget: usize)
         .collect();
     join_parses(layers, &mut crossings);
     crossings.iter().map(|crossing| outline(layers, crossing, budget)).collect()
+}
+
+/// What each of `files` declares at its top level, read off the chain the
+/// question already opened at `index`, each within `budget` lines; `None` when
+/// no index was published. No listing of the tree is taken: a file's parse is in
+/// the index, so a checkout git cannot list is still answered.
+/// bound: one entry per file the caller names
+#[napi(catch_unwind)]
+pub fn file_declarations_of(index: &OpenedIndex, files: Vec<String>, budget: u32) -> napi::Result<Option<Vec<FileDeclarations>>> {
+    opened_chain(index, |layers| declarations_of(layers, &files, budget as usize))
 }
 
 fn outline(layers: &[Layer], crossing: &Crossing, budget: usize) -> FileDeclarations {

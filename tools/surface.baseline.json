@@ -3036,6 +3036,7 @@
         "codeMapPage": "function",
         "decidesResolution": "function",
         "declarationExported": "function",
+        "declarationsOf": "function",
         "declaredDescribedOf": "function",
         "declaredLooseOf": "function",
         "declaredOf": "function",

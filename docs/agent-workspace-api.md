@@ -196,11 +196,14 @@ its exact import sites. `uses --from` only orders those sites by path proximity;
 it does not perform another graph traversal or remove any result.
 
 `variance index` publishes a separate catalogue of installed third-party APIs.
-`ask search` shows those names in their own section, after the repository's
-own; when the repository answered, that section is one line naming the
-`--limit` that lists it in full. A `--from` or `--to` path
-limits them to packages available to the workspaces in that graph closure; the
-answer labels imports separately from availability. Ask `symbol --name <name>
+`ask search` shows installed names and packages that describe your words in a
+separate section after repository results. When repository results include a
+match, those package results stay compact: up to five names by default or up to
+`--limit <n>`. If more names remain, the answer offers a larger limit to show
+them; the results stay compact. When only package results match, the answer
+includes their detailed rows. A `--from` or `--to` path limits them to packages
+available to the workspaces in that graph closure; the answer labels imports
+separately from availability. Ask `symbol --name <name>
 --package <package>` for the installed signature and full documentation. The
 declaration provider is named when it differs from the runtime package. A
 package the workspace resolves but that ships no declarations has no names to
@@ -446,9 +449,9 @@ Holding a request in words rather than a name, call `docs_classify` with it as
 entrypoint or an exported name, and then which identifier-shaped words left —
 `ModuleLoader`, `child_process` — are a name `docs_symbol` finds declared or a
 tracked file's name before its first dot, each with its area and layer on the code map,
-and ends with the question each one takes next, written as the `variance ask`
+and then the question each one takes next, written as the `variance ask`
 command whatever the caller: `symbol` (`docs_symbol`) for an exported or
-declared name, `orient --files` (`docs_orient`) for a file,
+declared name, none for a file, which is already the answer,
 `entrypoint` (`docs_entrypoint`) for a published package or entrypoint, and
 `orient --area` (`docs_orient`) for a package that publishes nothing, or no
 question when the map placed it in no area. When words remain unrecognized or
@@ -461,7 +464,9 @@ export visibility, each with the package it sits in and that package's place on 
 `search` (`docs_search`) from the best one. A request that names nothing still
 gets its areas. Given `from` or `to`, it ranks only the files that start point
 reaches along the imports, so a product's folder ranks that product and the
-shared code it imports.
+shared code it imports. It ends with the source files the request
+names, each with up to eight functions and classes it declares,
+exported first, under a line saying they are the answer.
 
 Called with a specifier, `docs_entrypoint` lists the names it opens, ranked by
 how many workspace packages import them. Called with a package's name, it lists

@@ -47,7 +47,15 @@ it('reaches react from "state management", answers an undescribed job empty with
 });
 
 it('answers a description with the repository\'s own names first, and the packages that describe it after', async () => {
-  const root = await inventedWorkspace(INVENTED_PACKAGES, ['react'], {
+  const describedPackages = [
+    ...INVENTED_PACKAGES.filter(({ name }) => name === 'react'),
+    ...Array.from({ length: 6 }, (_, index) => ({
+      name: `state-kit-${index}`,
+      description: 'A state management library.',
+      keywords: ['state', 'management'],
+    })),
+  ];
+  const root = await inventedWorkspace(describedPackages, describedPackages.map(({ name }) => name), {
     'src/store.ts': '/** Keeps the state of one key. */\nexport function managedFor(key: string): string {\n  return key;\n}\n',
   });
   const said = answerSearch(searchIndexOf(readHelp(root)), { query: 'state management' }, treeOf([], root), root);
@@ -55,13 +63,21 @@ it('answers a description with the repository\'s own names first, and the packag
   // Neither the phrase nor every word is in the name, so only the words held answer it.
   expect(said).toMatch(/managedFor .*\[holds: management, state\]/);
   // The repository answered, so the package that describes it is named on one line after its rows.
-  expect(said).toMatch(/^1 package describes `state management`: react\. `docs_search` with `query` `state management` and `limit` `20` lists them in full\.$/mu);
+  expect(said).toContain('7 packages describe `state management`');
+  expect(said).toContain('and 2 more. `docs_search` with `query` `state management` and `limit` `20` lists all matching names.');
   expect(said).not.toContain('react @1.0.0');
-  expect(said.indexOf('managedFor')).toBeLessThan(said.indexOf('describes `state management`'));
+  expect(said.indexOf('managedFor')).toBeLessThan(said.indexOf('7 packages describe `state management`'));
 
-  // A limit said is a reader asking for the rows: every list shows them.
-  const limited = answerSearch(searchIndexOf(readHelp(root)), { query: 'state management', limit: 10 }, treeOf([], root), root);
-  expect(limited).toContain('react @1.0.0 · dependency in package.json');
+  const narrow = answerSearch(searchIndexOf(readHelp(root)), { query: 'state management', limit: 1 }, treeOf([], root), root);
+  expect(narrow).toContain('7 packages describe `state management`');
+  expect(narrow).toContain('and 6 more. `docs_search` with `query` `state management` and `limit` `20` lists all matching names.');
+  expect(narrow).not.toContain('· dependency in package.json');
+
+  const widened = answerSearch(searchIndexOf(readHelp(root)), { query: 'state management', limit: describedPackages.length }, treeOf([], root), root);
+  const summary = widened.split('\n').find((line) => line.startsWith('7 packages describe')) ?? '';
+  for (const { name } of describedPackages) expect(summary).toContain(name);
+  expect(widened).not.toContain('`docs_search`');
+  expect(widened).not.toContain('· dependency in package.json');
 });
 
 it('answers from a catalogue of the version before, names the described packages it cannot compare, and rebuilds it at refresh', async () => {

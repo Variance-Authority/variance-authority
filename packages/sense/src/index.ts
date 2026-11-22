@@ -254,6 +254,7 @@ export {
   aliasesOf,
   asOneQuestion,
   declarationExported,
+  declarationsOf,
   exportLine,
   encodeHelpStore,
   importersOf,
