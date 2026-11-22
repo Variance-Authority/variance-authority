@@ -1,7 +1,9 @@
 # `classify --query <words>`
 
-Ask it first when you hold a request and no name. It says which of the
-request's words are, whole, a package's name or that name without its scope, an
+Use it for task words without a code name. For a product label plus a version
+or state value, start with the
+[two text questions](code-orientation.md#combine-text-clues). It says which of
+the request's words are, whole, a package's name or that name without its scope, an
 entrypoint's specifier (both matched without case), or a published exported
 name (matched as spelled). A word shaped as an identifier — a capital past its
 first letter, an underscore, or a digit after a letter — that is none of those

@@ -22,6 +22,24 @@ alias declared only in a bundler's configuration, such as webpack's or Vite's
 limits](https://variance-authority.dev/docs/source#limits) say what each leaves
 out.
 
+## Combine text clues
+
+When the task names a product label and a version or state value, try their
+text together before looking for declaration names. You need not know that
+either appears in source yet; these are query inputs, not verified code facts.
+Cross the two source-text questions:
+
+```bash
+variance ask intersection "grep --query 'Acme Chat' --from src/" "grep --query 'v7' --from src/"
+```
+
+Use the task's wording and escape regex metacharacters inside each quoted
+operand. If the pair finds no owner, use the task-word `classify` question. An
+intersection identifies candidate files, not the feature's whole implementation. Read the named owner, then use its import relationships
+for the remaining roles; an example or mock need not contain both text clues.
+
+## Follow the owner
+
 `search` turns the words you have into candidate names. When the editor, ticket
 or stack trace already gives you a path, pass it as a start point (`--from`,
 `--to`; see [the shared scope rules](../SKILL.md#rules-every-answer-shares)). Read a plausible owner's named lines before another
