@@ -2672,8 +2672,7 @@
     11
   ],
   "packages/sense/src/test-selection/format.ts block": [
-    8,
-    7
+    8
   ],
   "packages/sense/src/test-selection/frame.ts docblock": [
     22
@@ -2722,9 +2721,6 @@
   ],
   "packages/sense/src/test-selection/inert.ts overview": [
     44
-  ],
-  "packages/sense/src/test-selection/instrumented-modules.ts docblock": [
-    14
   ],
   "packages/sense/src/test-selection/jest-globals.cts overview": [
     34
