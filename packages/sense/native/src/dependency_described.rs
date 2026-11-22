@@ -83,6 +83,14 @@ pub fn word_stems(words: Vec<String>) -> Vec<String> {
     words.iter().map(|word| stem(word)).collect()
 }
 
+/// The stems `query` asks a package's purpose for, and how many of them a package must hold to describe it: the
+/// rule [`described`] keeps a package by. `None` when the question has no word to describe.
+pub(super) fn wanted(query: &str) -> Option<(Vec<String>, usize)> {
+    let asked = asked(query, stems);
+    let needed = asked.len().div_ceil(2);
+    (!asked.is_empty()).then(|| (asked.into_keys().collect(), needed))
+}
+
 /// The packages in `rows` that describe `query`, best first; `None` when the question has no word to describe.
 pub(super) fn described<'a>(query: &str, rows: impl Iterator<Item = (&'a Row<'a>, &'a Api)>, limit: usize) -> Option<(u32, Vec<Described>)> {
     let asked = asked(query, stems);

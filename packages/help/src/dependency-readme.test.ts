@@ -63,11 +63,13 @@ function ask(args: Record<string, unknown>, at = root): string {
   return tool.run(readHelp(at), args, { root: at });
 }
 
-it('records the README beside an unavailable package, and none beside one that ships none', () => {
-  const silent = queryDependencyLexicon(root, 'anything', undefined, true)?.silent ?? [];
-  const readmes = silent.map((one) => [one.package, one.readme?.at, one.readme?.lines]);
-  expect(readmes).toContainEqual(['bare-kit', 'node_modules/bare-kit/README.md', 6]);
-  expect(readmes).toContainEqual(['mute-kit', undefined, undefined]);
+it('records the README beside an unavailable package, and names one that ships none only when it is asked for', () => {
+  const readmes = (packageName?: string) => (queryDependencyLexicon(root, 'anything', undefined, true, packageName)?.silent ?? [])
+    .map((one) => [one.package, one.readme?.at, one.readme?.lines]);
+  expect(readmes()).toContainEqual(['bare-kit', 'node_modules/bare-kit/README.md', 6]);
+  // Unasked, a package with no README has nothing to say about any name: the answer leaves it out.
+  expect(readmes().map(([name]) => name)).not.toContain('mute-kit');
+  expect(readmes('mute-kit')).toContainEqual(['mute-kit', undefined, undefined]);
 });
 
 it('says where the README is when the caller names the package, whether or not it names the symbol', () => {

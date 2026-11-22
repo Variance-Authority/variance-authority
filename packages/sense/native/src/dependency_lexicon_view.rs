@@ -96,7 +96,10 @@ impl<'a> Lexicon<'a> {
     }
 
     /// Every row and issue under the `allowed` owners, rows by owner and then specifier.
-    pub fn rows(&'a self, allowed: Option<&HashSet<&str>>) -> (Vec<Row<'a>>, Vec<Issue<'a>>) {
+    /// The rows `keep` accepts, by owner manifest, package, specifier and entry: a row it refuses is never built,
+    /// so a question that wants a few rows does not format and sort every row the manifests offer.
+    pub fn rows(&'a self, allowed: Option<&HashSet<&str>>, keep: &mut dyn FnMut(&'a str, &'a str, &'a str, u32) -> bool)
+        -> (Vec<Row<'a>>, Vec<Issue<'a>>) {
         let shown = |owner: u32| allowed.is_none_or(|allowed| allowed.contains(self.owners[owner as usize].manifest.as_str()));
         let names: HashSet<&str> = self.owners.iter().map(|owner| owner.name.as_str()).collect();
         // Per owner, package and specifier: how many requests, and the first of them.
@@ -126,7 +129,7 @@ impl<'a> Lexicon<'a> {
             if declared_as.is_none() && specifiers.is_none() { continue; }
             for (specifier, entry, opened) in self.catalogue.offers(install as usize) {
                 let asked_for = specifiers.is_some_and(|specifiers| specifiers.contains(specifier));
-                if !opened && !asked_for { continue; }
+                if !opened && !asked_for || !keep(manifest.manifest.as_str(), package, specifier, entry) { continue; }
                 let request = asked.get(&(owner, package, specifier));
                 rows.push(Row { owner: manifest.manifest.as_str(), package, specifier, entry,
                     imported: indexed.then_some(asked_for), declared_as, imports: indexed.then(|| request.map_or(0, |request| request.0)),
