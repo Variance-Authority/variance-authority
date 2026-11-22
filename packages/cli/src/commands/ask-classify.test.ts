@@ -125,7 +125,6 @@ function declarationAreas({ privateArea = 'beta', merged = false }: { privateAre
   return root;
 }
 
-
 /**
  * A checkout with no manifest at all, as node's is at its root: its names are
  * declared in plain files under `lib/`, and a test file declares one of them too.
