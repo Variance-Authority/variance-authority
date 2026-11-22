@@ -108,7 +108,7 @@ pub struct BindingMember {
 /// and one read through an `import()` type as if `loads.typed` followed those.
 /// Last come the bindings a pattern destructures off a holder, by name and
 /// line: the module's values under a local name, as an import binds them.
-pub fn members_and_loads_in<'l>(program: &Program, scoping: &Scoping, lines: &'l Lines, requests: &[Request]) -> (Vec<Member>, Vec<BindingMember>, Loads<'l>, HashSet<(String, u32)>) {
+pub fn members_and_loads_in<'l>(program: &Program, scoping: &Scoping, lines: &'l Lines, requests: &[Request]) -> (Vec<Member>, Vec<BindingMember>, Loads<'l>) {
     let mut holders = HashMap::new();
     let mut chains = Chains::default();
     for (index, request) in requests.iter().enumerate() {
@@ -141,7 +141,6 @@ pub fn members_and_loads_in<'l>(program: &Program, scoping: &Scoping, lines: &'l
         loads: Loads::new(lines, crate::loads::Requires::of(program, scoping)),
         found: BTreeSet::new(),
         mock_factory: None,
-        taken: HashSet::new(),
     };
     walker.visit_program(program);
     // A required request's index is known only once the walk has met every `import()`.
@@ -169,7 +168,7 @@ pub fn members_and_loads_in<'l>(program: &Program, scoping: &Scoping, lines: &'l
             }
         }
     }
-    (members.into_iter().collect(), binding_members.into_iter().collect(), walker.loads, walker.taken)
+    (members.into_iter().collect(), binding_members.into_iter().collect(), walker.loads)
 }
 
 struct Walker<'l, 's> {
@@ -189,8 +188,6 @@ struct Walker<'l, 's> {
     stated: u32,
     loads: Loads<'l>,
     mock_factory: Option<String>,
-    /// The bindings a pattern destructures off a holder, by name and line.
-    taken: HashSet<(String, u32)>,
     found: BTreeSet<(Held, String, u32)>,
     /// Where an `import()` or a holder is read in a way the walk follows, by
     /// the offset it starts at: anywhere else, the module escapes whole.

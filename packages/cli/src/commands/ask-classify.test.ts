@@ -352,15 +352,37 @@ describe('variance ask classify', () => {
     const asked = await run(['ask', 'classify', '--query', 'ModuleLoader loader']);
 
     expect(asked.code).toBe(EXIT_CLEAN);
-    // `symbol --name ModuleLoader` names the same lines: the binding `lib/main.js` destructures is one of them.
+    // `lib/main.js` only destructures the name out of `./loader`, so classify leaves its file out.
     expect(asked.out).toContain(
       [
         'ModuleLoader — declared lib/loader.js:3 · in no package',
-        '             — declared lib/main.js:3 · in no package',
         '             — declared test/loader.test.js:3 · in no package',
       ].join('\n'),
     );
+    expect(asked.out).not.toContain('declared lib/main.js');
     expect(asked.out).toContain('variance ask symbol --name ModuleLoader');
+  });
+
+  it('names the file that defines a declared word, not the facade that binds it from there', async () => {
+    const root = unpackaged();
+    const write = (path: string, text: string): void => {
+      mkdirSync(dirname(join(root, path)), { recursive: true });
+      writeFileSync(join(root, path), text);
+    };
+    write('lib/child_process.js', "'use strict';\n\nconst { ChildProcess, setupChannel } = require('internal/child_process');\nconst { FooBar } = require('elsewhere');\n\nfunction spawn() { return 0; }\n\nmodule.exports = { ChildProcess, spawn, setupChannel, FooBar };\n");
+    write('lib/internal/child_process.js', "'use strict';\n\nfunction setupChannel() {}\n\nfunction ChildProcess() {}\n\nmodule.exports = { ChildProcess, setupChannel };\n");
+    execFileSync('git', ['add', '-A'], { cwd: root, stdio: 'pipe' });
+    execFileSync('git', ['commit', '--quiet', '-m', 'a facade'], { cwd: root, stdio: 'pipe' });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const asked = await run(['ask', 'classify', '--query', 'how does ChildProcess handle FooBar']);
+
+    expect(asked.code).toBe(EXIT_CLEAN);
+    expect(asked.out).toMatch(/^ChildProcess — declared lib\/internal\/child_process\.js:5 · in no package$/m);
+    expect(asked.out).not.toContain('declared lib/child_process.js');
+    expect(asked.out).toMatch(/^ {2}lib\/internal\/child_process\.js — /m);
+    // `FooBar` is bound off a module the checkout does not hold, and defined nowhere in it.
+    expect(asked.out).not.toMatch(/^FooBar — declared/m);
   });
 
   it('names a word that is a tracked file\'s base name as that file', async () => {

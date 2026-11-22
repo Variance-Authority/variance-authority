@@ -241,6 +241,7 @@ export { gitDigests } from './tree.js';
 export { seedPaths } from './files.js';
 export { workingTreeChanges, type WorkingTreeChanges } from './working-tree-changes.js';
 export {
+  BINDING,
   declaredDescribedOf,
   declaredLooseOf,
   declaredOf,

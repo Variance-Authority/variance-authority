@@ -142,17 +142,17 @@ fn a_name_destructured_off_a_holder_holds_the_value_it_takes() {
             read("./lib", "shout", "greet", 3),
         ]
     );
-    // A destructured binding is the module's value under a local name, as an
-    // import binds one; a `let` it is assigned to later declares its own name.
+    // A destructured binding is the module's value under a local name, so it is
+    // declared as a binding; a `let` it is assigned to later keeps its own kind.
     let read = read_module("a.ts", source, &Allocator::default(), true);
-    let declared: Vec<_> = read.symbols.iter().map(|it| it.name.as_str()).collect();
-    assert_eq!(declared, ["loud", "still"]);
+    let declared: Vec<_> = read.symbols.iter().map(|it| (it.name.as_str(), it.kind)).collect();
+    assert_eq!(declared, [("shout", "binding"), ("hush", "binding"), ("loud", "let"), ("still", "let")]);
 }
 
 #[test]
 fn an_exported_destructured_binding_declares_its_name() {
-    // The export publishes the binding, so the binding is what says what it is,
-    // as `export const shout = lib.shout` would; the reads off it are followed all the same.
+    // A destructured binding is declared as a binding whether or not the file
+    // exports it; the reads off it are followed all the same.
     let source = concat!(
         "import lib from './lib';\n",
         "export const { shout } = lib;\n",
@@ -162,7 +162,7 @@ fn an_exported_destructured_binding_declares_its_name() {
         "shout.greet('a');\n",
     );
     let module = read_module("a.ts", source, &Allocator::default(), true);
-    let declared: Vec<_> = module.symbols.iter().map(|it| it.name.as_str()).collect();
-    assert_eq!(declared, ["shout", "quiet"]);
+    let declared: Vec<_> = module.symbols.iter().map(|it| (it.name.as_str(), it.kind)).collect();
+    assert_eq!(declared, [("shout", "binding"), ("quiet", "binding"), ("calm", "binding")]);
     assert_eq!(binding_members(source), [read("./lib", "default.shout", "greet", 6)]);
 }

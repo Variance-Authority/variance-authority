@@ -22,10 +22,6 @@ impl Walker<'_, '_> {
                     };
                     self.add(held, &name, property.span.start);
                     if let Some(taken) = self.destructured(held, &name) {
-                        let top = |it: &BindingIdentifier| it.symbol_id.get().is_some_and(|id| self.scoping.symbol_scope_id(id) == self.scoping.root_scope_id());
-                        if let Some(binding) = property.value.get_binding_identifier().filter(|it| top(it)) {
-                            self.taken.insert((binding.name.to_string(), self.lines.at(binding.span.start)));
-                        }
                         self.bind(&property.value, taken);
                     }
                 }

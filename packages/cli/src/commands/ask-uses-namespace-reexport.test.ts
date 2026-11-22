@@ -109,7 +109,7 @@ describe('variance ask uses through an `export * as` namespace', () => {
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
 
     const pulse = await uses('pulse');
-    expect(pulse).toMatch(/^`pulse` \[const\] is imported in 1 place/m);
+    expect(pulse).toMatch(/^`pulse` \[binding\] is imported in 1 place/m);
     expect(pulse).toMatch(/^apps\/app\/src\/beat\.ts:1 — @acme\/app/m);
   });
 
