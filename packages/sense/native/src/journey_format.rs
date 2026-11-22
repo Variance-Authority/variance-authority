@@ -1,4 +1,5 @@
-use std::collections::HashMap;
+use rayon::slice::ParallelSliceMut;
+use rustc_hash::FxHashMap;
 
 use crate::case_id;
 use crate::case_said;
@@ -125,36 +126,38 @@ pub fn encode(
     if (paced && extras.times.len() != tests.len()) || (timed && extras.durations.len() != tests.len()) || (limited && extras.limits.len() != tests.len()) || (lined && extras.lines.len() != tests.len()) {
         return Err("case columns disagree with the cases".to_owned());
     }
-    let mut strings = Vec::new();
+    // Every string the index names, borrowed: the dictionary is sorted and
+    // deduplicated over references, and only its bytes are copied.
+    let mut strings: Vec<&str> = Vec::with_capacity(tests.len() * 3 + modules.iter().map(|held| 1 + held.module.blocks.len() * 3).sum::<usize>());
     let heard: Vec<Option<&case_said::Heard>> = tests.iter().map(|test| test.heard.as_ref()).collect();
     let heard = case_said::lay(&heard, sets);
     for test in tests {
-        strings.extend([test.id.clone(), test.file.clone(), test.name.clone()]);
+        strings.extend([test.id.as_str(), test.file.as_str(), test.name.as_str()]);
     }
     // Carried only when every case has one, so a stitch never joins half its cases by it.
     let runners: Option<Vec<&str>> = tests.iter().map(|test| test.runner.as_deref()).collect();
-    strings.extend(runners.iter().flatten().map(|runner| (*runner).to_owned()));
+    strings.extend(runners.iter().flatten().copied());
     // Carried when any case has one: a case no named project ran is `UNNAMED`.
     let named = tests.iter().any(|test| test.project.is_some());
-    strings.extend(tests.iter().filter_map(|test| test.project.clone()));
+    strings.extend(tests.iter().filter_map(|test| test.project.as_deref()));
     for held in modules {
-        strings.push(held.module.file.clone());
+        strings.push(held.module.file.as_str());
         for block in &held.module.blocks {
-            strings.extend([block.kind.clone(), block.name.clone(), block.path.clone()]);
+            strings.extend([block.kind.as_str(), block.name.as_str(), block.path.as_str()]);
         }
     }
     if let Some(gaps) = gaps {
-        strings.extend(gaps.unrecorded.iter().cloned());
-        strings.extend(gaps.unclaimed.iter().cloned());
-        strings.extend(gaps.heads.iter().cloned());
-        strings.extend(gaps.silent.iter().flatten().cloned());
+        strings.extend(gaps.unrecorded.iter().map(String::as_str));
+        strings.extend(gaps.unclaimed.iter().map(String::as_str));
+        strings.extend(gaps.heads.iter().map(String::as_str));
+        strings.extend(gaps.silent.iter().flatten().map(String::as_str));
     }
-    strings.sort_unstable_by(|left, right| order::code_unit(left, right));
+    strings.par_sort_unstable_by(|left, right| order::code_unit(left, right));
     strings.dedup();
-    let ids: HashMap<&str, u32> = strings
+    let ids: FxHashMap<&str, u32> = strings
         .iter()
         .enumerate()
-        .map(|(at, value)| (value.as_str(), at as u32))
+        .map(|(at, value)| (*value, at as u32))
         .collect();
     let id = |value: &str| ids[value];
 
