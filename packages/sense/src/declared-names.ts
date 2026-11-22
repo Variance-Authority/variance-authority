@@ -10,7 +10,6 @@ import { entry, onIndex } from './help-reading.js';
 import type { SourceSymbolReach } from './harvest.js';
 import { sourceIndexPath } from './source-index.js';
 
-/** One declaration no export of its file binds: at its top level, inside a function, or a member of a container. */
 /**
  * The kind of a top-level name a file binds to a value it does not define
  * there, as `const { spawn } = require('./child')` does (`BINDING` in
@@ -18,6 +17,7 @@ import { sourceIndexPath } from './source-index.js';
  */
 export const BINDING = 'binding';
 
+/** One declaration no export of its file binds: at its top level, inside a function, or a member of a container. */
 export interface DeclaredName {
   readonly name: string;
   /** The declaration's kind as the parser harvested it: `function`, `const`, {@link BINDING}, … */
