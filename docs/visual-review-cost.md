@@ -114,8 +114,14 @@ xychart-beta horizontal
   bar [201, 197, 6, 168, 149, 10]
 ```
 
-Recording cost those suites at most 16% of their run time, where classic
-coverage on the same suites costs 34% to 36%. Over sixty real commits, 57% of Zod's test file
+On a suite of about three minutes, this repository's own unit suite of 1,236
+test files, recording at the default precision takes the whole run to 1.065×,
+the median of three alternating rounds on an Apple M4 Max, Node 24, timing
+`yarn vitest run` against
+`yarn vitest run --config tools/uninstrumented.config.mts`. Zod and TanStack
+Query are short suites of about ten seconds, where the transform and the record
+write are fixed costs and most of the difference: recording cost them 0.99× and
+1.16×, where classic coverage costs 1.36× and 1.34×. Over sixty real commits, 57% of Zod's test file
 runs and 93% of TanStack Query's were skipped. A unit
 test is the cheap case: a visual state costs a navigation and a paint, so each
 one skipped saves more, and your first run with `--since` counts its own skips.

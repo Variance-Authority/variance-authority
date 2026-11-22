@@ -268,11 +268,17 @@ without telling you.
 
 **It records with a probe, not the profiler.** The recorder writes a counter at
 each region as your code is transformed, so the cost depends on what your tests
-ran. Inside the tests that is nothing measurable at any precision, where
-classic coverage adds 12% on Zod and 37% on TanStack Query. The whole run at the
-default precision takes 0.99× the plain run on Zod and 1.16× on TanStack Query,
-against 1.36× and 1.34× for classic coverage; recording only the modules each
-test file loaded takes 1.05× on TanStack Query. At that
+ran. On a suite of about three minutes, this repository's own unit suite of
+1,236 test files, the whole run at the default precision takes 1.065× the plain
+run: 205.0 s against 192.6 s, the median of three alternating rounds on an
+Apple M4 Max, Node 24, timing `yarn vitest run` against
+`yarn vitest run --config tools/uninstrumented.config.mts`. Inside the tests
+that is nothing measurable at any precision, where classic coverage adds 12% on
+Zod and 37% on TanStack Query. Those two are short suites of about ten seconds,
+where the transform and the record write are fixed costs and most of the
+difference: the default takes 0.99× on Zod and 1.16× on TanStack Query, against
+1.36× and 1.34× for classic coverage, and recording only the modules each test
+file loaded takes 1.05× on TanStack Query. At that
 cost you can record on every run, which keeps the record current.
 [Test-level coverage](test-level-coverage.md#what-you-already-believe-this-costs)
 has the measurements and how they were made.
@@ -476,7 +482,7 @@ unmodified fork with one commit of setup:
 | One-line edit, test files that load the changed module | 197 files | 149 files |
 | One-line edit, the record | 6 files in 8 runs, 1.5 s instead of 8.2 s | 9 files, 758 of 4,523 tests |
 | Test file runs skipped over sixty commits | 57% | 93% |
-| Recording cost, default precision, against classic coverage | 0.99× against 1.36× | 1.16× against 1.34× |
+| Recording cost on this short suite, default precision, against classic coverage | 0.99× against 1.36× | 1.16× against 1.34× |
 
 ```mermaid
 ---
