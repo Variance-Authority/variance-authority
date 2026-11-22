@@ -30,13 +30,15 @@ either appears in source yet; these are query inputs, not verified code facts.
 Cross the two source-text questions:
 
 ```bash
-variance ask intersection "grep --query 'Acme Chat' --from src/" "grep --query 'v7' --from src/"
+variance ask intersection 'grep --query "Acme Chat" --from src/' 'grep --query "v7" --from src/'
 ```
 
-Use the task's wording and escape regex metacharacters inside each quoted
-operand. If the pair finds no owner, use the task-word `classify` question. An
-intersection identifies candidate files, not the feature's whole implementation. Read the named owner, then use its import relationships
-for the remaining roles; an example or mock need not contain both text clues.
+Use the task's wording. Single-quote each whole question and double-quote its
+text clue, as above, so the shell preserves regex escapes. For example,
+`'grep --query "Cost \$5" --from src/'` matches the literal text `Cost $5`.
+If the pair finds no owner, use the task-word `classify` question. An
+intersection identifies candidate files, not the feature's whole implementation.
+Read the named owner, then use its import relationships for the remaining roles; an example or mock need not contain both text clues.
 
 ## Follow the owner
 
