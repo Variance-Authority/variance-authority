@@ -448,7 +448,7 @@ entrypoint or an exported name, and then which identifier-shaped words left —
 tracked file's name before its first dot, each with its area and layer on the code map,
 and ends with the question each one takes next, written as the `variance ask`
 command whatever the caller: `symbol` (`docs_symbol`) for an exported or
-declared name, `orient --files` (`docs_orient`) for a file,
+declared name, none for a file, which is already the answer,
 `entrypoint` (`docs_entrypoint`) for a published package or entrypoint, and
 `orient --area` (`docs_orient`) for a package that publishes nothing, or no
 question when the map placed it in no area. When words remain unrecognized or
@@ -461,7 +461,9 @@ export visibility, each with the package it sits in and that package's place on 
 `search` (`docs_search`) from the best one. A request that names nothing still
 gets its areas. Given `from` or `to`, it ranks only the files that start point
 reaches along the imports, so a product's folder ranks that product and the
-shared code it imports.
+shared code it imports. It ends with the source files the request
+names, each with up to eight functions, classes and methods it declares,
+exported first, under a line saying they are the answer.
 
 Called with a specifier, `docs_entrypoint` lists the names it opens, ranked by
 how many workspace packages import them. Called with a package's name, it lists

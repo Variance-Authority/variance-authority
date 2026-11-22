@@ -20,10 +20,16 @@ and `Check` does not match `check`. Each entity is listed with what it names, a
 package first, then its entrypoints, then the specifiers that export it, then
 declarations, then files, and each with its package's area and dependency layer
 as `orient` numbers them. The words that name nothing follow on one line, and
-the answer ends with a `symbol` question per exported or declared name, an
-`orient --files` question per file, an `entrypoint` question per published
-package or entrypoint, and an `orient --area` question per package that
-publishes nothing, or none when the map placed that package in no area. A word the
+the answer asks a `symbol` question per exported or declared name, an
+`entrypoint` question per published package or entrypoint, and an `orient
+--area` question per package that publishes nothing, or none when the map
+placed that package in no area. A file is asked nothing further: it is already
+the answer. The answer ends with the source files the request names — each file
+a word names, and the first file that declares each declared word — each with
+up to eight functions, classes and methods it declares at its top level,
+exported first, from its parse in the source index. They sit under a line saying
+they are the answer, and that a file beside them joins it only when it declares
+a name the request uses, never for sharing their folder. A word the
 request spells another way — a plural, two words for a hyphenated name, a
 domain word no name carries — is not an entity.
 

@@ -7,6 +7,7 @@ import * as sense from '@variance-authority/sense';
 import { HELP_TOOLS } from '../tools.js';
 import { classify } from './classify.js';
 import { classifyWords, formatClassified, identifier, placedAreas, type CodeMapPlaces, type Named } from './classify-words.js';
+import { FoundNothing } from './find.js';
 import * as symbol from './symbol.js';
 
 // `symbol`'s own answer, as classify reads it, unless a case says it fails.
@@ -247,8 +248,40 @@ describe('docs_classify', () => {
     expect(asked).toEqual([['ModuleLoader', 'child_process']]);
     expect(text).toContain('ModuleLoader — declared lib/a.js:3 · in no package\n             — declared lib/b.js:9 · in no package\n             — declared test/c.test.js:1 · in no package\n             — and 4 more\n');
     expect(text).toMatch(/^child_process — file lib\/child_process\.js · in @acme\/sense · area 4 around core, sense · layer 3$/m);
-    expect(text).toContain('variance ask orient --files lib/child_process.js');
+    expect(text).not.toContain('variance ask orient --files');
     expect(text).toContain('Not entities: loader');
+  });
+
+  it('ends with what each named file declares, functions, classes and methods only, exported first, eight at most, and says they are the answer', () => {
+    vi.spyOn(sense, 'packageLayers').mockReturnValue({ current: true, packages: [] });
+    vi.spyOn(sense, 'filesNamed').mockReturnValue(new Map([['run_main', { files: ['lib/run_main.js'], count: 1 }]]));
+    vi.mocked(symbol.declaredInCheckout).mockImplementation((_, { name }) => {
+      if (name !== 'ModuleLoader') throw new FoundNothing(name);
+      return { files: new Map([['lib/loader.js', [3]]]), spelled: new Map([['lib/loader.js:3', ['ModuleLoader']]]) } as unknown as ReturnType<typeof symbol.declaredInCheckout>;
+    });
+    const declaration = (name: string, line: number, kind = 'function', exported = false) => ({ name, kind, line, exported, members: [] });
+    const orient = vi.spyOn(sense, 'orientAround').mockReturnValue({
+      packages: { index: '' },
+      external: { index: '' },
+      declarations: [
+        { file: 'lib/loader.js', read: true, more: 0, moreMembers: 0, declarations: [
+          declaration('helper', 1), declaration('CACHE', 2, 'const', true), declaration('ModuleLoader', 3, 'class', true),
+          ...['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'].map((name, at) => declaration(name, 10 + at)),
+        ] },
+        { file: 'lib/run_main.js', read: true, more: 0, moreMembers: 0, declarations: [declaration('runEntryPointWithESMLoader', 5, 'function', true)] },
+      ],
+    } as unknown as ReturnType<typeof sense.orientAround>);
+
+    const text = classify.run(HELP, { query: 'ModuleLoader run_main' }, { root: '/unused' });
+
+    expect(orient.mock.calls[0]?.[1]).toEqual(['lib/loader.js', 'lib/run_main.js']);
+    expect(text.endsWith([
+      '',
+      'The files the request names, each with what it declares, exported first. They are the answer: a file beside them joins it only when it declares a name the request uses, never for sharing their folder.',
+      '  lib/loader.js — ModuleLoader (exported), helper, a, b, c, d, e, f, and 2 more',
+      '  lib/run_main.js — runEntryPointWithESMLoader (exported)',
+      '',
+    ].join('\n'))).toBe(true);
   });
 
   it('takes a word as an identifier by an inner capital, an underscore or a digit after a letter, and nothing else', () => {

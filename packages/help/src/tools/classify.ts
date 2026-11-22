@@ -3,7 +3,7 @@
 import { START_POINT_SCHEMA, saysStartPoint, startPointArg, type Tool, type ToolInvocation } from '@variance-authority/mcp/tools';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import { kindOf, type Help } from '@variance-authority/package/help';
-import { classifiedAreas, describedWordsNative, filesNamed, packageLayers, sourceIndexPath } from '@variance-authority/sense';
+import { classifiedAreas, describedWordsNative, filesNamed, orientAround, packageLayers, sourceIndexPath } from '@variance-authority/sense';
 import { searchIndexOf, storeBytesOf } from '../snapshot.js';
 import { reachLine, reachOf } from './area.js';
 import { classifyWords, formatClassified, identifier, ownerOf, placedAreas, wordsOf, type CodeMapPlaces, type Locate, type Named, type StartPoint } from './classify-words.js';
@@ -84,6 +84,38 @@ function locating(help: Help, root: string, places: CodeMapPlaces, invocation: T
   };
 }
 
+/** How many top-level names of one named file are written out before the rest are counted. */
+const DECLARED_CAP = 8;
+
+/**
+ * What each source file the request names declares at its top level, from its
+ * parse in the source index: a file a word names, and the first file that
+ * declares a word. Functions, classes and methods only, exported first, then
+ * by line. Classify ends with them under a line saying they are the answer,
+ * since a reader handed files and no reason to stop at them answers with
+ * their folder.
+ */
+function namedFileDeclarations(classified: ReturnType<typeof classifyWords>, root: string): string {
+  const files = [...new Set(classified.entities.flatMap(({ names }) => [
+    ...names.filter((named) => named.kind === 'file').map((named) => named.specifier),
+    ...names.filter((named) => named.kind === 'declared').slice(0, 1).map((named) => named.specifier.replace(/:\d+$/u, '')),
+  ]))].filter((file) => kindOf(file) === 'source');
+  if (files.length === 0) return '';
+  const { declarations } = orientAround(root, files, { rows: 0, names: 0 }, { rows: 0, names: 0 }, 400);
+  const rows = (declarations ?? []).filter((file) => file.read).flatMap((file) => {
+    const sorted = file.declarations
+      .filter((one) => /function|class|method/u.test(one.kind))
+      .sort((one, other) => Number(other.exported === true) - Number(one.exported === true) || one.line - other.line);
+    if (sorted.length === 0) return [];
+    const kept = sorted.slice(0, DECLARED_CAP).map((one) => `${one.name}${one.exported === true ? ' (exported)' : ''}`);
+    const left = sorted.length - kept.length;
+    return [`  ${file.file} — ${kept.join(', ')}${left > 0 ? `, and ${left} more` : ''}\n`];
+  });
+  return rows.length === 0
+    ? ''
+    : `\n\nThe files the request names, each with what it declares, exported first. They are the answer: a file beside them joins it only when it declares a name the request uses, never for sharing their folder.\n${rows.join('')}`;
+}
+
 /**
  * The lines `symbol --name <word>` names as declaring the word, written by it
  * as spelled, so the next question classify offers answers with the same
@@ -125,7 +157,8 @@ export const classify: Tool<Help> = {
     'words that name nothing on one line. When words remain unrecognized or `from` or `to` is supplied, it also ranks the areas the words point to, ten at most, best first: a directory of at ' +
     'most 500 tracked files, scored by the request\'s words, by stem, that its path, its files\' names and the top-level names its files ' +
     'declare, exported or not, hold, a word held by fewer areas counting for more and every declared name counting once per file in an area\'s length whatever its export visibility; each with the package on the code map nearest at or above it, and that package\'s area and layer. With `from` or `to`, only the files that start point reaches along the ' +
-    'imports are ranked: a product\'s folder and the shared code it imports. Ask it first when holding a request in words and no name.',
+    'imports are ranked: a product\'s folder and the shared code it imports. It ends with the source files the request names, each with up to ' +
+    'eight functions, classes and methods it declares, exported first: they are the answer. Ask it first when holding a request in words and no name.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -153,7 +186,7 @@ export const classify: Tool<Help> = {
     const unread: { why?: string } = {};
     const classified = classifyWords(query, help, places.packages.keys(), locating(help, root, places, invocation, unread));
     // A word git could not look up as a file is not said to name none.
-    const unlisted = unread.why === undefined ? '' : `\n\nNo word is looked up as a file: git could not list the tracked files (${unread.why}).`;
+    const unlisted = `${unread.why === undefined ? '' : `\n\nNo word is looked up as a file: git could not list the tracked files (${unread.why}).`}${namedFileDeclarations(classified, root)}`;
     // The addon lists what HEAD holds and ranks it, scoped by the start point's
     // walks; only the ten areas cross.
     const from = startPointArg(input, 'from');

@@ -223,12 +223,12 @@ export function formatClassified(
     }
   }
   // What each entity is asked next: an exported or a declared name is read by
-  // `symbol`, a file by `orient` on its files, a published package or
+  // `symbol`, a file by nothing, as it is already the answer, a published package or
   // entrypoint counted by `entrypoint`, and a package that publishes nothing
   // placed by `orient` on its area, if one took it.
   const asks = entities.flatMap(({ word, names }) => names.flatMap((named) => {
     if (named.kind === 'export' || named.kind === 'declared') return [`variance ask symbol --name ${shell(word)}`];
-    if (named.kind === 'file') return [`variance ask orient --files ${shell(named.specifier)}`];
+    if (named.kind === 'file') return [];
     if (named.published) return [`variance ask entrypoint --package ${shell(named.specifier)}`];
     const area = packages.get(named.package)?.area;
     return area === undefined ? [] : [`variance ask orient --area ${shell(area.id)}`];

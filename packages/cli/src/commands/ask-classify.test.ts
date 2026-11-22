@@ -330,7 +330,8 @@ describe('variance ask classify', () => {
 
     expect(asked.code).toBe(EXIT_CLEAN);
     expect(asked.out).toMatch(/^child_process — file lib\/child_process\.js · in no package$/m);
-    expect(asked.out).toContain('variance ask orient --files lib/child_process.js');
+    expect(asked.out).not.toContain('variance ask orient --files');
+    expect(asked.out).toContain('They are the answer: a file beside them joins it only when it declares a name the request uses, never for sharing their folder.\n  lib/child_process.js — spawn (exported)\n');
   });
 
   it('keeps a plain word that is only part of a declared name plain', async () => {
