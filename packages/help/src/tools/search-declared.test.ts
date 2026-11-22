@@ -46,6 +46,8 @@ async function workspace(): Promise<string> {
     'packages/other/src/use.ts': "import type { ChatReplyShape } from 'kit';\nimport { starThing } from 'kit/star';\nexport const used: ChatReplyShape | number = starThing;\n",
     'packages/kit/src/lone/thing.ts': 'export const loneThing = 1;\n',
     'packages/kit/src/lone/index.ts': "export { loneThing } from './thing.js';\n",
+    'packages/kit/src/alias/base.ts': 'export const baseValue = 1;\n',
+    'packages/aa/alias.ts': "export { baseValue as renamedValue } from '../kit/src/alias/base.js';\n",
   };
   for (const [path, value] of Object.entries(files)) {
     mkdirSync(dirname(join(root, path)), { recursive: true });
@@ -97,4 +99,11 @@ it('names no door when no other package enters the declaring package through a f
   const out = search.run(await readWorkspaceForAnswer(root), { query: 'loneThing' }, { root });
   const row = out.split('\n').find((line) => line.startsWith('loneThing — '));
   expect(row, out).toBe('loneThing — kit · packages/kit/src/lone/thing.ts:1');
+});
+
+it('keeps a renamed re-export at its own row, since the declaration is written under another name', async () => {
+  const root = await workspace();
+  const out = search.run(await readWorkspaceForAnswer(root), { query: 'renamedValue' }, { root });
+  const row = out.split('\n').find((line) => line.startsWith('renamedValue — '));
+  expect(row, out).toBe('renamedValue — aa · packages/aa/alias.ts:1');
 });

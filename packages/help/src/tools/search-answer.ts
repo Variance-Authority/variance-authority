@@ -213,9 +213,9 @@ function matched(index: SearchIndex, question: SearchQuestion, tree: Tree | unde
  * section contributes its matching coordinates, including described and loose
  * candidates when those passes run. Installed names identify no workspace file.
  */
-export function searchedFiles(index: SearchIndex, question: SearchQuestion, tree?: Tree, root?: string, declarations?: Declarations): FileSet {
+export function searchedFiles(index: SearchIndex, question: SearchQuestion, tree?: Tree, root?: string): FileSet {
   const files = new Map<string, { lines: Set<number>; kinds: Set<MatchKind> }>();
-  const found = searchedBy(index, question, tree, root, undefined, declarations, (at, line, kind = 'query') => {
+  const found = searchedBy(index, question, tree, root, undefined, undefined, (at, line, kind = 'query') => {
     const one = files.get(at) ?? { lines: new Set<number>(), kinds: new Set<MatchKind>() };
     if (line !== undefined) one.lines.add(line);
     one.kinds.add(kind);

@@ -421,7 +421,7 @@ export const search: Tool<Help> = {
     spoken(searchedOnce(help, input, invocation), searchQuestionOf(input, spellingOf(invocation)), invocation?.root, spellingOf(invocation)),
 
   files: (help, input, invocation): FileSet =>
-    searchedFiles(searchIndexOf(help), searchQuestionOf(input, spellingOf(invocation)), invocation?.tree, invocation?.root, declarationsOf(help, invocation?.root)),
+    searchedFiles(searchIndexOf(help), searchQuestionOf(input, spellingOf(invocation)), invocation?.tree, invocation?.root),
 };
 
 /** The last search of each generation, and what it was asked. */

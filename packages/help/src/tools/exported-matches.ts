@@ -119,16 +119,20 @@ export function exported(
         const chosen = exportedShown(index, reached(name), fieldOf(name));
         if (chosen === undefined) return [];
         const row = index.exported(chosen);
-        return [{ name, files, row, declared: declarations?.of(row.at, row.name) }];
+        // A declaration counts when its own file exports the shown name: one
+        // written under another name, `export { a as b }`, is not where `b` is.
+        const bound = declarations?.of(row.at, row.name);
+        const home = bound === undefined || bound.name !== row.name
+          ? undefined
+          : [...index.exportedOf(name)].map((one) => index.exported(one)).find((one) => one.at === bound.at);
+        return [{ name, files, row, declared: home === undefined ? undefined : bound, by: home?.by ?? row.by }];
       });
       const resolved = picked.flatMap((one) => (one.declared === undefined ? [] : [one.declared]));
       const passers = resolved.length === 0 ? undefined : declarations?.passersOf(resolved);
-      return picked.map(({ name, files, row, declared }) => {
-        // The package that holds the file shown: the declaration's, when it exports the name.
-        const by = declared === undefined ? row.by : (rowsOf(name).map((one) => index.exported(one)).find((one) => one.at === declared.at)?.by ?? row.by);
+      return picked.map(({ name, files, row, declared, by }) => {
         const door = declared === undefined || passers === undefined || declarations === undefined
           ? undefined
-          : doorOf(index, rowsOf(name), declared, by, passers[resolved.indexOf(declared)] ?? [], declarations.entered);
+          : publishedThrough(index, rowsOf(name), declared, by, passers[resolved.indexOf(declared)] ?? [], declarations.entered);
         // The doc of the file shown, or none: another file's comment says nothing about this one.
         const doc = declared === undefined || declared.at === row.at ? row.doc : (declared.doc ?? undefined);
         const match: ExportedMatch = {
@@ -155,7 +159,7 @@ export function exported(
  * its export row's when it exports the name itself; an `export *` has none.
  * None when no other package enters it through any of them.
  */
-function doorOf(
+function publishedThrough(
   index: SearchIndex,
   rows: readonly number[],
   declared: Place,
