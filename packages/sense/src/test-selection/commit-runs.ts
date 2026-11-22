@@ -233,11 +233,12 @@ export async function landRun(
     : unansweredOver(previous, before?.tests, cases.run.tests, root).length > 0
       ? Promise.resolve(previous)
       : layCases(previous, cases.fresh, root, { ...cases.run, modules: current.modules, inputs: inputsOf(current) }, cases.eyes, texts, before?.commit, undefined, cacheRoot);
+  // Handled at once: it may fail while the awaits below are pending, or be left
+  // unawaited by a throw; its own failure is read where it is awaited.
+  laying.catch(() => undefined);
   const over = await recordBytes(coverageFile);
   // What differs from `HEAD` is asked once, for the rows' names and the texts kept.
   const landed = current.commit === undefined ? undefined : await (landing ?? landedTree(root, cacheRoot));
-  // A throw below leaves the laying unawaited; its own failure is read where it is awaited.
-  laying.catch(() => undefined);
   const coverage = await layeredOver(coverageFile, over, current, root, cacheRoot, landed);
   const laid = await laying;
   // The rows of a module this run did not record may have been re-cut to the
