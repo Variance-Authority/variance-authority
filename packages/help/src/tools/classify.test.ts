@@ -233,7 +233,7 @@ describe('docs_classify', () => {
     expect(text).not.toContain('--from docs/task_manager');
   });
 
-  it('looks up only the identifier-shaped words no published name took, and counts past the ones it shows', () => {
+  it('looks up the identifier-shaped words no package took, keeps only the files an exported name names, and counts past the ones it shows', () => {
     const asked: string[][] = [];
     const declared = (at: string, more?: number): Named => ({ kind: 'declared', specifier: at, package: '', published: false, ...(more === undefined ? {} : { more }) });
     const located = classifyWords('ModuleLoader checkoutPath loader child_process', HELP, MAPPED, (words) => {
@@ -241,11 +241,15 @@ describe('docs_classify', () => {
       return new Map([
         ['ModuleLoader', [declared('lib/a.js:3'), declared('lib/b.js:9'), declared('test/c.test.js:1', 4)]],
         ['child_process', [{ kind: 'file', specifier: 'lib/child_process.js', package: '@acme/sense', published: false }]],
+        ['checkoutPath', [declared('packages/sense/src/checkoutPath.ts:1'), { kind: 'file', specifier: 'lib/checkoutPath.js', file: 'lib/checkoutPath.js', package: '', published: false }]],
       ]);
     });
     const text = formatClassified(located, PLACED);
 
-    expect(asked).toEqual([['ModuleLoader', 'child_process']]);
+    expect(asked).toEqual([['ModuleLoader', 'checkoutPath', 'child_process']]);
+    expect(text).toContain('file lib/checkoutPath.js');
+    expect(text).not.toContain('declared packages/sense/src/checkoutPath.ts:1');
+    expect(namedFiles(located)).toContain('lib/checkoutPath.js');
     expect(text).toContain('ModuleLoader — declared lib/a.js:3 · in no package\n             — declared lib/b.js:9 · in no package\n             — declared test/c.test.js:1 · in no package\n             — and 4 more\n');
     expect(text).toMatch(/^child_process — file lib\/child_process\.js · in @acme\/sense · area 4 around core, sense · layer 3$/m);
     expect(text).not.toContain('variance ask orient --files');

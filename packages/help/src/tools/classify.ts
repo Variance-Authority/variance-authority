@@ -59,12 +59,13 @@ function locating(
   unread: { why?: string },
   inReach: ((file: string) => boolean) | undefined,
 ): Locate {
-  return (words) => {
+  return (words, filesOnly = new Set()) => {
     const owning = ownerOf(places.packages);
     const files = filesNamed(root, words, FILES_READ);
     if ('unread' in files) unread.why = files.unread;
     const named = 'unread' in files ? new Map<string, { readonly files: readonly string[]; readonly count: number }>() : files;
-    const declared = new Map(words.map((word) => [word, declaredBy(help, word, invocation)] as const));
+    // An export already says where it is declared, so only its files are looked up.
+    const declared = new Map(words.map((word) => [word, filesOnly.has(word) ? [] : declaredBy(help, word, invocation)] as const));
     // One read of the import graph counts every path either kind holds.
     const paths = [...new Set([...[...declared.values()].flatMap((found) => found.map((one) => one.at)), ...[...named.values()].flatMap((one) => one.files)])];
     const counts = invocation?.tree === undefined || paths.length === 0 ? [] : invocation.tree.importers(paths);

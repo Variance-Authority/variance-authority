@@ -25,7 +25,8 @@ the answer asks a `symbol` question per exported or declared name, an
 --area` question per package that publishes nothing, or none when the map
 placed that package in no area. A source file is asked nothing further: it is
 already the answer. The answer ends with the source files the request names —
-each source file a word names, else the first source file that declares it,
+each source file a word names, an exported name included, else the first
+source file that declares it,
 else the tests and stories it names — each with
 up to eight functions and classes it declares at its top level,
 exported first, from its parse in the source index. They sit under a line saying

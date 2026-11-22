@@ -33,7 +33,7 @@ export interface Named {
 }
 
 /** Where the identifier-shaped words that name nothing published are declared, and which files are named them: at most a few of each, in the order to show them. */
-export type Locate = (words: readonly string[]) => ReadonlyMap<string, readonly Named[]>;
+export type Locate = (words: readonly string[], filesOnly?: ReadonlySet<string>) => ReadonlyMap<string, readonly Named[]>;
 
 /** A word that names something, with everything it names: packages first, then entrypoints, then exports. */
 export interface Entity {
@@ -116,14 +116,18 @@ function dictionaryOf(help: Help, packages: Iterable<string>): { readonly folded
 /**
  * The words of `text` that are, whole, one of `packages` (scoped or not) or an
  * entrypoint `help` publishes, both without case, or an export it publishes as
- * spelled; or, shaped as an identifier and none of those, a name `locate` finds
- * declared or a file it finds named; and the words that are not.
+ * spelled; or, shaped as an identifier and no package or entrypoint, a name
+ * `locate` finds declared or a file it finds named — of an export, only the
+ * files, as the export already says where it is declared; and the words that
+ * are not.
  */
 export function classifyWords(text: string, help: Help, packages: Iterable<string>, locate?: Locate): Classified {
   const { folded, exact } = dictionaryOf(help, packages);
   const words = wordsOf(text);
-  const asked = locate === undefined ? [] : [...new Set(words.filter((word) => identifier(word) && !folded.has(word.toLowerCase()) && !exact.has(word)))];
-  const located = asked.length === 0 || locate === undefined ? new Map<string, readonly Named[]>() : locate(asked);
+  const asked = locate === undefined ? [] : [...new Set(words.filter((word) => identifier(word) && !folded.has(word.toLowerCase())))];
+  const exported = new Set(asked.filter((word) => exact.has(word)));
+  const found = asked.length === 0 || locate === undefined ? new Map<string, readonly Named[]>() : locate(asked, exported);
+  const located = new Map([...found].map(([word, names]) => [word, exported.has(word) ? names.filter((named) => named.kind === 'file') : names] as const));
   const entities: Entity[] = [];
   const plain = new Set<string>();
   const listed = new Set<string>();
