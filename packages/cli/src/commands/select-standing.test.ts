@@ -199,6 +199,25 @@ describe('a test that did not run at the journal commit', () => {
     expect(said.err).toContain(`1 test file last ran at ${P.slice(0, 12)}`);
   });
 
+  it('runs a test whose install cannot be compared since it ran, where the journal group moved nothing', async () => {
+    // P holds no lockfile; C adds one and runs only `near`. The tree holds C's
+    // lockfile, so the journal's install is unmoved, and `far`'s has nothing at P
+    // to be compared against.
+    const repo = checkout();
+    const P = repo.commit(sources(1, NAMES), 'P');
+    await landRun(repo.file, run(repo.root, P, NAMES), repo.root);
+    const C = repo.commit({ 'package-lock.json': npmLock('1.4.0') }, 'C');
+    await landRun(repo.file, run(repo.root, C, ['near']), repo.root);
+
+    const said = await repo.select();
+
+    expect(said.out).toBe('test/near.test.ts\n');
+    const at = P.slice(0, 12);
+    expect(said.err).toContain(
+      `1 test file last ran at ${at}, and package-lock.json is not in the tree at ${at}, where this install is compared from, so there is no install to compare it against and any package in it may have moved, so it runs.\n`,
+    );
+  });
+
   it('runs a test that last ran before a file the suite rests on moved, where the journal group moved nothing', async () => {
     // The repository rests on `vitest.config.ts`. `far` last ran at P, before
     // C moved it; the run at C ran `near` alone. The config moved for `far`,
