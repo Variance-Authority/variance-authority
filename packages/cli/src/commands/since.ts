@@ -113,7 +113,7 @@ export async function diffSince(
   ref: string,
   roots: readonly string[] = [],
   from?: string,
-  options: { readonly reverse?: boolean; readonly cwd?: string; readonly unified?: number; readonly to?: string } = {},
+  options: { readonly reverse?: boolean; readonly cwd?: string; readonly unified?: number; readonly to?: string; readonly env?: Readonly<Record<string, string>> } = {},
 ): Promise<string | undefined> {
   const run = promisify(execFile);
   const here = options.cwd ?? process.cwd();
@@ -128,6 +128,7 @@ export async function diffSince(
       (await run('git', [...PLAIN, 'diff', ...NO_DECORATION, ...side, '--no-renames', from ?? (await mergeBase(run, ref, repository)), ...(options.to === undefined ? [] : [options.to])], {
         cwd: repository,
         maxBuffer: 64 * 1024 * 1024,
+        ...(options.env === undefined ? {} : { env: { ...process.env, ...options.env } }),
       })).stdout)();
     // An untracked file has no diff of its own: it is shown as the addition it
     // is, so its every line is charged and the graph is asked who imports it.
@@ -152,8 +153,13 @@ export async function diffSince(
  * {@link diffSince} from `from` to `tree`, a tree object `snapshotTree` wrote of
  * the working state. It holds the untracked files already, and every diff of one
  * reading names it, so a file that moves while the reading runs moves none of them.
+ * `env` is the snapshot's, which reaches the store the tree was written to.
  */
-export async function diffToTree(from: string, tree: string, options: { readonly cwd?: string; readonly unified?: number } = {}): Promise<string | undefined> {
+export async function diffToTree(
+  from: string,
+  tree: string,
+  options: { readonly cwd?: string; readonly unified?: number; readonly env?: Readonly<Record<string, string>> } = {},
+): Promise<string | undefined> {
   return await diffSince(from, [], from, { ...options, to: tree });
 }
 

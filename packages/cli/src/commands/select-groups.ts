@@ -16,7 +16,7 @@
  * Only every group doing so runs the suite.
  */
 
-import { preconditionDistance, type ExecutionNarrowing, type SelectionReason, type Stand, type TestDistance } from '@variance-authority/sense/test-selection';
+import { preconditionDistance, type ExecutionNarrowing, type SelectionReason, type Snapshot, type Stand, type TestDistance } from '@variance-authority/sense/test-selection';
 import type { InstallDiff } from './installed.js';
 import { many } from './prose-counts.js';
 import { diffToTree } from './since.js';
@@ -39,14 +39,14 @@ export type Hit =
 
 /**
  * The journal's group first, charged `diff`, then one per stand, read from
- * its commit to `tree`.
+ * its commit to the snapshot's tree.
  */
-export async function groupsOf(stands: readonly Stand[], diff: string, tree: string | undefined, here: string): Promise<readonly Group[]> {
+export async function groupsOf(stands: readonly Stand[], diff: string, snapshot: Extract<Snapshot, { tree: string }> | undefined, here: string): Promise<readonly Group[]> {
   const selection = await import('@variance-authority/sense/test-selection');
   const names = (change: string) => [...selection.changedLines(change).keys()];
   const own = names(diff);
   const theirs = await Promise.all(stands.map(async (stand): Promise<Group> => {
-    const since = tree === undefined ? undefined : await diffToTree(stand.commit, tree, { cwd: here, unified: 0 });
+    const since = snapshot === undefined ? undefined : await diffToTree(stand.commit, snapshot.tree, { cwd: here, unified: 0, env: snapshot.env });
     return since === undefined ? { stand, changed: [] } : { stand, diff: since, changed: names(since) };
   }));
   return [{ diff, changed: own }, ...theirs];

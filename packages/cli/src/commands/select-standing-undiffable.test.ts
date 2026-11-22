@@ -1,8 +1,9 @@
-import { mkdtempSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { mkdirSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { landRun, snapshotTree } from '@variance-authority/sense/test-selection';
+import { landRun } from '@variance-authority/sense/test-selection';
 import { checkout, NAMES, run, sources } from './select-standing.fixture.js';
 import { diffToTree } from './since.js';
 
@@ -10,11 +11,6 @@ import { diffToTree } from './since.js';
 vi.mock('./since.js', async (original) => {
   const actual = await original<typeof import('./since.js')>();
   return { ...actual, diffToTree: vi.fn(actual.diffToTree) };
-});
-// Spied the same way: one case fails writing the working state as a tree.
-vi.mock('@variance-authority/sense/test-selection', async (original) => {
-  const actual = await original<typeof import('@variance-authority/sense/test-selection')>();
-  return { ...actual, snapshotTree: vi.fn(actual.snapshotTree) };
 });
 
 /**
@@ -34,7 +30,6 @@ describe('a test whose stand git cannot diff against the tree', () => {
     process.chdir(cwd);
     vi.unstubAllEnvs();
     vi.mocked(diffToTree).mockReset();
-    vi.mocked(snapshotTree).mockReset();
   });
 
   it('runs the tests that last ran at a commit git cannot diff against the tree, and names it', async () => {
@@ -54,16 +49,18 @@ describe('a test whose stand git cannot diff against the tree', () => {
     expect(said.err).toContain(`git could not write the diff from ${P.slice(0, 12)}, where 1 test file last ran, to the tree, so it runs`);
   });
 
-  it('runs every test when git cannot write the working state as a tree, and says so', async () => {
+  it('runs every test when git cannot write the working state as a tree, and says what git said', async () => {
     const repo = checkout();
     const P = repo.commit(sources(1, NAMES), 'P');
     await landRun(repo.file, run(repo.root, P, NAMES), repo.root);
-    vi.mocked(snapshotTree).mockReturnValue(undefined);
+    // An untracked folder that is a repository with no commit: `git add -A` refuses it.
+    mkdirSync(join(repo.root, 'vendor', 'empty'), { recursive: true });
+    execFileSync('git', ['init', '--quiet'], { cwd: join(repo.root, 'vendor', 'empty') });
 
     const said = await repo.select();
 
     // An empty list with `skipping nothing` is every test file.
     expect(said.out).toBe('');
-    expect(said.err).toBe(`skipping nothing: git could not write the working state as a tree to read what changed since ${P.slice(0, 12)}.\n`);
+    expect(said.err).toContain(`skipping nothing: git could not write the working state as a tree to read what changed since ${P.slice(0, 12)}: error: 'vendor/empty/' does not have a commit checked out`);
   });
 });

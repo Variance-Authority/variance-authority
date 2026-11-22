@@ -120,8 +120,8 @@ export type SelectGround =
   | {
       readonly kind: 'no-diff';
       readonly from: string;
-      /** Git could not write the working state as the tree every diff is read to, so no diff was asked. */
-      readonly unwritten?: true;
+      /** What git said when it could not write the working state as the tree every diff is read to, so no diff was asked. */
+      readonly unwritten?: string;
     }
   | { readonly kind: 'no-install'; readonly whole: string }
   | {
@@ -290,8 +290,8 @@ export function skippableTests(input: SelectInput): TestSelection {
   if (input.ground.kind === 'no-diff') {
     return {
       ...base,
-      widened: input.ground.unwritten
-        ? `git could not write the working state as a tree to read what changed since ${input.ground.from}`
+      widened: input.ground.unwritten !== undefined
+        ? `git could not write the working state as a tree to read what changed since ${input.ground.from}: ${input.ground.unwritten}`
         : `cannot read what changed since ${input.ground.from}`,
       because: 'no diff, so every test file runs',
     };

@@ -237,17 +237,24 @@ async function untested(request: SuiteRequest): Promise<SuiteReading> {
     return said({ ...recorded, ground: { kind: 'no-diff', from: reading.from! } });
   }
   // One tree for every group's diff, so no file moves between two of them; none written is no diff.
-  const tree = handed || commit === undefined ? undefined : selection.snapshotTree(here);
-  const diff = handed
-    ? await handedChange(request)
-    : commit === undefined
-      ? await diffSince(request.since ?? base, [], undefined, { cwd: here, unified: 0 })
-      : tree === undefined ? undefined : await diffToTree(commit, tree, { cwd: here, unified: 0 });
-  if (diff === undefined) {
-    const ground: SelectGround = tree === undefined && !handed && commit !== undefined ? { kind: 'no-diff', from: commit.slice(0, 12), unwritten: true } : { kind: 'no-diff', from: base };
-    return said({ ...recorded, ground });
-  }
-  const groups = handed ? [{ diff, changed: [...selection.changedLines(diff).keys()] }] : await groupsOf(stands, diff, tree, here);
+  // Its store lives until every diff is read, and no longer: nothing after them reads the tree.
+  const snapshot = handed || commit === undefined ? undefined : selection.snapshotTree(here);
+  if (snapshot !== undefined && 'unwritten' in snapshot) return said({ ...recorded, ground: { kind: 'no-diff', from: commit!.slice(0, 12), unwritten: snapshot.unwritten } });
+  const changes = await (async (): Promise<{ readonly diff: string; readonly groups: readonly Group[] } | undefined> => {
+    try {
+      const diff = handed
+        ? await handedChange(request)
+        : snapshot === undefined
+          ? await diffSince(request.since ?? base, [], undefined, { cwd: here, unified: 0 })
+          : await diffToTree(commit!, snapshot.tree, { cwd: here, unified: 0, env: snapshot.env });
+      if (diff === undefined) return undefined;
+      return { diff, groups: handed ? [{ diff, changed: [...selection.changedLines(diff).keys()] }] : await groupsOf(stands, diff, snapshot, here) };
+    } finally {
+      snapshot?.close();
+    }
+  })();
+  if (changes === undefined) return said({ ...recorded, ground: { kind: 'no-diff', from: base } });
+  const { diff, groups } = changes;
 
   // Each group's install is read from the commit it last ran at, through the
   // install its runs kept, keyed by that commit (`undefined` for the journal's).

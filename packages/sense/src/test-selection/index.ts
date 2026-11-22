@@ -132,7 +132,7 @@ export {
   type FetchedMainline, type LastFetched,
 } from './mainline-layer.js';
 export { repinOwnLayer, type Repin, type RepinRefusal } from './milestone-repin.js';
-export { readOwnLayer, snapshotTree, type OwnLayer, type OwnState } from './own-layer.js';
+export { readOwnLayer, snapshotTree, type OwnLayer, type OwnState, type Snapshot } from './own-layer.js';
 export { prepareRecord } from './replaced-record.js';
 export {
   cachedRecord, cachedSuite,

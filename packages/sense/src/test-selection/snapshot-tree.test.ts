@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, utimesSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -33,11 +33,56 @@ describe('the tree of the working state', () => {
     git('config', 'core.checkStat', 'minimal');
     git('config', 'core.trustctime', 'false');
 
-    const tree = snapshotTree(root);
+    const snapshot = snapshotTree(root);
 
-    expect(tree).toBeDefined();
+    expect(snapshot).toHaveProperty('tree');
+    const { tree, env, close } = snapshot as Extract<typeof snapshot, { tree: string }>;
     expect(tree).not.toBe(git('rev-parse', 'HEAD^{tree}'));
-    expect(git('show', `${tree}:setup.ts`)).toBe('export const ready = 2;');
+    expect(execFileSync('git', ['show', `${tree}:setup.ts`], { cwd: root, env: { ...process.env, ...env }, encoding: 'utf8' })).toBe('export const ready = 2;\n');
+    close();
+  });
+
+  it('leaves no object in the repository once closed, however many files it wrote', () => {
+    const root = mkdtempSync(join(tmpdir(), 'va-snapshot-tree-'));
+    const git = (...args: string[]) => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
+    git('init', '--quiet');
+    git('config', 'user.email', 'fixture@example.test');
+    git('config', 'user.name', 'Fixture');
+    writeFileSync(join(root, 'setup.ts'), 'export const ready = 1;\n');
+    git('add', '-A');
+    git('commit', '--quiet', '-m', 'one');
+    const before = git('count-objects', '-v');
+    writeFileSync(join(root, 'setup.ts'), 'export const ready = 2;\n');
+    writeFileSync(join(root, 'new.ts'), 'export const fresh = 1;\n');
+
+    const snapshot = snapshotTree(root);
+    expect(snapshot).toHaveProperty('tree');
+    const { tree, env, close } = snapshot as Extract<typeof snapshot, { tree: string }>;
+    // Readable while open, through the environment it hands out, and the commit it reads from with it.
+    expect(execFileSync('git', ['diff', '--name-only', 'HEAD', tree], { cwd: root, env: { ...process.env, ...env }, encoding: 'utf8' })).toBe('new.ts\nsetup.ts\n');
+    close();
+
+    expect(git('count-objects', '-v')).toBe(before);
+    expect(() => git('cat-file', '-e', tree)).toThrow();
+  });
+
+  it('says what git said when it cannot write the tree, naming the path it stopped at', () => {
+    const root = mkdtempSync(join(tmpdir(), 'va-snapshot-tree-'));
+    const git = (...args: string[]) => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
+    git('init', '--quiet');
+    git('config', 'user.email', 'fixture@example.test');
+    git('config', 'user.name', 'Fixture');
+    writeFileSync(join(root, 'setup.ts'), 'export const ready = 1;\n');
+    git('add', '-A');
+    git('commit', '--quiet', '-m', 'one');
+    // An untracked folder that is a repository with no commit: `git add -A` refuses it.
+    mkdirSync(join(root, 'vendor', 'empty'), { recursive: true });
+    execFileSync('git', ['init', '--quiet'], { cwd: join(root, 'vendor', 'empty') });
+
+    const snapshot = snapshotTree(root);
+
+    expect(snapshot).toHaveProperty('unwritten');
+    expect((snapshot as { unwritten: string }).unwritten).toContain("'vendor/empty/' does not have a commit checked out");
   });
 
   it('is absent in a directory git does not hold', () => {
@@ -51,7 +96,9 @@ describe('the tree of the working state', () => {
     // Staged, so there is an index to write the tree through, and a tree.
     execFileSync('git', ['add', '-A'], { cwd: root });
 
-    expect(snapshotTree(root)).toBeDefined();
+    const snapshot = snapshotTree(root);
+    expect(snapshot).toHaveProperty('tree');
+    if ('close' in snapshot) snapshot.close();
     expect(workingTree(root)).toBeUndefined();
   });
 });
