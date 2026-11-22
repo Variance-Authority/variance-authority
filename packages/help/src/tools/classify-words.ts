@@ -223,7 +223,7 @@ export function formatClassified(
     }
   }
   // What each entity is asked next: an exported or a declared name is read by
-  // `symbol`, a file by nothing, as it is already the answer, a published package or
+  // `symbol`, a file nothing, since it is already the answer, a published package or
   // entrypoint counted by `entrypoint`, and a package that publishes nothing
   // placed by `orient` on its area, if one took it.
   const asks = entities.flatMap(({ word, names }) => names.flatMap((named) => {
