@@ -35,7 +35,10 @@ export function checkout(root = mkdtempSync(join(tmpdir(), 'va-select-standing-'
   return {
     root,
     git,
-    file: testCoverageFile(root),
+    /** Read on use: the path follows the root config, which a commit may write after the checkout, and is read once per process. */
+    get file() {
+      return testCoverageFile(root);
+    },
     commit(files: Readonly<Record<string, string>>, message: string): string {
       for (const [path, text] of Object.entries(files)) {
         mkdirSync(dirname(join(root, path)), { recursive: true });
