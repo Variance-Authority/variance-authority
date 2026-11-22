@@ -87,6 +87,15 @@ export function foldRun(
     // A worker wrote its journal down; a page handed its own to the runner,
     // which carried it here on the file.
     const written = await readWritten(runDirectory);
+    // The run's scratch is four unrelated trees, and each one's removal waits on
+    // nothing but its last reader: the journals and the finished files are in
+    // memory by now, and the case fold reads its own tree. So they go under the
+    // fold rather than after it, and the fold resolves once they are gone.
+    const cleared: Array<Promise<void>> = [
+      rm(runDirectory, { recursive: true, force: true }),
+      rm(run.finishedDirectory, { recursive: true, force: true }),
+      rm(run.cutFile, { force: true }),
+    ];
     const pages = finished.flatMap((file) => (file.journal === undefined ? [] : [file.journal]));
     if (destination.derive === true) {
       for (const [id, module] of await deriveModules(root, runModuleIds(written, pages), mode)) modules.set(id, module);
@@ -108,6 +117,11 @@ export function foldRun(
     // A refusal below lands before the fold is awaited, and the fold's own
     // failure is read where it is.
     folding?.catch(() => {});
+    const removeCases = () => rm(caseDirectory, { recursive: true, force: true });
+    cleared.push(folding === undefined ? removeCases() : folding.then(removeCases, removeCases));
+    // A refusal below lands before the removals are awaited; theirs are read where they are.
+    const clearing = Promise.all(cleared);
+    clearing.catch(() => {});
     const crossings = runCrossings(written, pages, root, joined.readings, modules.keys());
     const unplaced = new Set(crossings.journals.filter((journal) => !journal.placed).map((journal) => journal.test));
     if (destination.derive !== true && unplaced.size > 0) {
@@ -170,14 +184,7 @@ export function foldRun(
     // warning is the whole story.
     if (merged.held) noteAnEmptyRecord(files.length, modules.size, destination.unreached);
     else noteABusyIndex(coverageFile);
-    // The run's scratch is four unrelated trees; each one's removal waits on
-    // nothing but the disk, so they go together.
-    await Promise.all([
-      rm(runDirectory, { recursive: true, force: true }),
-      rm(caseDirectory, { recursive: true, force: true }),
-      rm(run.finishedDirectory, { recursive: true, force: true }),
-      rm(run.cutFile, { force: true }),
-    ]);
+    await clearing;
     run.cut.clear();
   };
 
