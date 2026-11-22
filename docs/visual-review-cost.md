@@ -119,9 +119,10 @@ test files, recording at the default precision takes the whole run to 1.065×,
 the median of three alternating rounds on an Apple M4 Max, Node 24, timing
 `yarn vitest run` against
 `yarn vitest run --config tools/uninstrumented.config.mts`. Zod and TanStack
-Query are short suites of about ten seconds: recording cost them 0.99× and
-1.16×, where classic coverage costs 1.36× and 1.34×, and on TanStack Query the
-transform and the record write are most of the difference. Over sixty real
+Query are short suites of about ten seconds: recording cost them nothing
+measurable and 1.16×, where classic coverage costs 1.36× and 1.34×, and on
+TanStack Query the transform that places the probes is most of the difference.
+Over sixty real
 commits, 57% of Zod's test file runs and 93% of TanStack Query's were skipped. A unit
 test is the cheap case: a visual state costs a navigation and a paint, so each
 one skipped saves more, and your first run with `--since` counts its own skips.

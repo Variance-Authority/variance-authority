@@ -45,10 +45,9 @@ On a suite of about three minutes, Variance Authority's own unit suite of
 **1.065×**: the median of three alternating rounds on an Apple M4 Max, Node 24,
 timing `yarn vitest run` against
 `yarn vitest run --config tools/uninstrumented.config.mts`. TanStack Query's
-suite runs in 12.5 s. The transform that places the probes and the record
-written after the last test grow with the modules and cases recorded, not with
-how long the tests run, so here they are most of the difference, and the ratio
-is higher:
+suite runs in 12.5 s, and its jsdom workers transform many modules in that
+time, so the transform that places the probes is most of the difference, and the
+ratio is higher:
 
 | median of five | time in tests | writing the record | transform, all workers | the whole run |
 |---|---|---|---|---|

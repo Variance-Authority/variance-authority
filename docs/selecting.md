@@ -526,10 +526,9 @@ export default withTestSelection(defineConfig({ test: {} }), { mode: 'loads' });
 
 The last column is a short suite. On a suite of about three minutes, `presence`
 adds 6.5%. Almost all of what a mode adds is transform and writing the record,
-which grow with the modules and cases recorded, not with time spent in tests, so
-they weigh most on a short run; inside the tests no mode costs anything
-measurable. Classic coverage adds 34% to
-the same short run. The long suite, the short ones, the method and classic
+and on this short jsdom suite the transform is most of it; inside the tests no
+mode costs anything measurable. Classic coverage adds 34% to the same short
+run. The long suite, the short ones, the method and classic
 coverage beside them are in
 [what recording costs](#what-recording-costs-while-the-suite-runs).
 
@@ -1039,10 +1038,10 @@ Variance Authority, after `yarn install && yarn build`, time
 the probes taken away, against `yarn vitest run`.
 
 Two of recording's costs sit outside the tests: the transform that places the
-probes, and the record written after the last test. They grow with the modules
-transformed and the cases recorded, not with how long your tests run, so on a
-short suite they are a larger share of the run, and the ratio is higher. The
-two public suites below are short ones, about ten seconds each.
+probes, and the record written after the last test. The two public suites below
+are short ones, about ten seconds each. On Zod neither shows. On TanStack Query,
+whose jsdom workers transform many modules in a 12.5 s run, the transform is
+most of the difference, and the ratio is higher: 1.16×.
 
 Inside your tests, recording costs nothing you can measure, at any precision.
 Classic coverage — `--coverage` with the V8 provider — adds 37% to the same

@@ -276,12 +276,11 @@ Apple M4 Max, Node 24, timing `yarn vitest run` against
 Query, short suites of about ten seconds, recording costs nothing measurable
 inside the tests at any precision, where classic coverage adds 12% and 37%. The
 whole run takes 0.99× on Zod and 1.16× on TanStack Query, against 1.36× and
-1.34× for classic coverage. TanStack Query's ratio is higher because the
-transform and the record write grow with the modules and cases a suite records,
-not with time spent in tests, so on a short run they are most of the
-difference; recording only the modules each test file loaded takes it to 1.05×.
-At that
-cost you can record on every run, which keeps the record current.
+1.34× for classic coverage; Zod's figure is nothing measurable. TanStack
+Query's is higher because of the transform that places the probes: its jsdom
+workers transform many modules in a run of 12.5 s, so the transform is most of
+the difference. Recording only the modules each test file loaded takes it to
+1.05×. At that cost you can record on every run, which keeps the record current.
 [Test-level coverage](test-level-coverage.md#what-you-already-believe-this-costs)
 has the measurements and how they were made.
 When a test file is the grain you select at,

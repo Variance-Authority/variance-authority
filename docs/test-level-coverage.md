@@ -32,10 +32,10 @@ coverage does not:
 | classic coverage, `--coverage` with V8 — the union | **+12%** | **+37%** |
 
 Under Vitest, recording places its probes as Vite transforms each
-module and writes the record once the last test reports. Both grow with the
-modules transformed and the cases recorded, not with how long the tests run, so
-on a short suite they are most of the difference. On Zod, an 8.7 s run, neither shows. TanStack Query is a 12.5 s
-run, and they bring it to 1.05× at `loads` and 1.16× at `presence`, against
+module and writes the record once the last test reports. On Zod, an 8.7 s run,
+neither shows. TanStack Query is a 12.5 s run whose jsdom workers transform
+many modules, so the transform is most of the difference, and it brings the run
+to 1.05× at `loads` and 1.16× at `presence`, against
 1.34× under classic coverage.
 
 You have turned coverage on in CI, watched the suite get slower, and turned it
@@ -93,8 +93,8 @@ answer something a job uploads without thinking about it.
 What it costs *you* is not what it cost us:
 
 - **Our ratios are our suites'.** Under Vitest, a 12.5 s jsdom suite paid
-  1.16× and a three-minute one 1.065×: the transform and the record write
-  weigh more on a short run. How many
+  1.16× and a three-minute one 1.065×, and Zod nothing measurable: the
+  transform weighs most where many modules meet a short run. How many
   modules your workers transform and how many regions a test crosses are
   properties of your code, not of the recorder, and a suite that spends most of
   its time in one hot module pays differently from one that spends it starting

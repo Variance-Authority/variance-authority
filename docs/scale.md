@@ -300,12 +300,13 @@ one about the clock:
   suites are timed, in
   [what recording costs while the suite runs](selecting.md#what-recording-costs-while-the-suite-runs):
   at the default precision, 1.065× on [Variance Authority](README.md)'s own
-  unit suite of 1,236 test files and about three minutes, the median of three alternating
-  rounds on an Apple M4 Max, Node 24, timing `yarn vitest run` against
-  `yarn vitest run --config tools/uninstrumented.config.mts`. On the short
-  suites of Zod and TanStack Query, about ten seconds each, it is 0.99× and
-  1.16×, against 1.36× and 1.34× under classic coverage: on TanStack Query the
-  transform and the record write are most of a short run.
+  unit suite of 1,236 test files and about three minutes, the median of three
+  alternating rounds on an Apple M4 Max, Node 24, timing `yarn vitest run`
+  against `yarn vitest run --config tools/uninstrumented.config.mts`. On the
+  short suites of Zod and TanStack Query, about ten seconds each, it is nothing
+  measurable and 1.16×, against 1.36× and 1.34× under classic coverage: on
+  TanStack Query the transform that places the probes is most of the
+  difference.
 
 The figures below come from two recordings:
 
