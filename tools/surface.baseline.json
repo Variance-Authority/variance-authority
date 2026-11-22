@@ -1108,8 +1108,7 @@
       },
       "./tools": {
         "Containment": "interface",
-        "Declarations": "interface",
-        "Entered": "interface",
+        "DeclarationLookups": "interface",
         "ExportedMatch": "interface",
         "HELP": "const",
         "HELP_TOOLS": "const",
@@ -1134,7 +1133,7 @@
         "classify": "const",
         "containment": "const",
         "containmentOf": "function",
-        "declarationsOf": "function",
+        "declarationLookupsOf": "function",
         "discover": "const",
         "doorOf": "function",
         "entriesNamed": "function",

@@ -12,7 +12,7 @@ import { queryDependencyLexicon } from '../dependency-lexicon.js';
 import { aliasMatches, declaredMatches, declaredTold, exactness } from './declared.js';
 import { saidFor, type Said } from './held-sentence.js';
 import { membersUnreadOf } from './members.js';
-import { docRows, exported, exportedOrder, first, type Declarations } from './exported-matches.js';
+import { docRows, exported, exportedOrder, first, type DeclarationLookups } from './exported-matches.js';
 import { counting, type ImportingOf, type InArea, type PublishedMatch } from './published-match.js';
 import type { DescribedMatch, Matches, SearchAnswer, SearchArea, Searched, SearchQuestion } from './search-matches.js';
 import { docsSaying } from './phrase.js';
@@ -249,7 +249,7 @@ function indexedFiles(index: SearchIndex, published: Iterable<number>, exported:
  * counts that name, and each exported row is shown where `declarations` say it
  * is declared and entered.
  */
-export function searched(index: SearchIndex, question: SearchQuestion, tree?: Tree, root?: string, importingOf?: ImportingOf, declarations?: Declarations): Searched {
+export function searched(index: SearchIndex, question: SearchQuestion, tree?: Tree, root?: string, importingOf?: ImportingOf, declarations?: DeclarationLookups): Searched {
   const count = importingOf === undefined ? undefined : counting(importingOf);
   const found = searchedBy(index, question, tree, root, count?.of, declarations);
   if (count === undefined) return found;
@@ -263,7 +263,7 @@ function searchedBy(
   tree: Tree | undefined,
   root: string | undefined,
   importingOf: ImportingOf | undefined,
-  declaredAt: Declarations | undefined,
+  declaredAt: DeclarationLookups | undefined,
   file?: MatchingFile,
 ): Searched {
   const found = matched(index, question, tree);
@@ -432,6 +432,6 @@ function ascending(left: readonly number[], right: readonly number[]): readonly 
  * counted by `importingOf` when it is given, as `uses` counts that name, and
  * the rows shown are ordered by that count.
  */
-export function searchNames(index: SearchIndex, question: SearchQuestion, tree?: Tree, root?: string, importingOf?: ImportingOf, declarations?: Declarations): SearchAnswer {
+export function searchNames(index: SearchIndex, question: SearchQuestion, tree?: Tree, root?: string, importingOf?: ImportingOf, declarations?: DeclarationLookups): SearchAnswer {
   return searched(index, question, tree, root, importingOf, declarations).answer;
 }

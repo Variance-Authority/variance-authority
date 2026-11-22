@@ -1,4 +1,3 @@
-import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { SearchIndex } from '../search-index.js';
 import { rowTextOrder } from './described.js';
 import { rowWithin } from './loose.js';
@@ -28,27 +27,18 @@ export function first<T>(items: readonly T[], count: number, before: (a: T, b: T
 }
 
 /**
- * Who enters a package through one file: the packages whose manifest opens it,
- * and each specifier another package resolves to it by, with how many imports
- * write it.
- */
-export interface Entered {
-  readonly opens: readonly string[];
-  readonly specifiers: ReadonlyMap<string, number>;
-}
-
-/**
  * What the source index and the package reading answer about the exported rows
  * shown: `of`, the declaration the export of `name` in `at` binds; `passersOf`,
  * for each declaration asked, every file that passes it on, `export *`
- * included; and `entered`, who enters a package through a file. Given to
+ * included; and `entered`, of
+ * some files, the one other packages import a name from by path the most. Given to
  * `head`, they show a name where it is declared and at the file its package is
  * entered through.
  */
-export interface Declarations {
+export interface DeclarationLookups {
   of(at: string, name: string): (Place & { readonly name: string; readonly doc?: string | null }) | undefined;
   passersOf(declared: readonly { readonly at: string; readonly name: string }[]): readonly (readonly string[])[] | undefined;
-  entered(at: string): Entered | undefined;
+  entered(name: string, files: readonly string[], by: string): string | undefined;
 }
 
 /**
@@ -81,7 +71,7 @@ export function exported(
   through?: ReadonlyMap<number, ReadonlySet<number>>,
   openings?: ReadonlySet<number>,
   exact?: ReadonlyMap<number, number>,
-): { readonly total: number; head(count: number, declarations?: Declarations): readonly ExportedMatch[]; rows(): readonly number[] } {
+): { readonly total: number; head(count: number, declarations?: DeclarationLookups): readonly ExportedMatch[]; rows(): readonly number[] } {
   const found: { name: number; count: number; field: number }[] = [];
   // The file that exports it, against the closure. A name exported from a
   // barrel inside the area and declared outside it arrives here twice, under
@@ -132,7 +122,7 @@ export function exported(
       return picked.map(({ name, files, row, declared, by }) => {
         const door = declared === undefined || passers === undefined || declarations === undefined
           ? undefined
-          : publishedThrough(index, rowsOf(name), declared, by, passers[resolved.indexOf(declared)] ?? [], declarations.entered);
+          : publishedThrough(index, rowsOf(name), declared, by, passers[resolved.indexOf(declared)] ?? [], declarations);
         // The doc of the file shown, or none: another file's comment says nothing about this one.
         const doc = declared === undefined || declared.at === row.at ? row.doc : (declared.doc ?? undefined);
         const match: ExportedMatch = {
@@ -153,29 +143,21 @@ export function exported(
 }
 
 /**
- * Of `passers`, the files that pass `declared` on, the one another package
- * enters `by`, the declaring package, through: a file its manifest opens first,
- * then the file the most imports by a specifier of `by` resolve to. Its line is
- * its export row's when it exports the name itself; an `export *` has none.
- * None when no other package enters it through any of them.
+ * Of `passers`, the files that pass `declared` on, the one other packages
+ * import its name from by path the most: where `by`, the declaring package, is
+ * entered for it. Its line is its export row's when it exports the name
+ * itself; an `export *` has none. None when no other package imports it from
+ * any of them.
  */
 function publishedThrough(
   index: SearchIndex,
   rows: readonly number[],
-  declared: Place,
+  declared: Place & { readonly name: string },
   by: string,
   passers: readonly string[],
-  entered: (at: string) => Entered | undefined,
+  declarations: DeclarationLookups,
 ): { readonly at: string; readonly line?: number } | undefined {
-  const ofBy = (specifier: string): boolean => specifier === by || specifier.startsWith(`${by}/`);
-  const doors = passers.flatMap((at) => {
-    const one = at === declared.at || by === '' ? undefined : entered(at);
-    if (one === undefined) return [];
-    const opened = one.opens.includes(by);
-    const imports = [...one.specifiers].reduce((sum, [specifier, count]) => sum + (ofBy(specifier) ? count : 0), 0);
-    return opened || imports > 0 ? [{ at, opened, imports }] : [];
-  });
-  const at = doors.sort((a, b) => Number(b.opened) - Number(a.opened) || b.imports - a.imports || codeUnitOrder(a.at, b.at))[0]?.at;
+  const at = by === '' ? undefined : declarations.entered(declared.name, passers.filter((one) => one !== declared.at), by);
   if (at === undefined) return undefined;
   const line = rows.map((row) => index.exported(row)).find((row) => row.at === at)?.line;
   return line === undefined ? { at } : { at, line };

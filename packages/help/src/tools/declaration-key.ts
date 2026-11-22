@@ -20,7 +20,8 @@ import type { Help, Named } from '@variance-authority/package/help';
 import { aliasesOf, declarationExported, importersOf, type ExportedDeclaration } from '@variance-authority/sense';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import { exportedAmong, exportedIn } from './rows.js';
-import type { Declarations, Entered } from './exported-matches.js';
+import type { DeclarationLookups } from './exported-matches.js';
+import { enteredThrough } from './by-path.js';
 import { searchIndexOf } from '../snapshot.js';
 import { nearestTo } from './shared-segments.js';
 
@@ -168,37 +169,10 @@ export function passersOf(root: string | undefined, declared: readonly Pick<Name
   return whenRead(() => importersOf(root, declared.map((one) => [{ file: one.at, name: one.name }])))?.groups.map((group) => group.through);
 }
 
-const entered = new WeakMap<Help, ReadonlyMap<string, Entered>>();
-
-/**
- * Every file another package enters a package through, as the package reading
- * holds it: the files manifests open, and the files specifiers past them or
- * into a package with no entry resolve to. Read once per `Help`.
- */
-export function enteredOf(help: Help): ReadonlyMap<string, Entered> {
-  let files = entered.get(help);
-  if (files === undefined) {
-    const read = new Map<string, { opens: string[]; specifiers: Map<string, number> }>();
-    const at = (file: string) => {
-      let one = read.get(file);
-      if (one === undefined) read.set(file, (one = { opens: [], specifiers: new Map() }));
-      return one;
-    };
-    for (const documented of help.packages) for (const opening of documented.openings) at(opening.source).opens.push(documented.name);
-    for (const deep of [...help.byPath, ...help.deep]) {
-      if (deep.to === undefined) continue;
-      const one = at(deep.to);
-      one.specifiers.set(deep.specifier, (one.specifiers.get(deep.specifier) ?? 0) + 1);
-    }
-    entered.set(help, (files = read));
-  }
-  return files;
-}
-
 /** What the source index and the package reading answer about the exported rows `search` shows; none when no checkout is named. */
-export function declarationsOf(help: Help, root: string | undefined): Declarations | undefined {
+export function declarationLookupsOf(help: Help, root: string | undefined): DeclarationLookups | undefined {
   if (root === undefined) return undefined;
-  return { of: (at, name) => boundOf(root, { at, name }), passersOf: (declared) => passersOf(root, declared), entered: (at) => enteredOf(help).get(at) };
+  return { of: (at, name) => boundOf(root, { at, name }), passersOf: (declared) => passersOf(root, declared), entered: (name, files, by) => enteredThrough(help, name, files, by) };
 }
 
 /**
