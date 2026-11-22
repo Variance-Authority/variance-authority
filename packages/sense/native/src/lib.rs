@@ -176,6 +176,8 @@ mod resolve_jvm;
 mod resolve_python;
 mod resolve_rust;
 mod resolve_swift;
+mod run_crossings;
+mod run_crossings_napi;
 mod source_roots;
 mod seed;
 mod segment;

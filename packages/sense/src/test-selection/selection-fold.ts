@@ -13,20 +13,15 @@
 
 import { rm } from 'node:fs/promises';
 import { codeUnitOrder } from '@variance-authority/core/segment';
-import { instrumentationId, type InstrumentMode, type ModuleId } from '../instrument/index.js';
+import { instrumentationId } from '../instrument/index.js';
 import { runTexts } from '../text-digests.js';
 import { deriveModules } from './captured-modules.js';
 import { commitOf } from './commit.js';
 import { laidProbes, landRun } from './commit-runs.js';
-import {
-  crossingsOf,
-  loadedOf,
-  projectPath,
-  type CapturedModule,
-  type ReadJournal,
-} from './instrumented-modules.js';
+import { projectPath, readWritten } from './instrumented-modules.js';
 import { coverageModule } from './coverage-rows.js';
-import { joinedJournals, joinReadings, ownCut } from './readings.js';
+import { joinReadings, ownCut } from './readings.js';
+import { runCrossings, runModuleIds } from './run-crossings.js';
 import { freshCases } from './case-fold.js';
 import { caseAttempts } from './case-attempts.js';
 import { caseDurations, caseLimits } from './case-durations.js';
@@ -34,7 +29,6 @@ import {
   coverageTest,
   noteAnEmptyRecord,
   oneRowPerFile,
-  readJournals,
   type FinishedFile,
 } from './finished-files.js';
 import { noteABusyIndex, withIndexLock } from './index-lock.js';
@@ -92,17 +86,19 @@ export function foldRun(
   const record = async (finished: readonly FinishedFile[]): Promise<void> => {
     // A worker wrote its journal down; a page handed its own to the runner,
     // which carried it here on the file.
-    const written = [
-      ...await readJournals(runDirectory),
-      ...finished.flatMap((file) => (file.journal === undefined ? [] : [file.journal])),
-    ];
-    const placed = destination.derive === true
-      ? await placeFrom(written, modules, root, mode)
-      : { journals: written, unplaced: new Set<string>() };
-    const { unplaced } = placed;
+    const written = await readWritten(runDirectory);
+    const pages = finished.flatMap((file) => (file.journal === undefined ? [] : [file.journal]));
+    if (destination.derive === true) {
+      for (const [id, module] of await deriveModules(root, runModuleIds(written, pages), mode)) modules.set(id, module);
+    }
     // A file the run read twice is one record, and every row is read in it.
     const joined = joinReadings(modules, ownCut(root, mode));
-    const journals = joinedJournals(placed.journals, joined.readings);
+    const crossings = runCrossings(written, pages, root, joined.readings, modules.keys());
+    const unplaced = new Set(crossings.journals.filter((journal) => !journal.placed).map((journal) => journal.test));
+    if (destination.derive !== true && unplaced.size > 0) {
+      const lost = runModuleIds(written, pages).find((id) => !modules.has(id));
+      throw new Error(`variance-authority lost the source identity for module ${lost}`);
+    }
     // A file the selection ran in part is incomplete too: the cases it skipped
     // keep the reach they had. See `case-cut.ts`.
     // FIXME: so the next selection runs that file whole, and a loop of edits
@@ -110,14 +106,7 @@ export function foldRun(
     // skipped cases' reach for the file to read whole after a cut.
     const files = finished.map((file) =>
       unplaced.has(projectPath(root, file.filepath)) || run.cut.has(file.filepath) ? { ...file, complete: false } : file);
-    // A journal names modules by id, so nothing here re-keys paths; the id is
-    // what the map is keyed by too.
-    const rows = journals.map((journal) => ({
-      testFile: projectPath(root, journal.testFile),
-      modules: journal.modules,
-    }));
-    const observed = crossingsOf(rows);
-    const early = loadedOf(rows);
+    const numbered = crossings.numbered(joined.modules);
 
     // One row per path, not per project run of it: two projects that both match
     // a file are two announcements of one test file, and the snapshot is keyed
@@ -129,8 +118,8 @@ export function foldRun(
       root,
       governing,
       texts.digests,
-      journals,
-      joined.modules,
+      crossings,
+      numbered,
     ));
     const commit = await commitOf(root);
     const current: TestCoverage = {
@@ -141,8 +130,8 @@ export function foldRun(
       modules: [...joined.modules]
         .map(([id, module]): CoverageModule => coverageModule(
           module,
-          (block) => [...(observed.get(id)?.get(block.ordinal) ?? [])],
-          (block) => [...(early.get(id)?.get(block.ordinal) ?? [])],
+          (block) => crossings.observed(id, block.ordinal),
+          (block) => crossings.early(id, block.ordinal),
         ))
         .sort((left, right) => codeUnitOrder(left.file, right.file)),
     };
@@ -191,33 +180,5 @@ export function foldRun(
       // A watching runner loads them again for every rerun; its close takes them off.
       if (!run.watching) removeSeamModules(run, destination.shims);
     }
-  };
-}
-
-/**
- * Every module the journals name, cut again into the run, and the files whose
- * journal named one the checkout no longer has.
- */
-async function placeFrom(
-  journals: readonly ReadJournal[],
-  modules: Map<ModuleId, CapturedModule>,
-  root: string,
-  mode: InstrumentMode,
-): Promise<{ journals: readonly ReadJournal[]; unplaced: ReadonlySet<string> }> {
-  const read = await deriveModules(
-    root,
-    journals.flatMap((journal) => journal.modules.map((entered) => entered.id)),
-    mode,
-  );
-  for (const [id, module] of read) modules.set(id, module);
-  const unplaced = new Set<string>();
-  return {
-    journals: journals.map((journal) => {
-      const placed = journal.modules.filter((entered) => modules.has(entered.id));
-      if (placed.length === journal.modules.length) return journal;
-      unplaced.add(projectPath(root, journal.testFile));
-      return { ...journal, modules: placed };
-    }),
-    unplaced,
   };
 }

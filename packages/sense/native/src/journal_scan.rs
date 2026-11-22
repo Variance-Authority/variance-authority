@@ -22,6 +22,8 @@ pub(crate) const NAMED_LINED: u8 = 2;
 
 pub trait Visitor {
     fn test(&mut self, packed: &str) -> Result<(), String>;
+    /// The moment the file's collection ended, where its frame marks one.
+    fn collected(&mut self, _at: f64) {}
     /// An Eyes frame, whole, magic and all. Most folds step over it.
     fn eyes(&mut self, _frame: &[u8]) -> Result<(), String> {
         Ok(())
@@ -83,7 +85,10 @@ pub(crate) fn scan_journal(raw: &[u8], visitor: &mut impl Visitor) -> Result<(),
         }
     }
     visitor.test(&read.text()?)?;
-    read.take(TIME_BYTES)?;
+    let at = f64::from_le_bytes(read.take(TIME_BYTES)?.try_into().map_err(|_| damaged())?);
+    if at != 0.0 {
+        visitor.collected(at);
+    }
     let count = read.number()?;
     let mut scratch = Vec::new();
     for _ in 0..count {

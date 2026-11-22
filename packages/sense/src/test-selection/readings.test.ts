@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { decodeTestCoverage, encodeTestCoverage } from './format.js';
-import { joinedJournals, joinReadings } from './readings.js';
+import { joinReadings } from './readings.js';
+import { runCrossings } from './run-crossings.js';
 import type { CapturedModule } from './instrumented-modules.js';
 import type { CoverageBlock } from './index.js';
 
@@ -69,10 +70,12 @@ describe('one file read twice', () => {
       ],
     };
 
-    expect(joinedJournals([journal], readings)).toEqual([{
-      testFile: 'test/cart.test.ts',
-      modules: [{ id: 'src/cart.ts', hits: [0, 1, 2], shared: [0], loaded: [0] }],
-    }]);
+    const crossings = runCrossings([], [journal], '/', readings, readings.keys());
+
+    expect(crossings.ids).toEqual(['src/cart.ts']);
+    expect([0, 1, 2, 3].map((ordinal) => crossings.observed('src/cart.ts', ordinal)))
+      .toEqual([['test/cart.test.ts'], ['test/cart.test.ts'], ['test/cart.test.ts'], []]);
+    expect([0, 1].map((ordinal) => crossings.early('src/cart.ts', ordinal))).toEqual([['test/cart.test.ts'], []]);
   });
 
   it('is uninstrumented when either reading was, since what that one ran is unknown', () => {

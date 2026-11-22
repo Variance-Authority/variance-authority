@@ -68,17 +68,16 @@ describe('the journals of a Jest run directory', () => {
     await writeFile(join(directory, journalNames.journalName('1-a', 'runs')), journalFormat.encodeJournal('/r/test/a.ts', new Map()));
     await writeFile(join(directory, journalNames.journalName('1-b', undefined)), journalFormat.encodeJournal('/r/test/b.ts', new Map()));
     const read = await readProjectJournals(directory);
-    expect(read.map((written) => [written.journal.testFile, written.project])).toEqual([
+    expect(read.journals.map((bytes, at) => [journalFormat.decodeJournal(bytes).testFile, read.projects[at]])).toEqual([
       ['/r/test/a.ts', 'runs'],
       ['/r/test/b.ts', undefined],
     ]);
   });
 
   it('give a result only its own project\'s, and none where that project wrote none', () => {
-    const journal = { testFile: '/r/test/a.ts', modules: [] };
-    const written = [{ journal, project: 'runs' }];
-    expect(journalsOf(written, projectNamed('runs'))).toEqual([journal]);
-    expect(journalsOf(written, projectNamed({ name: 'skips', color: 'blue' }))).toEqual([]);
-    expect(journalsOf(written, projectNamed(undefined))).toEqual([]);
+    const journal = { index: 0, test: 'test/a.ts', modules: new Uint32Array(), placed: true };
+    expect(journalsOf([journal], ['runs'], projectNamed('runs'))).toEqual([journal]);
+    expect(journalsOf([journal], ['runs'], projectNamed({ name: 'skips', color: 'blue' }))).toEqual([]);
+    expect(journalsOf([journal], ['runs'], projectNamed(undefined))).toEqual([]);
   });
 });

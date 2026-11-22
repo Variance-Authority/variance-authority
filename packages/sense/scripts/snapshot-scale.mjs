@@ -40,7 +40,7 @@ import { codeUnitOrder } from '@variance-authority/core/segment';
 import { layCoverage } from '../dist/test-selection/format-layer.js';
 import { openTestCoverage } from '../dist/test-selection/format-view.js';
 import { selectTestFilesFromView } from '../dist/test-selection/select.js';
-import { crossingsOf } from '../dist/test-selection/instrumented-modules.js';
+import { runCrossings } from '../dist/test-selection/run-crossings.js';
 import { coverageModule } from '../dist/test-selection/coverage-rows.js';
 import { foldCrossings } from '../dist/test-selection/crossing-fold.js';
 import journalFormat from '../dist/test-selection/journal-format.cjs';
@@ -152,7 +152,7 @@ if (MODE === 'select') {
  * The other half: what a *run* costs before a byte of it reaches the file.
  *
  * `build` writes the snapshot through the columns. This arm goes the way the
- * shipped producer goes — journals, `crossingsOf`, the object model, the
+ * shipped producer goes — journals, `runCrossings`, the object model, the
  * encoder — and reports where that lands. It is here to be measured, not to
  * pass: the shape it is asked for is the shape a whole-suite run on this
  * repository has, and the growth is reported as a sweep so the number at the
@@ -197,7 +197,7 @@ if (MODE === 'record') {
   const mark = new Uint32Array(MODULES);
   const frontier = new Uint32Array(MODULES);
   let stamp = 0;
-  /** One test's journal, as `readJournals` hands it over. */
+  /** One test's journal, as a page carries it to the fold. */
   const journalOf = (test) => {
     stamp += 1;
     let wrote = 0;
@@ -237,8 +237,8 @@ if (MODE === 'record') {
         `${count(entries * BLOCKS)} crossings — rss ${mb(held)} after reading the journals`,
     );
 
-    const crossings = crossingsOf(journals);
-    console.log(`  after crossingsOf: rss ${mb(watch())}`);
+    const crossings = runCrossings([], journals, '/', new Map(), journals.flatMap((journal) => journal.modules.map((module) => module.id)));
+    console.log(`  after runCrossings: rss ${mb(watch())}`);
 
     // Only the modules this run touched get a row, which at a whole-suite run
     // is every module it reached.
@@ -276,7 +276,7 @@ if (MODE === 'record') {
       })).sort((left, right) => codeUnitOrder(left.file, right.file)),
       modules: [...captured]
         .map(([id, module]) =>
-          coverageModule(module, (block) => [...(crossings.get(id)?.get(block.ordinal) ?? [])]),
+          coverageModule(module, (block) => crossings.observed(id, block.ordinal)),
         )
         .sort((left, right) => codeUnitOrder(left.file, right.file)),
     };

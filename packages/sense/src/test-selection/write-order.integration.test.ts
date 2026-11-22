@@ -13,7 +13,8 @@ import { resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { foldCases } from './case-fold.js';
 import { decodeExecutionIndex } from './execution-format.js';
-import { readJournals } from './finished-files.js';
+import { readWritten } from './instrumented-modules.js';
+import journalFormat from './journal-format.cjs';
 // The runner's modules `require` the collectors, so they are loaded built, and
 // through the export a runner's author imports.
 const { observeTestFile, startRecording, RECORDING_VARIABLE } =
@@ -57,8 +58,9 @@ describe('what a run wrote, read back', () => {
     const forwards = await finishedIn(root, workers);
     const backwards = await finishedIn(root, [...workers].reverse());
 
-    expect(JSON.stringify(await readJournals(backwards.runDirectory)))
-      .toBe(JSON.stringify(await readJournals(forwards.runDirectory)));
+    const journals = async (directory: string) => (await readWritten(directory)).map((bytes) => journalFormat.decodeJournal(bytes));
+    expect(JSON.stringify(await journals(backwards.runDirectory)))
+      .toBe(JSON.stringify(await journals(forwards.runDirectory)));
   });
 
   it('names the cases the same whichever worker finished first', async () => {

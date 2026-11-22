@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import journals from './journal-format.cjs';
-import { crossingsOf, loadedOf } from './instrumented-modules.js';
+import { runCrossings } from './run-crossings.js';
 import { foldCrossings } from './crossing-fold.js';
 import { openCrossingSets } from './crossing-sets-read.js';
 
@@ -88,19 +88,12 @@ function folded(held: Run, budget?: number) {
   };
 }
 
-/** What the shipped fold says, from the same frames read as rows. */
+/** What the run's fold says, from the same frames. */
 function directly(held: Run) {
-  const rows = held.frames.map((frame) => journals.decodeJournal(frame));
-  const observed = crossingsOf(rows);
-  const early = loadedOf(rows);
-  const sorted = (
-    relation: ReturnType<typeof crossingsOf>,
-    module: number,
-    ordinal: number,
-  ): string[] => [...(relation.get(held.modules[module]!)?.get(ordinal) ?? [])].sort();
+  const crossings = runCrossings(held.frames.map((frame) => Buffer.from(frame)), [], '/', new Map(), held.modules);
   return {
-    entered: (module: number, ordinal: number) => sorted(observed, module, ordinal),
-    loaded: (module: number, ordinal: number) => sorted(early, module, ordinal),
+    entered: (module: number, ordinal: number) => [...crossings.observed(held.modules[module]!, ordinal)].sort(),
+    loaded: (module: number, ordinal: number) => [...crossings.early(held.modules[module]!, ordinal)].sort(),
   };
 }
 

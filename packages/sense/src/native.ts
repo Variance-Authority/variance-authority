@@ -33,6 +33,7 @@ import type { NativePaths } from './package-owner.js';
 import type { NativeSourceIndexes } from './native-source-index.js';
 import type { NativeDistill } from './native-distill.js';
 import type { NativeSaid } from './native-said.js';
+import type { NativeRunCrossingsFold } from './native-run-crossings.js';
 import type { NativeJourneys, NativeJourneysListing } from './native-journeys.js';
 import type { NativeRecords } from './native-record.js';
 import type { NativeModuleReaders, NativeModuleReferences, NativeModuleVerdict } from './native-module-reads.js';
@@ -139,7 +140,7 @@ export interface NativeScanBatch extends Omit<NativeReadBatch, 'guessed'> {
   readonly records?: string;
 }
 
-export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon, NativeJourneys, NativeRecords, NativeDistill, NativeSaid, NativeCommitTexts, NativeSourceIndexes, NativePaths {
+export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon, NativeJourneys, NativeRecords, NativeDistill, NativeSaid, NativeRunCrossingsFold, NativeCommitTexts, NativeSourceIndexes, NativePaths {
   /**
    * `instrument()`'s walk and splice, or `null` for a source that does not
    * parse. With a `module`, the header reporting under it is in the text.

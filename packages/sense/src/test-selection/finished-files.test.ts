@@ -4,9 +4,10 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { digestString } from '../digest.js';
 import { textDigests } from '../text-digests.js';
-import { coverageTest, readFinished, readJournals } from './finished-files.js';
+import { coverageTest, readFinished } from './finished-files.js';
 import journalFormat from './journal-format.cjs';
-import type { CapturedModule } from './instrumented-modules.js';
+import { readWritten, type CapturedModule } from './instrumented-modules.js';
+import { runCrossings } from './run-crossings.js';
 
 let directory: string;
 
@@ -20,7 +21,7 @@ afterEach(async () => {
 
 describe('a run directory nothing was written to', () => {
   it('reads as a run whose workers left no journal', async () => {
-    expect(await readJournals(join(directory, 'never'))).toEqual([]);
+    expect(await readWritten(join(directory, 'never'))).toEqual([]);
   });
 
   it('reads as a run whose runners finished no file', async () => {
@@ -51,13 +52,14 @@ describe('the preconditions of a test file', () => {
       ['vendor.js', module('vendor.js', false)],
     ]);
 
+    const crossings = runCrossings(await readWritten(run), [], directory, new Map(), modules.keys());
     const row = coverageTest(
       { filepath: test, complete: true },
       directory,
       [],
       textDigests([test]),
-      await readJournals(run),
-      modules,
+      crossings,
+      crossings.numbered(modules),
     );
 
     expect(row).toMatchObject({ file: 'a.test.ts', complete: true });

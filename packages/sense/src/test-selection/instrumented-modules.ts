@@ -89,63 +89,6 @@ export interface ReadJournal {
   }>;
 }
 
-/** The ordinals of one journal row a fold reads: what the file hit, or what it had hit before its first test. */
-export type JournalOrdinals = (module: ReadJournal['modules'][number]) => readonly number[];
-
-/**
- * Which test files crossed each ordinal of each module, folded from every
- * journal of one run.
- *
- * An ordinal a file hit on its own is that file's. An ordinal hit while the
- * module was evaluating is every file's that consumed the module: a worker
- * that keeps its module graph between files evaluates a module once, in
- * whichever file's window came first, and every later file that entered the
- * module read what that evaluation made. A file that never entered the module
- * did not consume it, and under isolation — where each file evaluates the
- * module itself and holds its own window — that is every other file in the
- * run. Crediting them would put a top-level edit in front of the whole suite.
- *
- * `ordinalsOf` picks which ordinals of a row are folded. The default is what
- * the file entered; {@link loadedOf} folds what it had entered before its
- * first test under the same crediting, because what a module did while
- * evaluating happened before the first test of every file that consumed it.
- */
-export function crossingsOf(
-  journals: readonly ReadJournal[],
-  ordinalsOf: JournalOrdinals = (module) => module.hits,
-): ReadonlyMap<ModuleId, ReadonlyMap<number, ReadonlySet<string>>> {
-  const consumers = new Map<ModuleId, Set<string>>();
-  for (const journal of journals) {
-    for (const module of journal.modules) {
-      const holders = consumers.get(module.id) ?? new Set<string>();
-      holders.add(journal.testFile);
-      consumers.set(module.id, holders);
-    }
-  }
-  const observed = new Map<ModuleId, Map<number, Set<string>>>();
-  for (const journal of journals) {
-    for (const module of journal.modules) {
-      const byOrdinal = observed.get(module.id) ?? new Map<number, Set<string>>();
-      const shared = new Set(module.shared);
-      for (const ordinal of ordinalsOf(module)) {
-        const tests = byOrdinal.get(ordinal) ?? new Set<string>();
-        if (shared.has(ordinal)) for (const test of consumers.get(module.id)!) tests.add(test);
-        else tests.add(journal.testFile);
-        byOrdinal.set(ordinal, tests);
-      }
-      observed.set(module.id, byOrdinal);
-    }
-  }
-  return observed;
-}
-
-/** Which test files each ordinal had been entered for before their first test ran. */
-export function loadedOf(
-  journals: readonly ReadJournal[],
-): ReadonlyMap<ModuleId, ReadonlyMap<number, ReadonlySet<string>>> {
-  return crossingsOf(journals, (module) => module.loaded);
-}
-
 /**
  * Every file in a directory, as its bytes, ordered by what they hold; nothing
  * where there is no directory.

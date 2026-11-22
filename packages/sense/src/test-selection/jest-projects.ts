@@ -5,24 +5,26 @@
  * keys by path.
  */
 
-import journalFormat from './journal-format.cjs';
 import journalNames from './jest-journal-name.cjs';
-import { readNamed, type ReadJournal } from './instrumented-modules.js';
+import { readNamed } from './instrumented-modules.js';
+import type { RunJournal } from './run-crossings.js';
 import { summedPhases } from './reported-time.js';
 import type { CoverageTest } from './index.js';
 
-/** A test file's journal, and the project whose sandbox wrote it; no project for one without a name. */
-export interface ProjectJournal {
-  readonly journal: ReadJournal;
-  readonly project?: string;
+/** A run directory's journals, as `readWritten` orders them, and the project whose sandbox wrote each. */
+export interface ProjectJournals {
+  readonly journals: readonly Buffer[];
+  /** By journal: its project, absent for one without a name. */
+  readonly projects: readonly (string | undefined)[];
 }
 
-/** Every journal in a run directory, in the order `readWritten` gives, each with its project. */
-export async function readProjectJournals(directory: string): Promise<readonly ProjectJournal[]> {
-  return (await readNamed(directory)).map(({ name, bytes }) => {
-    const project = journalNames.projectOfJournal(name);
-    return { journal: journalFormat.decodeJournal(bytes), ...(project === undefined ? {} : { project }) };
-  });
+/** Every journal in a run directory, each with its project. */
+export async function readProjectJournals(directory: string): Promise<ProjectJournals> {
+  const named = await readNamed(directory);
+  return {
+    journals: named.map(({ bytes }) => bytes),
+    projects: named.map(({ name }) => journalNames.projectOfJournal(name)),
+  };
 }
 
 /**
@@ -37,9 +39,13 @@ export function projectNamed(displayName: unknown): string | undefined {
   return typeof name === 'string' && name !== '' ? name : undefined;
 }
 
-/** The journals the project that ran a result wrote; none when that project wrote none. */
-export function journalsOf(journals: readonly ProjectJournal[], project: string | undefined): readonly ReadJournal[] {
-  return journals.filter((written) => written.project === project).map((written) => written.journal);
+/** Of `journals`, those the project that ran a result wrote; none when that project wrote none. */
+export function journalsOf(
+  journals: readonly RunJournal[],
+  projects: ProjectJournals['projects'],
+  project: string | undefined,
+): readonly RunJournal[] {
+  return journals.filter((journal) => projects[journal.index] === project);
 }
 
 /**

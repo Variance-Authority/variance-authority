@@ -24,7 +24,7 @@ import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { InstrumentMode, ModuleId } from '../instrument/index.js';
 import { native, nativeRefusal } from '../addon.js';
 import { captureModule, heldOriginal, pathOf } from './captured-modules.js';
-import { fileOrNone, type CapturedModule, type ReadJournal } from './instrumented-modules.js';
+import { fileOrNone, type CapturedModule } from './instrumented-modules.js';
 import { isWritten } from './written-lines.js';
 
 /** Where one reading's ordinals are in its file's record. */
@@ -118,48 +118,4 @@ export function ownCut(root: string, mode: InstrumentMode | undefined): OwnCut {
     const disk = fileOrNone(path, (at) => readFileSync(at, 'utf8'));
     return disk === undefined ? undefined : captureModule(root, path, disk, () => true, mode, heldOriginal(path, disk))?.module;
   };
-}
-
-/**
- * Every journal row read in its file's record: the ordinals of a joined reading
- * become the record's, and two readings one file loaded become one row.
- *
- * An ordinal entered while the module evaluated in either reading stays so:
- * it credits every file that consumed the module, which may credit more than ran
- * it and never fewer.
- */
-export function joinedJournals(
-  journals: readonly ReadJournal[],
-  readings: ReadonlyMap<ModuleId, Reading>,
-): ReadJournal[] {
-  if (readings.size === 0) return [...journals];
-  return journals.map((journal) => {
-    const rows = new Map<ModuleId, { hits: Set<number>; shared: Set<number>; loaded: Set<number> }>();
-    for (const module of journal.modules) {
-      const reading = readings.get(module.id);
-      const id = reading?.id ?? module.id;
-      const row = rows.get(id) ?? { hits: new Set(), shared: new Set(), loaded: new Set() };
-      for (const [into, ordinals] of [
-        [row.hits, module.hits],
-        [row.shared, module.shared],
-        [row.loaded, module.loaded],
-      ] as const) {
-        for (const ordinal of ordinals) {
-          const landed = reading === undefined ? ordinal : reading.lands[ordinal];
-          if (landed !== undefined) into.add(landed);
-        }
-      }
-      rows.set(id, row);
-    }
-    const ascending = (ordinals: Set<number>): number[] => [...ordinals].sort((left, right) => left - right);
-    return {
-      ...journal,
-      modules: [...rows].map(([id, row]) => ({
-        id,
-        hits: ascending(row.hits),
-        shared: ascending(row.shared),
-        loaded: ascending(row.loaded),
-      })),
-    };
-  });
 }
