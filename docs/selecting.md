@@ -524,10 +524,11 @@ export default withTestSelection(defineConfig({ test: {} }), { mode: 'loads' });
 | `entries` | a probe at the module and at each function body | the functions each case entered | `function-use` | 15% |
 | `presence`, the default | a probe in every region: function body, branch arm, loop body, handler | the regions each case entered | `region-use` | 16% |
 
-The last column is a short suite, where fixed costs are most of the run. On a
-suite of about three minutes, `presence` adds 6.5%. Almost all of what a mode
-adds is transform and writing the record, and neither grows with the suite;
-inside the tests no mode costs anything measurable. Classic coverage adds 34% to
+The last column is a short suite. On a suite of about three minutes, `presence`
+adds 6.5%. Almost all of what a mode adds is transform and writing the record,
+which grow with the modules and cases recorded, not with time spent in tests, so
+they weigh most on a short run; inside the tests no mode costs anything
+measurable. Classic coverage adds 34% to
 the same short run. The long suite, the short ones, the method and classic
 coverage beside them are in
 [what recording costs](#what-recording-costs-while-the-suite-runs).
@@ -1021,7 +1022,7 @@ and it is in [addressing scale](scale.md).
 ## What recording costs while the suite runs
 
 On a suite of about three minutes, recording at the default precision takes the
-whole run to **1.065×**. This repository's own unit suite, 1,236 test files and
+whole run to **1.065×**. Variance Authority's own unit suite, 1,236 test files and
 14,020 tests under Vitest, runs in 192.6 s plain and 205.0 s recorded:
 
 | | plain | recorded | ratio |
@@ -1033,13 +1034,15 @@ whole run to **1.065×**. This repository's own unit suite, 1,236 test files and
 Each figure is the median of three rounds with the order of the arms
 alternating, after two warm-up rounds, on an Apple M4 Max, 64 GB, Node 24, with
 the recorder built from `main` at `3b63b6245`. To reproduce it in a checkout of
-this repository, time `yarn vitest run --config tools/uninstrumented.config.mts`,
-the same suite with the probes taken away, against `yarn vitest run`.
+Variance Authority, after `yarn install && yarn build`, time
+`yarn vitest run --config tools/uninstrumented.config.mts`, the same suite with
+the probes taken away, against `yarn vitest run`.
 
-Two of recording's costs are fixed: the transform that places the probes, and
-the record written after the last test. Neither grows with how long your tests
-run, so on a short suite they are most of the difference, and the ratio is
-higher. The two public suites below are short ones, about ten seconds each.
+Two of recording's costs sit outside the tests: the transform that places the
+probes, and the record written after the last test. They grow with the modules
+transformed and the cases recorded, not with how long your tests run, so on a
+short suite they are a larger share of the run, and the ratio is higher. The
+two public suites below are short ones, about ten seconds each.
 
 Inside your tests, recording costs nothing you can measure, at any precision.
 Classic coverage — `--coverage` with the V8 provider — adds 37% to the same

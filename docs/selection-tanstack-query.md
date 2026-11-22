@@ -15,7 +15,7 @@ asked, which tests covered the lines you changed, with 9.
 >   selects 168.
 > - Recording costs nothing measurable inside the tests, where classic coverage
 >   adds **37%**. A three-minute suite takes **1.065×** at the default; this
->   12.5 s one takes **1.16×**, mostly fixed costs, against **1.34×**.
+>   12.5 s one takes **1.16×**, mostly transform, against **1.34×**.
 
 ## The whole suite, once
 
@@ -44,10 +44,11 @@ On a suite of about three minutes, Variance Authority's own unit suite of
 1,236 test files, recording at the default precision takes the whole run to
 **1.065×**: the median of three alternating rounds on an Apple M4 Max, Node 24,
 timing `yarn vitest run` against
-`yarn vitest run --config tools/uninstrumented.config.mts`. This suite runs in
-12.5 s. The transform that places the probes and the record written after the
-last test do not grow with how long the tests run, so here they are most of the
-difference, and the ratio is higher:
+`yarn vitest run --config tools/uninstrumented.config.mts`. TanStack Query's
+suite runs in 12.5 s. The transform that places the probes and the record
+written after the last test grow with the modules and cases recorded, not with
+how long the tests run, so here they are most of the difference, and the ratio
+is higher:
 
 | median of five | time in tests | writing the record | transform, all workers | the whole run |
 |---|---|---|---|---|

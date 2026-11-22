@@ -11,11 +11,12 @@ watch.
 ## What you already believe this costs
 
 On a suite of about three minutes, recording at the default precision takes the
-whole run to **1.065×**: this repository's own unit suite, 1,236 test files and
+whole run to **1.065×**: Variance Authority's own unit suite, 1,236 test files and
 14,020 tests under Vitest, runs in 192.6 s plain and 205.0 s recorded. Up to the
 last test the run takes 1.028×; the other 7 s is the record written after it.
 Each figure is the median of three alternating rounds after two warm-ups, on an
-Apple M4 Max, Node 24. To reproduce it in a checkout of this repository, time
+Apple M4 Max, Node 24. To reproduce it in a checkout of Variance Authority,
+after `yarn install && yarn build`, time
 `yarn vitest run --config tools/uninstrumented.config.mts` against
 `yarn vitest run`.
 
@@ -30,9 +31,9 @@ coverage does not:
 | classic coverage, `--coverage` with V8 — the union | **+12%** | **+37%** |
 
 Under Vitest, recording places its probes as Vite transforms each
-module and writes the record once the last test reports. Both are fixed costs:
-neither grows with how long the tests run, so on a short suite they are most of
-the difference. On Zod, an 8.7 s run, neither shows. TanStack Query is a 12.5 s
+module and writes the record once the last test reports. Both grow with the
+modules transformed and the cases recorded, not with how long the tests run, so
+on a short suite they are most of the difference. On Zod, an 8.7 s run, neither shows. TanStack Query is a 12.5 s
 run, and they bring it to 1.05× at `loads` and 1.16× at `presence`, against
 1.34× under classic coverage.
 
@@ -90,9 +91,9 @@ answer something a job uploads without thinking about it.
 
 What it costs *you* is not what it cost us:
 
-- **Expect about 1.065× on a suite of minutes, and more on a suite of
-  seconds.** The transform and the record write are fixed costs, so a 12.5 s
-  jsdom suite paid 1.16× where a three-minute suite paid 1.065×. How many
+- **Our ratios are our suites'.** Under Vitest, a 12.5 s jsdom suite paid
+  1.16× and a three-minute one 1.065×: the transform and the record write
+  weigh more on a short run. How many
   modules your workers transform and how many regions a test crosses are
   properties of your code, not of the recorder, and a suite that spends most of
   its time in one hot module pays differently from one that spends it starting
