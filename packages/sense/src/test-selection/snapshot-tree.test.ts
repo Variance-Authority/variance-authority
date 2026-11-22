@@ -48,7 +48,10 @@ describe('the tree of the working state', () => {
     const root = mkdtempSync(join(tmpdir(), 'va-working-tree-'));
     execFileSync('git', ['init', '--quiet'], { cwd: root });
     writeFileSync(join(root, 'setup.ts'), 'export const ready = 1;\n');
+    // Staged, so there is an index to write the tree through, and a tree.
+    execFileSync('git', ['add', '-A'], { cwd: root });
 
+    expect(snapshotTree(root)).toBeDefined();
     expect(workingTree(root)).toBeUndefined();
   });
 });
