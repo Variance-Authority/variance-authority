@@ -26,15 +26,18 @@ the answer asks a `symbol` question per exported or declared name, an
 placed that package in no area. A file is asked nothing further: it is already
 the answer. The answer ends with the source files the request names — each file
 a word names, and the first file that declares each declared word — each with
-up to eight functions, classes and methods it declares at its top level,
+up to eight functions and classes it declares at its top level,
 exported first, from its parse in the source index. They sit under a line saying
 they are the answer, and that a file beside them joins it only when it declares
-a name the request uses, never for sharing their folder. A word the
+a name the request uses, never for sharing their folder. A file with nothing to
+list still gets its row, saying why: the index holds no parse of it, or it
+declares no function or class. A word the
 request spells another way — a plural, two words for a hyphenated name, a
 domain word no name carries — is not an entity.
 
 When every word is recognized and no `--from` or `--to` is supplied, the
-answer contains only those entities and their direct questions. Otherwise it
+answer contains only those entities, their direct questions and the named
+files. Otherwise it
 also ranks the areas of the tree the request's words point to, ten at most,
 best first: a directory of at most 500 tracked files, a larger one read
 as its children. An area's words are its path's, its files' names and the

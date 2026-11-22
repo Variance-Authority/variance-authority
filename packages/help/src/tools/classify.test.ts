@@ -6,7 +6,7 @@ import type { Documented, Entry, Help } from '@variance-authority/package/help';
 import * as sense from '@variance-authority/sense';
 import { HELP_TOOLS } from '../tools.js';
 import { classify } from './classify.js';
-import { classifyWords, formatClassified, identifier, placedAreas, type CodeMapPlaces, type Named } from './classify-words.js';
+import { classifyWords, formatClassified, formatNamedFiles, identifier, placedAreas, type CodeMapPlaces, type Named } from './classify-words.js';
 import { FoundNothing } from './find.js';
 import * as symbol from './symbol.js';
 
@@ -252,7 +252,7 @@ describe('docs_classify', () => {
     expect(text).toContain('Not entities: loader');
   });
 
-  it('ends with what each named file declares, functions, classes and methods only, exported first, eight at most, and says they are the answer', () => {
+  it('ends with what each named file declares, functions and classes only, exported first, eight at most, and says they are the answer', () => {
     vi.spyOn(sense, 'packageLayers').mockReturnValue({ current: true, packages: [] });
     vi.spyOn(sense, 'filesNamed').mockReturnValue(new Map([['run_main', { files: ['lib/run_main.js'], count: 1 }]]));
     vi.mocked(symbol.declaredInCheckout).mockImplementation((_, { name }) => {
@@ -260,28 +260,37 @@ describe('docs_classify', () => {
       return { files: new Map([['lib/loader.js', [3]]]), spelled: new Map([['lib/loader.js:3', ['ModuleLoader']]]) } as unknown as ReturnType<typeof symbol.declaredInCheckout>;
     });
     const declaration = (name: string, line: number, kind = 'function', exported = false) => ({ name, kind, line, exported, members: [] });
-    const orient = vi.spyOn(sense, 'orientAround').mockReturnValue({
-      packages: { index: '' },
-      external: { index: '' },
-      declarations: [
+    const orient = vi.spyOn(sense, 'declarationsOf').mockReturnValue([
         { file: 'lib/loader.js', read: true, more: 0, moreMembers: 0, declarations: [
           declaration('helper', 1), declaration('CACHE', 2, 'const', true), declaration('ModuleLoader', 3, 'class', true),
           ...['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'].map((name, at) => declaration(name, 10 + at)),
         ] },
         { file: 'lib/run_main.js', read: true, more: 0, moreMembers: 0, declarations: [declaration('runEntryPointWithESMLoader', 5, 'function', true)] },
-      ],
-    } as unknown as ReturnType<typeof sense.orientAround>);
+    ]);
 
     const text = classify.run(HELP, { query: 'ModuleLoader run_main' }, { root: '/unused' });
 
     expect(orient.mock.calls[0]?.[1]).toEqual(['lib/loader.js', 'lib/run_main.js']);
     expect(text.endsWith([
       '',
-      'The files the request names, each with what it declares, exported first. They are the answer: a file beside them joins it only when it declares a name the request uses, never for sharing their folder.',
+      'The files the request names, each with the functions and classes it declares, exported first. They are the answer: a file beside them joins it only when it declares a name the request uses, never for sharing their folder.',
       '  lib/loader.js — ModuleLoader (exported), helper, a, b, c, d, e, f, and 2 more',
       '  lib/run_main.js — runEntryPointWithESMLoader (exported)',
-      '',
     ].join('\n'))).toBe(true);
+  });
+
+  it('gives a named file it can list nothing of a row that says why', () => {
+    const text = formatNamedFiles([
+      { file: 'lib/unread.js', read: false, more: 0, moreMembers: 0, declarations: [] },
+      { file: 'lib/consts.js', read: true, more: 3, moreMembers: 0, declarations: [{ name: 'A', kind: 'const', line: 1, exported: true, members: [] }] },
+      { file: 'lib/bare.js', read: true, more: 0, moreMembers: 0, declarations: [{ name: 'run', kind: 'function', line: 1, exported: null, members: [] }] },
+    ] as unknown as Parameters<typeof formatNamedFiles>[0]);
+
+    expect(text.split('\n').slice(3)).toEqual([
+      '  lib/unread.js — the index holds no parse of its declarations',
+      '  lib/consts.js — declares no function or class at the top level; 3 more top-level declarations past the budget, not read here',
+      '  lib/bare.js — run (the index kept no exports of it, so none is marked exported)',
+    ]);
   });
 
   it('takes a word as an identifier by an inner capital, an underscore or a digit after a letter, and nothing else', () => {

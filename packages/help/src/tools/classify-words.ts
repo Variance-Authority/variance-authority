@@ -11,7 +11,7 @@
 import { everyEntry, type Help } from '@variance-authority/package/help';
 import { STALE_MAP, unscoped } from './code-map-format.js';
 import { specifierOf } from './find.js';
-import type { RankedArea } from '@variance-authority/sense';
+import type { FileDeclarations, RankedArea } from '@variance-authority/sense';
 import { narrower, plural, shell } from './format.js';
 
 /**
@@ -22,6 +22,8 @@ export interface Named {
   readonly kind: 'package' | 'entrypoint' | 'export' | 'declared' | 'file';
   /** The package, the entrypoint, the specifier the name is imported from, the declaring file and line as `at:line`, or the file. */
   readonly specifier: string;
+  /** For a declaration or a file: the file, without the line. */
+  readonly file?: string;
   /** The package it is or is in; for a declaration or a file, the map package nearest at or above it, empty when none is. */
   readonly package: string;
   /** Whether the reading publishes it; a package the map holds may publish nothing, and a declaration or a file is not published. */
@@ -248,4 +250,53 @@ export function formatClassified(
   if (unfolded !== undefined) lines.push('', unfolded);
   else if (!current) lines.push('', STALE_MAP);
   return lines.join('\n');
+}
+
+/**
+ * The files a classified request names, in the order its words name them: each
+ * file a word names, and the first file that declares a word.
+ */
+export function namedFiles({ entities }: Classified): readonly string[] {
+  return [...new Set(entities.flatMap(({ names }) => [
+    ...names.filter((named) => named.kind === 'file'),
+    ...names.filter((named) => named.kind === 'declared').slice(0, 1),
+  ].flatMap((named) => (named.file === undefined ? [] : [named.file]))))];
+}
+
+/** The kinds a named file's row lists: what a request names and an answer cites. */
+const LISTED_KINDS: ReadonlySet<string> = new Set(['class', 'function']);
+
+/** How many functions and classes of one named file are written out before the rest are counted. */
+const LISTED_CAP = 8;
+
+/**
+ * The block classify ends with: one row per named file with the functions and
+ * classes it declares at its top level, exported first, then by line, under a
+ * line saying they are the answer, since a reader handed files and no reason to
+ * stop at them answers with their folder. A file with nothing to list still
+ * gets its row, saying why; nothing at all when no file is named.
+ */
+export function formatNamedFiles(files: readonly FileDeclarations[]): string {
+  if (files.length === 0) return '';
+  const rows = files.map((file) => {
+    // Absent is not empty: a file whose declarations were not read may declare anything.
+    if (!file.read) return `  ${file.file} — the index holds no parse of its declarations`;
+    const listed = file.declarations
+      .filter((one) => LISTED_KINDS.has(one.kind))
+      .sort((one, other) => Number(other.exported === true) - Number(one.exported === true) || one.line - other.line);
+    const past = file.more > 0 ? `; ${plural(file.more, 'more top-level declaration')} past the budget, not read here` : '';
+    if (listed.length === 0) return `  ${file.file} — declares no function or class at the top level${past}`;
+    const kept = listed.slice(0, LISTED_CAP).map((one) => `${one.name}${one.exported === true ? ' (exported)' : ''}`);
+    const left = listed.length - kept.length;
+    const unknown = file.declarations.some((one) => one.exported === undefined || one.exported === null)
+      ? ' (the index kept no exports of it, so none is marked exported)'
+      : '';
+    return `  ${file.file} — ${kept.join(', ')}${left > 0 ? `, and ${left} more` : ''}${past}${unknown}`;
+  });
+  return [
+    '',
+    '',
+    'The files the request names, each with the functions and classes it declares, exported first. They are the answer: a file beside them joins it only when it declares a name the request uses, never for sharing their folder.',
+    ...rows,
+  ].join('\n');
 }

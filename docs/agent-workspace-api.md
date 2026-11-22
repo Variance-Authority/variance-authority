@@ -446,7 +446,7 @@ Holding a request in words rather than a name, call `docs_classify` with it as
 entrypoint or an exported name, and then which identifier-shaped words left —
 `ModuleLoader`, `child_process` — are a name `docs_symbol` finds declared or a
 tracked file's name before its first dot, each with its area and layer on the code map,
-and ends with the question each one takes next, written as the `variance ask`
+and then the question each one takes next, written as the `variance ask`
 command whatever the caller: `symbol` (`docs_symbol`) for an exported or
 declared name, none for a file, which is already the answer,
 `entrypoint` (`docs_entrypoint`) for a published package or entrypoint, and
@@ -462,7 +462,7 @@ export visibility, each with the package it sits in and that package's place on 
 gets its areas. Given `from` or `to`, it ranks only the files that start point
 reaches along the imports, so a product's folder ranks that product and the
 shared code it imports. It ends with the source files the request
-names, each with up to eight functions, classes and methods it declares,
+names, each with up to eight functions and classes it declares,
 exported first, under a line saying they are the answer.
 
 Called with a specifier, `docs_entrypoint` lists the names it opens, ranked by

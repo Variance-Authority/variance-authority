@@ -355,6 +355,18 @@ describe('variance ask classify', () => {
     expect(asked.out).toMatch(/^No word is looked up as a file: git could not list the tracked files \(.+\)\.$/m);
   });
 
+  it('names a declared word and what its file declares when git cannot list the tracked files, from the source index alone', async () => {
+    const root = unpackaged();
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+    rmSync(join(root, '.git'), { recursive: true, force: true });
+
+    const asked = await run(['ask', 'classify', '--query', 'ModuleLoader loader']);
+
+    expect(asked.code).toBe(EXIT_CLEAN);
+    expect(asked.out).toContain('ModuleLoader — declared lib/loader.js:3 · in no package');
+    expect(asked.out).toMatch(/^  lib\/loader\.js — ModuleLoader/m);
+  });
+
   it('names the entities and says why no area is ranked when git cannot list the files HEAD holds', async () => {
     const root = families();
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);

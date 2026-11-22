@@ -67,6 +67,24 @@ pub(crate) fn declarations_of(layers: &[Layer], files: &[String], budget: usize)
     crossings.iter().map(|crossing| outline(layers, crossing, budget)).collect()
 }
 
+/// What each of `files` declares at its top level, read off the source index
+/// at `index` alone, each within `budget` lines; `None` when no index was
+/// published. No listing of the tree is taken: a file's parse is in the index,
+/// so a checkout git cannot list is still answered.
+#[napi(catch_unwind)]
+pub fn file_declarations(index: String, files: Vec<String>, budget: u32) -> napi::Result<Option<Vec<FileDeclarations>>> {
+    let fail = |error: String| napi::Error::from_reason(format!("the source index at {index} did not read: {error}"));
+    let Some(chain) = crate::index_chain::read_chain(&index).map_err(fail)? else { return Ok(None) };
+    let layers = chain
+        .segments
+        .iter()
+        .enumerate()
+        .map(|(at, bytes)| Layer::open(bytes).map_err(|error| format!("segment {at}: {error}")))
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(fail)?;
+    Ok(Some(declarations_of(&layers, &files, budget as usize)))
+}
+
 fn outline(layers: &[Layer], crossing: &Crossing, budget: usize) -> FileDeclarations {
     let unread = FileDeclarations { file: crossing.file.to_owned(), read: false, declarations: Vec::new(), more: 0, more_members: 0 };
     let Some((layer, row)) = crossing.parse else { return unread };
