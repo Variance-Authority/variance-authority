@@ -7,13 +7,13 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
 
-use napi::bindgen_prelude::{AsyncTask, Buffer};
+use napi::bindgen_prelude::{AsyncTask, Buffer, Uint32Array, Uint8Array};
 use napi_derive::napi;
 
 use super::journey_fold::{fold, CaseShape, Placed};
 use crate::journey_format::{self, CaseExtras};
 use crate::journey_journal::{self, CaseDetail, CaseRun, ModuleId};
-use crate::journey_record::Module;
+use crate::journey_record::{Block, Module};
 use crate::off_thread::{off_thread, OffThread};
 use crate::record_layout::LAYOUT;
 
@@ -120,22 +120,119 @@ impl CaseJournals {
     /// Fold the journals over `modules` into the case index's bytes, off the
     /// JavaScript thread, so the run's own work goes on while the fold does.
     ///
-    /// `ordinals` holds each module's region ordinals, one row a module;
     /// `durations` and `limits` are what the runner reported of each case in
     /// [`Self::cases`]'s order, `NaN` where it reported none; `budget_bytes`
     /// bounds the test-by-region relation one slice holds.
     #[napi(ts_return_type = "Promise<CaseIndexFold>")]
     pub fn fold(
         &self,
-        modules: Vec<Module>,
-        ordinals: Vec<Vec<u32>>,
+        modules: FoldModules,
         readings: Vec<CaseReading>,
         durations: Vec<f64>,
         limits: Vec<f64>,
         budget_bytes: Option<u32>,
     ) -> AsyncTask<OffThread<CaseIndexFold>> {
         let run = Arc::clone(&self.run);
-        off_thread(move || folded(&run, modules, ordinals, readings, &durations, &limits, budget_bytes).map_err(napi::Error::from_reason))
+        let columns = HeldModules::from(modules);
+        off_thread(move || {
+            let (modules, ordinals) = columns.modules().map_err(napi::Error::from_reason)?;
+            folded(&run, modules, ordinals, readings, &durations, &limits, budget_bytes).map_err(napi::Error::from_reason)
+        })
+    }
+}
+
+/// The modules a fold is over, as columns: a region's strings are named by
+/// their index in `strings`, so each is handed over once rather than once a
+/// region, and no region is an object on the way.
+#[napi(object)]
+pub struct FoldModules {
+    pub ids: Vec<String>,
+    pub files: Vec<String>,
+    /// Per module, where its regions start; one more entry than modules.
+    pub blocks: Uint32Array,
+    pub ordinal: Uint32Array,
+    pub kind: Uint32Array,
+    pub name: Uint32Array,
+    pub path: Uint32Array,
+    /// Zero for a region with no line of any file.
+    pub start: Uint32Array,
+    pub end: Uint32Array,
+    pub source: Uint8Array,
+    /// Each region's owner, as its position among its module's regions, or `NO_OWNER`.
+    pub owner: Uint32Array,
+    pub strings: Vec<String>,
+}
+
+/// [`FoldModules`] copied off the JavaScript heap, to be read on another thread.
+struct HeldModules {
+    ids: Vec<String>,
+    files: Vec<String>,
+    blocks: Vec<u32>,
+    ordinal: Vec<u32>,
+    kind: Vec<u32>,
+    name: Vec<u32>,
+    path: Vec<u32>,
+    start: Vec<u32>,
+    end: Vec<u32>,
+    source: Vec<u8>,
+    owner: Vec<u32>,
+    strings: Vec<String>,
+}
+
+impl From<FoldModules> for HeldModules {
+    fn from(held: FoldModules) -> Self {
+        HeldModules {
+            ids: held.ids,
+            files: held.files,
+            blocks: held.blocks.to_vec(),
+            ordinal: held.ordinal.to_vec(),
+            kind: held.kind.to_vec(),
+            name: held.name.to_vec(),
+            path: held.path.to_vec(),
+            start: held.start.to_vec(),
+            end: held.end.to_vec(),
+            source: held.source.to_vec(),
+            owner: held.owner.to_vec(),
+            strings: held.strings,
+        }
+    }
+}
+
+impl HeldModules {
+    /// Each module, and its regions' ordinals; a column of another length than its count is refused.
+    fn modules(self) -> Result<(Vec<Module>, Vec<Vec<u32>>), String> {
+        let modules = self.ids.len();
+        let regions = self.ordinal.len();
+        let lengths = [self.files.len() == modules, self.blocks.len() == modules + 1]
+            .into_iter()
+            .chain([&self.kind, &self.name, &self.path, &self.start, &self.end, &self.owner].map(|column| column.len() == regions))
+            .chain([self.source.len() == regions]);
+        let bounded = self.blocks.first() == Some(&0)
+            && self.blocks.windows(2).all(|pair| pair[0] <= pair[1])
+            && self.blocks.last().is_some_and(|end| *end as usize == regions);
+        if !lengths.into_iter().all(|sound| sound) || !bounded {
+            return Err("case fold modules hold columns of other lengths than their counts".to_owned());
+        }
+        let string = |at: u32| self.strings.get(at as usize).cloned().ok_or_else(|| format!("case fold modules name string {at}, past the {} held", self.strings.len()));
+        let mut out = Vec::with_capacity(modules);
+        let mut ordinals = Vec::with_capacity(modules);
+        for (module, (id, file)) in self.ids.into_iter().zip(self.files).enumerate() {
+            let range = self.blocks[module] as usize..self.blocks[module + 1] as usize;
+            let mut blocks = Vec::with_capacity(range.len());
+            for at in range.clone() {
+                blocks.push(Block {
+                    kind: string(self.kind[at])?,
+                    name: string(self.name[at])?,
+                    path: string(self.path[at])?,
+                    start_line: self.start[at],
+                    end_line: self.end[at],
+                    source: self.source[at] == 1,
+                });
+            }
+            ordinals.push(self.ordinal[range.clone()].to_vec());
+            out.push(Module { id, file, blocks, owners: Some(self.owner[range].to_vec()) });
+        }
+        Ok((out, ordinals))
     }
 }
 

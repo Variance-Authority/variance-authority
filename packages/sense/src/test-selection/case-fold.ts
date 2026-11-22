@@ -7,7 +7,7 @@ import type { RecordedAttempt } from './attempts-record.js';
 import { triedAttempts, type CaseAttempts } from './case-attempts.js';
 import { UNLIMITED, UNTIMED, type CaseDurations, type CaseLimits } from './case-durations.js';
 import type { EyesSection } from './eyes-record.js';
-import { nativeModule, whyAbsent } from './native-modules.js';
+import { foldModules, whyAbsent } from './native-modules.js';
 import type { Reading } from './readings.js';
 
 /** A run's case journals, folded into the case index's bytes. */
@@ -59,7 +59,6 @@ export async function foldCases(
   const cases = journals.cases();
   const durations = options.durations ?? UNTIMED;
   const limits = options.limits ?? UNLIMITED;
-  const shaped = [...modules].map(([id, module]) => ({ ...nativeModule(module), id }));
   const readings = [...(options.readings ?? new Map<ModuleId, Reading>())].map(([id, reading]) => ({
     id,
     target: reading.id,
@@ -67,8 +66,7 @@ export async function foldCases(
     lands: Array.from(reading.lands, (land) => land ?? 0xFFFF_FFFF),
   }));
   const folding = journals.fold(
-    shaped,
-    [...modules.values()].map((module) => module.blocks.map((block) => block.ordinal)),
+    foldModules(modules),
     readings,
     cases.map((held) => durations(held.file, held.name, held.runner) ?? Number.NaN),
     cases.map((held) => limits(held.file, held.name) ?? Number.NaN),
