@@ -43,7 +43,8 @@ The answer includes connecting barrels and shows import chains for files two or
 more imports from the target. To restrict discovery to consumers of one export,
 use `--to 'src/pricing/price.ts#calculatePrice'`; this excludes imports of other
 names through the same barrel. Use the file target when you need the connecting
-barrels themselves. See [the operands and chain format](workspace-discover.md).
+paths regardless of which name each import uses. See
+[the operands and chain format](workspace-discover.md).
 
 For matching text in only
 one known file, combine its exact path with `--text`:
