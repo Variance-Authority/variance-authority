@@ -55,8 +55,14 @@ export interface ExportedMatch {
    */
   readonly at: string;
   readonly line: number;
-  /** The file nearest its package's root that passes the declaration on; absent when only the declaring file exports it. */
-  readonly exportedFrom?: Place;
+  /** Set when `at` and `line` are the declaration's, walked to by the source index. */
+  readonly declared?: true;
+  /**
+   * The file nearest its package's root that passes the declaration on, and
+   * the line that exports it there; no line for an `export *`. Absent when no
+   * barrel above the declaring file does.
+   */
+  readonly exportedFrom?: { readonly at: string; readonly line?: number };
   /** How many files export it, the one shown included. */
   readonly files: number;
   /**

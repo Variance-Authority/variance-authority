@@ -159,6 +159,15 @@ export function boundOf(root: string | undefined, held: Pick<Named, 'at' | 'name
 }
 
 /**
+ * For each of `declared`, every file that passes it on, `export *` included,
+ * in code-unit order. None when no checkout is named or the index does not read.
+ */
+export function passersOf(root: string | undefined, declared: readonly Pick<Named, 'at' | 'name'>[]): readonly (readonly string[])[] | undefined {
+  if (root === undefined) return undefined;
+  return whenRead(() => importersOf(root, declared.map((one) => [{ file: one.at, name: one.name }])))?.groups.map((group) => group.through);
+}
+
+/**
  * What `read` reads from the source index, or nothing when the index is not
  * published or does not read: the imports of the same answer say so, and a key
  * read without it falls back to the name the export is written under.

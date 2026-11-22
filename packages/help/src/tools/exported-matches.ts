@@ -28,11 +28,16 @@ export function first<T>(items: readonly T[], count: number, before: (a: T, b: T
 }
 
 /**
- * Where the export of `name` in `at` is declared, as the source index walks to
- * it; none when the walk does not read. Given to `head`, it shows a name at its
- * declaration and at the file nearest its package's root that passes it on.
+ * What the source index answers about the exported rows shown: `of`, the
+ * declaration the export of `name` in `at` binds, and `passersOf`, for each
+ * declaration asked, every file that passes it on, `export *` included. None
+ * when the index does not read. Given to `head`, they show a name where it is
+ * declared and at the barrel nearest its package's root that passes it on.
  */
-export type DeclarationOf = (at: string, name: string) => Place | undefined;
+export interface Declarations {
+  of(at: string, name: string): (Place & { readonly name: string }) | undefined;
+  passersOf(declared: readonly { readonly at: string; readonly name: string }[]): readonly (readonly string[])[] | undefined;
+}
 
 /**
  * Exported names given by id, nearest thing to a ranking.
@@ -64,7 +69,7 @@ export function exported(
   through?: ReadonlyMap<number, ReadonlySet<number>>,
   openings?: ReadonlySet<number>,
   exact?: ReadonlyMap<number, number>,
-): { readonly total: number; head(count: number, declarationOf?: DeclarationOf): readonly ExportedMatch[]; rows(): readonly number[] } {
+): { readonly total: number; head(count: number, declarations?: Declarations): readonly ExportedMatch[]; rows(): readonly number[] } {
   const found: { name: number; count: number; field: number }[] = [];
   // The file that exports it, against the closure. A name exported from a
   // barrel inside the area and declared outside it arrives here twice, under
@@ -96,49 +101,53 @@ export function exported(
   return {
     total: found.length,
     rows: () => found.flatMap(({ name }) => reached(name)),
-    head: (count, declarationOf) =>
-      first(found, count, (a, b) => a.field - b.field || b.count - a.count || a.name - b.name).flatMap(({ name, count: files }) => {
+    head: (count, declarations) => {
+      const picked = first(found, count, (a, b) => a.field - b.field || b.count - a.count || a.name - b.name).flatMap(({ name, count: files }) => {
         // `count` is the number of these rows, so one is always chosen.
         const chosen = exportedShown(index, reached(name), fieldOf(name));
         if (chosen === undefined) return [];
         const row = index.exported(chosen);
+        return [{ name, files, row, declared: declarations?.of(row.at, row.name) }];
+      });
+      const resolved = picked.flatMap((one) => (one.declared === undefined ? [] : [one.declared]));
+      const passers = resolved.length === 0 ? undefined : declarations?.passersOf(resolved);
+      return picked.map(({ name, files, row, declared }) => {
+        const door = declared === undefined || passers === undefined ? undefined : doorOf(index, rowsOf(name), declared, passers[resolved.indexOf(declared)] ?? []);
+        // The package that holds the file shown: the declaration's, when it exports the name.
+        const by = declared === undefined ? row.by : (rowsOf(name).map((one) => index.exported(one)).find((one) => one.at === declared.at)?.by ?? row.by);
         // The row's own doc, or none: another row of the same name is another
         // file, whose comment says nothing about this one.
         const doc = row.doc;
-        const declared = declarationOf?.(row.at, row.name);
-        const door = declared === undefined ? undefined : doorOf(index, rowsOf(name), row.by, declared, declarationOf as DeclarationOf);
         const match: ExportedMatch = {
           source: 'exported',
           name: row.name,
-          ...(row.by === '' ? {} : { package: row.by }),
+          ...(by === '' ? {} : { package: by }),
           at: declared?.at ?? row.at,
           line: declared?.line ?? row.line,
+          ...(declared === undefined ? {} : { declared: true as const }),
           ...(door === undefined ? {} : { exportedFrom: door }),
           files,
           ...(doc === undefined ? {} : { summary: said(doc) }),
         };
-        return [match];
-      }),
+        return match;
+      });
+    },
   };
 }
 
 /**
- * The file of `rows` in package `by` nearest the package's root, and not the
- * declaring file, whose export binds `declared`: where the declaration is
- * published from. Rows are walked shallowest first, so the walk usually ends at
- * the first; none when only the declaring file exports it.
+ * Of `passers`, the files that pass `declared` on, the one nearest the root
+ * whose folder holds the declaring file: the barrel an importer of its package
+ * reaches it through. Its line is its export row's, when it exports the name
+ * itself; an `export *` has none. None when no barrel above passes it on.
  */
-function doorOf(index: SearchIndex, rows: readonly number[], by: string, declared: Place, declarationOf: DeclarationOf): Place | undefined {
+function doorOf(index: SearchIndex, rows: readonly number[], declared: Place, passers: readonly string[]): { readonly at: string; readonly line?: number } | undefined {
   const depth = (at: string): number => at.split('/').length;
-  const doors = rows
-    .map((row) => index.exported(row))
-    .filter((row) => row.by === by && row.at !== declared.at)
-    .sort((a, b) => depth(a.at) - depth(b.at) || codeUnitOrder(a.at, b.at));
-  for (const row of doors) {
-    const bound = declarationOf(row.at, row.name);
-    if (bound?.at === declared.at && bound.line === declared.line) return { at: row.at, line: row.line };
-  }
-  return undefined;
+  const holds = (at: string): boolean => at !== declared.at && declared.at.startsWith(at.slice(0, at.lastIndexOf('/') + 1));
+  const at = passers.filter(holds).sort((a, b) => depth(a) - depth(b) || codeUnitOrder(a, b))[0];
+  if (at === undefined) return undefined;
+  const line = rows.map((row) => index.exported(row)).find((row) => row.at === at)?.line;
+  return line === undefined ? { at } : { at, line };
 }
 
 /**
