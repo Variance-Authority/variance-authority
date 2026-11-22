@@ -40,10 +40,10 @@ variance ask discover --from src/PriceCard.tsx --to src/pricing/price.ts
 ```
 
 The answer includes connecting barrels and shows import chains for files two or
-more imports from the target. To restrict discovery to consumers of one export,
-use `--to 'src/pricing/price.ts#calculatePrice'`; this excludes imports of other
-names through the same barrel. Use the file target when you need the connecting
-paths regardless of which name each import uses. See
+more imports from the target. To start the reverse walk at import sites of one
+export, use `--to 'src/pricing/price.ts#calculatePrice'`. The walk then follows
+imports by file, so later rows need not import that name. Use the file target
+when you need the connecting paths regardless of which name each import uses. See
 [the operands and chain format](workspace-discover.md).
 
 For matching text in only
