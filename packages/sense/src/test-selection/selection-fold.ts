@@ -164,10 +164,14 @@ export function foldRun(
     // warning is the whole story.
     if (merged.held) noteAnEmptyRecord(files.length, modules.size, destination.unreached);
     else noteABusyIndex(coverageFile);
-    await rm(runDirectory, { recursive: true, force: true });
-    await rm(caseDirectory, { recursive: true, force: true });
-    await rm(run.finishedDirectory, { recursive: true, force: true });
-    await rm(run.cutFile, { force: true });
+    // The run's scratch is four unrelated trees; each one's removal waits on
+    // nothing but the disk, so they go together.
+    await Promise.all([
+      rm(runDirectory, { recursive: true, force: true }),
+      rm(caseDirectory, { recursive: true, force: true }),
+      rm(run.finishedDirectory, { recursive: true, force: true }),
+      rm(run.cutFile, { force: true }),
+    ]);
     run.cut.clear();
   };
 

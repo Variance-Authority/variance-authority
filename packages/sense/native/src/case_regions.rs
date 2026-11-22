@@ -59,44 +59,63 @@ pub(crate) fn regions_of(index: &(impl Walked + Sync), rows: &[u32]) -> Result<V
             Ok((*set, members))
         })
         .collect::<Result<FxHashMap<u32, Vec<u32>>, String>>()?;
-    // The rows split into ranges, each walked over every module on its own
-    // thread; a case lies in one range, so its regions are laid out by one walk.
-    let ranges = (rayon::current_num_threads() * 4).clamp(1, cases);
-    let width = cases.div_ceil(ranges);
-    let laid = (0..cases)
+    // Every module's regions are walked once, in contiguous runs of modules on
+    // their own threads; each run names the case, module and region of every
+    // crossing by a wanted case, in module and region order.
+    let places = index.modules();
+    let files = (0..places).map(|place| index.module(place)).collect::<Result<Vec<_>, String>>()?;
+    let width = places.div_ceil((rayon::current_num_threads() * 4).max(1)).max(1);
+    let hits: Vec<Vec<(u32, u32, u32)>> = (0..places)
         .step_by(width)
         .collect::<Vec<_>>()
         .into_par_iter()
-        .map(|from| -> Result<Vec<(usize, Vec<Region>)>, String> {
-            let to = (from + width).min(cases);
-            let mut laid: Vec<Vec<Region>> = vec![Vec::new(); to - from];
-            // Each case's lines of the module last read for it.
-            let mut module_lines: Vec<(usize, Option<case_lines::ModuleLines>)> = vec![(usize::MAX, None); to - from];
-            for place in 0..index.modules() {
-                let file = index.module(place)?;
+        .map(|from| {
+            let mut hits = Vec::new();
+            for place in from..(from + width).min(places) {
                 for (block, set) in index.called(place).iter().enumerate() {
-                    let members = &decoded[set];
-                    let first = members.partition_point(|row| (*row as usize) < from);
-                    for row in &members[first..] {
-                        let row = *row as usize;
-                        if row >= to {
-                            break;
+                    for row in &decoded[set] {
+                        if let Some(slot) = slots[*row as usize] {
+                            hits.push((slot as u32, place as u32, block as u32));
                         }
-                        let Some(slot) = slots[row] else { continue };
-                        let (at_place, own) = &mut module_lines[row - from];
-                        if *at_place != place {
-                            *at_place = place;
-                            *own = lines[slot].as_ref().map(|lines| case_lines::module_lines(lines, place as u32));
-                        }
-                        let (name, path, start, end) = index.region(place, block)?;
-                        laid[row - from].push(Region { module: file.clone(), name, path, start, end, value: own.and_then(|own| own.value(block as u32)) });
                     }
                 }
             }
-            Ok(laid.into_iter().enumerate().filter_map(|(at, regions)| slots[from + at].map(|slot| (slot, regions))).collect())
+            hits
+        })
+        .collect();
+    // Grouped by case, the runs taken in module order: a case's crossings stay
+    // in module and region order.
+    let mut starts = vec![0usize; rows.len() + 1];
+    for (slot, _, _) in hits.iter().flatten() {
+        starts[*slot as usize + 1] += 1;
+    }
+    for at in 1..starts.len() {
+        starts[at] += starts[at - 1];
+    }
+    let mut crossed = vec![(0u32, 0u32); starts[rows.len()]];
+    let mut next = starts.clone();
+    for (slot, place, block) in hits.into_iter().flatten() {
+        crossed[next[slot as usize]] = (place, block);
+        next[slot as usize] += 1;
+    }
+    let laid = (0..rows.len())
+        .into_par_iter()
+        .map(|slot| -> Result<Vec<Region>, String> {
+            let crossings = &crossed[starts[slot]..starts[slot + 1]];
+            let mut regions = Vec::with_capacity(crossings.len());
+            // The case's lines of the module last read for it.
+            let mut module_lines: (u32, Option<case_lines::ModuleLines>) = (u32::MAX, None);
+            for (place, block) in crossings {
+                if module_lines.0 != *place {
+                    module_lines = (*place, lines[slot].as_ref().map(|lines| case_lines::module_lines(lines, *place)));
+                }
+                let (name, path, start, end) = index.region(*place as usize, *block as usize)?;
+                regions.push(Region { module: files[*place as usize].clone(), name, path, start, end, value: module_lines.1.and_then(|own| own.value(*block)) });
+            }
+            Ok(regions)
         })
         .collect::<Result<Vec<_>, String>>()?;
-    for (slot, regions) in laid.into_iter().flatten() {
+    for (slot, regions) in laid.into_iter().enumerate() {
         read[slot] = regions;
     }
     Ok(read)
