@@ -236,6 +236,8 @@ export function formatClassified(
   const scoped = (said.from?.length ?? 0) > 0 || (said.to?.length ?? 0) > 0;
   const asks = entities.flatMap(({ word, names }) => !scoped && names.some(namesSource) ? [] : names.flatMap((named) => {
     if (named.kind === 'export' || named.kind === 'declared') return [`variance ask symbol --name ${shell(word)}`];
+    // A file is itself the place: its package's area would only widen it.
+    if (named.kind === 'file') return [];
     if (named.published) return [`variance ask entrypoint --package ${shell(named.specifier)}`];
     const area = packages.get(named.package)?.area;
     return area === undefined ? [] : [`variance ask orient --area ${shell(area.id)}`];

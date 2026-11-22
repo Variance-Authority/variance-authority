@@ -334,6 +334,12 @@ describe('docs_classify', () => {
     expect(formatClassified(located, PLACED)).not.toContain('variance ask symbol --name child_process');
   });
 
+  it('asks no area question of a file a word names, whose package the map places in an area', () => {
+    const test: Named = { kind: 'file', specifier: 'packages/sense/src/walk.test.ts', file: 'packages/sense/src/walk.test.ts', package: '@acme/sense', published: false };
+
+    expect(formatClassified({ entities: [{ word: 'walk', names: [test] }], plain: [] }, PLACED, [], { from: ['packages/sense'] })).not.toContain('variance ask orient --area');
+  });
+
   it('still asks `symbol` for a word that names a source file when a start point may not reach that file', () => {
     const file: Named = { kind: 'file', specifier: 'lib/child_process.js', file: 'lib/child_process.js', package: '', published: false };
     const user: Named = { kind: 'declared', specifier: 'lib/aaa_user.js:1', file: 'lib/aaa_user.js', package: '', published: false };
