@@ -711,10 +711,6 @@
   "packages/cli/src/commands/runs-base.ts overview": [
     19
   ],
-  "packages/cli/src/commands/select-command.ts block": [
-    14,
-    10
-  ],
   "packages/cli/src/commands/select-command.ts overview": [
     30
   ],
