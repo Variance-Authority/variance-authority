@@ -11,9 +11,10 @@ watch.
 ## What you already believe this costs
 
 On a suite of about three minutes, recording at the default precision takes the
-whole run to **1.065×**: Variance Authority's own unit suite, 1,236 test files and
-14,020 tests under Vitest, runs in 192.6 s plain and 205.0 s recorded. Up to the
-last test the run takes 1.028×; the other 7 s is the record written after it.
+whole run to **1.065×**: [Variance Authority](README.md)'s own unit suite,
+1,236 test files and 14,020 tests under Vitest, runs in 192.6 s plain and
+205.0 s recorded. Up to the last test the run takes 1.028×; the other 7 s is
+the record written after it.
 Each figure is the median of three alternating rounds after two warm-ups, on an
 Apple M4 Max, Node 24. To reproduce it in a checkout of Variance Authority,
 after `yarn install && yarn build`, time

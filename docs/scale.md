@@ -299,8 +299,8 @@ one about the clock:
 - **That a suite under instrumentation crawls.** This one is answered where the
   suites are timed, in
   [what recording costs while the suite runs](selecting.md#what-recording-costs-while-the-suite-runs):
-  at the default precision, 1.065× on Variance Authority's own unit suite of
-  1,236 test files and about three minutes, the median of three alternating
+  at the default precision, 1.065× on [Variance Authority](README.md)'s own
+  unit suite of 1,236 test files and about three minutes, the median of three alternating
   rounds on an Apple M4 Max, Node 24, timing `yarn vitest run` against
   `yarn vitest run --config tools/uninstrumented.config.mts`. On the short
   suites of Zod and TanStack Query, about ten seconds each, it is 0.99× and
