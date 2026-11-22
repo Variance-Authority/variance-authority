@@ -41,7 +41,7 @@ import { join } from 'node:path';
 import type { CommitRuns, ExecutionNarrowing, Stand, StandQuestion, StandReading } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
 import { installDiffs, installDiffOfPatch, ranOn, withoutManifests, type InstallDiff } from './installed.js';
-import { beyondOf, compared, installReached, withWhole } from './select-beyond.js';
+import { beyondOf, compared, installReached } from './select-beyond.js';
 import { budgetedSuite } from './select-budget.js';
 import { explainedOutput } from './select-explain.js';
 import { journeyAgainst, recordAgainst, recordPerStand } from './resources.js';
@@ -351,12 +351,9 @@ async function untested(request: SuiteRequest): Promise<SuiteReading> {
   // (`standChange`); the files a whole stand reads leave the hunk diff.
   const options = { relations, at, checkout: request.root, unmeasured: selection.unmeasuredOf(declared), ignore: declared?.ignore, precision: declared?.precision, distances: request.atDistance !== undefined };
   // The tree's diff is `-U0`, so it is also the line map from the journal's commit that a stand's change is read in.
-  const standChange = (group: Group, installed: readonly string[]) => {
-    const change = selection.standChange(diff, group.diff!, group.stand!.changed);
-    // What the install moved is charged whole and leaves the hunks, as `withWhole` writes it for the tree, so no export reading narrows it.
-    const whole = new Set(installed);
-    return { lines: new Map([...change.lines, ...installed.map((file) => [file, []] as const)]), hunks: new Map([...change.hunks].filter(([file]) => !whole.has(file))) };
-  };
+  // What the install moved is charged whole and leaves the hunks (`withWholeFiles`), so no export reading narrows it.
+  const standChange = (group: Group, installed: readonly string[]) =>
+    selection.withWholeFiles(selection.standChange(diff, group.diff!, group.stand!.changed), installed);
   const ask = async (question: StandQuestion) => {
     const group = groups.find((one) => one.stand?.commit === question.at)!;
     const hit = hits.get(group);
@@ -366,7 +363,7 @@ async function untested(request: SuiteRequest): Promise<SuiteReading> {
       ? await recordAgainst(here, standChange(group, files), options)
       : await recordAgainst(
           here,
-          withWhole([selection.withoutFiles(diff, question.whole), ...question.whole.map(selection.wholeEntry)].join('\n'), files),
+          selection.withWholeFiles(selection.changeOfDiff(diff), [...question.whole, ...files]),
           handed ? { ...options, undone: false } : options,
         );
     return hit === undefined || answer === undefined ? answer : everyTest([], hit, answer);

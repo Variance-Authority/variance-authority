@@ -16,7 +16,7 @@
  * Only every group doing so runs the suite.
  */
 
-import type { ExecutionNarrowing, SelectionReason, Stand, TestDistance } from '@variance-authority/sense/test-selection';
+import { preconditionDistance, type ExecutionNarrowing, type SelectionReason, type Stand, type TestDistance } from '@variance-authority/sense/test-selection';
 import { many } from './prose-counts.js';
 import { diffToTree } from './since.js';
 
@@ -58,7 +58,8 @@ export function hitNote(group: Group, hit: Hit, commit: string | undefined): str
   const at = (group.stand?.commit ?? commit)?.slice(0, 12);
   if (group.stand === undefined) {
     const which = `every test file read from the journal's commit ${at}`;
-    return hit.kind === 'before' ? `${hit.says}, so ${which} runs` : `${hit.kind === 'install' ? hit.whole : ''}, so ${which} runs`;
+    const why = hit.kind === 'before' ? hit.says : hit.kind === 'install' ? hit.whole : `git could not write the diff from ${at} to the tree`;
+    return `${why}, so ${which} runs`;
   }
   const count = group.stand.tests.length;
   const they = count === 1 ? 'it runs' : 'they run';
@@ -83,6 +84,6 @@ export function everyTest(tests: readonly string[], hit: Hit, answer?: Answer): 
   return {
     ...answer,
     narrowing: { ...narrowing, entered: all, because: [...(narrowing.because ?? []), ...all.map((test) => ({ test, via }))] },
-    distances: [...(answer?.distances ?? []), ...all.map((test): TestDistance => ({ test, bearing: 'precondition', hops: 0, from, trail: [from] }))],
+    distances: [...(answer?.distances ?? []), ...all.map((test) => preconditionDistance(test, from))],
   };
 }

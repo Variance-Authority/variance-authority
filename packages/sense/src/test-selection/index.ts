@@ -43,7 +43,7 @@ export { changeInRecord, hunksByFile, placeAcross, placeInText, placeInTexts, ty
 export { reachOf, regionRecord, stateOf, type RangeState, type Reach, type ReachRecord } from './range-state.js';
 export { narrowByJourneys, type JourneyRead, type JourneySelectionOptions } from './execution-select.js';
 export { ignoredBy, unmeasuredOf, type Route, type Unmeasured } from './route.js';
-export { changeOfDiff, changeOfFiles, changeOfPaths, ignoredChange, type Change } from './change.js';
+export { changeOfDiff, changeOfFiles, changeOfPaths, ignoredChange, withWholeFiles, type Change } from './change.js';
 export { narrowByChangeFromView, narrowByExecutionFromView } from './select.js';
 export {
   dependsReachFromView,
@@ -83,7 +83,7 @@ export type { BlockKind, ExecutionNarrowing, ExecutionNarrowingOptions, Importer
 export { readingLines, withEveryReading } from './reading-lines.js';
 export { type FileReading } from './reading.js';
 export { atDistance, distanceRange, groupByDistance, remaining, type DistanceGroup } from './at-distance.js';
-export { distanceFromView, nearestFirst, type Bearing, type DistanceOptions, type TestDistance } from './distance.js';
+export { distanceFromView, nearestFirst, preconditionDistance, type Bearing, type DistanceOptions, type TestDistance } from './distance.js';
 export { testsReaching, testsReachingFromView, distanceToSource } from './at-source.js';
 export type { SourceAudience, SourceAudienceTest, SourcePoint, SourceRegion };
 // The file list a selection will ask about, and its hunks' text, so a caller names
