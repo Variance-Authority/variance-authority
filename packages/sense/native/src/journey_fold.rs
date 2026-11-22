@@ -12,10 +12,11 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 
 use rayon::prelude::*;
+use rustc_hash::FxHashMap;
 
 use crate::case_lines;
 use crate::case_owner;
-use crate::crossing_sets::SetPool;
+use crate::crossing_sets::{Encoded, SetPool};
 use crate::journal_scan::{self, Visitor};
 use crate::journey_format::EncodedModule;
 use crate::journey_journal::{CaseRun, ModuleId};
@@ -117,7 +118,6 @@ pub(crate) fn fold(
     // The module the collection has reached, and how many before it a case entered.
     let mut encoded_row = 0;
     let mut encoded_at = 0_u32;
-    let mut scratch = Vec::with_capacity(run.tests.len());
     while first < placed.len() {
         let mut last = first;
         let mut held = 0;
@@ -132,9 +132,6 @@ pub(crate) fn fold(
         let first_block = module_blocks[first];
         let local_blocks = module_blocks[last] - first_block;
         let called: Vec<AtomicU32> = (0..local_blocks * words).map(|_| AtomicU32::new(0)).collect();
-        if let Some(lines) = lines.as_mut() {
-            lines.slice(local_blocks);
-        }
         let slice = Slice {
             row_of: &row_of,
             readings,
@@ -163,41 +160,57 @@ pub(crate) fn fold(
                 Ok(visitor.reach)
             })
             .collect::<Result<Vec<Reach>, String>>()?;
+        // A part's frames are charged to the cases its journeys belong to,
+        // after every case's: each part replayed on its own, merged in order.
+        let parts = (0..run.parts.len())
+            .into_par_iter()
+            .map(|at| {
+                let mut charge = Charge::at(run, run.frame_tests.len());
+                charge.part = Some(at);
+                let mut visitor = FoldVisitor::new(&slice, charge);
+                journal_scan::replay_part(&run.parts[at], &mut visitor)?;
+                Ok(visitor.reach)
+            })
+            .collect::<Result<Vec<Reach>, String>>()?;
         if let Some(lines) = lines.as_mut() {
-            for reach in reaches {
-                lines.reach.merge(reach);
-            }
+            lines.reach = Reach::merged(local_blocks, reaches.into_iter().chain(parts).collect());
         }
-        // A part's frames are charged to the cases its journeys belong to, after every case's.
-        for (at, path) in run.parts.iter().enumerate() {
-            let mut charge = Charge::at(run, run.frame_tests.len());
-            charge.part = Some(at);
-            let mut visitor = FoldVisitor::new(&slice, charge);
-            journal_scan::replay_part(path, &mut visitor)?;
-            if let Some(lines) = lines.as_mut() {
-                lines.reach.merge(visitor.reach);
-            }
-        }
-        let called: Vec<u32> = called.into_iter().map(AtomicU32::into_inner).collect();        passes += 1;
+        let called: Vec<u32> = called.into_iter().map(AtomicU32::into_inner).collect();
+        passes += 1;
 
-        for local in 0..local_blocks {
-            scratch.clear();
-            collect(&called, local * words, words, &mut scratch);
+        // Each region's crossers, its set encoded and the line each lined
+        // crosser first reached it at, every region at once; then interned
+        // and handed to the cases in region order.
+        let held = lines.as_ref();
+        let gathered: Vec<(Encoded, u64, Vec<(u32, u64)>)> = (0..local_blocks)
+            .into_par_iter()
+            .with_min_len(64)
+            .map(|local| {
+                let mut members = Vec::new();
+                collect(&called, local * words, words, &mut members);
+                let values = match held {
+                    Some(lines) if written[first_block + local].is_some() => lines.values(local, &members),
+                    _ => Vec::new(),
+                };
+                (sets.encode(&members), members.len() as u64, values)
+            })
+            .collect();
+        for (local, (encoded, count, values)) in gathered.into_iter().enumerate() {
             let block = first_block + local;
-            called_sets[block] = sets.intern(&scratch);
-            crossings += scratch.len() as u64;
-            if !scratch.is_empty() || *loaded_flags[block].get_mut() {
+            called_sets[block] = sets.intern_encoded(encoded);
+            crossings += count;
+            if count > 0 || *loaded_flags[block].get_mut() {
                 module_entered[module_of(&module_blocks, first, last, block)] = true;
             }
             let (Some(lines), Some(place)) = (lines.as_mut(), written[block]) else { continue };
-            if scratch.is_empty() {
+            if count == 0 {
                 continue;
             }
             while module_blocks[encoded_row + 1] <= block {
                 encoded_at += u32::from(module_entered[encoded_row]);
                 encoded_row += 1;
             }
-            lines.region(local, &scratch, encoded_at, place);
+            lines.add(&values, encoded_at, place);
         }
         first = last;
     }
@@ -258,28 +271,66 @@ struct Lines<'a> {
 }
 
 /// The line each frame first reached a region of the slice at: keyed by the
-/// case for its own frame and by the file's first case for an ambient one.
-#[derive(Default)]
+/// case for its own frame and by the file's first case for an ambient one,
+/// each map cut into shards by key so many replays' reaches merge at once.
 struct Reach {
     width: u64,
-    own: HashMap<u64, u64>,
-    ambient: HashMap<u64, u64>,
+    own: Vec<FxHashMap<u64, u64>>,
+    ambient: Vec<FxHashMap<u64, u64>>,
+}
+
+const SHARDS: usize = 64;
+
+fn shard(key: u64) -> usize {
+    (key.wrapping_mul(0x9E37_79B9_7F4A_7C15) >> 58) as usize
 }
 
 impl Reach {
-    fn reached(&mut self, test: u32, local: usize, line: u32, ambient: bool) {
-        let held = if ambient { &mut self.ambient } else { &mut self.own };
-        held.entry(u64::from(test) * self.width + local as u64).or_insert(u64::from(line) * 2 + u64::from(ambient));
+    fn new(width: usize) -> Self {
+        let maps = || (0..SHARDS).map(|_| FxHashMap::default()).collect();
+        Reach { width: width as u64, own: maps(), ambient: maps() }
     }
 
-    /// Take what a later replay reached, where nothing before it reached first.
-    fn merge(&mut self, later: Reach) {
-        for (key, line) in later.own {
-            self.own.entry(key).or_insert(line);
+    fn key(&self, test: u32, local: usize) -> u64 {
+        u64::from(test) * self.width + local as u64
+    }
+
+    fn reached(&mut self, test: u32, local: usize, line: u32, ambient: bool) {
+        let key = self.key(test, local);
+        let held = if ambient { &mut self.ambient } else { &mut self.own };
+        held[shard(key)].entry(key).or_insert(u64::from(line) * 2 + u64::from(ambient));
+    }
+
+    fn get(&self, ambient: bool, test: u32, local: usize) -> Option<u64> {
+        let key = self.key(test, local);
+        let held = if ambient { &self.ambient } else { &self.own };
+        held[shard(key)].get(&key).copied()
+    }
+
+    /// The replays' reaches as one, earliest first: a region keeps the line
+    /// of the first replay that reached it, as one replay in order would.
+    fn merged(width: usize, reaches: Vec<Reach>) -> Reach {
+        let mut own: Vec<Vec<FxHashMap<u64, u64>>> = (0..SHARDS).map(|_| Vec::with_capacity(reaches.len())).collect();
+        let mut ambient: Vec<Vec<FxHashMap<u64, u64>>> = (0..SHARDS).map(|_| Vec::with_capacity(reaches.len())).collect();
+        for reach in reaches {
+            for (at, map) in reach.own.into_iter().enumerate() {
+                own[at].push(map);
+            }
+            for (at, map) in reach.ambient.into_iter().enumerate() {
+                ambient[at].push(map);
+            }
         }
-        for (key, line) in later.ambient {
-            self.ambient.entry(key).or_insert(line);
-        }
+        let first = |maps: Vec<FxHashMap<u64, u64>>| {
+            let mut maps = maps.into_iter();
+            let mut held = maps.next().unwrap_or_default();
+            for later in maps {
+                for (key, line) in later {
+                    held.entry(key).or_insert(line);
+                }
+            }
+            held
+        };
+        Reach { width: width as u64, own: own.into_par_iter().map(first).collect(), ambient: ambient.into_par_iter().map(first).collect() }
     }
 }
 
@@ -289,25 +340,27 @@ impl<'a> Lines<'a> {
         for &(first, last) in run.tests_by_file.values() {
             file_start[first as usize..last as usize].fill(first);
         }
-        Lines { lined, file_start, builders: lined.iter().map(|_| None).collect(), reach: Reach::default() }
+        Lines { lined, file_start, builders: lined.iter().map(|_| None).collect(), reach: Reach::new(0) }
     }
 
-    fn slice(&mut self, width: usize) {
-        self.reach = Reach { width: width as u64, ..Reach::default() };
+    /// The value each lined member of a region's crossers takes there.
+    fn values(&self, local: usize, members: &[u32]) -> Vec<(u32, u64)> {
+        let reach = &self.reach;
+        members
+            .iter()
+            .filter(|test| self.lined[**test as usize])
+            .map(|&test| {
+                let value = reach
+                    .get(false, test, local)
+                    .or_else(|| reach.get(true, self.file_start[test as usize], local))
+                    .unwrap_or(1);
+                (test, value)
+            })
+            .collect()
     }
 
-    fn region(&mut self, local: usize, members: &[u32], module: u32, block: u32) {
-        for &test in members {
-            if !self.lined[test as usize] {
-                continue;
-            }
-            let reach = &self.reach;
-            let value = reach
-                .own
-                .get(&(u64::from(test) * reach.width + local as u64))
-                .or_else(|| reach.ambient.get(&(u64::from(self.file_start[test as usize]) * reach.width + local as u64)))
-                .copied()
-                .unwrap_or(1);
+    fn add(&mut self, values: &[(u32, u64)], module: u32, block: u32) {
+        for &(test, value) in values {
             self.builders[test as usize].get_or_insert_with(case_lines::Builder::default).add(module, block, value).expect("the fold hands a case's regions over in order");
         }
     }
@@ -442,8 +495,7 @@ struct FoldVisitor<'a, 's> {
 
 impl<'a, 's> FoldVisitor<'a, 's> {
     fn new(slice: &'s Slice<'a, 's>, charge: Charge<'a>) -> Self {
-        let width = (slice.loaded.len()) as u64;
-        FoldVisitor { slice, charge, module_row: 0, lands: None, cut: false, reach: Reach { width, ..Reach::default() } }
+        FoldVisitor { slice, charge, module_row: 0, lands: None, cut: false, reach: Reach::new(slice.loaded.len()) }
     }
 }
 
