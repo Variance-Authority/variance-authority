@@ -332,7 +332,10 @@ fn lay(runs: Vec<Vec<u8>>) -> Vec<u8> {
 }
 
 fn compress(bytes: &[u8], level: i32) -> Result<Vec<u8>, String> {
-    let packed = zstd::stream::encode_all(Cursor::new(bytes), level)
+    // One shot, as `zlib.zstdCompressSync` does: the frame names its size, and
+    // zstd sizes its window and tables to it, so the bytes are the TypeScript
+    // writer's and a stream's larger frame is not.
+    let packed = zstd::bulk::compress(bytes, level)
         .map_err(|error| format!("cannot compress journey column: {error}"))?;
     let mut out = Vec::with_capacity(1 + packed.len().min(bytes.len()));
     if packed.len() < bytes.len() {

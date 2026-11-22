@@ -33,8 +33,49 @@ export interface NativeCombinedRecord {
   readonly disputed?: { readonly instrumentation: string; readonly files: readonly string[] } | null;
 }
 
+/**
+ * One run's coverage as columns, for `encodeCoverage`: words already the record's, and a region's
+ * crossers named by index into `members`. Each `*Offsets` column, and `testPreconditions` and
+ * `moduleBlocks`, holds one more entry than the rows it splits.
+ */
+export interface NativeCoverageRows {
+  readonly instrumentation: string;
+  readonly commit?: string;
+  readonly testPath: string[];
+  readonly testComplete: Uint8Array;
+  readonly testDuration: Uint32Array;
+  readonly testPhases: Uint32Array;
+  readonly testPreconditions: Uint32Array;
+  readonly preconditionName: string[];
+  readonly preconditionDigest: string[];
+  readonly modulePath: string[];
+  readonly moduleSource: string[];
+  readonly moduleBlob: (string | null)[];
+  readonly moduleInstrumented: Uint8Array;
+  readonly moduleBlocks: Uint32Array;
+  readonly blockOrdinal: Uint32Array;
+  readonly blockKind: Uint8Array;
+  readonly blockOwner: Uint32Array;
+  readonly blockDigest: string[];
+  readonly blockName: string[];
+  readonly blockPath: string[];
+  readonly blockStart: Uint32Array;
+  readonly blockEnd: Uint32Array;
+  readonly blockSource: Uint8Array;
+  readonly members: string[];
+  readonly calledOffsets: Uint32Array;
+  readonly called: Uint32Array;
+  readonly loadedOffsets: Uint32Array;
+  readonly loaded: Uint32Array;
+}
+
 /** What the addon answers about records: combining shards, laying one over another, and joining one file's regions. */
 export interface NativeRecords {
+  /**
+   * The coverage record `rows` describe: tests and modules by path, regions by ordinal, preconditions
+   * and crossers sorted and distinct. A test file twice, or a crosser no test row holds, throws.
+   */
+  encodeCoverage?(rows: NativeCoverageRows): Buffer;
   /**
    * Fold shard records into the one record at `output`: coverage, cases and their parts, and nothing else.
    * Shards whose records name two records their runs started from fail as unstable sharding.
