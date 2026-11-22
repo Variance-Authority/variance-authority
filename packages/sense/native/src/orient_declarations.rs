@@ -71,6 +71,7 @@ pub(crate) fn declarations_of(layers: &[Layer], files: &[String], budget: usize)
 /// at `index` alone, each within `budget` lines; `None` when no index was
 /// published. No listing of the tree is taken: a file's parse is in the index,
 /// so a checkout git cannot list is still answered.
+/// bound: one entry per file the caller names
 #[napi(catch_unwind)]
 pub fn file_declarations(index: String, files: Vec<String>, budget: u32) -> napi::Result<Option<Vec<FileDeclarations>>> {
     let fail = |error: String| napi::Error::from_reason(format!("the source index at {index} did not read: {error}"));
