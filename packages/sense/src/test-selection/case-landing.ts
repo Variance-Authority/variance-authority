@@ -155,6 +155,10 @@ export async function layCases(
   const sameText = [...recorded].filter(([file, text]) => text === held?.get(file)).map(([file]) => file);
   // A module whose text is not known on both sides is unread: it is given no edit, and read as changed whole.
   // An edit is read before the lay, which may not ask for it, so one that fails to read fails only when asked.
+  edits.ahead(Array.from(recorded).flatMap(([file, to]) => {
+    const from = held?.get(file);
+    return from === undefined || from === to ? [] : [[file, from, to] as const];
+  }));
   const given = new Map(Array.from(recorded).flatMap(([file, to]): (readonly [string, Edit | undefined | Error])[] => {
     const from = held?.get(file);
     if (from === undefined || from === to) return [];
