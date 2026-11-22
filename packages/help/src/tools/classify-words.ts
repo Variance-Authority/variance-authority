@@ -108,7 +108,7 @@ function dictionaryOf(help: Help, packages: Iterable<string>): { readonly folded
     }
   }
   for (const [published, opening, entry] of everyEntry(help)) {
-    add(exact, entry.name, { kind: 'export', specifier: specifierOf(published, opening), package: published.name, published: true });
+    add(exact, entry.name, { kind: 'export', specifier: specifierOf(published, opening), file: entry.at, package: published.name, published: true });
   }
   return { folded, exact };
 }
@@ -254,13 +254,14 @@ export function formatClassified(
 /**
  * The files a classified request names, in the order its words name them: each
  * file a word names, and for a word that names no file, the first source file
- * that declares it, in the order classify lists its declarers.
+ * that declares it — an export's declaring file, or else the first declarer in
+ * the order classify lists them.
  */
 export function namedFiles({ entities }: Classified): readonly string[] {
   return [...new Set(entities.flatMap(({ names }) => {
     const files = names.filter((named) => named.kind === 'file');
     if (files.length > 0) return files.flatMap((named) => (named.file === undefined ? [] : [named.file]));
-    const first = names.find((named) => named.kind === 'declared' && named.file !== undefined && kindOf(named.file) === 'source');
+    const first = names.find((named) => (named.kind === 'export' || named.kind === 'declared') && named.file !== undefined && kindOf(named.file) === 'source');
     return first?.file === undefined ? [] : [first.file];
   }))];
 }

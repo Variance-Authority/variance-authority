@@ -279,6 +279,27 @@ describe('docs_classify', () => {
     ].join('\n'))).toBe(true);
   });
 
+  it('names the file that declares an exported word, and reads every named file from the index the host read, spelled from its workspace', () => {
+    vi.spyOn(sense, 'packageLayers').mockReturnValue({ current: true, packages: [] });
+    vi.spyOn(sense, 'filesNamed').mockReturnValue(new Map());
+    vi.mocked(symbol.declaredInCheckout).mockImplementation((_, { name }) => {
+      if (name !== 'ModuleLoader') throw new FoundNothing(name);
+      return { files: new Map([['lib/loader.js', [3]]]), spelled: new Map([['lib/loader.js:3', ['ModuleLoader']]]) } as unknown as ReturnType<typeof symbol.declaredInCheckout>;
+    });
+    const read = vi.spyOn(sense, 'declarationsOf').mockReturnValue([
+      { file: 'app/packages/sense/src/checkoutPath.ts', read: true, more: 0, moreMembers: 0, declarations: [{ name: 'checkoutPath', kind: 'function', line: 1, exported: true, members: [] }] },
+      { file: 'app/lib/loader.js', read: true, more: 0, moreMembers: 0, declarations: [{ name: 'ModuleLoader', kind: 'class', line: 3, exported: true, members: [] }] },
+    ]);
+
+    const text = classify.run(HELP, { query: 'checkoutPath ModuleLoader' }, { root: '/unused', sourceIndex: { index: '/scoped/source-index.bin', within: 'app' } });
+
+    expect(read.mock.calls[0]).toEqual(['/unused', ['app/packages/sense/src/checkoutPath.ts', 'app/lib/loader.js'], 400, '/scoped/source-index.bin']);
+    expect(text.split('\n').slice(-2)).toEqual([
+      '  packages/sense/src/checkoutPath.ts — checkoutPath (exported)',
+      '  lib/loader.js — ModuleLoader (exported)',
+    ]);
+  });
+
   it('gives a named file it can list nothing of a row that says why', () => {
     const text = formatNamedFiles(['lib/unread.js', 'lib/consts.js', 'lib/bare.js', 'lib/new_thing.js'], [
       { file: 'lib/unread.js', read: false, more: 0, moreMembers: 0, declarations: [] },

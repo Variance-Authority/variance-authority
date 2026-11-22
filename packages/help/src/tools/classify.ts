@@ -92,9 +92,13 @@ const DECLARATION_LINES = 400;
  * What each file the request names declares, from the source index alone: no listing of the tree is taken, so a checkout git cannot list still
  * gets its block.
  */
-function namedFileBlock(classified: ReturnType<typeof classifyWords>, root: string): string {
+function namedFileBlock(classified: ReturnType<typeof classifyWords>, root: string, sourceIndex: ToolInvocation<Help>['sourceIndex']): string {
   const files = namedFiles(classified);
-  return files.length === 0 ? '' : formatNamedFiles(files, declarationsOf(root, files, DECLARATION_LINES));
+  if (files.length === 0) return '';
+  // A generation the host read from above the workspace spells its files from there.
+  const prefix = sourceIndex === undefined || sourceIndex.within === '' ? '' : `${sourceIndex.within}/`;
+  const read = declarationsOf(root, files.map((file) => `${prefix}${file}`), DECLARATION_LINES, sourceIndex?.index);
+  return formatNamedFiles(files, read?.map((one) => ({ ...one, file: one.file.slice(prefix.length) })));
 }
 
 /**
@@ -169,7 +173,7 @@ export const classify: Tool<Help> = {
     // A word git could not look up as a file is not said to name none, and the
     // named files come last: they are the answer the rest leads to.
     const unlisted = unread.why === undefined ? '' : `\n\nNo word is looked up as a file: git could not list the tracked files (${unread.why}).`;
-    const tail = (refusal = ''): string => `${unlisted}${refusal}${namedFileBlock(classified, root)}`;
+    const tail = (refusal = ''): string => `${unlisted}${refusal}${namedFileBlock(classified, root, invocation?.sourceIndex)}`;
     // The addon lists what HEAD holds and ranks it, scoped by the start point's
     // walks; only the ten areas cross.
     const from = startPointArg(input, 'from');
