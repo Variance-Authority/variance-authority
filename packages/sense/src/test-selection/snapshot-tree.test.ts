@@ -66,6 +66,43 @@ describe('the tree of the working state', () => {
     expect(() => git('cat-file', '-e', tree)).toThrow();
   });
 
+  it('keeps a blob a blobless clone fetched while a diff read the tree, once closed', () => {
+    const home = mkdtempSync(join(tmpdir(), 'va-snapshot-tree-'));
+    const origin = join(home, 'origin');
+    const root = join(home, 'clone');
+    mkdirSync(origin);
+    const at = (cwd: string) => (...args: string[]) => execFileSync('git', args, { cwd, encoding: 'utf8' }).trim();
+    const upstream = at(origin);
+    upstream('init', '--quiet');
+    upstream('config', 'user.email', 'fixture@example.test');
+    upstream('config', 'user.name', 'Fixture');
+    upstream('config', 'uploadpack.allowFilter', 'true');
+    writeFileSync(join(origin, 'setup.ts'), 'export const ready = 1;\n');
+    upstream('add', '-A');
+    upstream('commit', '--quiet', '-m', 'one');
+    const first = upstream('rev-parse', 'HEAD');
+    const blob = upstream('rev-parse', 'HEAD:setup.ts');
+    writeFileSync(join(origin, 'setup.ts'), 'export const ready = 2;\n');
+    upstream('commit', '--quiet', '-am', 'two');
+    // The clone checks out the second commit, so the first commit's text is one it has never fetched.
+    execFileSync('git', ['clone', '--quiet', '--filter=blob:none', `file://${origin}`, root]);
+    const git = at(root);
+    const missing = () => git('rev-list', '--objects', '--missing=print', first).split('\n').includes(`?${blob}`);
+    expect(missing()).toBe(true);
+    writeFileSync(join(root, 'setup.ts'), 'export const ready = 3;\n');
+
+    const snapshot = snapshotTree(root);
+    expect(snapshot).toHaveProperty('tree');
+    const { tree, env, close } = snapshot as Extract<typeof snapshot, { tree: string }>;
+    // The diff needs the first commit's text, and fetches it.
+    expect(execFileSync('git', ['diff', '-U0', first, tree], { cwd: root, env: { ...process.env, ...env }, encoding: 'utf8' })).toContain('+export const ready = 3;');
+    close();
+
+    // The fetched text stays for the next reading, and the tree goes.
+    expect(missing()).toBe(false);
+    expect(() => git('cat-file', '-e', tree)).toThrow();
+  });
+
   it('says what git said when it cannot write the tree, naming the path it stopped at', () => {
     const root = mkdtempSync(join(tmpdir(), 'va-snapshot-tree-'));
     const git = (...args: string[]) => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();

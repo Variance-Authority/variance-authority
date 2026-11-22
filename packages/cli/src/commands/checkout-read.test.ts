@@ -26,7 +26,9 @@ describe('the note on a record this checkout ran over many states', () => {
     const many = await checkoutRead('unit', dir, { layer: { ran: states(40) } });
     const few = await checkoutRead('unit', dir, { layer: { ran: states(2) } });
 
-    expect(many).toContain('40 test file(s) ran here, every other is the mainline\'s: t39.test.ts at 393939393939 with uncommitted edits (tree 393939393939)');
+    expect(many).toContain('40 test file(s) ran here, every other is the mainline\'s: t39.test.ts at 393939393939 with uncommitted edits');
+    // The tree only names the state, and its objects are let go: an id git cannot open is not printed.
+    expect(many).not.toContain('(tree ');
     expect(many).toContain('; and 39 test file(s) over 39 earlier state(s)');
     expect(many).not.toContain('t0.test.ts');
     expect(many.length - few.length).toBeLessThan(10);

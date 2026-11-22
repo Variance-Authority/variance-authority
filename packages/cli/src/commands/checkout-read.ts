@@ -60,7 +60,8 @@ function statesRead(ran: readonly OwnState[], offHead: ReadonlySet<string>): str
 
 function stateRead(state: OwnState, offHead: ReadonlySet<string>): string {
   const files = state.files.length <= LISTED ? state.files.join(', ') : `${String(state.files.length)} test files`;
-  const edits = state.tree === undefined ? '' : ` with uncommitted edits (tree ${short(state.tree)})`;
+  // The tree only names the state: its objects are let go once written, so git cannot open the id.
+  const edits = state.tree === undefined ? '' : ' with uncommitted edits';
   return `${files} at ${short(state.commit)}${edits}${offHead.has(state.commit) ? ', not on this branch' : ''}`;
 }
 

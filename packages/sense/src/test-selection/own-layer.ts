@@ -59,7 +59,11 @@ export function pinOf(fetched: Pinned): Pinned {
 /** Tests one or more runs of this checkout observed over one state. */
 export interface OwnState {
   readonly commit: string;
-  /** The git tree of the working state, when the run was made over uncommitted edits. */
+  /**
+   * The git tree of the working state, when the run was made over uncommitted
+   * edits. It only names the state: its objects are let go once written, so
+   * the id is compared, never opened.
+   */
   readonly tree?: string;
   /** In code-unit order. */
   readonly files: readonly string[];
@@ -153,6 +157,8 @@ export type Snapshot =
  * Its objects go to a scratch store that borrows the repository's own, as git
  * quarantines a push it has not accepted yet: a selection run on every save
  * would otherwise leave a loose object per edited file in `.git/objects`.
+ * A read through `env` borrows the scratch store in turn and keeps the
+ * repository's as its own, so a blob a partial clone fetches for it stays.
  * `close` removes the scratch store, and the tree with it.
  */
 export function snapshotTree(repository: string): Snapshot {
@@ -161,7 +167,7 @@ export function snapshotTree(repository: string): Snapshot {
   try {
     const path = (name: string) => resolve(repository, execFileSync('git', ['rev-parse', '--git-path', name], { cwd: repository, encoding: 'utf8' }).trim());
     const real = path('index');
-    const borrowed = [path('objects'), ...(process.env['GIT_ALTERNATE_OBJECT_DIRECTORIES'] ?? '').split(delimiter).filter((dir) => dir !== '')];
+    const alternates = (process.env['GIT_ALTERNATE_OBJECT_DIRECTORIES'] ?? '').split(delimiter).filter((dir) => dir !== '');
     const objects = join(scratch, 'objects');
     mkdirSync(objects);
     const copy = join(scratch, 'index');
@@ -169,9 +175,11 @@ export function snapshotTree(repository: string): Snapshot {
     // The copy keeps the index's time: git reads an entry as new as it again, so an edit in that second is not taken for clean.
     const { atime, mtime } = statSync(real);
     utimesSync(copy, atime, mtime);
-    const env = { GIT_OBJECT_DIRECTORY: objects, GIT_ALTERNATE_OBJECT_DIRECTORIES: borrowed.join(delimiter) };
-    const writing = { cwd: repository, env: { ...process.env, ...env, GIT_INDEX_FILE: copy }, encoding: 'utf8' as const, stdio: 'pipe' as const };
+    const store = { GIT_OBJECT_DIRECTORY: objects, GIT_ALTERNATE_OBJECT_DIRECTORIES: [path('objects'), ...alternates].join(delimiter) };
+    const writing = { cwd: repository, env: { ...process.env, ...store, GIT_INDEX_FILE: copy }, encoding: 'utf8' as const, stdio: 'pipe' as const };
     execFileSync('git', ['add', '-A'], writing);
+    // A read keeps the repository's store as its own and borrows the scratch one, so a blob a partial clone fetches for it stays.
+    const env = { GIT_ALTERNATE_OBJECT_DIRECTORIES: [objects, ...alternates].join(delimiter) };
     return { tree: execFileSync('git', ['write-tree'], writing).trim(), env, close };
   } catch (error) {
     close();
