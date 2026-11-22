@@ -5,8 +5,8 @@ import { codeUnitOrder } from '@variance-authority/core/segment';
 import { kindOf, type Help } from '@variance-authority/package/help';
 import { classifiedAreas, describedWordsNative, filesNamed, declarationsOf, packageLayers, sourceIndexPath } from '@variance-authority/sense';
 import { searchIndexOf, storeBytesOf } from '../snapshot.js';
-import { reachLine, reachOf } from './area.js';
-import { classifyWords, formatClassified, formatNamedFiles, namedFiles, identifier, ownerOf, placedAreas, wordsOf, type CodeMapPlaces, type Locate, type Named, type StartPoint } from './classify-words.js';
+import { reachLine, reachOf, type Reach } from './area.js';
+import { classifyWords, formatClassified, formatNamedFiles, namedFiles, identifier, unshownFiles, ownerOf, placedAreas, wordsOf, type CodeMapPlaces, type Locate, type Named, type StartPoint } from './classify-words.js';
 import { noCodeMap, unfoldedCodeMap } from './code-map-format.js';
 import { FoundNothing } from './find.js';
 import { termsOfStems } from './loose.js';
@@ -92,13 +92,24 @@ const DECLARATION_LINES = 400;
  * What each file the request names declares, from the source index alone: no listing of the tree is taken, so a checkout git cannot list still
  * gets its block.
  */
-function namedFileBlock(classified: ReturnType<typeof classifyWords>, root: string, sourceIndex: ToolInvocation<Help>['sourceIndex']): string {
-  const files = namedFiles(classified);
+function namedFileBlock(
+  classified: ReturnType<typeof classifyWords>,
+  root: string,
+  sourceIndex: ToolInvocation<Help>['sourceIndex'],
+  walks: Reach['walks'] | undefined,
+): string {
+  // Under a start point a named file it does not reach is not the answer to it.
+  const reached = walks === undefined ? undefined : [walks.from, walks.to].flatMap((walk) => (walk === undefined ? [] : [walk]));
+  const files = namedFiles(classified, reached === undefined ? undefined : (file) => reached.some((walk) => walk.chain(file).length > 0));
   if (files.length === 0) return '';
   // A generation the host read from above the workspace spells its files from there.
   const prefix = sourceIndex === undefined || sourceIndex.within === '' ? '' : `${sourceIndex.within}/`;
   const read = declarationsOf(root, files.map((file) => `${prefix}${file}`), DECLARATION_LINES, sourceIndex?.index);
-  return formatNamedFiles(files, read?.map((one) => ({ ...one, file: one.file.slice(prefix.length) })));
+  return formatNamedFiles(
+    files,
+    read?.map((one) => ({ ...one, file: one.file.slice(prefix.length) })),
+    { rest: classified.plain.length > 0, unshown: unshownFiles(classified) },
+  );
 }
 
 /**
@@ -173,19 +184,19 @@ export const classify: Tool<Help> = {
     // A word git could not look up as a file is not said to name none, and the
     // named files come last: they are the answer the rest leads to.
     const unlisted = unread.why === undefined ? '' : `\n\nNo word is looked up as a file: git could not list the tracked files (${unread.why}).`;
-    const tail = (refusal = ''): string => `${unlisted}${refusal}${namedFileBlock(classified, root, invocation?.sourceIndex)}`;
     // The addon lists what HEAD holds and ranks it, scoped by the start point's
     // walks; only the ten areas cross.
     const from = startPointArg(input, 'from');
     const to = startPointArg(input, 'to');
     if (from === undefined && to === undefined && classified.entities.length > 0 && classified.plain.length === 0) {
-      return `${formatClassified(classified, places)}${tail()}`;
+      return `${formatClassified(classified, places)}${unlisted}${namedFileBlock(classified, root, invocation?.sourceIndex, undefined)}`;
     }
     const said: StartPoint | undefined =
       from === undefined && to === undefined
         ? undefined
         : { ...(from === undefined ? {} : { from: [from].flat() }), ...(to === undefined ? {} : { to: [to].flat() }) };
     const reach = said === undefined ? undefined : reachOf(from, to, invocation?.tree);
+    const tail = (refusal = ''): string => `${unlisted}${refusal}${namedFileBlock(classified, root, invocation?.sourceIndex, reach?.walks)}`;
     // A stem admits the dictionary terms `search` admits for it, resolved here once.
     const store = storeBytesOf(help);
     const terms = store === undefined ? [] : termsOfStems(searchIndexOf(help), describedWordsNative(query).map(([stem]) => stem));

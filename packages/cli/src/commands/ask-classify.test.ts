@@ -304,6 +304,19 @@ describe('variance ask classify', () => {
     expect(asked.err + asked.out).toContain('`classify` ranked nothing');
   });
 
+  it('names only the files a start point reaches, as the answer to its words alone when other words are left', async () => {
+    families();
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const asked = await run(['ask', 'classify', '--query', 'who uses shop2 admin2', '--from', 'packages/shop/shop-4/src/index.ts']);
+
+    expect(asked.code).toBe(EXIT_CLEAN);
+    const block = asked.out.slice(asked.out.indexOf('The files the request names'));
+    expect(block).toContain('They answer the words that name them, not the rest of the request');
+    expect(block).toContain('  packages/shop/shop-2/src/index.ts — ');
+    expect(block).not.toContain('admin-2');
+  });
+
   it('names a declared name of a checkout with no package at the line that declares it, before a test that declares it too', async () => {
     unpackaged();
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
@@ -331,7 +344,7 @@ describe('variance ask classify', () => {
     expect(asked.code).toBe(EXIT_CLEAN);
     expect(asked.out).toMatch(/^child_process — file lib\/child_process\.js · in no package$/m);
     expect(asked.out).not.toContain('variance ask orient --files');
-    expect(asked.out).toContain('They are the answer: a file beside them joins it only when it declares a name the request uses, never for sharing their folder.\n  lib/child_process.js — spawn (exported)\n');
+    expect(asked.out).toContain('They answer the words that name them, not the rest of the request: a file beside them joins only when it declares a name the request uses, never for sharing their folder.\n  lib/child_process.js — spawn (exported)\n');
   });
 
   it('keeps a plain word that is only part of a declared name plain', async () => {

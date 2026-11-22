@@ -6,7 +6,7 @@ import type { Documented, Entry, Help } from '@variance-authority/package/help';
 import * as sense from '@variance-authority/sense';
 import { HELP_TOOLS } from '../tools.js';
 import { classify } from './classify.js';
-import { classifyWords, formatClassified, formatNamedFiles, identifier, namedFiles, placedAreas, type CodeMapPlaces, type Named } from './classify-words.js';
+import { classifyWords, formatClassified, formatNamedFiles, identifier, namedFiles, placedAreas, unshownFiles, type CodeMapPlaces, type Named } from './classify-words.js';
 import { FoundNothing } from './find.js';
 import * as symbol from './symbol.js';
 
@@ -344,6 +344,35 @@ describe('docs_classify', () => {
     });
 
     expect(named).toEqual(['lib/module_job.js', 'lib/a.js']);
+  });
+
+  it('names only the files a start point reaches: a word\'s first declarer in reach, and its file rows in reach', () => {
+    const at = (kind: 'declared' | 'file', where: string): Named => ({ kind, specifier: kind === 'file' ? where : `${where}:1`, file: where, package: '', published: false });
+    const located = {
+      entities: [
+        { word: 'ModuleLoader', names: [at('declared', 'lib/far.js'), at('declared', 'lib/near.js')] },
+        { word: 'loader', names: [at('file', 'lib/loader.js'), at('file', 'deps/loader.js')] },
+        { word: 'Wrap', names: [at('declared', 'deps/wrap.js')] },
+      ],
+      plain: [],
+    };
+
+    expect(namedFiles(located, (file) => file.startsWith('lib/') && file !== 'lib/far.js')).toEqual(['lib/near.js', 'lib/loader.js']);
+  });
+
+  it('says the named files answer only their words when other words are left, and counts the files past the rows shown', () => {
+    const read = [{ file: 'lib/loader.js', read: true, more: 0, declarations: [] }] as unknown as Parameters<typeof formatNamedFiles>[1];
+    const text = formatNamedFiles(['lib/loader.js'], read, { rest: true, unshown: [{ word: 'loader', more: 4 }] });
+
+    expect(text).toContain('They answer the words that name them, not the rest of the request: a file beside them joins only when it declares a name the request uses');
+    expect(text).not.toContain('They are the answer');
+    expect(text.split('\n').at(-1)).toBe('  and 4 more tracked files named `loader`, not read here');
+  });
+
+  it('counts the tracked files a word names past the rows classify shows', () => {
+    const file = (where: string, more?: number): Named => ({ kind: 'file', specifier: where, file: where, package: '', published: false, ...(more === undefined ? {} : { more }) });
+
+    expect(unshownFiles({ entities: [{ word: 'loader', names: [file('a/loader.js'), file('b/loader.js', 4)] }, { word: 'wrap', names: [file('wrap.js')] }], plain: [] })).toEqual([{ word: 'loader', more: 4 }]);
   });
 
   it('takes a word as an identifier by an inner capital, an underscore or a digit after a letter, and nothing else', () => {
