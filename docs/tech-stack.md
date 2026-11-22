@@ -57,15 +57,16 @@ query: the `description` and `keywords` in their `package.json`, the headings
 of their README, and the words inside their exported names. Words are matched by stem, so `encrypt`
 finds `encrypted`. A package is listed when it has at least half of the query's
 words, best first. When your own code answers too, which is the usual case,
-the section is one line naming up to five of them and the question that lists
-them all:
+the dependency section names up to five packages by default. A larger
+`--limit` shows more names when any remain; the results stay compact rather than
+expanding into detailed rows:
 
 ```text
-2 packages describe `env files`: dotenv, env-paths. `variance ask search --query 'env files' --limit 20` lists them in full.
+2 packages describe `env files`: dotenv, env-paths.
 ```
 
-Run that question, or ask in a repository whose code writes neither word, and
-each package gets its row:
+When the repository does not answer and dependency matches remain, the answer
+includes each matching package's detailed row:
 
 ```text
 dotenv @17.4.2 · dependency in package.json · imported 1× (first src/env.ts:1) — Loads environment variables from .env file [holds: env, files]
