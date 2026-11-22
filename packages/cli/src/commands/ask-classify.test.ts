@@ -132,7 +132,8 @@ describe('variance ask classify', () => {
     const privateNames = await run(['ask', 'classify', '--query', 'restart worker']);
     expect(privateNames.code).toBe(EXIT_CLEAN);
     const areas = (text: string): string[] => [...text.matchAll(/^ {2}(\S+) — /gm)].map((match) => match[1] ?? '');
-    expect(areas(privateNames.out)).toEqual(['gamma', 'alpha', 'beta']);
+    // The names outside the query do not discount an area's words, so the three tie in path order.
+    expect(areas(privateNames.out)).toEqual(['alpha', 'beta', 'gamma']);
 
     const exported = ['export function restartWorker() {}', 'export interface restartWorker {}', ...Array.from({ length: 100 }, (_, at) => `export function unrelatedName${at}() { return ${at}; }`)].join('\n');
     writeFileSync(join(root, privateArea, 'index.ts'), exported);
@@ -142,14 +143,15 @@ describe('variance ask classify', () => {
     expect(areas(exportedNames.out)).toEqual(areas(privateNames.out));
   });
 
-  it('normalizes private and exported declaration vocabularies equally, including names outside the query', async () => {
+  it('weighs private and exported declarations equally, however many names outside the query they declare', async () => {
     const root = declarationAreas();
     expect((await run(['index', '--wait'])).code).toBe(EXIT_CLEAN);
     const privateNames = await run(['ask', 'classify', '--query', 'restart worker']);
     expect(privateNames.code).toBe(EXIT_CLEAN);
     const areas = (text: string): string[] => [...text.matchAll(/^ {2}(\S+) — /gm)].map((match) => match[1] ?? '');
 
-    expect(areas(privateNames.out)).toEqual(['gamma', 'alpha', 'beta']);
+    // The names outside the query do not discount an area's words, so the three tie in path order.
+    expect(areas(privateNames.out)).toEqual(['alpha', 'beta', 'gamma']);
 
     const exported = ['export function restartWorker() {}', ...Array.from({ length: 100 }, (_, at) => `export function unrelatedName${at}() { return ${at}; }`)].join('\n');
     writeFileSync(join(root, 'beta', 'index.ts'), exported);

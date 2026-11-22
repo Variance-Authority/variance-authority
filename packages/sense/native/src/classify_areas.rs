@@ -8,6 +8,11 @@
 //! counts once per area. Each of the request's stems counts by how few areas
 //! hold it, through the shared rarity, saturated the way BM25 saturates a
 //! term's count and in integers, so one request ranks the same on every run.
+//! An area's length does not discount its words: an area is long because it
+//! holds more files and names, more subjects rather than more words for one,
+//! the scope BM25 leaves unnormalised, and saturation already caps a repeated
+//! word. Discounted, a source area declaring many names ranked below short
+//! test and fixture areas even where it held the request's rarest words.
 //!
 //! Every file `HEAD` holds is read here, from git, and the names they declare
 //! from the help store and the source index: only the ten areas answered cross
@@ -74,7 +79,8 @@ pub struct ClassifiedAreas {
 pub(crate) struct DeclaredWords {
     /// For each of the request's stems, the files declaring a name that holds it, and how many such names each declares.
     pub(crate) holding: BTreeMap<String, HashMap<String, u64>>,
-    /// For each file, how many words the names it declares hold together, exported or not.
+    /// For each file, how many words the names it declares hold together, exported or not;
+    /// the ranking reads only which files have a row, the ones that declare a name.
     pub(crate) words: HashMap<String, u64>,
 }
 
@@ -146,8 +152,8 @@ pub fn classify_areas(
                 *files.entry(file.to_owned()).or_default() += 1;
             }
         }
-        // Every private top-level name counts its words, asked or not, so a
-        // name's visibility alone does not change its file's length.
+        // A private top-level name, one no export binds, declares a name in
+        // its file too.
         for row in private_words(layers) {
             if row.words == 0 || !row.at.starts_with(&under) {
                 continue;
@@ -216,16 +222,8 @@ struct Area<'a> {
     files: u32,
     /// Directory paths whose own segment has already contributed to this area's vocabulary.
     directories: HashSet<&'a str>,
-    /// How many words it holds, the request's or not: BM25's document length.
-    length: u64,
     held: HashMap<&'a str, u64>,
     declares: bool,
-}
-
-/// What one path segment holds: the asked stems among its words, and how many words it holds.
-struct Cut {
-    stems: Vec<String>,
-    words: u64,
 }
 
 /// The areas of `paths` that `asked`'s stems point to, best first and at most
@@ -235,13 +233,10 @@ pub(crate) fn rank<'a>(asked: &'a BTreeMap<String, String>, paths: &[&'a str], d
     if asked.is_empty() {
         return Vec::new();
     }
-    let mut cuts: HashMap<&'a str, Cut> = HashMap::new();
-    let mut cut = |segment: &'a str| -> (Vec<String>, u64) {
-        let cut = cuts.entry(segment).or_insert_with(|| {
-            let words = code_words(segment);
-            Cut { words: words.len() as u64, stems: words.into_keys().filter(|stem| asked.contains_key(stem)).collect() }
-        });
-        (cut.stems.clone(), cut.words)
+    // The asked stems among each path segment's words.
+    let mut cuts: HashMap<&'a str, Vec<String>> = HashMap::new();
+    let mut cut = |segment: &'a str| -> Vec<String> {
+        cuts.entry(segment).or_insert_with(|| code_words(segment).into_keys().filter(|stem| asked.contains_key(stem)).collect()).clone()
     };
     let under = files_under(paths);
     let mut areas: HashMap<&str, Area> = HashMap::new();
@@ -253,9 +248,7 @@ pub(crate) fn rank<'a>(asked: &'a BTreeMap<String, String>, paths: &[&'a str], d
         for (at, _) in path.match_indices('/') {
             let prefix = &path[..at];
             if area.directories.insert(prefix) {
-                let (stems, words) = cut(&path[start..at]);
-                area.length += words * PATH_WEIGHT;
-                for stem in stems {
+                for stem in cut(&path[start..at]) {
                     *area.held.entry(asked.get_key_value(&stem).map(|(key, _)| key.as_str()).unwrap_or_default()).or_default() += PATH_WEIGHT;
                 }
             }
@@ -263,13 +256,10 @@ pub(crate) fn rank<'a>(asked: &'a BTreeMap<String, String>, paths: &[&'a str], d
         }
         area.files += 1;
         file_of.insert(path, directory);
-        let (stems, words) = cut(base_name(path));
-        let declares = declared.words.get(path);
-        area.length += words + declares.copied().unwrap_or(0);
-        if declares.is_some() {
+        if declared.words.contains_key(path) {
             area.declares = true;
         }
-        for stem in stems {
+        for stem in cut(base_name(path)) {
             *area.held.entry(asked.get_key_value(&stem).map(|(key, _)| key.as_str()).unwrap_or_default()).or_default() += 1;
         }
     }
@@ -288,7 +278,6 @@ pub(crate) fn rank<'a>(asked: &'a BTreeMap<String, String>, paths: &[&'a str], d
         }
     }
     let population = areas.len() as f64;
-    let length = areas.values().map(|area| area.length as f64).sum::<f64>();
     let mut ranked: Vec<RankedArea> = areas
         .iter()
         .filter(|(_, area)| !area.held.is_empty())
@@ -298,7 +287,8 @@ pub(crate) fn rank<'a>(asked: &'a BTreeMap<String, String>, paths: &[&'a str], d
                 .iter()
                 .map(|(&stem, &held)| {
                     let rarity = crate::rarity::rarity(population, holders.get(stem).copied().unwrap_or(0) as f64);
-                    (stem, ((rarity * crate::rarity::saturation(held as f64, area.length as f64, length, population)) / 1000.0).floor())
+                    // No length: the helper saturates as if every area had the mean length.
+                    (stem, ((rarity * crate::rarity::saturation(held as f64, 0.0, 0.0, 0.0)) / 1000.0).floor())
                 })
                 .collect();
             let score = weighs.values().sum::<f64>();
