@@ -77,6 +77,9 @@ export async function changedSince(ref: string, roots: readonly string[] = []): 
   }
 }
 
+/** Where git runs, the context around each hunk, and the snapshot's store, when the diff reads its tree. */
+type Reading = { readonly cwd?: string; readonly unified?: number; readonly env?: Readonly<Record<string, string>> };
+
 /**
  * The same diff again, as text — because the second ground reads lines.
  *
@@ -113,7 +116,7 @@ export async function diffSince(
   ref: string,
   roots: readonly string[] = [],
   from?: string,
-  options: { readonly reverse?: boolean; readonly cwd?: string; readonly unified?: number; readonly to?: string; readonly env?: Readonly<Record<string, string>> } = {},
+  options: Reading & { readonly reverse?: boolean; readonly to?: string } = {},
 ): Promise<string | undefined> {
   const run = promisify(execFile);
   const here = options.cwd ?? process.cwd();
@@ -155,11 +158,7 @@ export async function diffSince(
  * reading names it, so a file that moves while the reading runs moves none of them.
  * `env` is the snapshot's, which reaches the store the tree was written to.
  */
-export async function diffToTree(
-  from: string,
-  tree: string,
-  options: { readonly cwd?: string; readonly unified?: number; readonly env?: Readonly<Record<string, string>> } = {},
-): Promise<string | undefined> {
+export async function diffToTree(from: string, tree: string, options: Reading = {}): Promise<string | undefined> {
   return await diffSince(from, [], from, { ...options, to: tree });
 }
 

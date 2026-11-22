@@ -3411,6 +3411,7 @@
         "ShardAsked": "interface",
         "ShardPart": "interface",
         "ShardRuns": "interface",
+        "Snapshot": "type",
         "SourceAudience": "interface",
         "SourceAudienceTest": "interface",
         "SourcePoint": "interface",
