@@ -237,7 +237,7 @@ pub(crate) fn layer(previous: Option<&[u8]>, fresh: &[u8], files: &Files, base: 
                 let row = row.expect("a union entry names a side");
                 if let Some(kept) = layer.carried_row(&held.modules[row], &held_cuts[row], false)? {
                     if let Some(lines) = layer.lines.as_mut() {
-                        lines.carried(laid.len() as u32, row as u32)?;
+                        lines.carried(laid.len() as u32, row as u32);
                     }
                     laid.push(kept);
                 }
@@ -262,7 +262,7 @@ pub(crate) fn layer(previous: Option<&[u8]>, fresh: &[u8], files: &Files, base: 
             Case::Run(at) => run.tests[*at].id.clone(),
         });
         let ids: Vec<String> = ids.collect();
-        let lines = layer.lines.take().map(LaidLines::finish);
+        let lines = layer.lines.take().map(|lines| lines.finish(&layer.sets)).transpose()?;
         let owned = held_cuts.iter().any(|cut| cut.owners.is_some());
         let merged = write(&held, Some(&run), &cases.order, &laid, layer.sets, lines, owned)?;
         let (before, unlined) = match cutting {
@@ -401,7 +401,7 @@ pub(crate) fn follow_cuts(bytes: &[u8], cuts: &[RowCut], edit: &dyn Fn(&str) -> 
         let Some(cut) = onto.get(&row) else {
             if let Some(kept) = layer.carried_row(module, &held_cuts[row], false)? {
                 if let Some(lines) = layer.lines.as_mut() {
-                    lines.carried(laid.len() as u32, row as u32)?;
+                    lines.carried(laid.len() as u32, row as u32);
                 }
                 laid.push(kept);
             }
@@ -423,7 +423,7 @@ pub(crate) fn follow_cuts(bytes: &[u8], cuts: &[RowCut], edit: &dyn Fn(&str) -> 
             laid.push(followed);
         }
     }
-    let lines = layer.lines.take().map(LaidLines::finish);
+    let lines = layer.lines.take().map(|lines| lines.finish(&layer.sets)).transpose()?;
     let owned = held_cuts.iter().any(|cut| cut.owners.is_some());
     write(&held, None, &cases.order, &laid, layer.sets, lines, owned).map(Some)
 }
