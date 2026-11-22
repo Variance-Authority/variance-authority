@@ -5,6 +5,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use rayon::prelude::*;
 use rustc_hash::FxHashMap;
 
 use crate::case_lines;
@@ -30,39 +31,73 @@ pub(crate) trait Walked {
 /// them: in module and region order, each with the value the case's lines
 /// give it. Each set is decoded once, and only these cases' regions are laid
 /// out. A row named twice is laid out for its last place in `rows`.
-pub(crate) fn regions_of(index: &impl Walked, rows: &[u32]) -> Result<Vec<Vec<Region>>, String> {
+pub(crate) fn regions_of(index: &(impl Walked + Sync), rows: &[u32]) -> Result<Vec<Vec<Region>>, String> {
     #[cfg(test)]
     crate::case_readings::EXPANDED.with(|expanded| expanded.set(expanded.get() + rows.len()));
     let mut read = vec![Vec::new(); rows.len()];
     if rows.is_empty() {
         return Ok(read);
     }
-    let mut slots: Vec<Option<usize>> = vec![None; index.cases()];
+    let cases = index.cases();
+    let mut slots: Vec<Option<usize>> = vec![None; cases];
     for (slot, row) in rows.iter().enumerate() {
         *slots.get_mut(*row as usize).ok_or_else(|| format!("the case index holds no case at row {row}"))? = Some(slot);
     }
-    let lines = rows.iter().map(|row| index.lines(*row)).collect::<Result<Vec<_>, String>>()?;
+    let lines = rows.par_iter().map(|row| index.lines(*row)).collect::<Result<Vec<_>, String>>()?;
+    // Each set once, its members ascending: a member is one case, so a case's
+    // regions come out in module and region order whatever order its sets
+    // name it in, and a range of rows finds its members by bisection.
     let (set_bytes, set_offsets) = index.sets();
-    let mut members: FxHashMap<u32, Vec<u32>> = FxHashMap::default();
-    // Each case's lines of the module last read for it.
-    let mut module_lines: Vec<(usize, Option<case_lines::ModuleLines>)> = vec![(usize::MAX, None); rows.len()];
-    for place in 0..index.modules() {
-        let file = index.module(place)?;
-        for (block, set) in index.called(place).iter().enumerate() {
-            if !members.contains_key(set) {
-                members.insert(*set, decode_set(set_slice(set_bytes, set_offsets, *set)?, index.cases())?);
-            }
-            for row in &members[set] {
-                let Some(slot) = slots.get(*row as usize).copied().flatten() else { continue };
-                let (at_place, own) = &mut module_lines[slot];
-                if *at_place != place {
-                    *at_place = place;
-                    *own = lines[slot].as_ref().map(|lines| case_lines::module_lines(lines, place as u32));
+    let mut named: Vec<u32> = (0..index.modules()).flat_map(|place| index.called(place).iter().copied()).collect();
+    named.sort_unstable();
+    named.dedup();
+    let decoded = named
+        .par_iter()
+        .map(|set| {
+            let mut members = decode_set(set_slice(set_bytes, set_offsets, *set)?, cases)?;
+            members.sort_unstable();
+            Ok((*set, members))
+        })
+        .collect::<Result<FxHashMap<u32, Vec<u32>>, String>>()?;
+    // The rows split into ranges, each walked over every module on its own
+    // thread; a case lies in one range, so its regions are laid out by one walk.
+    let ranges = (rayon::current_num_threads() * 4).clamp(1, cases);
+    let width = cases.div_ceil(ranges);
+    let laid = (0..cases)
+        .step_by(width)
+        .collect::<Vec<_>>()
+        .into_par_iter()
+        .map(|from| -> Result<Vec<(usize, Vec<Region>)>, String> {
+            let to = (from + width).min(cases);
+            let mut laid: Vec<Vec<Region>> = vec![Vec::new(); to - from];
+            // Each case's lines of the module last read for it.
+            let mut module_lines: Vec<(usize, Option<case_lines::ModuleLines>)> = vec![(usize::MAX, None); to - from];
+            for place in 0..index.modules() {
+                let file = index.module(place)?;
+                for (block, set) in index.called(place).iter().enumerate() {
+                    let members = &decoded[set];
+                    let first = members.partition_point(|row| (*row as usize) < from);
+                    for row in &members[first..] {
+                        let row = *row as usize;
+                        if row >= to {
+                            break;
+                        }
+                        let Some(slot) = slots[row] else { continue };
+                        let (at_place, own) = &mut module_lines[row - from];
+                        if *at_place != place {
+                            *at_place = place;
+                            *own = lines[slot].as_ref().map(|lines| case_lines::module_lines(lines, place as u32));
+                        }
+                        let (name, path, start, end) = index.region(place, block)?;
+                        laid[row - from].push(Region { module: file.clone(), name, path, start, end, value: own.and_then(|own| own.value(block as u32)) });
+                    }
                 }
-                let (name, path, start, end) = index.region(place, block)?;
-                read[slot].push(Region { module: file.clone(), name, path, start, end, value: own.and_then(|own| own.value(block as u32)) });
             }
-        }
+            Ok(laid.into_iter().enumerate().filter_map(|(at, regions)| slots[from + at].map(|slot| (slot, regions))).collect())
+        })
+        .collect::<Result<Vec<_>, String>>()?;
+    for (slot, regions) in laid.into_iter().flatten() {
+        read[slot] = regions;
     }
     Ok(read)
 }

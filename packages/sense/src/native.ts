@@ -228,6 +228,8 @@ export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon
   readLanguage(language: string, source: string): string | null;
   /** Each path's text digest, as `digestString(readFile(path, 'utf8'))` has it, read in parallel; throws naming the first it cannot read. */
   textDigests?(paths: string[]): string[];
+  /** Each path's text, as `readFileSync(path, 'utf8')` has it, read in parallel, in the order asked; `null` where no file is there. */
+  readTexts(paths: string[]): (string | null)[];
   /** One module's parse, as JSON, for source text already in hand. */
   readSource(file: string, source: string): string;
   /**

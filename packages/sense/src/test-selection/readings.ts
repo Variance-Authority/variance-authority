@@ -18,13 +18,12 @@
  * journal row is read through that.
  */
 
-import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { InstrumentMode, ModuleId } from '../instrument/index.js';
 import { native, nativeRefusal } from '../addon.js';
 import { captureModule, heldOriginal, pathOf } from './captured-modules.js';
-import { fileOrNone, type CapturedModule } from './instrumented-modules.js';
+import type { CapturedModule } from './instrumented-modules.js';
 import { isWritten } from './written-lines.js';
 
 /** Where one reading's ordinals are in its file's record. */
@@ -42,8 +41,8 @@ export interface JoinedReadings {
   readonly readings: ReadonlyMap<ModuleId, Reading>;
 }
 
-/** A file's own cut, by its repository-relative path; `undefined` where the file is not there to cut. */
-export type OwnCut = (file: string) => CapturedModule | undefined;
+/** Each file's own cut, by its repository-relative path, in the order asked; `undefined` where the file is not there to cut. */
+export type OwnCut = (files: readonly string[]) => readonly (CapturedModule | undefined)[];
 
 /**
  * Each file's readings as one record.
@@ -61,16 +60,20 @@ export type OwnCut = (file: string) => CapturedModule | undefined;
 export function joinReadings(modules: ReadonlyMap<ModuleId, CapturedModule>, cut: OwnCut): JoinedReadings {
   const byFile = new Map<string, ModuleId[]>();
   for (const [id, module] of modules) byFile.set(module.file, [...byFile.get(module.file) ?? [], id]);
+  const itself = (file: string, ids: readonly ModuleId[]) => ids.length === 1 && pathOf(ids[0]!) === file;
+  const held = [...byFile].filter(([file, ids]) => !itself(file, ids)).map(([file]) => file);
+  const cuts = cut(held);
+  const owns = new Map(held.map((file, at) => [file, cuts[at]]));
   const joined = new Map<ModuleId, CapturedModule>();
   const readings = new Map<ModuleId, Reading>();
   for (const [file, ids] of byFile) {
-    if (ids.length === 1 && pathOf(ids[0]!) === file) {
+    if (itself(file, ids)) {
       joined.set(ids[0]!, modules.get(ids[0]!)!);
       continue;
     }
     ids.sort(codeUnitOrder);
     const read = ids.map((each) => modules.get(each)!);
-    const own = cut(file);
+    const own = owns.get(file);
     const fits = (module: CapturedModule) => module.instrumented && module.sourceDigest === own?.sourceDigest;
     if (own === undefined || !own.instrumented || !read.every(fits)) {
       const id = own?.id ?? ids[0]!;
@@ -110,12 +113,28 @@ function landed(table: readonly Placed[], placed: readonly (readonly Placed[])[]
 
 /**
  * Each file's own cut, as the transform that probes it ahead of every other
- * one cuts it: from its text on disk under `root`.
+ * one cuts it: from its text on disk under `root`, every file read at once by
+ * the addon.
  */
 export function ownCut(root: string, mode: InstrumentMode | undefined): OwnCut {
-  return (file) => {
-    const path = resolve(root, file);
-    const disk = fileOrNone(path, (at) => readFileSync(at, 'utf8'));
-    return disk === undefined ? undefined : captureModule(root, path, disk, () => true, mode, heldOriginal(path, disk))?.module;
+  return (files) => {
+    // A bundler's virtual module names no file: `\0` reads as no text, as `fileOrNone` has it.
+    const paths = files.map((file) => resolve(root, file));
+    const read = paths.filter((path) => !path.includes('\0'));
+    const text = readTexts(read);
+    const texts = new Map(read.map((path, at) => [path, text[at]]));
+    return paths.map((path) => {
+      const disk = texts.get(path) ?? undefined;
+      return disk === undefined ? undefined : captureModule(root, path, disk, () => true, mode, heldOriginal(path, disk))?.module;
+    });
   };
+}
+
+/** Each path's text, read by the addon on every core; `null` where no file is there. */
+function readTexts(paths: readonly string[]): readonly (string | null)[] {
+  const read = native()?.readTexts;
+  if (read === undefined) {
+    throw new Error(`cutting each file read twice requires the Sense native addon: ${nativeRefusal() ?? 'the loaded addon has no `readTexts`'}`);
+  }
+  return read([...paths]);
 }

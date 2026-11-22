@@ -36,3 +36,23 @@ pub fn read_language(language: String, source: String) -> Option<String> {
 pub fn read_language(_language: String, _source: String) -> Option<String> {
     None
 }
+
+/// Each file's text, read on every core, in the order asked: `null` where no
+/// file is there, as `readFileSync`'s `ENOENT`. Bytes that are not UTF-8 read as
+/// U+FFFD, as `readFileSync(path, 'utf8')` reads them; any other failure to
+/// read is an error naming the file.
+#[napi(catch_unwind)]
+pub fn read_texts(paths: Vec<String>) -> napi::Result<Vec<Option<String>>> {
+    use rayon::prelude::*;
+    paths
+        .par_iter()
+        .map(|path| match std::fs::read(path) {
+            Ok(bytes) => Ok(Some(match String::from_utf8(bytes) {
+                Ok(text) => text,
+                Err(error) => String::from_utf8_lossy(error.as_bytes()).into_owned(),
+            })),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+            Err(error) => Err(napi::Error::from_reason(format!("`{path}`: {error}"))),
+        })
+        .collect()
+}

@@ -41,7 +41,7 @@ const build = reading('dist/cart.js', [
 ]);
 
 /** The file's own cut, as its text on disk gives it: the source's. */
-const cut = (file: string) => (file === 'src/cart.ts' ? source : undefined);
+const cut = (files: readonly string[]) => files.map((file) => (file === 'src/cart.ts' ? source : undefined));
 
 describe('one file read twice', () => {
   it('is held under the file\'s own cut, whichever readings of it the run loaded', () => {
@@ -87,7 +87,7 @@ describe('one file read twice', () => {
   });
 
   it('is uninstrumented when the file is not there to cut', () => {
-    const joined = joinReadings(new Map([['dist/cart.js', build]]), () => undefined);
+    const joined = joinReadings(new Map([['dist/cart.js', build]]), (files) => files.map(() => undefined));
 
     expect(joined.modules.get('dist/cart.js')).toMatchObject({ file: 'src/cart.ts', instrumented: false, blocks: [] });
     expect(joined.readings.get('dist/cart.js')).toEqual({ id: 'dist/cart.js', lands: [] });
@@ -95,13 +95,13 @@ describe('one file read twice', () => {
 
   it('is uninstrumented when the file on disk is not the text a reading was cut from', () => {
     const edited = { ...source, sourceDigest: 'v1:edited' };
-    const joined = joinReadings(new Map([['dist/cart.js', build]]), () => edited);
+    const joined = joinReadings(new Map([['dist/cart.js', build]]), (files) => files.map(() => edited));
 
     expect(joined.modules.get('src/cart.ts')).toMatchObject({ sourceDigest: 'v1:edited', instrumented: false, blocks: [] });
   });
 
   it('is its reading when the run read it once, as itself', () => {
-    const joined = joinReadings(new Map([['src/cart.ts', source]]), () => undefined);
+    const joined = joinReadings(new Map([['src/cart.ts', source]]), (files) => files.map(() => undefined));
 
     expect(joined.modules.get('src/cart.ts')).toBe(source);
     expect(joined.readings.size).toBe(0);
