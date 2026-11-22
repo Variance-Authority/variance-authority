@@ -28,10 +28,13 @@ the answer. The answer ends with the source files the request names — each fil
 a word names, and the first file that declares each declared word — each with
 up to eight functions and classes it declares at its top level,
 exported first, from its parse in the source index. They sit under a line saying
-they are the answer, and that a file beside them joins it only when it declares
-a name the request uses, never for sharing their folder. A file with nothing to
-list still gets its row, saying why: the index holds no parse of it, or it
-declares no function or class. A word the
+they are the answer — to the words that name them alone, when other words are
+left — and that a file beside them joins it only when it declares a name the
+request uses, never for sharing their folder. Under `--from` or `--to` only the
+files the start point reaches are named. A file with nothing to list still gets
+its row, saying why: the index holds no parse of it, or it declares no function
+or class; a word naming more tracked files than are shown gets a row counting
+the rest. A word the
 request spells another way — a plural, two words for a hyphenated name, a
 domain word no name carries — is not an entity.
 
