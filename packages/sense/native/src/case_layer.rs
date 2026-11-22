@@ -209,10 +209,12 @@ fn opened(bytes: &[u8]) -> Option<(Shard, Vec<Inventory>)> {
 /// from when it is not `previous`; `before` says whether to cut it at all.
 /// An index this cannot open is no index to lay over, and the run is written alone.
 pub(crate) fn layer(previous: Option<&[u8]>, fresh: &[u8], files: &Files, base: Option<&[u8]>, before: bool) -> Result<Layers, String> {
-    let (run, run_cuts) = opened(fresh).ok_or_else(|| "a case fold wrote an index it cannot open".to_owned())?;
+    // The two indexes are read apart from each other, so they are opened together.
+    let (fresh_opened, previous_opened) = rayon::join(|| opened(fresh), || previous.and_then(opened));
+    let (run, run_cuts) = fresh_opened.ok_or_else(|| "a case fold wrote an index it cannot open".to_owned())?;
     let last: Vec<String> = run.tests.iter().map(|test| test.id.clone()).collect();
     let announced = run.tests.iter().filter(|test| files.ran.contains(&test.file)).map(|test| test.id.clone()).collect();
-    let Some((held, held_cuts)) = previous.and_then(opened) else {
+    let Some((held, held_cuts)) = previous_opened else {
         return Ok(Layers { merged: fresh.to_vec(), cases: last.clone(), last, announced, before: None, before_modules: Vec::new(), unlined: Vec::new() });
     };
     let cases = layered_cases(&held, &run.tests, |file| files.finished.contains(file) || !files.present(file))?;
