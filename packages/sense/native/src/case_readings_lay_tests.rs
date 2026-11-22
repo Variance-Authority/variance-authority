@@ -36,7 +36,8 @@ fn index(bounds: Vec<u32>) -> Vec<u8> {
 
 #[test]
 fn reads_the_region_a_module_holds() {
-    let reads = open(&index(vec![0, 1])).unwrap().unwrap().reads(&HashSet::from(["a.test.ts > one"])).unwrap();
+    let opened = open(&index(vec![0, 1])).unwrap().unwrap();
+    let reads = opened.reads(&HashSet::from(["a.test.ts > one"])).unwrap();
 
     assert_eq!(reads["a.test.ts > one"].regions.len(), 1);
 }

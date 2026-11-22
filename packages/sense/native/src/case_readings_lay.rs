@@ -6,7 +6,6 @@
 //! landed index holds of it.
 
 use std::collections::{HashMap, HashSet};
-use std::sync::Arc;
 
 use rayon::prelude::*;
 
@@ -22,26 +21,24 @@ mod napi;
 
 /// One recorded run of one case, and how many runs read it so.
 #[derive(Clone)]
-pub(crate) struct Reading {
+pub(crate) struct Reading<'a> {
     pub count: u64,
     pub stopped: Option<bool>,
-    pub regions: Vec<Region>,
+    pub regions: Vec<Region<'a>>,
 }
 
 /// What a case's reading is, read off an index.
-struct Read {
+struct Read<'a> {
     file: String,
     stopped: Option<bool>,
-    regions: Vec<Region>,
+    regions: Vec<Region<'a>>,
     /// The modules its regions are in, each once.
-    modules: Vec<Arc<str>>,
+    modules: Vec<&'a str>,
 }
 
 /// The columns of a case index a reading is read from.
 struct Index {
     strings: Vec<String>,
-    /// `strings`, shared by the regions that name them.
-    shared: Vec<Arc<str>>,
     ids: Vec<u32>,
     files: Vec<u32>,
     stopped: Option<Vec<u8>>,
@@ -71,7 +68,6 @@ fn open(bytes: &[u8]) -> Result<Option<Index>, String> {
     let optional = |decoded: &Decoded, name: &str| if decoded.has(name) { decoded.bytes(name).map(Some) } else { Ok(None) };
     let strings = strings(&decoded)?;
     let index = Index {
-        shared: strings.iter().map(|value| Arc::from(value.as_str())).collect(),
         strings,
         ids: decoded.words("tests.id")?,
         files: decoded.words("tests.file")?,
@@ -108,10 +104,6 @@ fn open(bytes: &[u8]) -> Result<Option<Index>, String> {
 }
 
 impl Index {
-    fn shared(&self, id: u32) -> Result<Arc<str>, String> {
-        self.shared.get(id as usize).cloned().ok_or_else(|| format!("journey string id {id} is out of bounds"))
-    }
-
     fn modules(&self) -> Result<Vec<&str>, String> {
         self.module_files.iter().map(|file| string(&self.strings, *file)).collect()
     }
@@ -123,7 +115,7 @@ impl Index {
     /// The readings of the cases `wanted` names, by id, their regions as
     /// `regions_of` lays them out. An id held twice reads as its last row, as
     /// a map keyed by id keeps it.
-    fn reads(&self, wanted: &HashSet<&str>) -> Result<HashMap<String, Read>, String> {
+    fn reads(&self, wanted: &HashSet<&str>) -> Result<HashMap<String, Read<'_>>, String> {
         let mut by_id: HashMap<&str, u32> = HashMap::new();
         for (row, id) in self.ids.iter().enumerate() {
             let id = string(&self.strings, *id)?;
@@ -142,10 +134,10 @@ impl Index {
                     Some(2) => Some(true),
                     Some(_) => return Err("a case's settling is not one this build reads".to_owned()),
                 };
-                let mut modules: Vec<Arc<str>> = Vec::new();
+                let mut modules: Vec<&str> = Vec::new();
                 for region in &regions {
-                    if modules.last().is_none_or(|last| !Arc::ptr_eq(last, &region.module)) {
-                        modules.push(region.module.clone());
+                    if modules.last().is_none_or(|last| !same_str(last, region.module)) {
+                        modules.push(region.module);
                     }
                 }
                 let read = Read { file: string(&self.strings, self.files[row as usize])?.to_owned(), stopped, regions, modules };
@@ -164,17 +156,17 @@ impl Walked for Index {
         self.module_files.len()
     }
 
-    fn module(&self, place: usize) -> Result<Arc<str>, String> {
-        self.shared(self.module_files[place])
+    fn module(&self, place: usize) -> Result<&str, String> {
+        string(&self.strings, self.module_files[place])
     }
 
     fn called(&self, place: usize) -> &[u32] {
         &self.called[self.module_blocks[place] as usize..self.module_blocks[place + 1] as usize]
     }
 
-    fn region(&self, place: usize, block: usize) -> Result<(Arc<str>, Arc<str>, u64, u64), String> {
+    fn region(&self, place: usize, block: usize) -> Result<(&str, &str, u64, u64), String> {
         let at = self.module_blocks[place] as usize + block;
-        Ok((self.shared(self.names[at])?, self.shared(self.paths[at])?, u64::from(self.starts[at]), u64::from(self.ends[at])))
+        Ok((string(&self.strings, self.names[at])?, string(&self.strings, self.paths[at])?, u64::from(self.starts[at]), u64::from(self.ends[at])))
     }
 
     fn sets(&self) -> (&[u8], &[u32]) {
@@ -221,7 +213,9 @@ pub(crate) fn lay(kept: Option<&[u8]>, previous: Option<&[u8]>, landed: Option<&
     // The landed index is read for every case the record holds, a superset of
     // those still holding readings, so it need not wait on them.
     let known: HashSet<&str> = ran.iter().map(String::as_str).chain(stored.iter().map(|(id, _)| id.as_str())).collect();
-    let reads = |index: &Option<Index>, wanted: &HashSet<&str>| index.as_ref().map_or_else(|| Ok(HashMap::new()), |index| index.reads(wanted));
+    fn reads<'i>(index: &'i Option<Index>, wanted: &HashSet<&str>) -> Result<HashMap<String, Read<'i>>, String> {
+        index.as_ref().map_or_else(|| Ok(HashMap::new()), |index| index.reads(wanted))
+    }
     let (held_back, (now, there)) = rayon::join(
         || -> Result<_, String> {
             let earlier = reads(&before, &known)?;
@@ -260,7 +254,7 @@ pub(crate) fn lay(kept: Option<&[u8]>, previous: Option<&[u8]>, landed: Option<&
                 None => was.as_mut().map(|was| vec![Reading { count: 1, stopped: was.stopped, regions: std::mem::take(&mut was.regions) }]).unwrap_or_default(),
             };
             let inputs = run.and_then(|run| run.inputs.as_ref()).and_then(|inputs| inputs.get(&reading.file));
-            let stands = inputs == held.get(&reading.file) && entered(was.as_ref(), &prior).chain(&reading.modules).all(|module| same(module));
+            let stands = inputs == held.get(&reading.file) && entered(was.as_ref(), &prior).chain(reading.modules.iter().copied()).all(&same);
             let mut readings = if prior.is_empty() || !stands { Vec::new() } else { prior };
             let Read { stopped, regions, .. } = reading;
             let found = readings.iter().position(|one| one.stopped == stopped && one.regions == regions).map(|at| readings.remove(at));
@@ -280,7 +274,7 @@ pub(crate) fn lay(kept: Option<&[u8]>, previous: Option<&[u8]>, landed: Option<&
         if ran.contains(id) || !cases.contains(id) {
             continue;
         }
-        if !moved.is_empty() && entered(earlier.get(id), &readings).any(|module| moved.contains(&**module)) {
+        if !moved.is_empty() && entered(earlier.get(id), &readings).any(|module| moved.contains(module)) {
             continue;
         }
         laid.insert(id.to_owned(), readings);
@@ -311,7 +305,7 @@ fn refused(error: String) -> String {
 /// against the newest, and the newest against the regions the landed index
 /// holds of the case, or whole where the index holds none of it or where its
 /// regions cost no more bytes.
-fn packed(readings: &[Reading], there: Option<&Read>) -> Vec<u8> {
+fn packed(readings: &[Reading<'_>], there: Option<&Read<'_>>) -> Vec<u8> {
     let (newest, rest) = readings.split_first().unwrap_or_else(|| unreachable!());
     let earlier: Vec<Stored> = rest.iter().map(|reading| Stored { count: reading.count, stopped: reading.stopped, ..against(&reading.regions, &newest.regions) }).collect();
     let whole = StoredView { count: newest.count, stopped: newest.stopped, regions: Some(&newest.regions), ..StoredView::default() };
@@ -325,7 +319,7 @@ fn packed(readings: &[Reading], there: Option<&Read>) -> Vec<u8> {
 /// A case's stored readings in full, as `expanded` reads them: the newest
 /// over `base`, each earlier one over the newest; absent where the newest
 /// holds no regions and `base` is absent.
-fn expanded(stored: &[Stored], base: Option<&[Region]>) -> Option<Vec<Reading>> {
+fn expanded<'a>(stored: &[Stored<'a>], base: Option<&[Region<'a>]>) -> Option<Vec<Reading<'a>>> {
     let first = stored.first()?;
     if first.regions.is_none() && base.is_none() {
         return None;
@@ -337,35 +331,39 @@ fn expanded(stored: &[Stored], base: Option<&[Region]>) -> Option<Vec<Reading>> 
 }
 
 /// Every module a case's readings entered, as often as its regions name it in a row.
-fn entered<'a>(read: Option<&'a Read>, readings: &'a [Reading]) -> impl Iterator<Item = &'a Arc<str>> {
-    let mut last: Option<&Arc<str>> = None;
-    let regions = readings.iter().flat_map(|reading| reading.regions.iter().map(|region| &region.module)).filter(move |module| {
-        let again = last.is_some_and(|last| Arc::ptr_eq(last, module));
+fn entered<'a, 's>(read: Option<&'a Read<'s>>, readings: &'a [Reading<'s>]) -> impl Iterator<Item = &'s str> + 'a {
+    let mut last: Option<&str> = None;
+    let regions = readings.iter().flat_map(|reading| reading.regions.iter().map(|region| region.module)).filter(move |module| {
+        let again = last.is_some_and(|last| same_str(last, module));
         last = Some(module);
         !again
     });
-    read.into_iter().flat_map(|read| read.modules.iter()).chain(regions)
+    read.into_iter().flat_map(|read| read.modules.iter().copied()).chain(regions)
 }
 
-fn alike(reading: &Reading, read: Option<&Read>) -> bool {
+/// Whether two strings are the one string of one table: the same bytes at the same place.
+fn same_str(one: &str, other: &str) -> bool {
+    std::ptr::eq(one, other)
+}
+
+fn alike(reading: &Reading<'_>, read: Option<&Read<'_>>) -> bool {
     read.is_some_and(|read| reading.stopped == read.stopped && reading.regions == read.regions)
 }
 
 /// Every reading `section` keeps of case `id`, newest first, the newest read
 /// off `index` where it is stored as its difference from it; absent when the
-/// section keeps none of the case.
-pub(crate) fn readings_of(section: &[u8], index: Option<&[u8]>, id: &str) -> Result<Option<Vec<Reading>>, String> {
+/// section keeps none of the case. Each reading is handed to `each`, since
+/// its strings are borrowed from what this reads.
+pub(crate) fn readings_of<T>(section: &[u8], index: Option<&[u8]>, id: &str, each: impl Fn(Reading<'_>) -> T) -> Result<Option<Vec<T>>, String> {
     let section = read_readings(section).map_err(refused)?;
     let Some((_, bytes)) = section.cases.iter().find(|(case, _)| case == id) else { return Ok(None) };
     let stored = decode_case(bytes).map_err(refused)?;
-    let base = match (stored.first(), index) {
-        (Some(first), Some(index)) if first.regions.is_none() => match open(index)? {
-            Some(index) => index.reads(&HashSet::from([id]))?.remove(id).map(|read| read.regions),
-            None => None,
-        },
+    let opened = match (stored.first(), index) {
+        (Some(first), Some(index)) if first.regions.is_none() => open(index)?,
         _ => None,
     };
-    Ok(expanded(&stored, Some(base.as_deref().unwrap_or_default())))
+    let base = opened.as_ref().map(|index| index.reads(&HashSet::from([id]))).transpose()?.and_then(|mut reads| reads.remove(id)).map(|read| read.regions);
+    Ok(expanded(&stored, Some(base.as_deref().unwrap_or_default())).map(|readings| readings.into_iter().map(each).collect()))
 }
 
 #[cfg(test)]
