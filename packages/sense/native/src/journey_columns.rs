@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::io::{Cursor, Read};
 
+use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use crate::record_layout::LAYOUT;
@@ -45,7 +46,8 @@ struct Stored {
 }
 
 pub fn encode(columns: Vec<Column>, version: u8) -> Result<Vec<u8>, String> {
-    let stored: Vec<Stored> = columns.into_iter().map(store).collect::<Result<_, _>>()?;
+    // Each column, and each run of one, compresses on its own: on every core.
+    let stored: Vec<Stored> = columns.into_par_iter().map(store).collect::<Result<_, _>>()?;
     let mut offset = 0;
     let sections = stored
         .iter()
@@ -286,33 +288,30 @@ fn smaller(name: &'static str, width: u8, rows: usize, plain: Vec<u8>, packed: O
 }
 
 fn pack_word_runs(values: &[u32]) -> Result<Vec<u8>, String> {
-    let mut runs = Vec::new();
-    for values in values.chunks(LAYOUT.run) {
-        runs.push(compress(&varints(values), LAYOUT.levels.numbers)?);
-    }
+    let runs = values.par_chunks(LAYOUT.run).map(|values| compress(&varints(values), LAYOUT.levels.numbers)).collect::<Result<_, _>>()?;
     Ok(lay(runs))
 }
 
 fn pack_byte_runs(values: &[u8], level: i32) -> Result<Vec<u8>, String> {
-    let mut runs = Vec::new();
-    for values in values.chunks(LAYOUT.run) {
-        runs.push(compress(values, level)?);
-    }
+    let runs = values.par_chunks(LAYOUT.run).map(|values| compress(values, level)).collect::<Result<_, _>>()?;
     Ok(lay(runs))
 }
 
 fn pack_blob_runs(values: &[u8], offsets: &[u32]) -> Result<Vec<u8>, String> {
     let blob_run = LAYOUT.blob_run;
-    let mut runs = Vec::new();
-    for first in (0..offsets.len().saturating_sub(1)).step_by(blob_run) {
-        let last = (first + blob_run).min(offsets.len() - 1);
-        let from = offsets[first] as usize;
-        let to = offsets[last] as usize;
-        if to < from || to > values.len() {
-            return Err("journey blob offsets are invalid".to_owned());
-        }
-        runs.push(compress(&values[from..to], LAYOUT.levels.text)?);
-    }
+    let firsts: Vec<usize> = (0..offsets.len().saturating_sub(1)).step_by(blob_run).collect();
+    let runs = firsts
+        .into_par_iter()
+        .map(|first| {
+            let last = (first + blob_run).min(offsets.len() - 1);
+            let from = offsets[first] as usize;
+            let to = offsets[last] as usize;
+            if to < from || to > values.len() {
+                return Err("journey blob offsets are invalid".to_owned());
+            }
+            compress(&values[from..to], LAYOUT.levels.text)
+        })
+        .collect::<Result<_, _>>()?;
     Ok(lay(runs))
 }
 
