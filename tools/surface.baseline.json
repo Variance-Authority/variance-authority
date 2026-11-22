@@ -2870,6 +2870,8 @@
         "EncodedStore": "interface",
         "ExportedDeclaration": "interface",
         "ExternalOrientation": "interface",
+        "FileDeclaration": "interface",
+        "FileDeclarations": "interface",
         "FileSize": "interface",
         "ForksBetween": "interface",
         "Grepped": "interface",
@@ -3050,6 +3052,7 @@
         "fetchedSourceIndexPath": "function",
         "fileCases": "function",
         "fileSizes": "function",
+        "filesNamed": "function",
         "firstParentChanges": "function",
         "firstParentChangesBetween": "function",
         "forksBetween": "function",
@@ -3154,7 +3157,8 @@
         "checkoutListing": "function",
         "checkoutPath": "function",
         "existedAt": "function",
-        "existingAt": "function"
+        "existingAt": "function",
+        "filesNamed": "function"
       },
       "./read": {
         "Binding": "interface",

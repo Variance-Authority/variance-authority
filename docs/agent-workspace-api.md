@@ -163,7 +163,7 @@ search, indexed source search and observed-subject search.
 | An exact string in committed source | `git grep <tree>`; a named tree searches Git objects and deliberately leaves working-tree edits out. |
 | A name you can only describe, its exact signature, or the code that imports it | The workspace index; those answers depend on declarations, exports, resolved imports, and the area named by `from` or `to`. |
 | Nothing in hand, and the repository unknown | `ask orient`, or `docs_orient` over MCP; it prints the code map, the repository's packages in areas, and `--area`, `area` over MCP, opens one area. |
-| Files in hand, and the code around them unknown | `ask orient --files <path>`, or `docs_orient` with `files`; it names each file's package, names crossing its package boundary, external packages requested along its local imports, the separately refreshed installed API of those imports when present, the recorded tests that ran it, and the calls those tests took into and out of it. It finds no file itself. |
+| Files in hand, and the code around them unknown | `ask orient --files <path>`, or `docs_orient` with `files`; it lists what each file declares at its top level, with lines, and names each file's package, names crossing its package boundary, external packages requested along its local imports, the separately refreshed installed API of those imports when present, the recorded tests that ran it, and the calls those tests took into and out of it. It finds no file itself. |
 
 ## Search finds the name; the graph finds the area
 
@@ -443,13 +443,17 @@ row goes to `docs_entrypoint` as `package`, exactly as printed.
 
 Holding a request in words rather than a name, call `docs_classify` with it as
 `query` instead. It says which of its words are, whole, a package, an
-entrypoint or an exported name, each with its area and layer on the code map,
+entrypoint or an exported name, and then which identifier-shaped words left —
+`ModuleLoader`, `child_process` — are a name `docs_symbol` finds declared or a
+tracked file's name before its first dot, each with its area and layer on the code map,
 and ends with the question each one takes next, written as the `variance ask`
-command whatever the caller: `symbol` (`docs_symbol`) for an exported name,
+command whatever the caller: `symbol` (`docs_symbol`) for an exported or
+declared name, `orient --files` (`docs_orient`) for a file,
 `entrypoint` (`docs_entrypoint`) for a published package or entrypoint, and
 `orient --area` (`docs_orient`) for a package that publishes nothing, or no
-question when the map placed it in no area. After the entities it ranks the
-areas of the tree the request's words point to, best first — a directory of at
+question when the map placed it in no area. When words remain unrecognized or
+`from` or `to` is supplied, it also ranks the areas of the tree the request's
+words point to, best first — a directory of at
 most 500 tracked files, scored by the words its path, its files' names and the
 top-level names its files declare, exported or not, hold, a rare word counting for more
 and an area's length counting every declared name once per file whatever its

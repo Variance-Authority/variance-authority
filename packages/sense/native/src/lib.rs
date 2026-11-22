@@ -128,6 +128,7 @@ mod name_table;
 mod nested;
 mod off_thread;
 mod order;
+mod orient_declarations;
 mod orient_map;
 mod orient_map_catalogued;
 mod orient_map_closure;

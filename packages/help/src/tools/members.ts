@@ -217,6 +217,12 @@ const unread = (languages: readonly string[]): string => {
   return `Members are read from JavaScript and TypeScript files only, and this workspace's ${named} files were not read for them`;
 };
 
+/** Why no member of `file` is listed when its language's members are not read; nothing when they are. */
+export function membersNotReadIn(file: string): string | undefined {
+  const [language] = unreadMemberLanguages([file]);
+  return language === undefined ? undefined : `the index reads members from JavaScript and TypeScript only, so none of this ${language} file is listed`;
+}
+
 /** `N places`, in words a sentence takes. */
 export function places(count: number): string {
   return `${count} ${count === 1 ? 'place' : 'places'}`;

@@ -3,20 +3,32 @@
 Ask it first when you hold a request and no name. It says which of the
 request's words are, whole, a package's name or that name without its scope, an
 entrypoint's specifier (both matched without case), or a published exported
-name (matched as spelled). A word that is only part of a name is not one:
-`check` names nothing beside `checkoutPath`, and `Check` does not match `check`.
-Each entity is listed with what it names, a package first, then its
-entrypoints, then the specifiers that export it, and each with its package's
-area and dependency layer as `orient` numbers them. The words that name
-nothing follow on one line, and the answer ends with a `symbol` question per
-exported name, an `entrypoint` question per published package or entrypoint,
-and an `orient --area` question per package that publishes nothing, or none
-when the map placed that package in no area. A word the
+name (matched as spelled). A word shaped as an identifier — a capital past its
+first letter, an underscore, or a digit after a letter — that is none of those
+is then looked up as spelled among the lines `symbol --name` names as
+declaring it, and the tracked files whose name before its first dot it is:
+in Node.js, `ModuleLoader` is declared in the ESM loader's file, at its line,
+and `child_process` is the file of that name under `lib/`. Ordinary source comes before
+tests and stories, then the file more files import; three of each are shown and
+the rest counted. Each is placed in the package on the code map nearest at or
+above it, or `in no package`, so a checkout with no manifest still gets them. A
+plain lowercase word is never looked up so: `loader` names no file. A word that
+is only part of a name is not one: `check` names nothing beside `checkoutPath`,
+and `Check` does not match `check`. Each entity is listed with what it names, a
+package first, then its entrypoints, then the specifiers that export it, then
+declarations, then files, and each with its package's area and dependency layer
+as `orient` numbers them. The words that name nothing follow on one line, and
+the answer ends with a `symbol` question per exported or declared name, an
+`orient --files` question per file, an `entrypoint` question per published
+package or entrypoint, and an `orient --area` question per package that
+publishes nothing, or none when the map placed that package in no area. A word the
 request spells another way — a plural, two words for a hyphenated name, a
 domain word no name carries — is not an entity.
 
-Then it ranks the areas of the tree the request's words point to, ten at
-most, best first: a directory of at most 500 tracked files, a larger one read
+When every word is recognized and no `--from` or `--to` is supplied, the
+answer contains only those entities and their direct questions. Otherwise it
+also ranks the areas of the tree the request's words point to, ten at most,
+best first: a directory of at most 500 tracked files, a larger one read
 as its children. An area's words are its path's, its files' names and the
 top-level names its files declare, exported or not, compared by stem, and a word counts for more
 the fewer areas hold it. An area's length counts every word its declared names
@@ -33,4 +45,5 @@ are ranked, its own and the shared code it imports, and a word rare inside the
 product counts for more there. `--to` ranks the files that import a path. The
 answer then opens with the start point's line, as `grep`'s does. It reads the
 code map `variance index` folds, and without one it says so and classifies
-nothing.
+nothing; a map folded with no package says that too, and still names
+declarations and files.

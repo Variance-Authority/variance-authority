@@ -95,12 +95,42 @@ fn counts_the_names_a_directorys_files_declare() {
 }
 
 #[test]
-fn weighs_a_word_less_in_an_area_that_holds_more_words_as_many_files_as_it_has() {
+fn weighs_a_word_the_same_in_an_area_however_many_other_words_it_holds() {
     let paths = [files_under("alpha", &["restart.ts", "other.ts"]), files_under("beta", &["restart.ts", "other.ts"])].concat();
-    // `alpha`'s files declare many names, so its one `restart` is a smaller share of what it says.
+    // `alpha`'s files declare many names: more subjects, not fewer words for `restart`.
     let declared = words(&[("alpha/other.ts", 40)]);
+    let areas = ranked("restart", &paths, &declared, 2);
 
-    assert_eq!(path_list(&ranked("restart", &paths, &declared, 2)), vec!["beta", "alpha"]);
+    assert_eq!(path_list(&areas), vec!["alpha", "beta"]);
+    assert_eq!(areas[0].score, areas[1].score);
+}
+
+#[test]
+fn ranks_first_the_long_area_that_alone_holds_the_rarest_words() {
+    // The shape of nodejs/node: `lib` declares many names, so it is long, and only it holds
+    // `translators` and `finalizeEsmResolution`; the test and fixture areas are short, and their
+    // file names repeat the request's common words.
+    let paths = [
+        files_under("lib/internal/modules/esm", &["translators.js", "resolve.js", "loader.js", "module_job.js"]),
+        files_under("lib/internal/modules", &["run_main.js"]),
+        files_under("test/es-module", &["test-esm-loader-cjs.mjs", "test-esm-cjs-main.js", "test-esm-loader-module-job.mjs", "test-esm-cjs-interop.js"]),
+        files_under("test/fixtures/es-modules", &["cjs-esm.js", "loader-main.mjs", "esm-cjs-run.mjs", "module-loader.mjs"]),
+        files_under("test/fixtures/es-module-loaders", &["loader-esm.mjs", "loader-cjs.mjs", "module-wrap-loader.mjs"]),
+    ]
+    .concat();
+    let mut declared = words(&[
+        ("lib/internal/modules/esm/translators.js", 400),
+        ("lib/internal/modules/esm/resolve.js", 400),
+        ("lib/internal/modules/esm/loader.js", 400),
+        ("lib/internal/modules/esm/module_job.js", 400),
+        ("lib/internal/modules/run_main.js", 400),
+    ]);
+    for stem in ["finaliz", "resolution"] {
+        declared.holding.insert(stem.to_owned(), HashMap::from([("lib/internal/modules/esm/resolve.js".to_owned(), 1)]));
+    }
+
+    let query = "ESM loader CJS-ESM interop ModuleLoader finalizeEsmResolution translators ModuleJob run_main ModuleWrap";
+    assert_eq!(ranked(query, &paths, &declared, 5)[0].path, "lib");
 }
 
 #[test]
@@ -137,7 +167,7 @@ fn shows_at_most_ten_areas() {
     assert_eq!(ranked("restart", &paths, &DeclaredWords::default(), 1).len(), 10);
 }
 
-/// One case the JavaScript ranking this replaced answered, before it was removed.
+/// One generated tree, its request and the areas it ranks.
 #[derive(serde::Deserialize)]
 struct Golden {
     query: String,
@@ -158,9 +188,11 @@ struct GoldenArea {
 }
 
 #[test]
-fn ranks_as_the_javascript_ranking_it_replaced() {
-    // Written by `rankedAreas` in `packages/help/src/tools/classify-areas.ts`
-    // at 6356fad4e, over generated trees, before it was removed.
+fn ranks_the_generated_trees_as_recorded() {
+    // The trees and requests were written by `rankedAreas` in
+    // `packages/help/src/tools/classify-areas.ts` at 6356fad4e, before it was
+    // removed; the areas were recorded again when an area's length stopped
+    // discounting its words.
     let cases: Vec<Golden> = serde_json::from_str(include_str!("classify_areas_golden.json")).expect("the golden cases read");
     assert!(!cases.is_empty());
     for (at, case) in cases.iter().enumerate() {

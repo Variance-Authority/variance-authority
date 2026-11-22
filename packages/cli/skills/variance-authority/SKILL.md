@@ -19,15 +19,16 @@ main questions; pick the one that fits what you hold, each is one command:
 
 | You hold | Ask | Example |
 |---|---|---|
-| The task's words | [which of them name a package, an entrypoint or an export, and the folders they point to](references/workspace-classify.md) | `variance ask classify --query "checkout payment retry"` |
+| The task's words | [which name a package, an entrypoint, an export, a declared name or a file, and which question comes next](references/workspace-classify.md) | `variance ask classify --query "checkout payment retry"` |
 | Nothing yet | [the map: packages, areas, layers](references/orient.md#orient) | `variance ask orient` |
-| A file | [its place on that map](references/orient.md#orient) | `variance ask orient --files src/billing/invoice.ts` |
+| A file | [its place on that map, and what it declares on which lines](references/orient.md#orient) | `variance ask orient --files src/billing/invoice.ts` |
 | What a thing does | [the names that do it](references/workspace-search.md) | `variance ask search --query "retry payment" --from src/billing/` |
 | A name, or several | [where each is declared: `--name <name>[,...]`](references/workspace-symbol.md) | `variance ask symbol --name PaymentRetry,RetryPolicy` |
 | A name | [every file that imports it; `--from` sorts them, it does not narrow](references/workspace-uses.md) | `variance ask uses --name PaymentRetry` |
 | A name and an area | [the files there that import it](references/workspace-discover.md) | `variance ask discover --imports src/billing/retry.ts#PaymentRetry --path '^src/checkout/'` |
 | A file | [what it reaches through its imports, nearest first; `--declares <regex>` keeps the ones declaring a name](references/workspace-discover.md) | `variance ask discover --from src/billing/invoice.ts --declares Retry` |
 | A file | [what reaches it through imports](references/workspace-discover.md) | `variance ask discover --to src/billing/invoice.ts` |
+| Two files | [the files on import paths between them](references/code-orientation.md) | `variance ask discover --from src/PriceCard.tsx --to src/pricing/price.ts` |
 | Two questions | [the files both answer](references/workspace-intersection.md) | `variance ask intersection 'symbol --name PaymentRetry' 'discover --from src/checkout/'` |
 | A file and text to find only in it | [the matching lines in that file](references/workspace-discover.md) | `variance ask discover --path '^src/billing/invoice[.]ts$' --text retryCount` |
 | A string or a pattern | [the source lines that hold it](references/workspace-grep.md) | `variance ask grep --query 'retryCount' --from src/billing/` |
@@ -103,7 +104,7 @@ when its condition holds, not before.
 | What can this test be reduced to? How much of what each test file loads does it use, as percentiles across a suite? | [distill](references/distill.md) | an input file is missing: [producers](references/producers.md) |
 | Where should a coding task start? | [code orientation](references/code-orientation.md) | you need a question's complete flags: its link in [the table above](#questions-about-the-code) |
 | Which binary asks a source question, and what does it need before the first one? How literally does an answer read? | [workspace API](references/workspace-api.md) | you need why a name exists or what it connects to: [what is written about a name](references/written-about-a-name.md) |
-| Where am I in this codebase, what runs here, what can this file import, and which tests are slowest? | [orient](references/orient.md) | |
+| Where am I in this codebase, what runs here, what does this file declare and on which lines, what can it import, and which tests are slowest? | [orient](references/orient.md) | |
 | The client holds an MCP connection, or you are writing its config | [MCP](references/mcp.md) | then the row for the question itself |
 | A Cloudflare tribunal needs setting up, a token, or its Access values; CI says the ingest token is not set | [deploy a tribunal](references/deploy-a-tribunal.md) | |
 

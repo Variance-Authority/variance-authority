@@ -48,6 +48,15 @@ Each file is answered in the order you gave. A `:<line>` after a path narrows
 the call journeys to the function that contains that line. The answer prints its
 own definitions. What you decide from it:
 
+- **`Declared at the top level`** lists each file's own declarations from the
+  source index, by line: the kind, the name, and `exported` when an export
+  binds it. A class's, an interface's or a type's members follow it, one row
+  per line that declares them; members are read from JavaScript and TypeScript only, and a file in
+  another language says so. A file shows at most 40 declaration and member
+  rows, and one line counts the declarations and member lines it left out; ask
+  `symbol --name <name>` for one of those. `the index holds no parse of its
+  declarations` means the file may declare anything, not that it declares
+  nothing.
 - **External dependency declarations** show the first three entries per
   listed dependency, followed by the count of the rest. Run the printed
   `orient --files … --declarations` command for every entry, including

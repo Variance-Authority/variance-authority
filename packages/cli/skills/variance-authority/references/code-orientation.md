@@ -30,7 +30,23 @@ search; ask `symbol` when you need its contract, or `uses` for its import sites.
 Directory membership, import reach and runtime loading answer different
 questions. `discover --path <regex>` selects paths; `--from` and `--to` follow
 imports at any depth, including type imports. Cross those relations with a declaration or
-path predicate for the responsibility you still need. For matching text in only
+path predicate for the responsibility you still need.
+
+When you have both a feature file and an implementation file, combine `--from`
+and `--to` to find the files on import paths between them:
+
+```bash
+variance ask discover --from src/PriceCard.tsx --to src/pricing/price.ts
+```
+
+The answer includes connecting barrels and shows import chains for files two or
+more imports from the target. To start the reverse walk at import sites of one
+export, use `--to 'src/pricing/price.ts#calculatePrice'`. The walk then follows
+imports by file, so later rows need not import that name. Use the file target
+when you need the connecting paths regardless of which name each import uses. See
+[the operands and chain format](workspace-discover.md).
+
+For matching text in only
 one known file, combine its exact path with `--text`:
 
 ```bash

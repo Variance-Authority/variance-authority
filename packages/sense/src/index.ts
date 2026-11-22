@@ -102,6 +102,8 @@ export {
   dependenciesAround,
   orientAround,
   recordedCases,
+  type FileDeclaration,
+  type FileDeclarations,
   type OrientLimits,
   type PackagesAround,
   type RecordedCases,
@@ -176,7 +178,7 @@ export {
   type NativeOrientShipped as ShippedFiles,
 } from './native-orient.js';
 export { loadedUnprobed, modulePath } from './module-path.js';
-export { checkoutListing, checkoutPath, existedAt, existingAt, type CheckoutListing, type CheckoutPath } from './checkout-path.js';
+export { checkoutListing, checkoutPath, existedAt, existingAt, filesNamed, type CheckoutListing, type CheckoutPath } from './checkout-path.js';
 export {
   forksBetween,
   journeysAmong,

@@ -1,18 +1,9 @@
 /**
- * Which words of a sentence are names this workspace publishes, and how they
- * are said.
- *
- * Apart from the tool for the reason `code-map-format.ts` is: matching and
- * wording are pure functions of the reading and the placements, and a test
- * holding them should not need a repository and an index to get one.
- *
- * A word is an entity when it is, whole, the name of a package the code map
- * holds or that name without its scope, an entrypoint's specifier with or
- * without the scope (both matched without case), or a published exported name,
- * matched as it is spelled. The packages are the map's, so one that publishes
- * nothing is still named; the entrypoints and exports are the reading's. A word
- * that is only part of a name is not one: `check` beside `checkoutPath` names
- * nothing. There is no ranking and no model; the dictionary is the reading.
+ * Which words of a sentence are names this workspace publishes or declares,
+ * and how they are said: pure functions of the reading and the placements, so
+ * a test holding them needs no repository and no index. A word names something
+ * only whole: `check` beside `checkoutPath` names nothing. There is no ranking
+ * and no model; the dictionary is the reading, and the index for identifiers.
  */
 
 // compass: variance-authority.report.agent-surface
@@ -23,15 +14,24 @@ import { specifierOf } from './find.js';
 import type { RankedArea } from '@variance-authority/sense';
 import { narrower, plural, shell } from './format.js';
 
-/** What one word names: a package, one of its entrypoints, or a name it exports. */
+/**
+ * What one word names: a package, one of its entrypoints, a name it exports, a
+ * name a file declares, or a file.
+ */
 export interface Named {
-  readonly kind: 'package' | 'entrypoint' | 'export';
-  /** The package, the entrypoint, or the specifier the name is imported from. */
+  readonly kind: 'package' | 'entrypoint' | 'export' | 'declared' | 'file';
+  /** The package, the entrypoint, the specifier the name is imported from, the declaring file and line as `at:line`, or the file. */
   readonly specifier: string;
+  /** The package it is or is in; for a declaration or a file, the map package nearest at or above it, empty when none is. */
   readonly package: string;
-  /** Whether the reading publishes it; a package the map holds may publish nothing. */
+  /** Whether the reading publishes it; a package the map holds may publish nothing, and a declaration or a file is not published. */
   readonly published: boolean;
+  /** On the last declaration or file of a word shown: how many more of its kind there are past it. */
+  readonly more?: number;
 }
+
+/** Where the identifier-shaped words that name nothing published are declared, and which files are named them: at most a few of each, in the order to show them. */
+export type Locate = (words: readonly string[]) => ReadonlyMap<string, readonly Named[]>;
 
 /** A word that names something, with everything it names: packages first, then entrypoints, then exports. */
 export interface Entity {
@@ -58,15 +58,27 @@ export interface Placed {
 export interface CodeMapPlaces {
   readonly current: boolean;
   readonly packages: ReadonlyMap<string, Placed>;
+  /** Why the map holds no package, when the index was folded into none. */
+  readonly unfolded?: string;
 }
 
-const ORDER: readonly Named['kind'][] = ['package', 'entrypoint', 'export'];
+const ORDER: readonly Named['kind'][] = ['package', 'entrypoint', 'export', 'declared', 'file'];
+
+/**
+ * Whether a word is shaped as an identifier rather than a word of prose: one
+ * spelled of letters, digits, `_` and `$` alone, with a capital past its first
+ * letter, an underscore, or a digit after a letter.
+ */
+export function identifier(word: string): boolean {
+  if (!/^[\p{L}\p{N}_$]+$/u.test(word)) return false;
+  return /.\p{Lu}/u.test(word) || word.includes('_') || /\p{L}\p{N}/u.test(word);
+}
 
 /**
  * The asker's words: a scoped name, a path and an identifier stay whole, and
  * the punctuation a sentence puts around them is dropped.
  */
-function wordsOf(text: string): readonly string[] {
+export function wordsOf(text: string): readonly string[] {
   return (text.match(/@?[\p{L}\p{N}_$][\p{L}\p{N}_$@./-]*/gu) ?? []).map((word) => word.replace(/[./-]+$/u, ''));
 }
 
@@ -99,29 +111,43 @@ function dictionaryOf(help: Help, packages: Iterable<string>): { readonly folded
   return { folded, exact };
 }
 
-/** The words of `text` that are, whole, one of `packages` or a name `help` publishes, and the words that are not. */
-export function classifyWords(text: string, help: Help, packages: Iterable<string>): Classified {
+/**
+ * The words of `text` that are, whole, one of `packages` (scoped or not) or an
+ * entrypoint `help` publishes, both without case, or an export it publishes as
+ * spelled; or, shaped as an identifier and none of those, a name `locate` finds
+ * declared or a file it finds named; and the words that are not.
+ */
+export function classifyWords(text: string, help: Help, packages: Iterable<string>, locate?: Locate): Classified {
   const { folded, exact } = dictionaryOf(help, packages);
+  const words = wordsOf(text);
+  const asked = locate === undefined ? [] : [...new Set(words.filter((word) => identifier(word) && !folded.has(word.toLowerCase()) && !exact.has(word)))];
+  const located = asked.length === 0 || locate === undefined ? new Map<string, readonly Named[]>() : locate(asked);
   const entities: Entity[] = [];
   const plain = new Set<string>();
   const listed = new Set<string>();
-  for (const word of wordsOf(text)) {
+  for (const word of words) {
     // A package or an entrypoint is matched without case and an export only as
     // spelled, so a word lists only what no earlier word did: `Sense` after
     // `sense` still names an export `Sense`, and names nothing new otherwise.
     // An export is its name in its specifier, so two names one entrypoint
     // exports are two entities.
-    const names = [...(folded.get(word.toLowerCase()) ?? []), ...(exact.get(word) ?? [])];
+    const names = [...(folded.get(word.toLowerCase()) ?? []), ...(exact.get(word) ?? []), ...(located.get(word) ?? [])];
     if (names.length === 0) {
       plain.add(word);
       continue;
     }
-    const keyOf = (named: Named): string => (named.kind === 'export' ? `export ${named.specifier} ${word}` : `${named.kind} ${named.specifier}`);
+    const keyOf = (named: Named): string => (named.kind === 'export' || named.kind === 'declared' ? `${named.kind} ${named.specifier} ${word}` : `${named.kind} ${named.specifier}`);
     const fresh = names.filter((named) => !listed.has(keyOf(named)));
     for (const named of fresh) listed.add(keyOf(named));
+    // Stable, so `locate`'s order holds within a kind.
     if (fresh.length > 0) entities.push({ word, names: fresh.sort((one, other) => ORDER.indexOf(one.kind) - ORDER.indexOf(other.kind)) });
   }
   return { entities, plain: [...plain] };
+}
+
+/** A declaration's or a file's place: the map package it is in, and that package's place, or that it is in none. */
+function within(named: Named, packages: ReadonlyMap<string, Placed>): string {
+  return named.package === '' ? ' · in no package' : ` · in ${named.package}${where(packages.get(named.package))}`;
 }
 
 function where(placed: Placed | undefined): string {
@@ -140,16 +166,25 @@ export type PlacedArea = RankedArea & { readonly package?: string };
  * the map is in none.
  */
 export function placedAreas(areas: readonly RankedArea[], packages: ReadonlyMap<string, Placed>): readonly PlacedArea[] {
-  const owners = [...packages].map(([name, { directory }]) => ({ name, directory: directory === '.' ? '' : directory }));
+  const owning = ownerOf(packages);
   return areas.map((area) => {
-    const path = area.path === '.' ? '' : area.path;
+    const owner = owning(area.path);
+    return owner === undefined ? area : { ...area, package: owner };
+  });
+}
+
+/** The name the map gives the package whose directory is nearest at or above a path, or none when every one is below or beside it. */
+export function ownerOf(packages: ReadonlyMap<string, Placed>): (path: string) => string | undefined {
+  const owners = [...packages].map(([name, { directory }]) => ({ name, directory: directory === '.' ? '' : directory }));
+  return (asked) => {
+    const path = asked === '.' ? '' : asked;
     let owner: { readonly name: string; readonly directory: string } | undefined;
     for (const held of owners) {
       const above = held.directory === '' || path === held.directory || path.startsWith(`${held.directory}/`);
       if (above && (owner === undefined || held.directory.length > owner.directory.length)) owner = held;
     }
-    return owner === undefined ? area : { ...area, package: owner.name };
-  });
+    return owner?.name;
+  };
 }
 
 /** The start point the asker said, by the flag that said it. */
@@ -162,16 +197,21 @@ export type StartPoint = { readonly from?: readonly string[]; readonly to?: read
  */
 export function formatClassified(
   { entities, plain }: Classified,
-  { current, packages }: CodeMapPlaces,
+  { current, packages, unfolded }: CodeMapPlaces,
   areas: readonly PlacedArea[] = [],
   said: StartPoint = {},
 ): string {
   const lines = [
     entities.length === 0
-      ? 'No word names a package on the code map, an entrypoint or an exported name.'
-      : `${plural(entities.length, 'word names', 'words name')} a package on the code map, an entrypoint or an exported name:`,
+      ? 'No word names a package on the code map, an entrypoint, an exported name, a declared name or a file.'
+      : `${plural(entities.length, 'word names', 'words name')} a package on the code map, an entrypoint, an exported name, a declared name or a file:`,
     ...entities.flatMap(({ word, names }) =>
-      names.map((named, at) => `${at === 0 ? word : ' '.repeat(word.length)} — ${named.kind} ${named.specifier}${where(packages.get(named.package))}`),
+      names.flatMap((named, at) => {
+        const pad = ' '.repeat(word.length);
+        const placed = named.kind === 'declared' || named.kind === 'file' ? within(named, packages) : where(packages.get(named.package));
+        const line = `${at === 0 ? word : pad} — ${named.kind} ${named.specifier}${placed}`;
+        return named.more === undefined || named.more === 0 ? [line] : [line, `${pad} — and ${named.more} more`];
+      }),
     ),
   ];
   if (plain.length > 0) lines.push(`Not entities: ${plain.join(' ')}`);
@@ -182,11 +222,13 @@ export function formatClassified(
       lines.push(`  ${area.path} — ${plural(area.files, 'file')} · holds ${area.words.join(' ')}${placed}`);
     }
   }
-  // What each entity is asked next: an exported name is read by `symbol`, a
-  // published package or entrypoint counted by `entrypoint`, and a package that
-  // publishes nothing placed by `orient` on its area, if one took it.
+  // What each entity is asked next: an exported or a declared name is read by
+  // `symbol`, a file by `orient` on its files, a published package or
+  // entrypoint counted by `entrypoint`, and a package that publishes nothing
+  // placed by `orient` on its area, if one took it.
   const asks = entities.flatMap(({ word, names }) => names.flatMap((named) => {
-    if (named.kind === 'export') return [`variance ask symbol --name ${shell(word)}`];
+    if (named.kind === 'export' || named.kind === 'declared') return [`variance ask symbol --name ${shell(word)}`];
+    if (named.kind === 'file') return [`variance ask orient --files ${shell(named.specifier)}`];
     if (named.published) return [`variance ask entrypoint --package ${shell(named.specifier)}`];
     const area = packages.get(named.package)?.area;
     return area === undefined ? [] : [`variance ask orient --area ${shell(area.id)}`];
@@ -203,6 +245,7 @@ export function formatClassified(
     asks.push(`variance ask search --query ${shell(best.words.slice(0, 2).join(' '))}${from}`);
   }
   lines.push(...narrower([...new Set(asks)]));
-  if (!current) lines.push('', STALE_MAP);
+  if (unfolded !== undefined) lines.push('', unfolded);
+  else if (!current) lines.push('', STALE_MAP);
   return lines.join('\n');
 }

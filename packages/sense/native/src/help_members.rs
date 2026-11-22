@@ -188,22 +188,28 @@ pub(crate) fn members_on(layers: &[Layer], file: &str, on: &str) -> Vec<Containe
     let mut crossings = [Crossing { file, owner: NO_OWNER, others: Vec::new(), at, parse: None }];
     join_parses(layers, &mut crossings);
     let Some((layer, row)) = crossings[0].parse else { return Vec::new() };
-    let (stored, parses) = (&layers[layer].stored, &layers[layer].parses);
+    members_of_row(&layers[layer], row).into_iter().filter(|(of, _)| *of == on).map(|(_, member)| member).collect()
+}
+
+/// Every member one parse row records, each with the name of the container it
+/// is declared on, by line; a member of a type literal inside a container is
+/// the literal's, not the container's.
+pub(crate) fn members_of_row<'a>(layer: &'a Layer, row: usize) -> Vec<(&'a str, ContainerMember)> {
+    let (stored, parses) = (&layer.stored, &layer.parses);
     // FIXME: `member-declarations.on` is the container's name alone, so a
     // container nested in a function shares its members with a top-level one of
     // the same name in the file; telling them apart needs the container's place
     // in the index (`ask-symbol-members.test.ts`, the `it.todo`).
-    let mut members: Vec<ContainerMember> = parses
+    let mut members: Vec<(&'a str, ContainerMember)> = parses
         .member_declarations
         .range(row)
-        .filter(|&at| stored.text(parses.member_declaration_on.at(at)) == on)
-        .map(|at| ContainerMember {
+        .map(|at| (stored.text(parses.member_declaration_on.at(at)), ContainerMember {
             name: stored.text(parses.member_declaration_name.at(at)).to_owned(),
             line: parses.member_declaration_line.at(at),
             text: stored.kept(parses.member_declaration_line_text.at(at)).map(str::to_owned),
-        })
+        }))
         .collect();
-    members.sort_by_key(|member| member.line);
+    members.sort_by_key(|(_, member)| member.line);
     members
 }
 
