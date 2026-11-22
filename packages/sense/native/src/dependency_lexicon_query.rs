@@ -139,6 +139,8 @@ pub fn query_dependency_lexicon(path: String, sites: String, query: String, file
         wanted_entries
     });
     let mut looked = (BTreeSet::<&str>::new(), BTreeSet::<&str>::new());
+    // Rows repeat a package and a specifier across owners, so each is lowered and matched once.
+    let mut holds = HashMap::<&str, bool>::new();
     let (rows, _) = lexicon.rows(allowed.as_ref(), &mut |owner, row_package, specifier, entry| {
         if package.as_ref().is_some_and(|wanted| wanted != row_package && wanted != specifier) { return false; }
         let readable = match catalogue.finds() { Some(finds) => finds.readable(entry), None => lexicon.api(entry).is_some() };
@@ -146,7 +148,8 @@ pub fn query_dependency_lexicon(path: String, sites: String, query: String, file
         looked.0.insert(owner);
         looked.1.insert(row_package);
         let Some(candidates) = &candidates else { return true };
-        candidates[entry as usize] || !exact && [row_package, specifier].iter().any(|field| field.to_lowercase().contains(query.as_str()))
+        candidates[entry as usize] || !exact && [row_package, specifier].into_iter()
+            .any(|field| *holds.entry(field).or_insert_with(|| field.to_lowercase().contains(query.as_str())))
     });
     let mut found = BTreeMap::<(&str, String, String, String), Match>::new();
     let mut searched = HashMap::<(u32, &str), Vec<Match>>::new();

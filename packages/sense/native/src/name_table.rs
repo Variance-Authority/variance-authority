@@ -103,11 +103,12 @@ impl NameColumn {
 
     /// The four tables' columns, in [`Item`]'s order.
     pub(crate) fn columns(tables: [NameColumn; 4]) -> Vec<Column> {
-        tables
-            .into_iter()
-            .zip(SECTIONS)
-            .flat_map(|(table, (text, off))| [u8s(text, table.text), u32s(off, table.off)])
-            .collect()
+        tables.into_iter().zip(SECTIONS).flat_map(|(table, sections)| table.written(sections)).collect()
+    }
+
+    /// This column as the two sections `text` and `off` name.
+    pub(crate) fn written(self, (text, off): (&'static str, &'static str)) -> [Column; 2] {
+        [u8s(text, self.text), u32s(off, self.off)]
     }
 }
 
@@ -139,10 +140,14 @@ pub(crate) struct Names<'a> {
 impl<'a> Names<'a> {
     /// The table of `item` over its `rows`, checked so that every entry lies in the column.
     pub(crate) fn open(stored: &Stored<'a>, item: Item, rows: usize) -> Result<Self, String> {
-        let (text, off) = SECTIONS[item as usize];
-        let text = stored.u8s(text)?;
+        Self::open_at(stored, SECTIONS[item as usize], rows)
+    }
+
+    /// The column the sections `text` and `off` hold, over its `rows`.
+    pub(crate) fn open_at(stored: &Stored<'a>, (text_section, off): (&str, &str), rows: usize) -> Result<Self, String> {
+        let text = stored.u8s(text_section)?;
         if std::str::from_utf8(text).is_err() {
-            return Err(format!("section {} is not UTF-8", SECTIONS[item as usize].0));
+            return Err(format!("section {text_section} is not UTF-8"));
         }
         let off = stored.offsets(off, rows, text.len())?;
         Ok(Names { text, off })

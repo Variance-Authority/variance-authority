@@ -6,7 +6,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::catalogue::{Made, MadeInstall, MadePair};
-use super::codec::api;
+use super::codec::{api, read_api};
+use super::finds;
 use super::purposes::{stems, Purpose};
 use super::query::query_dependency_lexicon;
 use super::{Api, Identity, Name, Owner, Readme};
@@ -46,7 +47,9 @@ fn made() -> Made {
     let kinds: BTreeMap<String, &'static str> = packages.iter().map(|package| (package.to_string(), "dependency")).collect();
     let owners = ["app", "lib"].map(|directory| Owner { manifest: format!("{directory}/package.json"), directory: directory.to_owned(),
         name: directory.to_owned(), declared: kinds.keys().cloned().collect(), kinds: kinds.clone() });
+    let readings: Vec<Option<Api>> = entries.iter().map(|bytes| read_api(bytes)).collect();
     Made {
+        finds: finds::Made::of(readings.iter().map(Option::as_ref)),
         owners: owners.to_vec(),
         manifests: owners.iter().map(|owner| owner.manifest.clone()).collect(),
         internal: Vec::new(),

@@ -86,16 +86,17 @@ pub fn word_stems(words: Vec<String>) -> Vec<String> {
 /// The stems `query` asks a package's purpose for, and how many of them a package must hold to describe it: the
 /// rule [`described`] keeps a package by. `None` when the question has no word to describe.
 pub(super) fn wanted(query: &str) -> Option<(Vec<String>, usize)> {
-    let asked = asked(query, stems);
-    let needed = asked.len().div_ceil(2);
-    (!asked.is_empty()).then(|| (asked.into_keys().collect(), needed))
+    wanted_of(&asked(query, stems))
+}
+
+fn wanted_of(asked: &BTreeMap<String, String>) -> Option<(Vec<String>, usize)> {
+    (!asked.is_empty()).then(|| (asked.keys().cloned().collect(), asked.len().div_ceil(2)))
 }
 
 /// The packages in `rows` that describe `query`, best first; `None` when the question has no word to describe.
 pub(super) fn described<'a>(query: &str, rows: impl Iterator<Item = (&'a Row<'a>, &'a Api)>, limit: usize) -> Option<(u32, Vec<Described>)> {
     let asked = asked(query, stems);
-    if asked.is_empty() { return None; }
-    let needed = asked.len().div_ceil(2);
+    let (_, needed) = wanted_of(&asked)?;
     let mut best = BTreeMap::<(String, String), Described>::new();
     for (row, api) in rows {
         let Some(purpose) = api.purpose.as_ref() else { continue };

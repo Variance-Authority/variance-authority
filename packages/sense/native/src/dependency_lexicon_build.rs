@@ -13,6 +13,7 @@ use std::sync::Arc;
 use rayon::prelude::*;
 
 use super::catalogue::{Catalogue, Made, MadeInstall, MadePair};
+use super::finds;
 use super::codec::{api as encoded, read_api};
 use super::sites::State;
 use super::{entry, files::Files, relative, stamps, wanted, Api, Owner};
@@ -169,6 +170,7 @@ pub(super) fn made(root: &Path, owners: Vec<Owner>, manifests: Vec<String>, inte
         apis.iter().filter(|api| api.unavailable.is_some()).count() as u32 + issues];
     let made = Made {
         entries: entries.iter().map(|(id, (api, _))| (id.clone(), encoded(api))).collect(),
+        finds: finds::Made::of(apis.iter().copied().map(Some)),
         owners, manifests, internal, pairs: made_pairs, installs: made_installs, stamps, summary,
     };
     (made, reused, unresolved)

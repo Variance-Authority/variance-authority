@@ -25,7 +25,8 @@ const FORMAT: &str = "variance-authority-dependency-catalogue";
 const VERSION: u8 = 4;
 /// The version whose stems this release compares: a catalogue written before it answers no described question.
 const STEMS: u8 = 2;
-/// The version that first wrote the tables a question finds its entries by.
+/// The version that first wrote the tables a question finds its entries by. They are made from the readings the
+/// entries encode, so a change to what an entry is found by is a change of [`VERSION`].
 const FINDS: u8 = 4;
 /// The oldest version still read: 1 lays its columns out as 2 does, so every question but a described one answers
 /// from it, and a refresh writes it again whole.
@@ -44,6 +45,8 @@ pub(super) struct Made {
     pub installs: Vec<MadeInstall>,
     pub entries: Vec<(String, Vec<u8>)>,
     pub stamps: Vec<(String, String)>,
+    /// The tables a question finds its entries by, made from the readings `entries` encodes.
+    pub finds: finds::Made,
     /// Packages, entrypoints, the entries that resolved to one, and what was unavailable.
     pub summary: [u32; 4],
 }
@@ -59,7 +62,7 @@ fn offsets<T>(groups: &[T], length: impl Fn(&T) -> usize) -> Vec<u32> {
 impl Made {
     pub fn encode(&self) -> Vec<u8> {
         let mut all = self.columns();
-        all.extend(finds::columns(&self.entries.iter().map(|entry| entry.1.as_slice()).collect::<Vec<_>>()));
+        all.extend(self.finds.columns());
         encode_as(FORMAT, VERSION, all)
     }
 
