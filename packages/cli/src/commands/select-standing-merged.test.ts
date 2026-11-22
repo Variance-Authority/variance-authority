@@ -53,6 +53,50 @@ describe('a test that last ran at a commit the branch merged after its own run',
     expect(answer.selected).toEqual([]);
   });
 
+  it('skips a test whose stand and HEAD hold alike a file it imports that the record has no line of, after merging the stand that is no ancestor of the journal', async () => {
+    // `far` imports `src/extra.ts`, which no run recorded. Main changes it at M
+    // and runs everything there; the branch commits J off B and runs `near`,
+    // then merges main. `far` ran on M's `src/extra.ts`, which HEAD holds, and
+    // `src/far.ts` is the same at B, M and J, so `far` is held whole and
+    // nothing changed for it: it is skipped.
+    const repo = checkout();
+    const B = repo.commit({ ...sources(1, NAMES), 'src/far.ts': `import './extra.js';\n${sources(1, ['far'])['src/far.ts']!}`, 'src/extra.ts': 'globalThis.extra = 1;\n' }, 'B');
+    const M = repo.commit({ 'src/extra.ts': 'globalThis.extra = 2;\n' }, 'M');
+    await landRun(repo.file, run(repo.root, M, NAMES), repo.root);
+    repo.git('checkout', '--quiet', '-b', 'side', B);
+    const J = repo.commit({ 'notes.txt': 'unrelated\n' }, 'J');
+    await landRun(repo.file, run(repo.root, J, ['near']), repo.root);
+    repo.git('merge', '--quiet', '--no-edit', 'main');
+    expect((await readCommitRuns(repo.file))?.standing).toMatchObject([{ commit: M, files: ['test/far.test.ts'] }]);
+    expect(repo.git('diff', M, 'HEAD', '--', 'src')).toBe('');
+    expect(repo.git('diff', '--name-only', M, J)).toContain('src/extra.ts');
+
+    const said = await repo.select();
+
+    expect(said.out).toBe('test/far.test.ts\ntest/near.test.ts\n');
+  });
+
+  it('runs only the tests whose own diff moves a file the suite rests on, after merging the stand that is no ancestor of the journal', async () => {
+    // The repository rests on `vitest.config.ts`. Main changes it at M and runs
+    // everything there; the branch commits J off B, runs `near`, then merges
+    // main. HEAD holds M's config, so it moved for `near`, from J, and not for
+    // `far`, from M: only `near` runs.
+    const repo = checkout();
+    const B = repo.commit({ ...sources(1, NAMES), 'vitest.config.ts': 'export default { a: 1 };\n', 'variance.config.json': '{ "before": ["vitest.config.ts"] }\n' }, 'B');
+    const M = repo.commit({ 'vitest.config.ts': 'export default { a: 2 };\n' }, 'M');
+    await landRun(repo.file, run(repo.root, M, NAMES), repo.root);
+    repo.git('checkout', '--quiet', '-b', 'side', B);
+    repo.commit({ 'notes.txt': 'unrelated\n' }, 'J');
+    await landRun(repo.file, run(repo.root, repo.git('rev-parse', 'HEAD'), ['near']), repo.root);
+    repo.git('merge', '--quiet', '--no-edit', 'main');
+    expect((await readCommitRuns(repo.file))?.standing).toMatchObject([{ commit: M, files: ['test/far.test.ts'] }]);
+    expect(repo.git('diff', M, 'HEAD', '--', 'vitest.config.ts')).toBe('');
+
+    const said = await repo.select();
+
+    expect(said.out).toBe('test/far.test.ts\n');
+  });
+
   it('charges only what the branch changed since a test last ran, in a file it edits again after merging the stand that is no ancestor of the journal', async () => {
     // `alpha` and `beta` last ran at M, on main, where `alpha`'s function in
     // `src/far.ts` changed after the branch point B. The branch commits J off B

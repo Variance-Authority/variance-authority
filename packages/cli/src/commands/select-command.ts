@@ -45,7 +45,8 @@ import { beyondOf, compared, installReached, withWhole } from './select-beyond.j
 import { budgetedSuite } from './select-budget.js';
 import { explainedOutput } from './select-explain.js';
 import { journeyAgainst, recordAgainst, recordPerStand } from './resources.js';
-import { commitPoint, diffPoint, diffSince, gitIn, topLevel } from './since.js';
+import { commitPoint, diffPoint, diffSince, diffToTree, gitIn, topLevel } from './since.js';
+import { everyTest, groupsOf, hitNote, type Group, type Hit } from './select-groups.js';
 import { many } from './prose-counts.js';
 import { restingOf } from './select-before.js';
 import { withCases } from './select-cases.js';
@@ -215,11 +216,12 @@ async function untested(request: SuiteRequest): Promise<SuiteReading> {
   // The journal's commit is the commit of its latest run, and a partial run —
   // a runner handed the last skip list — leaves every test it did not run on the
   // text it last ran on. The runs recorded beside the journal say where each
-  // one stands, and it is charged what changed from there to the tree, read in
-  // the journal's lines. A test the runs do not place is read from the journal's
-  // commit, or from where its runs started, and a note says so. A patch handed
-  // in is the whole change, so it is read for every test alike, and a note says
-  // when some test last ran before the journal's commit.
+  // one stands, and each group of tests is charged what changed from where it
+  // ran to one tree, written once of the working state (`select-groups.ts`). A
+  // test the runs do not place is read from the journal's commit, or from where
+  // its runs started, and a note says so. A patch handed in is the whole change,
+  // so it is read for every test alike, and a note says when some test last ran
+  // before the journal's commit.
   // The stands, the diff, the installs and the import graph are named from the top
   // of the checkout `cwd` is in, as git spells it, which is how the journal names files.
   const top = await topLevel(request.root);
@@ -236,16 +238,22 @@ async function untested(request: SuiteRequest): Promise<SuiteReading> {
     ...(stood === undefined ? [] : 'unread' in stood ? [stood.unread] : handed ? handedNotes(stood.reading, commit!) : standingNotes(stood.reading, commit!)),
   ];
   const stands = handed || stood === undefined || 'unread' in stood ? [] : stood.stands;
-  const standsChanged = stands.flatMap((stand) => stand.changed);
   const recorded = { at, ...(commit === undefined ? {} : { commit }), ...(standing.length === 0 ? {} : { standing }) };
   if (!handed && reading?.widened !== undefined) {
     return said({ ...recorded, ground: { kind: 'no-diff', from: reading.from! } });
   }
-  const diff = handed ? await handedChange(request) : await diffSince(request.since ?? base, [], commit, { cwd: here, unified: 0 });
+  // One tree for every group's diff, so no file moves between two of them; none written is no diff.
+  const tree = handed || commit === undefined ? undefined : selection.snapshotTree(here);
+  const diff = handed
+    ? await handedChange(request)
+    : commit === undefined
+      ? await diffSince(request.since ?? base, [], undefined, { cwd: here, unified: 0 })
+      : tree === undefined ? undefined : await diffToTree(commit, tree, { cwd: here, unified: 0 });
   if (diff === undefined) {
     const ground: SelectGround = { kind: 'no-diff', from: base };
     return said({ ...recorded, ground });
   }
+  const groups = handed ? [{ diff, changed: [...selection.changedLines(diff).keys()] }] : await groupsOf(stands, diff, tree, here);
 
   // Read at the commit each group of tests last ran at — the journal's own, or
   // a stand's, exactly, on whatever line it is — or at the merge base with
@@ -254,21 +262,19 @@ async function untested(request: SuiteRequest): Promise<SuiteReading> {
   // test ran is no bump for it. Keyed by the stand's commit, `undefined` for
   // the journal's own. `undefined` is no lockfile to compare, which moves
   // nothing; a comparison that could not be made — from a commit git could not
-  // resolve here — declines before the graph is scanned for an answer
-  // nobody will read. The lockfile on disk is parsed once for every group.
-  // Where the runs record kept the install a group's tests ran on, its commit
-  // is read through it: a bump they ran on uncommitted is no bump for them,
-  // and one undone since is. A kept text this checkout cannot read is
-  // half an install, so the commit's is read whole and a note says so, one
-  // for each commit it happened at.
-  const changed = [...selection.changedLines(diff).keys()];
+  // resolve here — runs that group whole. The lockfile on disk is parsed once
+  // for every group. Where the runs record kept the install a group's tests ran
+  // on, its commit is read through it: a bump they ran on uncommitted is no
+  // bump for them, and one undone since is. A kept text this checkout cannot
+  // read is half an install, so the commit's is read whole and a note says so,
+  // one for each commit it happened at.
   const installs = new Map<string | undefined, InstallDiff | undefined>();
   const unkept = new Set<string>();
   const ranOver = new Set<string | undefined>();
   if (handed) installs.set(undefined, await installDiffOfPatch(diff, here));
   else {
-    const groups = [undefined, ...stands];
-    const asked = await Promise.all(groups.map(async (stand) => {
+    const read = groups.filter((group) => group.diff !== undefined);
+    const asked = await Promise.all(read.map(async ({ stand, changed }) => {
       const from = stand?.commit ?? commit;
       const point = commit === undefined ? await diffPoint(base, [], here) : await commitPoint(from!, [], here);
       const installed = stand === undefined ? reading?.installed : stand.installed;
@@ -282,61 +288,89 @@ async function untested(request: SuiteRequest): Promise<SuiteReading> {
       // A manifest the run kept is compared whether or not the tree still
       // differs from the commit there: one undone since moved for these tests.
       const kept = missing || ran === point ? [] : Object.keys(installed!);
-      return {
-        point: missing ? point : ran,
-        changed: [...new Set([...changed, ...(stand?.changed ?? []), ...kept])],
-        note,
-      };
+      return { point: missing ? point : ran, changed: [...new Set([...changed, ...kept])], note };
     }));
     for (const { note } of asked) if (note !== undefined) unkept.add(note);
     const answers = await installDiffs(asked, here);
-    groups.forEach((stand, index) => installs.set(stand?.commit, answers[index]));
+    read.forEach(({ stand }, index) => installs.set(stand?.commit, answers[index]));
   }
-  for (const installed of installs.values()) {
-    if (installed !== undefined && 'whole' in installed) {
-      const ground: SelectGround = { kind: 'no-install', whole: installed.whole };
-      return said({ ...recorded, ground }, { changed: [...new Set([...changed, ...standsChanged])] });
-    }
+  // A group whose change git could not write, or whose install could not be compared, runs whole.
+  const hits = new Map<Group, Hit>();
+  for (const group of groups) {
+    const installed = installs.get(group.stand?.commit);
+    if (group.diff === undefined) hits.set(group, { kind: 'undiffable' });
+    else if (installed !== undefined && 'whole' in installed) hits.set(group, { kind: 'install', whole: installed.whole });
+  }
+  const journal = groups[0]!;
+  const first = hits.get(journal);
+  // Only every group running whole runs the suite, before the graph is scanned for an answer nobody will read.
+  if (hits.size === groups.length && first?.kind === 'install') {
+    return said({ ...recorded, ground: { kind: 'no-install', whole: first.whole } }, { changed: [...new Set(groups.flatMap((group) => group.changed))] });
   }
 
   const stale = request.relations === undefined ? await indexUpToCheckout(here, undefined, !request.noGit) : undefined;
   const relations = request.relations ?? await relationsFor(here, ['.'], [], [], request.noGit);
   // A bump or a moved manifest is the files it changed, changed whole.
   const beyond = new Map([...installs].map(([stand, installed]) => [stand, beyondOf(relations, installed)] as const));
-  // What the suite rests on before reach, moved by any group's diff or install, runs the whole suite.
+  const beyondFiles = (group: Group) => beyond.get(group.stand?.commit)?.files ?? [];
+  // What the suite rests on before reach, moved by a group's own diff or install, runs that group whole.
   const { declared } = await namedSuite(here, request.suite);
   const suite = declared?.name;
-  const beyondFiles = [...beyond.values()].flatMap((one) => one.files);
-  const moved = [...new Set([...changed, ...standsChanged, ...beyondFiles])];
-  const { whole, ...rest } = await restingOf(here, suite, relations, moved, declared?.ignore);
+  const what = (group: Group) =>
+    group.stand !== undefined ? `the diff from ${group.stand.commit.slice(0, 12)}` : stands.length === 0 ? 'this diff' : `the diff from the journal's commit ${commit!.slice(0, 12)}`;
+  const rests = await Promise.all(groups.map(async (group) =>
+    hits.has(group) ? {} : await restingOf(here, suite, relations, [...group.changed, ...beyondFiles(group)], declared?.ignore, what(group)),
+  ));
+  groups.forEach((group, index) => {
+    const whole = rests[index]!.whole;
+    if (whole !== undefined) hits.set(group, { kind: 'before', says: whole.says, rests: whole.rests });
+  });
+  const resting = [...new Set(rests.flatMap((one) => one.resting ?? []))];
+  const moved = [...new Set(groups.flatMap((group) => [...group.changed, ...beyondFiles(group)]))];
   // What the install changed whole is named whichever way the answer goes: a test it entered was entered by no line.
   const install = installReached(installs, beyond, (stand) =>
     handed ? 'before the patch' : `${ranOver.has(stand) ? 'the install recorded ' : ''}at ${(stand ?? commit)?.slice(0, 12) ?? base}`,
   );
-  const notes = unkept.size === 0 ? {} : { standing: [...(recorded.standing ?? []), ...unkept] };
-  const rested = { ...recorded, ...notes, ...rest, ...(install === undefined ? {} : { install }) };
-  if (whole !== undefined) return said({ ...rested, ground: { kind: 'before', whole: whole.says, rests: whole.rests } }, { changed: moved, relations });
+  const befores = groups.flatMap((group) => {
+    const hit = hits.get(group);
+    return hit?.kind === 'before' ? [hit] : [];
+  });
+  const all = hits.size === groups.length;
+  const hitNotes = all ? [] : groups.flatMap((group) => {
+    const hit = hits.get(group);
+    return hit === undefined ? [] : [hitNote(group, hit, commit)];
+  });
+  const notes = [...(recorded.standing ?? []), ...unkept, ...hitNotes];
+  const rested = { ...recorded, ...(notes.length === 0 ? {} : { standing: notes }), ...(resting.length === 0 ? {} : { resting }), ...(install === undefined ? {} : { install }) };
+  if (all) {
+    const says = (first?.kind === 'before' ? first : befores[0]!).says;
+    return said({ ...rested, ground: { kind: 'before', whole: says, rests: [...new Set(befores.flatMap((hit) => hit.rests))].sort() } }, { changed: moved, relations });
+  }
   // Each group is charged the install that moved since it ran. A placed test is
   // charged one change, from its stand to the tree, in the journal's lines
   // (`standChange`); the files a whole stand reads leave the hunk diff.
   const options = { relations, at, checkout: request.root, unmeasured: selection.unmeasuredOf(declared), ignore: declared?.ignore, precision: declared?.precision, distances: request.atDistance !== undefined };
   // The tree's diff is `-U0`, so it is also the line map from the journal's commit that a stand's change is read in.
-  const standChange = async (stand: Stand, installed: readonly string[]) => {
-    const since = await diffSince(base, [], stand.commit, { cwd: here, unified: 0 });
-    if (since === undefined) throw new Error(`git could not write the diff from ${stand.commit.slice(0, 12)}, where ${stand.tests.length} test files last ran, to the tree`);
-    const change = selection.standChange(diff, since, stand.changed);
+  const standChange = (group: Group, installed: readonly string[]) => {
+    const change = selection.standChange(diff, group.diff!, group.stand!.changed);
     // What the install moved is charged whole and leaves the hunks, as `withWhole` writes it for the tree, so no export reading narrows it.
     const whole = new Set(installed);
     return { lines: new Map([...change.lines, ...installed.map((file) => [file, []] as const)]), hunks: new Map([...change.hunks].filter(([file]) => !whole.has(file))) };
   };
-  const ask = async (question: StandQuestion) =>
-    question.read === 'stand'
-      ? recordAgainst(here, await standChange(question.stand, beyond.get(question.at)!.files), options)
-      : recordAgainst(
+  const ask = async (question: StandQuestion) => {
+    const group = groups.find((one) => one.stand?.commit === question.at)!;
+    const hit = hits.get(group);
+    if (hit !== undefined && group.stand !== undefined) return everyTest(group.stand.tests, hit);
+    const files = beyondFiles(group);
+    const answer = question.read === 'stand'
+      ? await recordAgainst(here, standChange(group, files), options)
+      : await recordAgainst(
           here,
-          withWhole([selection.withoutFiles(diff, question.whole), ...question.whole.map(selection.wholeEntry)].join('\n'), beyond.get(question.at)!.files),
+          withWhole([selection.withoutFiles(diff, question.whole), ...question.whole.map(selection.wholeEntry)].join('\n'), files),
           handed ? { ...options, undone: false } : options,
         );
+    return hit === undefined || answer === undefined ? answer : everyTest([], hit, answer);
+  };
   const charged = stands.length === 0 ? await ask({ read: 'tree', at: undefined, whole: [] }) : await recordPerStand(stands, ask);
   const narrowing: ExecutionNarrowing | undefined = charged?.narrowing;
   // The lockfile and the manifests beside it are unread by the journal and

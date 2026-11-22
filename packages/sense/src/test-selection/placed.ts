@@ -196,10 +196,11 @@ function listedParts(diff: string, listed: ChangeRead): string {
  * One listed file in the record's numbers. The record's own hunks that meet the
  * change stay whole, as hunks are the grain where both sides wrote, and every
  * other line of the change is carried back to the line the record holds it on.
- * A file either diff shows no lines of, a binary, is held at file grain.
+ * A file the change names with no hunk, a binary or a mode alone, is charged
+ * whole, whatever lines the record's side wrote in it.
  */
 function inRecord(ranges: readonly LineRange[] | undefined, hunks: readonly ChargedHunk[], change: readonly Hunk[] | undefined, whole: readonly LineRange[]): readonly LineRange[] {
-  if (change === undefined || change.length === 0) return ranges ?? whole;
+  if (change === undefined || change.length === 0) return whole;
   if (ranges !== undefined && hunks.length === 0) return ranges;
   const written = hunks.filter(({ hunk }) => change.some((other) => meet(hunk, other))).flatMap(({ lines }) => lines);
   const held = hunks.map(({ hunk }) => hunk);

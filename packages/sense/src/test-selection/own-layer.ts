@@ -28,7 +28,7 @@
 // compass: variance-authority.reach
 
 import { execFileSync } from 'node:child_process';
-import { copyFileSync, mkdtempSync, rmSync } from 'node:fs';
+import { copyFileSync, mkdtempSync, rmSync, statSync, utimesSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -126,17 +126,35 @@ export function ownTests(layer: OwnLayer): ReadonlySet<string> {
  * write one.
  */
 export function workingTree(repository: string): string | undefined {
+  const tree = snapshotTree(repository);
+  if (tree === undefined) return undefined;
+  try {
+    return tree === execFileSync('git', ['rev-parse', 'HEAD^{tree}'], { cwd: repository, encoding: 'utf8' }).trim() ? undefined : tree;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * The git tree of the working state of `repository`, as {@link workingTree}
+ * writes it, whether or not HEAD holds the same: one tree every diff of a
+ * reading names, so the files moving while it reads move none of its answers.
+ * `undefined` when git cannot write one.
+ */
+export function snapshotTree(repository: string): string | undefined {
   let scratch: string | undefined;
   try {
     const index = execFileSync('git', ['rev-parse', '--git-path', 'index'], { cwd: repository, encoding: 'utf8' }).trim();
     scratch = mkdtempSync(join(tmpdir(), 'variance-tree-'));
     const copy = join(scratch, 'index');
-    copyFileSync(resolve(repository, index), copy);
+    const real = resolve(repository, index);
+    copyFileSync(real, copy);
+    // The copy keeps the index's time: git reads an entry as new as it again, so an edit in that second is not taken for clean.
+    const { atime, mtime } = statSync(real);
+    utimesSync(copy, atime, mtime);
     const env = { ...process.env, GIT_INDEX_FILE: copy };
     execFileSync('git', ['add', '-A'], { cwd: repository, env, stdio: 'ignore' });
-    const tree = execFileSync('git', ['write-tree'], { cwd: repository, env, encoding: 'utf8' }).trim();
-    const committed = execFileSync('git', ['rev-parse', 'HEAD^{tree}'], { cwd: repository, encoding: 'utf8' }).trim();
-    return tree === committed ? undefined : tree;
+    return execFileSync('git', ['write-tree'], { cwd: repository, env, encoding: 'utf8' }).trim();
   } catch {
     return undefined;
   } finally {

@@ -90,14 +90,14 @@ export function restsUnder(relations: Relations, entries: readonly string[], cha
   return entries.length === 0 ? [] : restsIn(beforeReach(relations, entries), changed);
 }
 
-/** The sentence a whole run gives for what it rests on, and the declared `before` entries that hold it. */
-export function restsSaid(suite: string | undefined, rests: readonly string[], entries: readonly string[]): string {
+/** The sentence a whole run gives for what it rests on, the declared `before` entries that hold it, and `what` moved it. */
+export function restsSaid(suite: string | undefined, rests: readonly string[], entries: readonly string[], what = 'this diff'): string {
   const whose = suite === undefined ? 'every suite here' : `the suite ${suite}`;
   const one = rests.length === 1;
   const through = entries.length === 0
     ? ''
     : `, through ${suite === undefined ? 'the' : 'its'} \`before\` ${entries.length === 1 ? 'entry' : 'entries'} ${listed(entries.map((entry) => `\`${entry}\``))}`;
-  return `${whose} rests on ${listed(rests)} before any test imports ${one ? 'it' : 'them'}${through}, and this diff moves ${one ? 'it' : 'them'}`;
+  return `${whose} rests on ${listed(rests)} before any test imports ${one ? 'it' : 'them'}${through}, and ${what} moves ${one ? 'it' : 'them'}`;
 }
 
 /** What a selection carries from {@link restsOf}: its notes, and the reason for a whole run when the diff moved what the suite rests on. */
@@ -109,8 +109,8 @@ export interface Resting {
 
 /**
  * {@link restsOf}, said: the notes as a selection carries them, and the
- * sentence a whole run gives. `ignore` is the suite's: a file it matches moves
- * none of its tests, so it does not run them all either.
+ * sentence a whole run gives, naming `what` moved it. `ignore` is the suite's:
+ * a file it matches moves none of its tests, so it does not run them all either.
  */
 export async function restingOf(
   root: string,
@@ -118,13 +118,14 @@ export async function restingOf(
   relations: Relations,
   changed: readonly string[],
   ignore: readonly string[] | undefined,
+  what?: string,
 ): Promise<Resting> {
   const selection = await import('@variance-authority/sense/test-selection');
   const ignored = new Set(selection.ignoredBy(ignore, changed));
   const rest = await restsOf(root, suite, relations, ignored.size === 0 ? changed : changed.filter((file) => !ignored.has(file)));
   return {
     ...(rest.notes.length === 0 ? {} : { resting: rest.notes }),
-    ...(rest.rests.length === 0 ? {} : { whole: { says: restsSaid(suite, rest.rests, rest.entries), rests: rest.rests } }),
+    ...(rest.rests.length === 0 ? {} : { whole: { says: restsSaid(suite, rest.rests, rest.entries, what), rests: rest.rests } }),
   };
 }
 

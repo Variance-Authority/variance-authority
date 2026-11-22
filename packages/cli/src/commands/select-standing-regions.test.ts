@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -7,6 +7,13 @@ import { INSTRUMENTATION_ID } from '@variance-authority/sense/instrument';
 import { landRun, sourceCut, testCoverageFile, type TestCoverage } from '@variance-authority/sense/test-selection';
 import { indexOutput } from './index-command.js';
 import { selectOutput } from './select-command.js';
+import { diffSince, diffToTree } from './since.js';
+
+// Spied, not replaced: one case edits the tree after select's first diff of it, and every diff stays git's.
+vi.mock('./since.js', async (original) => {
+  const actual = await original<typeof import('./since.js')>();
+  return { ...actual, diffSince: vi.fn(actual.diffSince), diffToTree: vi.fn(actual.diffToTree) };
+});
 
 /**
  * A test a partial run left out stands on the text it last ran, and its rows
@@ -26,6 +33,8 @@ describe('what changed after a test last ran is read region by region', () => {
   afterEach(() => {
     process.chdir(cwd);
     vi.unstubAllEnvs();
+    vi.mocked(diffSince).mockReset();
+    vi.mocked(diffToTree).mockReset();
   });
 
   it('skips a test for an edit, committed after it ran, to a function only another test runs', async () => {
@@ -84,6 +93,57 @@ describe('what changed after a test last ran is read region by region', () => {
 
     expect(said.err).toContain(`1 test file last ran at ${P.slice(0, 12)}`);
     expect(said.out).toBe('test/far.test.ts\ntest/near.test.ts\n');
+  });
+
+  it('runs a test for an edit to a function it ran, when the tree changes while select reads it', async () => {
+    // `far` runs `forFar`, below `forNear`, and last ran at P; C runs `near`
+    // alone over the same `shared.ts`. The tree edits `forFar` under four
+    // comment lines, and the comments go while select is reading. Read from
+    // the tree with them, the comments touch the module both tests ran, so
+    // both run; read from the tree without, `forFar` alone moved, so `far`
+    // runs. Either tree runs `far`; only two trees read as one could skip it.
+    const nearFirst = (far: string): string => `export function forNear(n) {\n  return n * 2;\n}\n\nexport function forFar(n) {\n  return ${far};\n}\n`;
+    const repo = checkout();
+    const P = repo.commit({ ...TESTS, 'src/shared.ts': nearFirst('n + 1') }, 'P');
+    await landRun(repo.file, run(repo.root, P, ['far', 'near']), repo.root);
+    const C = repo.commit({ 'notes.txt': 'unrelated\n' }, 'C');
+    await landRun(repo.file, run(repo.root, C, ['near']), repo.root);
+    writeFileSync(join(repo.root, 'src/shared.ts'), `// a\n// b\n// c\n// d\n${nearFirst('n + 9')}`);
+    const actual = await vi.importActual<typeof import('./since.js')>('./since.js');
+    const settle = (): void => writeFileSync(join(repo.root, 'src/shared.ts'), nearFirst('n + 9'));
+    vi.mocked(diffSince).mockImplementation(async (ref, roots, from, options) => {
+      const read = await actual.diffSince(ref, roots, from, options);
+      if (from === C) settle();
+      return read;
+    });
+    vi.mocked(diffToTree).mockImplementation(async (from, tree, options) => {
+      const read = await actual.diffToTree(from, tree, options);
+      if (from === C) settle();
+      return read;
+    });
+
+    const said = await repo.select();
+
+    expect(said.err).toContain(`1 test file last ran at ${P.slice(0, 12)}, before the journal's commit ${C.slice(0, 12)}`);
+    expect(said.out).toBe('');
+  });
+
+  it('runs a test whose file the tree changes in mode alone since it ran', async () => {
+    // `far` stands at P; C edits `forNear` and runs `near` alone. The tree puts
+    // P's text back and makes the file executable: from P only the mode moved,
+    // which no line of it says, so `far` is charged the whole file.
+    const repo = checkout();
+    const P = repo.commit({ ...TESTS, 'src/shared.ts': shared('n + 1', 'n * 2') }, 'P');
+    await landRun(repo.file, run(repo.root, P, ['far', 'near']), repo.root);
+    const C = repo.commit({ 'src/shared.ts': shared('n + 1', 'n * 3') }, 'C');
+    await landRun(repo.file, run(repo.root, C, ['near']), repo.root);
+    writeFileSync(join(repo.root, 'src/shared.ts'), shared('n + 1', 'n * 2'));
+    chmodSync(join(repo.root, 'src/shared.ts'), 0o755);
+    expect(repo.git('diff', P, '--', 'src/shared.ts')).toContain('new mode 100755');
+
+    const said = await repo.select();
+
+    expect(said.out).toBe('');
   });
 
   // The run at C lands over a tree holding `held` in `shared.ts`, which it did

@@ -113,7 +113,7 @@ export async function diffSince(
   ref: string,
   roots: readonly string[] = [],
   from?: string,
-  options: { readonly reverse?: boolean; readonly cwd?: string; readonly unified?: number } = {},
+  options: { readonly reverse?: boolean; readonly cwd?: string; readonly unified?: number; readonly to?: string } = {},
 ): Promise<string | undefined> {
   const run = promisify(execFile);
   const here = options.cwd ?? process.cwd();
@@ -125,14 +125,14 @@ export async function diffSince(
     // FIXME: a changed submodule is one `Subproject commit` hunk under its gitlink
     // path, so no test under it, or that entered a file inside it, is charged.
     const diffed = (async () =>
-      (await run('git', [...PLAIN, 'diff', ...NO_DECORATION, ...side, '--no-renames', from ?? (await mergeBase(run, ref, repository))], {
+      (await run('git', [...PLAIN, 'diff', ...NO_DECORATION, ...side, '--no-renames', from ?? (await mergeBase(run, ref, repository)), ...(options.to === undefined ? [] : [options.to])], {
         cwd: repository,
         maxBuffer: 64 * 1024 * 1024,
       })).stdout)();
     // An untracked file has no diff of its own: it is shown as the addition it
     // is, so its every line is charged and the graph is asked who imports it.
     // Each is a process of its own, so a few run at once, in the order listed.
-    const untracked = untrackedFiles(run, repository);
+    const untracked = options.to === undefined ? untrackedFiles(run, repository) : Promise.resolve<readonly string[]>([]);
     // Both are awaited before either is read, so a failed diff does not leave the listing unawaited.
     const [stdout, files] = await Promise.all([diffed, untracked]);
     const added = Array.from<string>({ length: files.length });
@@ -146,6 +146,15 @@ export async function diffSince(
   } catch {
     return undefined;
   }
+}
+
+/**
+ * {@link diffSince} from `from` to `tree`, a tree object `snapshotTree` wrote of
+ * the working state. It holds the untracked files already, and every diff of one
+ * reading names it, so a file that moves while the reading runs moves none of them.
+ */
+export async function diffToTree(from: string, tree: string, options: { readonly cwd?: string; readonly unified?: number } = {}): Promise<string | undefined> {
+  return await diffSince(from, [], from, { ...options, to: tree });
 }
 
 type Run = (file: string, args: readonly string[], options: object) => Promise<{ stdout: string }>;
