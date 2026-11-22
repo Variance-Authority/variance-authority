@@ -158,7 +158,7 @@ function section<Row>(head: string, found: Matches<Row>, line: (row: Row) => str
  */
 function inFull(asked: SearchQuestion, total: number, spell: Spelling): string {
   const where = { ...(asked.from === undefined ? {} : { from: asked.from }), ...(asked.to === undefined ? {} : { to: asked.to }) };
-  return `${spell.question(search, { query: asked.query, ...where, limit: Math.max(total, CAP) })} lists them in full.`;
+  return `${spell.question(search, { query: asked.query, ...where, limit: Math.max(total, CAP) })} lists the remaining names.`;
 }
 
 /** What a search says of what it found, to `asked`. */
@@ -174,20 +174,19 @@ function spoken({ answer, area }: Searched, asked: SearchQuestion, root: string 
   // Said once, as `uses` says it, below the rows it leaves short.
   const unreadImports = answer.importsUnread === undefined ? [] : ['', `Imports that do not name a package path are not counted: ${answer.importsUnread}.`];
   const missing = [...unreadImports, ...lexicon];
-  // The repository's own rows are the answer whenever there are any: then what
-  // is installed is named on one line, with the question that lists it, and
-  // what was not found there is not said. A `limit` asks for the lists in full.
+  // The repository's own rows are the answer whenever there are any: then
+  // installed and describing packages stay compact, with names limited by the request.
   const ownFound = [answer.published, answer.exported, answer.declared, answer.held, answer.tests, answer.aliases, answer.described, answer.loose].some(
     (list) => (list?.total ?? 0) > 0,
   );
-  const collapse = ownFound && asked.limit === undefined;
+  const compact = ownFound;
   const thirdHead = (total: number): string => `${total} third-party ${total === 1 ? 'name matches' : 'names match'} \`${query}\``;
   const thirdSection = third === undefined
     ? []
     : third.total === 0
     ? ownFound ? [] : ['', `No third-party name matches \`${query}\`. ${thirdScope(third.scope)}`]
-    : collapse
-    ? named(thirdHead(third.total), third.shown.map((match) => `${match.specifier} · ${match.name}`), third.total, inFull(asked, third.total, spell))
+    : compact
+    ? named(thirdHead(third.total), third.shown.map((match) => `${match.specifier} · ${match.name}`), third.total, inFull(asked, third.total, spell), asked.limit)
     : [
     '',
     `${thirdHead(third.total)}, ` +
@@ -204,8 +203,8 @@ function spoken({ answer, area }: Searched, asked: SearchQuestion, root: string 
       ? ['', `${third.describedUnread}, so no package was asked whether it describes \`${query}\`; \`variance index\` rebuilds it.`]
       : described.length === 0
       ? []
-      : collapse
-      ? named(describedHead, described.map((hit) => hit.specifier), describing, inFull(asked, describing, spell))
+      : compact
+      ? named(describedHead, described.map((hit) => hit.specifier), describing, inFull(asked, describing, spell), asked.limit)
       : [
           '',
           `${describedHead} in their own words or the words of their names, best first:`,
@@ -359,7 +358,7 @@ export const search: Tool<Help> = {
     'functions inside a function under what holds them, the recorded test cases whose names hold every word, as each suite\'s last run wrote them, so a case added since is not among them and one removed since still is, and the imports that bind the name as a local one. Installed third-party ' +
     'names appear separately when the third-party API catalogue is published, followed by the installed ' +
     'packages that describe your words — in their own description, keywords and README headings, or in ' +
-    'the words of their names — so a job reaches a package by what it does; when the repository answers and no `limit` is said, each of the two is one line naming up to five and the question that lists them in full. Near matches follow, ' +
+    'the words of their names — so a job reaches a package by what it does; when the repository answers, both stay on compact lines. `limit` controls how many identities each line names, five by default, and a wider-limit command appears only when names remain. Near matches follow, ' +
     'headed as near, not exact: this repository\'s own names and files holding most of your words, the rarer ' +
     'counting for more, read by stem, before any installed package, a file by its name and the doc it opens with, best ' +
     'first by the words held, then by the words in the name, then by how much of your phrase its doc writes, ' +

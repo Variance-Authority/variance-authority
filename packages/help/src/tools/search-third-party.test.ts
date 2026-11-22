@@ -95,19 +95,34 @@ it('names a matching installed name on one line when a workspace name answers to
   const said = answerSearch(searchIndexOf(readHelp(root)), { query: 'betaOwnName' }, treeOf([], root), root);
 
   expect(said).toContain('packages/beta/src/fixtures.ts');
-  expect(said).toMatch(/^1 third-party name matches `betaownname`: beta-kit · betaOwnName\. `docs_search` with `query` `betaOwnName` and `limit` `20` lists them in full\.$/mu);
+  expect(said).toMatch(/^1 third-party name matches `betaownname`: beta-kit · betaOwnName\.$/mu);
+  expect(said).not.toContain('`docs_search`');
   expect(said).not.toContain('· dependency in packages/beta/package.json');
 });
 
-it('lists the installed names in full when a limit is said, though a workspace name answers too', async () => {
+it('keeps installed names compact while a limit widens how many the line names', async () => {
+  const names = ['betaOwnName', 'betaOwnNameAlpha', 'betaOwnNameBravo', 'betaOwnNameCharlie', 'betaOwnNameDelta', 'betaOwnNameEcho', 'betaOwnNameFoxtrot'];
+  const declarations = names.map((name) => `export declare const ${name}: true;`).join('\n');
+  const exports = names.map((name) => `export const ${name} = true;`).join('\n');
   const root = await workspace({
-    'packages/beta/src/fixtures.ts': "import { betaOwnName } from 'beta-kit';\nexport { betaOwnName };\n",
+    'packages/beta/src/fixtures.ts': `${exports}\n`,
+    'node_modules/beta-kit/index.d.ts': `${declarations}\n`,
   });
-  const said = answerSearch(searchIndexOf(readHelp(root)), { query: 'betaOwnName', limit: 100 }, treeOf([], root), root);
+  const index = searchIndexOf(readHelp(root));
+  const said = (limit: number): string => answerSearch(index, { query: 'betaOwnName', limit }, treeOf([], root), root);
 
-  expect(said).toContain('packages/beta/src/fixtures.ts');
-  expect(said).toContain('beta-kit · betaOwnName [const] @1.0.0 · dependency in packages/beta/package.json');
-  expect(said).not.toContain('lists them in full');
+  const narrow = said(1);
+  expect(narrow).toContain('packages/beta/src/fixtures.ts');
+  expect(narrow).toMatch(/^7 third-party names match `betaownname`: beta-kit · betaOwnName and 6 more\. `docs_search` with `query` `betaOwnName` and `limit` `20` lists the remaining names\.$/mu);
+  expect(narrow).not.toContain('· dependency in packages/beta/package.json');
+
+  const widened = said(names.length);
+  const summary = widened.split('\n').find((line) => line.startsWith('7 third-party names match')) ?? '';
+  for (const name of names) expect(summary).toContain(`beta-kit · ${name}`);
+  expect(widened).not.toContain('`docs_search`');
+  expect(widened).not.toContain('· dependency in packages/beta/package.json');
+
+  expect(() => said(0)).toThrow('`limit` takes a whole number of rows, at least 1');
 });
 
 it('answers a workspace export when no lexicon of installed names is published', async () => {

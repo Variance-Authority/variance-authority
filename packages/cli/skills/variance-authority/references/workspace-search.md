@@ -34,16 +34,18 @@ A file whose declarations were not read, such as one over the size a read
 opens, is named under the answer, since the name may be declared there.
 
 `variance index` also publishes a lexicon of the installed direct third-party
-packages, and `search` reads it. When nothing in the repository answers, the
-installed names and the packages that describe your words are listed in full, or
-a line says which manifests were searched. When the repository answers, each is
-one line naming up to five and the `--limit` that lists it in full, which a
-`--limit` you say does, and an empty one is not mentioned, nor a suite whose
-recorded cases were not read. An answer holding a row of this repository ends
-with `Next:` and the question for its first declaration, a recorded test case
-only when no declaration answered: `ask symbol --name --package` for a
-published row, `ask orient --files` for the file of any other, spelled as you
-asked, so over MCP it names the tool and its input. `symbol`
+packages, and `search` reads it. When repository names match, installed-name and
+describing-package sections stay compact: each lists up to five names by
+default, or up to `--limit <n>`. The answer offers a larger limit only when
+names remain; using it reveals those names without expanding their details.
+With no repository matches, dependency-only answers list matching installed
+names and packages that describe your words in detailed rows; if none match, a
+line says which manifests were searched. Empty sections and suites whose
+recorded cases were not read are omitted. An answer holding a row of this
+repository ends with `Next:` and the question for its first declaration, a
+recorded test case only when no declaration answered: `ask symbol --name
+--package` for a published row, `ask orient --files` for the file of any other,
+spelled as you asked, so over MCP it names the tool and its input. `symbol`
 matches installed third-party declarations from the same lexicon, which is
 `dependency-lexicon.bin` beside the source index. It is a binary file: ask
 `search` and `symbol` for what it holds.
