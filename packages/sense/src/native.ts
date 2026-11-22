@@ -306,8 +306,6 @@ export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon
     externalSites: number,
     declarationLines: number,
   ): { packages: NativeOrientation; external: NativeExternalOrientation; declarations: FileDeclarations[] } | null;
-  /** What each of `files` declares at its top level, read off the source index at `index` alone; `null` when none was published. */
-  fileDeclarations?(index: string, files: string[], budget: number): FileDeclarations[] | null;
   /** Indexed external requests from `files`; `null` when no index is published. */
   externalDependencies?(root: string, index: string, files: string[], rows: number, sites: number): NativeExternalOrientation | null;
   /** For each of `files`, the cases in the journey file at `file` that ran it. */

@@ -6,7 +6,7 @@ import type { Documented, Entry, Help } from '@variance-authority/package/help';
 import * as sense from '@variance-authority/sense';
 import { HELP_TOOLS } from '../tools.js';
 import { classify } from './classify.js';
-import { classifyWords, formatClassified, formatNamedFiles, identifier, placedAreas, type CodeMapPlaces, type Named } from './classify-words.js';
+import { classifyWords, formatClassified, formatNamedFiles, identifier, namedFiles, placedAreas, type CodeMapPlaces, type Named } from './classify-words.js';
 import { FoundNothing } from './find.js';
 import * as symbol from './symbol.js';
 
@@ -280,7 +280,7 @@ describe('docs_classify', () => {
   });
 
   it('gives a named file it can list nothing of a row that says why', () => {
-    const text = formatNamedFiles([
+    const text = formatNamedFiles(['lib/unread.js', 'lib/consts.js', 'lib/bare.js', 'lib/new_thing.js'], [
       { file: 'lib/unread.js', read: false, more: 0, moreMembers: 0, declarations: [] },
       { file: 'lib/consts.js', read: true, more: 3, moreMembers: 0, declarations: [{ name: 'A', kind: 'const', line: 1, exported: true, members: [] }] },
       { file: 'lib/bare.js', read: true, more: 0, moreMembers: 0, declarations: [{ name: 'run', kind: 'function', line: 1, exported: null, members: [] }] },
@@ -290,7 +290,39 @@ describe('docs_classify', () => {
       '  lib/unread.js — the index holds no parse of its declarations',
       '  lib/consts.js — declares no function or class at the top level; 3 more top-level declarations past the budget, not read here',
       '  lib/bare.js — run (the index kept no exports of it, so none is marked exported)',
+      '  lib/new_thing.js — the source index holds no record of it; `variance index` reads it',
     ]);
+  });
+
+  it('still gives every named file its row when no source index was published', () => {
+    expect(formatNamedFiles(['lib/loader.js'], undefined).split('\n').slice(3)).toEqual([
+      '  lib/loader.js — no source index was published; `variance index` reads it',
+    ]);
+  });
+
+  it('takes no declaring file from a word that names a file, and asks it nothing', () => {
+    const file: Named = { kind: 'file', specifier: 'lib/child_process.js', file: 'lib/child_process.js', package: '', published: false };
+    const user: Named = { kind: 'declared', specifier: 'lib/aaa_user.js:1', file: 'lib/aaa_user.js', package: '', published: false };
+    const located = { entities: [{ word: 'child_process', names: [user, file] }], plain: [] };
+
+    expect(namedFiles(located)).toEqual(['lib/child_process.js']);
+    expect(formatClassified(located, PLACED)).not.toContain('variance ask symbol --name child_process');
+  });
+
+  it('takes a declared word\'s first source declarer, past the tests before it', () => {
+    const at = (where: string, more?: number): Named => ({
+      kind: 'declared', specifier: `${where}:1`, file: where, package: '', published: false, ...(more === undefined ? {} : { more }),
+    });
+    const named = namedFiles({
+      entities: [
+        { word: 'ModuleJob', names: [at('lib/module_job.js'), at('test/module_job.test.js', 2)] },
+        { word: 'ModuleLoader', names: [at('lib/a.test.js'), at('lib/a.js'), at('lib/b.js')] },
+        { word: 'Wrap', names: [at('lib/wrap.test.js', 1)] },
+      ],
+      plain: [],
+    });
+
+    expect(named).toEqual(['lib/module_job.js', 'lib/a.js']);
   });
 
   it('takes a word as an identifier by an inner capital, an underscore or a digit after a letter, and nothing else', () => {

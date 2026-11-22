@@ -8,7 +8,7 @@
 
 // compass: variance-authority.report.agent-surface
 
-import { everyEntry, type Help } from '@variance-authority/package/help';
+import { everyEntry, kindOf, type Help } from '@variance-authority/package/help';
 import { STALE_MAP, unscoped } from './code-map-format.js';
 import { specifierOf } from './find.js';
 import type { FileDeclarations, RankedArea } from '@variance-authority/sense';
@@ -224,13 +224,12 @@ export function formatClassified(
       lines.push(`  ${area.path} — ${plural(area.files, 'file')} · holds ${area.words.join(' ')}${placed}`);
     }
   }
-  // What each entity is asked next: an exported or a declared name is read by
-  // `symbol`, a file nothing, since it is already the answer, a published package or
+  // What each entity is asked next: a word that names a file nothing, since the
+  // file is already the answer; an exported or a declared name is read by `symbol`, a published package or
   // entrypoint counted by `entrypoint`, and a package that publishes nothing
   // placed by `orient` on its area, if one took it.
-  const asks = entities.flatMap(({ word, names }) => names.flatMap((named) => {
+  const asks = entities.flatMap(({ word, names }) => names.some((named) => named.kind === 'file') ? [] : names.flatMap((named) => {
     if (named.kind === 'export' || named.kind === 'declared') return [`variance ask symbol --name ${shell(word)}`];
-    if (named.kind === 'file') return [];
     if (named.published) return [`variance ask entrypoint --package ${shell(named.specifier)}`];
     const area = packages.get(named.package)?.area;
     return area === undefined ? [] : [`variance ask orient --area ${shell(area.id)}`];
@@ -254,13 +253,16 @@ export function formatClassified(
 
 /**
  * The files a classified request names, in the order its words name them: each
- * file a word names, and the first file that declares a word.
+ * file a word names, and for a word that names no file, the first source file
+ * that declares it, in the order classify lists its declarers.
  */
 export function namedFiles({ entities }: Classified): readonly string[] {
-  return [...new Set(entities.flatMap(({ names }) => [
-    ...names.filter((named) => named.kind === 'file'),
-    ...names.filter((named) => named.kind === 'declared').slice(0, 1),
-  ].flatMap((named) => (named.file === undefined ? [] : [named.file]))))];
+  return [...new Set(entities.flatMap(({ names }) => {
+    const files = names.filter((named) => named.kind === 'file');
+    if (files.length > 0) return files.flatMap((named) => (named.file === undefined ? [] : [named.file]));
+    const first = names.find((named) => named.kind === 'declared' && named.file !== undefined && kindOf(named.file) === 'source');
+    return first?.file === undefined ? [] : [first.file];
+  }))];
 }
 
 /** The kinds a named file's row lists: what a request names and an answer cites. */
@@ -273,12 +275,18 @@ const LISTED_CAP = 8;
  * The block classify ends with: one row per named file with the functions and
  * classes it declares at its top level, exported first, then by line, under a
  * line saying they are the answer, since a reader handed files and no reason to
- * stop at them answers with their folder. A file with nothing to list still
- * gets its row, saying why; nothing at all when no file is named.
+ * stop at them answers with their folder. Every file in `asked` gets its row,
+ * one `read` holds nothing of or one with nothing to list saying why, and every
+ * row says so when `read` is absent, as no index was published; nothing at all
+ * when no file is named.
  */
-export function formatNamedFiles(files: readonly FileDeclarations[]): string {
-  if (files.length === 0) return '';
-  const rows = files.map((file) => {
+export function formatNamedFiles(asked: readonly string[], read: readonly FileDeclarations[] | undefined): string {
+  if (asked.length === 0) return '';
+  const held = new Map((read ?? []).map((file) => [file.file, file] as const));
+  const rows = asked.map((at) => {
+    if (read === undefined) return `  ${at} — no source index was published; \`variance index\` reads it`;
+    const file = held.get(at);
+    if (file === undefined) return `  ${at} — the source index holds no record of it; \`variance index\` reads it`;
     // Absent is not empty: a file whose declarations were not read may declare anything.
     if (!file.read) return `  ${file.file} — the index holds no parse of its declarations`;
     const listed = file.declarations

@@ -16,6 +16,7 @@ import { native, nativeRefusal } from './addon.js';
 import type { NativeAsked, NativeImporters, NativeIndexedUsage } from './native-orient.js';
 import type { ClassifiedAreas } from './classified-areas.js';
 import type { DeclaredNames, NameTerms } from './declared-names.js';
+import type { FileDeclarations } from './orient.js';
 import { sourceIndexPath } from './source-index.js';
 import type { Mention, WalkedHelp } from './help-walked.js';
 import { mocking, type SourceWalk } from './source-tree.js';
@@ -248,6 +249,7 @@ export interface NativeHelp {
   namesFilterOf?(index: OpenedIndex, imports: ImportAsked[], declares: string[], readable: string[]): NamesFound | null;
   memberDeclarationsOf?(root: string, index: OpenedIndex, name: string): MemberDeclarations | null;
   membersOnOf?(index: OpenedIndex, file: string, on: string): ContainerMember[] | null;
+  fileDeclarationsOf?(index: OpenedIndex, files: string[], budget: number): FileDeclarations[] | null;
   declarationExportedOf?(index: OpenedIndex, file: string, name: string): { readonly declaration?: ExportedDeclaration | null } | null;
   exportLineOf?(index: OpenedIndex, file: string, line: number): string | null;
   aliasesOf?(root: string, index: OpenedIndex, local: string): Alias[] | null;
@@ -439,6 +441,18 @@ export function memberDeclarationsOf(root: string, name: string, index: string =
  */
 export function membersOn(root: string, file: string, on: string, index: string = sourceIndexPath(root)): readonly ContainerMember[] | undefined {
   return onIndex(index, (opened) => entry('membersOnOf')(opened, file, on)) ?? undefined;
+}
+
+/**
+ * What each of `files` the source index holds declares at its top level, in the
+ * order asked, each within `declarationLines` lines, from the chain the running
+ * question opened: no listing of the tree is taken, so a checkout git cannot
+ * list is answered, and no package or dependency walk is made. A file the index
+ * does not hold is left out. `undefined` when no index was published; throws
+ * when the index does not read.
+ */
+export function declarationsOf(root: string, files: readonly string[], declarationLines: number, index: string = sourceIndexPath(root)): readonly FileDeclarations[] | undefined {
+  return onIndex(index, (opened) => entry('fileDeclarationsOf')(opened, [...files], declarationLines)) ?? undefined;
 }
 
 /**

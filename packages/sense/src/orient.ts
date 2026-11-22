@@ -35,7 +35,7 @@ export interface PackagesAround {
   readonly orientation?: NativeOrientation;
 }
 
-function entry<Name extends 'orientPackages' | 'orientAround' | 'externalDependencies' | 'casesEntered' | 'fileDeclarations'>(name: Name) {
+function entry<Name extends 'orientPackages' | 'orientAround' | 'externalDependencies' | 'casesEntered'>(name: Name) {
   const scanner = native();
   const call = scanner?.[name];
   if (scanner === undefined || call === undefined) {
@@ -106,16 +106,6 @@ export function orientAround(
   return all === null
     ? { packages: { index }, external: { index } }
     : { packages: { index, orientation: all.packages }, external: { index, orientation: all.external }, declarations: all.declarations };
-}
-
-/**
- * What each of `files` the source index holds declares at its top level, in the order asked, each within
- * `declarationLines` lines, as `orientAround` reads it, from the index alone: no listing of the tree is taken,
- * so a checkout git cannot list is answered, and no package or dependency walk is made. Absent when no source
- * index was ever published.
- */
-export function declarationsOf(root: string, files: readonly string[], declarationLines: number): readonly FileDeclarations[] | undefined {
-  return entry('fileDeclarations')(sourceIndexPath(root), [...files], declarationLines) ?? undefined;
 }
 
 /** The external requests part of an answer. */

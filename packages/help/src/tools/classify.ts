@@ -85,17 +85,16 @@ function locating(help: Help, root: string, places: CodeMapPlaces, invocation: T
   };
 }
 
-/** The line budget the addon reads each named file's declarations within; ample for eight names. */
+/** How many top-level declarations, and member lines with them, the addon reads of each named file; ample for eight functions and classes. */
 const DECLARATION_LINES = 400;
 
 /**
- * What each source file the request names declares, from the source index
- * alone: no listing of the tree is taken, so a checkout git cannot list still
+ * What each file the request names declares, from the source index alone: no listing of the tree is taken, so a checkout git cannot list still
  * gets its block.
  */
 function namedFileBlock(classified: ReturnType<typeof classifyWords>, root: string): string {
-  const files = namedFiles(classified).filter((file) => kindOf(file) === 'source');
-  return files.length === 0 ? '' : formatNamedFiles(declarationsOf(root, files, DECLARATION_LINES) ?? []);
+  const files = namedFiles(classified);
+  return files.length === 0 ? '' : formatNamedFiles(files, declarationsOf(root, files, DECLARATION_LINES));
 }
 
 /**
