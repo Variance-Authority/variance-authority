@@ -1,6 +1,9 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
 import { decodeTestCoverage, encodeTestCoverage } from './format.js';
-import { joinReadings } from './readings.js';
+import { joinReadings, ownCut } from './readings.js';
 import { runCrossings } from './run-crossings.js';
 import type { CapturedModule } from './instrumented-modules.js';
 import type { CoverageBlock } from './index.js';
@@ -120,6 +123,29 @@ describe('one file read twice', () => {
 
     expect(joined.readings.get('dist/cart.js')).toEqual({ id: 'src/cart.ts', lands: [0, undefined, 1, 2] });
     expect(decodeTestCoverage(encodeTestCoverage(record)).modules[0]!.blocks).toHaveLength(3);
+  });
+});
+
+describe('the own cut of a file', () => {
+  const root = mkdtempSync(join(tmpdir(), 'own-cut-'));
+  afterAll(() => rmSync(root, { recursive: true, force: true }));
+  writeFileSync(join(root, 'cart.ts'), 'export function total(items) {\n  return items.length;\n}\n');
+
+  it('is the run\'s own cut of it, where the run cut it as itself at the text on disk, and none where no file is there', () => {
+    const [cut] = ownCut(root, undefined)(['cart.ts']);
+    const run = new Map([[cut!.id, { ...cut! }]]);
+
+    const [again, missing] = ownCut(root, undefined, run)(['cart.ts', 'gone.ts']);
+
+    expect(again).toBe(run.get(cut!.id));
+    expect(missing).toBeUndefined();
+  });
+
+  it('is cut again from the disk where the run cut another text of it', () => {
+    const [cut] = ownCut(root, undefined)(['cart.ts']);
+    const stale = { ...cut!, id: 'cart.ts@0000', sourceDigest: 'v1:0000' };
+
+    expect(ownCut(root, undefined, new Map([[stale.id, stale]]))(['cart.ts'])).toEqual([cut]);
   });
 });
 

@@ -23,6 +23,20 @@ pub fn text_digests(paths: Vec<String>) -> Result<Vec<String>> {
         .collect()
 }
 
+/// Each path's text digest, in the order given: `null` where no file is there,
+/// as `readTexts` has it, and any other failure to read an error naming the file.
+#[napi(catch_unwind)]
+pub fn read_digests(paths: Vec<String>) -> Result<Vec<Option<String>>> {
+    paths
+        .par_iter()
+        .map(|path| match std::fs::read(path) {
+            Ok(bytes) => Ok(Some(of_text(&bytes))),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+            Err(error) => Err(Error::from_reason(format!("`{path}`: {error}"))),
+        })
+        .collect()
+}
+
 fn of_text(bytes: &[u8]) -> String {
     match std::str::from_utf8(bytes) {
         Ok(_) => digest::of_sha256(Sha256::digest(bytes).as_slice()),

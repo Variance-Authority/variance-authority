@@ -92,7 +92,7 @@ export function foldRun(
       for (const [id, module] of await deriveModules(root, runModuleIds(written, pages), mode)) modules.set(id, module);
     }
     // A file the run read twice is one record, and every row is read in it.
-    const joined = joinReadings(modules, ownCut(root, mode));
+    const joined = joinReadings(modules, ownCut(root, mode, modules));
     // The case fold runs off this thread while the run's own work goes on:
     // started here, it is folded by the time the record wants its bytes.
     // `run.cases` is whether the run could record a case: one whose files ran

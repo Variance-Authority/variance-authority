@@ -115,26 +115,43 @@ function landed(table: readonly Placed[], placed: readonly (readonly Placed[])[]
  * Each file's own cut, as the transform that probes it ahead of every other
  * one cuts it: from its text on disk under `root`, every file read at once by
  * the addon.
+ *
+ * Cutting is deterministic, so a file the run already cut as itself, at the
+ * text on disk now, is that cut, found in `run` under the id it reports; only
+ * the rest are read and cut again.
  */
-export function ownCut(root: string, mode: InstrumentMode | undefined): OwnCut {
+export function ownCut(root: string, mode: InstrumentMode | undefined, run: ReadonlyMap<ModuleId, CapturedModule> = new Map()): OwnCut {
   return (files) => {
     // A bundler's virtual module names no file: `\0` reads as no text, as `fileOrNone` has it.
     const paths = files.map((file) => resolve(root, file));
     const read = paths.filter((path) => !path.includes('\0'));
-    const text = readTexts(read);
-    const texts = new Map(read.map((path, at) => [path, text[at]]));
-    return paths.map((path) => {
+    const digested = digests(read);
+    const digest = new Map(read.map((path, at) => [path, digested[at]]));
+    const held = paths.map((path, at) => {
+      const text = digest.get(path);
+      return text == null ? undefined : run.get(`${files[at]!}@${text.slice(text.indexOf(':') + 1)}`);
+    });
+    const rest = paths.filter((path, at) => held[at] === undefined && digest.get(path) != null);
+    const text = readTexts(rest);
+    const texts = new Map(rest.map((path, at) => [path, text[at]]));
+    return paths.map((path, at) => {
       const disk = texts.get(path) ?? undefined;
-      return disk === undefined ? undefined : captureModule(root, path, disk, () => true, mode, heldOriginal(path, disk))?.module;
+      return held[at] ?? (disk === undefined ? undefined : captureModule(root, path, disk, () => true, mode, heldOriginal(path, disk))?.module);
     });
   };
 }
 
+/** Each path's text digest, read by the addon on every core; `null` where no file is there. */
+const digests = (paths: readonly string[]): readonly (string | null)[] => perFile('readDigests')([...paths]);
+
 /** Each path's text, read by the addon on every core; `null` where no file is there. */
-function readTexts(paths: readonly string[]): readonly (string | null)[] {
-  const read = native()?.readTexts;
+const readTexts = (paths: readonly string[]): readonly (string | null)[] => perFile('readTexts')([...paths]);
+
+/** The addon's reader of every path at once, or a refusal that says why it cannot read them. */
+function perFile(name: 'readDigests' | 'readTexts'): (paths: string[]) => (string | null)[] {
+  const read = native()?.[name];
   if (read === undefined) {
-    throw new Error(`cutting each file read twice requires the Sense native addon: ${nativeRefusal() ?? 'the loaded addon has no `readTexts`'}`);
+    throw new Error(`cutting each file read twice requires the Sense native addon: ${nativeRefusal() ?? `the loaded addon has no \`${name}\``}`);
   }
-  return read([...paths]);
+  return read;
 }
