@@ -13,6 +13,9 @@
 
 use std::collections::{HashMap, HashSet};
 
+use rayon::prelude::*;
+use rustc_hash::FxHashMap;
+
 use crate::journal_scan::{scan_journal, Visitor};
 use crate::journey_journal::ModuleId;
 use crate::order::code_unit;
@@ -67,130 +70,142 @@ pub(crate) struct Folded {
     pub unplaced: Vec<u32>,
 }
 
-#[derive(Default)]
-struct Crossed {
-    /// Ordinal → the tests that crossed it themselves, and whether every consumer did.
-    ordinals: HashMap<u32, (Vec<u32>, bool)>,
+/// One journal ready to fold: its file, and its rows joined by the module of
+/// the record they land in, each list rising.
+struct Journal {
+    test: String,
+    collected: f64,
+    unplaced: bool,
+    rows: Vec<Row>,
 }
 
-#[derive(Default)]
-struct Fold {
-    tests: Vec<String>,
-    test_numbers: HashMap<String, u32>,
-    ids: Vec<ModuleId>,
-    id_numbers: HashMap<ModuleId, u32>,
-    consumers: Vec<Vec<u32>>,
-    hits: Vec<Crossed>,
-    loaded: Vec<Crossed>,
-    journals: Vec<u32>,
-    collected: Vec<f64>,
-    unplaced: Vec<u32>,
+/// One module row of a journal: per list (hits, loaded), the ordinals its own
+/// file crossed and those every consumer crossed (`shared`).
+struct Row {
+    id: ModuleId,
+    own: [Vec<u32>; 2],
+    every: [Vec<u32>; 2],
 }
 
-impl Fold {
-    fn test(&mut self, file: String) -> u32 {
-        if let Some(&number) = self.test_numbers.get(&file) {
-            return number;
-        }
-        let number = self.tests.len() as u32;
-        self.test_numbers.insert(file.clone(), number);
-        self.tests.push(file);
-        number
-    }
+/// A journal's rows placed, read and split, as `journal` leaves them; done per journal on every core.
+fn ready(test_file: &str, collected: f64, rows: Vec<(ModuleId, Vec<u32>, Vec<u32>, Vec<u32>)>, options: &Options) -> Journal {
+    let count = rows.len();
+    let placed: Vec<_> = rows.into_iter().filter(|(id, ..)| options.placed.is_none_or(|placed| placed.contains(id))).collect();
+    let unplaced = placed.len() != count;
+    Journal { test: project_path(options.root, test_file), collected, unplaced, rows: read_rows(placed, options.readings) }
+}
 
-    fn module(&mut self, id: &str) -> u32 {
-        if let Some(&number) = self.id_numbers.get(id) {
-            return number;
+/// The journals folded, in the order given. Tests and modules are numbered
+/// in one pass; each module's crossings are then spelled on every core.
+fn fold_journals(journals: Vec<Journal>) -> Folded {
+    let mut tests: Vec<String> = Vec::new();
+    let mut test_numbers: FxHashMap<String, u32> = FxHashMap::default();
+    let mut ids: Vec<ModuleId> = Vec::new();
+    let mut id_numbers: FxHashMap<ModuleId, u32> = FxHashMap::default();
+    // Per module, the (journal, row) pairs that name it.
+    let mut named: Vec<Vec<(u32, u32)>> = Vec::new();
+    let mut entries = Vec::new();
+    let mut collected = Vec::with_capacity(journals.len());
+    let mut unplaced = Vec::new();
+    let mut numbers: Vec<u32> = Vec::with_capacity(journals.len());
+    for (at, journal) in journals.iter().enumerate() {
+        let test = match test_numbers.get(&journal.test) {
+            Some(&number) => number,
+            None => {
+                let number = tests.len() as u32;
+                test_numbers.insert(journal.test.clone(), number);
+                tests.push(journal.test.clone());
+                number
+            }
+        };
+        numbers.push(test);
+        if journal.unplaced {
+            unplaced.push(collected.len() as u32);
         }
-        let number = self.ids.len() as u32;
-        self.id_numbers.insert(id.to_owned(), number);
-        self.ids.push(id.to_owned());
-        self.consumers.push(Vec::new());
-        self.hits.push(Crossed::default());
-        self.loaded.push(Crossed::default());
-        number
-    }
-
-    /// One journal's rows, already placed and read: `rows` is `(module, hits, shared, loaded)`.
-    fn journal(&mut self, test: u32, rows: &[(u32, Vec<u32>, Vec<u32>, Vec<u32>)]) {
-        let mut entered: Vec<u32> = rows.iter().map(|(module, ..)| *module).collect();
+        collected.push(journal.collected);
+        let mut entered: Vec<u32> = Vec::with_capacity(journal.rows.len());
+        for (row, Row { id, .. }) in journal.rows.iter().enumerate() {
+            let module = match id_numbers.get(id) {
+                Some(&number) => number,
+                None => {
+                    let number = ids.len() as u32;
+                    id_numbers.insert(id.clone(), number);
+                    ids.push(id.clone());
+                    named.push(Vec::new());
+                    number
+                }
+            };
+            named[module as usize].push((at as u32, row as u32));
+            entered.push(module);
+        }
         entered.sort_unstable();
         entered.dedup();
-        self.journals.push(test);
-        self.journals.push(entered.len() as u32);
-        self.journals.extend(entered);
-        for (module, hits, shared, loaded) in rows {
-            let module = *module as usize;
-            self.consumers[module].push(test);
-            let shared: HashSet<u32> = shared.iter().copied().collect();
-            for (into, ordinals) in [(&mut self.hits[module], hits), (&mut self.loaded[module], loaded)] {
-                for &ordinal in ordinals {
-                    let entry = into.ordinals.entry(ordinal).or_default();
-                    if shared.contains(&ordinal) {
-                        entry.1 = true;
-                    } else {
-                        entry.0.push(test);
-                    }
-                }
-            }
-        }
+        entries.push(entered);
     }
 
-    fn done(mut self) -> Folded {
-        // Tests renumbered in code-unit order of their paths, so that every list
-        // of tests below, rising by number, is in the order the record keeps.
-        let mut order: Vec<u32> = (0..self.tests.len() as u32).collect();
-        order.sort_unstable_by(|left, right| code_unit(&self.tests[*left as usize], &self.tests[*right as usize]));
-        let mut renumber = vec![0; order.len()];
-        for (number, was) in order.iter().enumerate() {
-            renumber[*was as usize] = number as u32;
-        }
-        let tests = order.iter().map(|was| std::mem::take(&mut self.tests[*was as usize])).collect();
-        let to = |test: &mut u32| *test = renumber[*test as usize];
-        self.consumers.iter_mut().flatten().for_each(to);
-        for crossed in self.hits.iter_mut().chain(self.loaded.iter_mut()) {
-            crossed.ordinals.values_mut().flat_map(|(own, _)| own.iter_mut()).for_each(to);
-        }
-        let mut at = 0;
-        while at < self.journals.len() {
-            to(&mut self.journals[at]);
-            at += 2 + self.journals[at + 1] as usize;
-        }
-        for consumers in &mut self.consumers {
+    // Tests renumbered in code-unit order of their paths, so that every list
+    // of tests below, rising by number, is in the order the record keeps.
+    let mut order: Vec<u32> = (0..tests.len() as u32).collect();
+    order.sort_unstable_by(|left, right| code_unit(&tests[*left as usize], &tests[*right as usize]));
+    let mut renumber = vec![0; order.len()];
+    for (number, was) in order.iter().enumerate() {
+        renumber[*was as usize] = number as u32;
+    }
+    let tests = order.iter().map(|was| std::mem::take(&mut tests[*was as usize])).collect();
+    let test_of = |journal: u32| renumber[numbers[journal as usize] as usize];
+
+    let mut journal_words = Vec::new();
+    for (at, entered) in entries.into_iter().enumerate() {
+        journal_words.push(test_of(at as u32));
+        journal_words.push(entered.len() as u32);
+        journal_words.extend(entered);
+    }
+
+    // Per module: its consumers, and per list the words it spells.
+    let spelled: Vec<[Vec<u32>; 2]> = named
+        .par_iter()
+        .map(|pairs| {
+            let mut consumers: Vec<u32> = pairs.iter().map(|(journal, _)| test_of(*journal)).collect();
             consumers.sort_unstable();
             consumers.dedup();
-        }
-        let spell = |crossed: &[Crossed], consumers: &[Vec<u32>]| {
-            let mut out = Vec::new();
-            for (module, crossed) in crossed.iter().enumerate() {
-                let mut ordinals: Vec<_> = crossed.ordinals.iter().collect();
-                ordinals.sort_unstable_by_key(|(ordinal, _)| **ordinal);
-                out.push(ordinals.len() as u32);
-                for (ordinal, (own, every)) in ordinals {
-                    let mut tests = if *every { consumers[module].clone() } else { own.clone() };
-                    if !*every {
-                        tests.sort_unstable();
-                        tests.dedup();
+            [0, 1].map(|list| {
+                // Ordinal → the tests that crossed it themselves, and whether every consumer did.
+                let mut ordinals: FxHashMap<u32, (Vec<u32>, bool)> = FxHashMap::default();
+                for (journal, row) in pairs {
+                    let test = test_of(*journal);
+                    let row = &journals[*journal as usize].rows[*row as usize];
+                    for &ordinal in &row.own[list] {
+                        ordinals.entry(ordinal).or_default().0.push(test);
                     }
-                    out.push(*ordinal);
-                    out.push(tests.len() as u32);
-                    out.extend(tests);
+                    for &ordinal in &row.every[list] {
+                        ordinals.entry(ordinal).or_default().1 = true;
+                    }
                 }
-            }
-            out
-        };
-        let hits = spell(&self.hits, &self.consumers);
-        let loaded = spell(&self.loaded, &self.consumers);
-        Folded {
-            tests,
-            ids: self.ids,
-            hits,
-            loaded,
-            journals: self.journals,
-            collected: self.collected,
-            unplaced: self.unplaced,
-        }
+                let mut ordinals: Vec<_> = ordinals.into_iter().collect();
+                ordinals.sort_unstable_by_key(|(ordinal, _)| *ordinal);
+                let mut out = vec![ordinals.len() as u32];
+                for (ordinal, (mut own, every)) in ordinals {
+                    if every {
+                        own = consumers.clone();
+                    } else {
+                        own.sort_unstable();
+                        own.dedup();
+                    }
+                    out.push(ordinal);
+                    out.push(own.len() as u32);
+                    out.extend(own);
+                }
+                out
+            })
+        })
+        .collect();
+    let mut hits = Vec::new();
+    let mut loaded = Vec::new();
+    for [module_hits, module_loaded] in spelled {
+        hits.extend(module_hits);
+        loaded.extend(module_loaded);
     }
+    Folded { tests, ids, hits, loaded, journals: journal_words, collected, unplaced }
 }
 
 /// One journal's rows as the scan hands them over, before they are placed.
@@ -243,73 +258,56 @@ pub(crate) fn named_modules(journals: &[&[u8]], carried: &[Carried]) -> Result<V
 
 /// The run's journals — the workers' frames, then what pages carried — folded.
 pub(crate) fn fold(journals: &[&[u8]], carried: &[Carried], options: &Options) -> Result<Folded, String> {
-    let mut fold = Fold::default();
-    let journal = |fold: &mut Fold, test_file: &str, collected: f64, rows: Vec<(ModuleId, Vec<u32>, Vec<u32>, Vec<u32>)>| {
-        let test = fold.test(project_path(options.root, test_file));
-        let count = rows.len();
-        let placed = rows
-            .into_iter()
-            .filter(|(id, ..)| options.placed.is_none_or(|placed| placed.contains(id)))
-            .collect::<Vec<_>>();
-        if placed.len() != count {
-            fold.unplaced.push(fold.collected.len() as u32);
-        }
-        fold.collected.push(collected);
-        let read = read_rows(fold, placed, options.readings);
-        fold.journal(test, &read);
-    };
-    for raw in journals {
-        let mut rows = Rows::default();
-        scan_journal(raw, &mut rows)?;
-        let test_file = rows.test.take().unwrap_or_default();
-        journal(&mut fold, &test_file, rows.collected, rows.rows);
-    }
-    for each in carried {
+    // Each journal's bytes are its own: they are scanned, placed and read on every core, and folded in the order given.
+    let mut ready_journals = journals
+        .par_iter()
+        .map(|raw| {
+            let mut rows = Rows::default();
+            scan_journal(raw, &mut rows)?;
+            Ok(ready(rows.test.as_deref().unwrap_or_default(), rows.collected, rows.rows, options))
+        })
+        .collect::<Result<Vec<_>, String>>()?;
+    ready_journals.par_extend(carried.par_iter().map(|each| {
         let rows = each.rows.iter().map(|row| (row.id.clone(), row.hits.clone(), row.shared.clone(), row.loaded.clone())).collect();
-        journal(&mut fold, &each.test_file, 0.0, rows);
-    }
-    Ok(fold.done())
+        ready(&each.test_file, 0.0, rows, options)
+    }));
+    Ok(fold_journals(ready_journals))
 }
 
 /// A journal's rows in the record of their files: where a run read a file
 /// twice, each row's ordinals become the joined module's, and the rows that
 /// joined become one. With no reading, the rows stay as written.
-fn read_rows(
-    fold: &mut Fold,
-    rows: Vec<(ModuleId, Vec<u32>, Vec<u32>, Vec<u32>)>,
-    readings: &HashMap<ModuleId, Reading>,
-) -> Vec<(u32, Vec<u32>, Vec<u32>, Vec<u32>)> {
-    if readings.is_empty() {
-        return rows.into_iter().map(|(id, hits, shared, loaded)| (fold.module(&id), hits, shared, loaded)).collect();
-    }
-    let mut order = Vec::new();
-    let mut joined: HashMap<u32, [Vec<u32>; 3]> = HashMap::new();
+fn read_rows(rows: Vec<(ModuleId, Vec<u32>, Vec<u32>, Vec<u32>)>, readings: &HashMap<ModuleId, Reading>) -> Vec<Row> {
+    let mut order: Vec<ModuleId> = Vec::new();
+    let mut joined: FxHashMap<ModuleId, [Vec<u32>; 3]> = FxHashMap::default();
     for (id, hits, shared, loaded) in rows {
         let reading = readings.get(&id);
-        let module = fold.module(reading.map_or(&id, |reading| &reading.id));
-        let row = joined.entry(module).or_insert_with(|| {
-            order.push(module);
-            Default::default()
-        });
+        let target = reading.map_or(id, |reading| reading.id.clone());
+        let row = match joined.entry(target) {
+            std::collections::hash_map::Entry::Occupied(entry) => entry.into_mut(),
+            std::collections::hash_map::Entry::Vacant(entry) => {
+                order.push(entry.key().clone());
+                entry.insert(Default::default())
+            }
+        };
         for (into, ordinals) in row.iter_mut().zip([hits, shared, loaded]) {
-            for ordinal in ordinals {
-                let landed = match reading {
-                    None => Some(ordinal),
-                    Some(reading) => reading.lands.get(ordinal as usize).copied().flatten(),
-                };
-                into.extend(landed);
+            match reading {
+                None => into.extend(ordinals),
+                Some(reading) => into.extend(ordinals.into_iter().filter_map(|ordinal| reading.lands.get(ordinal as usize).copied().flatten())),
             }
         }
     }
     order
         .into_iter()
-        .map(|module| {
-            let [mut hits, mut shared, mut loaded] = joined.remove(&module).unwrap_or_default();
+        .map(|id| {
+            let [mut hits, mut shared, mut loaded] = joined.remove(&id).unwrap_or_default();
             for list in [&mut hits, &mut shared, &mut loaded] {
                 list.sort_unstable();
                 list.dedup();
             }
-            (module, hits, shared, loaded)
+            let split = |list: Vec<u32>| -> (Vec<u32>, Vec<u32>) { list.into_iter().partition(|ordinal| shared.binary_search(ordinal).is_err()) };
+            let ((own_hits, every_hits), (own_loaded, every_loaded)) = (split(hits), split(loaded));
+            Row { id, own: [own_hits, own_loaded], every: [every_hits, every_loaded] }
         })
         .collect()
 }
