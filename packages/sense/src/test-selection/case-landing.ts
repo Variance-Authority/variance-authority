@@ -11,14 +11,14 @@
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { codeUnitOrder } from '@variance-authority/core/segment';
-import { layerBefore, layerCaseIndex } from './case-layer.js';
+import { layCaseRun, layerBefore } from './case-layer.js';
 import { landAttempts, layAttempts, readableAttempts, type RecordedAttempt, type ShardAttempts } from './attempts-record.js';
-import { inputsIn, layReadings } from './case-readings.js';
+import { inputsIn } from './case-readings.js';
 import { caseSectionsAt, withoutChecks, type CaseSections } from './case-record.js';
 import { decodeExecutionIndex, decodeExecutionTests } from './execution-format.js';
 import { encodeAsSetExecutionIndex, openSetExecutionIndex } from './execution-set-format.js';
 import { layEyes, readableEyes, type EyesSection } from './eyes-record.js';
-import { editsBetween } from './region-edit.js';
+import { editsBetween, type Edit } from './region-edit.js';
 import type { TestCoverageView } from './format-view.js';
 import type { CoverageModule, CoverageTest } from './index.js';
 import type { ExecutionTest } from './reverse.js';
@@ -110,7 +110,7 @@ export interface LastCaseRun {
  *
  * `fresh` is the run's own index: the cases it recorded and the regions they
  * called. The files the run finished are replaced, every other case is carried
- * — see {@link layerCaseIndex}. A run at the commit the last one was made at is
+ * — see {@link layCaseRun}. A run at the commit the last one was made at is
  * one more invocation of the same suite, not a new change, so what the runs
  * before it retired stays under what this one retired.
  *
@@ -138,7 +138,7 @@ export interface LastCaseRun {
  * the coverage it lands, in one write under the record's lock, so the two
  * always answer for the same runs.
  */
-export function layCases(
+export async function layCases(
   previous: CaseSections,
   fresh: Uint8Array,
   root: string,
@@ -148,12 +148,23 @@ export function layCases(
   stands?: string,
   base?: { readonly index: Uint8Array; readonly texts?: ModuleTexts; readonly recorded?: ModuleTexts },
   cacheRoot?: string,
-): CaseSections {
+): Promise<CaseSections> {
   const ran = new Set(run.tests.map((test) => test.file));
   const recorded = textsOf(run);
   const edits = editsBetween(root, cacheRoot, [stands, run.commit]);
   const sameText = [...recorded].filter(([file, text]) => text === held?.get(file)).map(([file]) => file);
-  const { merged, cases, last, announced, before: retired, unlined } = layerCaseIndex(previous.index, fresh, {
+  // A module whose text is not known on both sides is unread: it is given no edit, and read as changed whole.
+  // An edit is read before the lay, which may not ask for it, so one that fails to read fails only when asked.
+  const given = new Map(Array.from(recorded).flatMap(([file, to]): (readonly [string, Edit | undefined | Error])[] => {
+    const from = held?.get(file);
+    if (from === undefined || from === to) return [];
+    try {
+      return [[file, edits(file, from, to)]];
+    } catch (error) {
+      return [[file, error instanceof Error ? error : new Error(String(error))]];
+    }
+  }));
+  const { merged, cases, last, announced, before: retired, unlined, readings } = await layCaseRun(previous.index, fresh, {
     ran: [...ran],
     finished: [...new Set(run.tests.filter((test) => test.complete).map((test) => test.file))],
     presentUnder: root,
@@ -166,11 +177,7 @@ export function layCases(
       }),
     }),
     before: true,
-  }, (file) => {
-    // A module whose text is not known on both sides is unread.
-    const [from, to] = [held?.get(file), recorded.get(file)];
-    return from === undefined || to === undefined ? undefined : edits(file, from, to);
-  });
+  }, given, previous.readings, run.inputs);
   const prior = lastCaseRunOf(previous);
   const again = run.commit !== undefined && prior?.commit === run.commit;
   // FIXME: a run at the same commit that is not a later shard of one landing
@@ -210,12 +217,6 @@ export function layCases(
   };
   const journals = layEyes(previous.eyes, eyes, () => cases, announced);
   const attempts = layAttempts(previous.attempts, run.attempts, () => cases, announced);
-  const readings = layReadings(previous.readings, previous.index, merged, new Set(cases), {
-    fresh,
-    announced: new Set(announced),
-    same: sameText,
-    ...(run.inputs === undefined ? {} : { inputs: run.inputs }),
-  });
   return {
     index: merged,
     last: spelledLast(named, merged),
@@ -370,7 +371,7 @@ export function unansweredOver(
  * the record held but its last run's checks, which a landing never carries, as the run it was, in the order the shards were named; their
  * attempts are laid once, as one run's ({@link landAttempts}). Nothing is written here: the landing writes the sections under the record's lock.
  */
-export function landCases(
+export async function landCases(
   record: string,
   standing: CaseSections,
   root: string,
@@ -379,7 +380,7 @@ export function landCases(
   stands?: string,
   cacheRoot?: string,
   snapshot?: readonly { readonly file: string }[],
-): { readonly landing: CaseLanding; readonly sections: CaseSections } {
+): Promise<{ readonly landing: CaseLanding; readonly sections: CaseSections }> {
   const previous = withoutChecks(standing);
   let sections = previous;
   // `held` is the text each module of `previous`'s index was cut from. A shard
@@ -408,7 +409,7 @@ export function landCases(
       // A section this build cannot read is laid as a shard that opened none.
       // `stands`, the commit the snapshot stands at, names the before layer when
       // `previous` names no last run, and is where a text not kept is looked for.
-      sections = layCases(sections, fresh.bytes, root, run, readableEyes(kept.eyes), texts, stands, base && { ...base, recorded: new Map(recorded) }, cacheRoot);
+      sections = await layCases(sections, fresh.bytes, root, run, readableEyes(kept.eyes), texts, stands, base && { ...base, recorded: new Map(recorded) }, cacheRoot);
       for (const [file, text] of textsOf(run)) {
         texts.set(file, text);
         recorded.set(file, text);

@@ -160,7 +160,7 @@ async function landCombined(
     // The index beside the snapshot was cut from the texts the snapshot names,
     // and a module no shard recorded is laid onto the cut its rows landed at.
     const texts = selection.textsOf(before);
-    const { landing, sections: laid } = selection.landCases(
+    const { landing, sections: laid } = await selection.landCases(
       at,
       alone ? {} : selection.caseSectionsAt(at),
       root,

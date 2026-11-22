@@ -58,6 +58,10 @@ pub(crate) enum Edits<'a> {
     /// Asked of the caller, only for a module both indexes hold, so a text is
     /// read only where a held case lands through it.
     Asked(&'a dyn Fn(&str) -> Result<Option<Edit>, String>),
+    /// Read by the caller before the layering, for every module the run
+    /// recorded from another text than the index names it at; a module in
+    /// `same_text` is no edit, and any other could not be read.
+    Given(FxHashMap<String, Result<Option<Edit>, String>>),
 }
 
 /// What a run knows about the test files it was handed, and the texts its
@@ -86,6 +90,10 @@ impl Files<'_> {
         Ok(match &self.edits {
             Edits::One => Some(Cow::Borrowed(&NO_EDIT)),
             Edits::Asked(ask) => ask(file)?.map(Cow::Owned),
+            Edits::Given(edits) => match edits.get(file) {
+                Some(edit) => edit.as_ref().map_err(Clone::clone)?.as_ref().map(Cow::Borrowed),
+                None => self.same_text.as_ref().is_some_and(|same| same.contains(file)).then_some(Cow::Borrowed(&NO_EDIT)),
+            },
         })
     }
 

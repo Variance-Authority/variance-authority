@@ -44,39 +44,39 @@ async function shard(file: string, attempts: readonly RecordedAttempt[] | undefi
 }
 
 /** The attempts a landing of `shards` leaves over a record of both files that held `held`. */
-function landed(shards: Awaited<ReturnType<typeof shard>>[], held?: readonly RecordedAttempt[]) {
+async function landed(shards: Awaited<ReturnType<typeof shard>>[], held?: readonly RecordedAttempt[]) {
   const previous = { index: index(files), ...(held === undefined ? {} : { attempts: encodeRecordedAttempts(held) }) };
-  const { sections } = landCases(join(root, 'coverage.bin'), previous, root, shards, new Map([['src/greet.ts', 'v1:base']]));
+  const { sections } = await landCases(join(root, 'coverage.bin'), previous, root, shards, new Map([['src/greet.ts', 'v1:base']]));
   return sections.attempts === undefined ? undefined : decodeRecordedAttempts(sections.attempts);
 }
 
 describe('the attempts a landing leaves over a record that kept none', () => {
   it('are kept once its shards together ran every case the record holds', async () => {
-    expect(landed([await shard('a.test.ts', []), await shard('b.test.ts', retried('b.test.ts'))])).toEqual(retried('b.test.ts'));
-    expect(landed([await shard('b.test.ts', retried('b.test.ts')), await shard('a.test.ts', [])])).toEqual(retried('b.test.ts'));
+    expect(await landed([await shard('a.test.ts', []), await shard('b.test.ts', retried('b.test.ts'))])).toEqual(retried('b.test.ts'));
+    expect(await landed([await shard('b.test.ts', retried('b.test.ts')), await shard('a.test.ts', [])])).toEqual(retried('b.test.ts'));
   });
 
   it('are not kept while a case of the record ran in none of its shards, carried by a shard\'s seed or not', async () => {
-    expect(landed([await shard('b.test.ts', retried('b.test.ts'))])).toBeUndefined();
-    expect(landed([await shard('b.test.ts', retried('b.test.ts'), ['a.test.ts'])])).toBeUndefined();
+    expect(await landed([await shard('b.test.ts', retried('b.test.ts'))])).toBeUndefined();
+    expect(await landed([await shard('b.test.ts', retried('b.test.ts'), ['a.test.ts'])])).toBeUndefined();
   });
 });
 
 describe('the attempts a landing leaves when a shard that ran cases kept none', () => {
   it('are not kept, whichever shard came first and whatever the record held', async () => {
     const [kept, none] = [await shard('b.test.ts', retried('b.test.ts')), await shard('a.test.ts', undefined)];
-    expect(landed([none, kept])).toBeUndefined();
-    expect(landed([kept, none])).toBeUndefined();
-    expect(landed([none, kept], retried('a.test.ts'))).toBeUndefined();
+    expect(await landed([none, kept])).toBeUndefined();
+    expect(await landed([kept, none])).toBeUndefined();
+    expect(await landed([none, kept], retried('a.test.ts'))).toBeUndefined();
   });
   it('are kept beside a shard that ran no case, and so had none to keep', async () => {
     const idle = { ...(await shard('a.test.ts', undefined)), coverage: { commit: 'c0ffee', tests: [], modules: [] } };
-    expect(landed([idle, await shard('b.test.ts', [])], retried('a.test.ts'))).toEqual(retried('a.test.ts'));
+    expect(await landed([idle, await shard('b.test.ts', [])], retried('a.test.ts'))).toEqual(retried('a.test.ts'));
   });
 });
 
 describe('the attempts a landing leaves over a record that kept them', () => {
   it('are the record\'s for a case no shard ran, and the shard\'s for one it ran', async () => {
-    expect(landed([await shard('b.test.ts', [])], [...retried('a.test.ts'), ...retried('b.test.ts')])).toEqual(retried('a.test.ts'));
+    expect(await landed([await shard('b.test.ts', [])], [...retried('a.test.ts'), ...retried('b.test.ts')])).toEqual(retried('a.test.ts'));
   });
 });

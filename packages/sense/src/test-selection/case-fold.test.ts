@@ -197,7 +197,7 @@ describe('the bounded case fold', () => {
     });
     expect(folded.passes).toBeGreaterThan(1);
 
-    const first = layCases({}, (await freshCases(foldCases(cases, '/repo', modules), { tests: [] }))!.fresh, '/repo', { tests: [] });
+    const first = await layCases({}, (await freshCases(foldCases(cases, '/repo', modules), { tests: [] }))!.fresh, '/repo', { tests: [] });
     expect(decodeExecutionIndex(first.index!)).toEqual(decoded);
     // The first lay has nothing to lay over: the run is the index and the last
     // run both, and there is no before.
@@ -210,7 +210,7 @@ describe('the bounded case fold', () => {
       tests: [{ file: 'test/early.test.ts', complete: true }],
       commit: 'abc',
     }))!;
-    const second = layCases(first, again.fresh, '/repo', again.run);
+    const second = await layCases(first, again.fresh, '/repo', again.run);
     expect(decodeExecutionIndex(second.index!)).toEqual(decoded);
     expect(decodeExecutionIndex(second.before!).tests.map((test) => test.id))
       .toEqual(decoded.tests.map((test) => test.id));
@@ -378,7 +378,7 @@ describe('the bounded case fold', () => {
         commit,
       }))!;
       // Every invocation records `src/x.ts` from one text, so no edit moves a region between them.
-      sections = layCases(sections, fresh.fresh, root, { ...fresh.run, modules: [{ file: 'src/x.ts', sourceDigest: 'v1:x' }] },
+      sections = await layCases(sections, fresh.fresh, root, { ...fresh.run, modules: [{ file: 'src/x.ts', sourceDigest: 'v1:x' }] },
         undefined, new Map([['src/x.ts', 'v1:x']]));
     };
     const before = async (): Promise<Record<string, number[]>> => {
@@ -436,7 +436,7 @@ describe('the bounded case fold', () => {
         tests: Object.keys(calls).map((file) => ({ file: `test/${file}`, complete: true })),
         commit,
       }))!;
-      sections = layCases(sections, fresh.fresh, root, fresh.run);
+      sections = await layCases(sections, fresh.fresh, root, fresh.run);
     };
     const last = async () => lastCaseRunOf(sections)!;
 

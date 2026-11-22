@@ -279,6 +279,15 @@ export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon
   stitchJourneysTo?(files: string[], output: string): NativeJourneyStitchResult;
   /** One run's case index laid over the one it replaces, and the before it retired: `native/src/case_layer.rs`. */
   layerCaseIndex?(previous: Uint8Array | undefined, fresh: Uint8Array, files: NativeCaseRunFiles, edit?: (file: string) => NativeCaseEdit | undefined): NativeCaseLayers;
+  /** {@link layerCaseIndex} with each changed module's edit given, and the readings section laid with it, off the JavaScript thread: `native/src/case_layer_napi.rs`. */
+  layCaseRun?(
+    previous: Uint8Array | undefined,
+    fresh: Uint8Array,
+    files: NativeCaseRunFiles,
+    edits: { file: string; edit?: NativeCaseEdit | undefined; error?: string | undefined }[],
+    kept: Uint8Array | undefined,
+    inputs?: string[][],
+  ): Promise<{ layers: NativeCaseLayers; readings: Buffer | null }>;
   /** What the runs at one commit retired, as one before: `retired` laid over `kept`. */
   layerCaseBefore?(kept: Uint8Array | undefined, retired: Uint8Array | undefined, ran: string[]): Buffer | null;
   /** The case index with each module `cuts` names laid onto that cut; `null` when every one already stands at it. `edit` is asked only of a module laid onto another cut. */

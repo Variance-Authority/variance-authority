@@ -108,7 +108,7 @@ describe('landCases', () => {
 
     // Both recorded `src/shared.ts` from the text the index was cut from: no edit, so every held case stays where it stood.
     const same = [{ file: 'src/shared.ts', sourceDigest: 'v1:base' }];
-    const { landing, sections } = landCases(record, previous, root, [
+    const { landing, sections } = await landCases(record, previous, root, [
       { path: first, coverage: { commit: 'c0ffee', tests: [whole('b.test.ts')], modules: same } },
       { path: second, coverage: { commit: 'c0ffee', tests: [whole('c.test.ts')], modules: same } },
     ], new Map([['src/shared.ts', 'v1:base']]));
@@ -134,7 +134,7 @@ describe('landCases', () => {
     const seeded = await shard('shard-1.bin', index({ 'a.test.ts > one': ['alpha'], 'b.test.ts > two': ['gamma'] }));
     const same = [{ file: 'src/shared.ts', sourceDigest: 'v1:base' }];
 
-    const { sections } = landCases(record, held, root, [
+    const { sections } = await landCases(record, held, root, [
       { path: seeded, coverage: { commit: 'c0ffee', tests: [whole('b.test.ts')], modules: same } },
     ], new Map([['src/shared.ts', 'v1:base']]));
 
@@ -147,9 +147,9 @@ describe('landCases', () => {
     const held = { ...previous, readings: sectionOf({ cases: history, inputs: { 'a.test.ts': 'one' } }) };
     const ran = (inputs: string) => shard(`shard-${inputs}.bin`, index({ 'a.test.ts > one': ['alpha'] }), undefined, { inputs: { 'a.test.ts': inputs } });
     const same = [{ file: 'src/shared.ts', sourceDigest: 'v1:base' }];
-    const land = async (inputs: string) => landCases(record, held, root, [
+    const land = async (inputs: string) => (await landCases(record, held, root, [
       { path: await ran(inputs), coverage: { commit: 'c0ffee', tests: [whole('a.test.ts')], modules: same } },
-    ], new Map([['src/shared.ts', 'v1:base']])).sections;
+    ], new Map([['src/shared.ts', 'v1:base']]))).sections;
 
     const kept = await land('one');
     expect(readingsOf(kept.readings, kept.index, 'a.test.ts > one')!.map(({ count, stopped }) => [count, stopped])).toEqual([[2, undefined], [1, true]]);
@@ -162,7 +162,7 @@ describe('landCases', () => {
     const first = await shard('shard-1.bin', index({ 'b.test.ts > two': ['gamma'], 'c.test.ts > gone': ['beta'] }));
     const second = await shard('shard-2.bin', index({ 'c.test.ts > three': ['alpha'] }));
 
-    const { sections } = landCases(record, previous, root, [
+    const { sections } = await landCases(record, previous, root, [
       { path: first, coverage: { commit: 'c0ffee', tests: [whole('b.test.ts'), whole('c.test.ts')] } },
       { path: second, coverage: { commit: 'c0ffee', tests: [whole('c.test.ts')] } },
     ]);
@@ -184,7 +184,7 @@ describe('landCases', () => {
     const first = await shard('shard-1.bin', index({ 'a.test.ts > one': ['alpha'] }, head));
     const second = await shard('shard-2.bin', index({ 'b.test.ts > two': ['beta'] }, head));
 
-    const { sections } = landCases(record, previous, root, [
+    const { sections } = await landCases(record, previous, root, [
       { path: first, coverage: { commit, tests: [whole('a.test.ts')], modules: changed } },
       { path: second, coverage: { commit, tests: [whole('b.test.ts')], modules: changed } },
     ], new Map([['src/shared.ts', 'v1:base']]));
@@ -197,7 +197,7 @@ describe('landCases', () => {
     expect(lastCaseRunOf(sections)).toMatchObject({ before: 'l0ca1', beforeTexts: { 'src/shared.ts': 'v1:base' } });
   });
 
-  it('names the text a run at the same commit re-cut a before module to, so a reader can tell it from the base', () => {
+  it('names the text a run at the same commit re-cut a before module to, so a reader can tell it from the base', async () => {
     // Two local invocations at one commit: the second has only the index the
     // first laid, whose `src/shared.ts` is already cut to the new text. The
     // edit between the two texts is a line written above the module, which
@@ -208,12 +208,12 @@ describe('landCases', () => {
     const [baseDigest, headDigest] = [digestString(base), digestString(head)];
     const changed = [{ file: 'src/shared.ts', sourceDigest: headDigest }];
     const heads = ['delta', ...regions];
-    const once = layCases(previous, index({ 'a.test.ts > one': ['alpha'] }, heads), root, {
+    const once = await layCases(previous, index({ 'a.test.ts > one': ['alpha'] }, heads), root, {
       commit, tests: [whole('a.test.ts')], modules: changed,
     }, undefined, new Map([['src/shared.ts', baseDigest]]), commit);
     expect(lastCaseRunOf(once)?.beforeTexts).toEqual({ 'src/shared.ts': baseDigest });
 
-    const twice = layCases(once, index({ 'b.test.ts > two': ['beta'] }, heads), root, {
+    const twice = await layCases(once, index({ 'b.test.ts > two': ['beta'] }, heads), root, {
       commit, tests: [whole('b.test.ts')], modules: changed,
     }, undefined, new Map([['src/shared.ts', headDigest]]), commit);
 
@@ -237,7 +237,7 @@ describe('landCases', () => {
       })(),
     }));
 
-    const { sections } = landCases(record, previous, root, [
+    const { sections } = await landCases(record, previous, root, [
       { path: first, coverage: { commit: 'c0ffee', tests: [whole('a.test.ts')], modules: changed } },
       { path: second, coverage: { commit: 'c0ffee', tests: [whole('b.test.ts')], modules: [] } },
     ], new Map([['src/shared.ts', 'v1:new']]));
@@ -250,12 +250,12 @@ describe('landCases', () => {
     expect(lastCaseRunOf(sections)?.beforeTexts).toEqual({ 'src/shared.ts': 'v1:new' });
   });
 
-  it('names no text for a before module cut at older lines than the text it is named at, which nothing could carry', () => {
+  it('names no text for a before module cut at older lines than the text it is named at, which nothing could carry', async () => {
     // The snapshot names `v1:base` and the run recorded it; the index stands
     // every region a line higher, and a callback written in front renumbered them.
     const seated = { ...previous, index: index({ 'a.test.ts > one': ['anon#0'], 'b.test.ts > two': ['anon#1'] }, ['anon#0', 'anon#1']) };
 
-    const sections = layCases(seated, index({ 'a.test.ts > one': ['anon#1'] }, ['lead', 'anon#0', 'anon#1', 'anon#2']), root, {
+    const sections = await layCases(seated, index({ 'a.test.ts > one': ['anon#1'] }, ['lead', 'anon#0', 'anon#1', 'anon#2']), root, {
       commit: 'c0ffee', tests: [whole('a.test.ts')], modules: [{ file: 'src/shared.ts', sourceDigest: 'v1:base' }],
     }, undefined, new Map([['src/shared.ts', 'v1:base']]));
 
@@ -279,7 +279,7 @@ describe('landCases', () => {
     }));
     const second = await shard('shard-2.bin', index({ 'a.test.ts > one': ['anon#1'] }, ['lead', 'anon#0', 'anon#1', 'anon#2']));
 
-    const { sections } = landCases(record, seated, root, [
+    const { sections } = await landCases(record, seated, root, [
       { path: first, coverage: { commit: 'c0ffee', tests: [whole('b.test.ts')], modules: [] } },
       { path: second, coverage: { commit: 'c0ffee', tests: [whole('a.test.ts')], modules: [{ file: 'src/shared.ts', sourceDigest: 'v1:base' }] } },
     ], new Map([['src/shared.ts', 'v1:base']]));
@@ -288,13 +288,13 @@ describe('landCases', () => {
     expect(lastCaseRunOf(sections)?.beforeTexts).toEqual({});
   });
 
-  it('names no text for a before layer kept in the row spelling, so a reader compares it as it always did', () => {
+  it('names no text for a before layer kept in the row spelling, so a reader compares it as it always did', async () => {
     // A record the row-spelling seams laid at this commit: neither layer opens as sets, so this run cuts no before of its own.
     const rows = encodeExecutionIndex(decodeExecutionIndex(index({ 'a.test.ts > one': ['alpha'] })));
     const last = JSON.parse(previous.last!.toString()) as object;
     const laid = { index: rows, before: rows, last: Buffer.from(JSON.stringify({ ...last, commit: 'c0ffee' })) };
 
-    const sections = layCases(laid, index({ 'b.test.ts > two': ['beta'] }), root, {
+    const sections = await layCases(laid, index({ 'b.test.ts > two': ['beta'] }), root, {
       commit: 'c0ffee', tests: [whole('b.test.ts')], modules: [{ file: 'src/shared.ts', sourceDigest: 'v1:head' }],
     }, undefined, new Map([['src/shared.ts', 'v1:base']]));
 
@@ -307,7 +307,7 @@ describe('landCases', () => {
     // Bytes no reader in this build can decode, so no run is laid from them.
     const first = await shard('shard-1.bin', Buffer.from('not a case index'));
 
-    const { landing, sections } = landCases(record, held, root, [
+    const { landing, sections } = await landCases(record, held, root, [
       { path: first, coverage: { commit: 'c0ffee', tests: [whole('b.test.ts')] } },
       { path: join(root, 'shard-2.bin'), coverage: { commit: 'c0ffee', tests: [whole('c.test.ts')] } },
     ]);
@@ -327,7 +327,7 @@ describe('landCases', () => {
       ] }],
     }));
 
-    const { landing, sections } = landCases(record, previous, root, [
+    const { landing, sections } = await landCases(record, previous, root, [
       { path: rows, coverage: { commit: 'c0ffee', tests: [whole('b.test.ts')], modules: [{ file: 'src/shared.ts', sourceDigest: 'v1:base' }] } },
     ], new Map([['src/shared.ts', 'v1:base']]));
 
@@ -356,10 +356,10 @@ describe('landCases', () => {
     expect(() => encodeAsSetExecutionIndex(deep)).toThrow('src/shared.ts has a case at depth 2');
   });
 
-  it('says there was nothing to drop when the record held no cases', () => {
+  it('says there was nothing to drop when the record held no cases', async () => {
     const at = join(root, 'shard-1.bin');
 
-    const { landing, sections } = landCases(record, {}, root, [{ path: at, coverage: { tests: [whole('b.test.ts')] } }]);
+    const { landing, sections } = await landCases(record, {}, root, [{ path: at, coverage: { tests: [whole('b.test.ts')] } }]);
 
     expect(landing).toEqual({ unanswered: record, shards: [at], removed: false });
     expect(sections).toEqual({});
@@ -377,10 +377,10 @@ function looked(...journals: RecordedEyes[]): EyesSection {
 }
 
 describe('the Eyes journals a run lays', () => {
-  it('lays each case\'s journals by case and attempt beside the index, and keeps the cases that did not run', () => {
+  it('lays each case\'s journals by case and attempt beside the index, and keeps the cases that did not run', async () => {
     const held = { ...previous, eyes: encodeRecordedEyes(looked(journal('a.test.ts > one', 1), journal('b.test.ts > two', 1))) };
 
-    const sections = layCases(held, index({ 'b.test.ts > two': ['gamma'] }), root, { commit: 'c0ffee', tests: [whole('b.test.ts')] }, looked(
+    const sections = await layCases(held, index({ 'b.test.ts > two': ['gamma'] }), root, { commit: 'c0ffee', tests: [whole('b.test.ts')] }, looked(
       journal('b.test.ts > two', 2, 'assert'),
       journal('b.test.ts > two', 1, 'arrange'),
     ));
@@ -391,16 +391,16 @@ describe('the Eyes journals a run lays', () => {
     });
   });
 
-  it('retires a case\'s journals when it ran again without Eyes, and leaves no section when none is left', () => {
+  it('retires a case\'s journals when it ran again without Eyes, and leaves no section when none is left', async () => {
     const held = { ...previous, eyes: encodeRecordedEyes(looked(journal('b.test.ts > two', 1))) };
 
-    const sections = layCases(held, index({ 'b.test.ts > two': ['gamma'] }), root, { commit: 'c0ffee', tests: [whole('b.test.ts')] });
+    const sections = await layCases(held, index({ 'b.test.ts > two': ['gamma'] }), root, { commit: 'c0ffee', tests: [whole('b.test.ts')] });
 
     expect(sections.eyes).toBeUndefined();
   });
 
-  it('keeps a section for a run that opened journals and closed none, so it does not read as a run without Eyes', () => {
-    const sections = layCases(previous, index({ 'b.test.ts > two': ['gamma'] }), root, { commit: 'c0ffee', tests: [whole('b.test.ts')] }, {
+  it('keeps a section for a run that opened journals and closed none, so it does not read as a run without Eyes', async () => {
+    const sections = await layCases(previous, index({ 'b.test.ts > two': ['gamma'] }), root, { commit: 'c0ffee', tests: [whole('b.test.ts')] }, {
       watched: ['b.test.ts > two'],
       journals: [],
     });
@@ -408,15 +408,15 @@ describe('the Eyes journals a run lays', () => {
     expect(decodeRecordedEyes(sections.eyes!)).toEqual({ watched: ['b.test.ts > two'], journals: [] });
   });
 
-  it('refuses a journal whose case the run did not record, rather than keep a reference nothing answers', () => {
-    expect(() => layCases(previous, index({ 'b.test.ts > two': ['gamma'] }), root, { tests: [whole('b.test.ts')] }, looked(
+  it('refuses a journal whose case the run did not record, rather than keep a reference nothing answers', async () => {
+    await expect(layCases(previous, index({ 'b.test.ts > two': ['gamma'] }), root, { tests: [whole('b.test.ts')] }, looked(
       journal('b.test.ts > two (title)', 1),
-    ))).toThrow('an Eyes journal names a case the run did not record: b.test.ts > two (title)');
+    ))).rejects.toThrow('an Eyes journal names a case the run did not record: b.test.ts > two (title)');
   });
 
-  it('lays over a section this build cannot read as over none, rather than fail every later run', () => {
+  it('lays over a section this build cannot read as over none, rather than fail every later run', async () => {
     for (const eyes of [Buffer.from('not json'), Buffer.from('{"version":2,"rows":[]}\n')]) {
-      const sections = layCases({ ...previous, eyes }, index({ 'b.test.ts > two': ['gamma'] }), root, { tests: [whole('b.test.ts')] }, looked(
+      const sections = await layCases({ ...previous, eyes }, index({ 'b.test.ts > two': ['gamma'] }), root, { tests: [whole('b.test.ts')] }, looked(
         journal('b.test.ts > two', 1),
       ));
 
@@ -429,7 +429,7 @@ describe('the Eyes journals a run lays', () => {
     const first = await shard('shard-1.bin', index({ 'b.test.ts > two': ['gamma'], 'c.test.ts > three': ['alpha'] }), looked(journal('b.test.ts > two', 1), both));
     const second = await shard('shard-2.bin', index({ 'c.test.ts > three': ['alpha'] }), looked(both));
 
-    const { sections } = landCases(record, previous, root, [
+    const { sections } = await landCases(record, previous, root, [
       { path: first, coverage: { commit: 'c0ffee', tests: [whole('b.test.ts'), whole('c.test.ts')] } },
       { path: second, coverage: { commit: 'c0ffee', tests: [whole('c.test.ts')] } },
     ]);
@@ -445,7 +445,7 @@ describe('the Eyes journals a run lays', () => {
       journal('c.test.ts > three', 1, 'assert'),
     ));
 
-    const { landing, sections } = landCases(record, previous, root, [
+    const { landing, sections } = await landCases(record, previous, root, [
       { path: acted, coverage: { commit: 'c0ffee', tests: [whole('c.test.ts')] } },
       { path: carried, coverage: { commit: 'c0ffee', tests: [whole('b.test.ts'), whole('c.test.ts')] } },
     ]);
@@ -465,7 +465,7 @@ describe('the Eyes journals a run lays', () => {
       journals: [journal('b.test.ts > two', 1), journal('c.test.ts > three', 1, 'act')],
     });
 
-    const { sections } = landCases(record, previous, root, [
+    const { sections } = await landCases(record, previous, root, [
       { path: ran, coverage: { commit: 'c0ffee', tests: [whole('c.test.ts')] } },
       { path: seeded, coverage: { commit: 'c0ffee', tests: [whole('b.test.ts')] } },
     ]);
@@ -488,7 +488,7 @@ describe('the Eyes journals a run lays', () => {
       eyes: Buffer.from('{"version":2,"journals":"elsewhere"}\n'),
     });
 
-    const { landing, sections } = landCases(record, previous, root, [{ path: at, coverage: { commit: 'c0ffee', tests: [whole('b.test.ts')] } }]);
+    const { landing, sections } = await landCases(record, previous, root, [{ path: at, coverage: { commit: 'c0ffee', tests: [whole('b.test.ts')] } }]);
 
     expect(landing).toEqual({ laid: record, shards: 1 });
     expect(sections.eyes).toBeUndefined();

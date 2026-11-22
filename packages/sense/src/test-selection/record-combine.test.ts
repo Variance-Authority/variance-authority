@@ -70,7 +70,7 @@ async function recordOf(name: string, files: readonly string[], overwritten: rea
     { case: `${file} > greets`, attempt: 2, ended: 'passed', duration: 1 },
   ]);
   const run = { commit: 'c0ffee', tests: files.map((file) => ({ file, complete: true })), modules, ...(attempts === undefined ? {} : { attempts }) };
-  const cases = layCases({}, fresh, root, run, eyes);
+  const cases = await layCases({}, fresh, root, run, eyes);
   const path = join(root, name);
   await writeTestCoverage(path, {
     version: 3, instrumentation: 'fixture', commit: 'c0ffee',
@@ -242,7 +242,7 @@ describe('combineRecords against the TypeScript writers', () => {
       const modules = [{ file: 'src/greet.ts', sourceDigest: digestString(source), instrumented: true, blocks }];
       const path = join(root, `${file}.bin`);
       await writeTestCoverage(path, { version: 3, instrumentation: 'fixture', commit: 'c0ffee', tests: [{ file, complete: true, preconditions: [], duration: 1 }], modules },
-        layCases({}, fresh, root, { commit: 'c0ffee', tests: [{ file, complete: true }], modules }, { watched: [], journals: [] }));
+        await layCases({}, fresh, root, { commit: 'c0ffee', tests: [{ file, complete: true }], modules }, { watched: [], journals: [] }));
       return path;
     };
     const shards = [await cutOf('a.test.ts', [greet, inner]), await cutOf('b.test.ts', [greet])];

@@ -223,16 +223,20 @@ export async function landRun(
   const texts = cases === undefined && previous.index === undefined ? undefined : recordedTexts(coverageFile);
   // The run's cases are laid over the record's (`case-landing.ts`), over no index
   // only once it finished the snapshot's files. A run that kept none leaves the
-  // record's, or none once it finished a file.
-  const laid = cases === undefined
-    ? (dropsCasesWithoutAny(current) ? {} : previous)
+  // record's, or none once it finished a file. The addon lays them off this
+  // thread while the coverage is layered below; they are awaited where they are due.
+  const laying = cases === undefined
+    ? Promise.resolve(dropsCasesWithoutAny(current) ? {} : previous)
     : unansweredOver(previous, before?.tests, cases.run.tests, root).length > 0
-      ? previous
+      ? Promise.resolve(previous)
       : layCases(previous, cases.fresh, root, { ...cases.run, modules: current.modules, inputs: inputsOf(current) }, cases.eyes, texts, before?.commit, undefined, cacheRoot);
   const over = await recordBytes(coverageFile);
   // What differs from `HEAD` is asked once, for the rows' names and the texts kept.
   const landed = current.commit === undefined ? undefined : await landedTree(root, cacheRoot);
+  // A throw below leaves the laying unawaited; its own failure is read where it is awaited.
+  laying.catch(() => undefined);
   const coverage = await layeredOver(coverageFile, over, current, root, cacheRoot, landed);
+  const laid = await laying;
   // The rows of a module this run did not record may have been re-cut to the
   // text on disk; the cases held for it are laid onto the same cut (`case-cuts.ts`).
   const followed = laid.index === undefined ? laid : followRowsIn(laid, openTestCoverage(coverage), texts, editsBetween(root, cacheRoot, [before?.commit, current.commit]));
@@ -288,7 +292,7 @@ async function landUncovered(coverageFile: string, root: string, cases: FreshCas
   }
   const stands = snapshot?.commit;
   const over = await recordBytes(coverageFile);
-  const laid = layCases(previous, cases.fresh, root, cases.run, cases.eyes, undefined, stands);
+  const laid = await layCases(previous, cases.fresh, root, cases.run, cases.eyes, undefined, stands);
   const held = coveredRecord(coverageFile, over);
   const based = { ...laid, base: recordBase(over, cases.run.commit, stands, takeReadFor(coverageFile)), ...(checks === undefined ? {} : { checks }) };
   if (held !== undefined) return writeCoverageBytes(coverageFile, withCaseSections(held, based));

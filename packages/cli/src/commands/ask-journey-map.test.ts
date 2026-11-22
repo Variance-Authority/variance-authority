@@ -155,7 +155,7 @@ async function recorded(made?: string): Promise<string> {
     }],
   }) }));
   const tests = [{ file: 'test/since.test.ts', complete: true }];
-  const { sections } = landCases(at, {}, root, [{ path: shard, coverage: { tests, ...(made === undefined ? {} : { commit: made }) } }]);
+  const { sections } = await landCases(at, {}, root, [{ path: shard, coverage: { tests, ...(made === undefined ? {} : { commit: made }) } }]);
   writeFileSync(at, withCaseSections(readFileSync(at), sections));
   return root;
 }

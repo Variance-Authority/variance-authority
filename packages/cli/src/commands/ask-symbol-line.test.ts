@@ -286,7 +286,7 @@ async function recorded({ commit = true, recording = true }: { readonly commit?:
     tests,
     modules: Object.entries(modules).map(([file, blocks]) => ({ file, blocks })),
   }) }));
-  const { sections } = landCases(at, {}, root, [{ path: shard, coverage: { tests: files.map((file) => ({ file, complete: true })) } }]);
+  const { sections } = await landCases(at, {}, root, [{ path: shard, coverage: { tests: files.map((file) => ({ file, complete: true })) } }]);
   writeFileSync(at, withCaseSections(readFileSync(at), sections));
   return root;
 }
