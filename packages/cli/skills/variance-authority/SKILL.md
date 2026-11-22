@@ -28,6 +28,7 @@ main questions; pick the one that fits what you hold, each is one command:
 | A name and an area | [the files there that import it](references/workspace-discover.md) | `variance ask discover --imports src/billing/retry.ts#PaymentRetry --path '^src/checkout/'` |
 | A file | [what it reaches through its imports, nearest first; `--declares <regex>` keeps the ones declaring a name](references/workspace-discover.md) | `variance ask discover --from src/billing/invoice.ts --declares Retry` |
 | A file | [what reaches it through imports](references/workspace-discover.md) | `variance ask discover --to src/billing/invoice.ts` |
+| Two files | [the files on import paths between them](references/code-orientation.md) | `variance ask discover --from src/PriceCard.tsx --to src/pricing/price.ts` |
 | Two questions | [the files both answer](references/workspace-intersection.md) | `variance ask intersection 'symbol --name PaymentRetry' 'discover --from src/checkout/'` |
 | A file and text to find only in it | [the matching lines in that file](references/workspace-discover.md) | `variance ask discover --path '^src/billing/invoice[.]ts$' --text retryCount` |
 | A string or a pattern | [the source lines that hold it](references/workspace-grep.md) | `variance ask grep --query 'retryCount' --from src/billing/` |
