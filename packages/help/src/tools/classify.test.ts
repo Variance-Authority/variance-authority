@@ -7,6 +7,13 @@ import * as sense from '@variance-authority/sense';
 import { HELP_TOOLS } from '../tools.js';
 import { classify } from './classify.js';
 import { classifyWords, formatClassified, identifier, placedAreas, type CodeMapPlaces, type Named } from './classify-words.js';
+import * as symbol from './symbol.js';
+
+// `symbol`'s own answer, as classify reads it, unless a case says it fails.
+vi.mock('./symbol.js', async (actual) => {
+  const real = await actual<typeof import('./symbol.js')>();
+  return { ...real, declaredInCheckout: vi.fn(real.declaredInCheckout) };
+});
 
 /**
  * `docs_classify`: which words of the asker's own sentence are, whole, a
@@ -64,6 +71,16 @@ describe('docs_classify', () => {
 
     expect(text).toContain(query);
     expect(rank).not.toHaveBeenCalled();
+  });
+
+  it('fails with what failed when `symbol` cannot answer a word for a reason other than finding nothing', () => {
+    vi.spyOn(sense, 'packageLayers').mockReturnValue({ current: true, packages: [] });
+    vi.spyOn(sense, 'filesNamed').mockReturnValue(new Map());
+    vi.mocked(symbol.declaredInCheckout).mockImplementationOnce(() => {
+      throw new Error('the source index could not be read');
+    });
+
+    expect(() => classify.run(HELP, { query: 'ModuleLoader' }, { root: '/unused' })).toThrow('the source index could not be read');
   });
 
   it.each(['checkoutPath defaults', 'defaults'])('still requests area ranking for unresolved words (%s)', (query) => {

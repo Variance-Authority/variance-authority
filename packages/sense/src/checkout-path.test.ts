@@ -79,4 +79,22 @@ describe('filesNamed', () => {
 
     expect(filesNamed(root, ['loader', 'absent'], 2)).toEqual(new Map([['loader', { files: ['a/loader.js', 'b/loader.d.ts'], count: 3 }]]));
   });
+
+  it('asks git nothing of a base no file name can be, since a dot, a slash or a glob character ends the base before it', async () => {
+    const outside = await realpath(await mkdtemp(join(tmpdir(), 'variance-checkout-path-outside-')));
+    try {
+      expect(filesNamed(outside, ['', 'a/b', 'lo*der', 'a.b'], 2)).toEqual(new Map());
+    } finally {
+      await rm(outside, { recursive: true, force: true });
+    }
+  });
+
+  it('gives what git said when it cannot list the tracked files', async () => {
+    const outside = await realpath(await mkdtemp(join(tmpdir(), 'variance-checkout-path-outside-')));
+    try {
+      expect(filesNamed(outside, ['loader'], 2)).toEqual({ unread: expect.stringMatching(/not a git repository/u) });
+    } finally {
+      await rm(outside, { recursive: true, force: true });
+    }
+  });
 });

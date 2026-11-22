@@ -102,19 +102,19 @@ function batchesOf(paths: readonly string[]): readonly (readonly string[])[] {
  * `child_process` — keyed by that base, the first `cap` of each in git's path
  * order and how many there are; a base no file is named is absent. Git matches
  * the names and JS keeps `cap` of each, counting the rest as it scans. A base
- * that holds `/`, a glob character or nothing is no file name, and is not asked.
+ * that holds `.`, `/`, a glob character or nothing names no file before its
+ * first dot, and is not asked, so every file git lists is one of an asked base.
  */
 export function filesNamed(
   root: string,
   bases: readonly string[],
   cap: number,
 ): ReadonlyMap<string, { readonly files: readonly string[]; readonly count: number }> | { readonly unread: string } {
-  const asked = [...new Set(bases)].filter((base) => base !== '' && !/[/*?[\]\\:]/u.test(base));
+  const asked = [...new Set(bases)].filter((base) => base !== '' && !/[./*?[\]\\:]/u.test(base));
   if (asked.length === 0) return new Map();
   // bound: one listing string git writes, scanned in place; `cap` files of each asked base are kept
   const listed = gitListing(root, ['ls-files', '-z', '--cached', '--', ...asked.flatMap((base) => [`:(glob)**/${base}`, `:(glob)**/${base}.*`])], false);
   if (typeof listed !== 'string') return listed;
-  const wanted = new Set(asked);
   const named = new Map<string, { files: string[]; count: number }>();
   for (let start = 0; start < listed.length; ) {
     const end = listed.indexOf('\0', start);
@@ -123,7 +123,6 @@ export function filesNamed(
     const name = file.slice(file.lastIndexOf('/') + 1);
     const dot = name.indexOf('.', 1);
     const base = dot > 0 ? name.slice(0, dot) : name;
-    if (!wanted.has(base)) continue;
     const held = named.get(base) ?? { files: [], count: 0 };
     held.count += 1;
     if (held.files.length < cap) held.files.push(file);
