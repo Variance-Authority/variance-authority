@@ -69,7 +69,10 @@ apart, each with its own count, and an installed name it matches, which a file
 that passes it on exports without declaring, is said after it. A name a file
 declares and does not export, at its top level or inside a function, is answered
 from the source index, as below, after any export of the same name in another
-file; one inside a function is answered with the function that holds it. A name
+file; one inside a function is answered with the function that holds it. A
+top-level name destructured out of a value, such as one taken off a module it
+loads, is answered with kind `[binding]`: the file binds it, and defines it
+nowhere. A name
 an import binds with `as` is answered with that import and the original it
 names. A member of an interface, a type literal or a class is answered with its
 container and the file and line that declare it, one block per declaration,

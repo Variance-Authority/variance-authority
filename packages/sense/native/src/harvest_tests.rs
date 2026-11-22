@@ -60,3 +60,24 @@ fn a_blank_line_written_with_carriage_returns_parts_a_doc_too() {
     assert_eq!(file.as_deref(), Some("The banner."));
     assert_eq!(declared, None);
 }
+
+/// The kind `name`'s top-level declaration is harvested under.
+fn kind(path: &str, source: &str, name: &str) -> &'static str {
+    let read = read_module(path, source, &Allocator::default(), true);
+    read.symbols.iter().find(|symbol| symbol.name == name).expect("the name is declared").kind
+}
+
+#[test]
+fn a_destructured_binding_is_a_binding_and_a_declarator_its_own_kind() {
+    let source = "const { ChildProcess } = make();\nconst [first] = list;\nconst whole = make();\nfunction fork() {}\n";
+    assert_eq!(kind("a.js", source, "ChildProcess"), "binding");
+    assert_eq!(kind("a.js", source, "first"), "binding");
+    assert_eq!(kind("a.js", source, "whole"), "const");
+    assert_eq!(kind("a.js", source, "fork"), "function");
+}
+
+#[test]
+fn a_published_binding_taken_off_a_module_is_a_binding() {
+    let source = "'use strict';\nconst { ChildProcess } = require('internal/child_process');\nmodule.exports = { ChildProcess };\n";
+    assert_eq!(kind("lib/child_process.js", source, "ChildProcess"), "binding");
+}

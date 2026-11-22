@@ -80,6 +80,11 @@ pub const KINDS: [(&str, &[&str]); 17] = [
     ("property", &["property_declaration"]),
 ];
 
+/// The kind of a top-level name a file binds to a value it did not define
+/// there: one destructured out of a value, or one taken off a module it loads.
+/// No grammar reader gives it, so it stays out of [`KINDS`].
+pub const BINDING: &str = "binding";
+
 /// The word of [`KINDS`] spelled `word`.
 pub fn kind_named(word: &str) -> Option<&'static str> {
     KINDS.iter().map(|(kind, _)| *kind).find(|kind| *kind == word)
@@ -220,7 +225,9 @@ impl Harvest {
                     return;
                 }
                 let doc = harvest.doc(bound.statement.start);
-                harvest.push(bound.name.to_owned(), bound.kind, lines.at(bound.statement.start), doc, bound.signature);
+                // A name destructured out of a value is bound, not defined, here.
+                let kind = if bound.destructured { BINDING } else { bound.kind };
+                harvest.push(bound.name.to_owned(), kind, lines.at(bound.statement.start), doc, bound.signature);
             });
             harvest.nested = crate::nested::nested(program)
                 .into_iter()

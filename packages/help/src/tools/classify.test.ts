@@ -261,7 +261,7 @@ describe('docs_classify', () => {
     vi.spyOn(sense, 'filesNamed').mockReturnValue(new Map([['run_main', { files: ['lib/run_main.js'], count: 1 }]]));
     vi.mocked(symbol.declaredInCheckout).mockImplementation((_, { name }) => {
       if (name !== 'ModuleLoader') throw new FoundNothing(name);
-      return { files: new Map([['lib/loader.js', [3]]]), spelled: new Map([['lib/loader.js:3', ['ModuleLoader']]]) } as unknown as ReturnType<typeof symbol.declaredInCheckout>;
+      return { files: new Map([['lib/loader.js', [3]]]), spelled: new Map([['lib/loader.js:3', ['ModuleLoader']]]), bound: new Set<string>() } as unknown as ReturnType<typeof symbol.declaredInCheckout>;
     });
     const declaration = (name: string, line: number, kind = 'function', exported = false) => ({ name, kind, line, exported, members: [] });
     const orient = vi.spyOn(sense, 'declarationsOf').mockReturnValue([
@@ -288,7 +288,7 @@ describe('docs_classify', () => {
     vi.spyOn(sense, 'filesNamed').mockReturnValue(new Map());
     vi.mocked(symbol.declaredInCheckout).mockImplementation((_, { name }) => {
       if (name !== 'ModuleLoader') throw new FoundNothing(name);
-      return { files: new Map([['lib/loader.js', [3]]]), spelled: new Map([['lib/loader.js:3', ['ModuleLoader']]]) } as unknown as ReturnType<typeof symbol.declaredInCheckout>;
+      return { files: new Map([['lib/loader.js', [3]]]), spelled: new Map([['lib/loader.js:3', ['ModuleLoader']]]), bound: new Set<string>() } as unknown as ReturnType<typeof symbol.declaredInCheckout>;
     });
     const read = vi.spyOn(sense, 'declarationsOf').mockReturnValue([
       { file: 'app/packages/sense/src/checkoutPath.ts', read: true, more: 0, moreMembers: 0, declarations: [{ name: 'checkoutPath', kind: 'function', line: 1, exported: true, members: [] }] },

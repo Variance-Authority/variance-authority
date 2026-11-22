@@ -132,16 +132,16 @@ function reachTest(walks: Reach['walks'] | undefined): ((file: string) => boolea
 }
 
 /**
- * The lines `symbol --name <word>` names as declaring the word, written by it
+ * The lines `symbol --name <word>` names as defining the word, written by it
  * as spelled, so the next question classify offers answers with the same
- * files; none when `symbol` finds nothing.
+ * files; none when `symbol` finds nothing, or only lines that bind the word
+ * to a value defined elsewhere, which `symbol` reports as `[binding]`.
  */
 function declaredBy(help: Help, word: string, invocation: ToolInvocation<Help> | undefined): readonly Found[] {
   try {
-    const { files, spelled } = declaredInCheckout(help, { name: word }, invocation);
-    return [...files].flatMap(([at, lines]) =>
-      lines.filter((line) => spelled.get(`${at}:${line}`)?.includes(word) === true).map((line) => ({ at, line, test: kindOf(at) !== 'source' })),
-    );
+    const { files, spelled, bound } = declaredInCheckout(help, { name: word }, invocation);
+    const defines = (at: string, line: number): boolean => !bound.has(`${at}:${line}`) && spelled.get(`${at}:${line}`)?.includes(word) === true;
+    return [...files].flatMap(([at, lines]) => lines.filter((line) => defines(at, line)).map((line) => ({ at, line, test: kindOf(at) !== 'source' })));
   } catch (error) {
     if (error instanceof FoundNothing) return [];
     throw error;
