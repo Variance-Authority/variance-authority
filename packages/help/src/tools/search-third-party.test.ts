@@ -69,6 +69,8 @@ it('offers a name only from the workspace whose manifest declares it, not from o
   const own = said('betaOwnName', 'packages/beta/src/index.ts');
   expect(own).toContain('usable from that start point');
   expect(own).toContain('beta-kit · betaOwnName [const] @1.0.0 · dependency in packages/beta/package.json · not imported');
+  const limitedOwn = answerSearch(index, { query: 'betaOwnName', from: 'packages/beta/src/index.ts', limit: 1 }, tree, root);
+  expect(limitedOwn).toContain('beta-kit · betaOwnName [const] @1.0.0 · dependency in packages/beta/package.json · not imported');
   expect(said('betaOwnName')).toContain('offered by some manifest in this workspace');
   expect(said('alphaOnlyName', 'packages/beta/src/index.ts')).toContain(
     'No third-party name matches `alphaonlyname`. Third-party names searched: 1 package under packages/beta/package.json.',
@@ -113,7 +115,7 @@ it('keeps installed names compact while a limit widens how many the line names',
 
   const narrow = said(1);
   expect(narrow).toContain('packages/beta/src/fixtures.ts');
-  expect(narrow).toMatch(/^7 third-party names match `betaownname`: beta-kit · betaOwnName and 6 more\. `docs_search` with `query` `betaOwnName` and `limit` `20` lists the remaining names\.$/mu);
+  expect(narrow).toMatch(/^7 third-party names match `betaownname`: beta-kit · betaOwnName and 6 more\. `docs_search` with `query` `betaOwnName` and `limit` `20` lists all matching names\.$/mu);
   expect(narrow).not.toContain('· dependency in packages/beta/package.json');
 
   const widened = said(names.length);

@@ -64,13 +64,13 @@ it('answers a description with the repository\'s own names first, and the packag
   expect(said).toMatch(/managedFor .*\[holds: management, state\]/);
   // The repository answered, so the package that describes it is named on one line after its rows.
   expect(said).toContain('7 packages describe `state management`');
-  expect(said).toContain('and 2 more. `docs_search` with `query` `state management` and `limit` `20` lists the remaining names.');
+  expect(said).toContain('and 2 more. `docs_search` with `query` `state management` and `limit` `20` lists all matching names.');
   expect(said).not.toContain('react @1.0.0');
   expect(said.indexOf('managedFor')).toBeLessThan(said.indexOf('7 packages describe `state management`'));
 
   const narrow = answerSearch(searchIndexOf(readHelp(root)), { query: 'state management', limit: 1 }, treeOf([], root), root);
   expect(narrow).toContain('7 packages describe `state management`');
-  expect(narrow).toContain('and 6 more. `docs_search` with `query` `state management` and `limit` `20` lists the remaining names.');
+  expect(narrow).toContain('and 6 more. `docs_search` with `query` `state management` and `limit` `20` lists all matching names.');
   expect(narrow).not.toContain('· dependency in package.json');
 
   const widened = answerSearch(searchIndexOf(readHelp(root)), { query: 'state management', limit: describedPackages.length }, treeOf([], root), root);

@@ -158,7 +158,7 @@ function section<Row>(head: string, found: Matches<Row>, line: (row: Row) => str
  */
 function inFull(asked: SearchQuestion, total: number, spell: Spelling): string {
   const where = { ...(asked.from === undefined ? {} : { from: asked.from }), ...(asked.to === undefined ? {} : { to: asked.to }) };
-  return `${spell.question(search, { query: asked.query, ...where, limit: Math.max(total, CAP) })} lists the remaining names.`;
+  return `${spell.question(search, { query: asked.query, ...where, limit: Math.max(total, CAP) })} lists all matching names.`;
 }
 
 /** What a search says of what it found, to `asked`. */
