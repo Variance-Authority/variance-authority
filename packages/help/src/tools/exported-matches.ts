@@ -35,13 +35,25 @@ export function first<T>(items: readonly T[], count: number, before: (a: T, b: T
 export type DeclarationOf = (at: string, name: string) => Place | undefined;
 
 /**
- * Exported names given by id, grouped by name — a barrel and its declaring
- * file are one thing to look at. Names rank by where the question was found
- * (`exact`, the name whole; its words; `openings`, a doc's opening; later in a
- * doc), then by how many files export it. Each shows through its row where the
- * question was found first, then source before tests and stories. `through`
- * holds, for a name a doc reached, the rows whose doc was read; the row shown
- * and the rows listed are among them.
+ * Exported names given by id, nearest thing to a ranking.
+ *
+ * Grouped by name because one name exported from a barrel and from the file that
+ * declares it is one thing to go and look at, and ordered by how many files
+ * export it — which is the only count this half has — once `openings` has
+ * said where the question was found. A name is shown and ranked through one
+ * row: where its question was found first, then source before tests and
+ * stories, so the place shown is the implementation rather than its exercise.
+ *
+ * `through` holds, for a name reached by a doc and not by its own words, the
+ * rows whose doc was read: the row shown and the rows listed are among them,
+ * since another file's `sum` says nothing about this one's. `files` still
+ * counts every file that exports the name.
+ *
+ * `openings`, when given, are the rows whose doc says the question in its
+ * opening paragraph, and where it was found then orders first, as the
+ * published half orders: a name its own words reached, then one a doc opens
+ * with, then one a doc says later. `exact` holds the names that are the question
+ * whole and where each orders, before all of them.
  */
 export function exported(
   index: SearchIndex,
