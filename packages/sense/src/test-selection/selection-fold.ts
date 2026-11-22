@@ -17,6 +17,7 @@ import { instrumentationId } from '../instrument/index.js';
 import { runTexts } from '../text-digests.js';
 import { deriveModules } from './captured-modules.js';
 import { commitOf } from './commit.js';
+import { landedTree } from './kept-texts.js';
 import { laidProbes, landRun } from './commit-runs.js';
 import { projectPath, readWritten } from './instrumented-modules.js';
 import { coverageModule } from './coverage-rows.js';
@@ -86,6 +87,10 @@ export function foldRun(
   const record = async (finished: readonly FinishedFile[]): Promise<void> => {
     // A worker wrote its journal down; a page handed its own to the runner,
     // which carried it here on the file.
+    // What git says of the working tree is the slowest answer the write needs,
+    // and nothing the fold does changes it: ask before the fold, not after.
+    const landing = landedTree(root);
+    landing.catch(() => {});
     const written = await readWritten(runDirectory);
     // The run's scratch is four unrelated trees, and each one's removal waits on
     // nothing but its last reader: the journals and the finished files are in
@@ -176,7 +181,7 @@ export function foldRun(
       // and not asked by a shard that is a part of one whole run. A cached record
       // under other probes goes first, whichever run this is.
       await prepareRecord(lock, root, laidProbes(current), { alone: run.alone });
-      await landRun(coverageFile, current, root, undefined, cases);
+      await landRun(coverageFile, current, root, undefined, cases, undefined, landing);
       markCheckout(repositoryRoot(root));
     });
     // A run that placed no module says so once the snapshot saying every file

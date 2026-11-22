@@ -56,7 +56,7 @@ import { RecordWithoutCoverage } from './format-validation.js';
 import { openTestCoverage } from './format-view.js';
 import type { TestCoverage } from './index.js';
 import { keepRecordedInstall, type KeptInstall } from './kept-install.js';
-import { keepRecordedTexts, landedTree, ranOverTexts, type KeptTexts } from './kept-texts.js';
+import { keepRecordedTexts, landedTree, ranOverTexts, type KeptTexts, type LandedTree } from './kept-texts.js';
 import { landingsAfter, observedBy, whatLanded, type Landing, type RanTests } from './landings.js';
 import { ownLayerAfter, readOwnLayer, workingTree, writeOwnLayer } from './own-layer.js';
 import { recordBase, takeReadFor } from './record-base.js';
@@ -203,6 +203,7 @@ export async function landRun(
   cacheRoot?: string,
   cases?: FreshCases,
   checks?: Uint8Array,
+  landing?: Promise<LandedTree | undefined>,
 ): Promise<void> {
   if (laidProbes(current) === undefined) return landUncovered(coverageFile, root, cases, checks);
   if (current.modules.length === 0) {
@@ -211,7 +212,7 @@ export async function landRun(
     // probes fired where nothing could place them.
     const selecting = current.tests.filter((test) => !test.complete);
     if (selecting.length < current.tests.length) {
-      return landRun(coverageFile, { ...current, tests: selecting }, root, cacheRoot, cases, checks);
+      return landRun(coverageFile, { ...current, tests: selecting }, root, cacheRoot, cases, checks, landing);
     }
   }
   const before = await recordedSnapshot(coverageFile);
@@ -232,7 +233,7 @@ export async function landRun(
       : layCases(previous, cases.fresh, root, { ...cases.run, modules: current.modules, inputs: inputsOf(current) }, cases.eyes, texts, before?.commit, undefined, cacheRoot);
   const over = await recordBytes(coverageFile);
   // What differs from `HEAD` is asked once, for the rows' names and the texts kept.
-  const landed = current.commit === undefined ? undefined : await landedTree(root, cacheRoot);
+  const landed = current.commit === undefined ? undefined : await (landing ?? landedTree(root, cacheRoot));
   // A throw below leaves the laying unawaited; its own failure is read where it is awaited.
   laying.catch(() => undefined);
   const coverage = await layeredOver(coverageFile, over, current, root, cacheRoot, landed);
