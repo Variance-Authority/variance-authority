@@ -20,7 +20,8 @@ A missing domain is unavailable, never an empty measurement.
 | live watcher | Is this the watcher the suite connected to? | `variance ask self` | `variance_self` |
 | [execution index](execution-record.md) and the [Eyes](eyes.md) journals it keeps | What can this test be distilled to? | `variance distill --test <id> …` | `variance_distill` |
 | current workspace source | What is each package imported for, and which packages are imported past their entry? | `variance ask packages` | `docs_packages` on the workspace API server |
-| a request, in the asker's words | Which words name a package, an entrypoint, an exported or declared name or a file, where on the code map is each, and which question comes next? | `variance ask classify --query <words> [--from <path>]` | `docs_classify` on the workspace API server |
+| a product label and a version or state value | Which source files contain both clues? | `variance ask intersection 'grep --query "<product>" --from <path>' 'grep --query "<version>" --from <path>'` | `docs_intersection` on the workspace API server |
+| other task words, or text clues that find no owner | Which words name a package, an entrypoint, an exported or declared name or a file, where on the code map is each, and which question comes next? | `variance ask classify --query <words> [--from <path>]` | `docs_classify` on the workspace API server |
 | current workspace source | What does this package publish, and what do other packages import from it? | `variance ask entrypoint --package <name>` | `docs_entrypoint` on the workspace API server |
 | current workspace source | Where is this symbol already used, and what shows how to call it? | `variance ask uses --name <name>` | `docs_uses` on the workspace API server |
 | current workspace source | What rests on this file or this name through imports, at any depth, and by which chain? | `variance ask discover --to <path>` or `--to <file>#<name>` | `docs_discover` on the workspace API server |
@@ -34,15 +35,14 @@ A missing domain is unavailable, never an empty measurement.
 | a recorded test run | Which test cases did the runner retry in the recorded run, and which of them failed on one attempt and passed on another? | `variance ask retried-tests [--limit <n>]` | `docs_retried_tests` on the workspace API server |
 | a recorded test run | Which checks did a test declare and an attempt of it pass without executing? | `variance ask not-run` | `docs_not_run` on the workspace API server |
 
-For [source orientation](orientation.md), ask three questions in this order:
+For [source orientation](orientation.md), choose the first question from the
+table. Once an answer names a plausible owner, read its named lines and follow
+its imports with `discover` or `uses`.
 
-1. **`search`, with a path already supplied by the editor, ticket or stack
-   trace.** The words find candidate names. `--from` keeps candidates used by
-   files reachable from that path, while `--to` keeps candidates used by files
-   that reach it. Those candidates are not every match;
-   `git grep -i <word>` prints every tracked line that writes it.
-2. `symbol`.
-3. `uses`.
+When the editor, ticket or stack trace supplies a path, `search --from` keeps
+candidate names used by files reachable from that path, while `--to` keeps
+candidates used by files that reach it. Those candidates are not every match;
+`git grep -i <word>` prints every tracked line that writes it.
 
 Those relations are resolved module imports, not runtime function calls. A
 member of an interface, a type literal or a class is never imported: `uses`
