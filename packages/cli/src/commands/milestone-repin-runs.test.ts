@@ -2,7 +2,7 @@ import { mkdtemp, readdir, readFile, realpath, rm, writeFile } from 'node:fs/pro
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { commitRunsFile, landRun, readCommitRuns, type TestCoverage } from '@variance-authority/sense/test-selection';
+import { commitRunsFile, landRun, readCommitRuns, readTestCoverage, type TestCoverage } from '@variance-authority/sense/test-selection';
 import { git, laidWorktree, LOCAL, publishedNext, ranAlone, refetch } from './milestone-pin.fixture.js';
 import { suiteBase } from './suite-base.js';
 
@@ -49,6 +49,23 @@ describe('the runs record under a repinned checkout', () => {
     expect(await suiteBase(worktree, { env: LOCAL })).toMatchObject({ repin: { repinned: true, to: next, kept: ['test/other.test.ts', 'test/total.test.ts'] } });
 
     expect(await readCommitRuns(own)).toEqual({ commit: later, over: next, latest: held.latest, runs: held.runs, standing: held.standing, landings: held.landings });
+  });
+
+  it('names the milestone as the record commit when the repin drops every run, which ran off its line', async () => {
+    const { ci, worktree, own } = await laidWorktree(home);
+    // The checkout runs on a branch the newer snapshot does not descend from, then merges main.
+    await git(worktree, 'commit', '--quiet', '--allow-empty', '-m', 'branch');
+    const branch = await git(worktree, 'rev-parse', 'HEAD');
+    await landRun(own, ranAlone(branch, 'test/other.test.ts'), worktree);
+    const next = await publishedNext(home, ci);
+    await git(worktree, 'fetch', '--quiet', 'origin');
+    await git(worktree, 'merge', '--quiet', '--no-edit', next);
+    await refetch(home, worktree, next);
+
+    expect(await suiteBase(worktree, { env: LOCAL })).toMatchObject({ repin: { repinned: true, to: next, kept: [] } });
+
+    // No row of the record was cut at the branch: its tests stand where the milestone ran them.
+    expect([(await readCommitRuns(own))!.commit, (await readTestCoverage(own))!.commit]).toEqual([next, next]);
   });
 
   it('drops a run that ran a test file in part when the file moves to the newer snapshot', async () => {
