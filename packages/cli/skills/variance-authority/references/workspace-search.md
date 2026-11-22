@@ -40,10 +40,12 @@ default, or up to `--limit <n>`. The answer offers a larger limit only when
 names remain; using it reveals those names without expanding their details.
 With no repository matches, dependency-only answers list matching installed
 names and packages that describe your words in detailed rows; if none match, a
-line says which manifests were searched. Empty sections and suites whose
-recorded cases were not read are omitted. An answer holding a row of this
-repository ends with `Next:` and the question for its first declaration, a
-recorded test case only when no declaration answered: `ask symbol --name
+line says which manifests were searched. Empty sections are omitted. When
+repository names match, suites whose recorded cases were not read are omitted;
+when there is no repository match, the answer reports why recorded cases were
+not read, naming suites when known. An answer holding a row of this repository
+ends with `Next:` and the question for its first declaration, a recorded test
+case only when no declaration answered: `ask symbol --name
 --package` for a published row, `ask orient --files` for the file of any other,
 spelled as you asked, so over MCP it names the tool and its input. `symbol`
 matches installed third-party declarations from the same lexicon, which is
