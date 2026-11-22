@@ -518,15 +518,17 @@ Rstest alike:
 export default withTestSelection(defineConfig({ test: {} }), { mode: 'loads' });
 ```
 
-| `mode` | What each module gets | The record holds | The finest step it answers | Added to TanStack Query's run |
+| `mode` | What each module gets | The record holds | The finest step it answers | Added to a 12.5 s suite, TanStack Query |
 |---|---|---|---|---|
 | `loads` | one line after its text; nothing is parsed | the modules each test file loaded, and no cases | `file-use` | 5% |
 | `entries` | a probe at the module and at each function body | the functions each case entered | `function-use` | 15% |
 | `presence`, the default | a probe in every region: function body, branch arm, loop body, handler | the regions each case entered | `region-use` | 16% |
 
-Classic coverage adds 34% to the same run. Almost all of what a mode adds is
-transform and writing the record; inside the tests no mode costs anything
-measurable, on TanStack Query or Zod. Both suites, the method and classic
+The last column is a short suite. On a suite of about three minutes, `presence`
+adds 6.5%. Almost all of what a mode adds is transform and writing the record,
+and on this short jsdom suite the transform is most of it; inside the tests no
+mode costs anything measurable. Classic coverage adds 34% to the same short
+run. The long suite, the short ones, the method and classic
 coverage beside them are in
 [what recording costs](#what-recording-costs-while-the-suite-runs).
 
@@ -1018,6 +1020,29 @@ and it is in [addressing scale](scale.md).
 
 ## What recording costs while the suite runs
 
+On a suite of about three minutes, recording at the default precision takes the
+whole run to **1.065×**. Variance Authority's own unit suite, 1,236 test files and
+14,020 tests under Vitest, runs in 192.6 s plain and 205.0 s recorded:
+
+| | plain | recorded | ratio |
+|---|---|---|---|
+| the whole run, wall clock | 192.6 s | 205.0 s | **1.065×** |
+| Vitest's `Duration`, up to the last test | 192.2 s | 197.6 s | 1.028× |
+| after the last test, where the record is written | 0.4 s | 7.4 s | |
+
+Each figure is the median of three rounds with the order of the arms
+alternating, after two warm-up rounds, on an Apple M4 Max, 64 GB, Node 24, with
+the recorder built from `main` at `3b63b6245`. To reproduce it in a checkout of
+Variance Authority, after `yarn install && yarn build`, time
+`yarn vitest run --config tools/uninstrumented.config.mts`, the same suite with
+the probes taken away, against `yarn vitest run`.
+
+Two of recording's costs sit outside the tests: the transform that places the
+probes, and the record written after the last test. The two public suites below
+are short ones, about ten seconds each. On Zod neither shows. On TanStack Query,
+whose jsdom workers transform many modules in a 12.5 s run, the transform is
+most of the difference, and the ratio is higher: 1.16×.
+
 Inside your tests, recording costs nothing you can measure, at any precision.
 Classic coverage — `--coverage` with the V8 provider — adds 37% to the same
 tests on TanStack Query and 12% on Zod. A probe fires only when its code runs,
@@ -1045,7 +1070,8 @@ grows with what the tests do:
   12 s at `entries` and `presence`, summed over the workers that pay it in
   parallel. On Zod nothing measurable.
 
-The whole run, transform included:
+The whole run of the two short suites, transform included. On TanStack Query
+the transform is most of what `entries` and `presence` add:
 
 | | the suite | `loads` | `entries` | `presence` | classic coverage |
 |---|---|---|---|---|---|

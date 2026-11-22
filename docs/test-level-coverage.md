@@ -10,6 +10,17 @@ watch.
 
 ## What you already believe this costs
 
+On a suite of about three minutes, recording at the default precision takes the
+whole run to **1.065×**: [Variance Authority](README.md)'s own unit suite,
+1,236 test files and 14,020 tests under Vitest, runs in 192.6 s plain and
+205.0 s recorded. Up to the last test the run takes 1.028×; the other 7 s is
+the record written after it.
+Each figure is the median of three alternating rounds after two warm-ups, on an
+Apple M4 Max, Node 24. To reproduce it in a checkout of Variance Authority,
+after `yarn install && yarn build`, time
+`yarn vitest run --config tools/uninstrumented.config.mts` against
+`yarn vitest run`.
+
 Inside your tests, recording costs nothing measurable at any precision; classic
 coverage does not:
 
@@ -21,9 +32,11 @@ coverage does not:
 | classic coverage, `--coverage` with V8 — the union | **+12%** | **+37%** |
 
 Under Vitest, recording places its probes as Vite transforms each
-module and writes the record once the last test reports. On Zod neither shows. On
-TanStack Query they bring the whole run to 1.05× at `loads` and 1.16× at
-`presence`, against 1.34× under classic coverage.
+module and writes the record once the last test reports. On Zod, an 8.7 s run,
+neither shows. TanStack Query is a 12.5 s run whose jsdom workers transform
+many modules, so the transform is most of the difference, and it brings the run
+to 1.05× at `loads` and 1.16× at `presence`, against
+1.34× under classic coverage.
 
 You have turned coverage on in CI, watched the suite get slower, and turned it
 off again. That reflex is right, and it is the first thing to settle rather
@@ -79,11 +92,13 @@ answer something a job uploads without thinking about it.
 
 What it costs *you* is not what it cost us:
 
-- **Plan around the 1.16× a jsdom suite paid at the default precision, and
-  treat anything under that as luck.** How many modules your workers transform
-  and how many regions a test crosses are properties of your code, not of the
-  recorder, and a suite that spends most of its time in one hot module pays
-  differently from one that spends it starting workers.
+- **Our ratios are our suites'.** Under Vitest, a 12.5 s jsdom suite paid
+  1.16× and a three-minute one 1.065×, and Zod nothing measurable: the
+  transform weighs most where many modules meet a short run. How many
+  modules your workers transform and how many regions a test crosses are
+  properties of your code, not of the recorder, and a suite that spends most of
+  its time in one hot module pays differently from one that spends it starting
+  workers.
 - **What those cycles buy is not a percentage.** It is the part worth putting
   on the other side of the comparison. A run under classic coverage ends with a
   number. A run under the recorder ends with a dataset that records which tests
@@ -243,8 +258,8 @@ suite ran over, so the index's coordinates belong to the commit it was recorded
 at, and the `--since` reading measures from that commit for this reason. For the
 test files it names, `covering` prints whether they ran over your source file as
 it is now, and when that run landed. A test file that ran over another text is
-evidence about that text, not about yours. At 1.16× or less, against 1.34× for
-classic coverage, there is no budget
+evidence about that text, not about yours. At 1.065× on a three-minute suite,
+and 1.16× on a 12.5 s one where classic coverage takes 1.34×, there is no budget
 argument against recording on every run, which is the cadence this needs.
 
 **Fold shards, don't fold axes.** A suite split across machines ends with one
