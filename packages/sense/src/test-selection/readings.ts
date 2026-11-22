@@ -24,6 +24,7 @@ import type { InstrumentMode, ModuleId } from '../instrument/index.js';
 import { native, nativeRefusal } from '../addon.js';
 import { captureModule, heldOriginal, pathOf } from './captured-modules.js';
 import type { CapturedModule } from './instrumented-modules.js';
+import { sameCut } from './region-landing.js';
 import { isWritten } from './written-lines.js';
 
 /** Where one reading's ordinals are in its file's record. */
@@ -85,7 +86,13 @@ export function joinReadings(modules: ReadonlyMap<ModuleId, CapturedModule>, cut
     joined.set(own.id, own);
     const table = own.blocks.filter(isWritten);
     const placed = read.map((module) => module.blocks.filter(isWritten));
-    const lands = landed(table, placed);
+    // A reading cut as the file is lands region for region; only the rest are the addon's to place.
+    const apart = placed.filter((blocks) => !sameCut({ blocks: table }, { blocks }));
+    const placedApart = apart.length === 0 ? [] : landed(table, apart);
+    const lands = placed.map((blocks) => {
+      const at = apart.indexOf(blocks);
+      return at === -1 ? blocks.map((_, index) => index) : placedApart[at]!;
+    });
     for (const [at, each] of ids.entries()) {
       const ordinals: (number | undefined)[] = [];
       for (const [index, block] of placed[at]!.entries()) {
