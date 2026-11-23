@@ -89,6 +89,57 @@ export function namesWanted(input: Readonly<Record<string, unknown>>, files?: Ho
 export function intersectionOf<Subject>(operands: readonly Tool<Subject>[]): Tool<Subject> {
   const crossable = (): string => operands.filter((tool) => tool.files !== undefined).map(verbOf).join(', ');
 
+  const evidence = (sets: readonly Crossed[], file: string): string => sets.map((set, at) => {
+    const qualification = set.qualifications?.get(file);
+    return `${at + 1}: ${evidenceOf(set.files.get(file)!)}${qualification === undefined ? '' : ` (${qualification})`}`;
+  }).join(' · ');
+
+  // Both representations read this one calculation; no result outlives a call.
+  const cross = (subject: Subject, input: Readonly<Record<string, unknown>>, invocation?: ToolInvocation<Subject>) => {
+    const spell = spellingOf(invocation);
+    const page = pageOf(input, SHOWN, spell);
+    const spelled = ({ question, input: given }: Question): string => spell.operand(question, given);
+    const questions = questionsOf(input);
+    // Every question is resolved before any is asked, so a misspelled third
+    // question costs nothing to refuse.
+    const asked = questions.map((question, at) => {
+      const operand = [...operands, tool].find((candidate) => verbOf(candidate) === question.question);
+      const which = `question ${at + 1}, \`${spelled(question)}\``;
+      if (operand === undefined) {
+        throw new Error(`${which}: \`${question.question}\` is not a question; the questions that answer a set of files: ${crossable()}`);
+      }
+      if (question.question === 'intersection' || operand.files === undefined) {
+        throw new Error(`${which}: \`${question.question}\` answers no set of files; the questions that do: ${crossable()}`);
+      }
+      return { question, which, files: operand.files.bind(operand) };
+    });
+
+    // Every question is asked, so each one that found nothing is named.
+    const sets = asked.map(({ question, which, files }): Crossed => {
+      try {
+        return files(subject, question.input, invocation);
+      } catch (refusal) {
+        if (refusal instanceof FoundNothing) return { files: new Map(), unfound: refusal.message };
+        throw new Error(`${which}: ${refusal instanceof Error ? refusal.message : String(refusal)}`);
+      }
+    });
+
+    // Smallest first, so each step tests the fewest files.
+    const [first, ...rest] = [...sets].sort((left, right) => left.files.size - right.files.size);
+    const common = [...first!.files.keys()].filter((file) => rest.every((set) => set.files.has(file))).sort(codeUnitOrder);
+
+    const lines = questions.map((question, at) => {
+      const set = sets[at]!;
+      const said = [...(set.unfound === undefined ? [] : [set.unfound]), ...(set.unread ?? [])];
+      return `${at + 1}. \`${spelled(question)}\`: ${counted(set.files.size)}${said.length === 0 ? '' : ` — ${said.join('; ')}`}`;
+    });
+    if (common.length === 0 && sets.some((set) => set.unfound !== undefined)) {
+      throw new FoundNothing([...lines, '', 'No file is in all of them.'].join('\n'));
+    }
+
+    return { common, sets, lines, page, spell };
+  };
+
   const tool: Tool<Subject> = {
     name: 'docs_intersection',
     description:
@@ -125,57 +176,22 @@ export function intersectionOf<Subject>(operands: readonly Tool<Subject>[]): Too
       saidQuestions(input).some(({ question, input: given }) =>
         operands.find((candidate) => verbOf(candidate) === question)?.wants?.(given) === true),
 
+    files: (subject, input, invocation) => {
+      const { common, sets } = cross(subject, input, invocation);
+      const unread = sets.flatMap((set, at) => (set.unread ?? []).map((note) => `${at + 1}: ${note}`));
+      return {
+        files: new Map(common.map((file) => [file, [...new Set(sets.flatMap((set) => set.files.get(file)!))].sort((a, b) => a - b)])),
+        qualifications: new Map(common.map((file) => [file, evidence(sets, file)])),
+        ...(unread.length === 0 ? {} : { unread }),
+      };
+    },
+
     run: (subject, input, invocation?: ToolInvocation<Subject>) => {
-      const spell = spellingOf(invocation);
-      const page = pageOf(input, SHOWN, spell);
-      const spelled = ({ question, input: given }: Question): string => spell.operand(question, given);
-      const questions = questionsOf(input);
-      // Every question is resolved before any is asked, so a misspelled third
-      // question costs nothing to refuse.
-      const asked = questions.map((question, at) => {
-        const operand = [...operands, tool].find((candidate) => verbOf(candidate) === question.question);
-        const which = `question ${at + 1}, \`${spelled(question)}\``;
-        if (operand === undefined) {
-          throw new Error(`${which}: \`${question.question}\` is not a question; the questions that answer a set of files: ${crossable()}`);
-        }
-        if (operand.files === undefined) {
-          throw new Error(`${which}: \`${question.question}\` answers no set of files; the questions that do: ${crossable()}`);
-        }
-        return { question, which, files: operand.files.bind(operand) };
-      });
-
-      // Every question is asked, so each one that found nothing is named.
-      const sets = asked.map(({ question, which, files }): Crossed => {
-        try {
-          return files(subject, question.input, invocation);
-        } catch (refusal) {
-          if (refusal instanceof FoundNothing) return { files: new Map(), unfound: refusal.message };
-          throw new Error(`${which}: ${refusal instanceof Error ? refusal.message : String(refusal)}`);
-        }
-      });
-
-      // Smallest first, so each step tests the fewest files.
-      const [first, ...rest] = [...sets].sort((left, right) => left.files.size - right.files.size);
-      const common = [...first!.files.keys()].filter((file) => rest.every((set) => set.files.has(file))).sort(codeUnitOrder);
-
-      const lines = questions.map((question, at) => {
-        const set = sets[at]!;
-        const said = [...(set.unfound === undefined ? [] : [set.unfound]), ...(set.unread ?? [])];
-        return `${at + 1}. \`${spelled(question)}\`: ${counted(set.files.size)}${said.length === 0 ? '' : ` — ${said.join('; ')}`}`;
-      });
-      if (common.length === 0) {
-        const none = [...lines, '', 'No file is in all of them.'].join('\n');
-        if (sets.some((set) => set.unfound !== undefined)) throw new FoundNothing(none);
-        return none;
-      }
+      const { common, sets, lines, page, spell } = cross(subject, input, invocation);
+      if (common.length === 0) return [...lines, '', 'No file is in all of them.'].join('\n');
 
       // The answer first, then the questions it crossed, then one row per file.
-      const rows = paged(common, page).map(
-        (file) => `${file} — ${sets.map((set, at) => {
-          const qualification = set.qualifications?.get(file);
-          return `${at + 1}: ${evidenceOf(set.files.get(file)!)}${qualification === undefined ? '' : ` (${qualification})`}`;
-        }).join(' · ')}`,
-      );
+      const rows = paged(common, page).map((file) => `${file} — ${evidence(sets, file)}`);
       return [`${counted(common.length)} in all of them:`, ...lines, ...pageAt(page, common.length, spell), ...rows, ...nextPage(page, common.length, spell)].join(
         '\n',
       );
