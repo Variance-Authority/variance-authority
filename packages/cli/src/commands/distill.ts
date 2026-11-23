@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { Relations } from '@variance-authority/core/relate';
-import { attentionOf, type JournalRow } from '@variance-authority/mcp/recorded-steps';
+import { parseJournalRow } from '@variance-authority/eyes/archive';
 import {
   distill,
   distillFile,
@@ -221,8 +221,8 @@ function withoutCoverage(paths: readonly string[]): OperatorError {
   );
 }
 
-function journalsOf(journals: readonly JournalRow[]): readonly EyesAttempt[] {
-  return journals.map((row) => ({ case: row.case, attempt: row.attempt, journal: attentionOf(row) }));
+function journalsOf(journals: NonNullable<ReturnType<typeof recordedEyesOf>>['journals']): readonly EyesAttempt[] {
+  return journals.map((row) => ({ case: row.case, attempt: row.attempt, journal: parseJournalRow(row) }));
 }
 
 /** A distillation's text, in the pieces {@link writePieces} writes as they come. */

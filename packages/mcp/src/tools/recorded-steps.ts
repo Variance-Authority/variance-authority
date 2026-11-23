@@ -11,7 +11,7 @@
 
 import { readFileSync } from 'node:fs';
 import type { EyesArchive } from '@variance-authority/eyes';
-import { createEyesArchive, parseEyesJournal } from '@variance-authority/eyes/archive';
+import { createEyesArchive, parseJournalRow } from '@variance-authority/eyes/archive';
 import { decodeExecutionIndex, recordedEyesOf } from '@variance-authority/sense/test-selection';
 import { RecordKeepsNoEyes } from '../record-keeps-no-eyes.js';
 import { stepLine } from './attention.js';
@@ -39,18 +39,12 @@ export function eyesArchiveOf(bytes: Uint8Array, record: string): EyesArchive {
       attempt: row.attempt,
       title: named?.name ?? row.case,
       ...(named?.file === undefined ? {} : { file: named.file }),
-      ...attentionOf(row),
+      ...parseJournalRow(row),
     };
   }), section.watched);
 }
 
-/** One journal row of a record's Eyes section, as `recordedEyesOf` reads it. */
-export type JournalRow = NonNullable<ReturnType<typeof recordedEyesOf>>['journals'][number];
-
-/** What one kept attempt recorded, parsed under the name an error gives it: the case and the attempt. */
-export function attentionOf(row: JournalRow): ReturnType<typeof parseEyesJournal> {
-  return parseEyesJournal(row.journal, `the Eyes journal of ${row.case}, attempt ${row.attempt}`);
-}
+type JournalRow = NonNullable<ReturnType<typeof recordedEyesOf>>['journals'][number];
 
 /** What one test's journal says it did, or why there is no journal to say it. */
 export type RecordedSteps =
@@ -85,7 +79,7 @@ export function recordedSteps(record: string, id: string): RecordedSteps {
     // A producer that names no watched case watched every one.
     return { unrecorded: section.watched === undefined || section.watched.includes(id) ? 'Eyes watched it and kept no journal' : 'Eyes did not watch it' };
   }
-  const journal = attentionOf(last);
+  const journal = parseJournalRow(last);
   return {
     steps: journal.attention.flatMap((entry) => stepLine(entry) ?? []),
     attempt: last.attempt,

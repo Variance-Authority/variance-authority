@@ -58,7 +58,7 @@ describe('formatTestClaims', () => {
   it('lists the last attempt\'s steps, sets structure apart, names what only this test enters and every region it passed by', () => {
     const steps = { steps: ['action fill on getByLabel(\'Email\')', 'assertion toBeVisible on getByRole(\'status\')'], attempt: 2, attempts: 2, partial: 'the page closed' };
 
-    expect(formatTestClaims(composition, ran, steps).split('\n')).toEqual([
+    expect(formatTestClaims(test, composition, ran, steps).split('\n')).toEqual([
       'e2e/signup.spec.ts  submits the form',
       '',
       'Claims:',
@@ -89,7 +89,7 @@ describe('formatTestClaims', () => {
   it('says Eyes recorded no step when the journal holds none, that it ran only structure, and that nothing was passed by', () => {
     const took = { ...ran, modules: [{ file: 'app/form.js', ownersNamed: true, regions: [region('function', 2, 20, true, 3, 'submit')] }] };
 
-    const answer = formatTestClaims(composition, took, { steps: [], attempt: 1, attempts: 1 });
+    const answer = formatTestClaims(test, composition, took, { steps: [], attempt: 1, attempts: 1 });
 
     expect(answer).toContain('\n  its steps and assertions: Eyes recorded none\n');
     expect(answer).toContain('\nRan, the functions it entered:\n  1 function, all structure, run by more than half of the 4 recorded tests\n');
@@ -100,7 +100,7 @@ describe('formatTestClaims', () => {
     // A record written before regions named their owners: the branch is in no function it can name, though `submit` holds it.
     const unowned = { ...ran, modules: [{ file: 'app/form.js', ownersNamed: false, regions: [region('function', 2, 20, true, 0, 'submit', true), region('branch', 4, 5, false, 0)] }] };
 
-    expect(formatTestClaims(composition, unowned, { steps: [], attempt: 1, attempts: 1 }).split('\n').slice(-2)).toEqual([
+    expect(formatTestClaims(test, composition, unowned, { steps: [], attempt: 1, attempts: 1 }).split('\n').slice(-2)).toEqual([
       'Passed by, the regions of the functions it entered that it did not take:',
       '  app/form.js: not known; the record names no owner for its regions, so which function holds each is not known',
     ]);

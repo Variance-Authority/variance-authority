@@ -1033,6 +1033,7 @@
         "createEyesArchive": "function",
         "parseEyesArchive": "function",
         "parseEyesJournal": "function",
+        "parseJournalRow": "function",
         "readEyesArchive": "function"
       }
     }
@@ -1592,9 +1593,7 @@
         "verbOf": "function"
       },
       "./recorded-steps": {
-        "JournalRow": "type",
         "RecordedSteps": "type",
-        "attentionOf": "function",
         "recordedSteps": "function"
       },
       "./protocol": {

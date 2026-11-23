@@ -10,7 +10,9 @@ its function is the nearest function up those owners. A record written before
 regions named their owners leaves the regions inside a function in none, and
 each module of a `testsRan` answer says in `ownersNamed` whether its record
 names them, so `docs_test_claims` says what a test passed by there is not
-known rather than that it passed by nothing.
+known rather than that it passed by nothing. On such a record `pathsThrough`,
+`forksBetween` and a composition's `own` and `reached` show its functions with
+no inner regions.
 `encodeAsSetExecutionIndex` takes those owners as its second argument.
 `pathsThrough`, `forksBetween`, `testsRan`, `docs_test_claims`, the `passedAt`
 of a story and `ask grep --test` read it.

@@ -39,7 +39,7 @@ export const testClaimsTool: Tool<unknown> = {
       const notRecorded = composition.notRecorded ?? suiteRan?.ran.notRecorded ?? undefined;
       if (notRecorded !== undefined) return { ...named, refused: notRecorded };
       if (suiteRan === undefined || test === undefined) return { ...named, refused: 'the recording names no test to read' };
-      return { ...named, answer: formatTestClaims(composition, suiteRan.ran, recordedSteps(suiteRan.recording, test.id)) };
+      return { ...named, answer: formatTestClaims(test, composition, suiteRan.ran, recordedSteps(suiteRan.recording, test.id)) };
     }));
   },
 };

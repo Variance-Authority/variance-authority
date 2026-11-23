@@ -59,6 +59,11 @@ export function parseEyesJournal(value: unknown, where = 'eyes journal'): EyesJo
   return checkedJournal(object(value, where), where);
 }
 
+/** One journal a record keeps beside the case and the attempt it is of, validated under their names. */
+export function parseJournalRow(row: { readonly case: string; readonly attempt: number; readonly journal: unknown }): EyesJournal {
+  return parseEyesJournal(row.journal, `the Eyes journal of ${row.case}, attempt ${row.attempt}`);
+}
+
 function checkedJournal(journal: Record<string, unknown>, where: string): EyesJournal {
   if (typeof journal['complete'] !== 'boolean') {
     throw new Error(`${where} complete must be boolean`);

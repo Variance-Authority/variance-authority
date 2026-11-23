@@ -21,9 +21,8 @@ const ROWS = 12;
 /** Steps listed before the rest are counted: the claims are what this answer is read for. */
 const STEPS = 40;
 
-/** One test's claims beside what it ran; both answers are read from the same recording, and neither is a refusal. */
-export function formatTestClaims(composition: TestComposition, ran: TestRan, steps: RecordedSteps): string {
-  const test = composition.test ?? { file: '', name: '', blocks: 0 };
+/** The claims of `test` beside what it ran; both answers are read from the same recording, and neither is a refusal. */
+export function formatTestClaims(test: JourneyCase, composition: TestComposition, ran: TestRan, steps: RecordedSteps): string {
   return [
     `${test.file}  ${test.name}`,
     '',

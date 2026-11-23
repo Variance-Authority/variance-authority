@@ -21,10 +21,11 @@ test's name against what it ran, then choose one of five actions, from `keep` to
 
 `recordedSteps` from the new `@variance-authority/mcp/recorded-steps` entry
 reads one recorded case's steps and assertions from a record, by the case's id,
-in the same form `variance_test_attention` prints them; `attentionOf` from the
-same entry parses one journal row of a record's Eyes section. Each suite `testsRan`
+in the same form `variance_test_attention` prints them. Each suite `testsRan`
 returns now names the `recording` it was read from. Each case a journey answer
 names carries its `id`, and each region `testsRan` returns says whether it is
 `structure` and whether the test entered the function it is written in
 (`functionEntered`). `createEyesArchive` is exported from `@variance-authority/eyes/archive`
-too, for a reader that has no use for the root's React tap.
+too, for a reader that has no use for the root's React tap, beside
+`parseJournalRow`, which validates one journal a record keeps, named by its
+case and attempt.
