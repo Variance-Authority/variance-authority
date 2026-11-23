@@ -1,11 +1,9 @@
 import { dirname, join, resolve } from 'node:path';
 import type { RunReport } from '@variance-authority/report';
-import { VANTAGE_VARIABLE } from '@variance-authority/vantage';
 import type { VantageReading } from '@variance-authority/vantage/attach';
 import type { Unknown } from '../args.js';
 import type { Crossing } from '../ask-args.js';
 import { OperatorError } from '../exit.js';
-import { readClaims } from './adjudicate.js';
 import { argumentsOf, ignored, inputFor, invocationOf, questionFor, wordless, type Question } from './asking.js';
 import { foundNothingAnswer, readWorkspaceForAnswer, refusalFooter, snapshotLine, unopenedLine } from '@variance-authority/help';
 import { containment, discover, intersection, RECORDED, search, type Help } from '@variance-authority/help/tools';
@@ -18,9 +16,7 @@ import { intersectionInput } from './ask-intersection.js';
 import { ASKED, record, recorded } from './ask-previous.js';
 import { questions } from './ask-questions.js';
 import { type Answering, containmentSource, discoverSource, intersectionSource, readChanged, readSource, readTaint, rootedSource, searchSource, wholeSource } from './ask-source.js';
-import { readingFor } from './report-source.js';
 import type { Here } from './share.js';
-import { readVantage } from './watch.js';
 
 /**
  * `variance ask` — every answer `variance serve` gives an agent, with no agent
@@ -227,7 +223,7 @@ export async function ask(request: AskRequest): Promise<string> {
   const unknown = question.report === undefined ? wordless(question.tool, request.unknown, request.reports) : request.unknown ?? [];
 
   const input = await inputFrom(question, { ...request, unknown }, ignore);
-  if (request.at !== undefined && question.live !== undefined) unread(question, request.at, request.reports);
+  if (request.at !== undefined && question.live !== undefined) await unread(question, request.at, request.reports);
 
   const answer =
     request.at !== undefined && question.live !== undefined
@@ -351,7 +347,7 @@ async function live(
 ): Promise<string> {
   // The watcher rotates its own previous reading as it hands this one over, so
   // there is nothing to record here and nothing left behind when this exits.
-  const reading = await (request.look ?? readVantage)(at);
+  const reading = await (request.look ?? (await import('./watch.js')).readVantage)(at);
   // `file` is a path, and a terminal, unlike the watcher, has a directory `./x` is read from.
   const file = input['file'];
   const asked = typeof file === 'string' && file !== '' ? { ...input, file: resolve(file) } : input;
@@ -371,11 +367,11 @@ async function finished(
   input: Readonly<Record<string, unknown>>,
 ): Promise<string> {
   const tool = question.report;
-  if (tool === undefined) throw noWatcher(question);
+  if (tool === undefined) throw await noWatcher(question);
 
   // Read first: a report fetched from the share keeps its subject beside the
   // fetched copy, never beside `config.report`, where it would outlive nothing.
-  const { report, path, says } = await readingFor(request, input);
+  const { report, path, says } = await (await import('./report-source.js')).readingFor(request, input);
   const asked = join(dirname(path), ASKED);
   const previous = await recorded(asked);
   // A path is a fact about a tree, and this is the one side of the product that
@@ -415,7 +411,8 @@ async function sourceTree(): Promise<Tree | undefined> {
  * have been started before the suite was, and a reader who has only ever asked
  * about reports has no reason to expect it.
  */
-function noWatcher(question: Question): OperatorError {
+async function noWatcher(question: Question): Promise<OperatorError> {
+  const { VANTAGE_VARIABLE } = await import('@variance-authority/vantage');
   return new OperatorError(
     `\`${verbOf(question.tool)}\` is about a suite or an application that is still running, and needs a ` +
       'watcher to ask. Start one with `variance watch`, start what it watches with the ' +
@@ -429,9 +426,10 @@ function noWatcher(question: Question): OperatorError {
  * also reads a finished run — `diff`, which would read the word as a report
  * without the watcher — so the refusal says the watcher is why it went unread.
  */
-function unread(question: Question, at: string, reports: readonly string[] | undefined): void {
+async function unread(question: Question, at: string, reports: readonly string[] | undefined): Promise<void> {
   const word = reports?.[0];
   if (word === undefined) return;
+  const { VANTAGE_VARIABLE } = await import('@variance-authority/vantage');
   throw new OperatorError(
     `\`${word}\` is a report, and \`variance ask ${verbOf(question.tool)}\` was asked of the ` +
       `watcher at \`${at}\`, which reads none. Ask without \`--at\`, and without ` +
@@ -455,7 +453,7 @@ async function inputFrom(
       // takes it: elsewhere it is a flag answered past, and its path is never read.
       claims: request.claims === undefined || !argumentsOf(question.tool).some((argument) => argument.property === 'claims')
         ? request.claims
-        : await readClaims(request.claims),
+        : await (await import('./adjudicate.js')).readClaims(request.claims),
     },
     ignore,
     request.unknown,
