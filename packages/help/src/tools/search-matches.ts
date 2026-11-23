@@ -243,3 +243,6 @@ export interface Searched {
   /** The entries and barrels that publish the rows counted; absent when none was. */
   readonly publishing?: ReadonlySet<string>;
 }
+
+/** Register a deferred visit of already matched coordinates, before any display cap. */
+export type MatchingFiles = (visit: (file: (at: string, line?: number) => void) => void) => void;

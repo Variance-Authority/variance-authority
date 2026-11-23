@@ -20,7 +20,7 @@
 
 import { aliasesOf, declaredOf, type DeclaredName } from '@variance-authority/sense';
 import type { Said } from './held-sentence.js';
-import type { AliasMatch, DeclaredMatch, DeclaredRead, HeldMatch, Matches } from './search-matches.js';
+import type { AliasMatch, DeclaredMatch, DeclaredRead, HeldMatch, Matches, MatchingFiles } from './search-matches.js';
 import { boundOf, SLOT } from './declaration-key.js';
 import { isUnnamedContainer } from './members.js';
 import { sharedSegments } from './shared-segments.js';
@@ -254,7 +254,7 @@ export function declaredMatches(
   files: Iterable<string> | undefined,
   cap: number,
   told: (one: DeclaredRead) => DeclaredMatch,
-  file?: (at: string, line?: number) => void,
+  filesOf?: MatchingFiles,
 ): { readonly declared: Matches<DeclaredMatch> & { readonly unread: readonly string[] }; readonly held: readonly HeldMatch[]; readonly exact: number } | undefined {
   const read = declarations(root, query, files === undefined ? { containing: true } : { containing: true, files });
   if ('refused' in read) return undefined;
@@ -265,7 +265,7 @@ export function declaredMatches(
   const names = [...read.names].sort((left, right) => written(left) - written(right));
   const top = names.filter((one) => !isNested(one) && !isMember(one));
   const held = names.filter((one) => isNested(one) || isMember(one));
-  if (file !== undefined) for (const one of top) file(one.at, one.line);
+  filesOf?.((file) => { for (const one of top) file(one.at, one.line); });
   return {
     declared: { total: top.length, shown: top.slice(0, cap).map(declaredMatch).map(told), unread: read.unread },
     held: held.map(heldMatch),

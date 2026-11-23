@@ -323,3 +323,5 @@ export { runGraphOf, type RunGraphOptions } from './taint/graph.js';
 export { shadowReach, type ShadowReach } from './taint/reach.js';
 export { auditTaints, type TaintAuditOptions, type TaintDeviation, type TaintDeviationKind } from './taint/audit.js';
 export { rarityNative, saturationNative } from './rarity.js';
+
+export { questionIdentity } from './help-question.js';

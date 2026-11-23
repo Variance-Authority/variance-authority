@@ -2,20 +2,19 @@ import type { FileSet, Spelling, Tool, ToolInvocation, Tree } from '@variance-au
 import { limitOf, notShownPast, START_POINT_SCHEMA, saysStartPoint, spellingOf, startPointArg, stringArg } from '@variance-authority/mcp/tools';
 import type { Help } from '@variance-authority/package/help';
 import type { SearchIndex } from '../search-index.js';
-import { searchIndexOf } from '../snapshot.js';
 import { areaLine } from './area.js';
 import { describedLine, thirdLine, thirdScope } from './third-party.js';
 import type { Matches, Searched, SearchQuestion } from './search-matches.js';
 import { aliasLine, declaredLine, heldLine, unreadLine } from './declared.js';
 import { casesUnder, describedRow, exportedLine, isPublished, matchLine, publishedLine, testLine } from './search-rows.js';
 import { unreadStop } from './members.js';
-import { CAP, ELSEWHERE_CAP, LOOSE_CAP, NEAR_CAP, searched, searchedFiles } from './search-answer.js';
-import { type ImportingOf, importingOf } from './published-match.js';
-import { declarationLookupsOf } from './declaration-key.js';
+import { CAP, ELSEWHERE_CAP, LOOSE_CAP, NEAR_CAP, searched } from './search-answer.js';
+import type { ImportingOf } from './published-match.js';
 import type { DeclarationLookups } from './exported-matches.js';
 import { named } from './format.js';
 import { orient } from './orient.js';
 import { symbol } from './symbol.js';
+import { searchReading, renderedFiles } from './search-reading.js';
 
 /**
  * `docs_search` — the name for a thing somebody can only describe.
@@ -418,27 +417,13 @@ export const search: Tool<Help> = {
   wants: saysStartPoint,
 
   run: (help, input, invocation) =>
-    spoken(searchedOnce(help, input, invocation), searchQuestionOf(input, spellingOf(invocation)), invocation?.root, spellingOf(invocation)),
+    spoken(searchReading(help, searchQuestionOf(input, spellingOf(invocation)), invocation).read(), searchQuestionOf(input, spellingOf(invocation)), invocation?.root, spellingOf(invocation)),
 
   // The file set is the files that matched, every file exporting a name, and
   // walks no declaration: one outside an area is the row's to name, not the set's.
   files: (help, input, invocation): FileSet =>
-    searchedFiles(searchIndexOf(help), searchQuestionOf(input, spellingOf(invocation)), invocation?.tree, invocation?.root),
+    searchReading(help, searchQuestionOf(input, spellingOf(invocation)), invocation).files(),
 };
-
-/** The last search of each generation, and what it was asked. */
-const lastSearched = new WeakMap<Help, { readonly asked: string; readonly tree: Tree | undefined; readonly found: Searched }>();
-
-/** One search for an answer and the look at its files, which asks the same of the same generation just after it. */
-function searchedOnce(help: Help, input: Readonly<Record<string, unknown>>, invocation: ToolInvocation<Help> | undefined): Searched {
-  const question = searchQuestionOf(input, spellingOf(invocation));
-  const asked = JSON.stringify([question, invocation?.root]);
-  const last = lastSearched.get(help);
-  if (last?.asked === asked && last.tree === invocation?.tree) return last.found;
-  const found = searched(searchIndexOf(help), question, invocation?.tree, invocation?.root, importingOf(help, invocation?.root), declarationLookupsOf(help, invocation?.root));
-  lastSearched.set(help, { asked, tree: invocation?.tree, found });
-  return found;
-}
 
 /**
  * The files of the rows `run` prints, and the entries and barrels that make a
@@ -449,7 +434,5 @@ function searchedOnce(help: Help, input: Readonly<Record<string, unknown>>, invo
  * so a test file gone since then says nothing about the generation's age.
  */
 export function printedFiles(help: Help, input: Readonly<Record<string, unknown>>, invocation?: ToolInvocation<Help>): ReadonlySet<string> {
-  const { answer, publishing = [] } = searchedOnce(help, input, invocation);
-  const sections: readonly (Matches<{ readonly at: string }> | undefined)[] = [answer.published, answer.exported, answer.declared, answer.held, answer.aliases, answer.loose, answer.described];
-  return new Set([...sections.flatMap((section) => section?.shown.map((row) => row.at) ?? []), ...publishing]);
+  return renderedFiles(help, searchQuestionOf(input, spellingOf(invocation)), invocation);
 }

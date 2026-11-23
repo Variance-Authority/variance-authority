@@ -13,6 +13,8 @@
 // compass: variance-authority.report.agent-surface
 
 import { native, nativeRefusal } from './addon.js';
+import { onQuestionIndex, type OpenedIndex } from './help-question.js';
+export { asOneQuestion, type OpenedIndex } from './help-question.js';
 import type { NativeAsked, NativeImporters, NativeIndexedUsage } from './native-orient.js';
 import type { ClassifiedAreas } from './classified-areas.js';
 import type { ClassifiedNames } from './classify-names.js';
@@ -293,46 +295,9 @@ export function entry<Name extends keyof NativeHelp>(name: Name): NonNullable<Na
   return (call as (...args: never[]) => unknown).bind(scanner) as NonNullable<NativeHelp[Name]>;
 }
 
-/** The source index the addon read and checked once for one question; `close` lets its bytes go. */
-export interface OpenedIndex {
-  close(): void;
-}
-
-/** The indexes the running question opened, by path; `undefined` outside one. */
-let question: Map<string, OpenedIndex> | undefined;
-
-/**
- * `ask`, run as one question: each source index the readers here ask during it
- * is read and checked the first time one asks, held while `ask` runs, and closed
- * when it returns. Reading the chain is most of what one reader costs, and an
- * answer about a name declared in ten files asks ten times. Nothing is held
- * between questions, so a question never answers from a chain an index
- * replaced before it began. `ask` is synchronous: no other question can run
- * inside it, and a question asked within it is part of it.
- */
-export function asOneQuestion<T>(ask: () => T): T {
-  if (question !== undefined) return ask();
-  const held = new Map<string, OpenedIndex>();
-  question = held;
-  try {
-    return ask();
-  } finally {
-    question = undefined;
-    for (const opened of held.values()) opened.close();
-  }
-}
-
 /** `read` over the index at `index` as the running question holds it, or as a question of its own. */
 export function onIndex<T>(index: string, read: (opened: OpenedIndex) => T): T {
-  return asOneQuestion(() => {
-    const held = question!;
-    let opened = held.get(index);
-    if (opened === undefined) {
-      opened = entry('openIndex')(index);
-      held.set(index, opened);
-    }
-    return read(opened);
-  });
+  return onQuestionIndex(index, () => entry('openIndex')(index), read);
 }
 
 /**
