@@ -28,6 +28,8 @@ async function run(argv: readonly string[]): Promise<{ code: number; out: string
   return { code, out, err };
 }
 
+const MANY = Array.from({ length: 21 }, (_, at) => `f${String(at).padStart(2, '0')}`);
+
 const SOURCES: Record<string, string> = {
   'src/total.mjs': 'export function total(a, b) {\n  return a + b;\n}\n',
   'src/log.mjs': 'export const log = (line) => {\n  globalThis.lines = [...(globalThis.lines ?? []), line];\n};\n',
@@ -38,6 +40,9 @@ const SOURCES: Record<string, string> = {
   'test/broken.check.mjs': 'process.exit(1);\n',
   // A test that waits on `ready`: emptied, it never returns true.
   'test/wait.check.mjs': "import { ready } from '../src/ready.mjs';\nwhile (!ready()) {}\n",
+  // One more function than one ask breaks, each on its own line, and a test that calls them all.
+  'src/many.mjs': MANY.map((name) => `export function ${name}() {}\n`).join(''),
+  'test/many.check.mjs': `import * as many from '../src/many.mjs';\n${MANY.map((name) => `many.${name}();\n`).join('')}`,
 };
 
 describe('variance proves', () => {
@@ -88,6 +93,15 @@ describe('variance proves', () => {
     ]);
   });
 
+  it('breaks no more than its cap of regions, and counts the ones past it', async () => {
+    await recorded();
+
+    const answered = await run(['proves', '--file', 'test/many.check.mjs', '--name', 'calls', '--', process.execPath, 'test/many.check.mjs']);
+
+    expect([answered.code, answered.err]).toEqual([EXIT_CLEAN, '']);
+    expect(answered.out).toContain('  src/many.mjs:20  function f19  returns nothing\n\nNot broken:\n  1 more region past the cap of 20, fewest other tests first: ask about a narrower test to reach them\n');
+  });
+
   it('refuses a checkout whose configuration names a cache root, which the runs would record into', async () => {
     const root = await recorded({ 'variance.config.json': JSON.stringify({ cacheRoot: '.variance/cache' }) });
     const before = snapshot(root);
@@ -128,7 +142,7 @@ function snapshot(root: string): Record<string, string> {
 /**
  * A checkout holding three functions, committed and recorded at that commit:
  * `adds` entered `total` and `log`, `adds again` entered `total` too, and
- * `waits` entered `ready`. `extra` files are written beside them first.
+ * `waits` entered `ready`, and `calls` entered each of `MANY`. `extra` files are written beside them first.
  */
 async function recorded(extra: Readonly<Record<string, string>> = {}): Promise<string> {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'va-proves-')));
@@ -142,21 +156,23 @@ async function recorded(extra: Readonly<Record<string, string>> = {}): Promise<s
   git('-c', 'user.name=fixture', '-c', 'user.email=fixture@example.com', 'commit', '--quiet', '-m', 'recorded');
   process.chdir(root);
   const at = testCoverageFile(root);
-  const files = ['test/total.check.mjs', 'test/other.check.mjs', 'test/wait.check.mjs'];
+  const files = ['test/total.check.mjs', 'test/other.check.mjs', 'test/wait.check.mjs', 'test/many.check.mjs'];
   const tests = [
     { id: 'a', file: files[0] ?? '', name: 'adds' },
     { id: 'o', file: files[1] ?? '', name: 'adds again' },
     { id: 'w', file: files[2] ?? '', name: 'waits' },
+    { id: 'm', file: files[3] ?? '', name: 'calls' },
   ];
   const fileOf = (test: number) => tests[test]?.file ?? '';
   const region = (kind: string, name: string, startLine: number, endLine: number, entered: readonly number[]) => ({ kind, name, path: 'entry', startLine, endLine, source: true, entered });
   const modules = [
     { file: 'src/log.mjs', regions: [region('function', 'log', 1, 3, [0])] },
+    { file: 'src/many.mjs', regions: MANY.map((name, at) => region('function', name, at + 1, at + 1, [3])) },
     { file: 'src/ready.mjs', regions: [region('function', 'ready', 1, 3, [2])] },
     { file: 'src/total.mjs', regions: [region('function', 'total', 1, 3, [0, 1])] },
   ];
   const none = 0xffffffff;
-  const owners = modules.map(() => Uint32Array.from([none]));
+  const owners = modules.map(({ regions }) => Uint32Array.from(regions, () => none));
   await writeTestCoverage(at, {
     version: 3,
     instrumentation: 'fixture-instrumentation',

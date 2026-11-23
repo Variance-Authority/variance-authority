@@ -333,7 +333,7 @@ variance proves --file e2e/signup.spec.ts --name 'retries a failed post' -- <com
 
 With `<command>` the command that runs that one test, it breaks each region the
 record says the test entered, one at a time, fewest other tests first, up to
-`--limit` (20): a function returns nothing, a branch, continuation or handler
+20: a function returns nothing, a branch, continuation or handler
 is skipped. The break is served to the processes the command starts, so
 nothing in the checkout is written and the record stays as it was. A command
 that fails with nothing broken is refused, and so is a checkout whose
