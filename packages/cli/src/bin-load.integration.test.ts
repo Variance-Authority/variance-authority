@@ -75,6 +75,9 @@ async function packagesLoaded(args: readonly string[], config?: object, indexed 
 /** Packages that hold pixels, Storybook, MCP, history or the help, none of which these commands call. */
 const UNCALLED = ['help', 'history', 'mcp', 'observe', 'png', 'pngjs', 'remote', 'renderer', 'storybook'];
 
+/** Packages a question about names never calls: the pictures a report is drawn from. */
+const NOT_ASKED = ['raster'];
+
 describe('what the program loads before it answers', () => {
   it.each([['--version'], ['--help'], ['index', '--no-git'], ['select', '--format', 'vitest']])('loads no pixel, Storybook, MCP, history or help package for `%s`', async (...args) => {
     const loaded = await packagesLoaded(args);
@@ -82,17 +85,12 @@ describe('what the program loads before it answers', () => {
     expect(loaded.filter((name) => UNCALLED.includes(name))).toEqual([]);
   });
 
-  // A question about names reads the source index, never a pixel: a half-built `png` or `observe`
-  // dist must not stop it. In this empty, indexed checkout nothing declares the name, which is an answer, so the run exits 0.
-  it.each([['ask', 'uses', '--name', 'x'], ['ask', 'symbol', '--name', 'x']])('loads no pixel package for `%s %s %s %s`', async (...args) => {
+  // A question about names reads the source index, never a pixel: a half-built `png` or
+  // `observe` dist must not stop it, and every `ask` an agent runs pays for what it loads. In this empty, indexed checkout nothing declares the name, which is an answer, so the run exits 0.
+  it.each([['ask', 'uses', '--name', 'x'], ['ask', 'symbol', '--name', 'x'], ['ask', 'search', '--query', 'x']])('loads only what a name question calls for `%s %s %s %s`', async (...args) => {
     const loaded = await packagesLoaded(args, undefined, true);
     expect(loaded).toContain('cli');
-    expect(loaded.filter((name) => ['observe', 'png', 'pngjs', 'renderer', 'storybook'].includes(name))).toEqual([]);
-  });
-
-  it('loads no pixel package for `ask search --query x`', async () => {
-    const loaded = await packagesLoaded(['ask', 'search', '--query', 'x'], undefined, true);
-    expect(loaded.filter((name) => ['observe', 'png', 'pngjs', 'renderer', 'storybook'].includes(name))).toEqual([]);
+    expect(loaded.filter((name) => [...NOT_ASKED, 'observe', 'png', 'pngjs', 'renderer', 'storybook'].includes(name))).toEqual([]);
   });
 
   // `ci-info` is read before any command, to know whether the program may leave work running; the

@@ -5,7 +5,6 @@ import type { VantageReading } from '@variance-authority/vantage/attach';
 import type { Unknown } from '../args.js';
 import type { Crossing } from '../ask-args.js';
 import { OperatorError } from '../exit.js';
-import { readClaims } from './adjudicate.js';
 import { argumentsOf, ignored, inputFor, invocationOf, questionFor, wordless, type Question } from './asking.js';
 import { foundNothingAnswer, readWorkspaceForAnswer, refusalFooter, snapshotLine, unopenedLine } from '@variance-authority/help';
 import { containment, discover, intersection, RECORDED, search, type Help } from '@variance-authority/help/tools';
@@ -18,9 +17,7 @@ import { intersectionInput } from './ask-intersection.js';
 import { ASKED, record, recorded } from './ask-previous.js';
 import { questions } from './ask-questions.js';
 import { type Answering, containmentSource, discoverSource, intersectionSource, readChanged, readSource, readTaint, rootedSource, searchSource, wholeSource } from './ask-source.js';
-import { readingFor } from './report-source.js';
 import type { Here } from './share.js';
-import { readVantage } from './watch.js';
 
 /**
  * `variance ask` — every answer `variance serve` gives an agent, with no agent
@@ -351,7 +348,7 @@ async function live(
 ): Promise<string> {
   // The watcher rotates its own previous reading as it hands this one over, so
   // there is nothing to record here and nothing left behind when this exits.
-  const reading = await (request.look ?? readVantage)(at);
+  const reading = await (request.look ?? (await import('./watch.js')).readVantage)(at);
   // `file` is a path, and a terminal, unlike the watcher, has a directory `./x` is read from.
   const file = input['file'];
   const asked = typeof file === 'string' && file !== '' ? { ...input, file: resolve(file) } : input;
@@ -375,7 +372,7 @@ async function finished(
 
   // Read first: a report fetched from the share keeps its subject beside the
   // fetched copy, never beside `config.report`, where it would outlive nothing.
-  const { report, path, says } = await readingFor(request, input);
+  const { report, path, says } = await (await import('./report-source.js')).readingFor(request, input);
   const asked = join(dirname(path), ASKED);
   const previous = await recorded(asked);
   // A path is a fact about a tree, and this is the one side of the product that
@@ -455,7 +452,7 @@ async function inputFrom(
       // takes it: elsewhere it is a flag answered past, and its path is never read.
       claims: request.claims === undefined || !argumentsOf(question.tool).some((argument) => argument.property === 'claims')
         ? request.claims
-        : await readClaims(request.claims),
+        : await (await import('./adjudicate.js')).readClaims(request.claims),
     },
     ignore,
     request.unknown,
