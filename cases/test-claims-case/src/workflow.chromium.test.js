@@ -37,8 +37,8 @@ const live = READY ? describe : describe.skip;
 if (!READY) {
   unbuilt(
     '\ncases/test-claims-case: skipped.' +
-      (BROWSER_AVAILABLE ? '' : '\n  no browser — npx playwright install chromium') +
-      (existsSync(CLI) ? '' : '\n  the CLI is not built — yarn build') +
+      (BROWSER_AVAILABLE ? '' : '\n  no browser — install Playwright\'s Chromium') +
+      (existsSync(CLI) ? '' : '\n  the CLI is not built — build the repository first') +
       '\n',
   );
 }

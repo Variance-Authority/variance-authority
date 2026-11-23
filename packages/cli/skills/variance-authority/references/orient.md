@@ -12,6 +12,7 @@ the answer. Run them from the checkout you are asking about.
 | files from a stack trace, a ticket, your editor or a search | `orient --files <path>[:<line>][,...]` |
 | one file, and the words of a task | `journey-map --file <path> --query <words>` |
 | one test, and the question of what only it runs | `test-composition --file <test> --name <words>` |
+| one test, and the question of whether it does what its name says | `test-claims --file <test> --name <words>` |
 | one test, and a text it may have run, such as an error message | `grep --query <pattern> --test <file> --name <words>` |
 | a history, and the question of how far its commits reached | `containment`, with `--after <date>` for another window than the last two weeks |
 | a place, and the question of what it may import | `stack --from <path>` |
@@ -97,6 +98,30 @@ inferred from what each test ran: a piece runs the same code, which does not
 establish that it checks the same thing, so a test with neither may still check
 something its pieces do not. It reads execution: a mocked module is entered by
 nobody, so a test that mocks its pieces lists none.
+
+## `test-claims`
+
+One test beside what its name says, in four parts read from one recording.
+`--name` chooses the test as `test-composition` does, and a checkout with
+several suites answers once per suite that recorded it.
+
+- `Claims`: its name, then each step and assertion its Eyes journal recorded,
+  from its last attempt, with `not.` kept on a negated assertion. A run with
+  no Eyes journal is named as not recorded, never as a test with no assertion.
+  A journal the page closed on before the test finished says where it stops.
+- `Ran`: the functions it entered, a row per file, an anonymous one by its
+  lines. Functions more than half the suite entered are structure, counted on
+  one line.
+- `Adds`: the tests that entered exactly the same regions, its pieces and
+  wholes as `test-composition` defines them, and every region no other test
+  entered.
+- `Passed by`: each branch it did not take inside a function it entered, with
+  the number of other tests that take it and the smallest of them, or `no test
+  takes it`.
+
+Each part lists twelve rows and counts the rest; the steps list forty. Every
+part is execution: a test that takes a branch runs it, which does not establish
+that it checks what the branch does.
 
 ## `grep --test`
 

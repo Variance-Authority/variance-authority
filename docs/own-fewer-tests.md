@@ -218,6 +218,78 @@ assertion about the order. For one candidate test read on its own rather than
 against its pieces, [Distill](distill.md) separates what it loaded, covered and
 addressed.
 
+## Ask whether a test does what its name says
+
+A test named *retries a failed post* passes. A coverage report shows that
+`post` ran, but not whether this test ran its retry, or whether any test did.
+`variance ask test-claims` sets one test's name, and the steps and assertions
+it made, beside what the recording has for it: the functions it ran, the tests
+that ran the same code, and the branches it did not take. The steps come from
+the [Eyes](eyes.md) journal the run kept; a Playwright suite keeps one when it
+adds the Eyes fixtures beside the recorder's.
+
+```bash
+variance ask test-claims --file src/spec/signup.spec.mjs --name 'retries a failed post'
+```
+
+```text
+src/spec/signup.spec.mjs  signup > retries a failed post
+
+Claims:
+  its name: signup > retries a failed post
+  its steps and assertions:
+    action fill on locator("#name")
+    action fill on locator("#email")
+    action fill on locator("#surname")
+    action click on getByRole("button", {"name":"Sign up"})
+    assertion to.have.text on getByRole("status")
+
+Ran, the functions it entered:
+  src/app/http.js  transport, post, track
+  src/app/session.js  userId
+  and 7 functions of structure, run by more than half of the 8 recorded tests
+
+Adds:
+  executes exactly what 1 other test executes:
+    src/spec/signup.spec.mjs  signup > submits the form
+  pieces, smaller tests inside it: src/spec/signup.spec.mjs  signup > submits as a guest
+  wholes, larger tests holding it: none
+  only this test enters: nothing
+
+Passed by, the branches of the functions it entered that it did not take:
+  src/app/form.js:17  branch in submit/some.arg0  taken by 2 other tests, the smallest src/spec/signup.spec.mjs  signup > rejects an invalid email
+  src/app/http.js:5-8  branch in transport  no test takes it
+  src/app/http.js:18  branch in post  no test takes it
+  src/app/session.js:4  branch in userId  taken by 1 other test: src/spec/signup.spec.mjs  signup > submits as a guest
+  src/app/validate.js:3  branch in validate  taken by 1 other test: src/spec/signup.spec.mjs  signup > shows an error for a missing name
+  src/app/validate.js:4  branch in validate  taken by 1 other test: src/spec/signup.spec.mjs  signup > rejects an invalid email
+```
+
+Read it from the name down. The name promises a retry. Each row of **Passed
+by** names the function its branch is in, and `post` is the function that tries
+again: its branch at `src/app/http.js:18` is the retry, and `no test takes it`.
+The test passes without the post failing once. Its steps are the steps of
+*submits the form*, and the two tests ran exactly the same code. The suite has
+two tests of a submit and no test of a retry.
+
+**Passed by** lists each branch the test did not take inside a function it ran,
+with the smallest test that takes it. **Ran** and **Adds** count structure
+apart, and name pieces and wholes, as [composition](#ask-what-one-test-is-made-of)
+does; tests that ran exactly the same code are neither, and are listed first.
+Without an Eyes journal, the answer says the steps are not recorded, and the
+other three parts are unchanged.
+
+The answer points to one of three changes. Make the post fail once and assert
+the retry, so that the name is true. Rename the test, if the submit is all its
+author meant it to check. Or delete one of the two tests, if both names mean
+the same. The `variance-testing` skill shipped with the CLI gives an agent the
+order to judge these in.
+
+Every part is execution. A test that takes a branch runs it, which does not
+establish that it checks what the branch does. Before a deletion, break the
+line the name promises and run the test beside the tests next to it: a test
+that alone fails checks something they do not.
+
 ## Ask which code only distant tests run
 
 Split a component into three files and change no test, then move two of the
