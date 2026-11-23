@@ -2,7 +2,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { parseEyesArchive, parseEyesJournal, readEyesArchive } from './archive.js';
+import { parseEyesArchive, parseEyesJournal, parseJournalRow, readEyesArchive } from './archive.js';
 
 describe('portable Eyes evidence', () => {
   it('validates phase-bearing test attention from JSON', () => {
@@ -177,5 +177,11 @@ describe('portable Eyes evidence', () => {
       .toThrow('journal complete must be boolean');
     expect(() => parseEyesJournal({ complete: true, attention: {} }, 'journal'))
       .toThrow('journal attention must be an array');
+  });
+
+  it('names the case and the attempt of a kept journal it refuses', () => {
+    expect(parseJournalRow({ case: 'chromium', attempt: 2, journal: { complete: true, attention: [] } })).toEqual({ complete: true, attention: [] });
+    expect(() => parseJournalRow({ case: 'chromium', attempt: 2, journal: { complete: 'yes', attention: [] } }))
+      .toThrow('the Eyes journal of chromium, attempt 2 complete must be boolean');
   });
 });
