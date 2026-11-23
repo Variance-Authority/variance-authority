@@ -145,6 +145,8 @@ its own probes handed back with none in it, carry the same mark.
   module for the transform and the join: `planModule` decides from `include`
   and `unprobed` whether a module is probed, marked or skipped, and
   `markedId`/`markUnplaced` write the `path@~digest` mark
+- `packages/sense/src/test-selection/collector-import.ts` — the collector import the plugin
+  appends, and its removal for a stand-in for a build with no bundler
 - `packages/sense/src/test-selection/probes.ts` — the build-side plugin: probes in, inventory out
 - `packages/sense/src/test-selection/source-lines.ts` — transformed offsets back to authored lines
 - `packages/sense/src/test-selection/instrumented-modules.ts` — the inventory as

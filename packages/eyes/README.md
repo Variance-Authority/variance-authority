@@ -280,7 +280,8 @@ browser agent as an init script, so the React commit tap is in place before page
 code loads — the Playwright path needs no equivalent of the RTL hook step.
 
 `parseEyesJournal` from `@variance-authority/eyes/archive` validates a journal
-before it crosses a process boundary. `bundleEyesAgent` is exported for custom
+before it crosses a process boundary, and `parseJournalRow` validates one a
+record keeps, named by its case and attempt. `bundleEyesAgent` is exported for custom
 fixture authors; the standard fixture reads and installs that same bundle.
 
 ## One journal per attempt

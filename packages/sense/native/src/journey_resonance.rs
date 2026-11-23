@@ -4,6 +4,8 @@
 //! entered the function written at its line. Each is scored by Ochiai, the
 //! cases they share over the geometric mean of both counts, so a function every
 //! case enters does not outrank one only the line's cases enter.
+//! A record that names no owners leaves a one-line guard in no function, so
+//! a line it holds is refused when its cases and its function's differ.
 //!
 //! The source index names the declarations; the recording only orders them.
 
@@ -13,7 +15,7 @@ use std::collections::HashSet;
 
 use napi_derive::napi;
 
-use crate::journey_masks::JourneyMasks;
+use crate::journey_masks::{JourneyMasks, Shape};
 
 #[napi(object)]
 pub struct Resonant {
@@ -75,6 +77,9 @@ pub(crate) fn resonate(masks: &mut JourneyMasks, file: &str, line: u32, candidat
     if innermost.is_empty() {
         return Ok(refused(format!("no recorded function holds {file}:{line}")));
     }
+    if let Some(refusal) = unplaced(masks, file, line, &innermost)? {
+        return Ok(refused(refusal));
+    }
     let mut ran: HashSet<u32> = HashSet::new();
     for at in innermost {
         ran.extend(masks.entered(at)?.iter().copied());
@@ -89,6 +94,34 @@ pub(crate) fn resonate(masks: &mut JourneyMasks, file: &str, line: u32, candidat
     }
     resonant.sort_by(|a, b| b.score.total_cmp(&a.score));
     Ok(Resonance { not_recorded: None, cases: ran.len() as u32, resonant })
+}
+
+/// Why the line's cases are not known, when they are not: a record that names
+/// no owners leaves a region of a function's own lines in no function, so a
+/// one-line guard and its function are both innermost, and when their cases
+/// differ the line's cases are one or the other, which the record cannot say.
+fn unplaced(masks: &mut JourneyMasks, file: &str, line: u32, innermost: &[u32]) -> Result<Option<String>, String> {
+    for &inner in innermost {
+        let region = masks.bits[inner as usize];
+        if region.shape == Shape::Function || region.owned {
+            continue;
+        }
+        for &outer in innermost {
+            let function = masks.bits[outer as usize];
+            if function.shape != Shape::Function || (function.start, function.end) != (region.start, region.end) {
+                continue;
+            }
+            if masks.entered(outer)? != masks.entered(inner)? {
+                let name = masks.journey.text(function.name)?;
+                let kind = masks.journey.text(region.kind)?;
+                return Ok(Some(format!(
+                    "which cases ran {file}:{line} is not known: the record names no owner for its regions, so the {kind} {}-{} a case did not enter may be function {name}'s",
+                    region.start, region.end,
+                )));
+            }
+        }
+    }
+    Ok(None)
 }
 
 /// The recorded function of `file` that the declaration at `line` writes: of

@@ -82,6 +82,16 @@ function step(member: string, arguments_: readonly unknown[]): LocatorStep {
   return { member, arguments: snapshotArguments(arguments_) };
 }
 
+/**
+ * What an `expect` assertion said beyond its matcher. Playwright hands
+ * `_expect(matcher, options)` an `isNot` that is true for `.not`, and the entry
+ * says so, because `not.toBeEmpty()` asserts the opposite of `toBeEmpty()`.
+ */
+function assertionSaid(options: unknown): { readonly negated?: true } {
+  const isNot = typeof options === 'object' && options !== null && (options as { isNot?: unknown }).isNot === true;
+  return isNot ? { negated: true } : {};
+}
+
 async function consume(
   locator: Locator,
   log: EyesLog,
@@ -90,6 +100,7 @@ async function consume(
   operation: ConsumedLocatorAttention['operation'],
   member: string,
   invoke: () => unknown,
+  said: { readonly negated?: true } = {},
 ): Promise<unknown> {
   const before = await read(snapshot, locator);
   const beforeRead = before === undefined ? {} : { before };
@@ -103,6 +114,7 @@ async function consume(
       operation,
       member,
       locator: path,
+      ...said,
       ...beforeRead,
       outcome: 'threw',
       error: errorMessage(error),
@@ -116,6 +128,7 @@ async function consume(
     operation,
     member,
     locator: path,
+    ...said,
     ...beforeRead,
     ...(after === undefined ? {} : { after }),
     outcome: 'resolved',
@@ -176,6 +189,7 @@ function instrumentLocator(
             'assertion',
             matcher,
             () => Reflect.apply(value, target, arguments_),
+            assertionSaid(arguments_[1]),
           );
         }
 

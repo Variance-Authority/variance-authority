@@ -8,6 +8,7 @@ import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { RETURN_COOKIE } from '@variance-authority/wire';
 import { listen, type Wire } from '@variance-authority/wire/listen';
+import { withoutCollectorImport } from '../collector-import.js';
 import { recordExecution } from '../journal.js';
 import { JOURNEY_COOKIE, journeyReportFrom, stitchJourneys, type JourneyReport } from '../journey.js';
 import { testSelectionProbes } from '../probes.js';
@@ -54,7 +55,7 @@ const unevaluated: Currency = () => Promise.reject(new Error('the module has not
 
 /** Evaluate the transformed module the way a service's loader would. */
 export function evaluate(transformed: string): Currency {
-  new Function(transformed.replace(/\n;import "[^"]+";$/, ''))();
+  new Function(withoutCollectorImport(transformed))();
   return (globalThis as unknown as Record<string, unknown>)['__head_test_currency'] as Currency;
 }
 

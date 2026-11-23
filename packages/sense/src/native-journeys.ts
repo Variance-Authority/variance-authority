@@ -197,6 +197,8 @@ export interface NativeJourneyBlock {
 /** One case, numbered by its position in the recording. */
 export interface NativeJourneyCase {
   readonly case: number;
+  /** The id the record names the case by, the one its other sections, Eyes journals among them, are joined on. */
+  readonly id: string;
   readonly file: string;
   readonly name: string;
   /** The regions its journey entered. */
@@ -375,8 +377,8 @@ export interface NativeTestComposition {
   readonly test?: NativeJourneyCase | null;
   /** Regions it entered that more than half the suite entered too. */
   readonly structure: number;
-  /** Other tests whose footprint is exactly its own. */
-  readonly alike: number;
+  /** Other tests whose footprint is exactly its own, in recording order; `blocks` is that footprint. */
+  readonly alike: readonly NativeJourneyCase[];
   /** Smaller tests with nine tenths of their footprint inside it, most shared first. */
   readonly pieces: readonly NativeJourneyPiece[];
   /** Larger tests holding nine tenths of it, smallest first. */
@@ -400,11 +402,28 @@ export interface NativeRanRegion {
   readonly function?: string | null;
   /** Whether the test entered it. */
   readonly entered: boolean;
+  /** Whether more than half the suite entered it, as a composition counts structure. */
+  readonly structure: boolean;
+  /** Whether the test entered the function it is written in, itself for a function; absent when no recorded function holds it. */
+  readonly functionEntered?: boolean | null;
+  /**
+   * How many other tests entered it: none says only this test enters it when
+   * it did, and no test takes it when it did not.
+   */
+  readonly others: number;
+  /** The smallest other journey that entered it; absent when no other test did. `blocks` is its journey size. */
+  readonly smallest?: NativeJourneyCase | null;
 }
 
 /** A module a test entered, with every region recorded in it, in row order. */
 export interface NativeRanModule {
   readonly file: string;
+  /**
+   * Whether the record names the region around each of its regions. When it
+   * does not, which function holds a region inside one is not known, and
+   * neither is what the test passed by there.
+   */
+  readonly ownersNamed: boolean;
   readonly regions: readonly NativeRanRegion[];
 }
 

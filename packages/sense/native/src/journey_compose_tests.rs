@@ -3,6 +3,7 @@ use crate::crossing_sets::SetPool;
 use crate::journey_format::{encode, CaseExtras, EncodedModule};
 use crate::journey_journal::{Test, FINISHED};
 use crate::journey_read::Journey;
+use crate::journey_masks::tests::owners_by_lines;
 use crate::journey_record::{Block, Module};
 
 /// Eight cases. `setup` runs in every one, so it is structure. Two unit tests
@@ -12,8 +13,8 @@ use crate::journey_record::{Block, Module};
 fn recorded() -> JourneyMasks {
     let names = ["a unit", "b uses a", "c unit", "a again", "end to end", "setup one", "setup two", "setup three"];
     let modules = [
-        module("src/a.ts", vec![block("module", "", 1, 20), block("function", "a", 1, 10), block("branch", "", 3, 4), block("branch", "", 6, 7)]),
-        module("src/b.ts", vec![block("module", "", 1, 9), block("function", "b", 1, 9), block("branch", "", 3, 4)]),
+        module("src/a.ts", vec![block("module", "", 1, 20), block("function", "a", 1, 10), block("branch", "a", 3, 4), block("branch", "a", 6, 7)]),
+        module("src/b.ts", vec![block("module", "", 1, 9), block("function", "b", 1, 9), block("branch", "b", 3, 4)]),
         module("src/c.ts", vec![block("module", "", 1, 5), block("function", "c", 1, 5)]),
         module("src/setup.ts", vec![block("module", "", 1, 4), block("function", "setup", 1, 4)]),
     ];
@@ -45,7 +46,7 @@ fn block(kind: &str, name: &str, start: u32, end: u32) -> Block {
 }
 
 fn module(file: &str, blocks: Vec<Block>) -> Module {
-    Module { id: file.to_owned(), file: file.to_owned(), blocks, owners: None }
+    Module { id: file.to_owned(), file: file.to_owned(), owners: Some(owners_by_lines(&blocks)), blocks }
 }
 
 /// A recording of `names`, each case in the file `file` names, where
@@ -86,7 +87,8 @@ fn what_a_test_alone_runs_is_split_from_what_its_pieces_run() {
     // Both unit tests of `a` sit inside it; the end-to-end case holds it.
     assert_eq!(cases(&answer.pieces), vec![(0, 2, 2), (3, 2, 2)]);
     assert_eq!(cases(&answer.wholes), vec![(4, 6, 5)]);
-    assert_eq!((answer.explained, answer.alike), (2, 0));
+    assert_eq!(answer.explained, 2);
+    assert!(answer.alike.is_empty());
     // `b` is its own layer; `a`'s second branch is a path of a piece that only it reaches.
     assert_eq!(lines(&answer.own), vec![("src/b.ts", 1), ("src/b.ts", 3)]);
     assert_eq!(lines(&answer.reached), vec![("src/a.ts", 6)]);
@@ -109,18 +111,20 @@ fn a_test_with_the_same_journey_is_alike_and_not_a_piece() {
     let answer = compose(&mut masks, "a.test.ts", None).unwrap();
     assert_eq!(answer.test.unwrap().case, 3);
     assert!(answer.pieces.is_empty());
-    assert_eq!(answer.alike, 1);
+    // Named, so a reader can say which test it duplicates, not only that one does.
+    assert_eq!(answer.alike.iter().map(|case| (case.case, case.name.as_str(), case.blocks)).collect::<Vec<_>>(), vec![(0, "a unit", 2)]);
     assert_eq!(cases(&answer.wholes), vec![(1, 5, 2), (4, 6, 2)]);
     assert_eq!(lines(&answer.own), vec![("src/a.ts", 1), ("src/a.ts", 3)]);
     assert!(answer.reached.is_empty());
 }
 
 #[test]
-fn a_test_that_runs_only_structure_has_no_footprint() {
+fn a_test_that_runs_only_structure_has_no_footprint_and_is_alike_every_other_that_runs_only_structure() {
     let mut masks = recorded();
     let answer = compose(&mut masks, "t5.test.ts", None).unwrap();
     assert_eq!((answer.test.unwrap().blocks, answer.structure), (0, 1));
     assert!(answer.pieces.is_empty() && answer.wholes.is_empty() && answer.own.is_empty());
+    assert_eq!(answer.alike.iter().map(|case| (case.case, case.blocks)).collect::<Vec<_>>(), vec![(6, 0), (7, 0)]);
 }
 
 #[test]
@@ -192,8 +196,72 @@ fn a_test_ran_marks_each_region_of_the_modules_it_entered() {
     assert_eq!(answer.modules[0].regions[2].function.as_deref(), Some("a"));
 }
 
+fn taken(answer: &TestRan) -> Vec<(u32, u32, Option<u32>)> {
+    answer
+        .modules
+        .iter()
+        .flat_map(|module| module.regions.iter().map(|region| (region.line, region.others, region.smallest.as_ref().map(|case| case.case))))
+        .collect()
+}
+
+#[test]
+fn a_test_ran_says_how_many_other_tests_entered_each_region_and_the_smallest_of_them() {
+    let mut masks = recorded();
+    // `a again` (3 regions) is smaller than `b uses a` (6) and the end-to-end case (7);
+    // the branch `t0` passed by only `b uses a` and the end-to-end case take.
+    assert_eq!(taken(&ran(&mut masks, "t0.test.ts", None).unwrap()), vec![(1, 3, Some(3)), (3, 3, Some(3)), (6, 2, Some(1)), (1, 7, Some(5))]);
+    let mut masks = at_the_threshold();
+    // `f9` and `f10` only the whole enters; `f11` it passes by, and `nine tenths` takes it.
+    let rows = taken(&ran(&mut masks, "w0.test.ts", None).unwrap());
+    assert_eq!(&rows[9..12], &[(10, 0, None), (11, 0, None), (12, 1, Some(1))]);
+}
+
 #[test]
 fn a_test_ran_refuses_a_test_the_recording_cannot_choose() {
     let mut masks = recorded();
     assert_eq!(ran(&mut masks, "absent.test.ts", None).unwrap().not_recorded.unwrap(), "The recording holds no test declared in absent.test.ts.");
+}
+
+#[test]
+fn a_test_ran_says_which_modules_the_record_names_no_owners_for() {
+    // The same module twice, once as an instrumenter writes it and once as a record written before regions named their owners.
+    let blocks = || vec![block("module", "", 1, 10), block("function", "f", 1, 10), block("branch", "f", 3, 4)];
+    let modules = [module("src/m.ts", blocks()), Module { owners: None, ..module("src/n.ts", blocks()) }];
+    let entered: [&[&[u32]]; 2] = [&[&[], &[0], &[]], &[&[], &[0], &[]]];
+    let mut masks = masks_of(&["unit"], |_| "m0.test.ts".to_owned(), &modules, &entered);
+    let answer = ran(&mut masks, "m0.test.ts", None).unwrap();
+    let named: Vec<(&str, bool)> = answer.modules.iter().map(|module| (module.file.as_str(), module.owners_named)).collect();
+    assert_eq!(named, vec![("src/m.ts", true), ("src/n.ts", false)]);
+}
+
+#[test]
+fn a_test_ran_marks_structure_whether_each_regions_function_was_entered_and_the_case_id() {
+    // Two cases over `f`, `g` and `setup`: each enters its own function, and both enter `setup`.
+    let modules = [module(
+        "src/m.ts",
+        vec![
+            block("module", "", 1, 30),
+            block("function", "f", 1, 10),
+            block("branch", "f", 3, 4),
+            block("function", "g", 12, 20),
+            block("handler", "g", 14, 15),
+            block("function", "setup", 22, 30),
+        ],
+    )];
+    let entered: [&[&[u32]]; 1] = [&[&[], &[0], &[0], &[1], &[1], &[0, 1]]];
+    let mut masks = masks_of(&["f unit", "g unit"], |case| format!("m{case}.test.ts"), &modules, &entered);
+    let answer = ran(&mut masks, "m0.test.ts", None).unwrap();
+    assert_eq!(answer.test.as_ref().unwrap().id, "t0");
+    let rows: Vec<(&str, u32, bool, Option<bool>)> =
+        answer.modules[0].regions.iter().map(|region| (region.kind.as_str(), region.line, region.structure, region.function_entered)).collect();
+    assert_eq!(
+        rows,
+        vec![
+            ("function", 1, false, Some(true)),
+            ("branch", 3, false, Some(true)),
+            ("function", 12, false, Some(false)),
+            ("handler", 14, false, Some(false)),
+            ("function", 22, true, Some(true)),
+        ]
+    );
 }

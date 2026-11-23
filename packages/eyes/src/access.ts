@@ -59,6 +59,8 @@ interface ConsumedLocatorBase {
   readonly operation: 'action' | 'read' | 'assertion';
   readonly member: string;
   readonly locator: readonly LocatorStep[];
+  /** An assertion made through `.not`: it passes when `member` does not. Absent otherwise. */
+  readonly negated?: true;
   /** Present when the page agent completed the pre-operation read, even when empty. */
   readonly before?: readonly TargetSnapshot[];
 }

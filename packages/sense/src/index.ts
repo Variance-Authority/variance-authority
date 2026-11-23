@@ -180,6 +180,7 @@ export {
 } from './native-orient.js';
 export { loadedUnprobed, modulePath } from './module-path.js';
 export { checkoutListing, checkoutPath, existedAt, existingAt, filesNamed, type CheckoutListing, type CheckoutPath } from './checkout-path.js';
+export { passedAt, type PassedAt } from './passed-at.js';
 export {
   forksBetween,
   journeysAmong,
@@ -188,7 +189,6 @@ export {
   journeyMaps,
   journeysPath,
   linesThen,
-  passedAt,
   pathsThrough,
   prepareJourneys,
   resonance,

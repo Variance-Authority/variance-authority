@@ -2,7 +2,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { parseEyesArchive, parseEyesJournal, readEyesArchive } from './archive.js';
+import { parseEyesArchive, parseEyesJournal, parseJournalRow, readEyesArchive } from './archive.js';
 
 describe('portable Eyes evidence', () => {
   it('validates phase-bearing test attention from JSON', () => {
@@ -102,6 +102,32 @@ describe('portable Eyes evidence', () => {
     })).toThrow(/partial reason/);
   });
 
+  it('carries an assertion made through `.not`, and refuses any other negation', () => {
+    const assertion = (negated?: unknown) => ({
+      eyesVersion: 1,
+      tests: [{
+        id: 'test-1',
+        title: 'counts',
+        complete: true,
+        attention: [{
+          kind: 'playwright-locator',
+          operation: 'assertion',
+          member: 'to.be.empty',
+          locator: [{ member: 'getByLabel', arguments: ['Count'] }],
+          ...(negated === undefined ? {} : { negated }),
+          outcome: 'resolved',
+          sequence: 0,
+        }],
+      }],
+    });
+
+    expect(parseEyesArchive(assertion(true)).tests[0]!.attention[0]).toMatchObject({ negated: true });
+    expect(parseEyesArchive(assertion()).tests[0]!.attention[0]).not.toHaveProperty('negated');
+    for (const negated of [false, 'yes', 1]) {
+      expect(() => parseEyesArchive(assertion(negated))).toThrow(/negated must be true or absent/);
+    }
+  });
+
   it('rejects malformed attribution instead of trusting a known attention kind', () => {
     expect(() => parseEyesArchive({
       eyesVersion: 1,
@@ -151,5 +177,11 @@ describe('portable Eyes evidence', () => {
       .toThrow('journal complete must be boolean');
     expect(() => parseEyesJournal({ complete: true, attention: {} }, 'journal'))
       .toThrow('journal attention must be an array');
+  });
+
+  it('names the case and the attempt of a kept journal it refuses', () => {
+    expect(parseJournalRow({ case: 'chromium', attempt: 2, journal: { complete: true, attention: [] } })).toEqual({ complete: true, attention: [] });
+    expect(() => parseJournalRow({ case: 'chromium', attempt: 2, journal: { complete: 'yes', attention: [] } }))
+      .toThrow('the Eyes journal of chromium, attempt 2 complete must be boolean');
   });
 });

@@ -32,6 +32,10 @@
       "types": "./dist/tools.d.ts",
       "default": "./dist/tools.js"
     },
+    "./recorded-steps": {
+      "types": "./dist/recorded-steps.d.ts",
+      "default": "./dist/recorded-steps.js"
+    },
     "./protocol": {
       "types": "./dist/protocol.d.ts",
       "default": "./dist/protocol.js"

@@ -21,6 +21,13 @@ const QUESTIONS = [
     action: "Find what a test can shed",
   },
   {
+    question: "Check that this test does what its name says.",
+    answer: "Set a test's name and recorded steps beside the code it ran. Find the test that runs exactly the same code, and the branch its name promises that no test takes.",
+    href: "/docs/own-fewer-tests#ask-whether-a-test-does-what-its-name-says",
+    route: "test review",
+    action: "Hold a test against its name",
+  },
+  {
     question: "Run the tests this edit needs.",
     answer: "Set one variable and the Vitest or Jest run you already call leaves out every test file that never executed the code you changed. Each run moves the record forward; missing evidence runs the test.",
     href: "/docs/test-an-edit",
@@ -68,7 +75,7 @@ export default function QuestionMap() {
           <a
             key={item.question}
             href={item.href}
-            className={`group flex flex-col bg-panel p-6 transition-colors hover:bg-deep sm:p-8 ${index === QUESTIONS.length - 1 ? "md:col-span-2" : ""}`}
+            className={`group flex flex-col bg-panel p-6 transition-colors hover:bg-deep sm:p-8 ${QUESTIONS.length % 2 === 1 && index === QUESTIONS.length - 1 ? "md:col-span-2" : ""}`}
           >
             <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-orange">
               {item.route}

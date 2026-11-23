@@ -4,7 +4,22 @@ use crate::crossing_sets::SetPool;
 use crate::journey_format::{encode, CaseExtras, EncodedModule};
 use crate::journey_journal::{Test, FINISHED};
 use crate::journey_paths::through;
-use crate::journey_record::{Block, Module};
+use crate::journey_record::{Block, Module, NO_OWNER};
+
+/// A fixture's shorthand for the owners an instrumenter writes for `blocks` cut in source order, read
+/// back from their lines for a hand-made module: each region's owner is the
+/// nearest region before it whose lines hold it, the first region the root.
+pub(crate) fn owners_by_lines(blocks: &[Block]) -> Vec<u32> {
+    (0..blocks.len())
+        .map(|at| {
+            let inner = &blocks[at];
+            (0..at)
+                .rev()
+                .find(|&outer| blocks[outer].start_line <= inner.start_line && inner.end_line <= blocks[outer].end_line)
+                .map_or(NO_OWNER, |outer| outer as u32)
+        })
+        .collect()
+}
 
 /// `setup` runs for every case but one. Four cases take `route`'s first branch
 /// and reach `target`; three take its second and stop; one reaches `target` alone.
@@ -20,11 +35,11 @@ fn recorded() -> JourneyMasks {
         end_line: end,
         source: true,
     };
-    let module = |file: &str, blocks: Vec<Block>| Module { id: file.to_owned(), file: file.to_owned(), blocks, owners: None };
+    let module = |file: &str, blocks: Vec<Block>| Module { id: file.to_owned(), file: file.to_owned(), owners: Some(owners_by_lines(&blocks)), blocks };
     let modules = [
         module(
             "src/route.ts",
-            vec![block("module", "", 1, 20), block("function", "route", 1, 10), block("branch", "", 3, 4), block("branch", "", 6, 7)],
+            vec![block("module", "", 1, 20), block("function", "route", 1, 10), block("branch", "route", 3, 4), block("branch", "route", 6, 7)],
         ),
         module("src/setup.ts", vec![block("module", "", 1, 9), block("function", "setup", 1, 4), block("function", "other", 5, 9)]),
         module("src/target.ts", vec![block("module", "", 1, 5), block("function", "target", 1, 5)]),
@@ -47,13 +62,58 @@ fn recorded() -> JourneyMasks {
 }
 
 #[test]
-fn a_region_belongs_to_the_smallest_function_holding_its_first_line() {
+fn a_line_is_asked_of_the_smallest_function_holding_it_and_that_function_holds_its_regions() {
     let masks = recorded();
     let route = masks.function_at("src/route.ts", 5).unwrap().unwrap();
     assert_eq!(masks.inside(route).len(), 2);
     assert_eq!(masks.within(route), vec![route]);
     assert!(masks.function_at("src/route.ts", 15).unwrap().is_none());
     assert!(masks.function_at("src/absent.ts", 1).unwrap().is_none());
+}
+
+/// `if (errors.some((error) => error !== '')) return;` inside `submit`, with
+/// two `map` callbacks on one line before it: the record's owners say which
+/// function each region is written in, where a name and a line do not.
+fn owned(owners: Option<Vec<u32>>) -> Vec<Option<u32>> {
+    let tests = vec![Test { id: "t0".to_owned(), file: "form.test.ts".to_owned(), name: "submits".to_owned(), project: None, runner: None, settled: FINISHED, heard: None }];
+    let block = |kind: &str, name: &str, start: u32, end: u32| Block { kind: kind.to_owned(), name: name.to_owned(), path: String::new(), start_line: start, end_line: end, source: true };
+    let module = Module {
+        id: "src/form.ts".to_owned(),
+        file: "src/form.ts".to_owned(),
+        blocks: vec![
+            block("module", "", 1, 25),
+            block("function", "submit", 13, 22),
+            block("function", "submit/map.arg0", 15, 15),
+            block("function", "submit/map.arg0", 15, 15),
+            block("function", "submit/some.arg0", 17, 17),
+            block("branch", "submit", 17, 20),
+            block("branch", "submit/map.arg0", 15, 15),
+            block("branch", "submit", 18, 19),
+            block("branch", "", 24, 24),
+        ],
+        owners,
+    };
+    let mut sets = SetPool::new(tests.len());
+    let called: Vec<_> = module.blocks.iter().map(|_| sets.intern(&[0])).collect();
+    let loaded = vec![false; module.blocks.len()];
+    let encoded = [EncodedModule { module: &module, called: &called, loaded: &loaded, overwritten: &[] }];
+    let bytes = encode(&tests, &CaseExtras::default(), &encoded, &mut sets, None).unwrap();
+    let masks = JourneyMasks::of(Journey::of("recorded", bytes).unwrap()).unwrap();
+    masks.bits.iter().map(|bit| bit.function).collect()
+}
+
+#[test]
+fn a_region_belongs_to_the_function_its_recorded_owners_lead_up_to() {
+    // The branch in the second callback is its own, though the first shares its
+    // name and line; the branch nested in a branch of `submit` is `submit`'s.
+    let functions = owned(Some(vec![NO_OWNER, 0, 1, 1, 1, 1, 3, 5, 0]));
+    assert_eq!(functions, vec![None, Some(1), Some(2), Some(3), Some(4), Some(1), Some(3), Some(1), None]);
+}
+
+#[test]
+fn a_region_of_a_record_that_names_no_owners_is_written_in_no_function() {
+    let functions = owned(None);
+    assert_eq!(functions, vec![None, Some(1), Some(2), Some(3), Some(4), None, None, None, None]);
 }
 
 #[test]

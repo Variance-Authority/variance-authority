@@ -9,7 +9,7 @@ const composition: TestComposition = {
   suite: 8,
   test: test(1, 'b.test.ts', 'b uses a', 5),
   structure: 1,
-  alike: 0,
+  alike: [],
   pieces: [{ case: test(0, 'a.test.ts', 'a unit', 2), shared: 2 }],
   wholes: [{ case: test(4, 'e2e.test.ts', 'end to end', 6), shared: 5 }],
   explained: 2,
@@ -38,10 +38,14 @@ describe('a test composition as text', () => {
   });
 
   it('says a test with no pieces is all its own, and names the tests alike rather than listing them as pieces', () => {
-    const alone = { ...composition, alike: 2, pieces: [], wholes: [], explained: 0, reached: [] };
+    const alike = [test(2, 'b.test.ts', 'b again', 5), test(6, 'c.test.ts', 'b through c', 5)];
+    const alone = { ...composition, alike, pieces: [], wholes: [], explained: 0, reached: [] };
     expect(formatTestComposition(alone).split('\n')).toEqual([
       'b.test.ts  b uses a: a footprint of 5 regions; 1 more is structure, run by more than half of the 8 recorded tests.',
-      '2 other tests ran exactly the same regions.',
+      '',
+      'Alike, other tests that ran the same regions, structure aside:',
+      '  b.test.ts  b again',
+      '  c.test.ts  b through c',
       '',
       'No smaller test sits inside it and no larger test holds it.',
       '',

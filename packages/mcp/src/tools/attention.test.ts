@@ -85,6 +85,45 @@ describe('variance_test_attention', () => {
     expect(text).toContain('DrawingPanel at src/drawing/RedrawButton.tsx:17');
   });
 
+  it('says an assertion made through `.not` is the opposite of its matcher, whether it passed or threw, beside a Locator only planned', () => {
+    const [test] = ARCHIVE.tests;
+    const negated: EyesArchive = {
+      ...ARCHIVE,
+      tests: [{
+        ...test!,
+        attention: [{
+          kind: 'playwright-locator',
+          operation: 'assertion',
+          member: 'to.be.empty',
+          locator: [{ member: 'getByLabel', arguments: ['Count'] }],
+          negated: true,
+          outcome: 'resolved',
+          sequence: 0,
+        }, {
+          kind: 'playwright-locator',
+          operation: 'planned',
+          locator: [{ member: 'getByRole', arguments: ['status'] }],
+          sequence: 1,
+        }, {
+          kind: 'playwright-locator',
+          operation: 'assertion',
+          member: 'to.be.empty',
+          locator: [{ member: 'getByLabel', arguments: ['Count'] }],
+          negated: true,
+          before: [],
+          outcome: 'threw',
+          error: 'received ""',
+          sequence: 2,
+        }],
+      }],
+    };
+
+    const answer = attention.run(negated, { test: 'redraw-test' });
+    expect(answer).toContain('assertion not.to.be.empty on getByLabel("Count") — before');
+    expect(answer).toContain('planned getByRole("status")');
+    expect(answer).toContain('assertion not.to.be.empty on getByLabel("Count") threw received ""');
+  });
+
   it('names a test by its id or whole title, never a part of it', () => {
     expect(attention.run(ARCHIVE, { test: 'redraws the canvas' })).toContain('redraws the canvas — ');
     for (const asked of ['redraws', 'Redraws the canvas']) {

@@ -28,7 +28,7 @@ export class RecordKeepsNoEyes extends Error {
 export async function readEyesRecord(record: string): Promise<EyesArchive> {
   const [
     { createEyesArchive },
-    { parseEyesJournal },
+    { parseJournalRow },
     { decodeExecutionIndex, recordedEyesOf },
     bytes,
   ] = await Promise.all([
@@ -49,7 +49,7 @@ export async function readEyesRecord(record: string): Promise<EyesArchive> {
       attempt: row.attempt,
       title: named?.name ?? row.case,
       ...(named?.file === undefined ? {} : { file: named.file }),
-      ...parseEyesJournal(row.journal, `the Eyes journal of ${row.case}, attempt ${row.attempt}`),
+      ...parseJournalRow(row),
     };
   }), section.watched);
 }

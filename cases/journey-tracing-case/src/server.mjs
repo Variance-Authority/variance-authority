@@ -13,6 +13,7 @@ import { pathToFileURL } from 'node:url';
 import { collectEvents } from '@variance-authority/event/collect';
 import { collectJourneys } from '@variance-authority/sense/journey';
 import { testSelectionProbes } from '@variance-authority/sense/journal';
+import { withoutCollectorImport } from '../../../packages/sense/dist/test-selection/collector-import.js';
 
 const root = resolve(process.env.VA_ROOT);
 
@@ -35,7 +36,7 @@ async function instrumented() {
   // a bundler would have emitted, at the line numbers the inventory recorded.
   const built = resolve(root, 'node_modules/.variance-case/pricing.mjs');
   await mkdir(dirname(built), { recursive: true });
-  await writeFile(built, transformed.code.replace(/\n;import "[^"]+";$/, ''), 'utf8');
+  await writeFile(built, withoutCollectorImport(transformed.code), 'utf8');
   return import(pathToFileURL(built).href);
 }
 

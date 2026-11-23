@@ -8,6 +8,7 @@ import { chromium } from '@playwright/test';
 import { executionCollectorSource, testSelectionProbes } from '@variance-authority/sense/journal';
 import { decodeExecutionIndex, recordedEyesAt } from '@variance-authority/sense/test-selection';
 import { describe, expect, it } from 'vitest';
+import { withoutCollectorImport } from '../../sense/src/test-selection/collector-import.js';
 import { parseEyesJournal } from './archive.js';
 
 const fixture = fileURLToPath(new URL('../test/fixtures/playwright-record', import.meta.url));
@@ -39,7 +40,7 @@ async function pageScript(): Promise<string> {
   const { code } = testSelectionProbes({ root: fixture }).transform.handler(source, path) as { code: string };
   // A bundler resolves the collector import; a script tag has none, so the
   // collector goes in front of the module in its own block.
-  return `{${executionCollectorSource()}}\n${code.replace(/\n;import "[^"]+";$/, '')}`;
+  return `{${executionCollectorSource()}}\n${withoutCollectorImport(code)}`;
 }
 
 function playwright(env: Record<string, string>): Promise<{ code: number | null; output: string }> {
@@ -96,6 +97,14 @@ live('Eyes in a recording Playwright run', () => {
         'assert',
       ]);
       expect(kinds).toContain('playwright-locator');
+      // `.not` is the opposite assertion, so an entry that drops it says the
+      // test asserted what it asserted against.
+      const assertions = journals[0]!.attention.filter((entry) =>
+        entry.kind === 'playwright-locator' && entry.operation === 'assertion');
+      expect(assertions.map((entry) => [entry.member, 'negated' in entry ? entry.negated : 'absent'])).toEqual([
+        ['to.have.text', 'absent'],
+        ['to.be.empty', true],
+      ]);
     } finally {
       await rm(scratch, { recursive: true, force: true });
     }

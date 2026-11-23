@@ -296,33 +296,20 @@ export function decodeSetExecutionIndex(bytes: Uint8Array): ExecutionIndex {
 }
 
 /**
- * A journey-only index in the set spelling, whatever built it: the spelling a
- * run is laid over the index beside a snapshot in, so a seam that builds its
- * cases as rows is laid by the same body as one that folds them to sets.
+ * A journey-only index in the set spelling, whatever built it, so a seam that
+ * builds its cases as rows is laid by the same body as one that folds them to
+ * sets. Lossless when every crossing is at distance zero: one run as its module
+ * loaded is the region's load flag, an overwritten one its case in the
+ * overwritten set, and a measured depth is refused rather than flattened.
  *
- * Lossless for an index whose crossings are all at distance zero, which is
- * every index a case journal becomes. A crossing marked as run while its module
- * loaded is the region's load flag here, as the set spelling records it, and
- * names no case. An overwritten crossing is its case in the region's
- * overwritten set. A measured depth has no place in the set spelling, so an
- * index with one is refused rather than flattened.
+ * `owners[at]` names the region around each region of `index.modules[at]` by
+ * position, `0xffffffff` on the root; a module with none leaves its regions in
+ * no function. They travel beside the index, matched by place, because a
+ * position survives neither a foreign producer nor a reshaper's spread.
  */
-export function encodeAsSetExecutionIndex(index: ExecutionIndex): Buffer {
-  return encodeOwnedSetExecutionIndex(index, []);
-}
-
-/**
- * {@link encodeAsSetExecutionIndex}, with the region around each region:
- * `owners[at]` holds those of `index.modules[at]`, as positions among its
- * blocks, and a module past its end names none. An `ExecutionIndex` is a plain
- * object a foreign producer writes and a reshaper spreads, and a position does
- * not survive either, so the owners travel beside it from the cut that
- * recorded them. They are matched by place, not by file: two cuts of one file
- * can reach one run.
- */
-export function encodeOwnedSetExecutionIndex(
+export function encodeAsSetExecutionIndex(
   index: ExecutionIndex,
-  owners: readonly (Uint32Array | undefined)[],
+  owners: readonly (Uint32Array | undefined)[] = [],
   lines?: SetExecutionIndex['lines'],
 ): Buffer {
   const sets = new CrossingSets(index.tests.length);

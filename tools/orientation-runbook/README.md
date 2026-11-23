@@ -54,14 +54,17 @@ state and triggers none of those conditions. A follow-up over a complete empty
 set is empty; incomplete parents remain incomplete. A not-found textual answer
 does not prove complete membership: follow its membership qualification.
 
-Eligible questions come from registered source tools exposing `Tool.files`.
-Composite tools without that capability are excluded. Each tool owns its input
-refusal. Repeated identical calls reuse evidence. Unexpected reader failures
+Eligible questions come from registered source tools. `Tool.run` supplies the
+factual answer; optional `Tool.files` supplies membership. Without it, membership
+is unknown: an `unknown` branch can continue, but `fromFiles` has no files to
+dispatch. Each tool owns its input refusal. Repeated identical calls reuse
+evidence. Unexpected reader failures
 preserve earlier evidence and take the error branch; unavailable API counts
 are unknown.
 
-`calls` limits question dispatches. Each can invoke `Tool.files` and `Tool.run`;
-API counts do not count underlying native executions. `milliseconds` is a soft
+`calls` limits question dispatches. Each invokes `Tool.run` and, when supplied,
+`Tool.files`; API counts include only attempts, not underlying native executions.
+`milliseconds` is a soft
 execution deadline including index opening; an in-flight reader cannot be
 cancelled. Reuse also stays within that invocation deadline.
 

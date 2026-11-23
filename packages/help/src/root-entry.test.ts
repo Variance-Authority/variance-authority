@@ -7,10 +7,11 @@ import { describe, expect, it, vi } from 'vitest';
  * evaluates every static import of an entry whether the caller uses it or not.
  * `serveWorkspace` starts its server through `serve` from
  * `@variance-authority/mcp`, so the root must not evaluate what only a started
- * report server reads: the report server's served sets, Eyes, the run report
- * file and the live-run listener. The readers still evaluate the tool-authoring
- * kit and every report tool through `@variance-authority/mcp/tools`; this file
- * does not watch that. The last case shows the watch sees a real import.
+ * report server reads: the report server's served sets, the Eyes root and its
+ * React tap, the run report file and the live-run listener. The readers still
+ * evaluate the tool-authoring kit and every report tool through
+ * `@variance-authority/mcp/tools`, and the Eyes journal reader through
+ * `@variance-authority/eyes/archive`; this file does not watch those. The last case shows the watch sees a real import.
  */
 
 const evaluated = vi.hoisted(() => [] as string[]);
@@ -20,7 +21,7 @@ vi.mock('@variance-authority/mcp/protocol', async (original) => {
   return original();
 });
 vi.mock('@variance-authority/eyes', async (original) => {
-  evaluated.push('Eyes');
+  evaluated.push('the Eyes root');
   return original();
 });
 vi.mock('@variance-authority/report/file', async (original) => {
