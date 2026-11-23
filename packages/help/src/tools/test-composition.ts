@@ -11,6 +11,7 @@
 
 import { testCompositions } from '@variance-authority/sense';
 import type { Tool } from '@variance-authority/mcp/tools';
+import { askedTest, suitesAnswer } from './asked-test.js';
 import { formatTestComposition } from './test-composition-format.js';
 
 /** Typed over nothing, like `docs_journey_map`: the checkout is the one the host names on the call. */
@@ -35,23 +36,12 @@ export const testCompositionTool: Tool<unknown> = {
   },
 
   run: (_subject, input, invocation) => {
-    const root = invocation?.root;
-    if (root === undefined) {
-      throw new Error('`test-composition` reads what a checkout published, and this host named no checkout to read');
-    }
-    const file = typeof input['file'] === 'string' ? input['file'].trim() : '';
-    if (file === '') throw new Error('`test-composition` takes `--file`, the test file that declares the test');
-    const name = typeof input['name'] === 'string' && input['name'].trim() !== '' ? input['name'].trim() : undefined;
-    const suites = testCompositions(root, file, name);
-    if (suites.length === 0) throw new Error(`the recording under ${root} holds no suite to read`);
-    const answers: string[] = [];
-    const refused: string[] = [];
-    for (const { suite, composition } of suites) {
-      const of = suite === undefined ? '' : `suite ${suite}: `;
-      if (composition.notRecorded === undefined || composition.notRecorded === null) answers.push(`${of}${formatTestComposition(composition)}`);
-      else refused.push(`${of}${composition.notRecorded}`);
-    }
-    if (answers.length === 0) throw new Error(refused.join('\n'));
-    return [...answers, ...refused].join('\n\n');
+    const { root, file, name } = askedTest('test-composition', input, invocation);
+    return suitesAnswer(root, testCompositions(root, file, name).map(({ suite, composition }) => ({
+      ...(suite === undefined ? {} : { suite }),
+      ...(composition.notRecorded === undefined || composition.notRecorded === null
+        ? { answer: formatTestComposition(composition) }
+        : { refused: composition.notRecorded }),
+    })));
   },
 };

@@ -13,6 +13,7 @@ import { gaps } from './tools/gaps.js';
 import { grep } from './tools/grep.js';
 import { intersectionOf } from './tools/intersection.js';
 import { journeyMapTool } from './tools/journey-map.js';
+import { testClaimsTool } from './tools/test-claims.js';
 import { testCompositionTool } from './tools/test-composition.js';
 import { orient } from './tools/orient.js';
 import { packages } from './tools/packages.js';
@@ -60,14 +61,14 @@ function dated(tool: Tool<Help>, unseen: boolean): Tool<Help> {
  * call names, so no workspace value is read before one is asked and no
  * generation dates its answer.
  */
-export const RECORDED: readonly Tool<unknown>[] = [orient, slowestTests, retriedTests, notRun, journeyMapTool, testCompositionTool];
+export const RECORDED: readonly Tool<unknown>[] = [orient, slowestTests, retriedTests, notRun, journeyMapTool, testCompositionTool, testClaimsTool];
 
 /**
  * The questions that are asked alone, in the order they are meant to be asked in.
  * `HELP_TOOLS` is this order with `docs_intersection`, which crosses them.
  */
 const ALONE: readonly Tool<Help>[] =
-  [packages, classify, entrypoint, symbol, uses, search, grep, discover, orient, slowestTests, retriedTests, notRun, journeyMapTool, testCompositionTool, containment, stack, gaps];
+  [packages, classify, entrypoint, symbol, uses, search, grep, discover, orient, slowestTests, retriedTests, notRun, journeyMapTool, testCompositionTool, testClaimsTool, containment, stack, gaps];
 
 /** Every question above, crossed; built over the list so a question that joins it can be an operand. */
 const intersection = intersectionOf<Help>(ALONE);
@@ -119,7 +120,9 @@ const intersection = intersectionOf<Help>(ALONE);
  * `docs_journey_map` reads it too, around one file: the code the tests that
  * entered that file went on to enter, nearest first. `docs_test_composition`
  * reads it around one test: the smaller tests inside it, the larger ones
- * holding it, and what none of its pieces entered. `docs_containment` reads git.
+ * holding it, and what none of its pieces entered. `docs_test_claims` holds
+ * that test against what it says: its name and recorded steps, the functions it
+ * ran, what it adds, and the branches it passed by. `docs_containment` reads git.
  *
  * `docs_stack` answers what a location may import that nobody wrote: the
  * third-party packages its owning manifest declares, read from the published
@@ -131,7 +134,7 @@ const intersection = intersectionOf<Help>(ALONE);
  * told a name is undocumented is the agent best placed to write the paragraph.
  */
 export const HELP_TOOLS: readonly Tool<Help>[] =
-  [packages, classify, entrypoint, symbol, uses, search, grep, discover, intersection, orient, slowestTests, retriedTests, notRun, journeyMapTool, testCompositionTool, containment, stack, gaps];
+  [packages, classify, entrypoint, symbol, uses, search, grep, discover, intersection, orient, slowestTests, retriedTests, notRun, journeyMapTool, testCompositionTool, testClaimsTool, containment, stack, gaps];
 
 
 export const SERVER_NAME = 'variance-authority-help';
@@ -150,7 +153,7 @@ export const HELP: Served<Help> = {
  */
 export const UNCOMPARED_HELP: Served<Help> = { ...HELP, tools: HELP_TOOLS.map((tool) => dated(tool, true)) };
 
-export { classify, containment, discover, entrypoint, gaps, grep, intersection, journeyMapTool, notRun, orient, packages, retriedTests, search, slowestTests, stack, symbol, testCompositionTool, uses };
+export { classify, containment, discover, entrypoint, gaps, grep, intersection, journeyMapTool, notRun, orient, packages, retriedTests, search, slowestTests, stack, symbol, testClaimsTool, testCompositionTool, uses };
 export { containmentOf, formatContainment, type Containment } from './tools/containment.js';
 export { namesWanted } from './tools/intersection.js';
 export { formatOrientation, type OrientReading } from './tools/orient-format.js';

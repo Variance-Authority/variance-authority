@@ -13,43 +13,15 @@ export class RecordKeepsNoEyes extends Error {
 }
 
 /**
- * The Eyes journals a record keeps, as the archive the attention tools read.
+ * The Eyes journals a record keeps, as the archive the attention tools read;
+ * `eyesArchiveOf` says how they are joined to the record's cases, and refuses a
+ * record whose run did not opt into Eyes with {@link RecordKeepsNoEyes}.
  *
- * Each journal is one attempt of one case, named by the case's id; the title
- * and the file are the case index's, read off the same bytes as the journals.
- * A record whose run did not opt into Eyes keeps no section, and that is
- * refused with {@link RecordKeepsNoEyes} rather than read as a run with no
- * tests, which is what an empty archive says.
- *
- * Eyes and the record reader are imported here rather than at the top: this
- * function is exported from the root entry beside pure functions, and a caller
- * that never reads a record does not pay for either.
+ * The reader is imported here rather than at the top: this function is
+ * exported from the root entry beside pure functions, and a caller that never
+ * reads a record does not pay for Eyes or the record reader.
  */
 export async function readEyesRecord(record: string): Promise<EyesArchive> {
-  const [
-    { createEyesArchive },
-    { parseEyesJournal },
-    { decodeExecutionIndex, recordedEyesOf },
-    bytes,
-  ] = await Promise.all([
-    import('@variance-authority/eyes'),
-    import('@variance-authority/eyes/archive'),
-    import('@variance-authority/sense/test-selection'),
-    readFile(record),
-  ]);
-  // The index first: bytes that are no record at all are refused here, not
-  // taken for a record that kept no Eyes.
-  const cases = new Map(decodeExecutionIndex(bytes).tests.map((test) => [test.id, test]));
-  const section = recordedEyesOf(bytes);
-  if (section === undefined) throw new RecordKeepsNoEyes(record);
-  return createEyesArchive(section.journals.map((row) => {
-    const named = cases.get(row.case);
-    return {
-      id: row.case,
-      attempt: row.attempt,
-      title: named?.name ?? row.case,
-      ...(named?.file === undefined ? {} : { file: named.file }),
-      ...parseEyesJournal(row.journal, `the Eyes journal of ${row.case}, attempt ${row.attempt}`),
-    };
-  }), section.watched);
+  const [{ eyesArchiveOf }, bytes] = await Promise.all([import('./tools/recorded-steps.js'), readFile(record)]);
+  return eyesArchiveOf(bytes, record);
 }

@@ -1,5 +1,6 @@
 import type {
   Attention,
+  ConsumedLocatorAttention,
   EyesArchive,
   EyesPhase,
   EyesTestAttention,
@@ -113,7 +114,7 @@ function describe(entry: Attention): string {
     return `document ${entry.event}${entry.trusted ? '' : ' (synthetic)'} → ${targetLine(entry.target)}`;
   }
   if (entry.kind === 'rtl-query') {
-    const call = `${entry.query}(${argumentsLine(entry.arguments)})`;
+    const call = queryCall(entry);
     if (entry.outcome === 'threw') return `${call} threw ${entry.error}`;
     if (entry.outcome === 'absent') return `${call} → absent`;
     return `${call} → ${targetList(entry.targets)}`;
@@ -125,11 +126,30 @@ function describe(entry: Attention): string {
     // it would attribute the silence to the component.
     return `React commit tap refused (${entry.reason}) → no commit can appear in this journal`;
   }
-  const locator = locatorLine(entry.locator);
-  if (entry.operation === 'planned') return `planned ${locator}`;
-  const member = `${entry.negated === true ? 'not.' : ''}${entry.member}`;
-  if (entry.outcome === 'threw') return `${entry.operation} ${member} on ${locator} threw ${entry.error}`;
-  return `${entry.operation} ${member} on ${locator} — before ${targetList(entry.before ?? [])}; after ${targetList(entry.after ?? [])}`;
+  if (entry.operation === 'planned') return `planned ${locatorLine(entry.locator)}`;
+  if (entry.outcome === 'threw') return `${consumed(entry)} threw ${entry.error}`;
+  return `${consumed(entry)} — before ${targetList(entry.before ?? [])}; after ${targetList(entry.after ?? [])}`;
+}
+
+/**
+ * A step or an assertion the test made, as one line without what it found: a
+ * Locator it acted on, read or asserted on, or a Testing Library query.
+ * Nothing for an entry that is neither — a phase, a commit, a document event or
+ * a Locator only planned.
+ */
+export function stepLine(entry: Attention): string | undefined {
+  if (entry.kind === 'rtl-query') return `query ${queryCall(entry)}${entry.outcome === 'threw' ? ' threw' : ''}`;
+  if (entry.kind !== 'playwright-locator' || entry.operation === 'planned') return undefined;
+  return `${consumed(entry)}${entry.outcome === 'threw' ? ' threw' : ''}`;
+}
+
+/** `assertion not.to.be.empty on getByLabel("Count")`: the operation, the member as the test made it, and the Locator. */
+function consumed(entry: ConsumedLocatorAttention): string {
+  return `${entry.operation} ${entry.negated === true ? 'not.' : ''}${entry.member} on ${locatorLine(entry.locator)}`;
+}
+
+function queryCall(entry: Extract<Attention, { kind: 'rtl-query' }>): string {
+  return `${entry.query}(${argumentsLine(entry.arguments)})`;
 }
 
 function locatorLine(steps: readonly LocatorStep[]): string {

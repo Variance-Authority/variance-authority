@@ -22,7 +22,7 @@ import type { Help } from '@variance-authority/package/help';
 import { FoundNothing } from './find.js';
 import { declaredAt } from './declared.js';
 import { boundOf } from './declaration-key.js';
-import { ofSuite } from './grep-ran.js';
+import { ofSuite } from './asked-test.js';
 import type { Declared } from './symbol.js';
 
 const byPlace = (a: JourneyEnd, b: JourneyEnd): number => codeUnitOrder(a.file, b.file) || a.line - b.line;

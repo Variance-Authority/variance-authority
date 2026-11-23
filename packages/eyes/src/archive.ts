@@ -16,6 +16,10 @@ import {
   type TargetSnapshot,
 } from './access.js';
 
+// Exported here as well as from the root: a reader that joins journals it
+// parsed into an archive has no use for the root's React tap.
+export { createEyesArchive };
+
 /** Read and validate portable Eyes evidence before an external reader trusts it. */
 export async function readEyesArchive(path: string): Promise<EyesArchive> {
   return parseEyesArchive(JSON.parse(await readFile(path, 'utf8')));

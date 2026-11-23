@@ -1,0 +1,86 @@
+/**
+ * The Eyes journals a record keeps, read without waiting: as the archive the
+ * attention tools read, and as the steps and assertions of one test.
+ *
+ * A question asked of the recording answers synchronously, so this is the one
+ * place the record's journals are joined to the cases its index names; the
+ * served archive reads them through it too.
+ */
+
+// compass: variance-authority/runtime/attention
+
+import { readFileSync } from 'node:fs';
+import type { EyesArchive } from '@variance-authority/eyes';
+import { createEyesArchive, parseEyesJournal } from '@variance-authority/eyes/archive';
+import { decodeExecutionIndex, recordedEyesOf } from '@variance-authority/sense/test-selection';
+import { RecordKeepsNoEyes } from '../eyes-record.js';
+import { stepLine } from './attention.js';
+
+/**
+ * The Eyes journals the record held in `bytes` keeps, as the archive the
+ * attention tools read; `record` names it in a refusal.
+ *
+ * Each journal is one attempt of one case, named by the case's id; the title
+ * and the file are the case index's, read off the same bytes as the journals.
+ * A record whose run did not opt into Eyes keeps no section, and that is
+ * refused with {@link RecordKeepsNoEyes} rather than read as a run with no
+ * tests, which is what an empty archive says.
+ */
+export function eyesArchiveOf(bytes: Uint8Array, record: string): EyesArchive {
+  // The index first: bytes that are no record at all are refused here, not
+  // taken for a record that kept no Eyes.
+  const cases = new Map(decodeExecutionIndex(bytes).tests.map((test) => [test.id, test]));
+  const section = recordedEyesOf(bytes);
+  if (section === undefined) throw new RecordKeepsNoEyes(record);
+  return createEyesArchive(section.journals.map((row) => {
+    const named = cases.get(row.case);
+    return {
+      id: row.case,
+      attempt: row.attempt,
+      title: named?.name ?? row.case,
+      ...(named?.file === undefined ? {} : { file: named.file }),
+      ...parseEyesJournal(row.journal, `the Eyes journal of ${row.case}, attempt ${row.attempt}`),
+    };
+  }), section.watched);
+}
+
+/** What one test's journal says it did, or why there is no journal to say it. */
+export type RecordedSteps =
+  | {
+      /** Why no step or assertion of the test is recorded; never that it makes none. */
+      readonly unrecorded: string;
+    }
+  | {
+      /** Each step and assertion the journal recorded, in the order the test made them. */
+      readonly steps: readonly string[];
+      /** The attempt they are read from, the last one, of `attempts`. */
+      readonly attempt: number;
+      readonly attempts: number;
+      /** Why the journal is not whole, when it is not. */
+      readonly partial?: string;
+    };
+
+/**
+ * The steps and assertions the record at `record` keeps for the test declared
+ * in `file` and named `name`, from its last attempt: a retried test's earlier
+ * attempts are the runs it did not pass on.
+ */
+export function recordedSteps(record: string, file: string, name: string): RecordedSteps {
+  let archive: EyesArchive;
+  try {
+    archive = eyesArchiveOf(readFileSync(record), record);
+  } catch (error) {
+    if (error instanceof RecordKeepsNoEyes) return { unrecorded: 'the run kept no Eyes journal' };
+    throw error;
+  }
+  const attempts = archive.tests.filter((test) => test.file === file && test.title === name);
+  const last = attempts.at(-1);
+  if (last === undefined) return { unrecorded: 'Eyes kept no journal for it' };
+  const steps = last.attention.flatMap((entry) => stepLine(entry) ?? []);
+  return {
+    steps,
+    attempt: last.attempt ?? attempts.length,
+    attempts: attempts.length,
+    ...(last.complete ? {} : { partial: last.because }),
+  };
+}

@@ -21,6 +21,7 @@ import { codeUnitOrder } from '@variance-authority/core/segment';
 import { linesThen, passedAt, testsRan, type RanRegion, type TestRan } from '@variance-authority/sense';
 import { nextPage, pageAt, paged, type Page, type Spelling } from '@variance-authority/mcp/tools';
 import { byFile } from './format.js';
+import { ofSuite } from './asked-test.js';
 import { ripgrep, type Hit } from './ripgrep.js';
 
 /** One suite's matching lines, split by whether the test ran them. */
@@ -42,9 +43,6 @@ export interface GrepRan {
   readonly answered: readonly Marked[];
   readonly refused: readonly string[];
 }
-
-/** `suite x: ` before a suite's answer, nothing for the one suite a recording names no name for. */
-export const ofSuite = (suite: string | undefined): string => (suite === undefined ? '' : `suite ${suite}: `);
 
 /** Each suite's matching lines for the chosen test, or the refusals when no suite holds it. */
 export function grepRan(root: string, query: string, file: string, name: string | undefined): GrepRan {

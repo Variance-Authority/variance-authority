@@ -340,6 +340,8 @@ export function testCompositions(root: string, file: string, name?: string): rea
 export interface SuiteTestRan {
   readonly suite?: string;
   readonly ran: NativeTestRan;
+  /** The recording the suite's answer is read from, for a reader that asks it more of the same run. */
+  readonly recording: string;
   /** The commit the recording ran at, whose lines its regions are spans of, when it names one. */
   readonly commit?: string;
 }
@@ -354,10 +356,10 @@ export function testsRan(root: string, file: string, name?: string): readonly Su
   return ofTest<Omit<SuiteTestRan, 'suite'>>(
     root,
     file,
-    (notRecorded) => ({ ran: { notRecorded, suite: 0, modules: [] } }),
+    (notRecorded, recording) => ({ ran: { notRecorded, suite: 0, modules: [] }, recording }),
     (recording, path) => {
       const { commit } = commitOf(recording);
-      return { ran: entry('testRan')(recording, path, name ?? null), ...(commit == null ? {} : { commit }) };
+      return { ran: entry('testRan')(recording, path, name ?? null), recording, ...(commit == null ? {} : { commit }) };
     },
   ).map(({ answer, ...named }) => ({ ...named, ...answer }));
 }
@@ -459,14 +461,14 @@ export function passedAt(module: NativeRanModule, line: number): { readonly regi
 function ofTest<T>(
   root: string,
   file: string,
-  refuse: (notRecorded: string) => T,
+  refuse: (notRecorded: string, recording: string) => T,
   read: (recording: string, path: string) => T,
 ): readonly { readonly suite?: string; readonly answer: T }[] {
   const asked = checkoutPath(root, file);
   return recordings(root).flatMap(({ suite, recording }) => {
     if (recording === undefined) return [];
     const named = suite === undefined ? {} : { suite };
-    return [{ ...named, answer: 'outside' in asked ? refuse(asked.outside) : read(recording, asked.path) }];
+    return [{ ...named, answer: 'outside' in asked ? refuse(asked.outside, recording) : read(recording, asked.path) }];
   });
 }
 
