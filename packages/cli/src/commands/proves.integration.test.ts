@@ -212,6 +212,16 @@ describe('variance proves', () => {
     expect(answered.out).toBe('');
   });
 
+  it('refuses an ask that names no test file, and one that names no command', async () => {
+    await recorded();
+
+    const noFile = await run(['proves', '--name', 'adds', '--', process.execPath, 'test/total.check.mjs']);
+    const noCommand = await run(['proves', '--file', 'test/total.check.mjs', '--name', 'adds']);
+
+    expect([noFile.code, noFile.err]).toEqual([EXIT_OPERATOR, expect.stringContaining('`proves` needs --file')]);
+    expect([noCommand.code, noCommand.err]).toEqual([EXIT_OPERATOR, expect.stringContaining('`proves` needs a command that runs the test')]);
+  });
+
   it('refuses a command that cannot be started', async () => {
     await recorded();
 
