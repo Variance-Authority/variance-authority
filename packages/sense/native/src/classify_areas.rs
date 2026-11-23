@@ -64,9 +64,8 @@ pub struct ClassifiedAreas {
 pub(crate) struct DeclaredWords {
     /// For each of the request's stems, the files declaring a name that holds it, and how many such names each declares.
     pub(crate) holding: BTreeMap<String, HashMap<String, u64>>,
-    /// For each file, how many words the names it declares hold together, exported or not;
-    /// the ranking reads only which files have a row, the ones that declare a name.
-    pub(crate) words: HashMap<String, u64>,
+    /// Files declaring at least one searchable name, exported or not.
+    pub(crate) files: HashSet<String>,
 }
 
 /// The areas `query`'s words point to among the published source index's files, scored with the names the help store in `store` and the source index
@@ -117,8 +116,8 @@ pub fn classify_areas(
         }).collect();
         for row in stages::timed("classify/private-words", || private_words(layers, &folded, &stems)) {
             let Some(file) = row.at.strip_prefix(&under) else { continue };
-            if row.words > 0 {
-                *words.words.entry(file.to_owned()).or_default() += u64::from(row.words);
+            if row.declares {
+                words.files.insert(file.to_owned());
             }
             for at in row.named {
                 let Some(files) = stems.get(at as usize).and_then(|stem| words.holding.get_mut(stem)) else { continue };
@@ -184,10 +183,10 @@ pub fn classify_names(words: Vec<String>, cap: u32, index: String, within: Strin
 }
 
 /// What the help store says the files declare: per stem, the files whose
-/// exported names hold one of its `terms`; per file, how many words its
-/// exported names hold.
+/// exported names hold one of its `terms`; and the files whose exported names
+/// hold any search term.
 fn store_words(stored: &Stored, stems: &[String], terms: &[Vec<u32>]) -> Result<DeclaredWords, String> {
-    let name_count = stored.u32s("names.name")?.len();
+    let names = stored.u32s("names.name")?;
     let exp_off = stored.u32s("names.expOff")?;
     let exp = stored.u32s("names.exp")?;
     let exp_at = stored.u32s("exp.at")?;
@@ -196,8 +195,7 @@ fn store_words(stored: &Stored, stems: &[String], terms: &[Vec<u32>]) -> Result<
     let term_count = term_name_off.len().saturating_sub(1);
     // Every export is written at a file; a row without one names none.
     let exported_at = |row: u32| Some(exp_at.at(row as usize)).filter(|&at| at != NONE).map(|at| stored.text(at));
-    // A name counts once per file, even when its type and value are both exported there.
-    let exported = |name: u32| exp_off.range(name as usize).map(|at| exp.at(at)).filter_map(exported_at).collect::<HashSet<&str>>();
+    let exported = |name: u32| exp_off.range(name as usize).map(|at| exp.at(at)).filter_map(exported_at);
     let named = |term: usize| term_name_off.range(term).map(|at| term_name.at(at));
 
     let mut found = DeclaredWords::default();
@@ -211,26 +209,18 @@ fn store_words(stored: &Stored, stems: &[String], terms: &[Vec<u32>]) -> Result<
         }
         let mut files: HashMap<String, u64> = HashMap::new();
         for name in names {
-            for file in exported(name) {
+            // A name counts once per file, even when both its type and value are exported there.
+            for file in exported(name).collect::<HashSet<&str>>() {
                 *files.entry(file.to_owned()).or_default() += 1;
             }
         }
         found.holding.insert(stem_of.clone(), files);
     }
-    // Each term lists the names holding it, so a name holds as many words as terms list it.
-    let mut words_of = vec![0u64; name_count];
-    for at in 0..term_name.len() {
-        if let Some(held) = words_of.get_mut(term_name.at(at) as usize) {
-            *held += 1;
-        }
-    }
-    for (name, &held) in words_of.iter().enumerate() {
-        if held == 0 {
+    for name in 0..names.len() {
+        if exp_off.range(name).is_empty() || !crate::help_search::name_has_terms(stored.text(names.at(name))) {
             continue;
         }
-        for file in exported(name as u32) {
-            *found.words.entry(file.to_owned()).or_default() += held;
-        }
+        found.files.extend(exported(name as u32).map(str::to_owned));
     }
     Ok(found)
 }
@@ -275,7 +265,7 @@ pub(crate) fn rank<'a>(asked: &'a BTreeMap<String, String>, paths: &[&'a str], d
         }
         area.files += 1;
         file_of.insert(path, directory);
-        if declared.words.contains_key(path) {
+        if declared.files.contains(path) {
             area.declares = true;
         }
         for stem in cut(base_name(path)) {
