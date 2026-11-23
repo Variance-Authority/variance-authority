@@ -83,7 +83,7 @@ when you need the connecting paths regardless of which name each import uses. Se
 
 ## Choose directory membership or import reach
 
-The `grep --from src/orders/` header counts files under that path and files
+`grep --from src/orders/` searches files under that path and files
 reachable through their imports. A match in `src/shared/` answers that import
 question. For text only under the observed directory, select path membership:
 
