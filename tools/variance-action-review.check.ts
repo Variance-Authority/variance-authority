@@ -1,10 +1,10 @@
-import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname, join, normalize, resolve } from 'node:path';
+import { dirname, join, normalize } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { parse } from 'yaml';
+import { ACTION, BADGE, FOLDER, type Step, action, git, origin, pushed, ran, stepNamed } from './variance-action-review-steps.js';
+import { ROOT } from './variance-action-steps.js';
 
 /**
  * A project with only unit tests has no surface for `variance run` to observe,
@@ -15,94 +15,7 @@ import { parse } from 'yaml';
  * Each step's script is run as the action runs it, under a fake CLI.
  */
 
-const ROOT = resolve(import.meta.dirname, '..');
-const FOLDER = '.github/actions/variance';
-const ACTION = `${FOLDER}/review/action.yml`;
-
-interface Step {
-  readonly name: string;
-  readonly id?: string;
-  readonly if?: string;
-  readonly run: string;
-  readonly uses?: string;
-  readonly with?: Readonly<Record<string, string>>;
-  readonly env?: Readonly<Record<string, string>>;
-  readonly 'continue-on-error'?: boolean;
-}
-
-const action = (): { inputs: Record<string, unknown>; outputs?: unknown; runs: { steps: readonly Step[] } } =>
-  parse(readFileSync(join(ROOT, ACTION), 'utf8'));
-
-function stepNamed(name: string): Step {
-  const step = action().runs.steps.find((one) => one.name === name);
-  if (step === undefined) throw new Error(`the review action has no step ${name}`);
-  return step;
-}
-
 describe('the review a project with only unit tests puts on the pull request', () => {
-  const MARKER = '<!-- variance-authority: review -->';
-  const BADGE = '{"schemaVersion":1,"label":"regions run","message":"75.0%","color":"blue"}';
-  /** Two levels under the checkout, as a runner's workspace sits two levels under the folder that holds the actions. */
-  const WORKSPACE = join(ROOT, 'work', 'repository');
-
-  /**
-   * What the step named `step` asked the CLI, wrote and exited with, under a CLI that exits `exit` on `review`
-   * and `coverage`. With `reviewed`, the review step has already written its file, as it has for every step after it.
-   */
-  async function ran(step: string, env: Readonly<Record<string, string>> = {}, exit = 0, reviewed = false) {
-    const at = await mkdtemp(join(tmpdir(), 'variance-action-review-'));
-    try {
-      if (reviewed) {
-        await mkdir(join(at, 'review'));
-        await writeFile(join(at, 'review', 'review.md'), `${MARKER}\nthe review\n`);
-      }
-      const fake = join(at, 'variance');
-      await writeFile(
-        fake,
-        `#!/bin/bash\necho "$*" >> "${at}/said"\nif [ "$1" = review ]; then\n  [ ${exit} = 0 ] || exit ${exit}\n  mkdir -p "$REVIEW"\n  printf '${MARKER}\\nthe review\\n' > "$REVIEW/review.md"\n  echo the summary\nfi\nif [ "$1" = coverage ]; then\n  [ ${exit} = 0 ] || exit ${exit}\n  echo '${BADGE}'\nfi\n`,
-        { mode: 0o755 },
-      );
-      await writeFile(join(at, 'output'), '');
-      await writeFile(join(at, 'summary'), '');
-      // The expressions GitHub fills in, filled the way a job on the host has them.
-      const run = stepNamed(step).run
-        .replaceAll('${{ github.action_path }}', join(ROOT, dirname(ACTION)))
-        .replaceAll('${{ github.workspace }}', WORKSPACE);
-      let status = 0;
-      let printed = '';
-      try {
-        // The shell GitHub runs a `shell: bash` step under, errexit and all.
-        printed = execFileSync('bash', ['--noprofile', '--norc', '-eo', 'pipefail', '-c', run], {
-          env: {
-            ...process.env,
-            VARIANCE_COMMAND: fake,
-            REVIEW: join(at, 'review'),
-            GITHUB_OUTPUT: join(at, 'output'),
-            GITHUB_STEP_SUMMARY: join(at, 'summary'),
-            GITHUB_WORKSPACE: WORKSPACE,
-            RUNNER_TEMP: at,
-            ...env,
-          },
-          stdio: 'pipe',
-          encoding: 'utf8',
-        });
-      } catch (error) {
-        ({ status, stdout: printed } = error as { status: number; stdout: string });
-      }
-      const read = (name: string): Promise<string> => readFile(join(at, name), 'utf8').catch(() => '');
-      return {
-        status,
-        printed,
-        said: (await read('said')).trim().split('\n').map((line) => line.replaceAll(at, '<at>')),
-        output: (await read('output')).replaceAll(at, '<at>'),
-        summary: await read('summary'),
-        review: await read('review/review.md'),
-      };
-    } finally {
-      await rm(at, { recursive: true, force: true });
-    }
-  }
-
   it('publishes the source index, then reviews with coverage from where the change starts', async () => {
     const { said } = await ran('review the change', { SINCE: 'abc123' });
 
@@ -188,35 +101,6 @@ describe('the review a project with only unit tests puts on the pull request', (
     expect(run.indexOf('"$here/../diff-marks.mjs" "$REVIEW/review.json" ||')).toBeGreaterThan(run.indexOf('post-comment.mjs'));
   });
 
-  it('draws the coverage page of every suite, with the packages and the tests per file, named for the review\'s suite', async () => {
-    const { status, said, output } = await ran('draw the coverage page', { SUITE: 'unit' });
-
-    expect(status).toBe(0);
-    expect(said).toEqual(['coverage --packages --fan-in --format html']);
-    expect(output).toBe('path=<at>/variance-coverage/variance-coverage-unit.html\n');
-    expect((await ran('draw the coverage page', { SUITE: '' })).output).toBe('path=<at>/variance-coverage/variance-coverage.html\n');
-  });
-
-  it('names no page it could not draw, so nothing is uploaded and the comment posts without a link', async () => {
-    const { status, output, printed } = await ran('draw the coverage page', { SUITE: 'unit' }, 1);
-
-    expect(status).toBe(0);
-    expect(output).toBe('');
-    expect(printed).toContain('::warning title=coverage page not drawn::');
-    expect(stepNamed('upload the coverage page').if).toContain("steps.page.outputs.path != ''");
-    expect(stepNamed('upload the coverage page')['continue-on-error']).toBe(true);
-    expect(stepNamed('link the coverage page').if).toContain("steps.upload-page.outputs.artifact-url != ''");
-  });
-
-  it('links the page from the review, under its marker, and from the step summary', async () => {
-    const { status, review, summary } = await ran('link the coverage page', { PAGE_URL: 'https://example.test/page' }, 0, true);
-
-    expect(status).toBe(0);
-    expect(review.split('\n')[0]).toBe(MARKER);
-    expect(review).toContain('[Coverage page](https://example.test/page)');
-    expect(summary).toContain('[Coverage page](https://example.test/page)');
-  });
-
   it('takes only what a review reads, and states no verdict for a run that never happened', () => {
     expect(Object.keys(action().inputs).sort()).toEqual(['against', 'badge', 'command', 'comment', 'coverage-page', 'fail-on-lost', 'fail-on-uncovered', 'from', 'github-token', 'suite', 'test']);
     expect(action().outputs).toBeUndefined();
@@ -239,7 +123,7 @@ describe('the review a project with only unit tests puts on the pull request', (
       'take the review',
       'say the review job handed nothing on',
       'post the review',
-      'publish the badge',
+      'publish the badge and the page',
       'what the host keeps',
       "keep the suite's record for the next pull request",
       'keep what this push ran',
@@ -310,37 +194,15 @@ describe('the review a project with only unit tests puts on the pull request', (
   });
 
   describe('the badge', () => {
-    const git = (dir: string, ...args: string[]) => execFileSync('git', ['--git-dir', dir, ...args], { encoding: 'utf8' }).trim();
-
-    /** Moves `main` of the bare repository to a new commit, as a push to it does, and answers the commit. */
-    const pushed = (dir: string, message: string) => {
-      const tree = execFileSync('git', ['--git-dir', dir, 'mktree'], { input: '', encoding: 'utf8' }).trim();
-      const commit = execFileSync('git', ['--git-dir', dir, '-c', 'user.name=a', '-c', 'user.email=a@a', 'commit-tree', tree, '-m', message], { encoding: 'utf8' }).trim();
-      git(dir, 'update-ref', 'refs/heads/main', commit);
-      return commit;
-    };
-
     /** Counts the figure, as the job that ran the tests does, then publishes it from the same review directory. */
     async function badge(env: Readonly<Record<string, string>>, exit = 0) {
       const review = await mkdtemp(join(tmpdir(), 'variance-action-badge-review-'));
       try {
         const counted = await ran('count the regions run', { REVIEW: review }, exit);
-        return { ...(await ran('publish the badge', { ...env, REVIEW: review })), said: counted.said, counted: counted.printed };
+        return { ...(await ran('publish the badge and the page', { ...env, REVIEW: review })), said: counted.said, counted: counted.printed };
       } finally {
         await rm(review, { recursive: true, force: true });
       }
-    }
-
-    /** A bare repository the step pushes to, as it would push to this run's repository, its `main` at the run's commit. */
-    async function origin(): Promise<{ readonly env: Record<string, string>; readonly dir: string; readonly done: () => Promise<void> }> {
-      const at = await mkdtemp(join(tmpdir(), 'variance-action-badge-'));
-      const dir = join(at, 'origin.git');
-      execFileSync('git', ['init', '--quiet', '--bare', dir]);
-      return {
-        dir,
-        env: { GITHUB_SERVER_URL: `file://${at}`, GITHUB_REPOSITORY: 'origin', GITHUB_TOKEN: 'token', GITHUB_SHA: pushed(dir, 'ran'), BRANCH: 'main' },
-        done: () => rm(at, { recursive: true, force: true }),
-      };
     }
 
     it('leaves the badge to the newer commit\'s run when the branch has moved past this one', async () => {
@@ -395,7 +257,7 @@ describe('the review a project with only unit tests puts on the pull request', (
     it('pushes nothing and says nothing under `from` when the job that ran the tests counted no figure', async () => {
       const remote = await origin();
       try {
-        const { status, printed } = await ran('publish the badge', { ...remote.env, FROM: 'variance-review' });
+        const { status, printed } = await ran('publish the badge and the page', { ...remote.env, FROM: 'variance-review' });
 
         expect(status).toBe(0);
         expect(printed).not.toContain('::warning');
@@ -422,11 +284,11 @@ describe('the review a project with only unit tests puts on the pull request', (
       expect(stepNamed('count the regions run').if).toBe(
         "inputs.from == '' && inputs.badge == 'true' && github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)",
       );
-      expect(stepNamed('publish the badge').if).toBe(
+      expect(stepNamed('publish the badge and the page').if).toBe(
         "(steps.taken.outcome == 'success' || (inputs.from == '' && inputs.comment != 'false' && inputs.badge == 'true')) && github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)",
       );
       const names = action().runs.steps.map((step) => step.name);
-      expect(names.indexOf('publish the badge')).toBeLessThan(names.indexOf('fail on what the review counted'));
+      expect(names.indexOf('publish the badge and the page')).toBeLessThan(names.indexOf('fail on what the review counted'));
     });
   });
 
@@ -440,7 +302,7 @@ describe('the review a project with only unit tests puts on the pull request', (
     it("reads the token only in a step `comment: 'false'` skips, and hands on the review that step would post", () => {
       const reading = steps().filter((step) => text(step).includes('inputs.github-token'));
 
-      expect(reading.map((step) => step.name)).toEqual(['post the review', 'publish the badge']);
+      expect(reading.map((step) => step.name)).toEqual(['post the review', 'publish the badge and the page']);
       for (const step of reading) expect(step.if).toContain("inputs.comment != 'false'");
       const handed = stepNamed('hand the review on');
       expect(handed.if).toBe("inputs.from == '' && inputs.comment == 'false'");
@@ -459,7 +321,7 @@ describe('the review a project with only unit tests puts on the pull request', (
         'take the review',
         'say the review job handed nothing on',
         'post the review',
-        'publish the badge',
+        'publish the badge and the page',
       ]);
       for (const step of running) expect(text(step)).not.toMatch(/inputs\.(test|command)\b|actions\/checkout/u);
       expect(stepNamed('take the review').with).toMatchObject({ name: '${{ inputs.from }}' });
@@ -474,7 +336,7 @@ describe('the review a project with only unit tests puts on the pull request', (
       expect(stepNamed('say the review job handed nothing on').if).toBe(
         "inputs.from != '' && steps.taken.outcome != 'success'",
       );
-      for (const name of ['post the review', 'publish the badge'])
+      for (const name of ['post the review', 'publish the badge and the page'])
         expect(stepNamed(name).if).toContain("steps.taken.outcome == 'success'");
     });
   });

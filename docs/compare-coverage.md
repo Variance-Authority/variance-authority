@@ -121,7 +121,8 @@ describes every line of the output.
   The page to browse is a file: `variance coverage --packages --fan-in
   --format html` renders every package and file from the record, and the
   review action's `coverage-page` input uploads it with each pull request's
-  comment.
+  comment, and with the badge on keeps the default branch's latest at the
+  git ref `refs/coverage/<branch>`.
 - **No gate on a percentage.** `variance coverage` exits `0` whatever the
   numbers are. A threshold is a line in your own workflow. What a project can
   require is a count: `variance review --fail-on-uncovered` exits `1` when a
