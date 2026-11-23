@@ -28,8 +28,9 @@ export function formatTestComposition(composition: TestComposition): string {
   }
   const head = `${test.file}  ${test.name}: a footprint of ${regions(test.blocks)}`;
   const lines = [structure === 0 ? `${head}.` : `${head}; ${structure} more ${structure === 1 ? 'is' : 'are'} structure, ${majority}.`];
-  if (composition.alike > 0) {
-    lines.push(`${composition.alike === 1 ? '1 other test' : `${composition.alike} other tests`} ran exactly the same regions.`);
+  if (composition.alike.length > 0) {
+    lines.push('', 'Alike, other tests that ran exactly the same regions:');
+    lines.push(...cappedRows(composition.alike, (alike) => `  ${alike.file}  ${alike.name}`, ROWS));
   }
   if (composition.pieces.length === 0 && composition.wholes.length === 0) {
     lines.push('', 'No smaller test sits inside it and no larger test holds it.');

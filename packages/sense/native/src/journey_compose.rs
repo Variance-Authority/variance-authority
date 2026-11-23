@@ -50,8 +50,9 @@ pub struct TestComposition {
     pub test: Option<JourneyCase>,
     /// Regions it entered that more than half the suite entered too.
     pub structure: u32,
-    /// Other tests whose footprint is exactly its own.
-    pub alike: u32,
+    /// Other tests whose footprint is exactly its own, in recording order;
+    /// `blocks` is that footprint.
+    pub alike: Vec<JourneyCase>,
     /// Smaller tests inside it, most shared first.
     pub pieces: Vec<JourneyPiece>,
     /// Larger tests holding it, smallest first.
@@ -70,7 +71,7 @@ fn refused(reason: String) -> TestComposition {
         suite: 0,
         test: None,
         structure: 0,
-        alike: 0,
+        alike: Vec::new(),
         pieces: Vec::new(),
         wholes: Vec::new(),
         explained: 0,
@@ -130,7 +131,7 @@ pub(crate) fn compose(masks: &mut JourneyMasks, file: &str, name: Option<&str>) 
             }
         }
     }
-    let (mut pieces, mut wholes, mut alike) = (Vec::new(), Vec::new(), 0);
+    let (mut pieces, mut wholes, mut alike) = (Vec::new(), Vec::new(), Vec::new());
     if size > 0 {
         for (&case, &with) in &shared {
             let theirs = footprint(case);
@@ -139,12 +140,13 @@ pub(crate) fn compose(masks: &mut JourneyMasks, file: &str, name: Option<&str>) 
             } else if theirs > size && f64::from(with) >= HOLDS * f64::from(size) {
                 wholes.push((case, theirs, with));
             } else if theirs == size && with == size {
-                alike += 1;
+                alike.push(case);
             }
         }
     }
     pieces.sort_by_key(|&(case, theirs, with)| (u32::MAX - with, u32::MAX - theirs, case));
     wholes.sort_by_key(|&(case, theirs, _)| (theirs, case));
+    alike.sort_unstable();
 
     let mut kept = vec![false; suite];
     for &(case, _, _) in &pieces {
@@ -176,7 +178,7 @@ pub(crate) fn compose(masks: &mut JourneyMasks, file: &str, name: Option<&str>) 
         suite: suite as u32,
         test: Some(case_of(masks, asked, size, None)?),
         structure: entered.len() as u32 - size,
-        alike,
+        alike: alike.into_iter().map(|case| case_of(masks, case, size, None)).collect::<Result<_, _>>()?,
         pieces: pieces.into_iter().map(|found| piece(masks, found)).collect::<Result<_, _>>()?,
         wholes: wholes.into_iter().map(|found| piece(masks, found)).collect::<Result<_, _>>()?,
         explained,
@@ -197,6 +199,12 @@ pub struct RanRegion {
     pub function: Option<String>,
     /// Whether the test entered it.
     pub entered: bool,
+    /// How many other tests entered it: none says only this test enters it
+    /// when it did, and no test takes it when it did not.
+    pub others: u32,
+    /// The smallest other journey that entered it, the one to read for what
+    /// takes it; absent when no other test did. `blocks` is its journey size.
+    pub smallest: Option<JourneyCase>,
 }
 
 /// A module the test entered, with every region recorded in it.
@@ -237,6 +245,7 @@ pub(crate) fn ran(masks: &mut JourneyMasks, file: &str, name: Option<&str>) -> R
         Err(reason) => return Ok(TestRan { not_recorded: Some(reason), suite: 0, test: None, modules: Vec::new() }),
     };
     let suite = masks.journey.tests();
+    let sizes = masks.sizes()?;
     let mut only = vec![false; suite];
     only[asked as usize] = true;
     let entered: HashSet<u32> = masks.masks(&only)?.remove(&asked).unwrap_or_default().into_iter().collect();
@@ -250,6 +259,9 @@ pub(crate) fn ran(masks: &mut JourneyMasks, file: &str, name: Option<&str>) -> R
                 continue;
             }
             let held = block(masks, bit)?;
+            let members = masks.entered(bit)?;
+            let others: Vec<u32> = members.iter().copied().filter(|&case| case != asked).collect();
+            let smallest = others.iter().copied().min_by_key(|&case| (sizes[case as usize], case));
             regions.push(RanRegion {
                 kind: held.kind,
                 line: held.line,
@@ -257,6 +269,8 @@ pub(crate) fn ran(masks: &mut JourneyMasks, file: &str, name: Option<&str>) -> R
                 source: masks.bits[bit as usize].source,
                 function: held.function,
                 entered: entered.contains(&bit),
+                others: others.len() as u32,
+                smallest: smallest.map(|case| case_of(masks, case, sizes[case as usize], None)).transpose()?,
             });
         }
         modules.push(RanModule { file: masks.journey.module_file(module as usize)?.to_owned(), regions });

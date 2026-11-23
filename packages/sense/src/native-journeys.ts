@@ -375,8 +375,8 @@ export interface NativeTestComposition {
   readonly test?: NativeJourneyCase | null;
   /** Regions it entered that more than half the suite entered too. */
   readonly structure: number;
-  /** Other tests whose footprint is exactly its own. */
-  readonly alike: number;
+  /** Other tests whose footprint is exactly its own, in recording order; `blocks` is that footprint. */
+  readonly alike: readonly NativeJourneyCase[];
   /** Smaller tests with nine tenths of their footprint inside it, most shared first. */
   readonly pieces: readonly NativeJourneyPiece[];
   /** Larger tests holding nine tenths of it, smallest first. */
@@ -400,6 +400,13 @@ export interface NativeRanRegion {
   readonly function?: string | null;
   /** Whether the test entered it. */
   readonly entered: boolean;
+  /**
+   * How many other tests entered it: none says only this test enters it when
+   * it did, and no test takes it when it did not.
+   */
+  readonly others: number;
+  /** The smallest other journey that entered it; absent when no other test did. `blocks` is its journey size. */
+  readonly smallest?: NativeJourneyCase | null;
 }
 
 /** A module a test entered, with every region recorded in it, in row order. */

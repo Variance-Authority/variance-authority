@@ -249,7 +249,7 @@ describe('journeys read as masks', () => {
     // Two of three cases entered every region `finds` entered, so all of it is structure and it has no footprint.
     const [composed] = testCompositions(root, join(root, 'test/api.test.ts'), 'finds');
     const { composition } = composed ?? {};
-    expect([composition?.test?.name, composition?.test?.blocks, composition?.structure, composition?.alike]).toEqual(['finds', 0, 3, 0]);
+    expect([composition?.test?.name, composition?.test?.blocks, composition?.structure, composition?.alike]).toEqual(['finds', 0, 3, []]);
     expect(composition?.own).toEqual([]);
     expect(testCompositions(root, 'test/api.test.ts')[0]?.composition.notRecorded).toBe(
       'test/api.test.ts declares 3 recorded tests; name one of them:\n  finds\n  finds again\n  misses',

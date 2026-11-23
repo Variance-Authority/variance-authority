@@ -472,7 +472,7 @@ function ofTest<T>(
 
 /** A composition with nothing in it, for a test the recording cannot hold. */
 function uncomposed(notRecorded: string): NativeTestComposition {
-  return { notRecorded, suite: 0, structure: 0, alike: 0, pieces: [], wholes: [], explained: 0, own: [], reached: [] };
+  return { notRecorded, suite: 0, structure: 0, alike: [], pieces: [], wholes: [], explained: 0, own: [], reached: [] };
 }
 
 /** A map with nothing on it, for a path the recording cannot hold. */

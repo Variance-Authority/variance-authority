@@ -86,7 +86,8 @@ fn what_a_test_alone_runs_is_split_from_what_its_pieces_run() {
     // Both unit tests of `a` sit inside it; the end-to-end case holds it.
     assert_eq!(cases(&answer.pieces), vec![(0, 2, 2), (3, 2, 2)]);
     assert_eq!(cases(&answer.wholes), vec![(4, 6, 5)]);
-    assert_eq!((answer.explained, answer.alike), (2, 0));
+    assert_eq!(answer.explained, 2);
+    assert!(answer.alike.is_empty());
     // `b` is its own layer; `a`'s second branch is a path of a piece that only it reaches.
     assert_eq!(lines(&answer.own), vec![("src/b.ts", 1), ("src/b.ts", 3)]);
     assert_eq!(lines(&answer.reached), vec![("src/a.ts", 6)]);
@@ -109,7 +110,8 @@ fn a_test_with_the_same_journey_is_alike_and_not_a_piece() {
     let answer = compose(&mut masks, "a.test.ts", None).unwrap();
     assert_eq!(answer.test.unwrap().case, 3);
     assert!(answer.pieces.is_empty());
-    assert_eq!(answer.alike, 1);
+    // Named, so a reader can say which test it duplicates, not only that one does.
+    assert_eq!(answer.alike.iter().map(|case| (case.case, case.name.as_str(), case.blocks)).collect::<Vec<_>>(), vec![(0, "a unit", 2)]);
     assert_eq!(cases(&answer.wholes), vec![(1, 5, 2), (4, 6, 2)]);
     assert_eq!(lines(&answer.own), vec![("src/a.ts", 1), ("src/a.ts", 3)]);
     assert!(answer.reached.is_empty());
@@ -190,6 +192,26 @@ fn a_test_ran_marks_each_region_of_the_modules_it_entered() {
         ]
     );
     assert_eq!(answer.modules[0].regions[2].function.as_deref(), Some("a"));
+}
+
+fn taken(answer: &TestRan) -> Vec<(u32, u32, Option<u32>)> {
+    answer
+        .modules
+        .iter()
+        .flat_map(|module| module.regions.iter().map(|region| (region.line, region.others, region.smallest.as_ref().map(|case| case.case))))
+        .collect()
+}
+
+#[test]
+fn a_test_ran_says_how_many_other_tests_entered_each_region_and_the_smallest_of_them() {
+    let mut masks = recorded();
+    // `a again` (3 regions) is smaller than `b uses a` (6) and the end-to-end case (7);
+    // the branch `t0` passed by only `b uses a` and the end-to-end case take.
+    assert_eq!(taken(&ran(&mut masks, "t0.test.ts", None).unwrap()), vec![(1, 3, Some(3)), (3, 3, Some(3)), (6, 2, Some(1)), (1, 7, Some(5))]);
+    let mut masks = at_the_threshold();
+    // `f9` and `f10` only the whole enters; `f11` it passes by, and `nine tenths` takes it.
+    let rows = taken(&ran(&mut masks, "w0.test.ts", None).unwrap());
+    assert_eq!(&rows[9..12], &[(10, 0, None), (11, 0, None), (12, 1, Some(1))]);
 }
 
 #[test]
