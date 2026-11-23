@@ -1592,7 +1592,9 @@
         "verbOf": "function"
       },
       "./recorded-steps": {
+        "JournalRow": "type",
         "RecordedSteps": "type",
+        "attentionOf": "function",
         "recordedSteps": "function"
       },
       "./protocol": {

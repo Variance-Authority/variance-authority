@@ -5251,7 +5251,6 @@ __metadata:
     "@rstest/core": "npm:^0.12.6"
     "@variance-authority/core": "workspace:^"
     "@variance-authority/distill": "workspace:^"
-    "@variance-authority/eyes": "workspace:^"
     "@variance-authority/help": "workspace:^"
     "@variance-authority/history": "workspace:^"
     "@variance-authority/mcp": "workspace:^"
