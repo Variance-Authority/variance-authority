@@ -58,8 +58,14 @@ hold, exported or not and asked or not, each name once per file, so changing
 a name's export visibility alone does not move an area. Each area is listed with its file count, the
 request's words it holds, the one weighing most there first, and the package
 on the code map nearest at or above it, with that package's area and layer on
-the code map. The best one
-is asked `search --from` for its two weightiest words. A request that names
+the code map. Without a start point, the best area that declares names
+is asked `search --from` for its two weightiest words. With `--from` or `--to`,
+the next question uses [intersection](workspace-intersection.md) to combine
+that search in the original import scope with directory membership of the
+ranked area. This keeps files the original scope reaches inside that directory;
+starting a search from the directory alone can include files outside the
+original scope. A root area or one that declares no names keeps the original
+scope without a directory restriction. A request that names
 nothing still points somewhere: `Fix task manager claiming tasks twice` ranks
 the task manager plugin first in Kibana. In a monorepo of many products, pass
 `--from` with the product's folder: only the files it reaches along the imports
