@@ -200,6 +200,13 @@ To publish it for a README badge, set the review action's `badge` input rather
 than pushing the file from a workflow step; the action's README shows the job's
 `contents: write` and the README line.
 
+`variance coverage --packages --fan-in --format html` writes the whole answer
+as one self-contained page: suites, kinds, every package with its files and the
+test files that cover each, and every directory no suite loads. The format
+counts nothing the flags do not ask for, and refuses `--session`, which it does
+not draw. Point a person at it; read
+`--format json` yourself.
+
 ## Read the state of every range
 
 Every range, and the answer about one line, has a `state`:
