@@ -290,9 +290,10 @@ the same. The `variance-testing` skill shipped with the CLI gives an agent the
 order to judge these in.
 
 Every part is execution. A test that takes a branch runs it, which does not
-establish that it checks what the branch does. Before a deletion, break the
-line the name promises and run the test beside the tests next to it: a test
-that alone fails checks something they do not.
+establish that it checks what the branch does, and an assertion is named by its
+matcher and its Locator, not by the value it compares against. Before a
+deletion, break the line the name promises and run the test beside the tests
+next to it: a test that alone fails checks something they do not.
 
 ## Ask which code only distant tests run
 

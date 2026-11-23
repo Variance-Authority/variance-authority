@@ -64,7 +64,8 @@ function run(command, args, { checkout, env }) {
     child.stdout.on('data', (chunk) => (out += chunk.toString()));
     child.stderr.on('data', (chunk) => (err += chunk.toString()));
     child.on('error', reject);
-    child.on('exit', (code) => settle({ code, out, err }));
+    // `close` waits for the pipes to drain, where `exit` can settle before the last of the output.
+    child.on('close', (code) => settle({ code, out, err }));
   });
 }
 

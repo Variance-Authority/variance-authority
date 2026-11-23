@@ -64,7 +64,7 @@ describe('formatTestClaims', () => {
       '',
       'Claims:',
       '  its name: submits the form',
-      '  its steps and assertions, from attempt 2 of 2:',
+      '  its steps and assertions, from attempt 2, the last of 2 that kept a journal:',
       '    action fill on getByLabel(\'Email\')',
       '    assertion toBeVisible on getByRole(\'status\')',
       '    the journal stops short: the page closed',
@@ -96,6 +96,12 @@ describe('formatTestClaims', () => {
     expect(answer).toContain('\n  its steps and assertions: Eyes recorded none\n');
     expect(answer).toContain('\nRan, the functions it entered:\n  1 function, all structure, run by more than half of the 4 recorded tests\n');
     expect(answer.endsWith('Passed by: nothing; it took every region of the functions it entered.')).toBe(true);
+  });
+
+  it('names the attempt its steps are from when it was the only one that kept a journal, though it was not the first', () => {
+    const answer = formatTestClaims(test, composition, ran, { steps: [], attempt: 3, attempts: 1 });
+
+    expect(answer).toContain('\n  its steps and assertions, from attempt 3, the only one that kept a journal: Eyes recorded none\n');
   });
 
   it('says what it passed by is not known in a file whose record names no owners, rather than nothing', () => {

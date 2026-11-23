@@ -143,6 +143,9 @@ pub(crate) fn compose(masks: &mut JourneyMasks, file: &str, name: Option<&str>) 
                 alike.push(case);
             }
         }
+    } else {
+        // Nothing of its own: alike every other test that ran only structure, a piece or a whole of none.
+        alike = (0..sizes.len() as u32).filter(|&case| case != asked && footprint(case) == 0).collect();
     }
     pieces.sort_by_key(|&(case, theirs, with)| (u32::MAX - with, u32::MAX - theirs, case));
     wholes.sort_by_key(|&(case, theirs, _)| (theirs, case));

@@ -119,11 +119,12 @@ fn a_test_with_the_same_journey_is_alike_and_not_a_piece() {
 }
 
 #[test]
-fn a_test_that_runs_only_structure_has_no_footprint() {
+fn a_test_that_runs_only_structure_has_no_footprint_and_is_alike_every_other_that_runs_only_structure() {
     let mut masks = recorded();
     let answer = compose(&mut masks, "t5.test.ts", None).unwrap();
     assert_eq!((answer.test.unwrap().blocks, answer.structure), (0, 1));
     assert!(answer.pieces.is_empty() && answer.wholes.is_empty() && answer.own.is_empty());
+    assert_eq!(answer.alike.iter().map(|case| (case.case, case.blocks)).collect::<Vec<_>>(), vec![(6, 0), (7, 0)]);
 }
 
 #[test]

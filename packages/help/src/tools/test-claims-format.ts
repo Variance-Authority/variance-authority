@@ -46,7 +46,10 @@ function claimed(steps: RecordedSteps): string[] {
   if ('unrecorded' in steps) {
     return [`  its steps and assertions are not recorded: ${steps.unrecorded}, which says nothing about whether the test makes any.`];
   }
-  const from = steps.attempts > 1 ? `, from attempt ${steps.attempt} of ${steps.attempts}` : '';
+  // `attempts` counts the journals kept, which an attempt that kept none leaves short of the attempt read.
+  const from = steps.attempt === 1 && steps.attempts === 1 ? '' : steps.attempts === 1
+    ? `, from attempt ${steps.attempt}, the only one that kept a journal`
+    : `, from attempt ${steps.attempt}, the last of ${steps.attempts} that kept a journal`;
   const partial = steps.partial === undefined ? [] : [`    the journal stops short: ${steps.partial}`];
   if (steps.steps.length === 0) return [`  its steps and assertions${from}: Eyes recorded none`, ...partial];
   return [`  its steps and assertions${from}:`, ...cappedRows(steps.steps, (step) => `    ${step}`, STEPS), ...partial];

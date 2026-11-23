@@ -196,6 +196,7 @@ export {
   testsRan,
   type SuiteJourneyMap,
   type JourneysAround,
+  type PassedAt,
   type PreparedJourneys,
   type SuiteResonance,
   type SuiteTestComposition,

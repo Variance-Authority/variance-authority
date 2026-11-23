@@ -299,8 +299,11 @@ recorded, beside what it ran, what it adds to the suite and what it passed by. J
    judged with that test, never alone. The one whose name says what both run keeps its name.
    The other adds no execution: if its name claims something else, that is a
    path to drive; if both names say the same, one of them goes.
-3. Compare the steps and assertions with the twin's, asked the same way: two
-   tests that drive the same path and assert the same values check one thing.
+3. Compare the steps and assertions with the twin's, asked the same way. An
+   assertion is named by its matcher and its Locator, not the value it compares
+   against, so `toHaveText('')` and `toHaveText(/^Saved/)` read alike: read both
+   in the source. Two tests check one thing only when they drive the same input
+   down the same path and assert the same value.
 
 Then choose one action and name the exact change:
 
@@ -311,14 +314,15 @@ Then choose one action and name the exact change:
   drives it, such as a post that fails once.
 - `collapse into <test>`: it adds no execution, and what it asserts fits into
   that test as one more assertion.
-- `delete`: it adds no execution, and every assertion it makes, another test
-  makes too.
+- `delete`: it adds no execution, another test drives the same input, and
+  every assertion it makes, that test makes too.
 
 Cite each judgement with the part and the row it comes from, such as
 `Passed by` → `src/app/http.js:17-19  handler in post  no test takes it`, and
 open the source only to read what a named region does. Before a `collapse` or a
-`delete`, break the line the test's claim needs and run it beside the tests
-next to it: a test that alone fails checks something they do not.
+`delete`, break the line its own input decides, the branch or the value that
+input alone reaches, and run it beside the tests next to it: a test that alone
+fails checks something they do not.
 [orient](../variance-authority/references/orient.md#test-claims)
 
 ## Rules

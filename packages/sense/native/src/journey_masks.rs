@@ -179,7 +179,9 @@ impl JourneyMasks {
     /// The source regions of module `module` holding `line` that hold no other
     /// that does: what a case entered when it ran the line. Two regions of one
     /// span do not nest, save a function and its own one-line guard; two that
-    /// meet on the line are both innermost. `passedAt` reads "ran" by this rule.
+    /// meet on the line are both innermost, and so are a function and a guard
+    /// a record naming no owners leaves in no function. `passedAt` reads "ran"
+    /// by this rule.
     pub fn innermost_at(&self, module: usize, line: u32) -> Vec<u32> {
         let (from, to) = self.rows[module];
         let holding: Vec<u32> = (from..to)

@@ -62,7 +62,7 @@ fn recorded() -> JourneyMasks {
 }
 
 #[test]
-fn a_region_belongs_to_the_smallest_function_holding_its_first_line() {
+fn a_line_is_asked_of_the_smallest_function_holding_it_and_that_function_holds_its_regions() {
     let masks = recorded();
     let route = masks.function_at("src/route.ts", 5).unwrap().unwrap();
     assert_eq!(masks.inside(route).len(), 2);
