@@ -115,9 +115,9 @@ function declarationAreas({ privateArea = 'beta', merged = false }: { privateAre
     const source = `function restartWorker() {}\n${merged ? 'interface restartWorker {}\n' : ''}${name === 'gamma' ? '' : unrelated}`;
     writeFileSync(join(root, name, 'index.ts'), name === privateArea ? `export {};\n${source}` : source.replaceAll('function ', 'export function ').replaceAll('interface ', 'export interface '));
   }
-  // Classification splits directories above 500 tracked files into separate areas.
+  // Classification splits directories above 500 indexed source files into separate areas.
   mkdirSync(join(root, 'padding'));
-  for (let at = 0; at < 501; at += 1) writeFileSync(join(root, 'padding', `${at}.txt`), 'padding\n');
+  for (let at = 0; at < 501; at += 1) writeFileSync(join(root, 'padding', `${at}.ts`), 'export {};\n');
   for (const args of [['init', '--quiet', '--initial-branch', 'main'], ['config', 'user.email', 'fixture@example.test'], ['config', 'user.name', 'Fixture'], ['add', '-A'], ['commit', '--quiet', '-m', 'declaration vocabulary']]) {
     execFileSync('git', args, { cwd: root, stdio: 'pipe' });
   }

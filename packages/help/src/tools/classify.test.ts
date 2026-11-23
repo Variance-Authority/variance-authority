@@ -326,7 +326,6 @@ describe('docs_classify', () => {
     const text = classify.run(HELP, { query: 'checkoutPath ModuleLoader' }, { root: '/unused', sourceIndex: { index: '/scoped/source-index.bin', within: 'app' } });
 
     expect(names).toHaveBeenCalledWith('/unused', ['checkoutPath', 'ModuleLoader'], 64, { index: '/scoped/source-index.bin', within: 'app' });
-    expect(sense.packageLayers).toHaveBeenCalledWith('/unused', '/scoped/source-index.bin');
     expect(read.mock.calls[0]).toEqual(['/unused', ['app/packages/sense/src/checkoutPath.ts', 'app/lib/loader.js'], 400, '/scoped/source-index.bin']);
     expect(text.split('\n').slice(-2)).toEqual([
       '  packages/sense/src/checkoutPath.ts — checkoutPath (exported)',

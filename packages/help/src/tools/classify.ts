@@ -22,11 +22,11 @@ const FILES_READ = 64;
  * says why when no map is kept; when none was folded, no package and that
  * sentence beside it, since a declared name or a file needs no package.
  */
-function placesOf(root: string, index = sourceIndexPath(root)): CodeMapPlaces | string {
-  const layers = packageLayers(root, index);
-  if (layers === undefined) return noCodeMap(index);
+function placesOf(root: string): CodeMapPlaces | string {
+  const layers = packageLayers(root);
+  if (layers === undefined) return noCodeMap(sourceIndexPath(root));
   if (layers.packages === undefined || layers.packages === null) {
-    return { current: layers.current, packages: new Map(), unfolded: unfoldedCodeMap(index, layers.unmade ?? undefined) };
+    return { current: layers.current, packages: new Map(), unfolded: unfoldedCodeMap(sourceIndexPath(root), layers.unmade ?? undefined) };
   }
   return {
     current: layers.current,
@@ -175,7 +175,7 @@ export const classify: Tool<Help> = {
       throw new Error('`classify` reads the code map a checkout keeps, and this host named no checkout to read');
     }
     // The map names the packages, so without one nothing is classified.
-    const places = placesOf(root, invocation?.sourceIndex?.index);
+    const places = placesOf(root);
     if (typeof places === 'string') return places;
     // The addon ranks the published source-index inventory, scoped by the start point's
     // walks; only the ten areas cross.
