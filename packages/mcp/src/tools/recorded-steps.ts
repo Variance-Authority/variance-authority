@@ -44,9 +44,11 @@ export function eyesArchiveOf(bytes: Uint8Array, record: string): EyesArchive {
   }), section.watched);
 }
 
-type JournalRow = NonNullable<ReturnType<typeof recordedEyesOf>>['journals'][number];
+/** One journal row of a record's Eyes section, as `recordedEyesOf` reads it. */
+export type JournalRow = NonNullable<ReturnType<typeof recordedEyesOf>>['journals'][number];
 
-function attentionOf(row: JournalRow): ReturnType<typeof parseEyesJournal> {
+/** What one kept attempt recorded, parsed under the name an error gives it: the case and the attempt. */
+export function attentionOf(row: JournalRow): ReturnType<typeof parseEyesJournal> {
   return parseEyesJournal(row.journal, `the Eyes journal of ${row.case}, attempt ${row.attempt}`);
 }
 
