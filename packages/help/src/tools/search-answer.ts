@@ -3,15 +3,15 @@ import { describedWordsNative, wordStemsNative } from '@variance-authority/sense
 import type { SearchIndex } from '../search-index.js';
 import { tokensOf } from '../search-index.js';
 import type { Area } from './area.js';
-import { areaOf } from './area.js';
+import { areaLine, areaOf } from './area.js';
 import { looseNames, matchingTerms, rowWithin, termsOfStems } from './loose.js';
 import { carriedThrough, carriesMost } from './carried.js';
 import { countedOf, describedDeclarations, describedNames, describedShown, fileMatch, rowTextOrder, type RowOrder } from './described.js';
 import { declaredKey, looseDeclarations } from './loose-declared.js';
 import { queryDependencyLexicon } from '../dependency-lexicon.js';
-import { aliasMatches, declaredMatches, declaredTold, exactness } from './declared.js';
+import { aliasMatches, declaredMatches, declaredTold, exactness, unreadLine } from './declared.js';
 import { saidFor, type Said } from './held-sentence.js';
-import { membersUnreadOf } from './members.js';
+import { membersUnreadOf, unreadStop } from './members.js';
 import { docRows, exported, exportedOrder, first, type DeclarationLookups } from './exported-matches.js';
 import { counting, type ImportingOf, type InArea, type PublishedMatch } from './published-match.js';
 import type { DescribedMatch, Matches, SearchAnswer, SearchArea, Searched, SearchQuestion } from './search-matches.js';
@@ -228,9 +228,16 @@ export function searchedFiles(index: SearchIndex, question: SearchQuestion, tree
     const labels = (['query', 'near', 'loose'] as const).filter((kind) => kinds.has(kind)).map((kind) => `${kind} matches`);
     qualifications.set(at, `${labels.join(' and ')}${kinds.has('query') ? '' : ', not exact'}`);
   }
+  const members = unreadStop(found.answer.membersUnread ?? []);
+  const unread = [
+    ...unreadLine(found.answer.declared?.unread),
+    ...(members === undefined ? [] : [members]),
+    ...(found.area === undefined || found.area.unresolved.length === 0 ? [] : [areaLine(found.area)]),
+  ];
   return {
     files: new Map([...files].map(([at, { lines }]) => [at, [...lines].sort((left, right) => left - right)])),
     ...(qualifications.size === 0 ? {} : { qualifications }),
+    ...(unread.length === 0 ? {} : { unread }),
   };
 }
 

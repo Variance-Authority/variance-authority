@@ -171,10 +171,12 @@ const firstNamed = (files: readonly string[]): string => {
 
 /**
  * The sentence that says some files' declarations were not read, and which,
- * or nothing when every file's were. Indexing again reads none of them: a file
+ * or nothing when every file's were. Absent means no source index was read.
+ * Indexing again reads none of them: a file
  * is declined by its size or its bytes, or its reader did not harvest it.
  */
-export function unreadLine(unread: readonly string[]): readonly string[] {
+export function unreadLine(unread: readonly string[] | undefined): readonly string[] {
+  if (unread === undefined) return ['no source index was read, so a name no file exports is not known'];
   if (unread.length === 0) return [];
   const files = unread.length === 1 ? '1 file' : `${unread.length} files`;
   return [`The declarations of ${files} were not read into the source index, so a name declared there is not known: ${firstNamed(unread)}.`];

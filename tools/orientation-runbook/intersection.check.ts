@@ -16,6 +16,7 @@ test('canonical intersection membership drives an empty fallback and preserves i
     writeFileSync(join(root, 'src/b.ts'), 'export const Beta = 2;');
     writeFileSync(join(root, 'src/widget.ts'), 'export interface Widget { completed: boolean; }');
     writeFileSync(join(root, 'src/widget.rs'), 'pub struct Widget { pub completed: bool }');
+    writeFileSync(join(root, 'src/opaque.ts'), `const Quenfralob = 1; export {};\n${'// filler line\n'.repeat(80_000)}`);
     execFileSync('git', ['init', '--quiet', root]);
     execFileSync(process.execPath, [resolve('packages/cli/dist/bin.js'), 'index', '--wait'], { cwd: root, stdio: 'pipe' });
     const context = await openQuestions(root);
@@ -53,6 +54,15 @@ test('canonical intersection membership drives an empty fallback and preserves i
       assert.match(member.evidence[0].observation.unread.join('\n'), /Rust files were not read/u);
       assert.match(member.answers[0].answer, /Rust files were not read/u);
     }
+
+    const searched = await run([
+      { question: 'search', input: { query: 'Quenfralob', from: ['src/'] } },
+      { question: 'discover', input: { path: '^src/opaque[.]ts$' } },
+    ]);
+    assert.deepEqual(searched.trace.map(row => row.state), ['incomplete', 'condition-skipped']);
+    assert.deepEqual(searched.evidence[0].observation.files, []);
+    assert.match(searched.evidence[0].observation.unread.join('\n'), /declarations.*src\/opaque.ts/u);
+    assert.match(searched.answers[0].answer, /declarations.*src\/opaque.ts/u);
 
     // The published tree still names this file, while a live text predicate cannot read it.
     rmSync(join(root, 'src/a.ts'));
