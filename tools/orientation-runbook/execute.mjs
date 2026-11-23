@@ -22,7 +22,7 @@ const schema = {
         },
         fromFiles: {
           type: 'object', additionalProperties: false, required: ['step', 'input'],
-          properties: { step: reference, input: reference },
+          properties: { step: reference, input: reference, as: { const: 'string' } },
         },
       },
     } },
@@ -114,7 +114,7 @@ export async function executeProgram(supplied, {
       const bound = structuredClone(input);
       const binding = step.fromFiles ? { step: step.fromFiles.step, file: bindings[position],
         membershipStatus: parent.membershipStatus } : undefined;
-      if (binding) bound[step.fromFiles.input] = [binding.file];
+      if (binding) bound[step.fromFiles.input] = step.fromFiles.as === 'string' ? binding.file : [binding.file];
       const identity = canonicalize({ question: step.question, input: bound });
       if (seen.has(identity)) {
         const cached = seen.get(identity);
