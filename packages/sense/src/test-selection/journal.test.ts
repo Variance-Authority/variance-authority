@@ -10,6 +10,7 @@ import {
   recordExecution,
   type ExecutionJournal,
 } from './journal.js';
+import { withoutCollectorImport } from './collector-import.js';
 import { readTestCoverage, selectTestFiles } from './index.js';
 import {
   INITIALIZING,
@@ -81,7 +82,7 @@ describe('a browser run records what it executed', () => {
       const page = createContext({});
       const collector = `{${executionCollectorSource()}}`;
       runInContext(collector, page);
-      runInContext(transformed.code.replace(/\n;import "[^"]+";$/, ''), page);
+      runInContext(withoutCollectorImport(transformed.code), page);
       runInContext(collector, page);
       runInContext('__browser_test_price(20)', page);
 
@@ -103,7 +104,7 @@ describe('a browser run records what it executed', () => {
 
       const page = createContext({});
       runInContext(`{${executionCollectorSource('loads')}}`, page);
-      runInContext(transformed.code.replace(/\n;import "[^"]+";$/, ''), page);
+      runInContext(withoutCollectorImport(transformed.code), page);
       const files = (call: string) =>
         (JSON.parse(runInContext(`JSON.stringify(globalThis[${JSON.stringify(EXECUTION_GLOBAL)}].${call}() ?? null)`, page)) as ExecutionJournal | null)?.modules.map((entry) => entry.id.split('@')[0]);
 

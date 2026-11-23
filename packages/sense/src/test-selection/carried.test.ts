@@ -2,6 +2,7 @@ import { writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { createContext, runInContext, type Context } from 'node:vm';
 import { afterEach, describe, expect, it } from 'vitest';
+import { withoutCollectorImport } from './collector-import.js';
 import { EXECUTION_GLOBAL, executionCollectorSource, testSelectionProbes, type ExecutionJournal } from './journal.js';
 import { SOURCE, forgetThePage, inRoot } from './__fixtures__/browser-page.js';
 
@@ -47,7 +48,7 @@ describe('a document a navigation replaced', () => {
       const module = resolve(root, 'price.js');
       await writeFile(module, SOURCE, 'utf8');
       const { code } = testSelectionProbes({ root }).transform.handler(SOURCE, module)!;
-      const page = code.replace(/\n;import "[^"]+";$/, '');
+      const page = withoutCollectorImport(code);
       const alone = (amount: number) => {
         const document = documentOf(page, storage(), 0);
         document.price(amount);
@@ -78,7 +79,7 @@ describe('a document a navigation replaced', () => {
       const module = resolve(root, 'price.js');
       await writeFile(module, SOURCE, 'utf8');
       const { code } = testSelectionProbes({ root }).transform.handler(SOURCE, module)!;
-      const page = code.replace(/\n;import "[^"]+";$/, '');
+      const page = withoutCollectorImport(code);
 
       const frame = storage();
       const held = documentOf(page, frame, 1000);

@@ -21,6 +21,7 @@ import preconditions from './case-preconditions.cjs';
 import { storiesAsked } from '../story/asked.js';
 import { PAGE_STORY, type PageStory } from '../story/page-story.js';
 import { CARRIED_SOURCE } from './carried.js';
+import { COLLECTOR_IMPORT, VIRTUAL_COLLECTOR } from './collector-import.js';
 import { EXECUTION_GLOBAL } from './execution-global.js';
 
 /** What one module reported: the ordinals it entered, deduplicated. */
@@ -191,10 +192,7 @@ export interface InstrumentingPlugin {
   };
 }
 
-const VIRTUAL_COLLECTOR = 'variance-authority:execution-collector';
 const RESOLVED_COLLECTOR = `\0${VIRTUAL_COLLECTOR}`;
-/** What every probed module ends with: an import, hoisted, so the collector loads ahead of its probes. */
-const COLLECTOR = `\n;import ${JSON.stringify(VIRTUAL_COLLECTOR)};`;
 
 /**
  * The Vite plugin whose `transform` hook instruments each module of a build.
@@ -293,11 +291,11 @@ export function testSelectionProbes(
       if (before) {
         // The collector import follows the last line, as below, so no line moves.
         const captured = placeModule(root, source, code, include, undefined, options.mode);
-        return captured === undefined ? null : { code: `${captured.code}${COLLECTOR}`, map: null };
+        return captured === undefined ? null : { code: `${captured.code}${COLLECTOR_IMPORT}`, map: null };
       }
       const text = held.get(specifier);
       held.delete(specifier);
-      if (first.delete(specifier)) return { code: `${code}${COLLECTOR}`, map: null };
+      if (first.delete(specifier)) return { code: `${code}${COLLECTOR_IMPORT}`, map: null };
       // Vite hands every transform its context; a caller that calls this by hand has none.
       const context = this as InstrumentingContext | undefined;
       const combined = context?.getCombinedSourcemap;
@@ -316,7 +314,7 @@ export function testSelectionProbes(
       // first probe is. The module's other imports evaluate first, and every
       // one of them that carries a probe imports the collector itself.
       return {
-        code: `${captured.code}${COLLECTOR}`,
+        code: `${captured.code}${COLLECTOR_IMPORT}`,
         map: captured.mappings === undefined ? null : { version: 3, sources: [source], names: [], mappings: captured.mappings },
       };
     } },
