@@ -75,8 +75,8 @@ async function packagesLoaded(args: readonly string[], config?: object, indexed 
 /** Packages that hold pixels, Storybook, MCP, history or the help, none of which these commands call. */
 const UNCALLED = ['help', 'history', 'mcp', 'observe', 'png', 'pngjs', 'remote', 'renderer', 'storybook'];
 
-/** Packages a question about names never calls: the distiller and the pictures a report is drawn from. */
-const NOT_ASKED = ['distill', 'raster'];
+/** Packages a question about names never calls: the pictures a report is drawn from. */
+const NOT_ASKED = ['raster'];
 
 describe('what the program loads before it answers', () => {
   it.each([['--version'], ['--help'], ['index', '--no-git'], ['select', '--format', 'vitest']])('loads no pixel, Storybook, MCP, history or help package for `%s`', async (...args) => {
@@ -85,7 +85,7 @@ describe('what the program loads before it answers', () => {
     expect(loaded.filter((name) => UNCALLED.includes(name))).toEqual([]);
   });
 
-  // A question about names reads the source index, never a pixel or a distilled case: a half-built `png` or
+  // A question about names reads the source index, never a pixel: a half-built `png` or
   // `observe` dist must not stop it, and every `ask` an agent runs pays for what it loads. In this empty, indexed checkout nothing declares the name, which is an answer, so the run exits 0.
   it.each([['ask', 'uses', '--name', 'x'], ['ask', 'symbol', '--name', 'x'], ['ask', 'search', '--query', 'x']])('loads only what a name question calls for `%s %s %s %s`', async (...args) => {
     const loaded = await packagesLoaded(args, undefined, true);

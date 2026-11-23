@@ -1,4 +1,4 @@
-import { createRequire } from 'node:module';
+import { distill, formatDistillation } from '@variance-authority/distill';
 import type { ObservabilitySubject } from '../observability-subject.js';
 import { NO_ARGS, stringArg, type Tool } from './tool.js';
 
@@ -59,7 +59,6 @@ export const distillTool: Tool<ObservabilitySubject> = {
       return 'Runtime journey: unavailable. Distillation reads a case from the runtime journey, by its exact id.';
     }
     try {
-      const { distill, formatDistillation } = distillation();
       return formatDistillation(distill({
         test: asked,
         execution: subject.execution,
@@ -73,15 +72,6 @@ export const distillTool: Tool<ObservabilitySubject> = {
     }
   },
 };
-
-/**
- * The distiller, loaded the first time a case is distilled. Every program that lists the tools loads this module,
- * and most of them never distil: `variance ask symbol` paid about 60 ms for it on each call. `run` answers
- * synchronously, so the load is a `require` of the ES module rather than an `import()`.
- */
-function distillation(): typeof import('@variance-authority/distill') {
-  return createRequire(import.meta.url)('@variance-authority/distill') as typeof import('@variance-authority/distill');
-}
 
 function line(name: string, evidence: unknown, detail: string | undefined): string {
   return evidence === undefined ? `  unavailable — ${name}` : `  available   — ${name}: ${detail}`;
