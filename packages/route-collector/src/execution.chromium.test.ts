@@ -8,6 +8,7 @@ import { testSelectionProbes } from '@variance-authority/sense/journal';
 import { collectJourneys } from '@variance-authority/sense/journey';
 import { selectTestFiles } from '@variance-authority/sense/test-selection';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { withoutCollectorImport } from '../../sense/src/test-selection/collector-import.js';
 import { routeCollector, type Plan } from './index.js';
 
 /**
@@ -93,7 +94,7 @@ chromium_('a page run whose server reports what each page ran', () => {
     await writeFile(resolve(root, 'euros.md'), '# Euros\n', 'utf8');
     const transformed = testSelectionProbes({ root, label: 'build' }).transform.handler(SOURCE, module)!;
     const head = collectJourneys({ head: 'site', enabled: true });
-    new Function(transformed.code.replace(/\n;import "[^"]+";$/, ''))();
+    new Function(withoutCollectorImport(transformed.code))();
     const currency = (globalThis as unknown as Record<string, (locale: string) => Promise<string>>)[
       '__route_test_currency'
     ]!;

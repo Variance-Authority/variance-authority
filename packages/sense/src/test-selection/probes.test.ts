@@ -14,6 +14,7 @@ import { runInNewContext } from 'node:vm';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { instrumentationId, probeRecipe } from '../instrument/index.js';
 import { EXECUTION_GLOBAL, TELLER_GLOBAL } from './execution-global.js';
+import { withoutCollectorImport } from './collector-import.js';
 import { type ExecutionCollector, testSelectionProbes } from './probes.js';
 import { inRoot } from './__fixtures__/browser-page.js';
 
@@ -37,6 +38,20 @@ describe('the collector import', () => {
       // Every line of the module stays where the file had it.
       expect(code.split('\n')[0]).toMatch(/^"use client";/);
       expect(code.split('\n')[1]).toMatch(/^import \{ useState \} from "react";/);
+    });
+  });
+
+  it('comes off again for a realm with no bundler, and nothing else does', async () => {
+    await inRoot(async (root) => {
+      const module = resolve(root, 'Since.js');
+      await writeFile(module, CLIENT, 'utf8');
+
+      const { code } = testSelectionProbes({ root }).transform.handler(CLIENT, module)!;
+      const served = withoutCollectorImport(code);
+
+      expect(statements(served).some((statement) => statement.type === 'ImportDeclaration' && statement.source?.value === 'variance-authority:execution-collector')).toBe(false);
+      expect(served.startsWith('"use client";')).toBe(true);
+      expect(() => withoutCollectorImport(CLIENT)).toThrow(/collector import/);
     });
   });
 });

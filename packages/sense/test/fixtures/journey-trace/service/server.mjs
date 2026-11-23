@@ -8,6 +8,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { collectJourneys } from '@variance-authority/sense/journey';
 import { testSelectionProbes } from '@variance-authority/sense/journal';
+import { withoutCollectorImport } from '../../../../dist/test-selection/collector-import.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const service = process.env.VARIANCE_AUTHORITY_HEAD;
@@ -27,7 +28,7 @@ async function instrumented() {
   const built = resolve(process.env.VARIANCE_AUTHORITY_BUILD, `${service}-${process.pid}.mjs`);
   await mkdir(dirname(built), { recursive: true });
   // The collector import is the page's half; this realm already has a factory.
-  await writeFile(built, transformed.code.replace(/\n;import "[^"]+";$/, ''), 'utf8');
+  await writeFile(built, withoutCollectorImport(transformed.code), 'utf8');
   return import(pathToFileURL(built).href);
 }
 

@@ -9,6 +9,7 @@ import { claimPageSource, drainExecution, executionCollectorSource, testSelectio
 import { collectJourneys } from '@variance-authority/sense/journey';
 import { attachVantage, type AttachedVantage } from '@variance-authority/vantage/attach';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { withoutCollectorImport } from '../../../sense/src/test-selection/collector-import.js';
 import '../bin.fixture.js';
 import { main } from '../bin.js';
 
@@ -77,7 +78,7 @@ function wideSource(module: number): string {
 /** Probed as a build probes it, less the collector import a bundler would resolve. */
 function probed(root: string, name: string, source: string): string {
   const transformed = testSelectionProbes({ root, label: 'build' }).transform.handler(source, join(root, name))!;
-  return transformed.code.replace(/\n;import "[^"]+";$/, '');
+  return withoutCollectorImport(transformed.code);
 }
 
 // What this file found installed: a head that closes puts it back, and the run outside this file still reports through it.

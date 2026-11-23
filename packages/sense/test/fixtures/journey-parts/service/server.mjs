@@ -7,6 +7,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { collectJourneys } from '@variance-authority/sense/journey';
 import { testSelectionProbes } from '@variance-authority/sense/journal';
+import { withoutCollectorImport } from '../../../../dist/test-selection/collector-import.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -20,7 +21,7 @@ const probes = testSelectionProbes({ root: here, label: process.env.VARIANCE_AUT
 async function instrumented(name) {
   const source = resolve(here, name);
   // The collector import is the page's half; this realm already has a factory.
-  return probes.transform.handler(await readFile(source, 'utf8'), source).code.replace(/\n;import "[^"]+";$/, '');
+  return withoutCollectorImport(probes.transform.handler(await readFile(source, 'utf8'), source).code);
 }
 
 async function imported(name) {
