@@ -164,7 +164,7 @@ variance select  [--since <ref> [--ran-at <commit>]] [--execution <journey-file>
 variance shards  [--setup <seconds>] [--budget <seconds>] [--max <n>] [--workers <n>] [--since <ref> [--ran-at <commit>] [--collected <file>]] [--at-distance <hops>] [--suite <name>] [--unrecorded <n>] [--format text|json]
 variance reach   --since <ref> [--format plain|json] [--whole-files] [--no-git]
 variance covering --file <path> [--line <n>|<a>-<b>] [--function <name>] [--at-distance <hops>] [--in-package] [--hops] [--text <path>|-] | --since <ref> [--against <record>] [--cases last|<test file>] [--where <name>[=<value>]]... [--read <name>[=<value>]]... [--execution <path> | --suite <name>] [--root <path>] [--format text|refs|json] [--limit <n>] [--offset <n>]
-variance coverage [--suite <name> [--against <record>]] [--from <dir> | --packages] [--at-distance <hops>] [--fan-in] [--session <name>=<path>]... [--served <dir>] [--root <path>] [--format text|markdown|json|badge]
+variance coverage [--suite <name> [--against <record>]] [--from <dir> | --packages] [--at-distance <hops>] [--fan-in] [--session <name>=<path>]... [--served <dir>] [--root <path>] [--format text|markdown|json|badge|html]
 variance layers  [--against <index>] [--package <name>]... [--root <path>] [--format text|markdown|json]
 variance restrictions [--root <path>] [--format text|json]
 variance review  [--since <ref>] [--against <record>] [--suite <name>] [--coverage] [--fail-on-uncovered] [--fail-on-lost] [--out <dir>] | --from-run <run id or URL> [--artifact <name>] [--root <path>] [--format text|markdown|json|handover]
@@ -1443,6 +1443,16 @@ With no region counted there is no share to print, so it prints nothing and
 exits `2` with the reason. The review action's
 [`badge` input](https://github.com/Variance-Authority/action#publishing-a-badge)
 publishes this file on every push to your default branch.
+
+`--format html` writes the same answer as one page to open in a browser. It
+shows each suite's regions run, run only at load and loaded, with what changed
+them since the base. It shows what each kind of test runs alone and what
+several share, and every package with its files: regions run, the test files
+that enter each file, by kind. Last, it lists every directory no suite loads.
+The page fetches nothing, so it opens from an artifact as it is. It counts
+`--packages` and `--fan-in` without being asked; with `--from` it counts that
+one directory and lists its files. The review action uploads it as
+`coverage.html` and links it from the comment.
 
 With a base, each count is printed at the base and now, beside the parts that
 add up to the change:

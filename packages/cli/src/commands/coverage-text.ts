@@ -11,6 +11,7 @@
 
 import type { MovedRegion, RunOver, TestFileMotion } from '@variance-authority/sense/test-selection';
 import { fanInLines, fanInMarkdown } from './coverage-fan-in-text.js';
+import { coverageHtml } from './coverage-html.js';
 import { sessionsLines, sessionsMarkdown } from './coverage-sessions-text.js';
 import { earnedLines, earnedMarkdown, ownershipLines, ownershipMarkdown } from './coverage-owner-text.js';
 import { coverageHead, coverageParts as parts, coverageRows, coverageSum, grouped, leading, ratio, signed, table } from './coverage-summary.js';
@@ -32,6 +33,7 @@ const NAMED_DIRECTORIES = 5;
 export function formatCoverage(answer: Coverage, format: CoverageFormat): string {
   if (format === 'json') return `${JSON.stringify(answer, null, 2)}\n`;
   if (format === 'badge') return badge(answer);
+  if (format === 'html') return `${coverageHtml(answer)}\n`;
   return format === 'markdown' ? markdown(answer) : text(answer);
 }
 

@@ -826,6 +826,7 @@ jobs:
           suite: unit
           against: ${{ steps.carried.outputs.against-unit }}
           badge: true
+          coverage-page: true
 
       - name: keep the review
         if: ${{ !cancelled() && steps.review.outcome == 'success' }}

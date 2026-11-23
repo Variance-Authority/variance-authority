@@ -2,7 +2,7 @@ import { resolve } from 'node:path';
 import { noPositionals, type Flags } from './args.js';
 import { OperatorError } from './exit.js';
 
-export type CoverageFormat = 'text' | 'markdown' | 'json' | 'badge';
+export type CoverageFormat = 'text' | 'markdown' | 'json' | 'badge' | 'html';
 
 export interface ParsedCoverage {
   readonly command: 'coverage';
@@ -29,13 +29,14 @@ export interface ParsedCoverage {
 export function parseCoverageArgs(flags: Flags): ParsedCoverage {
   noPositionals(flags.positionals, 'coverage');
   const format = flags.values.get('--format') ?? 'text';
-  if (format !== 'text' && format !== 'markdown' && format !== 'json' && format !== 'badge') {
-    throw new OperatorError(`--format must be text, markdown, json or badge, not \`${format}\``);
+  if (format !== 'text' && format !== 'markdown' && format !== 'json' && format !== 'badge' && format !== 'html') {
+    throw new OperatorError(`--format must be text, markdown, json, badge or html, not \`${format}\``);
   }
   const against = flags.values.get('--against');
   const suite = flags.values.get('--suite');
   const from = flags.values.get('--from');
   if (from === '') throw new OperatorError('`--from` takes a directory, spelled from the repository root.');
+  const page = format === 'html';
   const packages = flags.present.has('--packages');
   if (packages && from !== undefined) throw new OperatorError('`--from` counts one directory and `--packages` counts every package; pass one of them.');
   const atDistance = flags.values.get('--at-distance');
@@ -50,9 +51,10 @@ export function parseCoverageArgs(flags: Flags): ParsedCoverage {
     ...(against === undefined ? {} : { against: resolve(against) }),
     ...(suite === undefined ? {} : { suite }),
     ...(from === undefined ? {} : { from }),
-    ...(packages ? { packages: true as const } : {}),
+    // The page lists every package and its files, unless `--from` names the one directory to count.
+    ...(packages || (page && from === undefined) ? { packages: true as const } : {}),
     ...(atDistance === undefined ? {} : { atDistance }),
-    ...(flags.present.has('--fan-in') ? { fanIn: true as const } : {}),
+    ...(page || flags.present.has('--fan-in') ? { fanIn: true as const } : {}),
     ...(sessions.length === 0 ? {} : { sessions }),
     ...(served === undefined ? {} : { served: resolve(served) }),
     root: resolve(flags.values.get('--root') ?? process.cwd()),

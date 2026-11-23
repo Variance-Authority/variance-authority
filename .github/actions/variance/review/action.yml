@@ -70,6 +70,16 @@ inputs:
     required: false
     default: 'false'
 
+  coverage-page:
+    description: >-
+      'true' writes `variance coverage --format html` for the suite the review
+      counts, uploads it unzipped as the `variance-coverage-<suite>.html`
+      artifact, and links it from the comment and the step summary: every
+      package with its files, the test files that enter each, and what no
+      suite loads. Off by default.
+    required: false
+    default: 'false'
+
   comment:
     description: >-
       'false' posts nothing and pushes no badge: the review, and the badge's
@@ -199,6 +209,47 @@ runs:
         # shellcheck disable=SC2086
         $VARIANCE_COMMAND coverage --format badge > "$REVIEW/regions-run.json" \
           || { rm -f "$REVIEW/regions-run.json"; echo '::warning title=badge not updated::`variance coverage` gave no figure, so the last badge stands.'; }
+
+    # After the review, whose step built the index the page reads. No page
+    # warns: the comment is the review, and it posts without the link.
+    - id: page
+      name: draw the coverage page
+      if: inputs.from == '' && inputs.coverage-page == 'true'
+      shell: bash
+      env:
+        VARIANCE_COMMAND: ${{ inputs.command }}
+        SUITE: ${{ inputs.suite }}
+        AGAINST: ${{ inputs.against || steps.take.outputs[format('against-{0}', inputs.suite)] }}
+      run: |
+        page="$RUNNER_TEMP/variance-coverage/variance-coverage${SUITE:+-$SUITE}.html"
+        mkdir -p "$(dirname "$page")"
+        # shellcheck disable=SC2086
+        if $VARIANCE_COMMAND coverage ${SUITE:+--suite "$SUITE"} ${AGAINST:+--against "$AGAINST"} --format html > "$page"; then
+          echo "path=$page" >> "$GITHUB_OUTPUT"
+        else
+          echo '::warning title=coverage page not drawn::`variance coverage` failed, so the comment links no page.'
+        fi
+
+    # `archive: false` uploads the one file as it is, named for the file, so the
+    # link opens the page instead of downloading a zip.
+    - id: upload-page
+      name: upload the coverage page
+      if: steps.page.outputs.path != ''
+      uses: actions/upload-artifact@v7
+      with:
+        path: ${{ steps.page.outputs.path }}
+        archive: false
+        if-no-files-found: error
+
+    # Into the review itself, so a job with `from` posts the link it was handed.
+    - name: link the coverage page
+      if: steps.upload-page.outputs.artifact-url != ''
+      shell: bash
+      env:
+        REVIEW: ${{ steps.carry.outputs.review }}
+        PAGE_URL: ${{ steps.upload-page.outputs.artifact-url }}
+      run: |
+        printf '\n[Coverage page](%s): every package and file, and what no suite loads.\n' "$PAGE_URL" | tee -a "$REVIEW/review.md" >> "$GITHUB_STEP_SUMMARY"
 
     # A job that ran the pull request's code holds no write token: what would be
     # posted goes to a job with `from`, which runs none of it.
