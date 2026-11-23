@@ -448,7 +448,7 @@ Holding a request in words rather than a name, call `docs_classify` with it as
 `query` instead. It says which of its words are, whole, a package, an
 entrypoint or an exported name, and then which identifier-shaped words left —
 `ModuleLoader`, `child_process` — are a name `docs_symbol` finds declared or a
-tracked file's name before its first dot, each with its area and layer on the code map,
+file's name before its first dot in the published source index, each with its area and layer on the code map,
 and then the question each one takes next, written as the `variance ask`
 command whatever the caller: `symbol` (`docs_symbol`) for an exported or
 declared name, none for a file, which is already the answer,
@@ -457,7 +457,7 @@ declared name, none for a file, which is already the answer,
 question when the map placed it in no area. When words remain unrecognized or
 `from` or `to` is supplied, it also ranks the areas of the tree the request's
 words point to, best first — a directory of at
-most 500 tracked files, scored by the words its path, its files' names and the
+most 500 indexed files, scored by the words its path, its files' names and the
 top-level names its files declare, exported or not, hold, a rare word counting for more
 and an area's length counting every declared name once per file whatever its
 export visibility, each with the package it sits in and that package's place on the code map — and asks
@@ -466,7 +466,9 @@ gets its areas. Given `from` or `to`, it ranks only the files that start point
 reaches along the imports, so a product's folder ranks that product and the
 shared code it imports. It ends with the source files the request
 names, each with up to eight functions and classes it declares,
-exported first, under a line saying they are the answer.
+exported first, under a line saying they are the answer. It reads the published
+snapshot without consulting Git or updating the index; run `variance index`
+explicitly to publish a new snapshot.
 
 Called with a specifier, `docs_entrypoint` lists the names it opens, ranked by
 how many workspace packages import them. Called with a package's name, it lists

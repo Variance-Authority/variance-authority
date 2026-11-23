@@ -1,20 +1,13 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Documented, Entry, Help } from '@variance-authority/package/help';
 import * as sense from '@variance-authority/sense';
 import { HELP_TOOLS } from '../tools.js';
 import { classify } from './classify.js';
 import { classifyWords, formatClassified, formatNamedFiles, identifier, namedFiles, placedAreas, unshownFiles, type CodeMapPlaces, type Named } from './classify-words.js';
-import { FoundNothing } from './find.js';
 import * as symbol from './symbol.js';
-
-// `symbol`'s own answer, as classify reads it, unless a case says it fails.
-vi.mock('./symbol.js', async (actual) => {
-  const real = await actual<typeof import('./symbol.js')>();
-  return { ...real, declaredInCheckout: vi.fn(real.declaredInCheckout) };
-});
 
 /**
  * `docs_classify`: which words of the asker's own sentence are, whole, a
@@ -61,9 +54,29 @@ const MAPPED = [...PLACED.packages.keys()];
 
 const ASKED = 'hey can you check if sense can see eyes via vantage';
 
+beforeEach(() => { vi.spyOn(sense, 'classifyNames').mockReturnValue({ named: [], declared: [] }); });
 afterEach(() => vi.restoreAllMocks());
 
 describe('docs_classify', () => {
+  it('reads identifier filenames and declarations from the snapshot the host supplied', () => {
+    vi.spyOn(sense, 'packageLayers').mockReturnValue({ current: true, packages: [] });
+    const names = vi.spyOn(sense, 'classifyNames').mockReturnValue({
+      named: [{ name: 'ModuleLoader', files: ['lib/ModuleLoader.ts'], count: 1 }],
+      declared: [{ name: 'ModuleLoader', at: 'lib/ModuleLoader.ts', line: 3 }],
+    });
+    const liveFiles = vi.spyOn(sense, 'filesNamed').mockImplementation(() => { throw new Error('live Git is forbidden'); });
+    const liveSymbol = vi.spyOn(symbol, 'declaredInCheckout').mockImplementation(() => { throw new Error('live symbol metadata is forbidden'); });
+    vi.spyOn(sense, 'declarationsOf').mockReturnValue([]);
+
+    const text = classify.run(HELP, { query: 'ModuleLoader' }, { root: '/unused', sourceIndex: { index: '/scoped/source-index.bin', within: 'app' } });
+
+    expect(names).toHaveBeenCalledWith('/unused', ['ModuleLoader'], 64, { index: '/scoped/source-index.bin', within: 'app' });
+    expect(text).toContain('ModuleLoader — declared lib/ModuleLoader.ts:3');
+    expect(text).toContain('file lib/ModuleLoader.ts');
+    expect(liveFiles).not.toHaveBeenCalled();
+    expect(liveSymbol).not.toHaveBeenCalled();
+  });
+
   it.each(['checkoutPath', 'sense/test-selection'])('answers a fully recognized unscoped query without requesting area ranking (%s)', (query) => {
     vi.spyOn(sense, 'packageLayers').mockReturnValue({ current: true, packages: [] });
     const rank = vi.spyOn(sense, 'classifiedAreas').mockReturnValue({ areas: [], reached: 0, unresolved: 0 });
@@ -74,10 +87,43 @@ describe('docs_classify', () => {
     expect(rank).not.toHaveBeenCalled();
   });
 
-  it('fails with what failed when `symbol` cannot answer a word for a reason other than finding nothing', () => {
+  it('reports an unavailable snapshot as the reason no area was ranked', () => {
     vi.spyOn(sense, 'packageLayers').mockReturnValue({ current: true, packages: [] });
-    vi.spyOn(sense, 'filesNamed').mockReturnValue(new Map());
-    vi.mocked(symbol.declaredInCheckout).mockImplementationOnce(() => {
+    vi.spyOn(sense, 'classifiedAreas').mockReturnValue({ areas: [], reached: 0, unresolved: 0, refused: 'no source index was published' });
+
+    const text = classify.run(HELP, { query: 'defaults' }, { root: '/unused' });
+
+    expect(text).toContain('No area is ranked: no source index was published.');
+  });
+
+  it('says why identifiers could not be looked up when no snapshot was published', () => {
+    vi.spyOn(sense, 'packageLayers').mockReturnValue({ current: true, packages: [] });
+    vi.spyOn(sense, 'classifyNames').mockReturnValue({ named: [], declared: [], refused: 'no source index was published' });
+    vi.spyOn(sense, 'classifiedAreas').mockReturnValue({ areas: [], reached: 0, unresolved: 0, refused: 'no source index was published' });
+
+    const text = classify.run(HELP, { query: 'ModuleLoader' }, { root: '/unused' });
+
+    expect(text).toContain('No word is looked up as a filename or declaration: no source index was published.');
+    expect(text).toContain('Not looked up: ModuleLoader');
+    expect(text).not.toContain('Not entities: ModuleLoader');
+    expect(text).not.toContain('No word names');
+  });
+
+  it('keeps known exports beside unknown identifiers when their source lookup was refused', () => {
+    vi.spyOn(sense, 'packageLayers').mockReturnValue({ current: true, packages: [] });
+    vi.spyOn(sense, 'classifyNames').mockReturnValue({ named: [], declared: [], refused: 'no source index was published' });
+    vi.spyOn(sense, 'classifiedAreas').mockReturnValue({ areas: [], reached: 0, unresolved: 0, refused: 'no source index was published' });
+
+    const text = classify.run(HELP, { query: 'checkoutPath ModuleLoader' }, { root: '/unused' });
+
+    expect(text).toContain('checkoutPath — export @acme/sense');
+    expect(text).toContain('Not looked up: ModuleLoader');
+    expect(text).toContain('They answer the words that name them, not the rest of the request');
+  });
+
+  it('fails with what failed when the snapshot cannot answer an identifier', () => {
+    vi.spyOn(sense, 'packageLayers').mockReturnValue({ current: true, packages: [] });
+    vi.spyOn(sense, 'classifyNames').mockImplementationOnce(() => {
       throw new Error('the source index could not be read');
     });
 
@@ -258,10 +304,9 @@ describe('docs_classify', () => {
 
   it('ends with what each named file declares, functions and classes only, exported first, eight at most, and says they are the answer', () => {
     vi.spyOn(sense, 'packageLayers').mockReturnValue({ current: true, packages: [] });
-    vi.spyOn(sense, 'filesNamed').mockReturnValue(new Map([['run_main', { files: ['lib/run_main.js'], count: 1 }]]));
-    vi.mocked(symbol.declaredInCheckout).mockImplementation((_, { name }) => {
-      if (name !== 'ModuleLoader') throw new FoundNothing(name);
-      return { files: new Map([['lib/loader.js', [3]]]), spelled: new Map([['lib/loader.js:3', ['ModuleLoader']]]), bound: new Set<string>() } as unknown as ReturnType<typeof symbol.declaredInCheckout>;
+    vi.spyOn(sense, 'classifyNames').mockReturnValue({
+      named: [{ name: 'run_main', files: ['lib/run_main.js'], count: 1 }],
+      declared: [{ name: 'ModuleLoader', at: 'lib/loader.js', line: 3 }],
     });
     const declaration = (name: string, line: number, kind = 'function', exported = false) => ({ name, kind, line, exported, members: [] });
     const orient = vi.spyOn(sense, 'declarationsOf').mockReturnValue([
@@ -285,10 +330,8 @@ describe('docs_classify', () => {
 
   it('names the file that declares an exported word, and reads every named file from the index the host read, spelled from its workspace', () => {
     vi.spyOn(sense, 'packageLayers').mockReturnValue({ current: true, packages: [] });
-    vi.spyOn(sense, 'filesNamed').mockReturnValue(new Map());
-    vi.mocked(symbol.declaredInCheckout).mockImplementation((_, { name }) => {
-      if (name !== 'ModuleLoader') throw new FoundNothing(name);
-      return { files: new Map([['lib/loader.js', [3]]]), spelled: new Map([['lib/loader.js:3', ['ModuleLoader']]]), bound: new Set<string>() } as unknown as ReturnType<typeof symbol.declaredInCheckout>;
+    const names = vi.spyOn(sense, 'classifyNames').mockReturnValue({
+      named: [], declared: [{ name: 'ModuleLoader', at: 'lib/loader.js', line: 3 }],
     });
     const read = vi.spyOn(sense, 'declarationsOf').mockReturnValue([
       { file: 'app/packages/sense/src/checkoutPath.ts', read: true, more: 0, moreMembers: 0, declarations: [{ name: 'checkoutPath', kind: 'function', line: 1, exported: true, members: [] }] },
@@ -297,6 +340,7 @@ describe('docs_classify', () => {
 
     const text = classify.run(HELP, { query: 'checkoutPath ModuleLoader' }, { root: '/unused', sourceIndex: { index: '/scoped/source-index.bin', within: 'app' } });
 
+    expect(names).toHaveBeenCalledWith('/unused', ['checkoutPath', 'ModuleLoader'], 64, { index: '/scoped/source-index.bin', within: 'app' });
     expect(read.mock.calls[0]).toEqual(['/unused', ['app/packages/sense/src/checkoutPath.ts', 'app/lib/loader.js'], 400, '/scoped/source-index.bin']);
     expect(text.split('\n').slice(-2)).toEqual([
       '  packages/sense/src/checkoutPath.ts — checkoutPath (exported)',

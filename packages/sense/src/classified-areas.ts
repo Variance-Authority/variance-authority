@@ -1,7 +1,7 @@
 /**
  * The areas of a checkout a request's words point to: a question that reads
- * every file `HEAD` holds, asked of the addon, which lists them from git and
- * keeps them. Only the answer crosses.
+ * the published source-index inventory in the addon. The query reads no
+ * checkout files and never refreshes the index. Only the answer crosses.
  */
 
 // compass: variance-authority.report.agent-surface
@@ -14,7 +14,7 @@ import type { SourceWalk } from './source-tree.js';
 export interface RankedArea {
   /** The directory, repository-relative; `.` for the root. */
   readonly path: string;
-  /** How many files `HEAD` holds in it, in scope. */
+  /** How many files the published source index holds in it, in scope. */
   readonly files: number;
   /** The request's words it holds, as the request wrote them, the one weighing most there first. */
   readonly words: readonly string[];
@@ -30,7 +30,7 @@ export interface ClassifiedAreas {
   readonly reached: number;
   /** How many of those import something the scan could not resolve. */
   readonly unresolved: number;
-  /** What the addon ran and what git said, when it could not list the files `HEAD` holds; nothing was ranked. */
+  /** Why the published source index was unavailable; nothing was ranked. */
   readonly refused?: string | null;
 }
 
@@ -56,7 +56,7 @@ export interface AreasAsked {
 }
 
 /**
- * The areas of the files `HEAD` holds under `root` that `query`'s words point
+ * The areas of the published source index's files that `query`'s words point
  * to, at most ten, scored by the request's stems their paths, their files'
  * names and the names their files declare hold, a stem fewer areas hold
  * counting for more.

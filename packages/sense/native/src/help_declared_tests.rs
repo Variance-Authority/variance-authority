@@ -71,10 +71,41 @@ fn private_word_counts_include_unasked_names_once_and_exclude_exported_locals() 
     let source = "function restartWorker() {}\ninterface unrelatedName {}\nconst unrelatedName = 1;\nfunction publishedLocal() {}\nexport { publishedLocal as renamed };\n";
     let (records, parses) = chain(&[("src/private.ts", "git:a", source), ("src/public.ts", "git:b", "export function restartWorker() {}")]);
     let layers = [Layer::open(&records).unwrap(), Layer::open(&parses).unwrap()];
-    let found = super::private_words(&layers);
+    let found = super::private_words(&layers, &crate::chain_lookup::fold(&layers), &["restart".to_owned(), crate::dependency_lexicon::purposes::code_stems("unrelated").into_iter().next().unwrap(), "publish".to_owned()]);
     let rows: Vec<(&str, u32)> = found.iter().map(|row| (row.at.as_str(), row.words)).collect();
     let expected = ["restartWorker", "unrelatedName"].iter().map(|name| crate::help_search::name_terms(name).len() as u32).sum();
     assert_eq!(rows, vec![("src/private.ts", expected), ("src/public.ts", 0)]);
+    assert_eq!(found[0].named, vec![0, 1]);
+    assert!(found[1].named.is_empty());
     let unmatched = declared("/nonexistent-root", &layers, "notDeclaredAnywhere", Matching::Exact, None);
     assert!(unmatched.names.is_empty());
+}
+
+#[test]
+fn classifier_names_come_only_from_the_published_workspace() {
+    let (records, parses) = chain(&[
+        ("app/lib/worker_name.ts", "git:a", "export function WorkerName() {}\nfunction privateName() { function nestedName() {} }\nfunction localName() {}\nexport { localName as aliasName };\n"),
+        ("app/test/worker_name.test.ts", "git:b", "function WorkerName() {}"),
+        ("outside/worker_name.ts", "git:c", "function WorkerName() {}"),
+    ]);
+    let directory = std::env::temp_dir().join(format!("sense-classify-names-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&directory);
+    std::fs::create_dir_all(&directory).unwrap();
+    let index = directory.join("index.bin").to_str().unwrap().to_owned();
+    assert!(crate::log::written(&index, crate::log::Over::Nothing, &[], &[&records, &parses], &[], 0).unwrap());
+    let words = ["worker_name", "WorkerName", "privateName", "nestedName", "aliasName"].map(str::to_owned).to_vec();
+    let answer = crate::classify_areas::classify_names(words.clone(), 1, index.clone(), "app".to_owned()).unwrap();
+    assert!(answer.refused.is_none());
+    assert_eq!(answer.named[0].files, vec!["lib/worker_name.ts"]);
+    assert_eq!(answer.named[0].count, 2);
+    let declarations: Vec<(&str, &str)> = answer.declared.iter().map(|row| (row.name.as_str(), row.at.as_str())).collect();
+    assert_eq!(declarations, vec![("WorkerName", "lib/worker_name.ts"), ("WorkerName", "test/worker_name.test.ts"), ("privateName", "lib/worker_name.ts"), ("nestedName", "lib/worker_name.ts")]);
+    std::fs::create_dir_all(directory.join("lib")).unwrap();
+    std::fs::write(directory.join("lib/worker_name.ts"), "function differentLiveName() {}\n").unwrap();
+    std::fs::write(directory.join("package.json"), "invalid live manifest").unwrap();
+    let drifted = crate::classify_areas::classify_names(words, 1, index, "app".to_owned()).unwrap();
+    assert_eq!(drifted.named[0].files, answer.named[0].files);
+    assert_eq!(drifted.named[0].count, answer.named[0].count);
+    assert_eq!(drifted.declared.iter().map(|row| (&row.name, &row.at, row.line)).collect::<Vec<_>>(), answer.declared.iter().map(|row| (&row.name, &row.at, row.line)).collect::<Vec<_>>());
+    std::fs::remove_dir_all(directory).unwrap();
 }

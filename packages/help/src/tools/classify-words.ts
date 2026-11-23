@@ -46,6 +46,8 @@ export interface Classified {
   readonly entities: readonly Entity[];
   /** The words that name nothing, in the asker's order, each once. */
   readonly plain: readonly string[];
+  /** Identifier-shaped words whose source lookup was unavailable, never confirmed nonmatches. */
+  readonly unknown?: readonly string[];
 }
 
 /** Where a package sits on the code map: its innermost area, absent for one no area took, and its dependency layer. */
@@ -202,15 +204,15 @@ export type StartPoint = { readonly from?: readonly string[]; readonly to?: read
  * to, best first, each with its package and that package's place on the map.
  */
 export function formatClassified(
-  { entities, plain }: Classified,
+  { entities, plain, unknown = [] }: Classified,
   { current, packages, unfolded }: CodeMapPlaces,
   areas: readonly PlacedArea[] = [],
   said: StartPoint = {},
 ): string {
-  const lines = [
-    entities.length === 0
-      ? 'No word names a package on the code map, an entrypoint, an exported name, a declared name or a file.'
-      : `${plural(entities.length, 'word names', 'words name')} a package on the code map, an entrypoint, an exported name, a declared name or a file:`,
+  const lines: string[] = [];
+  if (entities.length > 0) lines.push(`${plural(entities.length, 'word names', 'words name')} a package on the code map, an entrypoint, an exported name, a declared name or a file:`);
+  else if (unknown.length === 0) lines.push('No word names a package on the code map, an entrypoint, an exported name, a declared name or a file.');
+  lines.push(
     ...entities.flatMap(({ word, names }) =>
       names.flatMap((named, at) => {
         const pad = ' '.repeat(word.length);
@@ -219,7 +221,8 @@ export function formatClassified(
         return named.more === undefined || named.more === 0 ? [line] : [line, `${pad} — and ${named.more} more`];
       }),
     ),
-  ];
+  );
+  if (unknown.length > 0) lines.push(`Not looked up: ${unknown.join(' ')}`);
   if (plain.length > 0) lines.push(`Not entities: ${plain.join(' ')}`);
   if (areas.length > 0) {
     lines.push('', 'Areas its words point to, best first:');

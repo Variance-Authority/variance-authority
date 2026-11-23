@@ -3,14 +3,12 @@
 import { START_POINT_SCHEMA, saysStartPoint, startPointArg, type Tool, type ToolInvocation } from '@variance-authority/mcp/tools';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import { kindOf, type Help } from '@variance-authority/package/help';
-import { classifiedAreas, describedWordsNative, filesNamed, declarationsOf, packageLayers, sourceIndexPath } from '@variance-authority/sense';
+import { classifiedAreas, describedWordsNative, classifyNames, declarationsOf, packageLayers, sourceIndexPath } from '@variance-authority/sense';
 import { searchIndexOf, storeBytesOf } from '../snapshot.js';
 import { reachLine, reachOf, type Reach } from './area.js';
 import { classifyWords, formatClassified, formatNamedFiles, namedFiles, identifier, unshownFiles, ownerOf, placedAreas, wordsOf, type CodeMapPlaces, type Locate, type Named, type StartPoint } from './classify-words.js';
 import { noCodeMap, unfoldedCodeMap } from './code-map-format.js';
-import { FoundNothing } from './find.js';
 import { termsOfStems } from './loose.js';
-import { declaredInCheckout } from './symbol.js';
 
 /** How many declarations or files of one word are written out before the rest are counted. */
 const LOCATED_CAP = 3;
@@ -44,15 +42,11 @@ interface Found {
 }
 
 /**
- * Where each identifier-shaped word is declared, as `symbol` answers it, and
- * which tracked files are named it: under a start point the files it reaches
- * first, then ordinary source before tests and stories, then the files more
- * files import first, then by path in code units and
- * line. The first few of each kind are kept, and the rest counted. Why git
- * listed no file, when it could not, goes to `unread`.
+ * Exact declarations and indexed filenames, ordered by reach, source kind,
+ * importer count, path and line. Only the shown rows and remaining counts are
+ * rendered; an unavailable snapshot is reported through `unread`.
  */
 function locating(
-  help: Help,
   root: string,
   places: CodeMapPlaces,
   invocation: ToolInvocation<Help> | undefined,
@@ -61,11 +55,13 @@ function locating(
 ): Locate {
   return (words, filesOnly = new Set()) => {
     const owning = ownerOf(places.packages);
-    const files = filesNamed(root, words, FILES_READ);
-    if ('unread' in files) unread.why = files.unread;
-    const named = 'unread' in files ? new Map<string, { readonly files: readonly string[]; readonly count: number }>() : files;
-    // An export already says where it is declared, so only its files are looked up.
-    const declared = new Map(words.map((word) => [word, filesOnly.has(word) ? [] : declaredBy(help, word, invocation)] as const));
+    const found = classifyNames(root, words, FILES_READ, invocation?.sourceIndex);
+    if (found.refused != null) unread.why = found.refused;
+    const named = new Map(found.named.map((one) => [one.name, one]));
+    // An export already says where it is declared, so only its files are added.
+    const declared = new Map(words.map((word) => [word, filesOnly.has(word) ? [] : found.declared
+      .filter((one) => one.name === word)
+      .map(({ at, line }) => ({ at, line, test: kindOf(at) !== 'source' }))] as const));
     // One read of the import graph counts every path either kind holds.
     const paths = [...new Set([...[...declared.values()].flatMap((found) => found.map((one) => one.at)), ...[...named.values()].flatMap((one) => one.files)])];
     const counts = invocation?.tree === undefined || paths.length === 0 ? [] : invocation.tree.importers(paths);
@@ -113,7 +109,7 @@ function namedFileBlock(
   const files = namedFiles(classified, inReach);
   if (files.length === 0) return '';
   // Words left over, or a word that names no file here, leave the files answering part of the request.
-  const rest = classified.plain.length > 0 || classified.entities.some((entity) => namedFiles({ entities: [entity], plain: [] }, inReach).length === 0);
+  const rest = classified.plain.length > 0 || (classified.unknown?.length ?? 0) > 0 || classified.entities.some((entity) => namedFiles({ entities: [entity], plain: [] }, inReach).length === 0);
   // A generation the host read from above the workspace spells its files from there.
   const prefix = sourceIndex === undefined || sourceIndex.within === '' ? '' : `${sourceIndex.within}/`;
   const read = declarationsOf(root, files.map((file) => `${prefix}${file}`), DECLARATION_LINES, sourceIndex?.index);
@@ -129,23 +125,6 @@ function reachTest(walks: Reach['walks'] | undefined): ((file: string) => boolea
   if (walks === undefined) return undefined;
   const reached = [walks.from, walks.to].flatMap((walk) => (walk === undefined ? [] : [walk]));
   return (file) => reached.some((walk) => walk.chain(file).length > 0);
-}
-
-/**
- * The lines `symbol --name <word>` names as defining the word, written by it
- * as spelled, so the next question classify offers answers with the same
- * files; none when `symbol` finds nothing, or only lines that bind the word
- * to a value defined elsewhere, which `symbol` reports as `[binding]`.
- */
-function declaredBy(help: Help, word: string, invocation: ToolInvocation<Help> | undefined): readonly Found[] {
-  try {
-    const { files, spelled, bound } = declaredInCheckout(help, { name: word }, invocation);
-    const defines = (at: string, line: number): boolean => !bound.has(`${at}:${line}`) && spelled.get(`${at}:${line}`)?.includes(word) === true;
-    return [...files].flatMap(([at, lines]) => lines.filter((line) => defines(at, line)).map((line) => ({ at, line, test: kindOf(at) !== 'source' })));
-  } catch (error) {
-    if (error instanceof FoundNothing) return [];
-    throw error;
-  }
 }
 
 /**
@@ -165,12 +144,12 @@ export const classify: Tool<Help> = {
     'whole, the name of a package on the code map or that name without its scope, an entrypoint\'s specifier (both without case), or a ' +
     'published exported name (as spelled). A word shaped as an identifier (a capital past its first letter, an underscore, or a digit ' +
     'after a letter) that is none of those is then, as spelled, a name docs_symbol finds a file declaring, and the base name of a ' +
-    'tracked file before its first dot: ordinary source before tests, then the more imported file first, three of each and the rest ' +
+    'indexed file before its first dot: ordinary source before tests, then the more imported file first, three of each and the rest ' +
     'counted, each in the map package nearest at or above it, or in no package. A plain lowercase word is never looked up so, and a word ' +
     'that is only part of a name is not one. Each entity is listed with ' +
     'what it names, its package\'s area and dependency layer on the code map as docs_orient numbers them, then the ' +
     'words that name nothing on one line. When words remain unrecognized or `from` or `to` is supplied, it also ranks the areas the words point to, ten at most, best first: a directory of at ' +
-    'most 500 tracked files, scored by the request\'s words, by stem, that its path, its files\' names and the top-level names its files ' +
+    'most 500 files held by the published source index, scored by the request\'s words, by stem, that its path, its files\' names and the top-level names its files ' +
     'declare, exported or not, hold, a word held by fewer areas counting for more and every declared name counting once per file in an area\'s length whatever its export visibility; each with the package on the code map nearest at or above it, and that package\'s area and layer. With `from` or `to`, only the files that start point reaches along the ' +
     'imports are ranked: a product\'s folder and the shared code it imports. It ends with the source files the request names, each with up to ' +
     'eight functions and classes it declares, exported first: they are the answer. Ask it first when holding a request in words and no name.',
@@ -198,7 +177,7 @@ export const classify: Tool<Help> = {
     // The map names the packages, so without one nothing is classified.
     const places = placesOf(root);
     if (typeof places === 'string') return places;
-    // The addon lists what HEAD holds and ranks it, scoped by the start point's
+    // The addon ranks the published source-index inventory, scoped by the start point's
     // walks; only the ten areas cross.
     const from = startPointArg(input, 'from');
     const to = startPointArg(input, 'to');
@@ -209,10 +188,15 @@ export const classify: Tool<Help> = {
     const reach = said === undefined ? undefined : reachOf(from, to, invocation?.tree);
     const inReach = reachTest(reach?.walks);
     const unread: { why?: string } = {};
-    const classified = classifyWords(query, help, places.packages.keys(), locating(help, root, places, invocation, unread, inReach));
-    // A word git could not look up as a file is not said to name none, and the
+    const reading = classifyWords(query, help, places.packages.keys(), locating(root, places, invocation, unread, inReach));
+    const classified = unread.why === undefined ? reading : {
+      ...reading,
+      plain: reading.plain.filter((word) => !identifier(word)),
+      unknown: reading.plain.filter(identifier),
+    };
+    // A word the snapshot could not look up is not said to name none, and the
     // named files come last: they are the answer the rest leads to.
-    const unlisted = unread.why === undefined ? '' : `\n\nNo word is looked up as a file: git could not list the tracked files (${unread.why}).`;
+    const unlisted = unread.why === undefined ? '' : `\n\nNo word is looked up as a filename or declaration: ${unread.why.split('\n')[0]}.`;
     if (from === undefined && to === undefined && classified.entities.length > 0 && classified.plain.length === 0) {
       return `${formatClassified(classified, places)}${unlisted}${namedFileBlock(classified, root, invocation?.sourceIndex, inReach)}`;
     }
@@ -226,10 +210,10 @@ export const classify: Tool<Help> = {
       ...(invocation?.sourceIndex === undefined ? {} : { index: invocation.sourceIndex.index, within: invocation.sourceIndex.within }),
       ...(reach === undefined ? {} : { scope: reach.walks }),
     });
-    // A checkout git cannot list ranks no area, says why, and answers the entities all the same.
+    // An unavailable source index ranks no area, says why, and answers the entities all the same.
     if (ranked.refused != null) {
       const why = ranked.refused.split('\n')[0];
-      return `${formatClassified(classified, places)}${tail(`\n\nNo area is ranked: git could not list the files HEAD holds (${why}).`)}`;
+      return `${formatClassified(classified, places)}${tail(`\n\nNo area is ranked: ${why}.`)}`;
     }
     if (reach === undefined) return `${formatClassified(classified, places, placedAreas(ranked.areas, places.packages))}${tail()}`;
     const line = reachLine({ ...reach, files: ranked.reached, unresolved: ranked.unresolved });

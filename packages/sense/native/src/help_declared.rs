@@ -172,7 +172,7 @@ type Hit<'a> = (usize, &'a str, Row, Option<Held>);
 type FileHit<'a> = (usize, &'a str, usize, Held);
 
 /// The files of the chain, in `files` when they are named, by file in code units, each joined to its parse.
-pub(crate) fn crossings<'a>(layers: &[Layer], folded: &'a std::collections::HashMap<&'a str, At>, files: Option<&[String]>) -> Vec<Crossing<'a>> {
+pub(crate) fn crossings<'a>(layers: &[Layer], folded: &std::collections::HashMap<&'a str, At>, files: Option<&[String]>) -> Vec<Crossing<'a>> {
     let wanted: Option<std::collections::HashSet<&str>> = files.map(|files| files.iter().map(String::as_str).collect());
     let mut crossings: Vec<Crossing> = folded
         .iter()
@@ -210,14 +210,14 @@ pub(crate) fn declared_terms(layers: &[Layer], files: Option<&[String]>) -> Vec<
 pub(crate) struct PrivateWords {
     pub(crate) at: String,
     pub(crate) words: u32,
+    pub(crate) named: Vec<u32>,
 }
 
 /// The private half of each file's declaration vocabulary, for normalization
 /// beside the exported names held by the search index. Count each local name
 /// once, including names unrelated to a question, and never read source files.
-pub(crate) fn private_words(layers: &[Layer]) -> Vec<PrivateWords> {
-    let folded = fold(layers);
-    crossings(layers, &folded, None)
+pub(crate) fn private_words(layers: &[Layer], folded: &std::collections::HashMap<&str, At>, stems: &[String]) -> Vec<PrivateWords> {
+    crossings(layers, folded, None)
         .par_iter()
         .filter_map(|crossing| {
             let (layer, row) = crossing.parse?;
@@ -229,7 +229,8 @@ pub(crate) fn private_words(layers: &[Layer]) -> Vec<PrivateWords> {
                 .filter(|name| !own.contains(name))
                 .collect();
             let words = names.iter().map(|name| crate::help_search::name_terms(name).len() as u32).sum();
-            Some(PrivateWords { at: crossing.file.to_owned(), words })
+            let named = names.iter().flat_map(|name| held_in(stems, name)).collect();
+            Some(PrivateWords { at: crossing.file.to_owned(), words, named })
         })
         .collect()
 }
@@ -245,17 +246,33 @@ pub(crate) fn exported_locals<'a>(layer: &'a Layer<'a>, row: usize) -> BTreeSet<
         .collect()
 }
 
-/// Every top-level declaration on the chain, every one in a Rust inline
-/// module, and, asked `Exact` or `Containing`, every function a function's body
-/// declares, and asked `Containing`, every member, whose name `matching` admits for `query`, or whose doc does when it
-/// is `Containing` or `Described`, in `files` when they are named, less the
-/// ones its file exports, under that name or another, which the export list
-/// already answers. A name
-/// declared twice in one file, as an interface and a const, is one entry: the
-/// first.
-pub(crate) fn declared(root: &str, layers: &[Layer], query: &str, matching: Matching, files: Option<&[String]>) -> Declared {
-    let folded = fold(layers);
-    let crossings = crossings(layers, &folded, files);
+/// A declaration location, without package ownership or presentation fields.
+#[napi(object)]
+pub struct DeclarationLocation {
+    pub name: String,
+    pub at: String,
+    pub line: u32,
+}
+
+/// Exact declarations only, including exported locals and nested names, with
+/// the same candidate and matching rules as the full declaration answer.
+pub(crate) fn declaration_locations(layers: &[Layer], query: &str) -> Vec<DeclarationLocation> {
+    let (hits, _, _) = matched(layers, query, Matching::Exact, None, |_| true);
+    hits.into_iter().filter_map(|(layer, at, row, _)| {
+        let (text, parses) = (&layers[layer].stored, &layers[layer].parses);
+        let (name, line, kind) = match row {
+            Row::Symbol(row) => (text.text(parses.symbol_name.at(row)), parses.symbol_line.at(row), text.text(parses.symbol_kind.at(row))),
+            Row::Nested(row) => (text.text(parses.nested_name.at(row)), parses.nested_line.at(row), text.text(parses.nested_kind.at(row))),
+            Row::Member(_) => return None,
+        };
+        (name == query && kind != "binding").then(|| DeclarationLocation { name: name.to_owned(), at: at.to_owned(), line })
+    }).collect()
+}
+
+/// The matching shared by a full declaration answer and its location projection.
+fn matched<'a>(layers: &'a [Layer<'a>], query: &str, matching: Matching, files: Option<&[String]>, admits: impl Fn(bool) -> bool + Sync) -> (Vec<Hit<'a>>, Vec<FileHit<'a>>, Vec<String>) {
+    let folded = crate::stages::timed("declared/fold", || fold(layers));
+    let crossings = crate::stages::timed("declared/crossings", || crossings(layers, &folded, files));
     // Cut once for every doc; a question of one stem is no phrase, and no doc is cut for it.
     let run = matches!(matching, Matching::Containing).then(|| phrase_run(query)).flatten();
     // The stem pairs `near` counts: a doc whose words lack a stem of every pair is near nothing, and is not read for it.
@@ -263,7 +280,8 @@ pub(crate) fn declared(root: &str, layers: &[Layer], query: &str, matching: Matc
         Matching::Described { query, .. } => asked_run(query).windows(2).map(|pair| [pair[0].1.clone(), pair[1].1.clone()]).collect(),
         _ => Vec::new(),
     };
-    let picked: Vec<_> = layers.par_iter().map(|layer| candidates(layer, query, &matching, run.as_deref())).collect();
+    let picked: Vec<_> = crate::stages::timed("declared/candidates", || layers.par_iter().map(|layer| candidates(layer, query, &matching, run.as_deref())).collect());
+    let matching_stage = crate::stages::start("declared/matching", &crate::stages::NONE);
     let found: Vec<FileHits> = crossings
         .par_iter()
         .map(|crossing| {
@@ -312,7 +330,7 @@ pub(crate) fn declared(root: &str, layers: &[Layer], query: &str, matching: Matc
             let mut hits = Vec::new();
             for symbol in parses.symbols.range(row).filter(|&symbol| picked.symbol(symbol)) {
                 let name = text.text(parses.symbol_name.at(symbol));
-                if own.contains(&name) || named.contains(&name) { continue }
+                if !admits(own.contains(&name)) || named.contains(&name) { continue }
                 let doc_text = parses.doc_of_symbol(text, symbol);
                 let doc = names[Item::Symbol as usize].doc(symbol);
                 let described = match &matching {
@@ -354,6 +372,7 @@ pub(crate) fn declared(root: &str, layers: &[Layer], query: &str, matching: Matc
         })
         .collect();
 
+    matching_stage.end();
     let mut unread: Vec<String> = found.iter().filter_map(|(_, unread, _)| unread.map(str::to_owned)).collect();
     unread.sort_unstable_by(|a, b| crate::order::code_unit(a, b));
     let (mut hits, mut files): (Vec<Hit>, Vec<FileHit>) = (Vec::new(), Vec::new());
@@ -361,12 +380,26 @@ pub(crate) fn declared(root: &str, layers: &[Layer], query: &str, matching: Matc
         hits.extend(found);
         files.extend(file);
     }
+    (hits, files, unread)
+}
+
+/// Every top-level declaration on the chain, every one in a Rust inline
+/// module, and, asked `Exact` or `Containing`, every function a function's body
+/// declares, and asked `Containing`, every member, whose name `matching` admits for `query`, or whose doc does when it
+/// is `Containing` or `Described`, in `files` when they are named, less the
+/// ones its file exports, under that name or another, which the export list
+/// already answers. A name
+/// declared twice in one file, as an interface and a const, is one entry: the
+/// first.
+pub(crate) fn declared(root: &str, layers: &[Layer], query: &str, matching: Matching, files: Option<&[String]>) -> Declared {
+    let (hits, files, unread) = matched(layers, query, matching, files, |exported| !exported);
     if hits.is_empty() && files.is_empty() { return Declared { names: Vec::new(), unread, files: Vec::new() } }
 
     // Who owns a file is a question about every manifest above it, so the
     // manifests are read only above the files that matched.
-    let paths = beside(root, hits.iter().map(|&(_, at, _, _)| at).chain(files.iter().map(|&(_, at, _, _)| at)));
-    let owners = owners(root, &paths);
+    let paths = crate::stages::timed("declared/manifests", || beside(root, hits.iter().map(|&(_, at, _, _)| at).chain(files.iter().map(|&(_, at, _, _)| at))));
+    let owners = crate::stages::timed("declared/owners", || owners(root, &paths));
+    let format_stage = crate::stages::start("declared/format", &crate::stages::NONE);
     let files = files
         .into_iter()
         .map(|(layer, at, row, (held, named, near, doc_length))| {
@@ -410,6 +443,7 @@ pub(crate) fn declared(root: &str, layers: &[Layer], query: &str, matching: Matc
             }
         })
         .collect();
+    format_stage.end();
     Declared { names, unread, files }
 }
 
