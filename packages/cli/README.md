@@ -3124,6 +3124,11 @@ therefore load configuration, select its own collector, renderer and store,
 write the same report, and use the same exit-code contract without spawning the
 executable.
 
+When calling a source question from `QUESTIONS`, pass `invocationOf` the root
+and readers your host supplies. It returns the invocation with the CLI's
+`variance ask` shell, so suggested follow-ups use the same command spelling as
+the executable.
+
 ```ts
 import {
   EXIT_REVIEW,
