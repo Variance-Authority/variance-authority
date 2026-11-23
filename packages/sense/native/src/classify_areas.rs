@@ -216,11 +216,16 @@ fn store_words(stored: &Stored, stems: &[String], terms: &[Vec<u32>]) -> Result<
         }
         found.holding.insert(stem_of.clone(), files);
     }
-    for name in 0..names.len() {
-        if exp_off.range(name).is_empty() || !crate::help_search::name_has_terms(stored.text(names.at(name))) {
-            continue;
+    let mut searchable = vec![false; names.len()];
+    for at in 0..term_name.len() {
+        if let Some(held) = searchable.get_mut(term_name.at(at) as usize) {
+            *held = true;
         }
-        found.files.extend(exported(name as u32).map(str::to_owned));
+    }
+    for (name, &held) in searchable.iter().enumerate() {
+        if held {
+            found.files.extend(exported(name as u32).map(str::to_owned));
+        }
     }
     Ok(found)
 }
