@@ -11,7 +11,8 @@ import {
   wellFormed,
   type JsonRpcRequest,
 } from './framing.js';
-import { readEyesRecord, RecordKeepsNoEyes } from './eyes-record.js';
+import { readEyesRecord } from './eyes-record.js';
+import { RecordKeepsNoEyes } from './record-keeps-no-eyes.js';
 import { cutFor } from './tools/cut.js';
 import type { Served, ToolInvocation } from './tools/tool.js';
 import type { Tree } from './tools/tree.js';

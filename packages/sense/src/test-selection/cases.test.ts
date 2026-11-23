@@ -13,7 +13,7 @@ import {
   unpackFrames,
 } from './cases.js';
 import { layerCaseIndex } from './case-layer.js';
-import { decodeSetExecutionIndex, encodeOwnedSetExecutionIndex, openSetExecutionIndex } from './execution-set-format.js';
+import { decodeSetExecutionIndex, encodeAsSetExecutionIndex, openSetExecutionIndex } from './execution-set-format.js';
 import { NO_OWNER } from './format-layout.js';
 import type { CapturedModule } from './instrumented-modules.js';
 import { coveringTests } from './reverse.js';
@@ -223,7 +223,7 @@ describe('folding case frames into an execution index', () => {
     const recorded = cut([['module', '', [1, 9]], ['function', 'decide', [2, 8], 0], ['branch', 'decide/then', [3, 4], 1]]);
     const owned = (journals: CaseJournal[], cuts: ReadonlyMap<ModuleId, CapturedModule>): Uint8Array => {
       const { index, owners } = ownedExecutionIndexFrom(journals, cuts);
-      return encodeOwnedSetExecutionIndex(index, owners);
+      return encodeAsSetExecutionIndex(index, owners);
     };
     const record = owned([journal('a.test.ts', 'alpha', '1', [1])], held);
     // The bytes a browser driver hands the record (`journal.ts`).
@@ -245,7 +245,7 @@ describe('folding case frames into an execution index', () => {
     const run: CaseJournal = { file: 'a.test.ts', name: 'alpha', id: '1', modules: [{ id: 7, hits: [2], shared: [] }, { id: 8, hits: [1], shared: [] }] };
 
     const { index, owners } = ownedExecutionIndexFrom([run], byId);
-    const opened = openSetExecutionIndex(encodeOwnedSetExecutionIndex(index, owners));
+    const opened = openSetExecutionIndex(encodeAsSetExecutionIndex(index, owners));
 
     expect(opened?.modules.map((module) => [...(module.owner ?? [])])).toEqual([[NO_OWNER, 0, 1], [NO_OWNER, 0]]);
   });

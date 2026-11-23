@@ -20,7 +20,8 @@ use std::fs;
 use crate::case_said::{self, Heard};
 use crate::journey_lazy::{Handle, Lazy};
 use crate::crossing_sets::decode_set;
-use crate::journey_format::OVERWRITTEN;
+use crate::journey_format::{OVERWRITTEN, OWNER};
+use crate::journey_record::NO_OWNER;
 use crate::order;
 use crate::record_layout::LAYOUT;
 
@@ -43,6 +44,10 @@ pub(crate) struct Region {
     /// so they ran another text there (`landedThrough` in `region-edit.ts`).
     /// None of them is in `called`. `None` in a file with no such case.
     pub overwritten: Option<u32>,
+    /// The region holding this one, by its place among its module's regions,
+    /// always before it. `None` on the module root, and on every region of a
+    /// file written before regions named their owners.
+    pub owner: Option<u32>,
 }
 
 struct Columns {
@@ -70,6 +75,8 @@ struct Columns {
     called: Handle,
     /// `blocks.overwrittenSet`, absent where no region holds an overwritten case.
     overwritten: Option<Handle>,
+    /// `blocks.owner`, absent in a file written before regions named their owners.
+    owners: Option<Handle>,
     loaded: Handle,
     sets: Handle,
     set_offsets: Handle,
@@ -117,6 +124,7 @@ impl Journey {
             sources: lazy.column("blocks.source", 1)?,
             called: lazy.column("blocks.calledSet", 4)?,
             overwritten: if lazy.has(OVERWRITTEN) { Some(lazy.column(OVERWRITTEN, 4)?) } else { None },
+            owners: if lazy.has(OWNER) { Some(lazy.column(OWNER, 4)?) } else { None },
             loaded: lazy.column("blocks.loaded", 1)?,
             sets: lazy.column("sets.blob", 1)?,
             set_offsets: lazy.column("sets.off", 4)?,
@@ -146,7 +154,7 @@ impl Journey {
         }
         let blocks = rows(c.kinds);
         let lengths = [rows(c.names), rows(c.paths), rows(c.starts), rows(c.ends), rows(c.sources), rows(c.called), rows(c.loaded)];
-        if lengths.into_iter().chain(c.overwritten.map(rows)).any(|length| length != blocks) {
+        if lengths.into_iter().chain(c.overwritten.map(rows)).chain(c.owners.map(rows)).any(|length| length != blocks) {
             return Err("block columns disagree".to_owned());
         }
         let mut previous = 0;
@@ -267,6 +275,7 @@ impl Journey {
                     loaded: self.lazy.byte(c.loaded, at)? == 1,
                     called: self.lazy.word(c.called, at)?,
                     overwritten: c.overwritten.map(|column| self.lazy.word(column, at)).transpose()?,
+                    owner: c.owners.map(|column| self.lazy.word(column, at)).transpose()?.filter(|owner| *owner != NO_OWNER),
                 })
             })
             .collect()

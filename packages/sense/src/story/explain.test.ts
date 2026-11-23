@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { CaseLinesBuilder, lineValue } from '../test-selection/case-lines.js';
-import { encodeOwnedSetExecutionIndex } from '../test-selection/execution-set-format.js';
+import { encodeAsSetExecutionIndex } from '../test-selection/execution-set-format.js';
 import { writeTestCoverage } from '../test-selection/index.js';
 import { testCoverageFile } from '../test-selection/record-location.js';
 import type { ReadRegion } from '../test-selection/readings-bytes.js';
@@ -135,7 +135,7 @@ describe('recordedStatements', () => {
       return builder.finish();
     });
     await writeTestCoverage(testCoverageFile(root), { version: 3, instrumentation: 'fixture', tests: [], modules: [] }, {
-      index: encodeOwnedSetExecutionIndex({ tests, modules: [{ file: 'src/page.ts', blocks }] }, [], lines),
+      index: encodeAsSetExecutionIndex({ tests, modules: [{ file: 'src/page.ts', blocks }] }, [], lines),
     });
     return root;
   }

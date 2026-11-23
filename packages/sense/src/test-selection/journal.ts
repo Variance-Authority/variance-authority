@@ -51,7 +51,7 @@ import { ownedExecutionIndexFrom } from './cases.js';
 import { attemptsOfCases } from './attempts-record.js';
 import { landedChecks, type ChecksSection } from './checks-record.js';
 import { eyesOfCases } from './eyes-record.js';
-import { encodeOwnedSetExecutionIndex } from './execution-set-format.js';
+import { encodeAsSetExecutionIndex } from './execution-set-format.js';
 import {
   caseJournals,
   joinObservations,
@@ -423,7 +423,7 @@ export async function recordExecution(
     owned === undefined
       ? undefined
       : {
-          fresh: encodeOwnedSetExecutionIndex(owned.index, owned.owners, owned.lines),
+          fresh: encodeAsSetExecutionIndex(owned.index, owned.owners, owned.lines),
           run: { tests, ...(commit === undefined ? {} : { commit }), ...(attempts === undefined ? {} : { attempts }) },
           ...(eyes === undefined ? {} : { eyes }),
         };

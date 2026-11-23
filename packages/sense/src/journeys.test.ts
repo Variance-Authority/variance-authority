@@ -220,9 +220,11 @@ describe('journeys read as masks', () => {
       modules: [
         {
           file: 'src/api.ts',
-          blocks: [region('module', '', 1, 6), region('function', 'get', 1, 3), region('branch', 'get', 2, 2), region('function', 'put', 4, 6)],
+          blocks: [region('module', '', 1, 6), region('function', 'get', 1, 3), region('branch', '', 2, 2), region('function', 'put', 4, 6)],
           called: Uint32Array.of(sets.intern([]), sets.intern([0, 1, 2]), sets.intern([0, 2]), sets.intern([0, 2])),
           loaded: Uint8Array.of(1, 0, 0, 0),
+          // The branch is `get`'s, the region around it; the functions are the module's.
+          owner: Uint32Array.of(0xffffffff, 0, 1, 0),
         },
       ],
       sets: sets.pool(),

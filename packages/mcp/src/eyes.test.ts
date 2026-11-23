@@ -21,7 +21,8 @@ import {
   withCaseSections,
   writeTestCoverage,
 } from '@variance-authority/sense/test-selection';
-import { readEyesRecord, RecordKeepsNoEyes } from './eyes-record.js';
+import { readEyesRecord } from './eyes-record.js';
+import { RecordKeepsNoEyes } from './record-keeps-no-eyes.js';
 import { serveEyesRecord } from './server.js';
 import { eyesToolByName } from './tools.js';
 import { distillTool } from './tools/observability.js';

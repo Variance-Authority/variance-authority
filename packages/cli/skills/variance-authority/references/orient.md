@@ -109,8 +109,8 @@ several suites answers once per suite that recorded it.
   from its last attempt, with `not.` kept on a negated assertion. A run with
   no Eyes journal is named as not recorded, never as a test with no assertion.
   A journal the page closed on before the test finished says why it stops.
-- `Ran`: the functions it entered, a row per file, an anonymous one by its
-  lines. Functions more than half the suite entered are structure, counted on
+- `Ran`: the functions it entered, a row per file, each by the name the
+  record gives it, or by its lines where the record gives none. Functions more than half the suite entered are structure, counted on
   one line.
 - `Adds`: the tests that entered the same regions, structure aside, its pieces
   and wholes as `test-composition` defines them, and every region no other test

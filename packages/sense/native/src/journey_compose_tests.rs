@@ -3,7 +3,7 @@ use crate::crossing_sets::SetPool;
 use crate::journey_format::{encode, CaseExtras, EncodedModule};
 use crate::journey_journal::{Test, FINISHED};
 use crate::journey_read::Journey;
-use crate::journey_record::{Block, Module};
+use crate::journey_record::{owners_by_lines, Block, Module};
 
 /// Eight cases. `setup` runs in every one, so it is structure. Two unit tests
 /// of `a` take its first branch; `b`'s test takes both of `a`'s branches and
@@ -45,7 +45,7 @@ fn block(kind: &str, name: &str, start: u32, end: u32) -> Block {
 }
 
 fn module(file: &str, blocks: Vec<Block>) -> Module {
-    Module { id: file.to_owned(), file: file.to_owned(), blocks, owners: None }
+    Module { id: file.to_owned(), file: file.to_owned(), owners: Some(owners_by_lines(&blocks)), blocks }
 }
 
 /// A recording of `names`, each case in the file `file` names, where

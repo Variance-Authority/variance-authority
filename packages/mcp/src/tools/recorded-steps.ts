@@ -13,7 +13,7 @@ import { readFileSync } from 'node:fs';
 import type { EyesArchive } from '@variance-authority/eyes';
 import { createEyesArchive, parseEyesJournal } from '@variance-authority/eyes/archive';
 import { decodeExecutionIndex, recordedEyesOf } from '@variance-authority/sense/test-selection';
-import { RecordKeepsNoEyes } from '../eyes-record.js';
+import { RecordKeepsNoEyes } from '../record-keeps-no-eyes.js';
 import { stepLine } from './attention.js';
 
 /**
@@ -24,15 +24,17 @@ import { stepLine } from './attention.js';
  * and the file are the case index's, read off the same bytes as the journals.
  * A record whose run did not opt into Eyes keeps no section, and that is
  * refused with {@link RecordKeepsNoEyes} rather than read as a run with no
- * tests, which is what an empty archive says.
+ * tests, which is what an empty archive says. Named `only`, it holds that
+ * case's journals alone, and no other is parsed.
  */
-export function eyesArchiveOf(bytes: Uint8Array, record: string): EyesArchive {
+export function eyesArchiveOf(bytes: Uint8Array, record: string, only?: string): EyesArchive {
   // The index first: bytes that are no record at all are refused here, not
   // taken for a record that kept no Eyes.
   const cases = new Map(decodeExecutionIndex(bytes).tests.map((test) => [test.id, test]));
   const section = recordedEyesOf(bytes);
   if (section === undefined) throw new RecordKeepsNoEyes(record);
-  return createEyesArchive(section.journals.map((row) => {
+  const rows = only === undefined ? section.journals : section.journals.filter((row) => row.case === only);
+  return createEyesArchive(rows.map((row) => {
     const named = cases.get(row.case);
     return {
       id: row.case,
@@ -53,8 +55,9 @@ export type RecordedSteps =
   | {
       /** Each step and assertion the journal recorded, in the order the test made them. */
       readonly steps: readonly string[];
-      /** The attempt they are read from, the last one, of `attempts`. */
+      /** The attempt they are read from, the last one the journals hold. */
       readonly attempt: number;
+      /** How many attempts kept a journal; fewer than `attempt` when one kept none. */
       readonly attempts: number;
       /** Why the journal is not whole, when it is not. */
       readonly partial?: string;
@@ -69,19 +72,22 @@ export type RecordedSteps =
 export function recordedSteps(record: string, id: string): RecordedSteps {
   let archive: EyesArchive;
   try {
-    archive = eyesArchiveOf(readFileSync(record), record);
+    archive = eyesArchiveOf(readFileSync(record), record, id);
   } catch (error) {
     if (error instanceof RecordKeepsNoEyes) return { unrecorded: 'the run kept no Eyes journal' };
     throw error;
   }
-  const attempts = archive.tests.filter((test) => test.id === id);
-  const last = attempts.at(-1);
-  if (last === undefined) return { unrecorded: 'Eyes kept no journal for it' };
+  // Every journal the record keeps names its attempt.
+  const last = archive.tests.reduce<EyesArchive['tests'][number] | undefined>((latest, test) => (latest === undefined || test.attempt! > latest.attempt! ? test : latest), undefined);
+  if (last === undefined) {
+    // A producer that names no watched case watched every one.
+    return { unrecorded: archive.watched === undefined || archive.watched.includes(id) ? 'Eyes watched it and kept no journal' : 'Eyes did not watch it' };
+  }
   const steps = last.attention.flatMap((entry) => stepLine(entry) ?? []);
   return {
     steps,
-    attempt: last.attempt ?? attempts.length,
-    attempts: attempts.length,
+    attempt: last.attempt!,
+    attempts: archive.tests.length,
     ...(last.complete ? {} : { partial: last.because }),
   };
 }

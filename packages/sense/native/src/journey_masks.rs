@@ -3,8 +3,8 @@
 //! any recording, not only one made in story mode.
 //!
 //! Every region is a bit, numbered by its row in the file. A region's function
-//! is the smallest function of its module whose span holds the region's first
-//! line; a function is its own. A case's journey is its mask, and its size is
+//! is the nearest function up the owners the record names; a function is its
+//! own. A case's journey is its mask, and its size is
 //! how many regions it entered, so "the smallest journey" means the case that
 //! did the least besides.
 //!
@@ -65,6 +65,7 @@ impl JourneyMasks {
         for module in 0..journey.modules() {
             let from = bits.len() as u32;
             let regions = journey.regions(module)?;
+            let mut owners = Vec::with_capacity(regions.len());
             for region in &regions {
                 if region.at != bits.len() {
                     return Err("journey regions are not numbered by row".to_owned());
@@ -92,9 +93,10 @@ impl JourneyMasks {
                     called: region.called,
                     function: None,
                 });
+                owners.push(region.owner);
             }
             let to = bits.len() as u32;
-            enclose(&mut bits[from as usize..to as usize], from);
+            enclose(&mut bits[from as usize..to as usize], from, &owners)?;
             rows.push((from, to));
         }
         Ok(JourneyMasks { journey, bits, rows, sets: HashMap::new(), sizes: None })
@@ -230,31 +232,24 @@ impl JourneyMasks {
     }
 }
 
-/// Give each region of one module the function it is written in: the function
-/// its declaration path names, as the instrumenter wrote it, and of two such
-/// functions the smaller one holding its first line. A line alone does not
-/// say: a callback and a branch of the function that calls it can begin on
-/// one line. A region whose path names no function, code at the top of the
-/// module, is written in none.
-fn enclose(bits: &mut [Bit], from: u32) {
-    let functions: Vec<(u32, u32, u32, u32)> = bits
-        .iter()
-        .enumerate()
-        .filter(|(_, bit)| bit.shape == Shape::Function)
-        .map(|(at, bit)| (bit.name, bit.start, bit.end, from + at as u32))
-        .collect();
-    for (at, bit) in bits.iter_mut().enumerate() {
-        bit.function = match bit.shape {
+/// Give each region of one module the function it is written in: the nearest
+/// function up the owners the record names, each before its region, so one
+/// pass in row order has every owner's answer first. A region with no owner —
+/// code at the top of the module, or any region of a record that names no
+/// owners — is written in none.
+fn enclose(bits: &mut [Bit], from: u32, owners: &[Option<u32>]) -> Result<(), String> {
+    for at in 0..bits.len() {
+        bits[at].function = match bits[at].shape {
             Shape::Module => None,
             Shape::Function => Some(from + at as u32),
-            // The journey keeps one id per string, so the same path is the same id.
-            Shape::Inner => functions
-                .iter()
-                .filter(|(name, start, end, _)| *name == bit.name && *start <= bit.start && bit.start <= *end)
-                .min_by_key(|(_, start, end, row)| (end - start, *row))
-                .map(|(_, _, _, row)| *row),
+            Shape::Inner => match owners[at] {
+                None => None,
+                Some(owner) if owner as usize >= at => return Err("journey names an owner after its region".to_owned()),
+                Some(owner) => bits[owner as usize].function,
+            },
         };
     }
+    Ok(())
 }
 
 /// Whether a region `entered_by` of the `suite` cases entered is structure:

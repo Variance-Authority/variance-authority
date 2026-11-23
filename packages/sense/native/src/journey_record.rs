@@ -36,6 +36,22 @@ pub struct Module {
     pub owners: Option<Vec<u32>>,
 }
 
+/// The owners an instrumenter writes for `blocks` cut in source order, read
+/// back from their lines for a hand-made module: each region's owner is the
+/// nearest region before it whose lines hold it, the first region the root.
+#[cfg(test)]
+pub fn owners_by_lines(blocks: &[Block]) -> Vec<u32> {
+    (0..blocks.len())
+        .map(|at| {
+            let inner = &blocks[at];
+            (0..at)
+                .rev()
+                .find(|&outer| blocks[outer].start_line <= inner.start_line && inner.end_line <= blocks[outer].end_line)
+                .map_or(NO_OWNER, |outer| outer as u32)
+        })
+        .collect()
+}
+
 /// The regions every inventory of one file holds, and where each inventory's
 /// own regions land among them.
 pub struct Reconciled {

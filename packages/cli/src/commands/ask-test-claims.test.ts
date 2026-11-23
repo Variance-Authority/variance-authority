@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { encodeExecutionIndex, landCases, testCoverageFile, withCaseSections, writeTestCoverage } from '@variance-authority/sense/test-selection';
+import { encodeAsSetExecutionIndex, landCases, testCoverageFile, withCaseSections, writeTestCoverage } from '@variance-authority/sense/test-selection';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import '../bin.fixture.js';
 import { main } from '../bin.js';
@@ -104,6 +104,9 @@ async function recorded(): Promise<void> {
     { file: 'src/price.ts', regions: [region('function', 'price', 1, 5, [0, 1, 2]), region('branch', 'price', 2, 3, [0, 1, 2]), region('branch', 'price', 4, 4, [])] },
     { file: 'src/order.ts', regions: [region('function', 'order', 1, 6, [1, 2, 3]), region('branch', 'order', 3, 4, [3])] },
   ];
+  // Each region's owner, the region around it by place, as the run writes it beside the index: the branches are their function's.
+  const none = 0xffffffff;
+  const owners = [[none, 0, 0], [none, 0]].map((owner) => Uint32Array.from(owner));
   await writeTestCoverage(at, {
     version: 3,
     instrumentation: 'fixture-instrumentation',
@@ -116,13 +119,13 @@ async function recorded(): Promise<void> {
     })),
   });
   const shard = join(mkdtempSync(join(tmpdir(), 'va-test-claims-shard-')), 'run.bin');
-  writeFileSync(shard, withCaseSections(readFileSync(at), { index: encodeExecutionIndex({
+  writeFileSync(shard, withCaseSections(readFileSync(at), { index: encodeAsSetExecutionIndex({
     tests,
     modules: modules.map(({ file, regions }) => ({
       file,
       blocks: regions.map(({ entered, ...block }) => ({ ...block, crossings: entered.map((test) => ({ test, distance: 0 })) })),
     })),
-  }) }));
+  }, owners) }));
   const { sections } = await landCases(at, {}, root, [{ path: shard, coverage: { tests: files.map((file) => ({ file, complete: true })) } }]);
   writeFileSync(at, withCaseSections(readFileSync(at), sections));
 }

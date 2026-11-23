@@ -44,10 +44,10 @@ async function written(journals: readonly Kept[] | undefined): Promise<string> {
 }
 
 describe('recordedSteps', () => {
-  it('reads the last attempt of the case its id names, though another case shares its file and name', async () => {
+  it('reads the last attempt of the case its id names, whatever order the journals are kept in, though another case shares its file and name', async () => {
     const at = await written([
-      { case: 'chromium', attempt: 1, journal: queried(['Pay']) },
       { case: 'chromium', attempt: 2, journal: queried(['Pay', 'Retry'], 'the page closed') },
+      { case: 'chromium', attempt: 1, journal: queried(['Pay']) },
       { case: 'firefox', attempt: 1, journal: queried(['Cancel']) },
     ]);
 
@@ -60,8 +60,10 @@ describe('recordedSteps', () => {
     expect(recordedSteps(at, 'firefox')).toEqual({ steps: ['query getByRole("button", {"name":"Cancel"})'], attempt: 1, attempts: 1 });
   });
 
-  it('says why no step is recorded: a case Eyes kept no journal for, and a run that kept none', async () => {
-    expect(recordedSteps(await written([{ case: 'chromium', attempt: 1, journal: queried([]) }]), 'firefox')).toEqual({ unrecorded: 'Eyes kept no journal for it' });
+  it('says why no step is recorded: a watched case with no journal, a case not watched, and a run that kept none', async () => {
+    const kept = await written([{ case: 'chromium', attempt: 1, journal: queried([]) }]);
+    expect(recordedSteps(kept, 'firefox')).toEqual({ unrecorded: 'Eyes watched it and kept no journal' });
+    expect(recordedSteps(kept, 'webkit')).toEqual({ unrecorded: 'Eyes did not watch it' });
     expect(recordedSteps(await written(undefined), 'chromium')).toEqual({ unrecorded: 'the run kept no Eyes journal' });
   });
 });
