@@ -25,7 +25,6 @@ in the same form `variance_test_attention` prints them. Each suite `testsRan`
 returns now names the `recording` it was read from. Each case a journey answer
 names carries its `id`, and each region `testsRan` returns says whether it is
 `structure` and whether the test entered the function it is written in
-(`functionEntered`). `createEyesArchive` is exported from `@variance-authority/eyes/archive`
-too, for a reader that has no use for the root's React tap, beside
+(`functionEntered`). `@variance-authority/eyes/archive` exports
 `parseJournalRow`, which validates one journal a record keeps, named by its
 case and attempt.

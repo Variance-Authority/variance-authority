@@ -1030,7 +1030,6 @@
         "eyesFixtures": "const"
       },
       "./archive": {
-        "createEyesArchive": "function",
         "parseEyesArchive": "function",
         "parseEyesJournal": "function",
         "parseJournalRow": "function",

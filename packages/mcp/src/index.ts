@@ -35,7 +35,6 @@ export type { LocateField } from './tools/locate-index.js';
 
 export type { ObservabilitySubject } from './observability-subject.js';
 
-export { readEyesRecord } from './eyes-record.js';
-export { RecordKeepsNoEyes } from './record-keeps-no-eyes.js';
+export { readEyesRecord, RecordKeepsNoEyes } from './eyes-record.js';
 export { serve, serveEyesRecord, serveReportFile, serveVantage } from './server.js';
 export type { AskedAgain, ReportFileOptions, ServerOptions, ServedVantage } from './server.js';
