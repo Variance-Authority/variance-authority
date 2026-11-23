@@ -187,6 +187,13 @@ describe('the coverage page', () => {
     expect(seen(html)).not.toContain('did not parse');
   });
 
+  it('says the same of the files that did not parse as the text and the table do', () => {
+    const unparsed: Coverage = { ...ANSWER, source: { ...ANSWER.source!, unloaded: { ...ANSWER.source!.unloaded, uncut: 1 } } };
+    expect(formatCoverage(unparsed, 'text')).toContain('  1 file did not parse, so no regions are counted for them\n');
+    expect(formatCoverage(unparsed, 'markdown')).toContain('1 file did not parse, so no regions are counted for them.');
+    expect(formatCoverage(ANSWER, 'text')).not.toContain('did not parse');
+  });
+
   it('says why it could not count what no suite loads', () => {
     const { source: _, ...unsourced } = ANSWER;
     const missed = formatCoverage({ ...unsourced, sourceMissed: 'the index is not built' }, 'html');
