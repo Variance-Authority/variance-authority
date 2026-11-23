@@ -1,0 +1,33 @@
+version: 1
+budgets:
+  calls: 6
+  milliseconds: 30000
+  answerBytes: 12000
+steps:
+  - id: seed
+    question: discover
+    input: {}
+    request:
+      declares: name
+  - id: fallback
+    question: search
+    input: {}
+    request:
+      query: query
+    when:
+      step: seed
+      is: empty
+  - id: examples
+    question: discover
+    input:
+      path: example
+    fromFiles:
+      step: seed
+      input: to
+  - id: mocks
+    question: discover
+    input:
+      path: mock
+    fromFiles:
+      step: examples
+      input: from
