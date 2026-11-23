@@ -109,6 +109,14 @@ it.each([symbol, uses])('`$name` reads a published name and its files without ma
   }
 });
 
+it('keeps published-name candidates when a declared candidate names no stored file', async () => {
+  const { help } = await published(true);
+  const rows = searchIndexOf(help).rows;
+  const named = rows.publishedCandidates('clamp', []);
+  expect(named.map((row) => rows.published(row)[2].name)).toContain('clamp');
+  expect(rows.publishedCandidates('clamp', [{ at: 'packages/kit/src/internal/absent.ts', name: 'other' }])).toEqual(named);
+});
+
 it.each(['entries', 'unfound'])('keeps the public %s helper usable with an already decoded Help value', async (question) => {
   const { help } = await published(true);
   const raw: Help = JSON.parse(JSON.stringify(help));

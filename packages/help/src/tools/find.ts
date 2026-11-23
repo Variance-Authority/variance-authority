@@ -8,6 +8,7 @@ import { notShownPast, type Spelling } from '@variance-authority/mcp/tools';
 import { search } from './search.js';
 import { exportsNamed } from './unpublished.js';
 import { searchIndexOf, storeBytesOf } from '../snapshot.js';
+import type { StoreRows } from '../store-rows.js';
 
 /**
  * Locating the thing a question is about, and answering well when it is not there.
@@ -87,15 +88,32 @@ export function isPackage(published: Documented, opening: Opening, wanted: strin
 
 /** Every place a name is published, under that exact spelling, in stored order. */
 export function entriesNamed(help: Help, name: string): readonly (readonly [Documented, Opening, Entry])[] {
-  if (storeBytesOf(help) === undefined) return [...everyEntry(help)].filter(([, , entry]) => entry.name === name);
-  const rows = searchIndexOf(help).rows;
-  return namedEntries(help, name).map(([row, [published, opening]]) => [published, opening, rows.entry(row)]);
+  const rows = publishedEntriesOf(help);
+  return namedEntries(rows, name).map(([row, [published, opening]]) => [published, opening, rows.entry(row)]);
+}
+
+type PublishedEntries = Pick<StoreRows, 'published' | 'entry' | 'publishedNames'> & {
+  readonly candidates: (name: string) => readonly number[];
+};
+
+/** The same published references, read from stored columns or already decoded entries, with metadata deferred until selected. */
+function publishedEntriesOf(help: Help): PublishedEntries {
+  if (storeBytesOf(help) !== undefined) {
+    const rows = searchIndexOf(help).rows;
+    return { candidates: (name) => rows.publishedCandidates(name, []), published: rows.published, entry: rows.entry, publishedNames: rows.publishedNames };
+  }
+  const entries = [...everyEntry(help)];
+  return {
+    candidates: () => entries.map((_, row) => row),
+    published: (row) => entries[row]!,
+    entry: (row) => entries[row]![2],
+    publishedNames: () => entries.map(([, , entry]) => entry.name),
+  };
 }
 
 /** Published rows under one exact spelling, before any entry metadata is decoded. */
-function namedEntries(help: Help, name: string) {
-  const rows = searchIndexOf(help).rows;
-  return rows.publishedCandidates(name, []).map((row) => [row, rows.published(row)] as const).filter(([, [, , entry]]) => entry.name === name);
+function namedEntries(rows: PublishedEntries, name: string) {
+  return rows.candidates(name).map((row) => [row, rows.published(row)] as const).filter(([, [, , entry]]) => entry.name === name);
 }
 
 /**
@@ -104,8 +122,8 @@ function namedEntries(help: Help, name: string) {
  * Only the selected entry's metadata is decoded.
  */
 export function entryNamed(help: Help, name: string, specifier: string, at: string | undefined): readonly [Documented, Opening, Entry] | undefined {
-  const rows = searchIndexOf(help).rows;
-  const named = namedEntries(help, name);
+  const rows = publishedEntriesOf(help);
+  const named = namedEntries(rows, name);
   const found = named.find(([, [published, opening]]) => specifierOf(published, opening) === specifier) ??
     (at === undefined ? undefined : named.find(([, [, , entry]]) => entry.at === at));
   return found === undefined ? undefined : [found[1][0], found[1][1], rows.entry(found[0])];
@@ -124,7 +142,7 @@ export function entryNamed(help: Help, name: string, specifier: string, at: stri
 export function unfound(help: Help, name: string, within: string | undefined, spell: Spelling): string {
   const where = within === undefined ? 'this workspace' : `\`${within}\``;
   const lowered = name.toLowerCase();
-  const published = new Set(storeBytesOf(help) === undefined ? [...everyEntry(help)].map(([, , entry]) => entry.name) : searchIndexOf(help).rows.publishedNames());
+  const published = new Set(publishedEntriesOf(help).publishedNames());
   const alike = [...published].filter((held) => held.toLowerCase() === lowered && held !== name);
   if (alike.length === 1) return `\`${name}\` is not published by ${where}; \`${alike[0]}\` is. Names are matched exactly.`;
   if (alike.length > 1) {
