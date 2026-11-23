@@ -76,7 +76,6 @@ function ran(count: Coverage['count']): readonly Part[] {
 /** A bar of parts and their keys; a part that is zero is neither drawn nor named. */
 function census(parts: readonly Part[]): string {
   const shown = parts.filter(([, n]) => n > 0);
-  if (shown.length === 0) return '';
   const said = (n: number, label: string, title: string | undefined) => text(title === undefined || title === '' ? `${grouped(n)} ${label}` : `${grouped(n)} ${label}: ${title}`);
   const bar = shown.map(([name, n, label, title]) => `<i class="seg ${name}" style="flex:${n}" title="${said(n, label, title)}"></i>`).join('');
   const keys = shown.map(([name, n, label, title]) => `<span class="key ${name}" title="${said(n, label, title)}"><i></i><b>${grouped(n)}</b> ${text(label)}</span>`).join('');
@@ -160,7 +159,7 @@ function flatFiles(answer: Coverage): string {
     const listed = answer.fanIn?.files ?? [];
     if (listed.length === 0) return '';
     const rows = listed.map((file) => fileRow(file.file, file.regions, file.run, undefined, file));
-    return section('Files', `${grouped(listed.length)} files a suite loaded`, search + fileTable(rows, false));
+    return section('Files', `${files(listed.length)} a suite loaded`, search + fileTable(rows, false));
   }
   const byOwner = new Map<string, OwnedFile[]>();
   for (const file of owned) byOwner.set(file.owner, [...(byOwner.get(file.owner) ?? []), file]);
@@ -180,7 +179,7 @@ function flatFiles(answer: Coverage): string {
 
 function pack(from: string, own: CoverageSource | undefined, list: readonly OwnedFile[], entered: ReadonlyMap<string, FanInFile>): string {
   const figure = own === undefined
-    ? `<span class="num nil">${grouped(list.length)} files</span>`
+    ? `<span class="num nil">${files(list.length)}</span>`
     : `<span class="num">${meter(own.ran, own.regions)}<b>${text(ratio(own.ran, own.regions))}</b></span>` +
       `<span class="num px">${grouped(own.ran)} of ${grouped(own.regions)} regions</span>` +
       `<span class="num px">${files(own.files)}</span>`;

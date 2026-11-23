@@ -133,6 +133,45 @@ describe('the coverage page', () => {
   it('lists every directory no suite loads, not the first five', () => {
     for (const { directory } of DIRECTORIES) expect(row(html, `unloaded:${directory}`)).toContain(directory);
   });
+
+  it('names a package it could not count, and lists a file no package owns after every package', () => {
+    const root = { file: 'scripts/x.ts', owner: '.', regions: 4, run: 2, own: 2, others: 0, by: {}, kinds: {} };
+    const wider = formatCoverage({
+      ...ANSWER,
+      entries: [...ANSWER.entries!, { from: 'packages/gone', missed: 'the index holds nothing under it' }],
+      ownership: [...ANSWER.ownership!, root],
+    }, 'html');
+    expect(row(wider, 'package:packages/gone')).toContain('the index holds nothing under it');
+    expect(row(wider, 'package:.')).toContain('1 file');
+    expect(row(wider, 'package:.')).not.toContain('1 files');
+    expect(wider.indexOf('data-row="package:."')).toBeGreaterThan(wider.indexOf('data-row="package:packages/core"'));
+  });
+});
+
+describe('the coverage page of one directory', () => {
+  const empty = { file: 'packages/cli/src/empty.ts', regions: 0, run: 0, one: 0, entered: 0, peak: 0, median: 0, testFiles: 1, share: 0 };
+  const html = formatCoverage({
+    at: '0b5b312c',
+    count: { regions: 40, files: 2, run: 30, load: 0, none: 10, unjoined: 0, suites: [{ name: 'unit', kind: 'unit', run: 30, load: 0, regions: 40 }] },
+    suites: [{ suite: 'unit', kind: 'unit', from: 'unit.bin' }],
+    source: source(40, 30),
+    fanIn: { kinds: [], files: [ANSWER.fanIn!.files[1]!, empty] },
+  }, 'html');
+
+  it('lists the files a suite loaded, with no package', () => {
+    expect(row(html, 'file:packages/cli/src/a.ts')).toContain('30 / 40');
+    expect(html).not.toContain('id="packages"');
+  });
+
+  it('draws no ratio for a file with no region', () => {
+    expect(row(html, 'file:packages/cli/src/empty.ts')).toContain('—');
+    expect(row(html, 'file:packages/cli/src/empty.ts')).not.toContain('NaN');
+  });
+
+  it('leaves out the kinds where one kind ran and no test file entered, and the unloaded where everything loaded', () => {
+    expect(html).not.toContain('id="kinds"');
+    expect(html).not.toContain('id="not-loaded"');
+  });
 });
 
 describe('--format html', () => {
