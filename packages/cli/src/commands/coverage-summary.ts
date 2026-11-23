@@ -88,8 +88,14 @@ export function grouped(value: number): string {
   return String(value).replace(/\B(?=(\d{3})+(?!\d))/gu, ',');
 }
 
-function files(count: number): string {
+/** `1 file`, `1,234 files`. */
+export function files(count: number): string {
   return `${grouped(count)} file${count === 1 ? '' : 's'}`;
+}
+
+/** A commit as the answers name it: its first eight characters. */
+export function short(commit: string): string {
+  return commit.slice(0, 8);
 }
 
 /** Columns padded to the widest cell, with no trailing space. */

@@ -11,7 +11,7 @@
  */
 
 import type { FanInFile, OwnedFile } from '@variance-authority/sense/test-selection';
-import { coverageParts, grouped, leading, ratio } from './coverage-summary.js';
+import { coverageParts, files, grouped, leading, ratio, short } from './coverage-summary.js';
 import { chip, section, text } from './report-html-elements.js';
 import { MARK, PAGE } from './report-html-style.js';
 import type { CoverageSource, Unloaded } from './coverage-source.js';
@@ -31,7 +31,7 @@ export function coverageHtml(answer: Coverage): string {
     '<main>',
     suites(answer),
     kinds(answer),
-    files(answer),
+    flatFiles(answer),
     unloaded(answer.source),
     '</main>',
     `<script>${SCRIPT}</script>`,
@@ -53,7 +53,7 @@ function masthead(answer: Coverage): string {
     '<header>' +
     `<div class="brand">${MARK}<span>variance</span></div>` +
     `<h1 data-row="lead">${text(ratio(lead, count.regions))}<span>regions run</span>` +
-    `<span class="more">${text(`${grouped(lead)} of ${grouped(count.regions)} regions in ${fileCount(count.files)} the suites loaded`)}</span></h1>` +
+    `<span class="more">${text(`${grouped(lead)} of ${grouped(count.regions)} regions in ${files(count.files)} the suites loaded`)}</span></h1>` +
     `<div class="chips">${chips.join('')}</div>` +
     census([...ran(count), ['load', count.load, 'ran only at load'], ['none', count.none, 'nothing ran']]) +
     '</header>'
@@ -152,7 +152,7 @@ function kinds(answer: Coverage): string {
 
 /* --- packages and files ----------------------------------------------------- */
 
-function files(answer: Coverage): string {
+function flatFiles(answer: Coverage): string {
   const entered = new Map((answer.fanIn?.files ?? []).map((file) => [file.file, file]));
   const owned = answer.ownership ?? [];
   const search = '<input id="filter" type="search" placeholder="filter files" aria-label="filter files" autocomplete="off">';
@@ -183,7 +183,7 @@ function pack(from: string, own: CoverageSource | undefined, list: readonly Owne
     ? `<span class="num nil">${grouped(list.length)} files</span>`
     : `<span class="num">${meter(own.ran, own.regions)}<b>${text(ratio(own.ran, own.regions))}</b></span>` +
       `<span class="num px">${grouped(own.ran)} of ${grouped(own.regions)} regions</span>` +
-      `<span class="num px">${fileCount(own.files)}</span>`;
+      `<span class="num px">${files(own.files)}</span>`;
   const rows = list.map((file) => fileRow(file.file, file.regions, file.run, file, entered.get(file.file)));
   return (
     '<details class="package">' +
@@ -234,7 +234,7 @@ function unloaded(source: CoverageSource | undefined): string {
 }
 
 function notLoaded(none: Unloaded): string {
-  return `${fileCount(none.files)}, ${grouped(none.lines)} lines and ${grouped(none.regions)} regions no suite loaded`;
+  return `${files(none.files)}, ${grouped(none.lines)} lines and ${grouped(none.regions)} regions no suite loaded`;
 }
 
 /* --- pieces ----------------------------------------------------------------- */
@@ -252,14 +252,6 @@ function meter(run: number, regions: number): string {
 
 function kindMark(kind: string | undefined): string {
   return kind === undefined ? '' : `<span class="mark area">${text(kind)}</span>`;
-}
-
-function fileCount(count: number): string {
-  return `${grouped(count)} file${count === 1 ? '' : 's'}`;
-}
-
-function short(commit: string): string {
-  return commit.slice(0, 8);
 }
 
 /** What only this page draws: the frame, the census parts, the meters and the packages. */

@@ -180,7 +180,7 @@ describe('the review a project with only unit tests puts on the pull request', (
   });
 
   it('takes only what a review reads, and states no verdict for a run that never happened', () => {
-    expect(Object.keys(action().inputs).sort()).toEqual(['against', 'badge', 'command', 'comment', 'fail-on-lost', 'fail-on-uncovered', 'from', 'github-token', 'suite', 'test']);
+    expect(Object.keys(action().inputs).sort()).toEqual(['against', 'badge', 'command', 'comment', 'coverage-page', 'fail-on-lost', 'fail-on-uncovered', 'from', 'github-token', 'suite', 'test']);
     expect(action().outputs).toBeUndefined();
   });
 
@@ -194,6 +194,9 @@ describe('the review a project with only unit tests puts on the pull request', (
       'run the tests',
       'review the change',
       'count the regions run',
+      'draw the coverage page',
+      'upload the coverage page',
+      'link the coverage page',
       'hand the review on',
       'take the review',
       'say the review job handed nothing on',
@@ -216,7 +219,7 @@ describe('the review a project with only unit tests puts on the pull request', (
     });
 
     it('runs nothing of the carry around the tests when no `test` is named, so the review reads the record as before', () => {
-      for (const name of order.slice(1, 5).concat(order.slice(12, 15), order.slice(17))) expect(stepNamed(name).if).toContain("inputs.test != ''");
+      for (const name of order.slice(1, 5).concat(order.slice(15, 18), order.slice(20))) expect(stepNamed(name).if).toContain("inputs.test != ''");
     });
 
     it('restores the record the carry names for the suite, and the last push only on a pull request, which alone has one', () => {

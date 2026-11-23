@@ -234,7 +234,7 @@ runs:
     # link opens the page instead of downloading a zip.
     - id: upload-page
       name: upload the coverage page
-      if: steps.page.outputs.path != ''
+      if: inputs.from == '' && steps.page.outputs.path != ''
       uses: actions/upload-artifact@v7
       with:
         path: ${{ steps.page.outputs.path }}
@@ -243,7 +243,7 @@ runs:
 
     # Into the review itself, so a job with `from` posts the link it was handed.
     - name: link the coverage page
-      if: steps.upload-page.outputs.artifact-url != ''
+      if: inputs.from == '' && steps.upload-page.outputs.artifact-url != ''
       shell: bash
       env:
         REVIEW: ${{ steps.carry.outputs.review }}

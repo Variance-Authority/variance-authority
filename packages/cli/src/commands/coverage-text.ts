@@ -14,7 +14,7 @@ import { fanInLines, fanInMarkdown } from './coverage-fan-in-text.js';
 import { coverageHtml } from './coverage-html.js';
 import { sessionsLines, sessionsMarkdown } from './coverage-sessions-text.js';
 import { earnedLines, earnedMarkdown, ownershipLines, ownershipMarkdown } from './coverage-owner-text.js';
-import { coverageHead, coverageParts as parts, coverageRows, coverageSum, grouped, leading, ratio, signed, table } from './coverage-summary.js';
+import { coverageHead, coverageParts as parts, coverageRows, coverageSum, files, grouped, leading, ratio, short, signed, table } from './coverage-summary.js';
 import { historyCell, notKnownLines, overCell, overClause, overMarkdown, recordedClause } from './coverage-over-lines.js';
 import { functionsIn, notListed } from './covering-motion.js';
 import { text as escape } from './report-html-elements.js';
@@ -404,14 +404,6 @@ function ratioCell(run: number, regions: number, wasRun: number | undefined, was
 
 function regionCount(regions: number): string {
   return `${grouped(regions)} region${regions === 1 ? '' : 's'}`;
-}
-
-function files(count: number): string {
-  return `${grouped(count)} file${count === 1 ? '' : 's'}`;
-}
-
-function short(commit: string): string {
-  return commit.slice(0, 8);
 }
 
 function order(left: string, right: string): number {
