@@ -68,7 +68,7 @@ when you need the connecting paths regardless of which name each import uses. Se
 For consumers inside one observed area, cross reverse imports with path membership:
 
 ```bash
-variance ask discover --to src/pricing/price.ts --path '^src/checkout/' --text calculatePrice --limit 6
+variance ask discover --to src/pricing/price.ts --path '^src/checkout/' --limit 6
 ```
 
 Read the returned source to establish how it uses the value. An empty
