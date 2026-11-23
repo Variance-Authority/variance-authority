@@ -222,7 +222,7 @@ export { readJobWrites, type JobWrites } from './job-record.js';
 export { recordJob, type JobRun } from './job-recording.js';
 export { recordCargo, type CargoRun } from './cargo-recording.js';
 export { serveBase, type ServedOptions, type ServedRun } from '../janus/serve-base.js';
-export { EXTREME_LIMIT, extremeBreak, extremeBreaks, type ExtremeAnswer, type ExtremeAsk, type ExtremeRefusal, type ExtremeRegion, type Unbroken } from '../janus/extreme.js';
+export { extremeBreaks, type ExtremeAnswer, type ExtremeAsk, type ExtremeRefusal, type ExtremeRegion, type Unbroken } from '../janus/extreme.js';
 export { askPerStand, readingFrom, standChange, standDiff, standsAt, wholeEntry, withoutFiles, type Git, type Stand, type StandAnswer, type StandQuestion, type StandReading } from './stands.js';
 export { assumedOf, lastRunsOf, testPlaces, type CasesLastRan, type TestPlace } from './test-places.js';
 export { ago, whatLanded, type WhatLanded } from './landings.js';

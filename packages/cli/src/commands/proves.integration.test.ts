@@ -30,11 +30,14 @@ async function run(argv: readonly string[]): Promise<{ code: number; out: string
 
 const SOURCES: Record<string, string> = {
   'src/total.mjs': 'export function total(a, b) {\n  return a + b;\n}\n',
-  'src/log.mjs': 'export function log(line) {\n  globalThis.lines = [...(globalThis.lines ?? []), line];\n}\n',
+  'src/log.mjs': 'export const log = (line) => {\n  globalThis.lines = [...(globalThis.lines ?? []), line];\n};\n',
+  'src/ready.mjs': 'export function ready() {\n  return true;\n}\n',
   // The test: it logs, and asserts only the total.
   'test/total.check.mjs':
     "import { log } from '../src/log.mjs';\nimport { total } from '../src/total.mjs';\nlog('adding');\nif (total(2, 3) !== 5) process.exit(1);\n",
   'test/broken.check.mjs': 'process.exit(1);\n',
+  // A test that waits on `ready`: emptied, it never returns true.
+  'test/wait.check.mjs': "import { ready } from '../src/ready.mjs';\nwhile (!ready()) {}\n",
 };
 
 describe('variance proves', () => {
@@ -57,6 +60,42 @@ describe('variance proves', () => {
       'A survivor is an assertion that does not read the region, or a break that changes nothing the test can observe: this run cannot tell which.',
       '',
     ]);
+    expect(snapshot(root)).toEqual(before);
+  });
+
+  it('breaks a region where it stands now, in a file edited since the recording', async () => {
+    const root = await recorded();
+    writeFileSync(join(root, 'src/total.mjs'), `// written since\n\n${SOURCES['src/total.mjs']}`);
+
+    const answered = await run(['proves', '--file', 'test/total.check.mjs', '--name', 'adds', '--', process.execPath, 'test/total.check.mjs']);
+
+    expect([answered.code, answered.err]).toEqual([EXIT_CLEAN, '']);
+    expect(answered.out).toContain('Noticed, the test failed with the region broken:\n  src/total.mjs:1-3  function total  returns nothing\n');
+  });
+
+  it('stops a break the test is still running at its deadline, and names it hung', async () => {
+    await recorded();
+
+    const answered = await run(['proves', '--file', 'test/wait.check.mjs', '--name', 'waits', '--', process.execPath, 'test/wait.check.mjs']);
+
+    expect([answered.code, answered.err]).toEqual([EXIT_CLEAN, '']);
+    expect(answered.out.split('\n').slice(0, 5)).toEqual([
+      'test/wait.check.mjs  waits',
+      '',
+      'Hung, the test was still running at its deadline with the region broken, and was stopped:',
+      '  src/ready.mjs:1-3  function ready  returns nothing',
+      '',
+    ]);
+  });
+
+  it('refuses a checkout whose configuration names a cache root, which the runs would record into', async () => {
+    const root = await recorded({ 'variance.config.json': JSON.stringify({ cacheRoot: '.variance/cache' }) });
+    const before = snapshot(root);
+
+    const answered = await run(['proves', '--file', 'test/total.check.mjs', '--name', 'adds', '--', process.execPath, 'test/total.check.mjs']);
+
+    expect(answered.code).toBe(EXIT_OPERATOR);
+    expect(answered.err).toContain('names a `cacheRoot`');
     expect(snapshot(root)).toEqual(before);
   });
 
@@ -87,28 +126,33 @@ function snapshot(root: string): Record<string, string> {
 }
 
 /**
- * A checkout holding two functions and a test that enters both, recorded as
- * one test, `adds`, that entered `total` and `log`, with one other test that
- * entered `total` too.
+ * A checkout holding three functions, committed and recorded at that commit:
+ * `adds` entered `total` and `log`, `adds again` entered `total` too, and
+ * `waits` entered `ready`. `extra` files are written beside them first.
  */
-async function recorded(): Promise<string> {
+async function recorded(extra: Readonly<Record<string, string>> = {}): Promise<string> {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'va-proves-')));
   execFileSync('git', ['init', '--quiet', '--initial-branch', 'main'], { cwd: root, stdio: 'pipe' });
-  for (const [file, text] of Object.entries(SOURCES)) {
+  for (const [file, text] of Object.entries({ ...SOURCES, ...extra })) {
     mkdirSync(dirname(join(root, file)), { recursive: true });
     writeFileSync(join(root, file), text);
   }
+  const git = (...args: string[]): string => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
+  git('add', '.');
+  git('-c', 'user.name=fixture', '-c', 'user.email=fixture@example.com', 'commit', '--quiet', '-m', 'recorded');
   process.chdir(root);
   const at = testCoverageFile(root);
-  const files = ['test/total.check.mjs', 'test/other.check.mjs'];
+  const files = ['test/total.check.mjs', 'test/other.check.mjs', 'test/wait.check.mjs'];
   const tests = [
     { id: 'a', file: files[0] ?? '', name: 'adds' },
     { id: 'o', file: files[1] ?? '', name: 'adds again' },
+    { id: 'w', file: files[2] ?? '', name: 'waits' },
   ];
   const fileOf = (test: number) => tests[test]?.file ?? '';
   const region = (kind: string, name: string, startLine: number, endLine: number, entered: readonly number[]) => ({ kind, name, path: 'entry', startLine, endLine, source: true, entered });
   const modules = [
     { file: 'src/log.mjs', regions: [region('function', 'log', 1, 3, [0])] },
+    { file: 'src/ready.mjs', regions: [region('function', 'ready', 1, 3, [2])] },
     { file: 'src/total.mjs', regions: [region('function', 'total', 1, 3, [0, 1])] },
   ];
   const none = 0xffffffff;
@@ -116,6 +160,7 @@ async function recorded(): Promise<string> {
   await writeTestCoverage(at, {
     version: 3,
     instrumentation: 'fixture-instrumentation',
+    commit: git('rev-parse', 'HEAD'),
     tests: files.map((file) => ({ file, complete: true, preconditions: [] })),
     modules: modules.map(({ file, regions }) => ({
       file,

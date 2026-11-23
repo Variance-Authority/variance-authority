@@ -21,7 +21,7 @@ const LIMIT = 'A survivor is an assertion that does not read the region, or a br
 /** Run `parsed`'s command under each break, and print which the test survived. */
 export async function runProves({ file, name, limit, run }: ParsedProves, streams: Pick<Streams, 'out'>, cwd = process.cwd()): Promise<ExitCode> {
   const root = repositoryRoot(cwd);
-  const answer = await extremeBreaks({ root, file, ...(name === undefined ? {} : { name }), command: run, cwd, ...(limit === undefined ? {} : { limit }) });
+  const answer = await extremeBreaks({ root, file, ...(name === undefined ? {} : { name }), command: run, cwd, limit });
   if ('refused' in answer) throw new OperatorError(`\`proves\`: ${answer.refused}`);
   const place = (region: ExtremeRegion): string => regionPlace(region.file, region);
   const broken = (region: ExtremeRegion): string => `  ${place(region)}  ${region.kind === 'function' ? 'returns nothing' : 'skipped'}`;
@@ -32,7 +32,11 @@ export async function runProves({ file, name, limit, run }: ParsedProves, stream
       '',
       ...section('Survived, the test passed with the region broken:', answer.survived.map(broken)),
       ...section('Noticed, the test failed with the region broken:', answer.noticed.map(broken)),
-      ...section('Not broken:', answer.unbroken.map(({ region, reason }) => `  ${place(region)}  ${reason}`)),
+      ...section('Hung, the test was still running at its deadline with the region broken, and was stopped:', answer.hung.map(broken)),
+      ...section('Not broken:', [
+        ...answer.unbroken.map(({ region, reason }) => `  ${place(region)}  ${reason}`),
+        ...(answer.pastCap === 0 ? [] : [`  ${answer.pastCap} more ${answer.pastCap === 1 ? 'region' : 'regions'} past the cap of ${limit}: \`--limit\` raises it`]),
+      ]),
       LIMIT,
       '',
     ].join('\n'),

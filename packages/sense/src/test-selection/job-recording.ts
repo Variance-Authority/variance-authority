@@ -119,14 +119,32 @@ function* linesOf(file: string): Generator<string> {
   }
 }
 
+/** How long a program stopped at its deadline has to end before it is killed. */
+const GRACE = 5_000;
+
 /**
  * The exit of `program`, as a shell states one: a signal is 128 and its number. Undefined when there is no such program. `env`, when given, is its whole environment.
- * `stdio` is where its streams go: this process's own by default.
+ * `stdio` is where its streams go: this process's own by default. Past `deadline` milliseconds it is asked to stop, and killed when it has not after a grace.
  */
-export function started(program: string, args: readonly string[], cwd: string, env?: NodeJS.ProcessEnv, stdio: StdioOptions = 'inherit'): Promise<number | undefined> {
+export function started(program: string, args: readonly string[], cwd: string, env?: NodeJS.ProcessEnv, stdio: StdioOptions = 'inherit', deadline?: number): Promise<number | undefined> {
   return new Promise((resolve, reject) => {
     const child = spawn(program, args, { cwd, stdio, ...(env === undefined ? {} : { env }) });
-    child.on('error', (error: NodeJS.ErrnoException) => (error.code === 'ENOENT' ? resolve(undefined) : reject(error)));
-    child.on('close', (code, signal) => resolve(code ?? 128 + (signal === null ? 0 : constants.signals[signal])));
+    const timers: NodeJS.Timeout[] = [];
+    if (deadline !== undefined) {
+      timers.push(setTimeout(() => {
+        child.kill('SIGTERM');
+        timers.push(setTimeout(() => child.kill('SIGKILL'), GRACE));
+      }, deadline));
+    }
+    const settled = (): void => timers.forEach(clearTimeout);
+    child.on('error', (error: NodeJS.ErrnoException) => {
+      settled();
+      if (error.code === 'ENOENT') resolve(undefined);
+      else reject(error);
+    });
+    child.on('close', (code, signal) => {
+      settled();
+      resolve(code ?? 128 + (signal === null ? 0 : constants.signals[signal]));
+    });
   });
 }

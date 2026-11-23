@@ -12,7 +12,11 @@ command starts, so the checkout is never written, and the command records to a
 scratch directory, so the record is left as it was. The answer names the
 regions the test survived broken and the ones it noticed, and says that a
 survivor is either an assertion that does not read the region or a break
-nothing can observe. A command that fails with nothing broken is refused.
+nothing can observe. A break the test is still running five times past the
+unbroken run's time, and at least two seconds, is stopped and named as hung. A
+command that fails with nothing broken is refused, and so is a checkout whose
+configuration names a `cacheRoot`, which the command's runs would record into.
 
-`serveBase` takes the environment and the standard streams of the command it
-starts, and `extremeBreaks` and `extremeBreak` are exported beside it.
+`serveBase` takes the environment, the standard streams and a deadline for the
+command it starts, and says whether the run was stopped at it; `extremeBreaks`
+is exported beside it.

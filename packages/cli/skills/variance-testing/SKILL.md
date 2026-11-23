@@ -336,15 +336,18 @@ record says the test entered, one at a time, fewest other tests first, up to
 `--limit` (20): a function returns nothing, a branch, continuation or handler
 is skipped. The break is served to the processes the command starts, so
 nothing in the checkout is written and the record stays as it was. A command
-that fails with nothing broken is refused.
+that fails with nothing broken is refused, and so is a checkout whose
+`variance.config.json` names a `cacheRoot`: the runs would record into it.
 
-`Survived` is a region the test passed with broken: its assertions read
-nothing that region does, or the break changes nothing the test can see. The
-run cannot tell those apart, so read the region before you write the
-assertion. `Noticed` is a region the test checks. `Not broken` names why a
-region was left alone: its source moved since the recording, or no process the
-command started read the file, which happens when a bundler or the browser
-reads it rather than Node.
+`Survived` is a region the test passed with broken: its assertions read nothing
+that region does, or the break changes nothing the test can see. The run cannot
+tell those apart, so read the region before you write the assertion. `Noticed`
+is a region the test checks. `Hung` is a region whose break kept the test
+running past its deadline, five times the unbroken run and at least two
+seconds, so it was stopped: neither a pass nor a failure. `Not broken` names
+why a region was left alone: its source changed since the recording, it is past
+the cap, or no process the command started read the file, which happens when a
+bundler or the browser reads it rather than Node.
 
 ## Rules
 

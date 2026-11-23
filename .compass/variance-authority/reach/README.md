@@ -25,6 +25,12 @@ Beside `job`'s recorded run, it starts `janus`'s, which rolls named files back t
 text under a command on the head's code. It fails that run only when a served file went
 unread: a proof the run saw the base, not a verdict on what the tests found.
 
+It starts `proves`'s runs the same way: each region one recorded test entered,
+broken in the extreme and served under a command that runs that test. Whether
+the command passed under each break says whether entering the region was also
+checking it, which is reach tested by a run. It is not a **verdict**: no subject
+is judged, and a survivor is named with what it cannot tell apart.
+
 ## Technology
 
 TypeScript on Node. `oxc-parser` and `oxc-resolver` for reading and resolving
@@ -47,6 +53,9 @@ an execution inside a service process.
   from it
 - `packages/sense/src/janus/` and `packages/cli/src/commands/janus.ts` — a
   file served at another version, in place, under a command's processes
+- `packages/sense/src/janus/extreme.ts` and `packages/cli/src/commands/proves.ts`
+  — a recorded test's regions, each broken in the extreme and served under the
+  command that runs it
 
 ## Communicates with
 
