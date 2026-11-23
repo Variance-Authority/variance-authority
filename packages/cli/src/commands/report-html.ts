@@ -1,7 +1,7 @@
 import { clusterChanges, type Change } from '@variance-authority/report';
 import type { CliObservationRecord, CliRunReport } from './run-report.js';
 import { docketOf, type Docket } from './docket.js';
-import { chip, cmd, copy, markers, px, qualifier, section, slug, text } from './report-html-elements.js';
+import { census as bar, chip, cmd, copy, markers, px, qualifier, section, slug, text } from './report-html-elements.js';
 import { MARK, STYLE } from './report-html-style.js';
 import { SCRIPT } from './report-html-script.js';
 import { needsReview, presentationImpact, subjects } from './report-html-subjects.js';
@@ -284,24 +284,14 @@ function census(report: CliRunReport, docket: Docket): string {
   const total = segments.reduce((sum, [, n]) => sum + n, 0);
   if (total === 0) return '';
 
-  const bar = segments
-    .filter(([, n]) => n > 0)
-    .map(
-      ([name, n]) =>
-        `<i class="seg ${name}" style="flex:${n}" title="${n} ${text(name)}"></i>`,
-    )
-    .join('');
-
-  const keys = segments
-    .filter(([, n]) => n > 0)
-    .map(
-      ([name, n]) =>
-        `<button type="button" class="key ${name}" data-filter="${text(name)}">` +
-        `<i></i><b>${n}</b> ${text(name)}</button>`,
-    )
-    .join('');
-
-  return `<div class="census"><div class="bar">${bar}</div><div class="keys">${keys}</div></div>`;
+  return bar(
+    segments.map(([name, n]) => ({
+      name,
+      n,
+      title: `${n} ${name}`,
+      key: `<button type="button" class="key ${name}" data-filter="${text(name)}"><i></i><b>${n}</b> ${text(name)}</button>`,
+    })),
+  );
 }
 
 /* --- the rail ------------------------------------------------------------- */

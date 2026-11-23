@@ -20,9 +20,13 @@ export const MARK =
  * The palette is `docs/visual-guidelines.md` and the type is the site's, with the
  * families falling back to the system stacks rather than fetching a font file —
  * the metrics differ from the marketing page and the identity does not.
+ *
+ * Every page variance writes opens with this: the palette, the type, the
+ * masthead, the section heads, the markers and the tables. A page adds only
+ * what it alone draws, so two pages never disagree on a colour.
  */
 
-export const STYLE = `
+export const PAGE = `
 :root{
 --deep:#181b1d;--panel:#1e2224;--charcoal:#24282a;--hairline:#383e41;
 --ivory:#f3f4f6;--warm:#756d67;--quiet:#8f8580;--orange:#ff4a19;--fold:#d83a13;--green:#7fa28c;
@@ -84,6 +88,38 @@ color:var(--quiet);display:flex;align-items:center;gap:.35rem}
 .key.unchanged i{background:var(--green)}
 .key[aria-pressed=true]{color:var(--orange)}
 
+/* sections */
+section{margin-bottom:2.5rem}
+h2{display:flex;align-items:baseline;font-size:11px;letter-spacing:.18em;text-transform:uppercase;
+color:var(--quiet);font-weight:500;margin:0 0 .75rem;padding-bottom:.4rem;
+border-bottom:1px solid var(--hairline)}
+h3{display:flex;align-items:baseline;font-size:12px;font-weight:600;color:var(--ivory);
+margin:1.5rem 0 .5rem}
+
+/* markers — never a sentence */
+.mark{font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;
+padding:.1rem .3rem;border-radius:2px;white-space:nowrap;margin-right:.35rem;cursor:help}
+.mark.area,.mark.quiet{color:var(--warm);background:#ffffff08}
+.mark.warn{color:var(--orange);background:#ff4a191f}
+.mark.ok{color:var(--green);background:#7fa28c1f}
+.mark.cause{color:var(--orange);background:#ff4a191f}
+.mark.band{color:var(--quiet);background:#ffffff08;text-transform:none;cursor:default}
+.mark.part{color:var(--quiet);background:#ffffff08}
+.mark.font{text-transform:none;letter-spacing:0;font-size:10.5px}
+
+/* tables */
+table{border-collapse:collapse;width:100%;font-size:11.5px;margin-top:.6rem}
+th{text-align:left;font-weight:500;color:var(--warm);font-size:10px;letter-spacing:.1em;
+text-transform:uppercase;padding:.25rem .5rem;border-bottom:1px solid var(--hairline)}
+td{padding:.25rem .5rem;border-bottom:1px solid #ffffff0a;vertical-align:top}
+tbody tr:hover,tbody tr.on{background:#ffffff08}
+.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;font-family:var(--mono)}
+.note{color:var(--quiet);font-size:11px;margin:.4rem 0 0}
+.hidden{display:none!important}
+`;
+
+/** The visual review's page: the shared base, then its rail, cards and viewer. */
+export const STYLE = `${PAGE}
 /* frame */
 main{display:grid;grid-template-columns:19rem minmax(0,1fr);align-items:start}
 @media (max-width:900px){main{grid-template-columns:1fr}.rail{position:static!important;height:auto!important}
@@ -120,25 +156,6 @@ font:inherit;color:inherit;border-radius:0 4px 4px 0}
 .dot.new{background:var(--green)}
 .dot.failed{background:#c0392b}
 .pane{padding:1.25rem 1.5rem 6rem;min-width:0}
-
-/* sections */
-section{margin-bottom:2.5rem}
-h2{display:flex;align-items:baseline;font-size:11px;letter-spacing:.18em;text-transform:uppercase;
-color:var(--quiet);font-weight:500;margin:0 0 .75rem;padding-bottom:.4rem;
-border-bottom:1px solid var(--hairline)}
-h3{display:flex;align-items:baseline;font-size:12px;font-weight:600;color:var(--ivory);
-margin:1.5rem 0 .5rem}
-
-/* markers — never a sentence */
-.mark{font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;
-padding:.1rem .3rem;border-radius:2px;white-space:nowrap;margin-right:.35rem;cursor:help}
-.mark.area,.mark.quiet{color:var(--warm);background:#ffffff08}
-.mark.warn{color:var(--orange);background:#ff4a191f}
-.mark.ok{color:var(--green);background:#7fa28c1f}
-.mark.cause{color:var(--orange);background:#ff4a191f}
-.mark.band{color:var(--quiet);background:#ffffff08;text-transform:none;cursor:default}
-.mark.part{color:var(--quiet);background:#ffffff08}
-.mark.font{text-transform:none;letter-spacing:0;font-size:10.5px}
 
 /* clusters */
 .clusters{list-style:none;margin:0;padding:0;display:grid;gap:.6rem}
@@ -253,14 +270,8 @@ background:#ff4a1914;pointer-events:auto;cursor:pointer}
 .none{color:var(--warm);font-size:12px;margin:.25rem 0}
 
 /* tables */
-table{border-collapse:collapse;width:100%;font-size:11.5px;margin-top:.6rem}
-th{text-align:left;font-weight:500;color:var(--warm);font-size:10px;letter-spacing:.1em;
-text-transform:uppercase;padding:.25rem .5rem;border-bottom:1px solid var(--hairline)}
-td{padding:.25rem .5rem;border-bottom:1px solid #ffffff0a;vertical-align:top}
-tbody tr:hover,tbody tr.on{background:#ffffff08}
 tr[data-box]{cursor:pointer}
 tr.cause td{border-left:2px solid var(--orange)}
-.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;font-family:var(--mono)}
 .moves td:last-child{width:45%}
 .held{color:var(--green)}
 .net{color:var(--orange)}
@@ -288,7 +299,6 @@ font-variant-numeric:tabular-nums;margin-left:auto}
 .ledger tr.unworn td,.ledger tr.unscoped td{border-left:2px solid var(--orange)}
 .ledger .none{color:var(--warm);font-family:var(--mono);font-size:10.5px}
 .ledger em{color:var(--warm);font-style:normal;font-size:9.5px;margin-left:.15rem}
-.note{color:var(--quiet);font-size:11px;margin:.4rem 0 0}
 
 /* coverage */
 .strip{display:flex;flex-wrap:wrap;gap:.3rem;margin:.5rem 0}
@@ -312,7 +322,6 @@ font-variant-numeric:tabular-nums;margin-left:auto}
 .age.new{color:var(--orange);background:#ff4a191f}
 .truncated{display:flex;gap:.5rem;align-items:center;margin:.35rem 0 0;font-size:11px}
 .left{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin:.35rem 0 0;font-size:11px;color:var(--warm)}
-.hidden{display:none!important}
 `;
 
 /**

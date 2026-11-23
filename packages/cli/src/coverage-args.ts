@@ -2,7 +2,7 @@ import { resolve } from 'node:path';
 import { noPositionals, type Flags } from './args.js';
 import { OperatorError } from './exit.js';
 
-export type CoverageFormat = 'text' | 'markdown' | 'json' | 'badge';
+export type CoverageFormat = 'text' | 'markdown' | 'json' | 'badge' | 'html';
 
 export interface ParsedCoverage {
   readonly command: 'coverage';
@@ -29,8 +29,8 @@ export interface ParsedCoverage {
 export function parseCoverageArgs(flags: Flags): ParsedCoverage {
   noPositionals(flags.positionals, 'coverage');
   const format = flags.values.get('--format') ?? 'text';
-  if (format !== 'text' && format !== 'markdown' && format !== 'json' && format !== 'badge') {
-    throw new OperatorError(`--format must be text, markdown, json or badge, not \`${format}\``);
+  if (format !== 'text' && format !== 'markdown' && format !== 'json' && format !== 'badge' && format !== 'html') {
+    throw new OperatorError(`--format must be text, markdown, json, badge or html, not \`${format}\``);
   }
   const against = flags.values.get('--against');
   const suite = flags.values.get('--suite');
@@ -45,6 +45,7 @@ export function parseCoverageArgs(flags: Flags): ParsedCoverage {
   if (twice !== undefined) throw new OperatorError(`two sessions are named \`${twice}\`; give each its own name.`);
   const served = flags.values.get('--served');
   if (served !== undefined && sessions.length === 0) throw new OperatorError('`--served` places a session\'s scripts; pass `--session <name>=<path>` with it.');
+  if (format === 'html' && sessions.length > 0) throw new OperatorError('`--format html` draws no session; pass `--session` with `--format text`, `markdown` or `json`.');
   return {
     command: 'coverage',
     ...(against === undefined ? {} : { against: resolve(against) }),

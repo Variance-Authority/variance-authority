@@ -53,7 +53,8 @@ export function fanInMarkdown(fanIn: FanIn | undefined): readonly string[] {
   return lines;
 }
 
-function kindRows(fanIn: FanIn): (readonly string[])[] {
+/** Each kind's row of test files per region, its head first: the text, the Markdown and the page draw these cells. */
+export function kindRows(fanIn: FanIn): (readonly string[])[] {
   return [
     ['', 'test files', 'regions ran', 'one test file', '', 'median', 'p90', 'max'],
     ...fanIn.kinds.map((row) => [
