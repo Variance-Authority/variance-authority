@@ -253,6 +253,17 @@ kind, and every directory no suite loads. It fetches nothing, so it opens from
 the link as it is. A page that cannot be drawn or uploaded leaves the comment
 to post without the link.
 
+An artifact's link names its run, so on a push to your default branch the step
+also keeps the page where its address stays the same: `coverage.html`, the one
+file of a commit with no parent at `refs/coverage/<branch>`, replaced on each
+push the way the badge is. Keeping it needs `contents: write`, and only a job
+that draws the page and posts its own comment keeps it: with `comment: 'false'`
+the page stays an artifact. A token that cannot push, or a branch that has moved
+past the run's commit, warns and leaves the last page in place.
+raw.githubusercontent.com serves the file as plain text, so a browser shows its
+source: read it with `git fetch origin refs/coverage/<branch>`, or serve it as
+HTML from a site of your own.
+
 ```yaml
 - uses: Variance-Authority/action/review@v1
   with:
