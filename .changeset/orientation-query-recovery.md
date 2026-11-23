@@ -2,4 +2,4 @@
 '@variance-authority/cli': patch
 ---
 
-Add worked orientation examples for short responsibility queries, directory-local text discovery, and tracing a response into its store consumer. Clarify how to recover from weak lexical suggestions without mistaking import relationships for runtime calls.
+Clarify directory-local text discovery versus import reach, and show how to select consumers within an observed area. Keep lexical suggestions, import relationships and runtime loading distinct.
