@@ -14,7 +14,7 @@ import { fanInLines, fanInMarkdown } from './coverage-fan-in-text.js';
 import { coverageHtml } from './coverage-html.js';
 import { sessionsLines, sessionsMarkdown } from './coverage-sessions-text.js';
 import { earnedLines, earnedMarkdown, ownershipLines, ownershipMarkdown } from './coverage-owner-text.js';
-import { coverageHead, coverageParts as parts, coverageRows, coverageSum, files, grouped, leading, ratio, short, signed, table } from './coverage-summary.js';
+import { coverageHead, coverageParts as parts, coverageRows, coverageSum, banded, files, grouped, leading, paired, ratio, short, signed, table } from './coverage-summary.js';
 import { historyCell, notKnownLines, overCell, overClause, overMarkdown, recordedClause } from './coverage-over-lines.js';
 import { functionsIn, notListed } from './covering-motion.js';
 import { text as escape } from './report-html-elements.js';
@@ -53,16 +53,12 @@ function text(answer: Coverage): string {
   const lines = [heading(answer)];
   const rows: (readonly string[])[] = [];
   rows.push(['  any suite', '', ...headline(count, count.regions, base?.run, base?.regions), '', ...history(count, count.regions, base?.run, base?.regions)]);
-  let counted = 0;
-  for (const suite of answer.suites) {
+  for (const { suite, now, was } of paired(answer)) {
     const name = `    ${suite.suite ?? 'the record'}`;
-    if (suite.from === undefined) {
+    if (now === undefined) {
       rows.push([name, suite.kind ?? '', 'unrecorded', '', '']);
       continue;
     }
-    const now = count.suites[counted]!;
-    const was = base?.suites[counted];
-    counted += 1;
     rows.push([
       name,
       suite.kind ?? '',
@@ -132,17 +128,6 @@ function heading(answer: Coverage): string {
   return `${at}${recorded === '' ? '' : ','} against each suite's base — ${regions} (${grouped(answer.base.regions)} at the base) in ${files}${banded(answer)}`;
 }
 
-/** What `--at-distance` narrowed the counts to, as a clause after the heading, and the test files it could not place. */
-function banded(answer: Coverage): string {
-  const { atDistance } = answer;
-  if (atDistance === undefined) return '';
-  const { from, to, unplaced, unmeasured } = atDistance;
-  const hops = to === undefined ? `${from} or more` : from === to ? `${from}` : `${from}-${to}`;
-  const left = unplaced.length === 0 ? '' : `; ${grouped(unplaced.length)} test file${unplaced.length === 1 ? '' : 's'} not on the import graph left out`;
-  const outside = unmeasured === 0 ? '' : `; ${grouped(unmeasured)} region${unmeasured === 1 ? '' : 's'} run from no measured distance, in no band`;
-  return `, counted where the nearest test that ran the code is ${hops} import hop${hops === '1' ? '' : 's'} away${left}${outside}`;
-}
-
 /**
  * The test files whose reach changed most, under the suite they belong to, each
  * with the functions its moved regions sit in, and a count of the test files
@@ -208,12 +193,8 @@ export function coverageBreakdown(answer: Coverage): readonly string[] {
   if (over !== undefined && several) lines.push('', '| Executed by cases in any text, by kind | Regions | Share |', '|---|--:|--:|', ...kindRows);
   if (count.unjoined > 0) lines.push('', `${grouped(count.unjoined)} regions could not be joined across suites.`);
   lines.push(...(over?.reasons ?? []));
-  let counted = 0;
-  for (const suite of answer.suites) {
+  for (const { suite, now, was } of paired(answer)) {
     const name = suite.suite ?? 'the record';
-    const now = suite.from === undefined ? undefined : count.suites[counted];
-    const was = suite.from === undefined ? undefined : base?.suites[counted];
-    if (suite.from !== undefined) counted += 1;
     if (suite.recorded !== undefined) lines.push('', `${name} recorded at ${short(suite.recorded)}.`);
     if (suite.base !== undefined) {
       lines.push('', `${name} compared with ${short(suite.base.commit)}.`);

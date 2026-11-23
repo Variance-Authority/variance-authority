@@ -42,6 +42,26 @@ export function opening(name: string, hint: string, holds?: string, quiet?: bool
   );
 }
 
+/** One part of a census: its class, its size, what its segment says on hover, and its key's markup. */
+export interface CensusPart {
+  readonly name: string;
+  readonly n: number;
+  readonly title: string;
+  readonly key: string;
+}
+
+/**
+ * A whole as one bar of parts in proportion, with a key under it for each part.
+ * A part that is zero is neither drawn nor keyed. `row` names the keys for a
+ * page that addresses its rows.
+ */
+export function census(parts: readonly CensusPart[], row?: string): string {
+  const shown = parts.filter((part) => part.n > 0);
+  const bar = shown.map((part) => `<i class="seg ${part.name}" style="flex:${part.n}" title="${text(part.title)}"></i>`).join('');
+  const keys = shown.map((part) => part.key).join('');
+  return `<div class="census"><div class="bar">${bar}</div><div class="keys"${row === undefined ? '' : ` data-row="${text(row)}"`}>${keys}</div></div>`;
+}
+
 export function chip(label: string, value: string, full?: string): string {
   return (
     `<span class="chip"${full === undefined ? '' : ` title="${text(full)}"`}>` +

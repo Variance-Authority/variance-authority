@@ -1447,11 +1447,11 @@ publishes this file on every push to your default branch.
 `--format html` writes the same answer as one page to open in a browser. It
 shows each suite's regions run, run only at load and loaded, with what changed
 them since the base. It shows what each kind of test runs alone and what
-several share, and every package with its files: regions run, the test files
-that enter each file, by kind. Last, it lists every directory no suite loads.
-The page fetches nothing, so it opens from an artifact as it is. It counts
-`--packages` and `--fan-in` without being asked; with `--from` it counts that
-one directory and lists its files. With `coverage-page: 'true'`, the review
+several share. With `--packages` it lists every package with its files, and
+with `--fan-in` the test files that cover each file, by kind. Last, it lists
+every directory no suite loads. The page draws what the flags count and counts
+nothing more; it fetches nothing, so it opens from an artifact as it is. With
+`coverage-page: 'true'`, the review
 action uploads it as `variance-coverage-<suite>.html` and links it from the
 comment.
 

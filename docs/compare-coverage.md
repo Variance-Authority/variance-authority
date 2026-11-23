@@ -118,9 +118,10 @@ describes every line of the output.
 - **No hosted history.** There is no service to log in to. The share keeps one
   record for each branch, so the report compares a pull request with its
   mainline and does not draw a trend. A badge shows one figure, the latest.
-  The page to browse is a file: `variance coverage --format html` renders
-  every package and file from the record, and the review action uploads it
-  with each pull request's comment.
+  The page to browse is a file: `variance coverage --packages --fan-in
+  --format html` renders every package and file from the record, and the
+  review action's `coverage-page` input uploads it with each pull request's
+  comment.
 - **No gate on a percentage.** `variance coverage` exits `0` whatever the
   numbers are. A threshold is a line in your own workflow. What a project can
   require is a count: `variance review --fail-on-uncovered` exits `1` when a

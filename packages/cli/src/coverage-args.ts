@@ -36,7 +36,6 @@ export function parseCoverageArgs(flags: Flags): ParsedCoverage {
   const suite = flags.values.get('--suite');
   const from = flags.values.get('--from');
   if (from === '') throw new OperatorError('`--from` takes a directory, spelled from the repository root.');
-  const page = format === 'html';
   const packages = flags.present.has('--packages');
   if (packages && from !== undefined) throw new OperatorError('`--from` counts one directory and `--packages` counts every package; pass one of them.');
   const atDistance = flags.values.get('--at-distance');
@@ -51,10 +50,9 @@ export function parseCoverageArgs(flags: Flags): ParsedCoverage {
     ...(against === undefined ? {} : { against: resolve(against) }),
     ...(suite === undefined ? {} : { suite }),
     ...(from === undefined ? {} : { from }),
-    // The page lists every package and its files, unless `--from` names the one directory to count.
-    ...(packages || (page && from === undefined) ? { packages: true as const } : {}),
+    ...(packages ? { packages: true as const } : {}),
     ...(atDistance === undefined ? {} : { atDistance }),
-    ...(page || flags.present.has('--fan-in') ? { fanIn: true as const } : {}),
+    ...(flags.present.has('--fan-in') ? { fanIn: true as const } : {}),
     ...(sessions.length === 0 ? {} : { sessions }),
     ...(served === undefined ? {} : { served: resolve(served) }),
     root: resolve(flags.values.get('--root') ?? process.cwd()),

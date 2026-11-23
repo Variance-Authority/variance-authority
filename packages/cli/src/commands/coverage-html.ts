@@ -11,8 +11,8 @@
  */
 
 import type { FanInFile, OwnedFile } from '@variance-authority/sense/test-selection';
-import { coverageParts, files, grouped, leading, ratio, short } from './coverage-summary.js';
-import { chip, section, text } from './report-html-elements.js';
+import { banded, coverageParts, files, grouped, leading, paired, ratio, short } from './coverage-summary.js';
+import { census, chip, section, text } from './report-html-elements.js';
 import { MARK, PAGE } from './report-html-style.js';
 import type { CoverageSource, Unloaded } from './coverage-source.js';
 import type { Coverage } from './coverage.js';
@@ -32,7 +32,7 @@ export function coverageHtml(answer: Coverage): string {
     suites(answer),
     kinds(answer),
     flatFiles(answer),
-    unloaded(answer.source),
+    unloaded(answer),
     '</main>',
     `<script>${SCRIPT}</script>`,
     '</body></html>',
@@ -48,19 +48,19 @@ function masthead(answer: Coverage): string {
   chips.push(chip('suites', `${recorded} of ${answer.suites.length} recorded`));
   const bases = [...new Set(answer.suites.flatMap((suite) => suite.base === undefined ? [] : [suite.base.commit]))];
   if (bases.length > 0) chips.push(chip('base', bases.map(short).join(' · '), bases.join('\n')));
-  if (answer.source !== undefined) chips.push(chip('source', `${grouped(answer.source.files)} files`));
+  if (answer.source !== undefined) chips.push(chip('source', files(answer.source.files)));
   return (
     '<header>' +
     `<div class="brand">${MARK}<span>variance</span></div>` +
     `<h1 data-row="lead">${text(ratio(lead, count.regions))}<span>regions run</span>` +
-    `<span class="more">${text(`${grouped(lead)} of ${grouped(count.regions)} regions in ${files(count.files)} the suites loaded`)}</span></h1>` +
+    `<span class="more">${text(`${grouped(lead)} of ${grouped(count.regions)} regions in ${files(count.files)} the suites loaded${banded(answer)}`)}</span></h1>` +
     `<div class="chips">${chips.join('')}</div>` +
-    census([...ran(count), ['load', count.load, 'ran only at load'], ['none', count.none, 'nothing ran']]) +
+    regionBar([...ran(count), ['load', count.load, 'ran only at load'], ['none', count.none, 'nothing ran']]) +
     '</header>'
   );
 }
 
-type Part = readonly [name: string, regions: number, label: string, title?: string];
+type Part = readonly [name: string, regions: number, label: string, why?: string];
 
 /** What cases ran, parted by the text they ran over where the count parts it, so the bar adds up to the lead. */
 function ran(count: Coverage['count']): readonly Part[] {
@@ -73,13 +73,15 @@ function ran(count: Coverage['count']): readonly Part[] {
   ];
 }
 
-/** A bar of parts and their keys; a part that is zero is neither drawn nor named. */
-function census(parts: readonly Part[]): string {
-  const shown = parts.filter(([, n]) => n > 0);
-  const said = (n: number, label: string, title: string | undefined) => text(title === undefined || title === '' ? `${grouped(n)} ${label}` : `${grouped(n)} ${label}: ${title}`);
-  const bar = shown.map(([name, n, label, title]) => `<i class="seg ${name}" style="flex:${n}" title="${said(n, label, title)}"></i>`).join('');
-  const keys = shown.map(([name, n, label, title]) => `<span class="key ${name}" title="${said(n, label, title)}"><i></i><b>${grouped(n)}</b> ${text(label)}</span>`).join('');
-  return `<div class="census"><div class="bar">${bar}</div><div class="keys" data-row="census">${keys}</div></div>`;
+/** The regions as one bar of parts, each keyed with its count and, on hover, why. */
+function regionBar(parts: readonly Part[]): string {
+  return census(
+    parts.map(([name, n, label, why]) => {
+      const title = why === undefined || why === '' ? `${grouped(n)} ${label}` : `${grouped(n)} ${label}: ${why}`;
+      return { name, n, title, key: `<span class="key ${name}" title="${text(title)}"><i></i><b>${grouped(n)}</b> ${text(label)}</span>` };
+    }),
+    'census',
+  );
 }
 
 /* --- suites ----------------------------------------------------------------- */
@@ -87,16 +89,13 @@ function census(parts: readonly Part[]): string {
 function suites(answer: Coverage): string {
   const { count } = answer;
   const rows: string[] = [];
-  let counted = 0;
-  for (const suite of answer.suites) {
+  for (const { suite, now } of paired(answer)) {
     const name = suite.suite ?? 'the record';
     const head = `<tr data-row="${text(`suite:${name}`)}"><td><code>${text(name)}</code></td><td>${kindMark(suite.kind)}</td>`;
-    if (suite.from === undefined) {
+    if (now === undefined) {
       rows.push(`${head}<td class="num nil" colspan="4">unrecorded</td><td></td></tr>`);
       continue;
     }
-    const now = count.suites[counted]!;
-    counted += 1;
     const run = leading(now);
     const change = suite.base !== undefined
       ? `<span class="mark quiet" title="${text(suite.base.from)}">vs ${text(short(suite.base.commit))}</span>${coverageParts(suite.base.change).map(text).join(' · ')}`
@@ -109,10 +108,11 @@ function suites(answer: Coverage): string {
         `<td>${change}</td></tr>`,
     );
   }
+  const unjoined = count.unjoined === 0 ? '' : `<p class="note">${text(`${grouped(count.unjoined)} regions could not be joined across suites.`)}</p>`;
   return section(
     'Suites',
     `each over the ${grouped(count.regions)} regions any suite loaded`,
-    table(['suite', 'kind', 'run', 'regions', 'only at load', 'loaded', 'since the base'], rows, [2, 3, 4, 5]),
+    table(['suite', 'kind', 'run', 'regions', 'only at load', 'loaded', 'since the base'], rows, [2, 3, 4, 5]) + unjoined,
   );
 }
 
@@ -174,7 +174,7 @@ function flatFiles(answer: Coverage): string {
   }
   // A file in no listed package belongs to the root; it is listed after every package.
   for (const [owner, list] of byOwner) blocks.push(pack(owner, undefined, list, entered));
-  return section('Packages', 'each over its own files; open one for its files and the tests that enter them', search + blocks.join(''));
+  return section('Packages', 'each over its own files; open one for its files and the tests that cover them', search + blocks.join(''));
 }
 
 function pack(from: string, own: CoverageSource | undefined, list: readonly OwnedFile[], entered: ReadonlyMap<string, FanInFile>): string {
@@ -221,8 +221,10 @@ function fileRow(file: string, regions: number, run: number, owned: OwnedFile | 
 
 /* --- what no suite loads ---------------------------------------------------- */
 
-function unloaded(source: CoverageSource | undefined): string {
-  if (source === undefined || source.unloaded.files === 0) return '';
+function unloaded(answer: Coverage): string {
+  const { source } = answer;
+  if (source === undefined) return answer.sourceMissed === undefined ? '' : section('Not loaded', `not counted, because ${answer.sourceMissed}`, '');
+  if (source.unloaded.files === 0) return '';
   const { unloaded: none } = source;
   const rows = none.directories.map(
     (row) =>

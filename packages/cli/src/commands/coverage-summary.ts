@@ -1,7 +1,7 @@
 // compass: variance-authority.reach.crossings
-import type { RunOver, SuiteChange } from '@variance-authority/sense/test-selection';
+import type { RunOver, SuiteChange, SuiteCount } from '@variance-authority/sense/test-selection';
 import { code } from './comment-text.js';
-import type { Coverage } from './coverage.js';
+import type { Coverage, CoverageSuite } from './coverage.js';
 
 /**
  * The parts of a suite's change in regions run, each signed by what it does to
@@ -47,6 +47,25 @@ function executionChange(change: SuiteChange): string {
   return said.length === 0 ? 'No change in recorded case execution' : said.join(' · ');
 }
 
+/** A suite the answer names, with its count and its base's when it has a record; an unrecorded suite has neither. */
+export interface PairedSuite {
+  readonly suite: CoverageSuite;
+  readonly now?: SuiteCount;
+  readonly was?: SuiteCount;
+}
+
+/** Each suite in declaration order with its counts, which hold only the recorded suites, in the same order. */
+export function paired(answer: Coverage): readonly PairedSuite[] {
+  let counted = 0;
+  return answer.suites.map((suite) => {
+    if (suite.from === undefined) return { suite };
+    const at = counted;
+    counted += 1;
+    const was = answer.base?.suites[at];
+    return { suite, now: answer.count.suites[at]!, ...(was === undefined ? {} : { was }) };
+  });
+}
+
 /** The summary table's head: its figure is what ran over this text where the count parts what ran by text. */
 export function coverageHead(answer: Coverage): readonly string[] {
   return [`| Suite | ${answer.count.over === undefined ? 'Regions executed by cases' : 'Regions run over this text'} | Compared with baseline |`, '|---|--:|---|'];
@@ -54,13 +73,9 @@ export function coverageHead(answer: Coverage): readonly string[] {
 
 /** One row per suite; an absent record or baseline never becomes a zero. */
 export function coverageRows(answer: Coverage, percentages: boolean): readonly string[] {
-  let counted = 0;
-  return answer.suites.map((suite) => {
+  return paired(answer).map(({ suite, now, was }) => {
     const name = code(suite.suite ?? 'the record').replaceAll('|', '\\|');
-    if (suite.from === undefined) return percentages ? `| ${name} | Unrecorded | Not compared |` : `| ${name} | Unrecorded |`;
-    const now = answer.count.suites[counted]!;
-    const was = answer.base?.suites[counted];
-    counted += 1;
+    if (now === undefined) return percentages ? `| ${name} | Unrecorded | Not compared |` : `| ${name} | Unrecorded |`;
     const change = suite.base === undefined
       ? 'No baseline available; change cannot be compared'
       : executionChange(suite.base.change);
@@ -73,6 +88,17 @@ export function coverageRows(answer: Coverage, percentages: boolean): readonly s
       ? `| ${name} | ${ratio(leading(now), answer.count.regions)} | ${comparison} |`
       : `| ${name} | ${change} |`;
   });
+}
+
+/** What `--at-distance` narrowed the counts to, as a clause after the heading, and the test files it could not place. */
+export function banded(answer: Coverage): string {
+  const { atDistance } = answer;
+  if (atDistance === undefined) return '';
+  const { from, to, unplaced, unmeasured } = atDistance;
+  const hops = to === undefined ? `${from} or more` : from === to ? `${from}` : `${from}-${to}`;
+  const left = unplaced.length === 0 ? '' : `; ${grouped(unplaced.length)} test file${unplaced.length === 1 ? '' : 's'} not on the import graph left out`;
+  const outside = unmeasured === 0 ? '' : `; ${grouped(unmeasured)} region${unmeasured === 1 ? '' : 's'} run from no measured distance, in no band`;
+  return `, counted where the nearest test that ran the code is ${hops} import hop${hops === '1' ? '' : 's'} away${left}${outside}`;
 }
 
 /** The regions a count leads with: what ran over this text where the count parts it by text, else what ran. */

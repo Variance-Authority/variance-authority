@@ -243,13 +243,14 @@ last badge in place. On a pull request the step does nothing.
 
 ### Linking a coverage page
 
-`coverage-page: 'true'` writes `variance coverage --format html` for the suite
-the review counts and uploads it unzipped as the artifact
-`variance-coverage-<suite>.html`. The comment and the step summary link it. The
-page holds every package with its files, the test files that enter each file by
+`coverage-page: 'true'` writes `variance coverage --packages --fan-in --format
+html` for every suite, as the comment counts them, and uploads it unzipped as
+the artifact `variance-coverage-<suite>.html`, named for the review's `suite`.
+The comment and the step summary link it. The
+page holds every package with its files, the test files that cover each file by
 kind, and every directory no suite loads. It fetches nothing, so it opens from
-the link as it is. A page that cannot be drawn warns, and the comment posts
-without the link.
+the link as it is. A page that cannot be drawn or uploaded leaves the comment
+to post without the link.
 
 ```yaml
 - uses: Variance-Authority/action/review@v1

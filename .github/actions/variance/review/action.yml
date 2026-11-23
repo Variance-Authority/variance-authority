@@ -72,11 +72,11 @@ inputs:
 
   coverage-page:
     description: >-
-      'true' writes `variance coverage --format html` for the suite the review
-      counts, uploads it unzipped as the `variance-coverage-<suite>.html`
-      artifact, and links it from the comment and the step summary: every
-      package with its files, the test files that enter each, and what no
-      suite loads. Off by default.
+      'true' writes `variance coverage --packages --fan-in --format html` for
+      every suite the comment counts, uploads it unzipped as the
+      `variance-coverage-<suite>.html` artifact, and links it from the comment
+      and the step summary: every package with its files, the test files that
+      cover each, and what no suite loads. Off by default.
     required: false
     default: 'false'
 
@@ -219,12 +219,14 @@ runs:
       env:
         VARIANCE_COMMAND: ${{ inputs.command }}
         SUITE: ${{ inputs.suite }}
-        AGAINST: ${{ inputs.against || steps.take.outputs[format('against-{0}', inputs.suite)] }}
+      # Every suite, as the comment beside it counts them, each against the
+      # share's base: `--against` names the base of one suite only. The file is
+      # named for the review's suite, so two reviews in one run upload two.
       run: |
         page="$RUNNER_TEMP/variance-coverage/variance-coverage${SUITE:+-$SUITE}.html"
         mkdir -p "$(dirname "$page")"
         # shellcheck disable=SC2086
-        if $VARIANCE_COMMAND coverage ${SUITE:+--suite "$SUITE"} ${AGAINST:+--against "$AGAINST"} --format html > "$page"; then
+        if $VARIANCE_COMMAND coverage --packages --fan-in --format html > "$page"; then
           echo "path=$page" >> "$GITHUB_OUTPUT"
         else
           echo '::warning title=coverage page not drawn::`variance coverage` failed, so the comment links no page.'
@@ -235,6 +237,8 @@ runs:
     - id: upload-page
       name: upload the coverage page
       if: inputs.from == '' && steps.page.outputs.path != ''
+      # A page that cannot be uploaded leaves the comment without its link, not unposted.
+      continue-on-error: true
       uses: actions/upload-artifact@v7
       with:
         path: ${{ steps.page.outputs.path }}
