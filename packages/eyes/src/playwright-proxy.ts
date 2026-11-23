@@ -102,21 +102,8 @@ async function consume(
   invoke: () => unknown,
   said: { readonly negated?: true } = {},
 ): Promise<unknown> {
-  let before: readonly TargetSnapshot[];
-  try {
-    before = await snapshot(locator);
-  } catch (error) {
-    log.record({
-      kind: 'playwright-locator',
-      operation,
-      member,
-      locator: path,
-      ...said,
-      outcome: 'threw',
-      error: `could not capture locator before ${member}: ${errorMessage(error)}`,
-    });
-    throw error;
-  }
+  const before = await read(snapshot, locator);
+  const beforeRead = before === undefined ? {} : { before };
 
   let result: unknown;
   try {
@@ -128,34 +115,43 @@ async function consume(
       member,
       locator: path,
       ...said,
-      before,
+      ...beforeRead,
       outcome: 'threw',
       error: errorMessage(error),
     });
     throw error;
   }
 
-  let after: readonly TargetSnapshot[] | undefined;
-  try {
-    after = await snapshot(locator);
-  } catch {
-    // The operation itself already succeeded. Navigation, a closed page, or a
-    // detached frame can lose the post-operation read, and an observer may not
-    // break its subject, so the record omits `after` to say the read never
-    // completed rather than failing an interaction that passed.
-  }
-
+  const after = await read(snapshot, locator);
   log.record({
     kind: 'playwright-locator',
     operation,
     member,
     locator: path,
     ...said,
-    before,
+    ...beforeRead,
     ...(after === undefined ? {} : { after }),
     outcome: 'resolved',
   });
   return result;
+}
+
+/**
+ * The Locator's targets, or `undefined` when the page agent could not read
+ * them. Navigation, a closed page or a detached frame can lose the read on
+ * either side of a call, and an observer may not change what its subject does,
+ * so the call runs and returns or throws as it would without Eyes. The entry
+ * leaves the lost read out, which says it never completed.
+ */
+async function read(
+  snapshot: SnapshotLocator,
+  locator: Locator,
+): Promise<readonly TargetSnapshot[] | undefined> {
+  try {
+    return await snapshot(locator);
+  } catch {
+    return undefined;
+  }
 }
 
 /**
