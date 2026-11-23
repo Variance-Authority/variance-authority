@@ -24,26 +24,30 @@ import { stepLine } from './attention.js';
  * and the file are the case index's, read off the same bytes as the journals.
  * A record whose run did not opt into Eyes keeps no section, and that is
  * refused with {@link RecordKeepsNoEyes} rather than read as a run with no
- * tests, which is what an empty archive says. Named `only`, it holds that
- * case's journals alone, and no other is parsed.
+ * tests, which is what an empty archive says.
  */
-export function eyesArchiveOf(bytes: Uint8Array, record: string, only?: string): EyesArchive {
+export function eyesArchiveOf(bytes: Uint8Array, record: string): EyesArchive {
   // The index first: bytes that are no record at all are refused here, not
   // taken for a record that kept no Eyes.
   const cases = new Map(decodeExecutionIndex(bytes).tests.map((test) => [test.id, test]));
   const section = recordedEyesOf(bytes);
   if (section === undefined) throw new RecordKeepsNoEyes(record);
-  const rows = only === undefined ? section.journals : section.journals.filter((row) => row.case === only);
-  return createEyesArchive(rows.map((row) => {
+  return createEyesArchive(section.journals.map((row) => {
     const named = cases.get(row.case);
     return {
       id: row.case,
       attempt: row.attempt,
       title: named?.name ?? row.case,
       ...(named?.file === undefined ? {} : { file: named.file }),
-      ...parseEyesJournal(row.journal, `the Eyes journal of ${row.case}, attempt ${row.attempt}`),
+      ...attentionOf(row),
     };
   }), section.watched);
+}
+
+type JournalRow = NonNullable<ReturnType<typeof recordedEyesOf>>['journals'][number];
+
+function attentionOf(row: JournalRow): ReturnType<typeof parseEyesJournal> {
+  return parseEyesJournal(row.journal, `the Eyes journal of ${row.case}, attempt ${row.attempt}`);
 }
 
 /** What one test's journal says it did, or why there is no journal to say it. */
@@ -70,24 +74,20 @@ export type RecordedSteps =
  * under two projects is two cases with the same file and name.
  */
 export function recordedSteps(record: string, id: string): RecordedSteps {
-  let archive: EyesArchive;
-  try {
-    archive = eyesArchiveOf(readFileSync(record), record, id);
-  } catch (error) {
-    if (error instanceof RecordKeepsNoEyes) return { unrecorded: 'the run kept no Eyes journal' };
-    throw error;
-  }
-  // Every journal the record keeps names its attempt.
-  const last = archive.tests.reduce<EyesArchive['tests'][number] | undefined>((latest, test) => (latest === undefined || test.attempt! > latest.attempt! ? test : latest), undefined);
+  // The record's cases were read by the question that names `id`, so only the journals are read here, and only its own parsed.
+  const section = recordedEyesOf(readFileSync(record));
+  if (section === undefined) return { unrecorded: 'the run kept no Eyes journal' };
+  const attempts = section.journals.filter((row) => row.case === id);
+  const last = attempts.reduce<JournalRow | undefined>((latest, row) => (latest === undefined || row.attempt > latest.attempt ? row : latest), undefined);
   if (last === undefined) {
     // A producer that names no watched case watched every one.
-    return { unrecorded: archive.watched === undefined || archive.watched.includes(id) ? 'Eyes watched it and kept no journal' : 'Eyes did not watch it' };
+    return { unrecorded: section.watched === undefined || section.watched.includes(id) ? 'Eyes watched it and kept no journal' : 'Eyes did not watch it' };
   }
-  const steps = last.attention.flatMap((entry) => stepLine(entry) ?? []);
+  const journal = attentionOf(last);
   return {
-    steps,
-    attempt: last.attempt!,
-    attempts: archive.tests.length,
-    ...(last.complete ? {} : { partial: last.because }),
+    steps: journal.attention.flatMap((entry) => stepLine(entry) ?? []),
+    attempt: last.attempt,
+    attempts: attempts.length,
+    ...(journal.complete ? {} : { partial: journal.because }),
   };
 }

@@ -4,7 +4,22 @@ use crate::crossing_sets::SetPool;
 use crate::journey_format::{encode, CaseExtras, EncodedModule};
 use crate::journey_journal::{Test, FINISHED};
 use crate::journey_paths::through;
-use crate::journey_record::{owners_by_lines, Block, Module, NO_OWNER};
+use crate::journey_record::{Block, Module, NO_OWNER};
+
+/// A fixture's shorthand for the owners an instrumenter writes for `blocks` cut in source order, read
+/// back from their lines for a hand-made module: each region's owner is the
+/// nearest region before it whose lines hold it, the first region the root.
+pub(crate) fn owners_by_lines(blocks: &[Block]) -> Vec<u32> {
+    (0..blocks.len())
+        .map(|at| {
+            let inner = &blocks[at];
+            (0..at)
+                .rev()
+                .find(|&outer| blocks[outer].start_line <= inner.start_line && inner.end_line <= blocks[outer].end_line)
+                .map_or(NO_OWNER, |outer| outer as u32)
+        })
+        .collect()
+}
 
 /// `setup` runs for every case but one. Four cases take `route`'s first branch
 /// and reach `target`; three take its second and stop; one reaches `target` alone.

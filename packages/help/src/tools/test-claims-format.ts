@@ -105,13 +105,15 @@ function alone(modules: readonly RanModule[]): string[] {
 /**
  * What it did not take inside the functions it entered — a branch, a case, a
  * loop body, a handler, the code after an early exit — each with who takes it.
- * The record says which function each region is written in.
+ * The record says which function each region is written in; a file whose
+ * record does not is said to be not known, never to hold nothing.
  */
 function passedBy(modules: readonly RanModule[]): string[] {
-  const rows = modules.flatMap(({ file, regions }) =>
-    regions
+  const rows = modules.flatMap(({ file, ownersNamed, regions }) => ownersNamed
+    ? regions
       .filter((region) => region.kind !== 'function' && region.source && !region.entered && region.functionEntered === true)
-      .map((region) => `${regionPlace(file, region)}  ${takers(region)}`));
+      .map((region) => `${regionPlace(file, region)}  ${takers(region)}`)
+    : [`${file}: not known; the record names no owner for its regions, so which function holds each is not known`]);
   if (rows.length === 0) return ['Passed by: nothing; it took every region of the functions it entered.'];
   return ['Passed by, the regions of the functions it entered that it did not take:', ...cappedRows(rows, (row) => `  ${row}`, ROWS)];
 }

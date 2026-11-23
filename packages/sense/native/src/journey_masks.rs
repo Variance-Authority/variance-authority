@@ -41,6 +41,9 @@ pub(crate) struct Bit {
     /// The function the region is written in: itself for a function, absent
     /// for a module or a region no recorded function holds.
     pub function: Option<u32>,
+    /// Whether its function is known: a region inside a function is known
+    /// only when the record names the region that holds it.
+    pub owned: bool,
 }
 
 pub(crate) struct JourneyMasks {
@@ -92,6 +95,7 @@ impl JourneyMasks {
                     source: region.source,
                     called: region.called,
                     function: None,
+                    owned: shape != Shape::Inner || region.owner.is_some(),
                 });
                 owners.push(region.owner);
             }
@@ -282,4 +286,4 @@ pub(crate) fn overlap(left: &[u32], right: &[u32]) -> f64 {
 
 #[cfg(test)]
 #[path = "journey_masks_tests.rs"]
-mod tests;
+pub(crate) mod tests;

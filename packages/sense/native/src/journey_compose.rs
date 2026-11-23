@@ -216,6 +216,10 @@ pub struct RanRegion {
 #[napi(object)]
 pub struct RanModule {
     pub file: String,
+    /// Whether the record names the region around each of its regions. When it
+    /// does not, which function holds a region inside one is not known, and
+    /// neither is what the test passed by there.
+    pub owners_named: bool,
     /// In row order.
     pub regions: Vec<RanRegion>,
 }
@@ -282,7 +286,8 @@ pub(crate) fn ran(masks: &mut JourneyMasks, file: &str, name: Option<&str>) -> R
                 smallest: smallest.map(|case| case_of(masks, case, sizes[case as usize], None)).transpose()?,
             });
         }
-        modules.push(RanModule { file: masks.journey.module_file(module as usize)?.to_owned(), regions });
+        let owners_named = masks.rows_of(module as usize).all(|bit| masks.bits[bit as usize].owned);
+        modules.push(RanModule { file: masks.journey.module_file(module as usize)?.to_owned(), owners_named, regions });
     }
     modules.sort_by(|a, b| order::code_unit(&a.file, &b.file));
     Ok(TestRan { not_recorded: None, suite: suite as u32, test: Some(case_of(masks, asked, entered.len() as u32, None)?), modules })

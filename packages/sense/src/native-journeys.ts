@@ -418,6 +418,12 @@ export interface NativeRanRegion {
 /** A module a test entered, with every region recorded in it, in row order. */
 export interface NativeRanModule {
   readonly file: string;
+  /**
+   * Whether the record names the region around each of its regions. When it
+   * does not, which function holds a region inside one is not known, and
+   * neither is what the test passed by there.
+   */
+  readonly ownersNamed: boolean;
   readonly regions: readonly NativeRanRegion[];
 }
 

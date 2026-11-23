@@ -3,7 +3,8 @@ use crate::crossing_sets::SetPool;
 use crate::journey_format::{encode, CaseExtras, EncodedModule};
 use crate::journey_journal::{Test, FINISHED};
 use crate::journey_read::Journey;
-use crate::journey_record::{owners_by_lines, Block, Module};
+use crate::journey_masks::tests::owners_by_lines;
+use crate::journey_record::{Block, Module};
 
 /// Eight cases. `setup` runs in every one, so it is structure. Two unit tests
 /// of `a` take its first branch; `b`'s test takes both of `a`'s branches and
@@ -218,6 +219,18 @@ fn a_test_ran_says_how_many_other_tests_entered_each_region_and_the_smallest_of_
 fn a_test_ran_refuses_a_test_the_recording_cannot_choose() {
     let mut masks = recorded();
     assert_eq!(ran(&mut masks, "absent.test.ts", None).unwrap().not_recorded.unwrap(), "The recording holds no test declared in absent.test.ts.");
+}
+
+#[test]
+fn a_test_ran_says_which_modules_the_record_names_no_owners_for() {
+    // The same module twice, once as an instrumenter writes it and once as a record written before regions named their owners.
+    let blocks = || vec![block("module", "", 1, 10), block("function", "f", 1, 10), block("branch", "f", 3, 4)];
+    let modules = [module("src/m.ts", blocks()), Module { owners: None, ..module("src/n.ts", blocks()) }];
+    let entered: [&[&[u32]]; 2] = [&[&[], &[0], &[]], &[&[], &[0], &[]]];
+    let mut masks = masks_of(&["unit"], |_| "m0.test.ts".to_owned(), &modules, &entered);
+    let answer = ran(&mut masks, "m0.test.ts", None).unwrap();
+    let named: Vec<(&str, bool)> = answer.modules.iter().map(|module| (module.file.as_str(), module.owners_named)).collect();
+    assert_eq!(named, vec![("src/m.ts", true), ("src/n.ts", false)]);
 }
 
 #[test]
