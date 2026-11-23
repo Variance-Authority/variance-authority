@@ -93,6 +93,18 @@ describe('the coverage page', () => {
     expect(seen(html)).toContain('0b5b312c');
   });
 
+  it('parts what ran by the text it ran over, so the bar adds up to the lead', () => {
+    const over = { this: 640, older: 50, notKnown: 10, why: ['the record names no commit'] };
+    const parted = formatCoverage({ ...ANSWER, count: { ...ANSWER.count, over } }, 'html');
+    expect(row(parted, 'lead')).toContain('64.0%');
+    const census = row(parted, 'census');
+    expect(census).toContain('640 run over this text');
+    expect(census).toContain('50 run over an older text');
+    expect(census).toContain('10 run over a text not known');
+    expect(census).not.toContain('run by a case');
+    expect(parted).toContain('the record names no commit');
+  });
+
   it('gives each suite its run, load-only and unloaded regions, and what changed them since the base', () => {
     expect(row(html, 'suite:unit')).toContain('60.0%');
     expect(row(html, 'suite:unit')).toContain('+2 newly run');

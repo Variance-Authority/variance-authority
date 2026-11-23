@@ -55,18 +55,32 @@ function masthead(answer: Coverage): string {
     `<h1 data-row="lead">${text(ratio(lead, count.regions))}<span>regions run</span>` +
     `<span class="more">${text(`${grouped(lead)} of ${grouped(count.regions)} regions in ${fileCount(count.files)} the suites loaded`)}</span></h1>` +
     `<div class="chips">${chips.join('')}</div>` +
-    census([['run', count.run, 'run by a case'], ['load', count.load, 'ran only at load'], ['none', count.none, 'nothing ran']]) +
+    census([...ran(count), ['load', count.load, 'ran only at load'], ['none', count.none, 'nothing ran']]) +
     '</header>'
   );
 }
 
+type Part = readonly [name: string, regions: number, label: string, title?: string];
+
+/** What cases ran, parted by the text they ran over where the count parts it, so the bar adds up to the lead. */
+function ran(count: Coverage['count']): readonly Part[] {
+  const { over } = count;
+  if (over === undefined) return [['run', count.run, 'run by a case']];
+  return [
+    ['run', over.this, 'run over this text'],
+    ['older', over.older, 'run over an older text'],
+    ['unknown', over.notKnown, 'run over a text not known', over.why.join('\n')],
+  ];
+}
+
 /** A bar of parts and their keys; a part that is zero is neither drawn nor named. */
-function census(parts: readonly (readonly [string, number, string])[]): string {
+function census(parts: readonly Part[]): string {
   const shown = parts.filter(([, n]) => n > 0);
   if (shown.length === 0) return '';
-  const bar = shown.map(([name, n, label]) => `<i class="seg ${name}" style="flex:${n}" title="${text(`${grouped(n)} ${label}`)}"></i>`).join('');
-  const keys = shown.map(([name, n, label]) => `<span class="key ${name}"><i></i><b>${grouped(n)}</b> ${text(label)}</span>`).join('');
-  return `<div class="census"><div class="bar">${bar}</div><div class="keys">${keys}</div></div>`;
+  const said = (n: number, label: string, title: string | undefined) => text(title === undefined || title === '' ? `${grouped(n)} ${label}` : `${grouped(n)} ${label}: ${title}`);
+  const bar = shown.map(([name, n, label, title]) => `<i class="seg ${name}" style="flex:${n}" title="${said(n, label, title)}"></i>`).join('');
+  const keys = shown.map(([name, n, label, title]) => `<span class="key ${name}" title="${said(n, label, title)}"><i></i><b>${grouped(n)}</b> ${text(label)}</span>`).join('');
+  return `<div class="census"><div class="bar">${bar}</div><div class="keys" data-row="census">${keys}</div></div>`;
 }
 
 /* --- suites ----------------------------------------------------------------- */
@@ -251,8 +265,11 @@ function short(commit: string): string {
 /** What only this page draws: the frame, the census parts, the meters and the packages. */
 const STYLE = `
 main{max-width:72rem;margin:0 auto;padding:1.5rem 1.25rem 4rem}
+header{padding-inline:max(1.25rem,calc((100% - 72rem) / 2 + 1.25rem))}
 h1 span:first-of-type{font-weight:400;color:var(--quiet);font-size:13px}
 .seg.run,.key.run i{background:var(--green)}
+.seg.older,.key.older i{background:var(--green);opacity:.45}
+.seg.unknown,.key.unknown i{background:var(--quiet)}
 .seg.load,.key.load i{background:var(--warm)}
 .seg.none{background:var(--charcoal);box-shadow:inset 0 0 0 1px var(--hairline)}
 .key.none i{background:var(--hairline)}
