@@ -47,6 +47,14 @@ pub(crate) fn extension(file: &str) -> &str {
     }
 }
 
+/// The basename and its whole suffix, starting at the first dot after the
+/// initial character. A dotfile's leading dot belongs to its name.
+pub(crate) fn name_and_suffix(file: &str) -> (&str, &str) {
+    let name = file.rsplit('/').next().unwrap_or(file);
+    let dot = name.char_indices().skip(1).find(|&(_, value)| value == '.').map_or(name.len(), |(at, _)| at);
+    name.split_at(dot)
+}
+
 /// The deepest of `packages` over `file`, so a package nested in another owns
 /// its own files, or `.` when none does.
 pub(crate) fn package_owner<'a>(packages: &HashSet<String>, file: &'a str) -> &'a str {

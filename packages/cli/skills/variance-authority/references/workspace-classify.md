@@ -5,7 +5,8 @@ or state value, start with the
 [two text questions](code-orientation.md#combine-text-clues). It reads the
 published source snapshot without consulting Git, scanning the checkout or
 updating the index; run `variance index` explicitly for a new snapshot.
-It says which of
+If a snapshot lookup is unavailable, its identifiers are `Not looked up`,
+not confirmed nonmatches. It says which of
 the request's words are, whole, a package's name or that name without its scope, an
 entrypoint's specifier (both matched without case), or a published exported
 name (matched as spelled). A word shaped as an identifier — a capital past its

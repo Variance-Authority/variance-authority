@@ -196,12 +196,7 @@ fn raw(span: &Option<crate::harvest::TextSpan>) -> Option<(u32, u32, Option<&str
 /// What the path says about reading it: `parseWay` and the second half of
 /// `keyFor` in `files.ts`.
 pub(crate) fn way(file: &str) -> String {
-    let name = file.rsplit('/').next().unwrap_or(file);
-    let suffix = name
-        .char_indices()
-        .skip(1)
-        .find(|(_, value)| *value == '.')
-        .map_or("", |(at, _)| &name[at..]);
+    let (_, suffix) = crate::path::name_and_suffix(file);
     let declaring = ![".test.", ".spec.", ".stories.", ".d.ts"]
         .iter()
         .any(|part| file.contains(part));

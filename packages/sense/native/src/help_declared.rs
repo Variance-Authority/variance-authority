@@ -257,7 +257,7 @@ pub struct DeclarationLocation {
 /// Exact declarations only, including exported locals and nested names, with
 /// the same candidate and matching rules as the full declaration answer.
 pub(crate) fn declaration_locations(layers: &[Layer], query: &str) -> Vec<DeclarationLocation> {
-    let (hits, _, _) = matched(layers, query, Matching::Exact, None, true);
+    let (hits, _, _) = matched(layers, query, Matching::Exact, None, |_| true);
     hits.into_iter().filter_map(|(layer, at, row, _)| {
         let (text, parses) = (&layers[layer].stored, &layers[layer].parses);
         let (name, line, kind) = match row {
@@ -270,7 +270,7 @@ pub(crate) fn declaration_locations(layers: &[Layer], query: &str) -> Vec<Declar
 }
 
 /// The matching shared by a full declaration answer and its location projection.
-fn matched<'a>(layers: &'a [Layer<'a>], query: &str, matching: Matching, files: Option<&[String]>, exported: bool) -> (Vec<Hit<'a>>, Vec<FileHit<'a>>, Vec<String>) {
+fn matched<'a>(layers: &'a [Layer<'a>], query: &str, matching: Matching, files: Option<&[String]>, admits: impl Fn(bool) -> bool + Sync) -> (Vec<Hit<'a>>, Vec<FileHit<'a>>, Vec<String>) {
     let folded = crate::stages::timed("declared/fold", || fold(layers));
     let crossings = crate::stages::timed("declared/crossings", || crossings(layers, &folded, files));
     // Cut once for every doc; a question of one stem is no phrase, and no doc is cut for it.
@@ -330,7 +330,7 @@ fn matched<'a>(layers: &'a [Layer<'a>], query: &str, matching: Matching, files: 
             let mut hits = Vec::new();
             for symbol in parses.symbols.range(row).filter(|&symbol| picked.symbol(symbol)) {
                 let name = text.text(parses.symbol_name.at(symbol));
-                if (!exported && own.contains(&name)) || named.contains(&name) { continue }
+                if !admits(own.contains(&name)) || named.contains(&name) { continue }
                 let doc_text = parses.doc_of_symbol(text, symbol);
                 let doc = names[Item::Symbol as usize].doc(symbol);
                 let described = match &matching {
@@ -392,7 +392,7 @@ fn matched<'a>(layers: &'a [Layer<'a>], query: &str, matching: Matching, files: 
 /// declared twice in one file, as an interface and a const, is one entry: the
 /// first.
 pub(crate) fn declared(root: &str, layers: &[Layer], query: &str, matching: Matching, files: Option<&[String]>) -> Declared {
-    let (hits, files, unread) = matched(layers, query, matching, files, false);
+    let (hits, files, unread) = matched(layers, query, matching, files, |exported| !exported);
     if hits.is_empty() && files.is_empty() { return Declared { names: Vec::new(), unread, files: Vec::new() } }
 
     // Who owns a file is a question about every manifest above it, so the

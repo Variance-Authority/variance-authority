@@ -94,7 +94,7 @@ fn classifier_names_come_only_from_the_published_workspace() {
     let index = directory.join("index.bin").to_str().unwrap().to_owned();
     assert!(crate::log::written(&index, crate::log::Over::Nothing, &[], &[&records, &parses], &[], 0).unwrap());
     let words = ["worker_name", "WorkerName", "privateName", "nestedName", "aliasName"].map(str::to_owned).to_vec();
-    let answer = crate::classify_areas::classify_names("/no-usable-checkout".to_owned(), words.clone(), 1, index.clone(), "app".to_owned()).unwrap();
+    let answer = crate::classify_areas::classify_names(words.clone(), 1, index.clone(), "app".to_owned()).unwrap();
     assert!(answer.refused.is_none());
     assert_eq!(answer.named[0].files, vec!["lib/worker_name.ts"]);
     assert_eq!(answer.named[0].count, 2);
@@ -103,7 +103,7 @@ fn classifier_names_come_only_from_the_published_workspace() {
     std::fs::create_dir_all(directory.join("lib")).unwrap();
     std::fs::write(directory.join("lib/worker_name.ts"), "function differentLiveName() {}\n").unwrap();
     std::fs::write(directory.join("package.json"), "invalid live manifest").unwrap();
-    let drifted = crate::classify_areas::classify_names(directory.to_str().unwrap().to_owned(), words, 1, index, "app".to_owned()).unwrap();
+    let drifted = crate::classify_areas::classify_names(words, 1, index, "app".to_owned()).unwrap();
     assert_eq!(drifted.named[0].files, answer.named[0].files);
     assert_eq!(drifted.named[0].count, answer.named[0].count);
     assert_eq!(drifted.declared.iter().map(|row| (&row.name, &row.at, row.line)).collect::<Vec<_>>(), answer.declared.iter().map(|row| (&row.name, &row.at, row.line)).collect::<Vec<_>>());

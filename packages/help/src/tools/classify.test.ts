@@ -104,6 +104,21 @@ describe('docs_classify', () => {
     const text = classify.run(HELP, { query: 'ModuleLoader' }, { root: '/unused' });
 
     expect(text).toContain('No word is looked up as a filename or declaration: no source index was published.');
+    expect(text).toContain('Not looked up: ModuleLoader');
+    expect(text).not.toContain('Not entities: ModuleLoader');
+    expect(text).not.toContain('No word names');
+  });
+
+  it('keeps known exports beside unknown identifiers when their source lookup was refused', () => {
+    vi.spyOn(sense, 'packageLayers').mockReturnValue({ current: true, packages: [] });
+    vi.spyOn(sense, 'classifyNames').mockReturnValue({ named: [], declared: [], refused: 'no source index was published' });
+    vi.spyOn(sense, 'classifiedAreas').mockReturnValue({ areas: [], reached: 0, unresolved: 0, refused: 'no source index was published' });
+
+    const text = classify.run(HELP, { query: 'checkoutPath ModuleLoader' }, { root: '/unused' });
+
+    expect(text).toContain('checkoutPath — export @acme/sense');
+    expect(text).toContain('Not looked up: ModuleLoader');
+    expect(text).toContain('They answer the words that name them, not the rest of the request');
   });
 
   it('fails with what failed when the snapshot cannot answer an identifier', () => {

@@ -109,7 +109,7 @@ function namedFileBlock(
   const files = namedFiles(classified, inReach);
   if (files.length === 0) return '';
   // Words left over, or a word that names no file here, leave the files answering part of the request.
-  const rest = classified.plain.length > 0 || classified.entities.some((entity) => namedFiles({ entities: [entity], plain: [] }, inReach).length === 0);
+  const rest = classified.plain.length > 0 || (classified.unknown?.length ?? 0) > 0 || classified.entities.some((entity) => namedFiles({ entities: [entity], plain: [] }, inReach).length === 0);
   // A generation the host read from above the workspace spells its files from there.
   const prefix = sourceIndex === undefined || sourceIndex.within === '' ? '' : `${sourceIndex.within}/`;
   const read = declarationsOf(root, files.map((file) => `${prefix}${file}`), DECLARATION_LINES, sourceIndex?.index);
@@ -188,7 +188,12 @@ export const classify: Tool<Help> = {
     const reach = said === undefined ? undefined : reachOf(from, to, invocation?.tree);
     const inReach = reachTest(reach?.walks);
     const unread: { why?: string } = {};
-    const classified = classifyWords(query, help, places.packages.keys(), locating(root, places, invocation, unread, inReach));
+    const reading = classifyWords(query, help, places.packages.keys(), locating(root, places, invocation, unread, inReach));
+    const classified = unread.why === undefined ? reading : {
+      ...reading,
+      plain: reading.plain.filter((word) => !identifier(word)),
+      unknown: reading.plain.filter(identifier),
+    };
     // A word the snapshot could not look up is not said to name none, and the
     // named files come last: they are the answer the rest leads to.
     const unlisted = unread.why === undefined ? '' : `\n\nNo word is looked up as a filename or declaration: ${unread.why.split('\n')[0]}.`;

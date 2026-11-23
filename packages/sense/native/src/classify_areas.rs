@@ -154,8 +154,7 @@ pub struct ClassifiedNames {
 ///
 /// bound: only the requested names' exact declarations, and at most `cap` filenames per name
 #[napi(catch_unwind)]
-pub fn classify_names(root: String, words: Vec<String>, cap: u32, index: String, within: String) -> napi::Result<ClassifiedNames> {
-    let _ = root;
+pub fn classify_names(words: Vec<String>, cap: u32, index: String, within: String) -> napi::Result<ClassifiedNames> {
     let opened = open_index(index)?;
     let prefix = if within.is_empty() { String::new() } else { format!("{within}/") };
     let answer = opened_chain(&opened, |layers| {
@@ -168,9 +167,7 @@ pub fn classify_names(root: String, words: Vec<String>, cap: u32, index: String,
         for word in words.iter().filter(|word| seen.insert(word.as_str())) {
             if !word.is_empty() && !word.chars().any(|c| matches!(c, '.' | '/' | '*' | '?' | '[' | ']' | '\\' | ':')) {
                 let files: Vec<&str> = paths.iter().copied().filter(|path| {
-                    let name = path.rsplit('/').next().unwrap_or(path);
-                    let dot = name.char_indices().skip(1).find(|&(_, c)| c == '.').map(|(at, _)| at);
-                    dot.map_or(name, |at| &name[..at]) == word
+                    crate::path::name_and_suffix(path).0 == word
                 }).collect();
                 if !files.is_empty() {
                     named.push(NamedFiles { name: word.clone(), count: files.len() as u32, files: files.into_iter().take(cap as usize).map(str::to_owned).collect() });

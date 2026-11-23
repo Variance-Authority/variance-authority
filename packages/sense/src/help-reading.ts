@@ -259,7 +259,7 @@ export interface NativeHelp {
   declaredTermsOf?(index: OpenedIndex, files: string[] | null): string[] | null;
   nameTerms?(names: string[]): NameTerms;
   declaredLooseOf?(root: string, index: OpenedIndex, groups: string[][], files: string[] | null): DeclaredNames | null;
-  classifyNames?(root: string, words: string[], cap: number, index: string, within: string): ClassifiedNames;
+  classifyNames?(words: string[], cap: number, index: string, within: string): ClassifiedNames;
   classifyAreas?(root: string, query: string, terms: number[][], store: Uint8Array | null, index: string, within: string, scoped: boolean, from: SourceWalk | null, to: SourceWalk | null): ClassifiedAreas;
   /** ripgrep's matching lines of `files` under `root`, as columns; throws `ripgrep refused the pattern: …` for an invalid one. */
   ripgrep?(root: string, pattern: string, files: string[]): Grepped;

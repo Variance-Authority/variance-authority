@@ -22,5 +22,5 @@ export interface ClassifiedNames {
  * the supplied index, or the checkout's published index, and never refreshes it.
  */
 export function classifyNames(root: string, words: readonly string[], cap: number, source?: { readonly index: string; readonly within: string }): ClassifiedNames {
-  return entry('classifyNames')(root, [...words], cap, source?.index ?? sourceIndexPath(root), source?.within ?? '');
+  return entry('classifyNames')([...words], cap, source?.index ?? sourceIndexPath(root), source?.within ?? '');
 }
