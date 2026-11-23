@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { test } from 'vitest';
@@ -9,7 +9,7 @@ import { openQuestions } from './questions.mjs';
 import { executeProgram } from './execute.mjs';
 
 test('published-index execution follows component, example and mock relations on distinct branches', async () => {
-  const root = mkdtempSync(join(tmpdir(), 'runbook-index-'));
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'runbook-index-')));
   const artifacts = mkdtempSync(join(tmpdir(), 'runbook-receipt-'));
   const cli = resolve('packages/cli/dist/bin.js');
   const write = (file, source) => {
@@ -52,6 +52,41 @@ test('published-index execution follows component, example and mock relations on
     assert.equal(direct.calls, 3);
     assert.equal(fallback.calls, 4);
     assert.equal(context.validate, undefined, 'tool input is judged by the canonical reader');
+    for (const [question, input, flags] of [
+      ['orient', { files: ['src/Panel.ts'] }, ['--files', 'src/Panel.ts']],
+      ['classify', { query: 'Panel' }, ['--query', 'Panel']],
+    ]) {
+      const expected = execFileSync(process.execPath, [cli, 'ask', question, ...flags], { cwd: root, encoding: 'utf8' });
+      const factual = await context.drive(question, input);
+      assert.equal(factual.answer, expected);
+      assert.equal(factual.status, 'answered');
+      assert.equal(factual.membershipStatus, 'unknown');
+      assert.equal(factual.files, undefined);
+      assert.equal(factual.membershipError, undefined);
+      assert.equal(factual.apiCallCount, 1);
+      assert.deepEqual(factual.apiCalls.map(call => call.api), ['Tool.run']);
+    }
+    const factualBranches = await executeProgram({ version: 1,
+      budgets: { calls: 4, milliseconds: 30000, answerBytes: 50000 },
+      steps: [
+        step('factual', 'orient', { files: ['src/Panel.ts'] }),
+        step('fanout', 'discover', {}, { fromFiles: { step: 'factual', input: 'from' } }),
+        step('wrong', 'symbol', { name: 'Panel' }, { when: { step: 'fanout', is: 'empty' } }),
+        step('recover', 'classify', { query: 'Panel' }, { when: { step: 'fanout', is: 'unknown' } }),
+      ],
+    }, { ...context, request: {} });
+    assert.equal(factualBranches.calls, 2);
+    assert.equal(factualBranches.apiCalls, 2);
+    assert.deepEqual(factualBranches.evidence.map(row => row.step), ['factual', 'recover']);
+    assert.equal(factualBranches.trace.find(row => row.step === 'fanout').state, 'no-observed-files');
+    assert.equal(factualBranches.trace.find(row => row.step === 'wrong').state, 'condition-skipped');
+    assert.equal(factualBranches.trace.find(row => row.step === 'recover').state, 'unknown');
+    assert.equal(factualBranches.completion, 'unproved');
+    const factualRefusal = await context.drive('classify', {});
+    assert.equal(factualRefusal.status, 'error');
+    assert.match(factualRefusal.error.message, /query/u);
+    assert.equal(factualRefusal.membershipStatus, 'unknown');
+    assert.deepEqual(factualRefusal.apiCalls.map(call => call.api), ['Tool.run']);
     const canonical = execFileSync(process.execPath, [cli, 'ask', 'symbol', '--name', 'Panel'], { cwd: root, encoding: 'utf8' });
     assert.equal((await context.drive('symbol', { name: 'Panel' })).answer, canonical);
     for (const [question, input, flags] of [
