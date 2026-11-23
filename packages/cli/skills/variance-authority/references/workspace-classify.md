@@ -2,14 +2,17 @@
 
 Use it for task words without a code name. For a product label plus a version
 or state value, start with the
-[two text questions](code-orientation.md#combine-text-clues). It says which of
+[two text questions](code-orientation.md#combine-text-clues). It reads the
+published source snapshot without consulting Git, scanning the checkout or
+updating the index; run `variance index` explicitly for a new snapshot.
+It says which of
 the request's words are, whole, a package's name or that name without its scope, an
 entrypoint's specifier (both matched without case), or a published exported
 name (matched as spelled). A word shaped as an identifier — a capital past its
 first letter, an underscore, or a digit after a letter — that is none of those
 is then looked up as spelled among the lines `symbol --name` names as
 declaring it — leaving out a line it calls `[binding]`, which only takes the
-name from another file — and the tracked files whose name before its first dot it is:
+name from another file — and the indexed files whose name before its first dot it is:
 in Node.js, `ModuleLoader` is declared in the ESM loader's file, at its line,
 and `child_process` is the file of that name under `lib/`. Ordinary source comes before
 tests and stories, then the file more files import; three of each are shown and
@@ -37,7 +40,7 @@ left — and that a file beside them joins it only when it declares a name the
 request uses, never for sharing their folder. Under `--from` or `--to` only the
 files the start point reaches are named. A file with nothing to list still gets
 its row, saying why: the index holds no parse of it, or it declares no function
-or class — among the declarations read, when more lie past the budget; a word naming more tracked files than are shown gets a row counting
+or class — among the declarations read, when more lie past the budget; a word naming more indexed files than are shown gets a row counting
 the rest across the checkout, reached from the start point or not. A word the
 request spells another way — a plural, two words for a hyphenated name, a
 domain word no name carries — is not an entity.
@@ -46,7 +49,7 @@ When every word is recognized and no `--from` or `--to` is supplied, the
 answer contains only those entities, their direct questions and the named
 files. Otherwise it
 also ranks the areas of the tree the request's words point to, ten at most,
-best first: a directory of at most 500 tracked files, a larger one read
+best first: a directory of at most 500 indexed files, a larger one read
 as its children. An area's words are its path's, its files' names and the
 top-level names its files declare, exported or not, compared by stem, and a word counts for more
 the fewer areas hold it. An area's length counts every word its declared names

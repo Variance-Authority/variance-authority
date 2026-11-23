@@ -1,5 +1,5 @@
 //! The areas a request's words point to: directories of at most a bounded
-//! number of files `HEAD` holds, each scored by the request's stems its path,
+//! number of files the published source index holds, each scored by the request's stems its path,
 //! its file names and the names its files declare hold, the rarer stem
 //! counting for more.
 
@@ -205,4 +205,39 @@ fn ranks_the_generated_trees_as_recorded() {
             .collect();
         assert_eq!(found, expected, "case {at}: {:?}", case.query);
     }
+}
+
+#[test]
+fn ranks_the_published_inventory_without_a_checkout() {
+    use crate::generation::Delta;
+    use crate::graph_index::merged;
+    use crate::help_store::{encode_help_store, HelpStore};
+    let directory = std::env::temp_dir().join(format!("sense-classify-snapshot-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&directory);
+    std::fs::create_dir_all(&directory).unwrap();
+    let index = directory.join("index.bin").to_str().unwrap().to_owned();
+    let base = merged(&[], &Delta::of(vec![r#"{"records":[["app/task/old.ts",{"record":{"file":"app/task/old.ts","digest":"git:a"},"witnesses":[],"targets":[]}],["other/task.ts",{"record":{"file":"other/task.ts","digest":"git:b"},"witnesses":[],"targets":[]}]]}"#.to_owned()]).unwrap());
+    let newer = merged(&[], &Delta::of(vec![r#"{"deletedRecords":["app/task/old.ts"],"records":[["app/task/new.ts",{"record":{"file":"app/task/new.ts","digest":"git:c"},"witnesses":[],"targets":[]}]]}"#.to_owned()]).unwrap());
+    assert!(crate::log::written(&index, crate::log::Over::Nothing, &[], &[&base, &newer], &[], 0).unwrap());
+    let store = encode_help_store(HelpStore { packages: vec![], deep: vec![], by_path: vec![], unfollowed: vec![], unreadable: vec![] }, vec![], None);
+    let answer = classify_areas(directory.join("no-checkout").to_str().unwrap().to_owned(), "task old new".to_owned(), vec![vec![], vec![], vec![]], Some(store.bytes.to_vec().into()), index.clone(), "app".to_owned(), false, None, None).unwrap();
+    assert_eq!(answer.refused, None, "classification must not ask git for files");
+    assert_eq!(answer.areas.len(), 1);
+    assert_eq!(answer.areas[0].files, 1);
+    assert_eq!(answer.areas[0].words.iter().cloned().collect::<std::collections::BTreeSet<_>>(), ["new".to_owned(), "task".to_owned()].into_iter().collect());
+    use crate::segment::{encode_as, u32s, u8s, Collected, Strings};
+    let mut collected = Collected::default();
+    collected.extend(["app/task/new.ts", "other/task.ts"]);
+    let mut strings = Strings::of(collected);
+    let ids = vec![strings.id("app/task/new.ts"), strings.id("other/task.ts")];
+    let [blob, off] = strings.columns();
+    let graph = encode_as(crate::source_tree::FORMAT, crate::source_tree::VERSION, vec![blob, off, u32s("files.path", ids), u32s("files.unknown", vec![NONE, NONE]), u32s("edges.offset", vec![0, 0, 0]), u32s("edges.target", vec![]), u8s("edges.kind", vec![])]);
+    let tree = crate::source_query::open_source_tree(graph.into(), "app".to_owned()).unwrap();
+    let walk = tree.walk(vec!["task/new.ts".to_owned()], false);
+    let scoped = classify_areas("/no-checkout".to_owned(), "task old new".to_owned(), vec![vec![], vec![], vec![]], Some(store.bytes.to_vec().into()), index.clone(), "app".to_owned(), true, Some(&walk), None).unwrap();
+    assert_eq!(scoped.areas, answer.areas);
+    assert_eq!(scoped.reached, 1);
+    let refused_scope = classify_areas("/no-checkout".to_owned(), "task old new".to_owned(), vec![vec![], vec![], vec![]], Some(store.bytes), index, "app".to_owned(), true, None, None).unwrap();
+    assert!(refused_scope.areas.is_empty());
+    std::fs::remove_dir_all(directory).unwrap();
 }

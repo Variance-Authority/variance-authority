@@ -1,25 +1,9 @@
-//! The areas of a checkout a request's words point to, ranked where the files are.
+//! Areas ranked from the published source-index inventory and declaration evidence.
 //!
-//! A request is written in the words people use for a change, and most of them
-//! are no declared name. What they point to is a part of the tree: the area is a
-//! directory of at most [`AREA_FILES`] files `HEAD` holds, a larger one split
-//! into its children, and its words are every directory's on the way to its
-//! files, its files' names and the names its files declare. Each directory
-//! counts once per area. Each of the request's stems counts by how few areas
-//! hold it, through the shared rarity, saturated the way BM25 saturates a
-//! term's count and in integers, so one request ranks the same on every run.
-//! An area's length does not discount its words: an area is long because it
-//! holds more files and names, more subjects rather than more words for one,
-//! the scope BM25 leaves unnormalised, and saturation already caps a repeated
-//! word. Discounted, a source area declaring many names ranked below short
-//! test and fixture areas even where it held the request's rarest words.
-//!
-//! Every file `HEAD` holds is read here, from git, and the names they declare
-//! from the help store and the source index: only the ten areas answered cross
-//! to JavaScript. Which dictionary terms reduce to the request's stems is the
-//! one rule `search` resolves them by, in JavaScript, and those terms are what
-//! cross here. A start point scopes the files by the walks it made over the
-//! source tree, read where they were walked.
+//! Directories holding more than [`AREA_FILES`] files split into children.
+//! Path, file and declaration words share the search stem vocabulary; rarity
+//! and saturated counts rank at most ten areas. The query reads the snapshot
+//! alone, including additions and deletions, without reading the checkout.
 
 // compass: variance-authority.report.agent-surface
 
@@ -29,12 +13,13 @@ use napi::bindgen_prelude::Buffer;
 use napi_derive::napi;
 
 use crate::dependency_lexicon::describing::code_words;
-use crate::help_declared::{declared, private_words, Matching};
+use crate::help_declared::private_words;
+use crate::chain_lookup::fold;
 use crate::help_publish::{open_index, opened_chain};
 use crate::help_store::{FORMAT, NONE, VERSION};
 use crate::source_query::{reached_by, SourceWalk};
-use crate::source_trees::head_files;
 use crate::stored::Stored;
+use crate::stages;
 
 /// The most files one area holds: a directory holding more is read as its children.
 pub(crate) const AREA_FILES: u32 = 500;
@@ -51,7 +36,7 @@ const PATH_WEIGHT: u64 = 3;
 pub struct RankedArea {
     /// The directory, repository-relative; `.` for the root.
     pub path: String,
-    /// How many files `HEAD` holds in it, in scope.
+    /// How many files the published source index holds in it, in scope.
     pub files: u32,
     /// The request's words it holds, as the request wrote them, the one weighing most there first.
     pub words: Vec<String>,
@@ -70,7 +55,7 @@ pub struct ClassifiedAreas {
     pub reached: u32,
     /// How many of those import something the scan could not resolve.
     pub unresolved: u32,
-    /// What the addon ran and what git said, when it could not list the files `HEAD` holds; nothing was ranked.
+    /// Why the published source index was unavailable; nothing was ranked.
     pub refused: Option<String>,
 }
 
@@ -84,8 +69,7 @@ pub(crate) struct DeclaredWords {
     pub(crate) words: HashMap<String, u64>,
 }
 
-/// The areas `query`'s words point to among the files `HEAD` holds under
-/// `root`, scored with the names the help store in `store` and the source index
+/// The areas `query`'s words point to among the published source index's files, scored with the names the help store in `store` and the source index
 /// at `index` say they declare. `terms` are, per stem of the request in the
 /// order `describedWords` gives them, the store's dictionary terms that reduce
 /// to it. `within` is the workspace's offset below the
@@ -108,26 +92,14 @@ pub fn classify_areas(
     to: Option<&SourceWalk>,
 ) -> napi::Result<ClassifiedAreas> {
     let walks: Vec<&SourceWalk> = [from, to].into_iter().flatten().collect();
-    let reach = reached_by(&walks);
+    let reach = stages::timed("classify/reach", || reached_by(&walks));
     let reached = reach.len() as u32;
     let unresolved = reach.values().filter(|&&unknown| unknown).count() as u32;
     let answer = |areas: Vec<RankedArea>, refused: Option<String>| ClassifiedAreas { areas, reached, unresolved, refused };
-    let listed = match head_files(&root) {
-        Ok(listed) => listed,
-        Err(why) => return Ok(answer(Vec::new(), Some(why))),
-    };
     let under = if within.is_empty() { String::new() } else { format!("{within}/") };
-    let paths: Vec<&str> = if scoped {
-        listed.iter().map(String::as_str).filter(|path| reach.contains_key(format!("{under}{path}").as_str())).collect()
-    } else {
-        listed.iter().map(String::as_str).collect()
-    };
-    if paths.is_empty() {
-        return Ok(answer(Vec::new(), None));
-    }
     let store = store.ok_or_else(|| napi::Error::from_reason("this help value was not read from a store, so it has no search"))?;
-    let stored = Stored::open_as(&store, FORMAT, VERSION).map_err(|error| napi::Error::from_reason(format!("the help store did not read: {error}")))?;
-    let opened = open_index(index)?;
+    let stored = stages::timed("classify/store-open", || Stored::open_as(&store, FORMAT, VERSION)).map_err(|error| napi::Error::from_reason(format!("the help store did not read: {error}")))?;
+    let opened = stages::timed("classify/index-handle", || open_index(index))?;
     let asked = code_words(&query);
     if asked.is_empty() {
         return Ok(answer(Vec::new(), None));
@@ -136,32 +108,80 @@ pub fn classify_areas(
     if terms.len() != stems.len() {
         return Err(napi::Error::from_reason(format!("classify was given the terms of {} stems for a request of {}", terms.len(), stems.len())));
     }
-    let mut words = store_words(&stored, &stems, &terms).map_err(napi::Error::from_reason)?;
-    opened_chain(&opened, |layers| {
-        // A file's own top-level names, which no export binds, are its words too,
-        // read from the index the host read the tree from: a nested workspace's
-        // names its files from the graph's root, so they are named from the workspace.
-        let matching = Matching::Described { stems: stems.clone(), query: query.clone() };
-        for name in declared(&root, layers, "", matching, None).names {
-            if name.holder.is_some() || name.on.is_some() || !name.at.starts_with(&under) {
-                continue;
+    let mut words = stages::timed("classify/store-words", || store_words(&stored, &stems, &terms)).map_err(napi::Error::from_reason)?;
+    let areas = stages::timed("classify/index", || opened_chain(&opened, |layers| {
+        let folded = stages::timed("classify/inventory", || fold(layers));
+        let paths: Vec<&str> = folded.keys().filter_map(|path| {
+            let file = path.strip_prefix(&under)?;
+            (!scoped || reach.contains_key(*path)).then_some(file)
+        }).collect();
+        for row in stages::timed("classify/private-words", || private_words(layers, &folded, &stems)) {
+            let Some(file) = row.at.strip_prefix(&under) else { continue };
+            if row.words > 0 {
+                *words.words.entry(file.to_owned()).or_default() += u64::from(row.words);
             }
-            let file = &name.at[under.len()..];
-            for &at in name.named.iter().flatten() {
+            for at in row.named {
                 let Some(files) = stems.get(at as usize).and_then(|stem| words.holding.get_mut(stem)) else { continue };
                 *files.entry(file.to_owned()).or_default() += 1;
             }
         }
-        // A private top-level name, one no export binds, declares a name in
-        // its file too.
-        for row in private_words(layers) {
-            if row.words == 0 || !row.at.starts_with(&under) {
-                continue;
+        stages::timed("classify/rank", || rank(&asked, &paths, &words, AREA_FILES))
+    }))?;
+    let _ = root;
+    Ok(match areas {
+        Some(areas) => answer(areas, None),
+        None => answer(Vec::new(), Some("no source index was published; `variance index` reads it".to_owned())),
+    })
+}
+
+/// The bounded files named by one exact basename, with every match counted.
+#[napi(object)]
+pub struct NamedFiles {
+    pub name: String,
+    pub files: Vec<String>,
+    pub count: u32,
+}
+
+/// Identifier-shaped words read from the same published source-index snapshot.
+#[napi(object)]
+pub struct ClassifiedNames {
+    pub named: Vec<NamedFiles>,
+    pub declared: Vec<crate::help_declared::DeclarationLocation>,
+    pub refused: Option<String>,
+}
+
+/// File basenames and exact declaration locations; no live checkout is read.
+#[napi(catch_unwind)]
+pub fn classify_names(root: String, words: Vec<String>, cap: u32, index: String, within: String) -> napi::Result<ClassifiedNames> {
+    let _ = root;
+    let opened = open_index(index)?;
+    let prefix = if within.is_empty() { String::new() } else { format!("{within}/") };
+    let answer = opened_chain(&opened, |layers| {
+        let folded = fold(layers);
+        let mut paths: Vec<&str> = folded.keys().filter_map(|path| path.strip_prefix(&prefix)).collect();
+        paths.sort_unstable_by(|one, other| crate::order::code_unit(one, other));
+        let mut named = Vec::new();
+        let mut declared = Vec::new();
+        let mut seen = HashSet::new();
+        for word in words.iter().filter(|word| seen.insert(word.as_str())) {
+            if !word.is_empty() && !word.chars().any(|c| matches!(c, '.' | '/' | '*' | '?' | '[' | ']' | '\\' | ':')) {
+                let files: Vec<&str> = paths.iter().copied().filter(|path| {
+                    let name = path.rsplit('/').next().unwrap_or(path);
+                    let dot = name.char_indices().skip(1).find(|&(_, c)| c == '.').map(|(at, _)| at);
+                    dot.map_or(name, |at| &name[..at]) == word
+                }).collect();
+                if !files.is_empty() {
+                    named.push(NamedFiles { name: word.clone(), count: files.len() as u32, files: files.into_iter().take(cap as usize).map(str::to_owned).collect() });
+                }
             }
-            *words.words.entry(row.at[under.len()..].to_owned()).or_default() += u64::from(row.words);
+            declared.extend(crate::help_declared::declaration_locations(layers, word).into_iter().filter_map(|mut row| {
+                row.at = row.at.strip_prefix(&prefix)?.to_owned();
+                Some(row)
+            }));
         }
+        ClassifiedNames { named, declared, refused: None }
     })?;
-    Ok(answer(rank(&asked, &paths, &words, AREA_FILES), None))
+    Ok(answer.unwrap_or_else(|| ClassifiedNames { named: Vec::new(), declared: Vec::new(), refused: Some("no source index was published; `variance index` reads it".to_owned()) }))
 }
 
 /// What the help store says the files declare: per stem, the files whose

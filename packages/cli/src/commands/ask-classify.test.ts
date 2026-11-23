@@ -407,15 +407,17 @@ describe('variance ask classify', () => {
     expect(asked.out).toMatch(/^Not entities: check the checkout$/m);
   });
 
-  it('says no word was looked up as a file when git cannot list the tracked files, rather than calling it no entity', async () => {
+  it('names indexed files after Git and live source become unavailable, without refreshing the snapshot', async () => {
     const root = unpackaged();
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
     rmSync(join(root, '.git'), { recursive: true, force: true });
+    rmSync(join(root, 'lib'), { recursive: true, force: true });
 
     const asked = await run(['ask', 'classify', '--query', 'who spawns child_process']);
 
     expect(asked.code).toBe(EXIT_CLEAN);
-    expect(asked.out).toMatch(/^No word is looked up as a file: git could not list the tracked files \(.+\)\.$/m);
+    expect(asked.out).toMatch(/^child_process — file lib\/child_process\.js · in no package$/m);
+    expect(asked.out).toContain('lib/child_process.js — spawn (exported)');
   });
 
   it('names a declared word and what its file declares when git cannot list the tracked files, from the source index alone', async () => {
@@ -430,7 +432,7 @@ describe('variance ask classify', () => {
     expect(asked.out).toMatch(/^  lib\/loader\.js — ModuleLoader/m);
   });
 
-  it('names the entities and says why no area is ranked when git cannot list the files HEAD holds', async () => {
+  it('ranks the published snapshot when Git is unavailable', async () => {
     const root = families();
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
     rmSync(join(root, '.git'), { recursive: true, force: true });
@@ -438,6 +440,8 @@ describe('variance ask classify', () => {
     const asked = await run(['ask', 'classify', '--query', 'why does shop-2 call data1?']);
 
     expect(asked.out).toMatch(/^shop-2 — package @t\/shop-2 /m);
-    expect(asked.out).toContain('No area is ranked: git could not list the files HEAD holds');
+    expect(asked.code).toBe(EXIT_CLEAN);
+    expect(asked.out).toContain('Areas its words point to, best first:');
+    expect(asked.out).not.toContain('No area is ranked');
   });
 });
