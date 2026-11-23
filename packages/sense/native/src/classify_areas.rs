@@ -151,6 +151,8 @@ pub struct ClassifiedNames {
 }
 
 /// File basenames and exact declaration locations; no live checkout is read.
+///
+/// bound: only the requested names' exact declarations, and at most `cap` filenames per name
 #[napi(catch_unwind)]
 pub fn classify_names(root: String, words: Vec<String>, cap: u32, index: String, within: String) -> napi::Result<ClassifiedNames> {
     let _ = root;
