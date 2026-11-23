@@ -63,14 +63,18 @@ const ANSWER: Coverage = {
   },
 };
 
-/** What a reader sees of the element carrying `data-row="<row>"`: its text, tags dropped and spaces collapsed. */
-function row(html: string, name: string): string {
+/** The markup of the element carrying `data-row="<row>"`. */
+function raw(html: string, name: string): string {
   const at = html.indexOf(`data-row="${name.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')}"`);
   expect(at, `no element carries data-row="${name}"`).toBeGreaterThan(-1);
   const start = html.lastIndexOf('<', at);
   const tag = /^<(\w+)/u.exec(html.slice(start))![1]!;
-  const end = html.indexOf(`</${tag}>`, at);
-  return seen(html.slice(start, end));
+  return html.slice(start, html.indexOf(`</${tag}>`, at));
+}
+
+/** What a reader sees of the element carrying `data-row="<row>"`: its text, tags dropped and spaces collapsed. */
+function row(html: string, name: string): string {
+  return seen(raw(html, name));
 }
 
 function seen(html: string): string {
@@ -114,6 +118,7 @@ describe('the coverage page', () => {
     expect(row(html, 'suite:integration')).toContain('30.0%');
     expect(row(html, 'suite:integration')).toContain('no base: integration is not given to the share');
     expect(row(html, 'suite:checkout')).toContain('unrecorded');
+    expect(seen(html)).toContain('regions run only at load loaded');
   });
 
   it('names the regions it could not join across suites', () => {
@@ -133,6 +138,7 @@ describe('the coverage page', () => {
     expect(row(html, 'kind:unit')).toContain('400');
     expect(row(html, 'kind:integration')).toContain('100');
     expect(row(html, 'fan-in:unit')).toContain('120');
+    expect(row(html, 'fan-in:unit')).toContain('25.0%');
     expect(html).toContain('id="Kinds"');
   });
 
@@ -146,6 +152,14 @@ describe('the coverage page', () => {
     expect(html).toContain('id="Packages"');
   });
 
+  it('lists each directory an entry point declares, with no files, when it was not asked for packages', () => {
+    const { ownership: _, ...bare } = ANSWER;
+    const entries = formatCoverage(bare, 'html');
+    expect(row(entries, 'package:packages/cli')).toContain('70.0%');
+    expect(row(entries, 'package:packages/core')).toContain('90.0%');
+    expect(entries).not.toContain('<details class="package"');
+  });
+
   it('lists every directory no suite loads, not the first five', () => {
     for (const { directory } of DIRECTORIES) expect(row(html, `unloaded:${directory}`)).toContain(directory);
     expect(html).toContain('id="Not-loaded"');
@@ -153,12 +167,15 @@ describe('the coverage page', () => {
 
   it('names a package it could not count, and lists a file no package owns after every package', () => {
     const root = { file: 'scripts/x.ts', owner: '.', regions: 4, run: 2, own: 2, others: 0, by: {}, kinds: {} };
+    const gone = { file: 'packages/gone/y.ts', owner: 'packages/gone', regions: 3, run: 1, own: 1, others: 0, by: {}, kinds: {} };
     const wider = formatCoverage({
       ...ANSWER,
       entries: [...ANSWER.entries!, { from: 'packages/gone', missed: 'the index holds nothing under it' }],
-      ownership: [...ANSWER.ownership!, root],
+      ownership: [...ANSWER.ownership!, gone, root],
     }, 'html');
     expect(row(wider, 'package:packages/gone')).toContain('the index holds nothing under it');
+    expect(wider.split('data-row="package:packages/gone"')).toHaveLength(2);
+    expect(row(wider, 'file:packages/gone/y.ts')).toContain('1 / 3');
     expect(row(wider, 'package:.')).toContain('1 file');
     expect(row(wider, 'package:.')).not.toContain('1 files');
     expect(wider.indexOf('data-row="package:."')).toBeGreaterThan(wider.indexOf('data-row="package:packages/core"'));
@@ -177,7 +194,7 @@ describe('the coverage page of one directory', () => {
   const html = formatCoverage({
     at: '0b5b312c',
     count: { regions: 40, files: 2, run: 30, load: 0, none: 10, unjoined: 0, suites: [{ name: 'unit', kind: 'unit', run: 30, load: 0, regions: 40 }] },
-    suites: [{ suite: 'unit', kind: 'unit', from: 'unit.bin' }],
+    suites: [{ suite: 'unit', kind: 'unit', from: 'unit.bin', recorded: '1234567890ab' }],
     source: source(40, 30),
     fanIn: { kinds: [], files: [ANSWER.fanIn!.files[1]!, empty] },
   }, 'html');
@@ -187,9 +204,15 @@ describe('the coverage page of one directory', () => {
     expect(html).not.toContain('id="Packages"');
   });
 
-  it('draws no ratio for a file with no region', () => {
-    expect(row(html, 'file:packages/cli/src/empty.ts')).toContain('—');
-    expect(row(html, 'file:packages/cli/src/empty.ts')).not.toContain('NaN');
+  it('draws no ratio and no meter for a file with no region', () => {
+    const cells = raw(html, 'file:packages/cli/src/empty.ts').split('<td');
+    expect(seen(`<td${cells[2]!}`)).toBe('—');
+    expect(raw(html, 'file:packages/cli/src/empty.ts')).not.toContain('class="meter"');
+    expect(raw(html, 'file:packages/cli/src/empty.ts')).not.toContain('NaN');
+  });
+
+  it('says when a suite with no base was recorded', () => {
+    expect(row(html, 'suite:unit')).toContain('recorded at 12345678');
   });
 
   it('leaves out the kinds where one kind ran and no test file entered, and the unloaded where everything loaded', () => {

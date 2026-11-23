@@ -11,6 +11,7 @@
  */
 
 import type { FanInFile, OwnedFile } from '@variance-authority/sense/test-selection';
+import { kindRows } from './coverage-fan-in-text.js';
 import { banded, coverageParts, files, grouped, leading, paired, ratio, short } from './coverage-summary.js';
 import { census, chip, section, text } from './report-html-elements.js';
 import { MARK, PAGE } from './report-html-style.js';
@@ -112,7 +113,7 @@ function suites(answer: Coverage): string {
   return section(
     'Suites',
     `each over the ${grouped(count.regions)} regions any suite loaded`,
-    table(['suite', 'kind', 'run', 'regions', 'only at load', 'loaded', 'since the base'], rows, [2, 3, 4, 5]) + unjoined,
+    table(['suite', 'kind', 'run', 'regions run', 'only at load', 'loaded', 'since the base'], rows, [2, 3, 4, 5]) + unjoined,
   );
 }
 
@@ -126,24 +127,21 @@ function kinds(answer: Coverage): string {
   if (overlap !== undefined) {
     const rows = [
       `<tr data-row="kinds:several"><td>more than one kind</td><td class="num">${grouped(overlap.several)}</td></tr>`,
-      ...Object.entries(overlap.alone).map(
-        ([kind, regions]) => `<tr data-row="${text(`kind:${kind}`)}"><td>${kindMark(kind)} alone</td><td class="num">${grouped(regions ?? 0)}</td></tr>`,
+      ...Object.entries(overlap.alone).flatMap(([kind, regions]) =>
+        regions === undefined ? [] : [`<tr data-row="${text(`kind:${kind}`)}"><td>${kindMark(kind)} alone</td><td class="num">${grouped(regions)}</td></tr>`],
       ),
     ];
     parts.push(table(['run by', 'regions'], rows, [1]));
   }
   if (fanIn !== undefined && fanIn.kinds.length > 0) {
-    const rows = fanIn.kinds.map((kind) => {
-      const name = kind.kind ?? 'the record';
-      return (
-        `<tr data-row="${text(`fan-in:${name}`)}"><td>${kindMark(kind.kind)}</td>` +
-        [kind.testFiles, kind.regions, kind.one, kind.median, kind.p90, kind.max].map((n) => `<td class="num">${grouped(n)}</td>`).join('') +
-        '</tr>'
-      );
-    });
+    const [head, ...cells] = kindRows(fanIn);
+    const rows = fanIn.kinds.map(({ kind }, at) =>
+      `<tr data-row="${text(`fan-in:${kind ?? 'the record'}`)}"><td>${kindMark(kind)}</td>` +
+      cells[at]!.slice(1).map((cell) => `<td class="num">${text(cell)}</td>`).join('') +
+      '</tr>');
     parts.push(
       '<h3>Test files per region<span class="hint">how many test files call into each region a kind runs</span></h3>' +
-        table(['kind', 'test files', 'regions', 'by one test', 'median', 'p90', 'most'], rows, [1, 2, 3, 4, 5, 6]),
+        table(['kind', ...head!.slice(1).map((name) => (name === '' ? 'share' : name))], rows, [1, 2, 3, 4, 5, 6, 7]),
     );
   }
   return section('Kinds', 'what each kind of test runs alone, and what several share', parts.join(''));
@@ -155,38 +153,46 @@ function flatFiles(answer: Coverage): string {
   const entered = new Map((answer.fanIn?.files ?? []).map((file) => [file.file, file]));
   const owned = answer.ownership ?? [];
   const search = '<input id="filter" type="search" placeholder="filter files" aria-label="filter files" autocomplete="off">';
-  if (answer.entries === undefined || owned.length === 0) {
-    const listed = answer.fanIn?.files ?? [];
-    if (listed.length === 0) return '';
+  const listed = owned.length === 0 ? (answer.fanIn?.files ?? []) : [];
+  const drawn: string[] = [];
+  if (answer.entries !== undefined) {
+    const byOwner = new Map<string, OwnedFile[]>();
+    for (const file of owned) byOwner.set(file.owner, [...(byOwner.get(file.owner) ?? []), file]);
+    // Without `--packages` no file has an owner, so a package is its figure alone.
+    const listOf = (from: string): readonly OwnedFile[] | undefined => (answer.ownership === undefined ? undefined : byOwner.get(from) ?? []);
+    const blocks = answer.entries.map((entry) => {
+      const block = pack(entry.from, 'missed' in entry ? `<span class="nil">${text(entry.missed)}</span>` : figure(entry.own), listOf(entry.from), entered);
+      byOwner.delete(entry.from);
+      return block;
+    });
+    // A file in no listed package belongs to the root; it is listed after every package.
+    for (const [owner, list] of byOwner) blocks.push(pack(owner, `<span class="num nil">${files(list.length)}</span>`, list, entered));
+    const hint = answer.ownership === undefined ? 'each over its own files' : 'each over its own files; open one for its files and the tests that cover them';
+    drawn.push(section('Packages', hint, (owned.length === 0 ? '' : search) + blocks.join('')));
+  }
+  if (listed.length > 0) {
     const rows = listed.map((file) => fileRow(file.file, file.regions, file.run, undefined, file));
-    return section('Files', `${files(listed.length)} a suite loaded`, search + fileTable(rows, false));
+    drawn.push(section('Files', `${files(listed.length)} a suite loaded`, search + fileTable(rows, false)));
   }
-  const byOwner = new Map<string, OwnedFile[]>();
-  for (const file of owned) byOwner.set(file.owner, [...(byOwner.get(file.owner) ?? []), file]);
-  const blocks: string[] = [];
-  for (const entry of answer.entries) {
-    if ('missed' in entry) {
-      blocks.push(`<div class="package missed" data-row="${text(`package:${entry.from}`)}"><code>${text(entry.from)}</code><span class="nil">${text(entry.missed)}</span></div>`);
-      continue;
-    }
-    blocks.push(pack(entry.from, entry.own, byOwner.get(entry.from) ?? [], entered));
-    byOwner.delete(entry.from);
-  }
-  // A file in no listed package belongs to the root; it is listed after every package.
-  for (const [owner, list] of byOwner) blocks.push(pack(owner, undefined, list, entered));
-  return section('Packages', 'each over its own files; open one for its files and the tests that cover them', search + blocks.join(''));
+  return drawn.join('');
 }
 
-function pack(from: string, own: CoverageSource | undefined, list: readonly OwnedFile[], entered: ReadonlyMap<string, FanInFile>): string {
-  const figure = own === undefined
-    ? `<span class="num nil">${files(list.length)}</span>`
-    : `<span class="num">${meter(own.ran, own.regions)}<b>${text(ratio(own.ran, own.regions))}</b></span>` +
-      `<span class="num px">${grouped(own.ran)} of ${grouped(own.regions)} regions</span>` +
-      `<span class="num px">${files(own.files)}</span>`;
+function figure(own: CoverageSource): string {
+  return (
+    `<span class="num">${meter(own.ran, own.regions)}<b>${text(ratio(own.ran, own.regions))}</b></span>` +
+    `<span class="num px">${grouped(own.ran)} of ${grouped(own.regions)} regions</span>` +
+    `<span class="num px">${files(own.files)}</span>`
+  );
+}
+
+/** One package: its figure, and its files when the answer owns them, to open. */
+function pack(from: string, shown: string, list: readonly OwnedFile[] | undefined, entered: ReadonlyMap<string, FanInFile>): string {
+  const head = `<code>${text(from)}</code>${shown}`;
+  if (list === undefined) return `<div class="package flat" data-row="${text(`package:${from}`)}">${head}</div>`;
   const rows = list.map((file) => fileRow(file.file, file.regions, file.run, file, entered.get(file.file)));
   return (
     '<details class="package">' +
-    `<summary data-row="${text(`package:${from}`)}"><code>${text(from)}</code>${figure}</summary>` +
+    `<summary data-row="${text(`package:${from}`)}">${head}</summary>` +
     (rows.length === 0 ? '<p class="note">no file of it was recorded</p>' : fileTable(rows, true)) +
     '</details>'
   );
@@ -213,7 +219,7 @@ function fileRow(file: string, regions: number, run: number, owned: OwnedFile | 
   cells.push(
     fan === undefined ? '<td class="num nil">—</td>' : `<td class="num">${grouped(fan.entered)}</td>`,
     fan === undefined ? '<td class="num nil">—</td>' : `<td class="num">${grouped(fan.one)}</td>`,
-    `<td>${fan?.by === undefined ? '' : Object.entries(fan.by).map(([kind, n]) => `<span class="mark band">${text(`${kind} ${grouped(n ?? 0)}`)}</span>`).join('')}</td>`,
+    `<td>${fan?.by === undefined ? '' : Object.entries(fan.by).flatMap(([kind, n]) => (n === undefined ? [] : [`<span class="mark band">${text(`${kind} ${grouped(n)}`)}</span>`])).join('')}</td>`,
     `<td class="num">${fan?.duration === undefined ? '<span class="nil">—</span>' : text(ratio(fan.duration, 1))}</td>`,
   );
   return `<tr data-row="${text(`file:${file}`)}">${cells.join('')}</tr>`;
@@ -274,14 +280,14 @@ border-radius:2px;background:var(--charcoal);overflow:hidden}
 border-radius:5px;color:var(--ivory);font:12px/1.6 var(--mono);padding:.35rem .5rem}
 #filter::placeholder{color:var(--warm)}
 .package{border-bottom:1px solid var(--hairline)}
-.package summary,.package.missed{display:flex;gap:1.25rem;align-items:baseline;padding:.45rem .25rem;cursor:pointer}
-.package summary{list-style:none}
+.package summary,.package.flat{display:flex;gap:1.25rem;align-items:baseline;padding:.45rem .25rem}
+.package summary{list-style:none;cursor:pointer}
 .package summary::-webkit-details-marker{display:none}
 .package summary::before{content:'▸';color:var(--warm);width:.75rem}
 .package[open] summary::before{content:'▾'}
 .package summary:hover{background:var(--panel)}
-.package summary code{flex:1;font-size:12px}
-.package summary b{color:var(--ivory)}
+.package summary code,.package.flat code{flex:1;font-size:12px}
+.package summary b,.package.flat b{color:var(--ivory)}
 .package table{margin:0 0 1rem}
 `;
 

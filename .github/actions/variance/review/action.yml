@@ -72,8 +72,9 @@ inputs:
 
   coverage-page:
     description: >-
-      'true' writes `variance coverage --packages --fan-in --format html` for
-      every suite the comment counts, uploads it unzipped as the
+      'true' writes `variance coverage --packages --fan-in --format html`, the
+      repository's coverage over every suite against the mainline's share,
+      not the change the comment reviews, uploads it unzipped as the
       `variance-coverage-<suite>.html` artifact, and links it from the comment
       and the step summary: every package with its files, the test files that
       cover each, and what no suite loads. Off by default.
@@ -219,9 +220,11 @@ runs:
       env:
         VARIANCE_COMMAND: ${{ inputs.command }}
         SUITE: ${{ inputs.suite }}
-      # Every suite, as the comment beside it counts them, each against the
-      # share's base: `--against` names the base of one suite only. The file is
-      # named for the review's suite, so two reviews in one run upload two.
+      # The repository's coverage, as `variance coverage` answers it: every
+      # suite over the regions any suite loaded, against the mainline's share.
+      # The comment counts the change, each suite over its own regions, against
+      # the base the review names. The file is named for the review's suite
+      # only so that two reviews in one run upload two artifacts.
       run: |
         page="$RUNNER_TEMP/variance-coverage/variance-coverage${SUITE:+-$SUITE}.html"
         mkdir -p "$(dirname "$page")"

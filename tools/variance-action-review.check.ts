@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, normalize, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -45,10 +45,17 @@ describe('the review a project with only unit tests puts on the pull request', (
   /** Two levels under the checkout, as a runner's workspace sits two levels under the folder that holds the actions. */
   const WORKSPACE = join(ROOT, 'work', 'repository');
 
-  /** What the step named `step` asked the CLI, wrote and exited with, under a CLI that exits `exit` on `review`. */
-  async function ran(step: string, env: Readonly<Record<string, string>> = {}, exit = 0) {
+  /**
+   * What the step named `step` asked the CLI, wrote and exited with, under a CLI that exits `exit` on `review`
+   * and `coverage`. With `reviewed`, the review step has already written its file, as it has for every step after it.
+   */
+  async function ran(step: string, env: Readonly<Record<string, string>> = {}, exit = 0, reviewed = false) {
     const at = await mkdtemp(join(tmpdir(), 'variance-action-review-'));
     try {
+      if (reviewed) {
+        await mkdir(join(at, 'review'));
+        await writeFile(join(at, 'review', 'review.md'), `${MARKER}\nthe review\n`);
+      }
       const fake = join(at, 'variance');
       await writeFile(
         fake,
@@ -73,6 +80,7 @@ describe('the review a project with only unit tests puts on the pull request', (
             GITHUB_OUTPUT: join(at, 'output'),
             GITHUB_STEP_SUMMARY: join(at, 'summary'),
             GITHUB_WORKSPACE: WORKSPACE,
+            RUNNER_TEMP: at,
             ...env,
           },
           stdio: 'pipe',
@@ -86,8 +94,9 @@ describe('the review a project with only unit tests puts on the pull request', (
         status,
         printed,
         said: (await read('said')).trim().split('\n').map((line) => line.replaceAll(at, '<at>')),
-        output: await read('output'),
+        output: (await read('output')).replaceAll(at, '<at>'),
         summary: await read('summary'),
+        review: await read('review/review.md'),
       };
     } finally {
       await rm(at, { recursive: true, force: true });
@@ -177,6 +186,35 @@ describe('the review a project with only unit tests puts on the pull request', (
     const { run } = stepNamed('post the review');
 
     expect(run.indexOf('"$here/../diff-marks.mjs" "$REVIEW/review.json" ||')).toBeGreaterThan(run.indexOf('post-comment.mjs'));
+  });
+
+  it('draws the coverage page of every suite, with the packages and the tests per file, named for the review\'s suite', async () => {
+    const { status, said, output } = await ran('draw the coverage page', { SUITE: 'unit' });
+
+    expect(status).toBe(0);
+    expect(said).toEqual(['coverage --packages --fan-in --format html']);
+    expect(output).toBe('path=<at>/variance-coverage/variance-coverage-unit.html\n');
+    expect((await ran('draw the coverage page', { SUITE: '' })).output).toBe('path=<at>/variance-coverage/variance-coverage.html\n');
+  });
+
+  it('names no page it could not draw, so nothing is uploaded and the comment posts without a link', async () => {
+    const { status, output, printed } = await ran('draw the coverage page', { SUITE: 'unit' }, 1);
+
+    expect(status).toBe(0);
+    expect(output).toBe('');
+    expect(printed).toContain('::warning title=coverage page not drawn::');
+    expect(stepNamed('upload the coverage page').if).toContain("steps.page.outputs.path != ''");
+    expect(stepNamed('upload the coverage page')['continue-on-error']).toBe(true);
+    expect(stepNamed('link the coverage page').if).toContain("steps.upload-page.outputs.artifact-url != ''");
+  });
+
+  it('links the page from the review, under its marker, and from the step summary', async () => {
+    const { status, review, summary } = await ran('link the coverage page', { PAGE_URL: 'https://example.test/page' }, 0, true);
+
+    expect(status).toBe(0);
+    expect(review.split('\n')[0]).toBe(MARKER);
+    expect(review).toContain('[Coverage page](https://example.test/page)');
+    expect(summary).toContain('[Coverage page](https://example.test/page)');
   });
 
   it('takes only what a review reads, and states no verdict for a run that never happened', () => {
