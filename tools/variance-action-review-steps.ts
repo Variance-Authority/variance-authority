@@ -2,15 +2,16 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join } from 'node:path';
 import { parse } from 'yaml';
+import { ROOT } from './variance-action-steps.js';
 
 /**
  * The review action's steps, and one step's script run as the action runs it,
  * under a fake CLI. Shared by the checks of `Variance-Authority/action/review`.
  */
 
-export const ROOT = resolve(import.meta.dirname, '..');
+export { ROOT };
 export const FOLDER = '.github/actions/variance';
 export const ACTION = `${FOLDER}/review/action.yml`;
 

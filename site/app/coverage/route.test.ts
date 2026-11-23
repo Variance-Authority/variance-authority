@@ -48,4 +48,20 @@ describe("/coverage", () => {
       "The coverage page could not be read from refs/coverage/main (fetch failed). The next push to main keeps a new one.\n",
     );
   });
+
+  it("answers 503 the same way when the page breaks off while it is read", async () => {
+    const broken = new ReadableStream({
+      start(controller) {
+        controller.error(new TypeError("terminated"));
+      },
+    });
+    vi.stubGlobal("fetch", async () => new Response(broken));
+
+    const response = await GET();
+
+    expect(response.status).toBe(503);
+    expect(await response.text()).toBe(
+      "The coverage page could not be read from refs/coverage/main (terminated). The next push to main keeps a new one.\n",
+    );
+  });
 });

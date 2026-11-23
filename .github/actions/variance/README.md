@@ -253,12 +253,12 @@ kind, and every directory no suite loads. It fetches nothing, so it opens from
 the link as it is. A page that cannot be drawn or uploaded leaves the comment
 to post without the link.
 
-An artifact's link names its run, so on a push to your default branch the step
-also keeps the page where its address stays the same: `coverage.html`, the one
-file of a commit with no parent at `refs/coverage/<branch>`, replaced on each
-push the way the badge is. The job that posts the comment pushes it with the
-badge, and needs `contents: write`: with `comment: 'false'` the page is handed
-on with the review, and the job with `from` keeps it. A token that cannot push,
+An artifact's link names its run, so with `badge: 'true'` a push to your default
+branch also keeps the page where its address stays the same: `coverage.html`,
+the one file of a commit with no parent at `refs/coverage/<branch>`, pushed with
+the badge and replaced on each push the way the badge is. With `comment:
+'false'` the page is handed on with the review, and the job with `from` keeps
+it. A token that cannot push,
 or a branch that has moved past the run's commit, warns and leaves the last page
 in place.
 raw.githubusercontent.com serves the file as plain text, so a browser shows its

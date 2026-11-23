@@ -77,10 +77,9 @@ inputs:
       not the change the comment reviews, uploads it unzipped as the
       `variance-coverage-<suite>.html` artifact, and links it from the comment
       and the step summary: every package with its files, the test files that
-      cover each, and what no suite loads. On a push to the default branch, the
-      page is also kept as `coverage.html` at `refs/coverage/<branch>`, pushed
-      with the badge by the job that posts the comment, which needs `contents:
-      write`. Off by default.
+      cover each, and what no suite loads. With `badge: 'true'`, a push to the
+      default branch also keeps the page as `coverage.html` at
+      `refs/coverage/<branch>`, pushed with the badge. Off by default.
     required: false
     default: 'false'
 
@@ -224,15 +223,18 @@ runs:
         VARIANCE_COMMAND: ${{ inputs.command }}
         SUITE: ${{ inputs.suite }}
         REVIEW: ${{ steps.carry.outputs.review }}
-        KEEP: ${{ github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+        KEEP: ${{ inputs.badge == 'true' && github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
       # The repository's coverage, as `variance coverage` answers it: every
       # suite over the regions any suite loaded, against the mainline's share.
       # The comment counts the change, each suite over its own regions, against
       # the base the review names. The file is named for the review's suite
       # only so that two reviews in one run upload two artifacts. On a push to
-      # the default branch it is also copied into the review, so the step that
-      # publishes the badge keeps it, here or in a job with `from`.
+      # the default branch that asks for the badge it is also copied into the
+      # review, so the step that publishes the badge keeps it, here or in a job
+      # with `from`. A page an earlier run left there is removed first, so a
+      # page this run did not draw is never kept as its own.
       run: |
+        rm -f "$REVIEW/coverage.html"
         page="$RUNNER_TEMP/variance-coverage/variance-coverage${SUITE:+-$SUITE}.html"
         mkdir -p "$(dirname "$page")"
         # shellcheck disable=SC2086
@@ -241,7 +243,7 @@ runs:
           [ "$KEEP" != true ] || cp "$page" "$REVIEW/coverage.html" \
             || echo '::warning title=coverage page not kept::the drawn page could not be copied into the review, so the last page stands.'
         else
-          echo '::warning title=coverage page not drawn::`variance coverage` failed, so the comment links no page.'
+          echo '::warning title=coverage page not drawn::`variance coverage` failed, so the comment links no page, and any page kept before stands.'
         fi
 
     # `archive: false` uploads the one file as it is, named for the file, so the
@@ -324,13 +326,14 @@ runs:
     # a page. No figure, or a refused push, warns, and the last one stands.
     # Before the failure on uncovered code, which would skip it.
     - name: publish the badge and the page
-      if: (steps.taken.outcome == 'success' || (inputs.from == '' && inputs.comment != 'false' && (inputs.badge == 'true' || inputs.coverage-page == 'true'))) && github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+      if: (steps.taken.outcome == 'success' || (inputs.from == '' && inputs.comment != 'false' && inputs.badge == 'true')) && github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
       shell: bash
       env:
         GITHUB_TOKEN: ${{ inputs.github-token }}
         BRANCH: ${{ github.ref_name }}
         FROM: ${{ inputs.from }}
-        BADGE: ${{ inputs.badge }}
+        # Under `from` the review was handed on whole: a page in it was asked for.
+        PAGE: ${{ inputs.from != '' || inputs.coverage-page == 'true' }}
         REVIEW: ${{ inputs.from != '' && format('{0}/variance-review', runner.temp) || steps.carry.outputs.review }}
       run: |
         set -uo pipefail
@@ -360,11 +363,11 @@ runs:
           publish regions-run.json "refs/badge/$BRANCH" badge 'badge not updated' \
             && echo "regions run: $(cat "$REVIEW/regions-run.json")" >> "$GITHUB_STEP_SUMMARY"
         # Under `from`, the job that ran the tests decided: no figure handed on is no badge asked for.
-        elif [ -z "${FROM:-}" ] && [ "${BADGE:-}" = true ]; then
+        elif [ -z "${FROM:-}" ]; then
           echo '::warning title=badge not updated::no figure was counted, so the last badge stands.'
         fi
         # The draw step copies the page into the review on a push to the default branch alone.
-        if [ -s "$REVIEW/coverage.html" ]; then
+        if [ "${PAGE:-}" = true ] && [ -s "$REVIEW/coverage.html" ]; then
           publish coverage.html "refs/coverage/$BRANCH" 'coverage page' 'coverage page not kept' \
             && echo "coverage page kept at \`refs/coverage/$BRANCH\`" >> "$GITHUB_STEP_SUMMARY"
         fi

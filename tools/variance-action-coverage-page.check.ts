@@ -3,7 +3,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { MARKER, action, git, origin, pushed, ran, stepNamed } from './variance-action-review-steps.js';
+import { BADGE, MARKER, action, git, origin, pushed, ran, stepNamed } from './variance-action-review-steps.js';
 
 /**
  * The page `coverage-page` draws: uploaded and linked on every run, and on a
@@ -44,18 +44,19 @@ describe('the coverage page the review action draws', () => {
   describe('the page kept at `refs/coverage/<branch>`', () => {
     const PUBLISH = 'publish the badge and the page';
 
-    /** Publishes a page reading `body` from the review directory, where the draw step leaves it on a push to the default branch. */
+    /** Publishes the badge and a page reading `body` from the review directory, where the draw step leaves it on a push to the default branch. */
     async function kept(env: Readonly<Record<string, string>>, body: string) {
       const review = await mkdtemp(join(tmpdir(), 'variance-action-page-'));
       try {
+        await writeFile(join(review, 'regions-run.json'), BADGE);
         await writeFile(join(review, 'coverage.html'), body);
-        return await ran(PUBLISH, { BADGE: 'false', ...env, REVIEW: review });
+        return await ran(PUBLISH, { PAGE: 'true', ...env, REVIEW: review });
       } finally {
         await rm(review, { recursive: true, force: true });
       }
     }
 
-    it('keeps the page as the one file of a commit with no parent, replaced on each push', async () => {
+    it('keeps the page as the one file of a commit with no parent, beside the badge, replaced on each push', async () => {
       const remote = await origin();
       try {
         await kept(remote.env, '<p>first</p>');
@@ -66,10 +67,26 @@ describe('the coverage page the review action draws', () => {
         expect(git(remote.dir, 'ls-tree', '--name-only', 'refs/coverage/main')).toBe('coverage.html');
         expect(git(remote.dir, 'show', 'refs/coverage/main:coverage.html')).toBe('<p>second</p>');
         expect(git(remote.dir, 'rev-list', '--count', 'refs/coverage/main')).toBe('1');
-        expect(() => git(remote.dir, 'rev-parse', '--verify', '--quiet', 'refs/badge/main')).toThrow();
+        expect(git(remote.dir, 'ls-tree', '--name-only', 'refs/badge/main')).toBe('regions-run.json');
         expect(summary).toContain('refs/coverage/main');
       } finally {
         await remote.done();
+      }
+    });
+
+    it('pushes no page this run did not ask for, and draws over none a run before it left', async () => {
+      const review = await mkdtemp(join(tmpdir(), 'variance-action-page-stale-'));
+      const remote = await origin();
+      try {
+        await writeFile(join(review, 'coverage.html'), '<p>stale</p>');
+        await ran(PUBLISH, { ...remote.env, PAGE: 'false', REVIEW: review });
+        expect(() => git(remote.dir, 'rev-parse', '--verify', '--quiet', 'refs/coverage/main')).toThrow();
+
+        await ran('draw the coverage page', { SUITE: 'unit', REVIEW: review, KEEP: 'true' }, 1);
+        expect(existsSync(join(review, 'coverage.html'))).toBe(false);
+      } finally {
+        await remote.done();
+        await rm(review, { recursive: true, force: true });
       }
     });
 
@@ -81,7 +98,7 @@ describe('the coverage page the review action draws', () => {
         expect(existsSync(join(review, 'coverage.html'))).toBe(false);
 
         await ran('draw the coverage page', { SUITE: 'unit', REVIEW: review, KEEP: 'true' });
-        const { status } = await ran(PUBLISH, { ...remote.env, FROM: 'variance-review', REVIEW: review });
+        const { status } = await ran(PUBLISH, { ...remote.env, FROM: 'variance-review', PAGE: 'true', REVIEW: review });
 
         expect(status).toBe(0);
         expect(git(remote.dir, 'show', 'refs/coverage/main:coverage.html')).toBe(readFileSync(join(review, 'coverage.html'), 'utf8').trim());
@@ -120,11 +137,12 @@ describe('the coverage page the review action draws', () => {
       }
     });
 
-    it('is drawn into the review only on a push to the default branch, and published with the badge, before a failure can skip it', () => {
+    it('is drawn into the review only on a push to the default branch that asks for the badge, and published with it, before a failure can skip it', () => {
       expect(stepNamed('draw the coverage page').env?.['KEEP']).toBe(
-        "${{ github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}",
+        "${{ inputs.badge == 'true' && github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}",
       );
-      expect(stepNamed(PUBLISH).if).toContain("inputs.coverage-page == 'true'");
+      expect(stepNamed(PUBLISH).if).not.toContain('coverage-page');
+      expect(stepNamed(PUBLISH).env?.['PAGE']).toBe("${{ inputs.from != '' || inputs.coverage-page == 'true' }}");
       const names = action().runs.steps.map((step) => step.name);
       expect(names.indexOf('draw the coverage page')).toBeLessThan(names.indexOf('hand the review on'));
       expect(names.indexOf(PUBLISH)).toBeLessThan(names.indexOf('fail on what the review counted'));

@@ -198,7 +198,7 @@ describe('the review a project with only unit tests puts on the pull request', (
       const review = await mkdtemp(join(tmpdir(), 'variance-action-badge-review-'));
       try {
         const counted = await ran('count the regions run', { REVIEW: review }, exit);
-        return { ...(await ran('publish the badge and the page', { BADGE: 'true', ...env, REVIEW: review })), said: counted.said, counted: counted.printed };
+        return { ...(await ran('publish the badge and the page', { ...env, REVIEW: review })), said: counted.said, counted: counted.printed };
       } finally {
         await rm(review, { recursive: true, force: true });
       }
@@ -284,7 +284,7 @@ describe('the review a project with only unit tests puts on the pull request', (
         "inputs.from == '' && inputs.badge == 'true' && github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)",
       );
       expect(stepNamed('publish the badge and the page').if).toBe(
-        "(steps.taken.outcome == 'success' || (inputs.from == '' && inputs.comment != 'false' && (inputs.badge == 'true' || inputs.coverage-page == 'true'))) && github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)",
+        "(steps.taken.outcome == 'success' || (inputs.from == '' && inputs.comment != 'false' && inputs.badge == 'true')) && github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)",
       );
       const names = action().runs.steps.map((step) => step.name);
       expect(names.indexOf('publish the badge and the page')).toBeLessThan(names.indexOf('fail on what the review counted'));

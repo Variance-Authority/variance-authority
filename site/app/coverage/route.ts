@@ -23,10 +23,9 @@ const POLICY =
  * answers 503 with `no-store`, telling every cache not to hold it.
  */
 export async function GET(): Promise<Response> {
-  const read = await fetch(KEPT).then(
-    async (response) => (response.ok ? response.text() : { failed: String(response.status) }),
-    (error: unknown) => ({ failed: error instanceof Error ? error.message : String(error) }),
-  );
+  const read = await fetch(KEPT)
+    .then(async (response) => (response.ok ? response.text() : { failed: String(response.status) }))
+    .catch((error: unknown) => ({ failed: error instanceof Error ? error.message : String(error) }));
   if (typeof read !== "string") {
     return new Response(
       `The coverage page could not be read from refs/coverage/main (${read.failed}). The next push to main keeps a new one.\n`,
