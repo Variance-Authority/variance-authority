@@ -12,18 +12,22 @@
 
 use std::collections::BTreeMap;
 
-use crate::segment::{encode_as, u32s, u8s, Collected, Strings};
+use crate::segment::{encode_as, u32s, u8s, Collected, Column, Strings};
 use crate::stored::{same_length, Stored, U32s};
 
+use super::finds::{self, Finds};
 use super::Owner;
 
 const FORMAT: &str = "variance-authority-dependency-catalogue";
 /// 2: a purpose holds stems cut to a fixed point, so a catalogue of one-pass stems is read again.
 /// 3: an owner is every tracked manifest, not only a member the root's `workspaces` list, so a catalogue whose owners
 /// were cut by `workspaces` is made again.
-const VERSION: u8 = 3;
+const VERSION: u8 = 4;
 /// The version whose stems this release compares: a catalogue written before it answers no described question.
 const STEMS: u8 = 2;
+/// The version that first wrote the tables a question finds its entries by. They are made from the readings the
+/// entries encode, so a change to what an entry is found by is a change of [`VERSION`].
+const FINDS: u8 = 4;
 /// The oldest version still read: 1 lays its columns out as 2 does, so every question but a described one answers
 /// from it, and a refresh writes it again whole.
 const OLDEST: u8 = 1;
@@ -41,6 +45,8 @@ pub(super) struct Made {
     pub installs: Vec<MadeInstall>,
     pub entries: Vec<(String, Vec<u8>)>,
     pub stamps: Vec<(String, String)>,
+    /// The tables a question finds its entries by, made from the readings `entries` encodes.
+    pub finds: finds::Made,
     /// Packages, entrypoints, the entries that resolved to one, and what was unavailable.
     pub summary: [u32; 4],
 }
@@ -55,6 +61,11 @@ fn offsets<T>(groups: &[T], length: impl Fn(&T) -> usize) -> Vec<u32> {
 
 impl Made {
     pub fn encode(&self) -> Vec<u8> {
+        encode_as(FORMAT, VERSION, self.columns(true))
+    }
+
+    /// Every column, the finds tables only when `finds`.
+    fn columns(&self, finds: bool) -> Vec<Column> {
         let mut collected = Collected::default();
         for owner in &self.owners {
             collected.extend([owner.manifest.as_str(), owner.directory.as_str(), owner.name.as_str()]);
@@ -69,6 +80,7 @@ impl Made {
         }
         collected.extend(self.entries.iter().map(|entry| entry.0.as_str()));
         for (at, value) in &self.stamps { collected.extend([at.as_str(), value.as_str()]); }
+        if finds { self.finds.collect(&mut collected); }
         let mut strings = Strings::of(collected);
         let ids = |values: &mut dyn Iterator<Item = &str>| values.map(|value| strings.id(value)).collect::<Vec<_>>();
         let kinds: Vec<_> = self.owners.iter().flat_map(|owner| owner.kinds.iter()).collect();
@@ -103,10 +115,16 @@ impl Made {
             u32s("stamps.value", ids(&mut self.stamps.iter().map(|stamp| stamp.1.as_str()))),
             u32s("summary", self.summary.to_vec()),
         ];
+        let found = if finds { self.finds.columns(&strings) } else { Vec::new() };
         let mut all = strings.columns().into_iter().collect::<Vec<_>>();
         all.extend(columns);
-        encode_as(FORMAT, VERSION, all)
+        all.extend(found);
+        all
     }
+
+    /// The catalogue as the release before the finds tables wrote it.
+    #[cfg(test)]
+    pub fn encode_before_finds(&self) -> Vec<u8> { encode_as(FORMAT, FINDS - 1, self.columns(false)) }
 }
 
 /// A catalogue read in place.
@@ -124,6 +142,7 @@ pub(super) struct Catalogue<'a> {
     entries: (U32s<'a>, U32s<'a>, &'a [u8]),
     stamps: (U32s<'a>, U32s<'a>),
     summary: U32s<'a>,
+    finds: Option<Finds<'a>>,
 }
 
 impl<'a> Catalogue<'a> {
@@ -152,6 +171,7 @@ impl<'a> Catalogue<'a> {
             entries: (stored.u32s("entries.id")?, stored.offsets("entries.blob", entry_rows, blob.len())?, blob),
             stamps: (stored.u32s("stamps.path")?, stored.u32s("stamps.value")?),
             summary: stored.u32s("summary")?,
+            finds: if written >= FINDS { Some(Finds::open(&stored, entry_rows)?) } else { None },
             stored,
             written,
         };
@@ -218,4 +238,10 @@ impl<'a> Catalogue<'a> {
 
     /// The version this catalogue was written at, when its stems were cut another way than this release cuts them.
     pub fn stems_older(&self) -> Option<u8> { (self.written < STEMS).then_some(self.written) }
+
+    /// The tables a question finds its entries by; absent from a catalogue written before them.
+    pub fn finds(&self) -> Option<&Finds<'a>> { self.finds.as_ref() }
+
+    /// A string's id in the dictionary the finds tables are keyed by; none for a string the catalogue never wrote.
+    pub fn id_of(&self, value: &str) -> Option<u32> { self.stored.id_of(value) }
 }

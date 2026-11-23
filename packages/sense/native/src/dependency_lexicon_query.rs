@@ -5,7 +5,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use napi_derive::napi;
 use serde::Serialize;
 
-use super::describing::{described, Described};
+use super::describing::{described, wanted, Described};
 use super::view::{read, Lexicon, Row};
 use super::{Api, Readme};
 
@@ -124,21 +124,44 @@ pub fn query_dependency_lexicon(path: String, sites: String, query: String, file
     let Some((catalogue, held)) = read(&path, &sites)? else { return Ok(None) };
     let lexicon = Lexicon::open(&catalogue, held.as_deref())?;
     let allowed = files.as_ref().map(|files| lexicon.located(files));
-    let (rows, _) = lexicon.rows(allowed.as_ref());
     let query = if exact { query } else { query.to_lowercase() };
+    let catalogue = &lexicon.catalogue;
+    let describing = !exact && catalogue.stems_older().is_none();
+    // The entries that can answer: decoded below as before, so the tables decide only what is not decoded.
+    let candidates = catalogue.finds().map(|finds| {
+        let mut wanted_entries = vec![false; catalogue.entries()];
+        if exact { finds.named(catalogue.id_of(&query), package.is_some(), &mut wanted_entries) } else {
+            finds.containing(&query, &mut wanted_entries);
+            if let Some((stems, needed)) = wanted(&query).filter(|_| describing) {
+                finds.stemmed(stems.iter().map(|stem| catalogue.id_of(stem)), needed, &mut wanted_entries);
+            }
+        }
+        wanted_entries
+    });
+    let mut looked = (BTreeSet::<&str>::new(), BTreeSet::<&str>::new());
+    // Rows repeat a package and a specifier across owners, so each is lowered and matched once.
+    let mut holds = HashMap::<&str, bool>::new();
+    let (rows, _) = lexicon.rows(allowed.as_ref(), &mut |owner, row_package, specifier, entry| {
+        if package.as_ref().is_some_and(|wanted| wanted != row_package && wanted != specifier) { return false; }
+        let readable = match catalogue.finds() { Some(finds) => finds.readable(entry), None => lexicon.api(entry).is_some() };
+        if !readable { return false; }
+        looked.0.insert(owner);
+        looked.1.insert(row_package);
+        let Some(candidates) = &candidates else { return true };
+        candidates[entry as usize] || !exact && [row_package, specifier].into_iter()
+            .any(|field| *holds.entry(field).or_insert_with(|| field.to_lowercase().contains(query.as_str())))
+    });
     let mut found = BTreeMap::<(&str, String, String, String), Match>::new();
     let mut searched = HashMap::<(u32, &str), Vec<Match>>::new();
     let mut silent = BTreeMap::<(&str, &str), Silent>::new();
-    let mut looked = (BTreeSet::<&str>::new(), BTreeSet::<&str>::new());
     let mut read = Vec::new();
     for row in &rows {
-        if package.as_ref().is_some_and(|wanted| wanted != row.package && wanted != row.specifier) { continue; }
         let Some(api) = lexicon.api(row.entry) else { continue };
         let entry = lexicon.entry_id(row.entry);
-        looked.0.insert(row.owner);
-        looked.1.insert(row.package);
         read.push((row, api));
-        if let (true, Some(reason)) = (exact, api.unavailable.as_ref()) {
+        // Unasked, a package silent about every name with no README to read has nothing to say about this one.
+        let told = package.is_some() || super::finds::told_by_readme(api);
+        if let (true, true, Some(reason)) = (exact, told, api.unavailable.as_ref()) {
             let imported = row.imported == Some(true);
             if silent.get(&(entry, row.specifier)).is_none_or(|prior| !prior.imported && imported) {
                 silent.insert((entry, row.specifier), Silent {
@@ -174,7 +197,7 @@ pub fn query_dependency_lexicon(path: String, sites: String, query: String, file
     let older = lexicon.catalogue.stems_older();
     let described_unread = older.filter(|_| !exact)
         .map(|version| format!("The dependency lexicon was written at version {version}, whose stems this release does not compare"));
-    let words = if exact || older.is_some() { None } else { described(&query, read.iter().copied(), limit as usize) };
+    let words = if !describing { None } else { described(&query, read.iter().copied(), limit as usize) };
     let (described_total, described) = match words { Some((total, shown)) => (Some(total), Some(shown)), None => (None, None) };
     let answer = serde_json::to_string(&Matches { total, shown, silent, described, described_total, described_unread,
         scope: Scope { owners: looked.0.into_iter().map(str::to_owned).collect(), packages: looked.1.len() as u32,

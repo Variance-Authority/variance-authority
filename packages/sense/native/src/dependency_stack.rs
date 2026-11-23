@@ -71,7 +71,7 @@ pub fn dependency_stack(path: String, sites: String, files: Vec<String>, offset:
     let Some((catalogue, held)) = read(&path, &sites)? else { return Ok(None) };
     let lexicon = Lexicon::open(&catalogue, held.as_deref())?;
     let allowed = lexicon.located(&files);
-    let (found, issues) = lexicon.rows(Some(&allowed));
+    let (found, issues) = lexicon.rows(Some(&allowed), &mut |_, _, _, _| true);
     let mut rows = BTreeMap::<(&str, &str), Row>::new();
     for row in &found {
         let api = lexicon.api(row.entry);

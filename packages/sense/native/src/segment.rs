@@ -170,6 +170,9 @@ impl<'s> Strings<'s> {
         }
     }
 
+    /// How many strings the dictionary holds.
+    pub fn len(&self) -> usize { self.sorted.len() }
+
     /// The string under a written id: the name table writes a name's text where its columns write its id.
     pub fn text(&self, id: u32) -> &'s str {
         self.sorted[id as usize]
