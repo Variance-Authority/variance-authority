@@ -3121,6 +3121,7 @@
         "publishedNames": "function",
         "publishedSources": "function",
         "queryDependencyLexiconNative": "function",
+        "questionIdentity": "function",
         "rarityNative": "function",
         "readHelp": "function",
         "readPublishedNames": "function",

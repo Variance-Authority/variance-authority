@@ -14,7 +14,6 @@
 
 import { native, nativeRefusal } from './addon.js';
 import { onQuestionIndex, type OpenedIndex } from './help-question.js';
-export { asOneQuestion, type OpenedIndex } from './help-question.js';
 import type { NativeAsked, NativeImporters, NativeIndexedUsage } from './native-orient.js';
 import type { ClassifiedAreas } from './classified-areas.js';
 import type { ClassifiedNames } from './classify-names.js';

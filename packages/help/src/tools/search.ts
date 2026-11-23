@@ -422,7 +422,7 @@ export const search: Tool<Help> = {
   // The file set is the files that matched, every file exporting a name, and
   // walks no declaration: one outside an area is the row's to name, not the set's.
   files: (help, input, invocation): FileSet =>
-    searchReading(help, searchQuestionOf(input, spellingOf(invocation)), invocation).files(),
+    searchReading(help, searchQuestionOf(input, spellingOf(invocation)), invocation).membership(),
 };
 
 /**

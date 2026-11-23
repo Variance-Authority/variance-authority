@@ -11,7 +11,7 @@ import { declarationLookupsOf } from './declaration-key.js';
 // compass: variance-authority.report.agent-surface
 
 interface Reading {
-  readonly files: () => FileSet;
+  readonly membership: () => FileSet;
   readonly read: () => Searched;
 }
 interface Asked {
@@ -46,7 +46,7 @@ export function searchReading(help: Help, question: SearchQuestion, invocation: 
   const prepared = preparedSearch(asked.index, question, invocation?.tree, invocation?.root);
   let found: Searched | undefined;
   const reading: Reading = {
-    files: prepared.files,
+    membership: prepared.files,
     read: () => {
       found ??= prepared.read(importingOf(help, invocation?.root), declarationLookupsOf(help, invocation?.root));
       printed.set(help, { ...asked, files: footprint(found) });
