@@ -93,6 +93,38 @@ describe('Playwright API-compatible proxies', () => {
     expect(snapshot).toHaveBeenCalledTimes(4);
   });
 
+  it('runs the call and hands back its own outcome when the Locator cannot be read before it', async () => {
+    const log = createEyesLog();
+    const refused = new Error('expected "" not to be empty');
+    let fails = false;
+    const child = {
+      _expect: vi.fn(() => (fails ? Promise.reject(refused) : Promise.resolve({ matches: true }))),
+      click: vi.fn(() => Promise.resolve('clicked')),
+    };
+    const page = { getByLabel: () => child };
+    const locator = instrumentPage(page as unknown as Page, log, async () => {
+      throw new Error('Target page, context or browser has been closed');
+    }).getByLabel('Count') as unknown as {
+      _expect: (matcher: string, options: { isNot: boolean }) => Promise<unknown>;
+      click: () => Promise<unknown>;
+    };
+
+    await expect(locator._expect('to.be.empty', { isNot: true })).resolves.toEqual({ matches: true });
+    fails = true;
+    await expect(locator._expect('to.be.empty', { isNot: true })).rejects.toBe(refused);
+    await expect(locator.click()).resolves.toBe('clicked');
+
+    expect(child._expect).toHaveBeenCalledTimes(2);
+    expect(child.click).toHaveBeenCalledOnce();
+    const consumed = log.seen.slice(1);
+    expect(consumed).toEqual([
+      expect.objectContaining({ member: 'to.be.empty', outcome: 'resolved' }),
+      expect.objectContaining({ member: 'to.be.empty', outcome: 'threw', error: refused.message }),
+      expect.objectContaining({ member: 'click', outcome: 'resolved' }),
+    ]);
+    for (const entry of consumed) expect(entry).not.toHaveProperty('before');
+  });
+
   it('keeps a successful action passing when the post-operation read is lost', async () => {
     const log = createEyesLog();
     let reads = 0;
