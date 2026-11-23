@@ -1450,7 +1450,8 @@ them since the base. It shows what each kind of test runs alone and what
 several share. With `--packages` it lists every package with its files, and
 with `--fan-in` the test files that cover each file, by kind. Last, it lists
 every directory no suite loads. The page draws what the flags count and counts
-nothing more; it fetches nothing, so it opens from an artifact as it is. With
+nothing more, and it refuses `--session`, which it does not draw. It fetches
+nothing, so it opens from an artifact as it is. With
 `coverage-page: 'true'`, the review
 action uploads it as `variance-coverage-<suite>.html` and links it from the
 comment.

@@ -1,6 +1,7 @@
 // compass: variance-authority.reach.crossings
 import type { RunOver, SuiteChange, SuiteCount } from '@variance-authority/sense/test-selection';
 import { code } from './comment-text.js';
+import type { CoverageSource } from './coverage-source.js';
 import type { Coverage, CoverageSuite } from './coverage.js';
 
 /**
@@ -117,6 +118,19 @@ export function grouped(value: number): string {
 /** `1 file`, `1,234 files`. */
 export function files(count: number): string {
   return `${grouped(count)} file${count === 1 ? '' : 's'}`;
+}
+
+/** Which files the source counts, as `--from` chose them. */
+export function sourceWhere(source: CoverageSource): string {
+  if (source.seeds === 'entrypoints') {
+    return source.from === undefined ? 'reached from the declared entry points' : `reached from the entry points of ${source.from}`;
+  }
+  return source.seeds === 'directory' ? `reached from every file under ${source.from}, which declares no entry points` : 'in the source index';
+}
+
+/** `2 files did not parse, …`: why the regions of unloaded files are short of what they hold. */
+export function unparsed(count: number): string {
+  return `${files(count)} did not parse, so no regions are counted for them`;
 }
 
 /** A commit as the answers name it: its first eight characters. */

@@ -45,6 +45,7 @@ export function parseCoverageArgs(flags: Flags): ParsedCoverage {
   if (twice !== undefined) throw new OperatorError(`two sessions are named \`${twice}\`; give each its own name.`);
   const served = flags.values.get('--served');
   if (served !== undefined && sessions.length === 0) throw new OperatorError('`--served` places a session\'s scripts; pass `--session <name>=<path>` with it.');
+  if (format === 'html' && sessions.length > 0) throw new OperatorError('`--format html` draws no session; pass `--session` with `--format text`, `markdown` or `json`.');
   return {
     command: 'coverage',
     ...(against === undefined ? {} : { against: resolve(against) }),

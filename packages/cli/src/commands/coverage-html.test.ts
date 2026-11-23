@@ -181,6 +181,12 @@ describe('the coverage page', () => {
     expect(wider.indexOf('data-row="package:."')).toBeGreaterThan(wider.indexOf('data-row="package:packages/core"'));
   });
 
+  it('says how many unloaded files did not parse, so their regions are not counted', () => {
+    const unparsed = formatCoverage({ ...ANSWER, source: { ...ANSWER.source!, unloaded: { ...ANSWER.source!.unloaded, uncut: 1 } } }, 'html');
+    expect(seen(unparsed)).toContain('1 file did not parse, so no regions are counted for them');
+    expect(seen(html)).not.toContain('did not parse');
+  });
+
   it('says why it could not count what no suite loads', () => {
     const { source: _, ...unsourced } = ANSWER;
     const missed = formatCoverage({ ...unsourced, sourceMissed: 'the index is not built' }, 'html');
@@ -211,6 +217,17 @@ describe('the coverage page of one directory', () => {
     expect(raw(html, 'file:packages/cli/src/empty.ts')).not.toContain('NaN');
   });
 
+  it('names the directory --from counted, and how it chose the files', () => {
+    const scoped = formatCoverage({
+      ...ANSWER, entries: undefined, ownership: undefined,
+      source: { ...source(40, 30), from: 'packages/payments', files: 3 },
+    }, 'html');
+    const header = seen(scoped.slice(scoped.indexOf('<header>'), scoped.indexOf('</header>')));
+    expect(header).toContain('from packages/payments');
+    expect(scoped).toContain('title="reached from the entry points of packages/payments"');
+    expect(seen(html.slice(html.indexOf('<header>'), html.indexOf('</header>')))).not.toContain('from ');
+  });
+
   it('says when a suite with no base was recorded', () => {
     expect(row(html, 'suite:unit')).toContain('recorded at 12345678');
   });
@@ -222,7 +239,7 @@ describe('the coverage page of one directory', () => {
 });
 
 describe('--format html', () => {
-  const parse = (...argv: string[]) => parseCoverageArgs(readFlags(argv, 'coverage', ['--format', '--from', '--fan-in', '--packages']));
+  const parse = (...argv: string[]) => parseCoverageArgs(readFlags(argv, 'coverage', ['--format', '--from', '--fan-in', '--packages', '--session']));
 
   it('draws what the flags count, and counts nothing they do not ask for', () => {
     const page = parse('--format', 'html');
@@ -230,6 +247,10 @@ describe('--format html', () => {
     expect(page).not.toHaveProperty('packages');
     expect(page).not.toHaveProperty('fanIn');
     expect(parse('--format', 'html', '--packages', '--fan-in')).toMatchObject({ format: 'html', packages: true, fanIn: true });
+  });
+
+  it('refuses a session, which the page does not draw', () => {
+    expect(() => parse('--format', 'html', '--session', 'mine=cov.json')).toThrow('`--format html` draws no session; pass `--session` with `--format text`, `markdown` or `json`.');
   });
 
   it('is named among the formats a wrong one is refused with', () => {

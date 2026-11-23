@@ -14,7 +14,7 @@ import { fanInLines, fanInMarkdown } from './coverage-fan-in-text.js';
 import { coverageHtml } from './coverage-html.js';
 import { sessionsLines, sessionsMarkdown } from './coverage-sessions-text.js';
 import { earnedLines, earnedMarkdown, ownershipLines, ownershipMarkdown } from './coverage-owner-text.js';
-import { coverageHead, coverageParts as parts, coverageRows, coverageSum, banded, files, grouped, leading, paired, ratio, short, signed, table } from './coverage-summary.js';
+import { coverageHead, coverageParts as parts, coverageRows, coverageSum, banded, files, grouped, leading, paired, ratio, short, signed, sourceWhere, table, unparsed } from './coverage-summary.js';
 import { historyCell, notKnownLines, overCell, overClause, overMarkdown, recordedClause } from './coverage-over-lines.js';
 import { functionsIn, notListed } from './covering-motion.js';
 import { text as escape } from './report-html-elements.js';
@@ -285,7 +285,7 @@ function sourceMarkdown(answer: Coverage): readonly string[] {
       : `📦 The ${files(unloaded.files)} no suite recorded, by directory${harnessed === undefined ? '' : `, and ${harnessed}`}`;
     lines.push('', `<details><summary>${fold}</summary>`, '');
     lines.push('| | Files | Lines | Regions |', '|---|--:|--:|--:|', ...rows);
-    if (unloaded.uncut > 0) lines.push('', `${files(unloaded.uncut)} did not parse, so no regions are counted for them.`);
+    if (unloaded.uncut > 0) lines.push('', `${unparsed(unloaded.uncut)}.`);
     lines.push('', '</details>');
   }
   const entries = answer.entries ?? [];
@@ -327,17 +327,9 @@ function sourceLines(answer: Coverage): readonly string[] {
   if (unloaded.directories.length > NAMED_DIRECTORIES) {
     lines.push(`    and ${grouped(unloaded.directories.length - NAMED_DIRECTORIES)} more directories; --format json lists every file`);
   }
-  if (unloaded.uncut > 0) lines.push(`  ${files(unloaded.uncut)} did not parse, so no regions are counted for them`);
+  if (unloaded.uncut > 0) lines.push(`  ${unparsed(unloaded.uncut)}`);
   lines.push(`  total coverage for ${grouped(source.ran)} of the ${regionCount(source.regions)}: ${sourceRatio(source)}${overClause(source.over)}`);
   return [...lines, ...entryLines(answer.entries ?? [])];
-}
-
-/** Which files the source counts, as `--from` chose them. */
-function sourceWhere(source: CoverageSource): string {
-  if (source.seeds === 'entrypoints') {
-    return source.from === undefined ? 'reached from the declared entry points' : `reached from the entry points of ${source.from}`;
-  }
-  return source.seeds === 'directory' ? `reached from every file under ${source.from}, which declares no entry points` : 'in the source index';
 }
 
 /** Which files the source counts, as `--from` chose them, as the subject of the comment's sentence. */

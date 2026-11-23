@@ -203,7 +203,8 @@ than pushing the file from a workflow step; the action's README shows the job's
 `variance coverage --packages --fan-in --format html` writes the whole answer
 as one self-contained page: suites, kinds, every package with its files and the
 test files that cover each, and every directory no suite loads. The format
-counts nothing the flags do not ask for. Point a person at it; read
+counts nothing the flags do not ask for, and refuses `--session`, which it does
+not draw. Point a person at it; read
 `--format json` yourself.
 
 ## Read the state of every range

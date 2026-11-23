@@ -12,7 +12,7 @@
 
 import type { FanInFile, OwnedFile } from '@variance-authority/sense/test-selection';
 import { kindRows } from './coverage-fan-in-text.js';
-import { banded, coverageParts, files, grouped, leading, paired, ratio, short } from './coverage-summary.js';
+import { banded, coverageParts, files, grouped, leading, paired, ratio, short, sourceWhere, unparsed } from './coverage-summary.js';
 import { census, chip, section, text } from './report-html-elements.js';
 import { MARK, PAGE } from './report-html-style.js';
 import type { CoverageSource, Unloaded } from './coverage-source.js';
@@ -49,7 +49,10 @@ function masthead(answer: Coverage): string {
   chips.push(chip('suites', `${recorded} of ${answer.suites.length} recorded`));
   const bases = [...new Set(answer.suites.flatMap((suite) => suite.base === undefined ? [] : [suite.base.commit]))];
   if (bases.length > 0) chips.push(chip('base', bases.map(short).join(' · '), bases.join('\n')));
-  if (answer.source !== undefined) chips.push(chip('source', files(answer.source.files)));
+  if (answer.source !== undefined) {
+    chips.push(chip('source', files(answer.source.files), sourceWhere(answer.source)));
+    if (answer.source.from !== undefined) chips.push(chip('from', answer.source.from, sourceWhere(answer.source)));
+  }
   return (
     '<header>' +
     `<div class="brand">${MARK}<span>variance</span></div>` +
@@ -237,7 +240,8 @@ function unloaded(answer: Coverage): string {
       `<tr data-row="${text(`unloaded:${row.directory}`)}"><td class="file">${text(row.directory)}</td>` +
       `<td class="num">${grouped(row.files)}</td><td class="num">${grouped(row.lines)}</td><td class="num">${grouped(row.regions)}</td></tr>`,
   );
-  return section('Not loaded', notLoaded(none), table(['directory', 'files', 'lines', 'regions'], rows, [1, 2, 3]));
+  const uncut = none.uncut === 0 ? '' : `<p class="note">${text(`${unparsed(none.uncut)}.`)}</p>`;
+  return section('Not loaded', notLoaded(none), table(['directory', 'files', 'lines', 'regions'], rows, [1, 2, 3]) + uncut);
 }
 
 function notLoaded(none: Unloaded): string {
