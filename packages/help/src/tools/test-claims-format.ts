@@ -63,11 +63,14 @@ function entered(ran: TestRan): string[] {
     (count, { regions }) => count + regions.filter((region) => region.kind === 'function' && region.source && region.entered && structure(region)).length,
     0,
   );
-  const lines = ['Ran, the functions it entered:'];
-  if (files.length === 0) lines.push('  none but structure');
-  lines.push(...cappedRows(files, ({ file, functions }) => `  ${file}  ${functions.map(functionName).join(', ')}`, ROWS));
-  if (shared > 0) lines.push(`  and ${shared} ${shared === 1 ? 'function' : 'functions'} of structure, run by more than half of the ${ran.suite} recorded tests`);
-  return lines;
+  const majority = `run by more than half of the ${ran.suite} recorded tests`;
+  const counted = `${shared} ${shared === 1 ? 'function' : 'functions'}`;
+  if (files.length === 0) return ['Ran, the functions it entered:', shared === 0 ? '  none' : `  ${counted}, all structure, ${majority}`];
+  return [
+    'Ran, the functions it entered:',
+    ...cappedRows(files, ({ file, functions }) => `  ${file}  ${functions.map(functionName).join(', ')}`, ROWS),
+    ...(shared === 0 ? [] : [`  and ${counted} of structure, ${majority}`]),
+  ];
 }
 
 function functionName(region: RanRegion): string {

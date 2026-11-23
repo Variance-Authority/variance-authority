@@ -72,12 +72,13 @@ describe('formatTestClaims', () => {
     ]);
   });
 
-  it('says Eyes recorded no step when the journal holds none, and that nothing was passed by', () => {
-    const took = { ...ran, modules: [{ file: 'app/form.js', regions: [region('function', 2, 20, true, 1, 'submit')] }] };
+  it('says Eyes recorded no step when the journal holds none, that it ran only structure, and that nothing was passed by', () => {
+    const took = { ...ran, modules: [{ file: 'app/form.js', regions: [region('function', 2, 20, true, 3, 'submit')] }] };
 
     const answer = formatTestClaims(composition, took, { steps: [], attempt: 1, attempts: 1 });
 
     expect(answer).toContain('\n  its steps and assertions: Eyes recorded none\n');
+    expect(answer).toContain('\nRan, the functions it entered:\n  1 function, all structure, run by more than half of the 4 recorded tests\n');
     expect(answer.endsWith('Passed by: nothing; it took every branch of the functions it entered.')).toBe(true);
   });
 });

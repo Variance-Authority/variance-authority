@@ -5192,6 +5192,19 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@variance-authority/case-test-claims@workspace:cases/test-claims-case":
+  version: 0.0.0-use.local
+  resolution: "@variance-authority/case-test-claims@workspace:cases/test-claims-case"
+  dependencies:
+    "@playwright/test": "npm:^1.64.1"
+    "@variance-authority/cli": "workspace:^"
+    "@variance-authority/eyes": "workspace:^"
+    "@variance-authority/playwright-test": "workspace:^"
+    "@variance-authority/sense": "workspace:^"
+    vitest: "npm:^5.1.0"
+  languageName: unknown
+  linkType: soft
+
 "@variance-authority/case-unit-capture@workspace:cases/unit-capture-case":
   version: 0.0.0-use.local
   resolution: "@variance-authority/case-unit-capture@workspace:cases/unit-capture-case"
