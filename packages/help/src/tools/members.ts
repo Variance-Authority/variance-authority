@@ -207,6 +207,15 @@ export function membersStop(members: Members): string | undefined {
   return `${unread(languages)}: if \`${members.member}\` is a member ${there}, ask their language server's workspace symbols for it, then its find-references on the declaration.`;
 }
 
+/** Existing member coverage qualifications for a canonical file-set answer. */
+export function membersUnread(members: Members): readonly string[] {
+  const stop = membersStop(members);
+  return [
+    ...(members.unread === undefined ? [] : [`member declarations: ${members.unread}`]),
+    ...(stop === undefined ? [] : [stop]),
+  ];
+}
+
 /** Where a search for words stops, given the same languages: its question may be a phrase, so it names no member. */
 export function unreadStop(languages: readonly string[]): string | undefined {
   return languages.length === 0 ? undefined : `${unread(languages)}: a member there is for their language server's workspace symbols to find.`;

@@ -4,7 +4,7 @@ import type { Help, Use } from '@variance-authority/package/help';
 import type { DeclaredName } from '@variance-authority/sense';
 import { unreadLine } from './declared.js';
 import { FoundNothing } from './find.js';
-import { type Members, places, routes } from './members.js';
+import { type Members, membersUnread, places, routes } from './members.js';
 import { passesOn } from './passed-on.js';
 import { nearestTo } from './shared-segments.js';
 import { symbol, usesRestsOn } from './symbol.js';
@@ -237,13 +237,18 @@ export const uses: Tool<Help> = {
  * read leaves the imports within the package unread.
  */
 function usesFiles(help: Help, input: Readonly<Record<string, unknown>>, invocation?: ToolInvocation<Help>): FileSet {
-  const { namesakes, sites, unread, members, kept, keptSites, inFile, keptInFile } = usesOnce(help, input, invocation?.root, spellingOf(invocation));
+  const { namesakes, sites, unread: importsUnread, members, undeclared, kept, keptSites, inFile, keptInFile } = usesOnce(help, input, invocation?.root, spellingOf(invocation));
   const files = new Map<string, number[]>();
   const others = namesakes.flatMap((one) => [...one.sites, ...one.inFile]);
   for (const site of [...sites, ...inFile, ...others, ...members.declared, ...members.used.flatMap((one) => one.uses), ...kept, ...keptSites, ...keptInFile]) {
     files.set(site.at, [...new Set([...(files.get(site.at) ?? []), site.line])].sort((left, right) => left - right));
   }
-  return { files, ...(unread === undefined ? {} : { unread: [`imports within the package: ${unread}`] }) };
+  const unread = [
+    ...(importsUnread === undefined ? [] : [`imports within the package: ${importsUnread}`]),
+    ...unreadLine(undeclared),
+    ...membersUnread(members),
+  ];
+  return { files, ...(unread.length === 0 ? {} : { unread }) };
 }
 
 /** The last answer of each generation, and what it was asked. */
