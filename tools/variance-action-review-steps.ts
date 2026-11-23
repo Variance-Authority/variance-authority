@@ -11,7 +11,6 @@ import { ROOT } from './variance-action-steps.js';
  * under a fake CLI. Shared by the checks of `Variance-Authority/action/review`.
  */
 
-export { ROOT };
 export const FOLDER = '.github/actions/variance';
 export const ACTION = `${FOLDER}/review/action.yml`;
 

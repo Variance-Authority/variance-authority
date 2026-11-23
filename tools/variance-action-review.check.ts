@@ -3,7 +3,8 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, normalize } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { ACTION, BADGE, FOLDER, ROOT, type Step, action, git, origin, pushed, ran, stepNamed } from './variance-action-review-steps.js';
+import { ACTION, BADGE, FOLDER, type Step, action, git, origin, pushed, ran, stepNamed } from './variance-action-review-steps.js';
+import { ROOT } from './variance-action-steps.js';
 
 /**
  * A project with only unit tests has no surface for `variance run` to observe,
