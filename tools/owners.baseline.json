@@ -275,6 +275,11 @@
     "count": 1
   },
   {
+    "idiom": "commonjs-load",
+    "at": "packages/mcp/src/tools/observability.ts",
+    "count": 1
+  },
+  {
     "idiom": "code-unit-order",
     "at": "packages/mcp/src/tools/source-tree-format.ts",
     "count": 1
