@@ -64,6 +64,6 @@ when an entry is added.
    diff. #1387.
 16. **Which completion criterion of the linked issue does the diff advance?** A
    documentation clarification does not implement automatic behavior when the
-   issue explicitly leaves instruction-only solutions out. The description
+   issue explicitly leaves instruction-only solutions out. The fidelity
    reviewer checks the issue's outcome against the diff before accepting the
    link. #1774.
