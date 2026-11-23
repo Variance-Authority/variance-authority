@@ -263,15 +263,17 @@ const empties = (kind: string, opening: string | undefined): readonly string[] =
  * The broken block: the cut file's text with the recorded region broken in the
  * extreme, and where the block stands now; or why it cannot be broken. The
  * block is the one row of today's cut that carries the recorded region's
- * {@link regionKey}, and it is broken only while its digest is the recorded one.
+ * {@link regionKey} and digest; a region whose digest moved is not broken.
  */
 function extremeBreak(cut: Cut, identity: NonNullable<Asked['identity']>): { text: string; start: number; end: number; line: number; endLine: number } | { reason: string } {
-  const matching = cut.rows.filter(({ key }) => key === identity.key);
-  if (matching.length > 1) return { reason: 'more than one region of the file is named as the one the record holds, so which to break cannot be told' };
-  const [match] = matching;
-  if (match === undefined) return { reason: 'no region the file is cut into now is the one the record holds' };
+  const named = cut.rows.filter(({ key }) => key === identity.key);
+  if (named.length === 0) return { reason: 'no region the file is cut into now is the one the record holds' };
+  // Regions the walk names alike, such as two callbacks to one method, are told apart by what each holds.
+  const held = named.filter(({ row }) => row.digest === identity.digest);
+  if (held.length > 1) return { reason: 'more than one region of the file is the one the record holds, so which to break cannot be told' };
+  const [match] = held;
+  if (match === undefined) return { reason: 'its source changed since the recording, so the record says nothing about it as it is now' };
   const { row, block } = match;
-  if (row.digest !== identity.digest) return { reason: 'its source changed since the recording, so the record says nothing about it as it is now' };
   if (row.startLine === undefined || row.endLine === undefined) return { reason: 'the region stands at no line of the file' };
   for (const empty of empties(block.kind, cut.source[block.start])) {
     const text = cut.source.slice(0, block.start) + empty + cut.source.slice(block.end);

@@ -47,10 +47,14 @@ const SOURCES: Record<string, string> = {
   // A branch the test enters and does not assert, and a continuation it does.
   'src/sign.mjs': 'export function sign(n) {\n  if (n < 0) {\n    return -1;\n  }\n  return 1;\n}\n',
   'test/sign.check.mjs': "import { sign } from '../src/sign.mjs';\nsign(-2);\nif (sign(5) !== 1) process.exit(1);\n",
+  // Two callbacks the walk names alike: the test reads what the first returns, and only how many the second does.
+  'src/both.mjs': 'export function both(xs) {\n  const up = xs.map((x) => x + 1);\n  const down = xs.map((x) => x - 1);\n  return up[0] + down.length;\n}\n',
+  'test/both.check.mjs': "import { both } from '../src/both.mjs';\nif (both([1]) !== 3) process.exit(1);\n",
 };
 
 /** The tests that entered each region, by the region's name and path as the walk cuts the file. */
 const ENTERED: Readonly<Record<string, Readonly<Record<string, readonly number[]>>>> = {
+  'src/both.mjs': { 'both entry': [5], 'both/map.arg0 entry': [5] },
   'src/log.mjs': { 'log entry': [0] },
   'src/many.mjs': Object.fromEntries(MANY.map((name) => [`${name} entry`, [3]])),
   'src/ready.mjs': { 'ready entry': [2] },
@@ -110,6 +114,17 @@ describe('variance proves', () => {
     expect([answered.code, answered.err]).toEqual([EXIT_CLEAN, '']);
     expect(answered.out).toContain('Survived, the test passed with the region broken:\n  src/sign.mjs:2-4');
     expect(answered.out).toMatch(/Noticed, the test failed with the region broken:\n {2}src\/sign\.mjs:1-6 [^\n]*returns nothing\n {2}src\/sign\.mjs:5 [^\n]*skipped\n/);
+  });
+
+  it('tells apart two regions the walk names alike by what each holds', async () => {
+    await recorded();
+
+    const answered = await run(['proves', '--file', 'test/both.check.mjs', '--name', 'maps both', '--', process.execPath, 'test/both.check.mjs']);
+
+    expect([answered.code, answered.err]).toEqual([EXIT_CLEAN, '']);
+    expect(answered.out).toMatch(/Survived, the test passed with the region broken:\n {2}src\/both\.mjs:3 [^\n]*returns nothing\n\n/);
+    expect(answered.out).toMatch(/Noticed, the test failed with the region broken:\n(?: {2}[^\n]*\n)*? {2}src\/both\.mjs:2 [^\n]*returns nothing\n/);
+    expect(answered.out).not.toContain('Not broken');
   });
 
   it('stops a break the test is still running at its deadline, and names it hung', async () => {
@@ -177,7 +192,7 @@ function snapshot(root: string): Record<string, string> {
  * A checkout, committed and recorded at that commit with the regions the walk
  * cuts each file into: `adds` entered `total` and `log`, `adds again` entered
  * `total` too, `waits` entered `ready`, `calls` entered each of `MANY`, and
- * `signs` entered `sign`, its `if` and what follows it. `extra` files are written beside them first.
+ * `signs` entered `sign`, its `if` and what follows it, and `maps both` entered `both` and its two callbacks. `extra` files are written beside them first.
  */
 async function recorded(extra: Readonly<Record<string, string>> = {}): Promise<string> {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'va-proves-')));
@@ -197,6 +212,7 @@ async function recorded(extra: Readonly<Record<string, string>> = {}): Promise<s
     { id: 'w', file: 'test/wait.check.mjs', name: 'waits' },
     { id: 'm', file: 'test/many.check.mjs', name: 'calls' },
     { id: 's', file: 'test/sign.check.mjs', name: 'signs' },
+    { id: 'b', file: 'test/both.check.mjs', name: 'maps both' },
   ];
   const files = tests.map(({ file }) => file);
   const fileOf = (test: number) => tests[test]?.file ?? '';

@@ -137,7 +137,9 @@ function signalled(child: ChildProcess, signal: NodeJS.Signals, group: boolean):
   try {
     process.kill(-child.pid, signal);
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error;
+    // No such group, or one this process may not signal (macOS answers so when only exited members are left): nothing of the run's is left to stop.
+    const { code } = error as NodeJS.ErrnoException;
+    if (code !== 'ESRCH' && code !== 'EPERM') throw error;
   }
 }
 
