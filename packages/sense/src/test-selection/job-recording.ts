@@ -153,10 +153,10 @@ export function started(program: string, args: readonly string[], cwd: string, e
     const group = deadline !== undefined && process.platform !== 'win32';
     const child = spawn(program, args, { cwd, stdio, detached: group, ...(env === undefined ? {} : { env }) });
     const timers: NodeJS.Timeout[] = [];
-    // A detached group does not hear the terminal's signals, so this process passes them on, and stops the group if it exits first.
+    // A detached group does not hear the terminal's signals, so this process kills it before it ends on one, and if it exits first: nothing it started outlives it.
     const forwarded = (signal: NodeJS.Signals): void => {
       released();
-      signalled(child, signal, group);
+      leaving();
       process.kill(process.pid, signal);
     };
     const leaving = (): void => signalled(child, 'SIGKILL', group);

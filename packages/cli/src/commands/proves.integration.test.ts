@@ -41,6 +41,9 @@ const SOURCES: Record<string, string> = {
   'test/broken.check.mjs': 'process.exit(1);\n',
   // A test that waits on `ready`: emptied, it never returns true.
   'test/wait.check.mjs': "import { ready } from '../src/ready.mjs';\nwhile (!ready()) {}\n",
+  // A test that reads `ready` on its first run, and on every later one stalls before it reads anything.
+  'test/stall.check.mjs':
+    "import { existsSync, writeFileSync } from 'node:fs';\nif (existsSync(process.argv[2])) setInterval(() => {}, 1000);\nelse {\n  writeFileSync(process.argv[2], '');\n  await import('../src/ready.mjs');\n}\n",
   // One more function than one ask breaks, each on its own line, and a test that calls them all.
   'src/many.mjs': MANY.map((name) => `export function ${name}() { return 0; }\n`).join(''),
   'test/many.check.mjs': `import * as many from '../src/many.mjs';\n${MANY.map((name) => `many.${name}();\n`).join('')}`,
@@ -57,7 +60,7 @@ const ENTERED: Readonly<Record<string, Readonly<Record<string, readonly number[]
   'src/both.mjs': { 'both entry': [5], 'both/map.arg0 entry': [5] },
   'src/log.mjs': { 'log entry': [0] },
   'src/many.mjs': Object.fromEntries(MANY.map((name) => [`${name} entry`, [3]])),
-  'src/ready.mjs': { 'ready entry': [2] },
+  'src/ready.mjs': { 'ready entry': [2, 6] },
   'src/sign.mjs': { 'sign entry': [4], 'sign if#0/then': [4], 'sign if#0/after': [4] },
   'src/total.mjs': { 'total entry': [0, 1] },
 };
@@ -79,7 +82,7 @@ describe('variance proves', () => {
       'Noticed, the test failed with the region broken:',
       '  src/total.mjs:1-3  function total  returns nothing',
       '',
-      'A survivor is an assertion that does not read the region, or a break that changes nothing the test can observe, such as code its break is equivalent to: this run cannot tell which.',
+      'A survivor is an assertion that does not read the region or passes on what its break gives, or a break that changes nothing the test can observe, such as code its break is equivalent to: this run cannot tell which.',
       '',
     ]);
     expect(snapshot(root)).toEqual(before);
@@ -142,6 +145,17 @@ describe('variance proves', () => {
     ]);
   });
 
+  it('names a break still running at its deadline that read no broken file as not broken, not hung', async () => {
+    await recorded();
+    const marker = join(mkdtempSync(join(tmpdir(), 'va-proves-stall-')), 'ran');
+
+    const answered = await run(['proves', '--file', 'test/stall.check.mjs', '--name', 'stalls', '--', process.execPath, 'test/stall.check.mjs', marker]);
+
+    expect([answered.code, answered.err]).toEqual([EXIT_CLEAN, '']);
+    expect(answered.out).not.toContain('Hung');
+    expect(answered.out).toContain('Not broken:\n  src/ready.mjs:1-3  function ready  no process the command started read the file, so the break was not run\n');
+  });
+
   it('breaks no more than its cap of regions, and counts the ones past it', async () => {
     await recorded();
 
@@ -191,7 +205,7 @@ function snapshot(root: string): Record<string, string> {
 /**
  * A checkout, committed and recorded at that commit with the regions the walk
  * cuts each file into: `adds` entered `total` and `log`, `adds again` entered
- * `total` too, `waits` entered `ready`, `calls` entered each of `MANY`, and
+ * `total` too, `waits` and `stalls` entered `ready`, `calls` entered each of `MANY`, and
  * `signs` entered `sign`, its `if` and what follows it, and `maps both` entered `both` and its two callbacks. `extra` files are written beside them first.
  */
 async function recorded(extra: Readonly<Record<string, string>> = {}): Promise<string> {
@@ -213,6 +227,7 @@ async function recorded(extra: Readonly<Record<string, string>> = {}): Promise<s
     { id: 'm', file: 'test/many.check.mjs', name: 'calls' },
     { id: 's', file: 'test/sign.check.mjs', name: 'signs' },
     { id: 'b', file: 'test/both.check.mjs', name: 'maps both' },
+    { id: 't', file: 'test/stall.check.mjs', name: 'stalls' },
   ];
   const files = tests.map(({ file }) => file);
   const fileOf = (test: number) => tests[test]?.file ?? '';

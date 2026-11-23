@@ -109,6 +109,8 @@ export async function extremeBreaks({ root, file, name, command, cwd, limit }: E
   if (configuredCacheRoot(root) !== undefined) {
     return { refused: 'the checkout\'s configuration names a cache root, which every run of the command records into, so a broken run would land in the record: ask from a checkout whose configuration names none' };
   }
+  // Windows stops a process alone, not what it started, so a run stopped at its deadline would leave its workers running.
+  if (process.platform === 'win32') return { refused: 'on Windows a run stopped at its deadline leaves the processes it started running, so a break that hangs cannot be stopped whole: ask on another platform' };
   const scratch = await mkdtemp(join(tmpdir(), 'variance-extreme-'));
   try {
     // The command's own record goes here, so no break folds into the checkout's.
@@ -165,8 +167,9 @@ export async function extremeBreaks({ root, file, name, command, cwd, limit }: E
       const now = { ...region, line: broken.line, end: broken.endLine };
       const served = await servedRun({ [cut.path]: broken.text }, command, cwd, options);
       if (served === undefined) return { refused: `\`${command[0]}\` could not be started: no such command` };
-      if (served.late) hung.push(now);
-      else if (served.unread.length > 0) unbroken.push({ region: now, reason: 'no process the command started read the file, so the break was not run' });
+      // A run that read no broken file says nothing of the break, however it ended.
+      if (served.unread.length > 0) unbroken.push({ region: now, reason: 'no process the command started read the file, so the break was not run' });
+      else if (served.late) hung.push(now);
       else (served.exit === 0 ? survived : noticed).push(now);
     }
     unbroken.push(...skipped.filter(({ key }) => !brokenKeys.has(key)).map(({ entry }) => entry));

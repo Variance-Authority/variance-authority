@@ -335,19 +335,24 @@ With `<command>` the command that runs that one test, it breaks each region the
 record says the test entered, one at a time, fewest other tests first, up to
 20: a function returns nothing, a branch, continuation or handler
 is skipped. The break is served to the processes the command starts, so
-nothing in the checkout is written and the record stays as it was. A command
+`variance` writes no file of the checkout, and the command records to a scratch
+directory, so the record stays as it was; what the command itself writes in
+the checkout stays there. A command
 that fails with nothing broken is refused, and so is a checkout whose
-`variance.config.json` names a `cacheRoot`: the runs would record into it. The
+`variance.config.json` names a `cacheRoot`: the runs would record into it. On
+Windows it is refused too: a run stopped there leaves what it started running. The
 command is the asker's: one that runs more than the asked test judges every
 break by those tests too.
 
 `Survived` is a region the test passed with broken: its assertions read nothing
-that region does, or the break changes nothing the test can see, as when the
+that region does, or accept what its break gives as well, as `not.toBe(2)`
+accepts `undefined`, or the break changes nothing the test can see, as when the
 code is equivalent to its break. The run cannot
 tell those apart, so read the region before you write the assertion. `Noticed`
 is a region the test checks. `Hung` is a region whose break kept the test
 running past its deadline, five times the unbroken run and at least two
-seconds, so it was stopped: neither a pass nor a failure. `Not broken` names
+seconds, so it was stopped after it read the broken file: neither a pass nor a
+failure. `Not broken` names
 why a region was left alone: its source changed since the recording, the record
 holds no one region at its lines, or no process the command started read
 the file, which happens when a bundler or the browser reads it rather than
