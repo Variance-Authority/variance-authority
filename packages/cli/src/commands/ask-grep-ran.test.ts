@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { encodeExecutionIndex, landCases, testCoverageFile, withCaseSections, writeTestCoverage } from '@variance-authority/sense/test-selection';
+import { encodeAsSetExecutionIndex, landCases, testCoverageFile, withCaseSections, writeTestCoverage } from '@variance-authority/sense/test-selection';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import '../bin.fixture.js';
 import { main } from '../bin.js';
@@ -84,6 +84,21 @@ describe('variance ask grep --test', () => {
       '    in branch 9-9 of check, which it did not enter; the rest of the line ran',
       "  11: export function stop(late: boolean): void { if (late) { note('give up stop'); } }",
       '    in function stop 11-11, which it did not enter',
+      'note: files no recording instruments were not searched.',
+    ]);
+  });
+
+  it('says a one-line guard is not known when the record names no owner for its regions, which leaves the branch in no function', async () => {
+    await recorded(false);
+
+    const answered = await run(['ask', 'grep', '--query', 'give up guard', '--test', 'test/ship.test.ts']);
+
+    expect([answered.code, answered.err]).toEqual([EXIT_CLEAN, '']);
+    expect(answered.out.split('\n').slice(0, 5)).toEqual([
+      '1 matching line in 1 of the 1 recorded file test/ship.test.ts  ships entered:',
+      'Not known:',
+      "src/ship.ts:9: export function check(bad: boolean): void { if (bad) { throw new Error('give up guard'); } }",
+      '  in function check 9-9, which it entered, or in branch 9-9, which it did not: the record names no owner for its regions',
       'note: files no recording instruments were not searched.',
     ]);
   });
@@ -215,8 +230,9 @@ describe('variance ask grep --test', () => {
  * enters the else-branch of `src/ship.ts`, which opens on the line the
  * then-branch closes, the one-line `check` but not the branch it holds, and
  * `told` but not `untold`, which shares its line, and not `stop`.
+ * `owned` false writes the record as a run before regions named their owners.
  */
-async function recorded(): Promise<string> {
+async function recorded(owned = true): Promise<string> {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'va-grep-ran-')));
   execFileSync('git', ['init', '--quiet', '--initial-branch', 'main'], { cwd: root, stdio: 'pipe' });
   process.chdir(root);
@@ -285,10 +301,13 @@ async function recorded(): Promise<string> {
     { id: 's', file: files[2] ?? '', name: 'ships' },
   ];
   const shard = join(mkdtempSync(join(tmpdir(), 'va-grep-ran-shard-')), 'run.bin');
-  writeFileSync(shard, withCaseSections(readFileSync(at), { index: encodeExecutionIndex({
+  // Each region's owner, the region around it by place, as the run writes it beside the index.
+  const none = 0xffffffff;
+  const owners = [[none, 0, 0], [none, 0, 0], [none, 0, 0, none, 3, none, none, none, 7]].map((owner) => Uint32Array.from(owner));
+  writeFileSync(shard, withCaseSections(readFileSync(at), { index: encodeAsSetExecutionIndex({
     tests,
     modules: [{ file: 'src/order.ts', blocks: order }, { file: 'src/refund.ts', blocks: refund }, { file: 'src/ship.ts', blocks: ship }],
-  }) }));
+  }, owned ? owners : []) }));
   const { sections } = await landCases(at, {}, root, [{ path: shard, coverage: { tests: files.map((file) => ({ file, complete: true })) } }]);
   writeFileSync(at, withCaseSections(readFileSync(at), sections));
   return root;

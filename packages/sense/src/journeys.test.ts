@@ -223,6 +223,8 @@ describe('journeys read as masks', () => {
           blocks: [region('module', '', 1, 6), region('function', 'get', 1, 3), region('branch', '', 2, 2), region('function', 'put', 4, 6)],
           called: Uint32Array.of(sets.intern([]), sets.intern([0, 1, 2]), sets.intern([0, 2]), sets.intern([0, 2])),
           loaded: Uint8Array.of(1, 0, 0, 0),
+          // The branch is `get`'s, the region around it; the functions are the module's.
+          owner: Uint32Array.of(0xffffffff, 0, 1, 0),
         },
       ],
       sets: sets.pool(),
@@ -246,10 +248,12 @@ describe('journeys read as masks', () => {
     expect(forks?.sides?.map((side) => [side.end, side.only, side.near, side.best, side.forks ?? null])).toEqual([['a', 1, 0, 1 / 3, null]]);
     expect(pathsThrough(root, { file: 'src/api.ts', line: 2 }, 'no such suite')).toBeUndefined();
 
-    // Two of three cases entered every region `finds` entered, so all of it is structure and it has no footprint.
+    // Two of three cases entered every region `finds` entered, so all of it is structure and it has no footprint:
+    // it is alike the other two, which ran only structure as well.
     const [composed] = testCompositions(root, join(root, 'test/api.test.ts'), 'finds');
     const { composition } = composed ?? {};
-    expect([composition?.test?.name, composition?.test?.blocks, composition?.structure, composition?.alike]).toEqual(['finds', 0, 3, 0]);
+    expect([composition?.test?.name, composition?.test?.blocks, composition?.structure, composition?.alike.map((other) => other.name)])
+      .toEqual(['finds', 0, 3, ['misses', 'finds again']]);
     expect(composition?.own).toEqual([]);
     expect(testCompositions(root, 'test/api.test.ts')[0]?.composition.notRecorded).toBe(
       'test/api.test.ts declares 3 recorded tests; name one of them:\n  finds\n  finds again\n  misses',

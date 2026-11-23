@@ -1032,6 +1032,7 @@
       "./archive": {
         "parseEyesArchive": "function",
         "parseEyesJournal": "function",
+        "parseJournalRow": "function",
         "readEyesArchive": "function"
       }
     }
@@ -1167,6 +1168,7 @@
         "specifierOf": "function",
         "stack": "const",
         "symbol": "const",
+        "testClaimsTool": "const",
         "testCompositionTool": "const",
         "unfound": "function",
         "uses": "const"
@@ -1467,6 +1469,10 @@
           "types": "./dist/tools.d.ts",
           "default": "./dist/tools.js"
         },
+        "./recorded-steps": {
+          "types": "./dist/recorded-steps.d.ts",
+          "default": "./dist/recorded-steps.js"
+        },
         "./protocol": {
           "types": "./dist/protocol.d.ts",
           "default": "./dist/protocol.js"
@@ -1584,6 +1590,10 @@
         "treeOf": "function",
         "vantageToolByName": "function",
         "verbOf": "function"
+      },
+      "./recorded-steps": {
+        "RecordedSteps": "type",
+        "recordedSteps": "function"
       },
       "./protocol": {
         "EYES": "const",
@@ -2941,6 +2951,7 @@
         "PackagesAround": "interface",
         "ParseCache": "interface",
         "Parsed": "interface",
+        "PassedAt": "type",
         "PathKind": "interface",
         "PathKinds": "interface",
         "PathsThrough": "interface",

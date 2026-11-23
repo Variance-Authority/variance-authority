@@ -48,7 +48,9 @@ describe('a call whose modules the host cannot read', () => {
     try {
       input.write(`${JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'names' } })}\n`);
       input.write(`${JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'ping' })}\n`);
-      await expect.poll(() => answers.map((answer) => answer.id)).toEqual([1, 2]);
+      // The first call that names a region loads the parser, which can take a
+      // second on its own: the claim is that both calls are answered, not when.
+      await expect.poll(() => answers.map((answer) => answer.id), { timeout: 10_000 }).toEqual([1, 2]);
 
       expect(answers[0]!.result?.isError).toBe(true);
     } finally {

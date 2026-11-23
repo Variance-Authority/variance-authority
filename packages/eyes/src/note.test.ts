@@ -37,6 +37,14 @@ describe('what Eyes says to a story', () => {
       outcome: 'resolved',
       after: [button()],
     })).toBe('eyes getByRole("button").first().click → button#save "Save"');
+    expect(noteOf({
+      kind: 'playwright-locator',
+      operation: 'assertion',
+      member: 'to.be.empty',
+      locator: [{ member: 'getByLabel', arguments: ['Count'] }],
+      negated: true,
+      outcome: 'resolved',
+    })).toBe('eyes getByLabel("Count").not.to.be.empty');
     expect(noteOf({ kind: 'document-event', event: 'click', trusted: false, target: button('SaveBar') }))
       .toBe('eyes click (synthetic) on button#save "Save" in SaveBar');
     expect(noteOf({ kind: 'eyes-phase', phase: 'act' })).toBe('eyes act');

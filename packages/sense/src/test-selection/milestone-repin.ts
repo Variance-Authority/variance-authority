@@ -30,7 +30,7 @@ import { caseSectionsOf, withCaseSections } from './case-record.js';
 import { layerCaseIndex } from './case-layer.js';
 import { commitRunsFile, readCommitRuns, writeCommitRuns, type CommitRuns, type StandingEntry } from './commit-runs.js';
 import { linesOf } from './case-lines.js';
-import { decodeSetExecutionIndex, encodeOwnedSetExecutionIndex, openSetColumns, openSetExecutionIndex } from './execution-set-format.js';
+import { decodeSetExecutionIndex, encodeAsSetExecutionIndex, openSetColumns, openSetExecutionIndex } from './execution-set-format.js';
 import { layEyes, readableEyes } from './eyes-record.js';
 import { decodeTestCoverage } from './format.js';
 import { layCoverage } from './format-layer.js';
@@ -239,7 +239,7 @@ export function repinnedCases(
       })),
     };
   });
-  const fresh = encodeOwnedSetExecutionIndex({ tests: cases, modules: kept.map(({ module }) => module) }, kept.map(({ owner }) => owner), lines);
+  const fresh = encodeAsSetExecutionIndex({ tests: cases, modules: kept.map(({ module }) => module) }, kept.map(({ owner }) => owner), lines);
   const files = [...tests];
   return layerCaseIndex(milestone, fresh, { ran: files, finished: files, before: false }, edit).merged;
 }

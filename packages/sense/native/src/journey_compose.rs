@@ -20,7 +20,7 @@ use std::collections::{HashMap, HashSet};
 
 use napi_derive::napi;
 
-use crate::journey_masks::{JourneyMasks, Shape};
+use crate::journey_masks::{is_structural, JourneyMasks, Shape};
 use crate::journey_paths::{block, case_of, JourneyBlock, JourneyCase};
 use crate::order;
 
@@ -50,8 +50,9 @@ pub struct TestComposition {
     pub test: Option<JourneyCase>,
     /// Regions it entered that more than half the suite entered too.
     pub structure: u32,
-    /// Other tests whose footprint is exactly its own.
-    pub alike: u32,
+    /// Other tests whose footprint is exactly its own, in recording order;
+    /// `blocks` is that footprint.
+    pub alike: Vec<JourneyCase>,
     /// Smaller tests inside it, most shared first.
     pub pieces: Vec<JourneyPiece>,
     /// Larger tests holding it, smallest first.
@@ -70,7 +71,7 @@ fn refused(reason: String) -> TestComposition {
         suite: 0,
         test: None,
         structure: 0,
-        alike: 0,
+        alike: Vec::new(),
         pieces: Vec::new(),
         wholes: Vec::new(),
         explained: 0,
@@ -105,7 +106,7 @@ pub(crate) fn compose(masks: &mut JourneyMasks, file: &str, name: Option<&str>) 
             continue;
         }
         let members = masks.entered(at as u32)?;
-        if members.len() * 2 > suite {
+        if is_structural(members.len(), suite) {
             structural[at] = true;
             for &case in members.iter() {
                 if let Some(count) = held.get_mut(case as usize) {
@@ -130,7 +131,7 @@ pub(crate) fn compose(masks: &mut JourneyMasks, file: &str, name: Option<&str>) 
             }
         }
     }
-    let (mut pieces, mut wholes, mut alike) = (Vec::new(), Vec::new(), 0);
+    let (mut pieces, mut wholes, mut alike) = (Vec::new(), Vec::new(), Vec::new());
     if size > 0 {
         for (&case, &with) in &shared {
             let theirs = footprint(case);
@@ -139,12 +140,16 @@ pub(crate) fn compose(masks: &mut JourneyMasks, file: &str, name: Option<&str>) 
             } else if theirs > size && f64::from(with) >= HOLDS * f64::from(size) {
                 wholes.push((case, theirs, with));
             } else if theirs == size && with == size {
-                alike += 1;
+                alike.push(case);
             }
         }
+    } else {
+        // Nothing of its own: alike every other test that ran only structure, a piece or a whole of none.
+        alike = (0..sizes.len() as u32).filter(|&case| case != asked && footprint(case) == 0).collect();
     }
     pieces.sort_by_key(|&(case, theirs, with)| (u32::MAX - with, u32::MAX - theirs, case));
     wholes.sort_by_key(|&(case, theirs, _)| (theirs, case));
+    alike.sort_unstable();
 
     let mut kept = vec![false; suite];
     for &(case, _, _) in &pieces {
@@ -176,7 +181,7 @@ pub(crate) fn compose(masks: &mut JourneyMasks, file: &str, name: Option<&str>) 
         suite: suite as u32,
         test: Some(case_of(masks, asked, size, None)?),
         structure: entered.len() as u32 - size,
-        alike,
+        alike: alike.into_iter().map(|case| case_of(masks, case, size, None)).collect::<Result<_, _>>()?,
         pieces: pieces.into_iter().map(|found| piece(masks, found)).collect::<Result<_, _>>()?,
         wholes: wholes.into_iter().map(|found| piece(masks, found)).collect::<Result<_, _>>()?,
         explained,
@@ -197,12 +202,27 @@ pub struct RanRegion {
     pub function: Option<String>,
     /// Whether the test entered it.
     pub entered: bool,
+    /// Whether more than half the suite entered it, as a composition counts structure.
+    pub structure: bool,
+    /// Whether the test entered the function it is written in, itself for a
+    /// function; absent when no recorded function holds it.
+    pub function_entered: Option<bool>,
+    /// How many other tests entered it: none says only this test enters it
+    /// when it did, and no test takes it when it did not.
+    pub others: u32,
+    /// The smallest other journey that entered it, the one to read for what
+    /// takes it; absent when no other test did. `blocks` is its journey size.
+    pub smallest: Option<JourneyCase>,
 }
 
 /// A module the test entered, with every region recorded in it.
 #[napi(object)]
 pub struct RanModule {
     pub file: String,
+    /// Whether the record names the region around each of its regions. When it
+    /// does not, which function holds a region inside one is not known, and
+    /// neither is what the test passed by there.
+    pub owners_named: bool,
     /// In row order.
     pub regions: Vec<RanRegion>,
 }
@@ -237,6 +257,7 @@ pub(crate) fn ran(masks: &mut JourneyMasks, file: &str, name: Option<&str>) -> R
         Err(reason) => return Ok(TestRan { not_recorded: Some(reason), suite: 0, test: None, modules: Vec::new() }),
     };
     let suite = masks.journey.tests();
+    let sizes = masks.sizes()?;
     let mut only = vec![false; suite];
     only[asked as usize] = true;
     let entered: HashSet<u32> = masks.masks(&only)?.remove(&asked).unwrap_or_default().into_iter().collect();
@@ -250,6 +271,11 @@ pub(crate) fn ran(masks: &mut JourneyMasks, file: &str, name: Option<&str>) -> R
                 continue;
             }
             let held = block(masks, bit)?;
+            let members = masks.entered(bit)?;
+            let structure = is_structural(members.len(), suite);
+            let function_entered = masks.bits[bit as usize].function.map(|function| entered.contains(&function));
+            let others: Vec<u32> = members.iter().copied().filter(|&case| case != asked).collect();
+            let smallest = others.iter().copied().min_by_key(|&case| (sizes[case as usize], case));
             regions.push(RanRegion {
                 kind: held.kind,
                 line: held.line,
@@ -257,9 +283,14 @@ pub(crate) fn ran(masks: &mut JourneyMasks, file: &str, name: Option<&str>) -> R
                 source: masks.bits[bit as usize].source,
                 function: held.function,
                 entered: entered.contains(&bit),
+                structure,
+                function_entered,
+                others: others.len() as u32,
+                smallest: smallest.map(|case| case_of(masks, case, sizes[case as usize], None)).transpose()?,
             });
         }
-        modules.push(RanModule { file: masks.journey.module_file(module as usize)?.to_owned(), regions });
+        let owners_named = masks.rows_of(module as usize).all(|bit| masks.bits[bit as usize].owned);
+        modules.push(RanModule { file: masks.journey.module_file(module as usize)?.to_owned(), owners_named, regions });
     }
     modules.sort_by(|a, b| order::code_unit(&a.file, &b.file));
     Ok(TestRan { not_recorded: None, suite: suite as u32, test: Some(case_of(masks, asked, entered.len() as u32, None)?), modules })

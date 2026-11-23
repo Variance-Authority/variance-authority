@@ -321,7 +321,7 @@ export function executionIndexFrom(
 
 /**
  * {@link executionIndexFrom}, with the owners of each module it keeps, in the
- * order of `index.modules`: what `encodeOwnedSetExecutionIndex` writes beside
+ * order of `index.modules`: what `encodeAsSetExecutionIndex` writes beside
  * it. Two ids can share a file, a source and the build its map projects onto
  * it, so a module's owners are found by its place, not its file.
  */

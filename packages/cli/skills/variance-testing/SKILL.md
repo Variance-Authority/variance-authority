@@ -1,6 +1,6 @@
 ---
 name: variance-testing
-description: Write, fix, debug, improve and shorten tests with the record Variance Authority keeps. Use it before you change code, to start from a failing test, when a test fails, flakes or passes when it should not, when you need the tests an edit reaches, when you write tests for a change or improve a file's coverage, or when a test loads or renders more than it needs. Not for visual review.
+description: Write, fix, debug, improve and shorten tests with the record Variance Authority keeps. Use it before you change code, to start from a failing test, when a test fails, flakes or passes when it should not, when you need the tests an edit reaches, when you write tests for a change or improve a file's coverage, or when a test loads or renders more than it needs, or when you judge whether a test does what its name says. Not for visual review.
 ---
 
 # Testing with Variance Authority
@@ -280,6 +280,50 @@ what they were and no initiator newly appears outside; revert it otherwise, and
 when a reading is unavailable. Two candidates in one rerun do not show which one
 was safe.
 [distill](../variance-authority/references/distill.md)
+
+## Hold a test against what its name says
+
+```bash
+variance ask test-claims --file e2e/signup.spec.ts --name 'retries a failed post'
+```
+
+The answer puts the test's claims, its name and the steps and assertions Eyes
+recorded, beside what it ran, what it adds to the suite and what it passed by. Judge it in this order:
+
+1. Take each claim in the name: a verb, a condition, an actor, such as
+   *retries*, *when offline*, *as a guest*. Find the region that does it: a
+   branch, a case, a loop body, a handler. Under
+   `only this test enters`, the test runs its claim. Under `Passed by`, it does
+   not, and `no test takes it` is a path the suite never runs.
+2. A test that runs the same regions as another test, structure aside, is
+   judged with that test, never alone. The one whose name says what both run keeps its name.
+   The other adds no execution: if its name claims something else, that is a
+   path to drive; if both names say the same, one of them goes.
+3. Compare the steps and assertions with the twin's, asked the same way. An
+   assertion is named by its matcher and its Locator, not the value it compares
+   against, so `toHaveText('')` and `toHaveText(/^Saved/)` read alike: read both
+   in the source. Two tests check one thing only when they drive the same input
+   down the same path and assert the same value.
+
+Then choose one action and name the exact change:
+
+- `keep`: it runs what its name says, and something no other test runs.
+- `rename`: it runs something of its own, but not what its name says.
+- `exercise the claimed path`: its name claims a region under `Passed by`, or
+  it runs the same regions as another test. Name the region and the input that
+  drives it, such as a post that fails once.
+- `collapse into <test>`: it adds no execution, and what it asserts fits into
+  that test as one more assertion.
+- `delete`: it adds no execution, another test drives the same input, and
+  every assertion it makes, that test makes too.
+
+Cite each judgement with the part and the row it comes from, such as
+`Passed by` → `src/app/http.js:17-19  handler in post  no test takes it`, and
+open the source only to read what a named region does. Before a `collapse` or a
+`delete`, break the line its own input decides, the branch or the value that
+input alone reaches, and run it beside the tests next to it: a test that alone
+fails checks something they do not.
+[orient](../variance-authority/references/orient.md#test-claims)
 
 ## Rules
 

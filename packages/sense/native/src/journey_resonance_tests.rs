@@ -20,7 +20,9 @@ use crate::journey_record::{Block, Module};
 /// method of the same name opens on the next line, entered by case 0.
 /// `inner.ts` declares, inside `wrapper`, a constant on line 2 whose arrow
 /// opens on line 3, and `classed.ts` a constant whose line holds a class with a
-/// method of its name; case 0 enters both.
+/// method of its name; case 0 enters both. `guard.ts` is the one-line `check`,
+/// which case 0 enters, and the branch on its line, which nobody enters; the
+/// record names no owners, so the branch is in no function.
 fn recorded() -> JourneyMasks {
     let tests: Vec<Test> = (0..4)
         .map(|case| Test { id: format!("t{case}"), file: format!("t{case}.test.ts"), name: format!("case {case}"), project: None, runner: None, settled: FINISHED, heard: None })
@@ -45,6 +47,7 @@ fn recorded() -> JourneyMasks {
         module("src/stored.ts", vec![block("module", "", 1, 2), block("function", "Store/useSessionId", 2, 2)]),
         module("src/inner.ts", vec![block("module", "", 1, 4), block("function", "wrapper", 1, 4), block("function", "wrapper/useSessionId", 3, 3)]),
         module("src/classed.ts", vec![block("module", "", 1, 1), block("function", "Store/useSessionId", 1, 1)]),
+        module("src/guard.ts", vec![block("module", "", 1, 1), block("function", "check", 1, 1), block("branch", "", 1, 1)]),
     ];
     let mut sets = SetPool::new(tests.len());
     let mut set = |members: &[u32]| sets.intern(members);
@@ -65,6 +68,7 @@ fn recorded() -> JourneyMasks {
         vec![set(&[]), set(&[0])],
         vec![set(&[]), set(&[]), set(&[0])],
         vec![set(&[]), set(&[0])],
+        vec![set(&[]), set(&[0]), set(&[])],
     ];
     let loaded: Vec<Vec<bool>> = modules.iter().map(|module| vec![false; module.blocks.len()]).collect();
     let encoded: Vec<EncodedModule<'_>> = modules
@@ -126,6 +130,16 @@ fn a_line_no_case_ran_has_no_cases_and_one_no_function_holds_is_refused() {
     assert_eq!(outside.not_recorded.as_deref(), Some("no recorded function holds src/page.ts:1"));
     let unwritten = resonate(&mut masks, "src/page.ts", 3, &[at("src/absent.ts", 1)]).unwrap();
     assert!(unwritten.resonant.iter().any(|row| row.candidate == 0 && !row.recorded));
+}
+
+#[test]
+fn a_one_line_guard_of_a_record_that_names_no_owners_is_refused_as_not_known() {
+    let mut masks = recorded();
+    let answer = resonate(&mut masks, "src/guard.ts", 1, &[at("src/session.ts", 1)]).unwrap();
+    assert_eq!(
+        answer.not_recorded.as_deref(),
+        Some("which cases ran src/guard.ts:1 is not known: the record names no owner for its regions, so the branch 1-1 a case did not enter may be function check's")
+    );
 }
 
 #[test]

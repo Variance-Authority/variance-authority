@@ -3,8 +3,8 @@
 //! any recording, not only one made in story mode.
 //!
 //! Every region is a bit, numbered by its row in the file. A region's function
-//! is the smallest function of its module whose span holds the region's first
-//! line; a function is its own. A case's journey is its mask, and its size is
+//! is the nearest function up the owners the record names; a function is its
+//! own. A case's journey is its mask, and its size is
 //! how many regions it entered, so "the smallest journey" means the case that
 //! did the least besides.
 //!
@@ -41,6 +41,9 @@ pub(crate) struct Bit {
     /// The function the region is written in: itself for a function, absent
     /// for a module or a region no recorded function holds.
     pub function: Option<u32>,
+    /// Whether its function is known: a region inside a function is known
+    /// only when the record names the region that holds it.
+    pub owned: bool,
 }
 
 pub(crate) struct JourneyMasks {
@@ -65,6 +68,7 @@ impl JourneyMasks {
         for module in 0..journey.modules() {
             let from = bits.len() as u32;
             let regions = journey.regions(module)?;
+            let mut owners = Vec::with_capacity(regions.len());
             for region in &regions {
                 if region.at != bits.len() {
                     return Err("journey regions are not numbered by row".to_owned());
@@ -91,10 +95,12 @@ impl JourneyMasks {
                     source: region.source,
                     called: region.called,
                     function: None,
+                    owned: shape != Shape::Inner || region.owner.is_some(),
                 });
+                owners.push(region.owner);
             }
             let to = bits.len() as u32;
-            enclose(&mut bits[from as usize..to as usize], from);
+            enclose(&mut bits[from as usize..to as usize], from, &owners)?;
             rows.push((from, to));
         }
         Ok(JourneyMasks { journey, bits, rows, sets: HashMap::new(), sizes: None })
@@ -173,7 +179,9 @@ impl JourneyMasks {
     /// The source regions of module `module` holding `line` that hold no other
     /// that does: what a case entered when it ran the line. Two regions of one
     /// span do not nest, save a function and its own one-line guard; two that
-    /// meet on the line are both innermost. `passedAt` reads "ran" by this rule.
+    /// meet on the line are both innermost, and so are a function and a guard
+    /// a record naming no owners leaves in no function. `passedAt` reads "ran"
+    /// by this rule.
     pub fn innermost_at(&self, module: usize, line: u32) -> Vec<u32> {
         let (from, to) = self.rows[module];
         let holding: Vec<u32> = (from..to)
@@ -230,25 +238,31 @@ impl JourneyMasks {
     }
 }
 
-/// Give each region of one module the function it is written in.
-fn enclose(bits: &mut [Bit], from: u32) {
-    let functions: Vec<(u32, u32, u32)> = bits
-        .iter()
-        .enumerate()
-        .filter(|(_, bit)| bit.shape == Shape::Function)
-        .map(|(at, bit)| (bit.start, bit.end, from + at as u32))
-        .collect();
-    for (at, bit) in bits.iter_mut().enumerate() {
-        bit.function = match bit.shape {
+/// Give each region of one module the function it is written in: the nearest
+/// function up the owners the record names, each before its region, so one
+/// pass in row order has every owner's answer first. A region with no owner —
+/// code at the top of the module, or any region of a record that names no
+/// owners — is written in none.
+fn enclose(bits: &mut [Bit], from: u32, owners: &[Option<u32>]) -> Result<(), String> {
+    for at in 0..bits.len() {
+        bits[at].function = match bits[at].shape {
             Shape::Module => None,
             Shape::Function => Some(from + at as u32),
-            Shape::Inner => functions
-                .iter()
-                .filter(|(start, end, _)| *start <= bit.start && bit.start <= *end)
-                .min_by_key(|(start, end, row)| (end - start, *row))
-                .map(|(_, _, row)| *row),
+            Shape::Inner => match owners[at] {
+                None => None,
+                Some(owner) if owner as usize >= at => return Err("journey names an owner after its region".to_owned()),
+                Some(owner) => bits[owner as usize].function,
+            },
         };
     }
+    Ok(())
+}
+
+/// Whether a region `entered_by` of the `suite` cases entered is structure:
+/// more than half of them entered it, so entering it tells one case from
+/// another by nothing.
+pub(crate) fn is_structural(entered_by: usize, suite: usize) -> bool {
+    entered_by * 2 > suite
 }
 
 /// How much two ascending masks share, over the larger of them.
@@ -274,4 +288,4 @@ pub(crate) fn overlap(left: &[u32], right: &[u32]) -> f64 {
 
 #[cfg(test)]
 #[path = "journey_masks_tests.rs"]
-mod tests;
+pub(crate) mod tests;

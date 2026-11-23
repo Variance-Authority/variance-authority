@@ -28,8 +28,9 @@ export function formatTestComposition(composition: TestComposition): string {
   }
   const head = `${test.file}  ${test.name}: a footprint of ${regions(test.blocks)}`;
   const lines = [structure === 0 ? `${head}.` : `${head}; ${structure} more ${structure === 1 ? 'is' : 'are'} structure, ${majority}.`];
-  if (composition.alike > 0) {
-    lines.push(`${composition.alike === 1 ? '1 other test' : `${composition.alike} other tests`} ran exactly the same regions.`);
+  if (composition.alike.length > 0) {
+    lines.push('', 'Alike, other tests that ran the same regions, structure aside:');
+    lines.push(...cappedRows(composition.alike, (alike) => `  ${namedTest(alike)}`, ROWS));
   }
   if (composition.pieces.length === 0 && composition.wholes.length === 0) {
     lines.push('', 'No smaller test sits inside it and no larger test holds it.');
@@ -65,16 +66,33 @@ export function formatTestComposition(composition: TestComposition): string {
 }
 
 function named(piece: JourneyPiece): string {
-  return `${piece.case.file}  ${piece.case.name}`;
+  return namedTest(piece.case);
+}
+
+/** A recorded test as every answer about tests names one: its file, then its name. */
+export function namedTest(test: { readonly file: string; readonly name: string }): string {
+  return `${test.file}  ${test.name}`;
+}
+
+/** A region's lines: one, or the first and the last. */
+export function spanOf(block: { readonly line: number; readonly end: number }): string {
+  return block.end === block.line ? `${block.line}` : `${block.line}-${block.end}`;
 }
 
 /** A region as its place and what it is; a function is named, any other region by the function it is written in. An anonymous function has no name to give. */
 function region(block: JourneyBlock): string {
-  const span = block.end === block.line ? `${block.line}` : `${block.line}-${block.end}`;
+  return `  ${regionPlace(block.file, block)}`;
+}
+
+/** A region of `file` as its place and what it is, as every answer about a test's regions names one. */
+export function regionPlace(
+  file: string,
+  block: { readonly kind: string; readonly line: number; readonly end: number; readonly function?: string | null },
+): string {
   const what = block.function === undefined || block.function === null || block.function === ''
     ? block.kind
     : block.kind === 'function' ? `function ${block.function}` : `${block.kind} in ${block.function}`;
-  return `  ${block.file}:${span}  ${what}`;
+  return `${file}:${spanOf(block)}  ${what}`;
 }
 
 function regions(count: number): string {

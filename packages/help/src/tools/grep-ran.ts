@@ -7,7 +7,9 @@
  * so a file it only loaded, a file it never reached and a file no recording
  * instruments are not searched. Each line is classified by sense's `passedAt`:
  * ran when an innermost region holding it was entered, or not taken in the
- * outermost region holding it that the test did not enter.
+ * outermost region holding it that the test did not enter, or not known when a
+ * record that names no owners cannot say whether the region it did not enter
+ * is in the function it did.
  *
  * The regions are spans of the commit the recording ran at. A file edited since
  * is read through git's diff against that commit, as `journeys` reads a line: a
@@ -21,6 +23,7 @@ import { codeUnitOrder } from '@variance-authority/core/segment';
 import { linesThen, passedAt, testsRan, type RanRegion, type TestRan } from '@variance-authority/sense';
 import { nextPage, pageAt, paged, type Page, type Spelling } from '@variance-authority/mcp/tools';
 import { byFile } from './format.js';
+import { ofSuite } from './asked-test.js';
 import { ripgrep, type Hit } from './ripgrep.js';
 
 /** One suite's matching lines, split by whether the test ran them. */
@@ -30,6 +33,8 @@ interface Marked {
   readonly taken: readonly Hit[];
   /** Each with the outermost region holding it that the test did not enter, and whether the rest of its line ran. */
   readonly passed: readonly { readonly hit: Hit; readonly by: RanRegion; readonly partly: boolean }[];
+  /** Each with a region it did not enter on the lines of a function it did, which a record naming no owners cannot place. */
+  readonly unknown: readonly { readonly hit: Hit; readonly unowned: RanRegion; readonly beside: RanRegion }[];
   /** Lines written since the recorded commit. */
   readonly written: readonly Hit[];
   /** A file read through its diff against the recorded commit, or that git could not diff. */
@@ -42,9 +47,6 @@ export interface GrepRan {
   readonly answered: readonly Marked[];
   readonly refused: readonly string[];
 }
-
-/** `suite x: ` before a suite's answer, nothing for the one suite a recording names no name for. */
-export const ofSuite = (suite: string | undefined): string => (suite === undefined ? '' : `suite ${suite}: `);
 
 /** Each suite's matching lines for the chosen test, or the refusals when no suite holds it. */
 export function grepRan(root: string, query: string, file: string, name: string | undefined): GrepRan {
@@ -59,6 +61,7 @@ export function grepRan(root: string, query: string, file: string, name: string 
     const { hits, errors } = ripgrep(root, query, files);
     const taken: Hit[] = [];
     const passed: { hit: Hit; by: RanRegion; partly: boolean }[] = [];
+    const unknown: { hit: Hit; unowned: RanRegion; beside: RanRegion }[] = [];
     const written: Hit[] = [];
     const notes: string[] = [];
     for (const file of files) {
@@ -74,16 +77,18 @@ export function grepRan(root: string, query: string, file: string, name: string 
         if (line == null) return void written.push(hit);
         const kept = passedAt(modules.get(file)!, line);
         if (kept === undefined) taken.push(hit);
+        else if ('unowned' in kept) unknown.push({ hit, unowned: kept.unowned, beside: kept.beside });
         else passed.push({ hit, by: kept.region, partly: kept.partly });
       });
     }
-    return { ...(suite === undefined ? {} : { suite }), ran, taken, passed, written, notes, errors };
+    return { ...(suite === undefined ? {} : { suite }), ran, taken, passed, unknown, written, notes, errors };
   });
   return { answered, refused };
 }
 
 /**
- * The answer, ran lines first, then the lines in regions the test passed by.
+ * The answer, ran lines first, then the lines in regions the test passed by,
+ * then those the record cannot place.
  * Each suite's lines are one ordered list, so `page` counts across its
  * sections, and every suite shows the same rows of its own list.
  */
@@ -97,7 +102,7 @@ function within<Row>(rows: readonly Row[], start: number, page: Page): readonly 
   return paged(rows, { offset: from, limit: Math.max(0, page.offset + page.limit - start - from) });
 }
 
-function formatSuite(query: string, { suite, ran, taken, passed, written, notes, errors }: Marked, page: Page, spell: Spelling): string {
+function formatSuite(query: string, { suite, ran, taken, passed, unknown, written, notes, errors }: Marked, page: Page, spell: Spelling): string {
   const test = ran.test!;
   const entered = ran.modules.length;
   const searched = `${entered === 1 ? 'the 1 recorded file' : `the ${entered} recorded files`} ${ofSuite(suite)}${test.file}  ${test.name} entered`;
@@ -107,9 +112,9 @@ function formatSuite(query: string, { suite, ran, taken, passed, written, notes,
     ...(errors.length === 0 ? [] : [`note: ripgrep reported ${errors.length} ${errors.length === 1 ? 'error' : 'errors'} reading them; the first: ${errors[0]}`]),
     ...notes.map((note) => `note: ${note}`),
   ];
-  const total = taken.length + passed.length + written.length;
+  const total = taken.length + passed.length + unknown.length + written.length;
   if (total === 0) return [`Nothing in ${searched} matches \`${query}\`.`, ...noted].join('\n');
-  const matched = new Set([...taken, ...passed.map(({ hit }) => hit), ...written].map((hit) => hit.file)).size;
+  const matched = new Set([...taken, ...[...passed, ...unknown].map(({ hit }) => hit), ...written].map((hit) => hit.file)).size;
   const lines = [`${total} matching ${total === 1 ? 'line' : 'lines'} in ${matched} of ${searched}:`, ...pageAt(page, total, spell)];
   const ranShown = within(taken, 0, page);
   if (ranShown.length > 0) lines.push('Ran:', ...byFile(ranShown));
@@ -118,7 +123,15 @@ function formatSuite(query: string, { suite, ran, taken, passed, written, notes,
     const rows = passedShown.map(({ hit, by, partly }) => ({ ...hit, note: `in ${region(by)}, which it did not enter${partly ? '; the rest of the line ran' : ''}` }));
     lines.push('Not taken:', ...byFile(rows));
   }
-  const writtenShown = within(written, taken.length + passed.length, page);
+  const unknownShown = within(unknown, taken.length + passed.length, page);
+  if (unknownShown.length > 0) {
+    const rows = unknownShown.map(({ hit, unowned, beside }) => ({
+      ...hit,
+      note: `in ${region(beside)}, which it entered, or in ${region(unowned)}, which it did not: the record names no owner for its regions`,
+    }));
+    lines.push('Not known:', ...byFile(rows));
+  }
+  const writtenShown = within(written, taken.length + passed.length + unknown.length, page);
   if (writtenShown.length > 0) lines.push('Written since the recording, so no test has run it:', ...byFile(writtenShown));
   return [...lines, ...noted, ...nextPage(page, total, spell)].join('\n');
 }

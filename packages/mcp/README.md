@@ -610,9 +610,10 @@ so an integration does not need the combined surface to receive it.
 |---|---|---|
 | `.` | stdio | `serve`, `serveReportFile`, `serveEyesRecord` and `serveVantage`, `readEyesRecord` and `RecordKeepsNoEyes`, and the subject locator |
 | `./tools` | nothing | observability answers as pure functions over their native evidence |
+| `./recorded-steps` | a readable record | `recordedSteps` and `RecordedSteps`: the steps and assertions the Eyes journal of a record keeps for one case, by the case's id, read synchronously |
 | `./protocol` | nothing | MCP framing, as a pure function from a request to a response |
 
-Two of the three are pure, and that is deliberate. The question that
+Two of the four are pure, and that is deliberate. The question that
 matters — *does this actually help an agent fix it?* — has to stay cheap to ask,
 and it stops being asked the moment answering it requires speaking a protocol
 over a pipe.
