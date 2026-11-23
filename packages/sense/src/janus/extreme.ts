@@ -1,23 +1,11 @@
 // compass: variance-authority.reach
 /**
  * What one recorded test would not notice broken: each region it entered,
- * broken in the extreme, served under a command that runs the test.
- *
- * A function returns nothing; a branch, a continuation or a handler is
- * skipped. That is the extreme mutation of pseudo-tested code (Niedermayr,
- * Juergens & Wagner, CSED 2016; Descartes, ASE 2018): one break per region,
- * so the run is one test per region, and the record chooses the regions, so no
- * coverage pass runs first. A loop body is not broken: emptying one can leave
- * the loop running for ever. A break that still runs past a deadline is
- * stopped and named as hung.
- *
- * Each break is cut from the source as the checkout has it now by
- * `sourceCut`, under the probes the recording was made with, and matched to
- * the record's region by placing the cut's lines at the recording's commit
- * with `linesThen`; a line that cannot be placed leaves its region unbroken
- * rather than read where it stands now. It is served as `serveBase` serves a base:
- * nothing is written to the checkout, and the command's record goes to a
- * scratch directory, so the real one is left as it was.
+ * broken in the extreme — a function returns nothing, a branch, continuation
+ * or handler is skipped — and served under a command that runs the test. That
+ * is the extreme mutation of pseudo-tested code (Niedermayr, Juergens & Wagner,
+ * CSED 2016; Descartes, ASE 2018): the record chooses the regions, so no
+ * coverage pass runs first, and nothing is written to the checkout or its record.
  */
 
 import type { StdioOptions } from 'node:child_process';
@@ -36,7 +24,7 @@ import { askCoverageFile } from '../test-selection/coverage-file.js';
 import type { CoverageBlock } from '../test-selection/index.js';
 import { servedRun } from './serve-base.js';
 
-/** The kinds of region a break is made in. */
+/** The kinds of region a break is made in: not a loop body, since emptying one can leave the loop running for ever. */
 const BROKEN = new Set(['function', 'branch', 'continuation', 'handler']);
 
 /** A break may run this many times as long as the run with nothing broken, and never less than {@link DEADLINE_FLOOR} milliseconds. */
@@ -242,7 +230,13 @@ function placedAt(root: string, cut: Cut, commit: string): NativeLinesThen {
 /** The empty text a block's span is replaced with, in the order each is tried: a function's span runs from its parameters to the end of its body. */
 const empties = (kind: string, opening: string | undefined): readonly string[] => (kind === 'function' ? ['() {}', '() => undefined'] : [opening === '{' ? '{}' : ';']);
 
-/** The broken block: the cut file's text with `region` broken in the extreme, and where the block stands now; or why it cannot be broken. */
+/**
+ * The broken block: the cut file's text with `region` broken in the extreme,
+ * and where the block stands now; or why it cannot be broken. The block is cut
+ * from today's text and matched by placing its lines at the recording's commit:
+ * a line that cannot be placed leaves the region unbroken rather than read where
+ * it stands now.
+ */
 function extremeBreak(
   root: string,
   cut: Cut,
