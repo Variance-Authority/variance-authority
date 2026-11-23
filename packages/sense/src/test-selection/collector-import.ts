@@ -1,7 +1,7 @@
 /** The specifier the probes' build resolves to the execution collector. */
 export const VIRTUAL_COLLECTOR = 'variance-authority:execution-collector';
 
-/** What every probed module ends with: an import, hoisted, so the collector loads ahead of its probes. */
+/** What every module the Vite plugin probes ends with: an import, hoisted, so the collector loads ahead of its probes. */
 export const COLLECTOR_IMPORT = `\n;import ${JSON.stringify(VIRTUAL_COLLECTOR)};`;
 
 /**
@@ -14,6 +14,6 @@ export const COLLECTOR_IMPORT = `\n;import ${JSON.stringify(VIRTUAL_COLLECTOR)};
  * from source or from the built package, beside the build it stands in for.
  */
 export function withoutCollectorImport(code: string): string {
-  if (!code.endsWith(COLLECTOR_IMPORT)) throw new Error('the module does not end with the collector import a probed module ends with');
+  if (!code.endsWith(COLLECTOR_IMPORT)) throw new Error('the module does not end with the collector import the Vite plugin appends to a module it probes');
   return code.slice(0, -COLLECTOR_IMPORT.length);
 }
