@@ -116,13 +116,11 @@ const intersection = intersectionOf<Help>(ALONE);
  *
  * `docs_slowest_tests` is about the suite rather than the source: which test
  * files the latest recorded run says took longest, as the runner timed them.
- * It sits here because it reads the same recording `docs_orient` reads.
- * `docs_journey_map` reads it too, around one file: the code the tests that
- * entered that file went on to enter, nearest first. `docs_test_composition`
- * reads it around one test: the smaller tests inside it, the larger ones
- * holding it, and what none of its pieces entered. `docs_test_claims` holds
- * that test against what it says: its name and recorded steps, the functions it
- * ran, what it adds, and the branches it passed by. `docs_containment` reads git.
+ * It sits here because it reads the recording `docs_orient` reads.
+ * `docs_journey_map` reads it around one file, nearest first;
+ * `docs_test_composition` around one test: its pieces, its wholes, and what no
+ * piece entered; `docs_test_claims` sets that test's name and recorded steps
+ * beside what it ran, adds and passed by. `docs_containment` reads git.
  *
  * `docs_stack` answers what a location may import that nobody wrote: the
  * third-party packages its owning manifest declares, read from the published

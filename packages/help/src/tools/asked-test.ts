@@ -26,6 +26,17 @@ export function askedTest(question: string, input: Record<string, unknown>, invo
   return { root, file, ...(name === undefined ? {} : { name }) };
 }
 
+/** The input both questions about one recorded test take. */
+export const ASKED_TEST_INPUT = {
+  type: 'object',
+  properties: {
+    file: { type: 'string', description: 'The test file that declares the test, from the root of the checkout or of the file system.' },
+    name: { type: 'string', description: 'Optional when the file declares one recorded test. The test\'s name, or a word of it.' },
+  },
+  required: ['file'],
+  additionalProperties: false,
+} as const;
+
 /** `suite x: ` before a suite's answer, nothing for the one suite a recording names no name for. */
 export const ofSuite = (suite: string | undefined): string => (suite === undefined ? '' : `suite ${suite}: `);
 

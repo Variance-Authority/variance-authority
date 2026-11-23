@@ -1030,6 +1030,7 @@
         "eyesFixtures": "const"
       },
       "./archive": {
+        "createEyesArchive": "function",
         "parseEyesArchive": "function",
         "parseEyesJournal": "function",
         "readEyesArchive": "function"
@@ -1167,6 +1168,7 @@
         "specifierOf": "function",
         "stack": "const",
         "symbol": "const",
+        "testClaimsTool": "const",
         "testCompositionTool": "const",
         "unfound": "function",
         "uses": "const"
@@ -1526,6 +1528,7 @@
         "PRESENTATION_TOOLS": "const",
         "Page": "interface",
         "REVIEW_TOOLS": "const",
+        "RecordedSteps": "type",
         "ReviewConcern": "interface",
         "ReviewConcernEvent": "interface",
         "ReviewConcernRegion": "interface",
@@ -1573,6 +1576,7 @@
         "publishedTreeOf": "function",
         "rarity": "function",
         "readTree": "function",
+        "recordedSteps": "function",
         "refusalFor": "function",
         "saturation": "function",
         "saysStartPoint": "function",

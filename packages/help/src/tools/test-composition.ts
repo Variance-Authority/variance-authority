@@ -11,7 +11,7 @@
 
 import { testCompositions } from '@variance-authority/sense';
 import type { Tool } from '@variance-authority/mcp/tools';
-import { askedTest, suitesAnswer } from './asked-test.js';
+import { ASKED_TEST_INPUT, askedTest, suitesAnswer } from './asked-test.js';
 import { formatTestComposition } from './test-composition-format.js';
 
 /** Typed over nothing, like `docs_journey_map`: the checkout is the one the host names on the call. */
@@ -25,15 +25,7 @@ export const testCompositionTool: Tool<unknown> = {
     'suite entered are structure and counted apart. `file` is the test file; `name` chooses one of its ' +
     'tests, exactly or by a word of its name. Reads the recording a test run with test selection ' +
     'published; runs nothing and reads no source.',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      file: { type: 'string', description: 'The test file that declares the test, from the root of the checkout or of the file system.' },
-      name: { type: 'string', description: 'Optional when the file declares one recorded test. The test\'s name, or a word of it.' },
-    },
-    required: ['file'],
-    additionalProperties: false,
-  },
+  inputSchema: ASKED_TEST_INPUT,
 
   run: (_subject, input, invocation) => {
     const { root, file, name } = askedTest('test-composition', input, invocation);

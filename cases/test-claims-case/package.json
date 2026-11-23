@@ -5,7 +5,6 @@
   "type": "module",
   "dependencies": {
     "@playwright/test": "^1.64.1",
-    "@variance-authority/cli": "workspace:^",
     "@variance-authority/eyes": "workspace:^",
     "@variance-authority/playwright-test": "workspace:^",
     "@variance-authority/sense": "workspace:^"
