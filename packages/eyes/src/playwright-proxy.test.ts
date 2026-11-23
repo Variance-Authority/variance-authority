@@ -122,7 +122,10 @@ describe('Playwright API-compatible proxies', () => {
       expect.objectContaining({ member: 'to.be.empty', outcome: 'threw', error: refused.message }),
       expect.objectContaining({ member: 'click', outcome: 'resolved' }),
     ]);
-    for (const entry of consumed) expect(entry).not.toHaveProperty('before');
+    for (const entry of consumed) {
+      expect(entry).not.toHaveProperty('before');
+      expect(entry).not.toHaveProperty('after');
+    }
   });
 
   it('keeps a successful action passing when the post-operation read is lost', async () => {
