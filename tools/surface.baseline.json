@@ -2951,6 +2951,7 @@
         "PackagesAround": "interface",
         "ParseCache": "interface",
         "Parsed": "interface",
+        "PassedAt": "type",
         "PathKind": "interface",
         "PathKinds": "interface",
         "PathsThrough": "interface",
