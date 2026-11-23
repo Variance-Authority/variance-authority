@@ -3,36 +3,10 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
-import { test } from 'node:test';
-import { FoundNothing } from '@variance-authority/help';
+import { test } from 'vitest';
 import { parse, stringify } from 'yaml';
-import { createQuestionDriver, openQuestions } from './questions.mjs';
+import { openQuestions } from './questions.mjs';
 import { executeProgram } from './execute.mjs';
-
-test('canonical answers survive unavailable membership and report the separate API failure', async () => {
-  const tool = { inputSchema: { type: 'object', additionalProperties: false },
-    run: () => 'the canonical answer', files: () => { throw new Error('no membership'); } };
-  const driver = createQuestionDriver({ resolve: () => tool, help: {}, invocation: {} });
-  const result = await driver.drive('fixture', {});
-  assert.equal(result.status, 'answered');
-  assert.equal(result.answer, 'the canonical answer');
-  assert.equal(result.membershipStatus, 'unknown');
-  assert.equal(result.files, undefined);
-  assert.equal(result.apiCallCount, 2);
-  assert.match(result.membershipError.message, /no membership/u);
-  assert.throws(() => driver.validate('fixture', { invented: true }), /input/u);
-});
-
-test('a factual not-found answer remains answered without inferring complete membership', async () => {
-  const tool = { inputSchema: { type: 'object' },
-    run: () => { throw new FoundNothing('not declared in the available evidence'); },
-    files: () => { throw new FoundNothing('not declared in the available evidence'); } };
-  const driver = createQuestionDriver({ resolve: () => tool, help: {}, invocation: {} });
-  const result = await driver.drive('fixture', {});
-  assert.equal(result.status, 'answered');
-  assert.equal(result.membershipStatus, 'unknown');
-  assert.match(result.answer, /not declared/u);
-});
 
 test('published-index execution follows component, example and mock relations on distinct branches', async () => {
   const root = mkdtempSync(join(tmpdir(), 'runbook-index-'));
@@ -77,8 +51,28 @@ test('published-index execution follows component, example and mock relations on
     assert.equal(fallback.trace.find(row => row.step === 'fallback').state, 'nonempty');
     assert.equal(direct.calls, 3);
     assert.equal(fallback.calls, 4);
-    assert.throws(() => context.validate('summary', {}), /membership/u);
-    assert.throws(() => context.validate('discover', { to: 'not-an-array' }), /input/u);
+    assert.equal(context.validate, undefined, 'tool input is judged by the canonical reader');
+    const canonical = execFileSync(process.execPath, [cli, 'ask', 'symbol', '--name', 'Panel'], { cwd: root, encoding: 'utf8' });
+    assert.equal((await context.drive('symbol', { name: 'Panel' })).answer, canonical);
+    for (const [question, input, flags] of [
+      ['discover', { declares: 'Panel' }, ['--declares', 'Panel']],
+      ['search', { query: 'Panel' }, ['--query', 'Panel']],
+    ]) {
+      const expected = execFileSync(process.execPath, [cli, 'ask', question, ...flags], { cwd: root, encoding: 'utf8' });
+      assert.equal((await context.drive(question, input)).answer, expected);
+    }
+    write('src/Panel.ts', 'export function Panel() { return "liveOnly"; }');
+    const live = await context.drive('grep', { query: 'liveOnly', from: ['src/Panel.ts'] });
+    assert.equal(live.membershipStatus, 'complete');
+    assert.deepEqual(live.files.map(row => row.file), ['src/Panel.ts']);
+    assert.match(context.provenance.sourceText, /live checkout/u);
+    const missing = await context.drive('symbol', { name: 'AbsentPanel' });
+    assert.equal(missing.status, 'answered');
+    assert.equal(missing.membershipStatus, 'unknown');
+    assert.equal(missing.files, undefined);
+    const refused = await context.drive('grep', {});
+    assert.equal(refused.status, 'error');
+    assert.match(refused.error.message, /query/u);
     const programFile = join(artifacts, 'program.yaml');
     const requestFile = join(artifacts, 'request.yaml');
     const receiptFile = join(artifacts, 'receipt.yaml');
@@ -88,11 +82,10 @@ test('published-index execution follows component, example and mock relations on
     // has gone. Neither the caller nor this runner rebuilds the fixture here.
     rmSync(join(root, 'src'), { recursive: true });
     const command = [resolve('tools/orientation-runbook/run.mjs'), root, programFile,
-      requestFile, receiptFile, 'fixture-build'];
+      requestFile, receiptFile];
     execFileSync(process.execPath, command, { stdio: 'pipe' });
     const receipt = parse(readFileSync(receiptFile, 'utf8'));
     assert.equal(receipt.provenance.generation, context.provenance.generation);
-    assert.equal(receipt.provenance.buildDeclared, 'fixture-build');
     assert.ok(receipt.evidence[0].observation.files.some(row => row.file === 'src/Panel.ts'));
     assert.equal(receipt.evidence.at(-1).step, 'mocks');
     assert.throws(() => execFileSync(process.execPath, command, { stdio: 'pipe' }), /Command failed/u);

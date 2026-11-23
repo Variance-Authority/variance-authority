@@ -1,8 +1,7 @@
-import Ajv from 'ajv';
-import { QUESTIONS } from '@variance-authority/cli';
-import { foundNothingAnswer, generationSourceIndex, readWorkspaceForAnswer, workspaceGeneration } from '@variance-authority/help';
+import { QUESTIONS, invocationOf } from '@variance-authority/cli';
+import { foundNothingAnswer, generationSourceIndex, readWorkspaceForAnswer, snapshotLine, workspaceGeneration } from '@variance-authority/help';
 import { verbOf } from '@variance-authority/mcp/tools';
-import { sourceIndexPath } from '@variance-authority/sense';
+import { asOneQuestion, sourceIndexPath } from '@variance-authority/sense';
 
 // Eligibility is a capability, not a second list of command names. Composite
 // questions without FileSet membership are outside this research increment.
@@ -10,15 +9,20 @@ const tools = new Map(QUESTIONS.filter(row => row.source?.files).map(row => [ver
 
 const details = error => ({ name: error.name, message: error.message });
 
-/** Canonical text and complete membership are distinct, separately timed APIs. */
-export function createQuestionDriver({ resolve, help, invocation, clock = () => performance.now() }) {
-  const ajv = new Ajv({ allErrors: true, allowUnionTypes: true });
-  const validators = new WeakMap();
-  const validate = (question, input) => {
-    const tool = resolve(question);
-    if (!validators.has(tool)) validators.set(tool, ajv.compile(tool.inputSchema));
-    const check = validators.get(tool);
-    if (!check(input)) throw new TypeError(`invalid ${question} input: ${ajv.errorsText(check.errors)}`);
+/** Open the published generation; text predicates also read live source files. */
+export async function openQuestions(root) {
+  let tree;
+  const help = await readWorkspaceForAnswer(root, {
+    index: sourceIndexPath(root), justAnswer: true, tree: drawn => { tree = drawn; },
+  });
+  const sourceIndex = generationSourceIndex(help, root, sourceIndexPath(root));
+  const generation = workspaceGeneration(help);
+  const invocation = invocationOf({ root, tree, sourceIndex });
+  const clock = () => performance.now();
+  const resolve = question => {
+    const tool = tools.get(question);
+    if (!tool) throw new TypeError(`${question} has no eligible source membership reader`);
+    return tool;
   };
   const drive = async (question, input) => {
     const tool = resolve(question);
@@ -47,7 +51,8 @@ export function createQuestionDriver({ resolve, help, invocation, clock = () => 
       result.membershipError = details(error);
     }
     try {
-      result.answer = await invoke('Tool.run', () => tool.run(help, input, invocation));
+      const answer = await invoke('Tool.run', () => asOneQuestion(() => tool.run(help, input, invocation)));
+      result.answer = `${answer}${generation === undefined ? '' : `\n${snapshotLine(generation, true)}`}\n`;
       result.status = 'answered';
     } catch (error) {
       const answer = foundNothingAnswer(error, undefined, workspaceGeneration(help), true);
@@ -55,29 +60,14 @@ export function createQuestionDriver({ resolve, help, invocation, clock = () => 
         result.error = details(error);
         result.status = 'error';
       } else {
-        result.answer = answer;
+        result.answer = `${answer}\n`;
         result.status = 'answered';
       }
     }
-    return { ...result, apiCalls, apiCallCount: apiCalls.length, underlyingReaderExecutions: null };
-  };
-  return { validate, drive };
-}
-
-/** Open only the published generation. No inventory, comparison, or refresh. */
-export async function openQuestions(root) {
-  let tree;
-  const help = await readWorkspaceForAnswer(root, {
-    index: sourceIndexPath(root), justAnswer: true, tree: drawn => { tree = drawn; },
-  });
-  const sourceIndex = generationSourceIndex(help, root, sourceIndexPath(root));
-  const resolve = question => {
-    const tool = tools.get(question);
-    if (!tool) throw new TypeError(`${question} has no eligible source membership reader`);
-    return tool;
+    return { ...result, apiCalls, apiCallCount: apiCalls.length };
   };
   return {
-    ...createQuestionDriver({ resolve, help, invocation: { root, tree, sourceIndex } }),
-    provenance: { generation: workspaceGeneration(help), sourceIndex },
+    drive,
+    provenance: { generation, sourceIndex, sourceText: 'grep and discover text predicates read live checkout files' },
   };
 }

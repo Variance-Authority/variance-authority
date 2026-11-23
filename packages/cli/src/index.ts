@@ -87,7 +87,7 @@ export type { ReportFormat, ReportOptions } from './commands/report.js';
 export { ask } from './commands/ask.js';
 export { ASKED } from './commands/ask-previous.js';
 export { questions } from './commands/ask-questions.js';
-export { QUESTIONS, argumentsOf, questionFor, takes } from './commands/asking.js';
+export { QUESTIONS, argumentsOf, invocationOf, questionFor, takes } from './commands/asking.js';
 export type { Argument, Question } from './commands/asking.js';
 export { readVantage, watch, watching } from './commands/watch.js';
 export type { Watching } from './commands/watch.js';

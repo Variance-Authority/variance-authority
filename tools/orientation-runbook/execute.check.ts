@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
+import { test } from 'vitest';
 import { executeProgram } from './execute.mjs';
 
 const budgets = { calls: 8, milliseconds: 100, answerBytes: 1000 };
@@ -11,7 +11,7 @@ const observation = (files = [], extra = {}) => ({
 });
 const options = (extra = {}) => ({
   request: {}, provenance: { index: 'fixture-index', build: 'fixture-build' },
-  validate: () => {}, drive: async () => observation(), ...extra,
+  drive: async () => observation(), ...extra,
 });
 
 test('branches on complete emptiness and binds follow-ups to observed files', async () => {
@@ -139,24 +139,11 @@ test('call and output limits disclose omissions without losing full evidence', a
   assert.equal(capped.halt, 'call-budget');
   assert.deepEqual(capped.omittedSteps, ['two']);
   const oversized = await executeProgram(program(steps, { answerBytes: 3 }), options());
-  assert.equal(oversized.halt, 'answer-budget');
+  assert.equal(oversized.halt, 'program-ended');
+  assert.equal(oversized.calls, 2);
   assert.deepEqual(oversized.answers, []);
   assert.equal(oversized.evidence[0].observation.answer, 'canonical answer');
-  assert.equal(oversized.omittedAnswerBytes, Buffer.byteLength('canonical answer'));
-});
-
-test('every bound call is schema-validated before dispatch', async () => {
-  let calls = 0;
-  const result = await executeProgram(program([
-    step('seed', { request: { query: 'clue' } }),
-  ]), options({
-    request: { clue: 42 }, validate: (_question, input) => {
-      assert.equal(typeof input.query, 'string', 'query must be a string');
-    }, drive: async () => { calls++; return observation(); },
-  }));
-  assert.equal(result.halt, 'invalid-input');
-  assert.match(result.error.message, /query must be a string/u);
-  assert.equal(calls, 0);
+  assert.equal(oversized.omittedAnswerBytes, 2 * Buffer.byteLength('canonical answer'));
 });
 
 test('invalid programs, missing request values and forward references are rejected', async () => {
@@ -172,19 +159,19 @@ test('invalid programs, missing request values and forward references are reject
   assert.match(missing.error.message, /missing request/u);
 });
 
-test('a later validation failure preserves earlier calls, provenance and evidence', async () => {
+test('tool refusals retain earlier evidence and take the error branch', async () => {
   const result = await executeProgram(program([
-    step('seed'), step('bad', { input: { query: 42 } }), step('never'),
-  ]), options({ validate: (_question, input) => {
-    if (input.query === 42) throw new TypeError('invalid query');
-  } }));
-  assert.equal(result.halt, 'invalid-input');
-  assert.equal(result.calls, 1);
-  assert.equal(result.apiCalls, 2);
+    step('seed'), step('bad', { input: { query: 42 } }),
+    step('recover', { when: { step: 'bad', is: 'error' }, input: { query: 'recover' } }),
+  ]), options({ drive: async (_question, input) => input.query === 42
+    ? { status: 'error', error: { message: 'invalid query' }, apiCallCount: 1 }
+    : observation() }));
+  assert.equal(result.halt, 'program-ended');
+  assert.equal(result.calls, 3);
+  assert.equal(result.apiCalls, 5);
   assert.equal(result.evidence[0].observation.answer, 'canonical answer');
-  assert.equal(result.provenance.build, 'fixture-build');
-  assert.equal(result.error.step, 'bad');
-  assert.deepEqual(result.omittedSteps, ['bad', 'never']);
+  assert.equal(result.evidence[1].observation.error.message, 'invalid query');
+  assert.equal(result.trace[2].state, 'empty');
 });
 
 test('binding over partial membership preserves its qualification', async () => {
@@ -209,4 +196,50 @@ test('reader failure has its own branch and does not imply empty membership', as
   assert.equal(result.trace[0].state, 'error');
   assert.equal(result.trace[1].state, 'empty');
   assert.equal(result.apiCalls, 3);
+});
+
+test('skipped steps do not become unknown observations', async () => {
+  const result = await executeProgram(program([
+    step('seed'), step('gate', { when: { step: 'seed', is: 'nonempty' } }),
+    step('wrong', { when: { step: 'gate', is: 'unknown' } }),
+    step('child', { fromFiles: { step: 'gate', input: 'from' } }),
+    step('wrong-child', { when: { step: 'child', is: 'unknown' } }),
+  ]), options());
+  assert.equal(result.calls, 1);
+  assert.equal(result.trace.at(-1).state, 'condition-skipped');
+});
+
+test('complete empty bindings propagate complete emptiness', async () => {
+  const result = await executeProgram(program([
+    step('seed'), step('child', { fromFiles: { step: 'seed', input: 'from' } }),
+    step('recover', { when: { step: 'child', is: 'empty' }, input: { query: 'recover' } }),
+  ]), options());
+  assert.equal(result.calls, 2);
+  assert.equal(result.trace.at(-1).state, 'empty');
+});
+
+test('unexpected driver throws preserve evidence and allow the error branch', async () => {
+  const result = await executeProgram(program([
+    step('seed'), step('bad', { input: { query: 'bad' } }),
+    step('recover', { when: { step: 'bad', is: 'error' }, input: { query: 'recover' } }),
+  ]), options({ drive: async (_question, input) => {
+    if (input.query === 'bad') throw new Error('reader exploded');
+    return observation();
+  } }));
+  assert.equal(result.halt, 'program-ended');
+  assert.equal(result.calls, 3);
+  assert.equal(result.apiCalls, null);
+  assert.equal(result.evidence[0].observation.answer, 'canonical answer');
+  assert.equal(result.evidence[1].observation.error.message, 'reader exploded');
+  assert.equal(result.trace.at(-1).state, 'empty');
+});
+
+test('an absent request gives the missing binding diagnostic', async () => {
+  for (const request of [undefined, null]) {
+    const result = await executeProgram(program([
+      step('seed', { request: { query: 'clue' } }),
+    ]), options({ request }));
+    assert.equal(result.halt, 'binding-error');
+    assert.equal(result.error.message, 'missing request value: clue');
+  }
 });

@@ -48,7 +48,9 @@ function checkProgram(program) {
 function summarize(observations, parent) {
   const files = [...new Set(observations.flatMap(row => (row.files ?? []).map(file => file.file)))];
   let state;
-  if (!observations.length) state = parent?.membershipStatus === 'incomplete' ? 'incomplete' : 'unknown';
+  if (!observations.length) state = parent?.state === 'condition-skipped' ? 'condition-skipped'
+    : parent?.membershipStatus === 'complete' ? 'empty'
+      : parent?.membershipStatus === 'incomplete' ? 'incomplete' : 'unknown';
   else if (observations.some(row => row.status === 'error')) state = 'error';
   else if (parent && parent.membershipStatus !== 'complete') state = parent.membershipStatus === 'incomplete' ? 'incomplete' : 'unknown';
   else if (observations.some(row => !['complete', 'incomplete'].includes(row.membershipStatus))) state = 'unknown';
@@ -63,7 +65,7 @@ function summarize(observations, parent) {
  * The deadline is soft: an in-flight factual reader cannot be cancelled.
  */
 export async function executeProgram(supplied, {
-  request, provenance, validate, drive, clock = () => performance.now(), startedAt,
+  request, provenance, drive, clock = () => performance.now(), startedAt,
 }) {
   const started = startedAt ?? clock();
   const program = structuredClone(supplied);
@@ -76,7 +78,6 @@ export async function executeProgram(supplied, {
   const finish = (halt, offset = program.steps.length, omittedBindings = 0) => ({
     version: 1, programHash: digestValue(program), budgets: { ...program.budgets },
     provenance, halt, completion: 'unproved', elapsedMs: elapsed(), calls, apiCalls,
-    underlyingReaderExecutions: null, deadline: 'soft; in-flight readers cannot be cancelled',
     answerBytes, omittedAnswerBytes, omittedSteps: program.steps.slice(offset).map(step => step.id),
     omittedBindings, trace, evidence, answers,
   });
@@ -91,13 +92,13 @@ export async function executeProgram(supplied, {
     const step = program.steps[index];
     if (step.when && results.get(step.when.step).state !== step.when.is) {
       trace.push({ step: step.id, state: 'condition-skipped', when: step.when });
-      results.set(step.id, summarize([]));
+      results.set(step.id, { state: 'condition-skipped', files: [] });
       continue;
     }
     const input = structuredClone(step.input);
     try {
       for (const [field, key] of Object.entries(step.request ?? {})) {
-        if (!Object.hasOwn(request, key)) throw new TypeError(`missing request value: ${key}`);
+        if (request == null || !Object.hasOwn(request, key)) throw new TypeError(`missing request value: ${key}`);
         input[field] = structuredClone(request[key]);
       }
     } catch (error) {
@@ -114,12 +115,6 @@ export async function executeProgram(supplied, {
       const binding = step.fromFiles ? { step: step.fromFiles.step, file: bindings[position],
         membershipStatus: parent.membershipStatus } : undefined;
       if (binding) bound[step.fromFiles.input] = [binding.file];
-      // Validation happens after request/file binding, never only on the template.
-      try {
-        validate(step.question, bound);
-      } catch (error) {
-        return failure('invalid-input', index, error, bound, bindings.length - position);
-      }
       const identity = canonicalize({ question: step.question, input: bound });
       if (seen.has(identity)) {
         const cached = seen.get(identity);
@@ -130,8 +125,17 @@ export async function executeProgram(supplied, {
       }
       if (calls >= program.budgets.calls) return finish('call-budget', index, bindings.length - position);
       calls++;
-      const observation = await drive(step.question, bound);
-      apiCalls += observation.apiCallCount;
+      let observation;
+      try {
+        observation = await drive(step.question, bound);
+      } catch (error) {
+        observation = { status: 'error', error: {
+          name: error instanceof Error ? error.name : 'Error',
+          message: error instanceof Error ? error.message : String(error),
+        } };
+      }
+      apiCalls = apiCalls !== null && Number.isInteger(observation.apiCallCount)
+        ? apiCalls + observation.apiCallCount : null;
       observations.push(observation);
       evidence.push({ step: step.id, question: step.question, input: bound, binding, observation });
       seen.set(identity, { observation, evidence: evidence.length - 1 });
@@ -141,10 +145,10 @@ export async function executeProgram(supplied, {
         const bytes = Buffer.byteLength(observation.answer);
         if (answerBytes + bytes > program.budgets.answerBytes) {
           omittedAnswerBytes += bytes;
-          return finish('answer-budget', position + 1 < bindings.length ? index : index + 1, bindings.length - position - 1);
+        } else {
+          answerBytes += bytes;
+          answers.push({ step: step.id, evidence: evidence.length - 1, answer: observation.answer });
         }
-        answerBytes += bytes;
-        answers.push({ step: step.id, evidence: evidence.length - 1, answer: observation.answer });
       }
       if (elapsed() >= program.budgets.milliseconds) return finish('soft-time-budget', position + 1 < bindings.length ? index : index + 1, bindings.length - position - 1);
     }
