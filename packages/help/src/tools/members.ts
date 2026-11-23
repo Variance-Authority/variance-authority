@@ -183,10 +183,11 @@ function unreadMemberLanguages(extensions: readonly string[]): readonly string[]
   );
 }
 
-/** The languages of the checkout at `root` whose members were not read, by name; none when its index does not read. */
-export function membersUnreadOf(root: string, name: string): readonly string[] {
+/** The languages whose members were not read, within `files` when given; none when the source index does not read. */
+export function membersUnreadOf(root: string, name: string, files?: ReadonlySet<string>): readonly string[] {
   try {
-    return unreadMemberLanguages(memberDeclarationsOf(root, name)?.extensions ?? []);
+    const found = memberDeclarationsOf(root, name);
+    return unreadMemberLanguages(found === undefined ? [] : files === undefined ? found.extensions : [...files]);
   } catch {
     // A question's other readings say why the index does not read.
     return [];

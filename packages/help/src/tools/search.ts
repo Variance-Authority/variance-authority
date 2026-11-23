@@ -250,7 +250,8 @@ function spoken({ answer, area }: Searched, asked: SearchQuestion, root: string 
   // Below the exports, since none of these is a name its file hands out.
   const place = area === undefined ? 'somewhere in the repository' : 'in that area';
   const declared = answer.declared ?? { total: 0, shown: [], unread: [] };
-  const unread = unreadLine(declared.unread).map((line) => `\n${line}`);
+  const stop = unreadStop(answer.membersUnread ?? []);
+  const unread = [...unreadLine(declared.unread), ...(stop === undefined ? [] : [stop])].map((line) => `\n${line}`);
   const inside = answer.held ?? { total: 0, shown: [] };
   const insideSection = section(`${inside.total} ${inside.total === 1 ? 'name is' : 'names are'} held by a container or a function ${place}:`, inside, heldLine, spell);
   const aliases = answer.aliases ?? { total: 0, shown: [] };
@@ -293,8 +294,7 @@ function spoken({ answer, area }: Searched, asked: SearchQuestion, root: string 
         : area === undefined
         ? `${read}. \`packages\` lists every entrypoint; \`entrypoint\` lists what one opens.`
         : `${read}. That is a fact about the area, not about the word — ask again without \`from\`/\`to\` to search the whole workspace.`;
-    const stop = unreadStop(answer.membersUnread ?? []);
-    return [...where, nowhere, ...(stop === undefined ? [] : ['', stop]), ...declaredSection, ...own, ...thirdSection, ...describedSection, ...missing, ...next].join('\n');
+    return [...where, nowhere, ...declaredSection, ...own, ...thirdSection, ...describedSection, ...missing, ...next].join('\n');
   }
 
   // A capped list that does not say it was capped reads as the whole answer,

@@ -292,6 +292,7 @@ function searchedBy(
   const declared = read?.declared;
   const aliases = aliasMatches(root, question.query, area?.files);
   const tests = root === undefined ? undefined : recordedTests(suiteCaseNames(root), question.query, area?.files, cap(ELSEWHERE_CAP), file);
+  const membersUnread = root === undefined ? [] : membersUnreadOf(root, question.query, area?.files);
   const others = hits.length > 0 || rest.total > 0 || (declared?.total ?? 0) > 0 || (thirdParty?.total ?? 0) > 0;
   // A row that holds the words adds nothing to an answer; the row that is the question does.
   const inside = read === undefined ? undefined : others ? read.held.slice(0, read.exact) : read.held;
@@ -310,6 +311,7 @@ function searchedBy(
     ...(aliases === undefined ? {} : { aliases: { total: aliases.length, shown: aliases.slice(0, cap(ELSEWHERE_CAP)) } }),
     ...(tests === undefined ? {} : { tests }),
     ...(thirdParty === undefined ? {} : { thirdParty }),
+    ...(membersUnread.length === 0 ? {} : { membersUnread }),
   };
   // Installed packages that describe the words never stand in for this repository's
   // names: only an installed name holding the query as written ends the search.
@@ -392,8 +394,7 @@ function searchedBy(
   const heldRows = described === undefined || carried === undefined ? undefined : shownOf(carried, cap(DESCRIBED_CAP));
   const reachedNames = [...alsoFound.shown, ...alsoRest.head(cap(LOOSE_CAP) - alsoFound.shown.length, declaredAt)];
   const shown = [...reachedNames, ...kept.slice(0, cap(LOOSE_CAP) - reachedNames.length).map(told)];
-  const membersUnread = root === undefined || (inside?.length ?? 0) > 0 || (tests?.total ?? 0) > 0 ? [] : membersUnreadOf(root, question.query);
-  const loosely: SearchAnswer = { ...answer, ...(membersUnread.length === 0 ? {} : { membersUnread }), loose: { total: alsoFound.total + alsoRest.total + kept.length, shown } };
+  const loosely: SearchAnswer = { ...answer, loose: { total: alsoFound.total + alsoRest.total + kept.length, shown } };
   if (carried === undefined || heldRows === undefined) return { answer: loosely, area };
   return { answer: { ...loosely, described: { total: carried.length, shown: heldRows } }, area };
 }

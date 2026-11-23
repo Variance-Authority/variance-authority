@@ -71,6 +71,31 @@ it('keeps the existing unsupported-member-language qualification', async () => {
   expect(search.files!(help, input, invocation).unread?.join('\n')).toContain('Rust files were not read');
 });
 
+it.each([
+  ['one-word export', 'completed', 'export const completed = true;\n'],
+  ['multiword export', 'completed widgets', 'export const completedWidgets = true;\n'],
+  ['private declaration', 'completed', 'const completed = true; export {};\n'],
+  ['held function', 'completed', 'export function outer() { function completed() {} return completed; }\n'],
+  ['member', 'completed', 'export interface Widget { completed: boolean; }\n'],
+])('keeps unread member coverage beside a positive %s and its disjoint intersection', async (_kind, query, text) => {
+  const { help, invocation } = await fixture({
+    'index.ts': text,
+    'widget.rs': 'pub struct Widget { pub completed: bool }\n',
+    'separate.ts': 'export const Separate = true;\n',
+  });
+  const input = { query };
+  const membership = search.files!(help, input, invocation);
+  expect([...membership.files]).toEqual([['src/index.ts', [1]]]);
+  expect(membership.unread?.join('\n')).toContain('Rust files were not read');
+  expect(search.run(help, input, invocation)).toContain('Rust files were not read');
+  const intersection = intersectionOf([search, discover]);
+  const questions = [{ question: 'search', input }, { question: 'discover', input: { path: '^src/separate[.]ts$' } }];
+  const common = intersection.files!(help, { questions }, invocation);
+  expect([...common.files]).toEqual([]);
+  expect(common.unread?.join('\n')).toContain('Rust files were not read');
+  expect(intersection.run(help, { questions }, invocation)).toContain('Rust files were not read');
+});
+
 it('keeps the existing unresolved-import scope qualification beside a positive match', async () => {
   const { help, invocation } = await fixture({ 'index.ts': "import './missing';\nexport const Anchor = 1;\n" });
   const input = { query: 'Anchor', from: ['src/'] };
@@ -78,6 +103,19 @@ it('keeps the existing unresolved-import scope qualification beside a positive m
   const membership = search.files!(help, input, invocation);
   expect([...membership.files.keys()]).toContain('src/index.ts');
   expect(membership.unread?.join('\n')).toContain('what lies behind those is not enumerated');
+});
+
+it('keeps a TypeScript-only search scope complete when unrelated Rust files exist', async () => {
+  const { help, invocation } = await fixture({ 'widget.rs': 'pub struct Widget { pub completed: bool }\n' });
+  for (const query of ['Anchor', 'completed']) {
+    const input = { query, from: ['src/index.ts'] };
+    const membership = search.files!(help, input, invocation);
+    expect([...membership.files]).toEqual(query === 'Anchor' ? [['src/index.ts', [1]]] : []);
+    expect(membership.unread).toBeUndefined();
+    expect(search.run(help, input, invocation)).not.toContain('Rust files were not read');
+  }
+  const included = { query: 'Anchor', from: ['src/'] };
+  expect(search.files!(help, included, invocation).unread?.join('\n')).toContain('Rust files were not read');
 });
 
 it('qualifies the whole declaration domain when no source index was read, keeping known exports', async () => {

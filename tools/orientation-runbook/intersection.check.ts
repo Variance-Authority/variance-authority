@@ -14,7 +14,7 @@ test('canonical intersection membership drives an empty fallback and preserves i
     writeFileSync(join(root, 'package.json'), '{"name":"intersection-fixture","private":true}');
     writeFileSync(join(root, 'src/a.ts'), 'export const Alpha = 1;');
     writeFileSync(join(root, 'src/b.ts'), 'export const Beta = 2;');
-    writeFileSync(join(root, 'src/widget.ts'), 'export interface Widget { completed: boolean; }');
+    writeFileSync(join(root, 'src/widget.ts'), 'export interface Widget { completed: boolean; }\nexport const completed = true;');
     writeFileSync(join(root, 'src/widget.rs'), 'pub struct Widget { pub completed: bool }');
     writeFileSync(join(root, 'src/opaque.ts'), `const Quenfralob = 1; export {};\n${'// filler line\n'.repeat(80_000)}`);
     execFileSync('git', ['init', '--quiet', root]);
@@ -63,6 +63,16 @@ test('canonical intersection membership drives an empty fallback and preserves i
     assert.deepEqual(searched.evidence[0].observation.files, []);
     assert.match(searched.evidence[0].observation.unread.join('\n'), /declarations.*src\/opaque.ts/u);
     assert.match(searched.answers[0].answer, /declarations.*src\/opaque.ts/u);
+
+    const positiveSearch = await run([
+      { question: 'search', input: { query: 'completed', from: ['src/widget.ts', 'src/widget.rs'] } },
+      first,
+    ]);
+    assert.deepEqual(positiveSearch.trace.map(row => row.state), ['incomplete', 'condition-skipped']);
+    assert.equal(positiveSearch.evidence[0].observation.membershipStatus, 'incomplete');
+    assert.deepEqual(positiveSearch.evidence[0].observation.files, []);
+    assert.match(positiveSearch.evidence[0].observation.unread.join('\n'), /Rust files were not read/u);
+    assert.match(positiveSearch.answers[0].answer, /Rust files were not read/u);
 
     // The published tree still names this file, while a live text predicate cannot read it.
     rmSync(join(root, 'src/a.ts'));
