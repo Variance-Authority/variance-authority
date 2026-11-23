@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { instrumentationId } from '@variance-authority/sense/instrument';
@@ -53,12 +53,20 @@ const SOURCES: Record<string, string> = {
   // Two callbacks the walk names alike: the test reads what the first returns, and only how many the second does.
   'src/both.mjs': 'export function both(xs) {\n  const up = xs.map((x) => x + 1);\n  const down = xs.map((x) => x - 1);\n  return up[0] + down.length;\n}\n',
   'test/both.check.mjs': "import { both } from '../src/both.mjs';\nif (both([1]) !== 3) process.exit(1);\n",
+  // A function with nothing in it to break.
+  'src/noop.mjs': 'export function noop() {}\n',
+  'test/noop.check.mjs': "import { noop } from '../src/noop.mjs';\nnoop();\n",
+  // Two callbacks alike in name and in what they hold, in one statement.
+  'src/twin.mjs': 'export function twin(xs) {\n  return xs.map((x) => x + 1)[0] + xs.map((x) => x + 1)[0];\n}\n',
+  'test/twin.check.mjs': "import { twin } from '../src/twin.mjs';\nif (twin([1]) !== 4) process.exit(1);\n",
 };
 
 /** The tests that entered each region, by the region's name and path as the walk cuts the file. */
 const ENTERED: Readonly<Record<string, Readonly<Record<string, readonly number[]>>>> = {
   'src/both.mjs': { 'both entry': [5], 'both/map.arg0 entry': [5] },
   'src/log.mjs': { 'log entry': [0] },
+  'src/noop.mjs': { 'noop entry': [7] },
+  'src/twin.mjs': { 'twin entry': [8], 'twin/map.arg0 entry': [8] },
   'src/many.mjs': Object.fromEntries(MANY.map((name) => [`${name} entry`, [3]])),
   'src/ready.mjs': { 'ready entry': [2, 6] },
   'src/sign.mjs': { 'sign entry': [4], 'sign if#0/then': [4], 'sign if#0/after': [4] },
@@ -156,6 +164,63 @@ describe('variance proves', () => {
     expect(answered.out).toContain('Not broken:\n  src/ready.mjs:1-3  function ready  no process the command started read the file, so the break was not run\n');
   });
 
+  it('leaves unbroken a region no row of the file as it is now carries', async () => {
+    await recorded({ 'src/both.mjs': 'export function both(xs) {\n  const up = [xs[0] + 1];\n  const down = xs.filter(() => true);\n  return up[0] + down.length;\n}\n' });
+
+    const answered = await run(['proves', '--file', 'test/both.check.mjs', '--name', 'maps both', '--', process.execPath, 'test/both.check.mjs']);
+
+    expect([answered.code, answered.err]).toEqual([EXIT_CLEAN, '']);
+    expect(answered.out).toContain('  src/both.mjs:2  function both/map.arg0  no region the file is cut into now is the one the record holds\n');
+    expect(answered.out).toContain('  src/both.mjs:3  function both/map.arg0  no region the file is cut into now is the one the record holds\n');
+  });
+
+  it('leaves unbroken a region in a file the checkout no longer holds', async () => {
+    const root = await recorded();
+    rmSync(join(root, 'src/log.mjs'));
+
+    const answered = await run(['proves', '--file', 'test/total.check.mjs', '--name', 'adds', '--', process.execPath, '-e', "await import('./src/total.mjs')"]);
+
+    expect([answered.code, answered.err]).toEqual([EXIT_CLEAN, '']);
+    expect(answered.out).toContain('Survived, the test passed with the region broken:\n  src/total.mjs:1-3  function total  returns nothing\n');
+    expect(answered.out).toContain('Not broken:\n  src/log.mjs:1-3  function log  the checkout no longer holds the file, or the instrumenter does not cut it\n');
+  });
+
+  it('leaves unbroken a function with nothing in it to break', async () => {
+    await recorded();
+
+    const answered = await run(['proves', '--file', 'test/noop.check.mjs', '--name', 'calls noop', '--', process.execPath, 'test/noop.check.mjs']);
+
+    expect([answered.code, answered.err]).toEqual([EXIT_CLEAN, '']);
+    expect(answered.out).toContain('Not broken:\n  src/noop.mjs:1  function noop  it is empty already, so breaking it changes nothing\n');
+  });
+
+  it('leaves unbroken two regions alike in name and in what they hold, which the record cannot tell apart', async () => {
+    await recorded();
+
+    const answered = await run(['proves', '--file', 'test/twin.check.mjs', '--name', 'twins', '--', process.execPath, 'test/twin.check.mjs']);
+
+    expect([answered.code, answered.err]).toEqual([EXIT_CLEAN, '']);
+    expect(answered.out).toContain('Noticed, the test failed with the region broken:\n  src/twin.mjs:1-3  function twin  returns nothing\n\nNot broken:\n  src/twin.mjs:2  function twin/map.arg0  more than one region of the file is the one the record holds, so which to break cannot be told\n');
+  });
+
+  it('refuses a test the record does not hold', async () => {
+    await recorded();
+
+    const answered = await run(['proves', '--file', 'test/total.check.mjs', '--name', 'no such test', '--', process.execPath, 'test/total.check.mjs']);
+
+    expect(answered.code).toBe(EXIT_OPERATOR);
+    expect(answered.out).toBe('');
+  });
+
+  it('refuses a command that cannot be started', async () => {
+    await recorded();
+
+    const answered = await run(['proves', '--file', 'test/total.check.mjs', '--name', 'adds', '--', 'no-such-command-for-proves']);
+
+    expect(answered.code).toBe(EXIT_OPERATOR);
+    expect(answered.err).toContain('`no-such-command-for-proves` could not be started: no such command');
+  });
+
   it('breaks no more than its cap of regions, and counts the ones past it', async () => {
     await recorded();
 
@@ -206,7 +271,7 @@ function snapshot(root: string): Record<string, string> {
  * A checkout, committed and recorded at that commit with the regions the walk
  * cuts each file into: `adds` entered `total` and `log`, `adds again` entered
  * `total` too, `waits` and `stalls` entered `ready`, `calls` entered each of `MANY`, and
- * `signs` entered `sign`, its `if` and what follows it, and `maps both` entered `both` and its two callbacks. `extra` files are written beside them first.
+ * `signs` entered `sign`, its `if` and what follows it, `maps both` entered `both` and its two callbacks, `calls noop` entered `noop`, and `twins` entered `twin` and its two callbacks. `extra` files are written beside them first.
  */
 async function recorded(extra: Readonly<Record<string, string>> = {}): Promise<string> {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'va-proves-')));
@@ -228,6 +293,8 @@ async function recorded(extra: Readonly<Record<string, string>> = {}): Promise<s
     { id: 's', file: 'test/sign.check.mjs', name: 'signs' },
     { id: 'b', file: 'test/both.check.mjs', name: 'maps both' },
     { id: 't', file: 'test/stall.check.mjs', name: 'stalls' },
+    { id: 'n', file: 'test/noop.check.mjs', name: 'calls noop' },
+    { id: 'i', file: 'test/twin.check.mjs', name: 'twins' },
   ];
   const files = tests.map(({ file }) => file);
   const fileOf = (test: number) => tests[test]?.file ?? '';
