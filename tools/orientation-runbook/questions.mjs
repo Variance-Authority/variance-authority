@@ -24,14 +24,14 @@ export async function openQuestions(root) {
     if (!tool) throw new TypeError(`${question} has no eligible source reader`);
     return tool;
   };
-  const drive = async (question, input) => {
+  const drive = async (question, input) => asOneQuestion(() => {
     const tool = resolve(question);
     const at = RECORDED.includes(tool) || tool === containment ? undefined : generation;
     const apiCalls = [];
-    const invoke = async (api, operation) => {
+    const invoke = (api, operation) => {
       const start = clock();
       try {
-        const value = await operation();
+        const value = operation();
         apiCalls.push({ api, status: 'ok', elapsedMs: clock() - start });
         return value;
       } catch (error) {
@@ -43,7 +43,7 @@ export async function openQuestions(root) {
     if (tool.files) {
       try {
         // Shared caches, where present, can serve the following canonical answer.
-        const membership = await invoke('Tool.files', () => tool.files(help, input, invocation));
+        const membership = invoke('Tool.files', () => tool.files(help, input, invocation));
         if (!(membership.files instanceof Map)) throw new TypeError('Tool.files did not return a FileSet');
         result.files = [...membership.files].map(([file, lines]) => ({ file, lines: [...lines] }));
         result.unread = membership.unread;
@@ -54,7 +54,7 @@ export async function openQuestions(root) {
       }
     }
     try {
-      const answer = await invoke('Tool.run', () => asOneQuestion(() => tool.run(help, input, invocation)));
+      const answer = invoke('Tool.run', () => tool.run(help, input, invocation));
       result.answer = `${answer}${at === undefined ? '' : `\n${snapshotLine(at, true)}`}\n`;
       result.status = 'answered';
     } catch (error) {
@@ -68,7 +68,7 @@ export async function openQuestions(root) {
       }
     }
     return { ...result, apiCalls, apiCallCount: apiCalls.length };
-  };
+  });
   return {
     drive,
     provenance: { generation, sourceIndex, sourceText: 'grep and discover text predicates read live checkout files' },
