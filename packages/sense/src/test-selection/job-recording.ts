@@ -9,7 +9,7 @@
  * that cannot be written is an error of its own, after the command has run.
  */
 
-import { execFileSync, spawn } from 'node:child_process';
+import { execFileSync, spawn, type StdioOptions } from 'node:child_process';
 import { closeSync, openSync, readSync, statSync } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { constants, tmpdir } from 'node:os';
@@ -119,10 +119,13 @@ function* linesOf(file: string): Generator<string> {
   }
 }
 
-/** The exit of `program`, as a shell states one: a signal is 128 and its number. Undefined when there is no such program. `env`, when given, is its whole environment. */
-export function started(program: string, args: readonly string[], cwd: string, env?: NodeJS.ProcessEnv): Promise<number | undefined> {
+/**
+ * The exit of `program`, as a shell states one: a signal is 128 and its number. Undefined when there is no such program. `env`, when given, is its whole environment.
+ * `stdio` is where its streams go: this process's own by default.
+ */
+export function started(program: string, args: readonly string[], cwd: string, env?: NodeJS.ProcessEnv, stdio: StdioOptions = 'inherit'): Promise<number | undefined> {
   return new Promise((resolve, reject) => {
-    const child = spawn(program, args, { cwd, stdio: 'inherit', ...(env === undefined ? {} : { env }) });
+    const child = spawn(program, args, { cwd, stdio, ...(env === undefined ? {} : { env }) });
     child.on('error', (error: NodeJS.ErrnoException) => (error.code === 'ENOENT' ? resolve(undefined) : reject(error)));
     child.on('close', (code, signal) => resolve(code ?? 128 + (signal === null ? 0 : constants.signals[signal])));
   });

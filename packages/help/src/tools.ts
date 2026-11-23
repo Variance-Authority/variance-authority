@@ -155,6 +155,7 @@ export { classify, containment, discover, entrypoint, gaps, grep, intersection, 
 export { containmentOf, formatContainment, type Containment } from './tools/containment.js';
 export { namesWanted } from './tools/intersection.js';
 export { formatOrientation, type OrientReading } from './tools/orient-format.js';
+export { regionPlace } from './tools/test-composition-format.js';
 export { answerSearch, searchQuestionOf } from './tools/search.js';
 export { searchIndexOf } from './snapshot.js';
 export type {

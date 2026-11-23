@@ -78,6 +78,10 @@ export async function main(
       const { runJanus } = await import('./commands/janus.js');
       return await runJanus(parsed, streams);
     }
+    if (parsed.command === 'proves') {
+      const { runProves } = await import('./commands/proves.js');
+      return await runProves(parsed, streams);
+    }
     // Loaded here and not above: the version and the help answer without a
     // command, and every module a command needs is a module they would wait on.
     const [{ settleFollowUps }, { answerConfigless, constantAnswer, withoutConfig }] = await Promise.all([

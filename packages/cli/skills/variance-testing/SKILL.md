@@ -325,6 +325,27 @@ input alone reaches, and run it beside the tests next to it: a test that alone
 fails checks something they do not.
 [orient](../variance-authority/references/orient.md#test-claims)
 
+## See which regions a test would not notice broken
+
+```bash
+variance proves --file e2e/signup.spec.ts --name 'retries a failed post' -- <command>...
+```
+
+With `<command>` the command that runs that one test, it breaks each region the
+record says the test entered, one at a time, fewest other tests first, up to
+`--limit` (20): a function returns nothing, a branch, continuation or handler
+is skipped. The break is served to the processes the command starts, so
+nothing in the checkout is written and the record stays as it was. A command
+that fails with nothing broken is refused.
+
+`Survived` is a region the test passed with broken: its assertions read
+nothing that region does, or the break changes nothing the test can see. The
+run cannot tell those apart, so read the region before you write the
+assertion. `Noticed` is a region the test checks. `Not broken` names why a
+region was left alone: its source moved since the recording, or no process the
+command started read the file, which happens when a bundler or the browser
+reads it rather than Node.
+
 ## Rules
 
 - **Absent is not empty.** A refusal, an `unmeasured` distance or a `hole` is
