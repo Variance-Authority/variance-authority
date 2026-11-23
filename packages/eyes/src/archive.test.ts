@@ -102,6 +102,32 @@ describe('portable Eyes evidence', () => {
     })).toThrow(/partial reason/);
   });
 
+  it('carries an assertion made through `.not`, and refuses any other negation', () => {
+    const assertion = (negated?: unknown) => ({
+      eyesVersion: 1,
+      tests: [{
+        id: 'test-1',
+        title: 'counts',
+        complete: true,
+        attention: [{
+          kind: 'playwright-locator',
+          operation: 'assertion',
+          member: 'to.be.empty',
+          locator: [{ member: 'getByLabel', arguments: ['Count'] }],
+          ...(negated === undefined ? {} : { negated }),
+          outcome: 'resolved',
+          sequence: 0,
+        }],
+      }],
+    });
+
+    expect(parseEyesArchive(assertion(true)).tests[0]!.attention[0]).toMatchObject({ negated: true });
+    expect(parseEyesArchive(assertion()).tests[0]!.attention[0]).not.toHaveProperty('negated');
+    for (const negated of [false, 'yes', 1]) {
+      expect(() => parseEyesArchive(assertion(negated))).toThrow(/negated must be true or absent/);
+    }
+  });
+
   it('rejects malformed attribution instead of trusting a known attention kind', () => {
     expect(() => parseEyesArchive({
       eyesVersion: 1,

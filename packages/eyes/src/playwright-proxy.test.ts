@@ -93,6 +93,27 @@ describe('Playwright API-compatible proxies', () => {
     expect(snapshot).toHaveBeenCalledTimes(4);
   });
 
+  it('records an assertion made through `.not` as negated, whether it passed or threw', async () => {
+    const log = createEyesLog();
+    let fails = false;
+    const child = {
+      _expect: () => (fails ? Promise.reject(new Error('received ""')) : Promise.resolve({ matches: true })),
+    };
+    const page = { getByLabel: () => child };
+    const locator = instrumentPage(page as unknown as Page, log, async () => [target]).getByLabel('Count') as unknown as {
+      _expect: (matcher: string, options: { isNot: boolean }) => Promise<unknown>;
+    };
+
+    await locator._expect('to.be.empty', { isNot: true });
+    await locator._expect('to.have.text', { isNot: false });
+    fails = true;
+    await expect(locator._expect('to.be.empty', { isNot: true })).rejects.toThrow('received ""');
+
+    const said = log.seen.filter((entry) => entry.kind === 'playwright-locator' && entry.operation === 'assertion');
+    expect(said.map((entry) => [entry.kind === 'playwright-locator' && entry.operation !== 'planned' && entry.member, 'negated' in entry ? entry.negated : 'absent']))
+      .toEqual([['to.be.empty', true], ['to.have.text', 'absent'], ['to.be.empty', true]]);
+  });
+
   it('keeps a successful action passing when the post-operation read is lost', async () => {
     const log = createEyesLog();
     let reads = 0;

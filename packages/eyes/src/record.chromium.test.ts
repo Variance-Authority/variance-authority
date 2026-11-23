@@ -96,6 +96,14 @@ live('Eyes in a recording Playwright run', () => {
         'assert',
       ]);
       expect(kinds).toContain('playwright-locator');
+      // `.not` is the opposite assertion, so an entry that drops it says the
+      // test asserted what it asserted against.
+      const assertions = journals[0]!.attention.filter((entry) =>
+        entry.kind === 'playwright-locator' && entry.operation === 'assertion');
+      expect(assertions.map((entry) => [entry.member, 'negated' in entry ? entry.negated : 'absent'])).toEqual([
+        ['to.have.text', 'absent'],
+        ['to.be.empty', true],
+      ]);
     } finally {
       await rm(scratch, { recursive: true, force: true });
     }

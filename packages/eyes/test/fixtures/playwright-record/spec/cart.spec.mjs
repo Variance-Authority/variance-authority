@@ -22,6 +22,7 @@ test('adds one item', async ({ page, eyes }) => {
   await page.getByRole('button', { name: 'Add' }).click();
   eyes.phase('assert');
   await expect(page.getByLabel('Count')).toHaveText('1');
+  await expect(page.getByLabel('Count')).not.toBeEmpty();
 });
 
 test('passes on its second attempt', async ({ page }, testInfo) => {

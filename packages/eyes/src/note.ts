@@ -67,7 +67,7 @@ export function noteOf(draft: AttentionDraft): string {
     }
     case 'playwright-locator': {
       if (draft.operation === 'planned') return `eyes ${chain(draft.locator)}`;
-      const asked = `eyes ${chain(draft.locator)}.${draft.member}`;
+      const asked = `eyes ${chain(draft.locator)}.${draft.negated === true ? 'not.' : ''}${draft.member}`;
       if (draft.outcome === 'threw') return `${asked} → threw ${draft.error}`;
       return draft.after === undefined ? asked : `${asked} → ${found(draft.after)}`;
     }

@@ -201,11 +201,16 @@ function checkedLocator(
   }
   const member = requiredString(attention['member'], `${where} member`);
   const before = optionalTargets(attention['before'], `${where} before`);
+  // `.not` is recorded only when it was said, so `false` is not a value this
+  // contract has: reading it as "asserted plainly" would accept an invented field.
+  const negated = attention['negated'];
+  if (negated !== undefined && negated !== true) throw new Error(`${where} negated must be true or absent`);
   const base = {
     kind: 'playwright-locator' as const,
     operation,
     member,
     locator,
+    ...(negated === true ? { negated: true as const } : {}),
     ...(before === undefined ? {} : { before }),
     sequence,
   } as const;

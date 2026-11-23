@@ -85,6 +85,27 @@ describe('variance_test_attention', () => {
     expect(text).toContain('DrawingPanel at src/drawing/RedrawButton.tsx:17');
   });
 
+  it('says an assertion made through `.not` is the opposite of its matcher', () => {
+    const [test] = ARCHIVE.tests;
+    const negated: EyesArchive = {
+      ...ARCHIVE,
+      tests: [{
+        ...test!,
+        attention: [{
+          kind: 'playwright-locator',
+          operation: 'assertion',
+          member: 'to.be.empty',
+          locator: [{ member: 'getByLabel', arguments: ['Count'] }],
+          negated: true,
+          outcome: 'resolved',
+          sequence: 0,
+        }],
+      }],
+    };
+
+    expect(attention.run(negated, { test: 'redraw-test' })).toContain('assertion not.to.be.empty on getByLabel("Count")');
+  });
+
   it('names a test by its id or whole title, never a part of it', () => {
     expect(attention.run(ARCHIVE, { test: 'redraws the canvas' })).toContain('redraws the canvas — ');
     for (const asked of ['redraws', 'Redraws the canvas']) {

@@ -127,8 +127,9 @@ function describe(entry: Attention): string {
   }
   const locator = locatorLine(entry.locator);
   if (entry.operation === 'planned') return `planned ${locator}`;
-  if (entry.outcome === 'threw') return `${entry.operation} ${entry.member} on ${locator} threw ${entry.error}`;
-  return `${entry.operation} ${entry.member} on ${locator} — before ${targetList(entry.before ?? [])}; after ${targetList(entry.after ?? [])}`;
+  const member = `${entry.negated === true ? 'not.' : ''}${entry.member}`;
+  if (entry.outcome === 'threw') return `${entry.operation} ${member} on ${locator} threw ${entry.error}`;
+  return `${entry.operation} ${member} on ${locator} — before ${targetList(entry.before ?? [])}; after ${targetList(entry.after ?? [])}`;
 }
 
 function locatorLine(steps: readonly LocatorStep[]): string {
