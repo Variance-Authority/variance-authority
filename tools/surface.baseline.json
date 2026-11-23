@@ -1469,6 +1469,10 @@
           "types": "./dist/tools.d.ts",
           "default": "./dist/tools.js"
         },
+        "./recorded-steps": {
+          "types": "./dist/recorded-steps.d.ts",
+          "default": "./dist/recorded-steps.js"
+        },
         "./protocol": {
           "types": "./dist/protocol.d.ts",
           "default": "./dist/protocol.js"
@@ -1528,7 +1532,6 @@
         "PRESENTATION_TOOLS": "const",
         "Page": "interface",
         "REVIEW_TOOLS": "const",
-        "RecordedSteps": "type",
         "ReviewConcern": "interface",
         "ReviewConcernEvent": "interface",
         "ReviewConcernRegion": "interface",
@@ -1576,7 +1579,6 @@
         "publishedTreeOf": "function",
         "rarity": "function",
         "readTree": "function",
-        "recordedSteps": "function",
         "refusalFor": "function",
         "saturation": "function",
         "saysStartPoint": "function",
@@ -1588,6 +1590,10 @@
         "treeOf": "function",
         "vantageToolByName": "function",
         "verbOf": "function"
+      },
+      "./recorded-steps": {
+        "RecordedSteps": "type",
+        "recordedSteps": "function"
       },
       "./protocol": {
         "EYES": "const",

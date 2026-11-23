@@ -43,7 +43,7 @@ describe('a test composition as text', () => {
     expect(formatTestComposition(alone).split('\n')).toEqual([
       'b.test.ts  b uses a: a footprint of 5 regions; 1 more is structure, run by more than half of the 8 recorded tests.',
       '',
-      'Alike, other tests that ran exactly the same regions:',
+      'Alike, other tests that ran the same regions, structure aside:',
       '  b.test.ts  b again',
       '  c.test.ts  b through c',
       '',

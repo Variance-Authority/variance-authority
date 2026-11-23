@@ -250,18 +250,18 @@ async function recorded(): Promise<string> {
   const region = (kind: string, name: string, startLine: number, endLine: number, entered: readonly number[]) => ({
     kind, name, path: 'entry', startLine, endLine, source: true, crossings: entered.map((test) => ({ test, distance: 0 })),
   });
-  const order = [region('function', 'pay', 1, 8, [0, 1]), region('branch', '', 2, 4, [0]), region('branch', '', 5, 7, [1])];
+  const order = [region('function', 'pay', 1, 8, [0, 1]), region('branch', 'pay', 2, 4, [0]), region('branch', 'pay', 5, 7, [1])];
   // Both arms of the ternary share line 1; `refunds` entered the first.
-  const refund = [region('function', 'refund', 1, 1, [1]), region('branch', '', 1, 1, [1]), region('branch', '', 1, 1, [])];
+  const refund = [region('function', 'refund', 1, 1, [1]), region('branch', 'refund', 1, 1, [1]), region('branch', 'refund', 1, 1, [])];
   // `} else {` closes the then-branch and opens the else on line 4; `ships` entered only the else.
   // `check` is a one-line guard: `ships` entered the function and not its branch.
   // `told` and `untold` share line 10 side by side; `ships` entered `told`.
   // `stop` and the branch it holds on line 11 were never entered.
   const ship = [
-    region('function', 'ship', 1, 8, [2]), region('branch', '', 2, 4, []), region('branch', '', 4, 7, [2]),
-    region('function', 'check', 9, 9, [2]), region('branch', '', 9, 9, []),
+    region('function', 'ship', 1, 8, [2]), region('branch', 'ship', 2, 4, []), region('branch', 'ship', 4, 7, [2]),
+    region('function', 'check', 9, 9, [2]), region('branch', 'check', 9, 9, []),
     region('function', 'told', 10, 10, [2]), region('function', 'untold', 10, 10, []),
-    region('function', 'stop', 11, 11, []), region('branch', '', 11, 11, []),
+    region('function', 'stop', 11, 11, []), region('branch', 'stop', 11, 11, []),
   ];
   const covered = (file: string, blocks: readonly ReturnType<typeof region>[]) => ({
     file,

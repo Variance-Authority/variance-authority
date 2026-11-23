@@ -197,6 +197,8 @@ export interface NativeJourneyBlock {
 /** One case, numbered by its position in the recording. */
 export interface NativeJourneyCase {
   readonly case: number;
+  /** The id the record names the case by, the one its other sections, Eyes journals among them, are joined on. */
+  readonly id: string;
   readonly file: string;
   readonly name: string;
   /** The regions its journey entered. */
@@ -400,6 +402,10 @@ export interface NativeRanRegion {
   readonly function?: string | null;
   /** Whether the test entered it. */
   readonly entered: boolean;
+  /** Whether more than half the suite entered it, as a composition counts structure. */
+  readonly structure: boolean;
+  /** Whether the test entered the function it is written in, itself for a function; absent when no recorded function holds it. */
+  readonly functionEntered?: boolean | null;
   /**
    * How many other tests entered it: none says only this test enters it when
    * it did, and no test takes it when it did not.

@@ -10,7 +10,7 @@ use std::collections::{HashMap, HashSet};
 
 use napi_derive::napi;
 
-use crate::journey_masks::JourneyMasks;
+use crate::journey_masks::{is_structural, JourneyMasks};
 
 /// A recorded function.
 #[napi(object)]
@@ -36,6 +36,9 @@ pub struct JourneyBlock {
 #[napi(object)]
 pub struct JourneyCase {
     pub case: u32,
+    /// The id the record names the case by, the one its other sections, Eyes
+    /// journals among them, are joined on.
+    pub id: String,
     pub file: String,
     pub name: String,
     /// The regions its journey entered.
@@ -130,7 +133,7 @@ pub(crate) fn paths_of(masks: &mut JourneyMasks, function: u32, among: Option<&[
             entered: took.iter().map(|&bit| block(masks, bit)).collect::<Result<_, _>>()?,
             median: by_size[by_size.len() / 2],
             smallest: case_of(masks, smallest, sizes[smallest as usize], None)?,
-            passage: members.len() * 2 > total,
+            passage: is_structural(members.len(), total),
         });
     }
     Ok((total as u32, answered))
@@ -150,6 +153,7 @@ pub(crate) fn block(masks: &JourneyMasks, bit: u32) -> Result<JourneyBlock, Stri
 pub(crate) fn case_of(masks: &JourneyMasks, case: u32, blocks: u32, alike: Option<u32>) -> Result<JourneyCase, String> {
     Ok(JourneyCase {
         case,
+        id: masks.journey.test_id(case as usize)?.to_owned(),
         file: masks.journey.test_file(case as usize)?.to_owned(),
         name: masks.journey.test_name(case as usize)?.to_owned(),
         blocks,

@@ -24,7 +24,7 @@ fn recorded() -> JourneyMasks {
     let modules = [
         module(
             "src/route.ts",
-            vec![block("module", "", 1, 20), block("function", "route", 1, 10), block("branch", "", 3, 4), block("branch", "", 6, 7)],
+            vec![block("module", "", 1, 20), block("function", "route", 1, 10), block("branch", "route", 3, 4), block("branch", "route", 6, 7)],
         ),
         module("src/setup.ts", vec![block("module", "", 1, 9), block("function", "setup", 1, 4), block("function", "other", 5, 9)]),
         module("src/target.ts", vec![block("module", "", 1, 5), block("function", "target", 1, 5)]),
@@ -54,6 +54,37 @@ fn a_region_belongs_to_the_smallest_function_holding_its_first_line() {
     assert_eq!(masks.within(route), vec![route]);
     assert!(masks.function_at("src/route.ts", 15).unwrap().is_none());
     assert!(masks.function_at("src/absent.ts", 1).unwrap().is_none());
+}
+
+#[test]
+fn a_region_belongs_to_the_function_its_declaration_path_names_though_a_callback_shares_its_line() {
+    // `if (errors.some((error) => error !== '')) return;` inside `submit`: the
+    // callback and the branch begin on one line, and the branch is `submit`'s.
+    let tests = vec![Test { id: "t0".to_owned(), file: "form.test.ts".to_owned(), name: "submits".to_owned(), project: None, runner: None, settled: FINISHED, heard: None }];
+    let block = |kind: &str, name: &str, start: u32, end: u32| Block { kind: kind.to_owned(), name: name.to_owned(), path: String::new(), start_line: start, end_line: end, source: true };
+    let module = Module {
+        id: "src/form.ts".to_owned(),
+        file: "src/form.ts".to_owned(),
+        blocks: vec![
+            block("module", "", 1, 25),
+            block("function", "submit", 13, 22),
+            block("function", "submit/map.arg0", 14, 14),
+            block("function", "submit/map.arg0", 15, 15),
+            block("function", "submit/some.arg0", 17, 17),
+            block("branch", "submit", 17, 17),
+            block("branch", "submit/map.arg0", 15, 15),
+            block("branch", "", 24, 24),
+        ],
+        owners: None,
+    };
+    let mut sets = SetPool::new(tests.len());
+    let called: Vec<_> = module.blocks.iter().map(|_| sets.intern(&[0])).collect();
+    let loaded = vec![false; module.blocks.len()];
+    let encoded = [EncodedModule { module: &module, called: &called, loaded: &loaded, overwritten: &[] }];
+    let bytes = encode(&tests, &CaseExtras::default(), &encoded, &mut sets, None).unwrap();
+    let masks = JourneyMasks::of(Journey::of("recorded", bytes).unwrap()).unwrap();
+    let functions: Vec<Option<u32>> = masks.bits.iter().map(|bit| bit.function).collect();
+    assert_eq!(functions, vec![None, Some(1), Some(2), Some(3), Some(4), Some(1), Some(3), None]);
 }
 
 #[test]

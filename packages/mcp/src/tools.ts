@@ -135,8 +135,6 @@ export type { CutModule, CutModules, CutRegion } from './tools/tool.js';
 export { notObservedSentence } from './tools/subject.js';
 // A long part of an answer, capped and counted the same way in every server.
 export { cappedRows } from './tools/capped.js';
-// What one recorded test did, step by step, read from the record as the attention tools read it.
-export { recordedSteps, type RecordedSteps } from './tools/recorded-steps.js';
 // How many rows a listing shows, read and refused the same way in every server.
 export { limitOf, nextPage, notShown, notShownPast, pageAt, pageOf, paged, type Page, type Rows } from './tools/limit.js';
 // How rare a word is in a population, the one integer every word ranking multiplies by a field weight.

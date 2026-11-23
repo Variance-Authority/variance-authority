@@ -29,7 +29,7 @@ export function formatTestComposition(composition: TestComposition): string {
   const head = `${test.file}  ${test.name}: a footprint of ${regions(test.blocks)}`;
   const lines = [structure === 0 ? `${head}.` : `${head}; ${structure} more ${structure === 1 ? 'is' : 'are'} structure, ${majority}.`];
   if (composition.alike.length > 0) {
-    lines.push('', 'Alike, other tests that ran exactly the same regions:');
+    lines.push('', 'Alike, other tests that ran the same regions, structure aside:');
     lines.push(...cappedRows(composition.alike, (alike) => `  ${namedTest(alike)}`, ROWS));
   }
   if (composition.pieces.length === 0 && composition.wholes.length === 0) {

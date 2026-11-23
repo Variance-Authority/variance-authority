@@ -20,7 +20,7 @@ use std::collections::{HashMap, HashSet};
 
 use napi_derive::napi;
 
-use crate::journey_masks::{JourneyMasks, Shape};
+use crate::journey_masks::{is_structural, JourneyMasks, Shape};
 use crate::journey_paths::{block, case_of, JourneyBlock, JourneyCase};
 use crate::order;
 
@@ -106,7 +106,7 @@ pub(crate) fn compose(masks: &mut JourneyMasks, file: &str, name: Option<&str>) 
             continue;
         }
         let members = masks.entered(at as u32)?;
-        if members.len() * 2 > suite {
+        if is_structural(members.len(), suite) {
             structural[at] = true;
             for &case in members.iter() {
                 if let Some(count) = held.get_mut(case as usize) {
@@ -199,6 +199,11 @@ pub struct RanRegion {
     pub function: Option<String>,
     /// Whether the test entered it.
     pub entered: bool,
+    /// Whether more than half the suite entered it, as a composition counts structure.
+    pub structure: bool,
+    /// Whether the test entered the function it is written in, itself for a
+    /// function; absent when no recorded function holds it.
+    pub function_entered: Option<bool>,
     /// How many other tests entered it: none says only this test enters it
     /// when it did, and no test takes it when it did not.
     pub others: u32,
@@ -260,6 +265,8 @@ pub(crate) fn ran(masks: &mut JourneyMasks, file: &str, name: Option<&str>) -> R
             }
             let held = block(masks, bit)?;
             let members = masks.entered(bit)?;
+            let structure = is_structural(members.len(), suite);
+            let function_entered = masks.bits[bit as usize].function.map(|function| entered.contains(&function));
             let others: Vec<u32> = members.iter().copied().filter(|&case| case != asked).collect();
             let smallest = others.iter().copied().min_by_key(|&case| (sizes[case as usize], case));
             regions.push(RanRegion {
@@ -269,6 +276,8 @@ pub(crate) fn ran(masks: &mut JourneyMasks, file: &str, name: Option<&str>) -> R
                 source: masks.bits[bit as usize].source,
                 function: held.function,
                 entered: entered.contains(&bit),
+                structure,
+                function_entered,
                 others: others.len() as u32,
                 smallest: smallest.map(|case| case_of(masks, case, sizes[case as usize], None)).transpose()?,
             });

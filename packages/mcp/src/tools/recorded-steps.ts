@@ -2,9 +2,9 @@
  * The Eyes journals a record keeps, read without waiting: as the archive the
  * attention tools read, and as the steps and assertions of one test.
  *
- * A question asked of the recording answers synchronously, so this is the one
- * place the record's journals are joined to the cases its index names; the
- * served archive reads them through it too.
+ * A question asked of the recording answers synchronously, so the record's
+ * journals are joined to the cases its index names here, by the case's id; the
+ * served archive reads them through the same join.
  */
 
 // compass: variance-authority/runtime/attention
@@ -61,11 +61,12 @@ export type RecordedSteps =
     };
 
 /**
- * The steps and assertions the record at `record` keeps for the test declared
- * in `file` and named `name`, from its last attempt: a retried test's earlier
- * attempts are the runs it did not pass on.
+ * The steps and assertions the record at `record` keeps for the case it names
+ * `id`, from its last attempt: a retried test's earlier attempts are the runs
+ * it did not pass on. The id, not the file and the name, because one test run
+ * under two projects is two cases with the same file and name.
  */
-export function recordedSteps(record: string, file: string, name: string): RecordedSteps {
+export function recordedSteps(record: string, id: string): RecordedSteps {
   let archive: EyesArchive;
   try {
     archive = eyesArchiveOf(readFileSync(record), record);
@@ -73,7 +74,7 @@ export function recordedSteps(record: string, file: string, name: string): Recor
     if (error instanceof RecordKeepsNoEyes) return { unrecorded: 'the run kept no Eyes journal' };
     throw error;
   }
-  const attempts = archive.tests.filter((test) => test.file === file && test.title === name);
+  const attempts = archive.tests.filter((test) => test.id === id);
   const last = attempts.at(-1);
   if (last === undefined) return { unrecorded: 'Eyes kept no journal for it' };
   const steps = last.attention.flatMap((entry) => stepLine(entry) ?? []);

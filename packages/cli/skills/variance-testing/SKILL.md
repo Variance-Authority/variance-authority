@@ -288,15 +288,15 @@ variance ask test-claims --file e2e/signup.spec.ts --name 'retries a failed post
 ```
 
 The answer puts the test's claims, its name and the steps and assertions Eyes
-recorded, beside what it ran, what it adds to the suite and the branches it
-passed by. Judge it in this order:
+recorded, beside what it ran, what it adds to the suite and what it passed by. Judge it in this order:
 
 1. Take each claim in the name: a verb, a condition, an actor, such as
-   *retries*, *when offline*, *as a guest*. Find the branch that does it. Under
+   *retries*, *when offline*, *as a guest*. Find the region that does it: a
+   branch, a case, a loop body, a handler. Under
    `only this test enters`, the test runs its claim. Under `Passed by`, it does
    not, and `no test takes it` is a path the suite never runs.
-2. A test that executes exactly what another test executes is judged with that
-   test, never alone. The one whose name says what both run keeps its name.
+2. A test that runs the same regions as another test, structure aside, is
+   judged with that test, never alone. The one whose name says what both run keeps its name.
    The other adds no execution: if its name claims something else, that is a
    path to drive; if both names say the same, one of them goes.
 3. Compare the steps and assertions with the twin's, asked the same way: two
@@ -306,8 +306,8 @@ Then choose one action and name the exact change:
 
 - `keep`: it runs what its name says, and something no other test runs.
 - `rename`: it runs something of its own, but not what its name says.
-- `exercise the claimed path`: its name claims a branch under `Passed by`, or
-  it runs exactly what another test runs. Name the branch and the input that
+- `exercise the claimed path`: its name claims a region under `Passed by`, or
+  it runs the same regions as another test. Name the region and the input that
   drives it, such as a post that fails once.
 - `collapse into <test>`: it adds no execution, and what it asserts fits into
   that test as one more assertion.
@@ -315,8 +315,8 @@ Then choose one action and name the exact change:
   makes too.
 
 Cite each judgement with the part and the row it comes from, such as
-`Passed by` → `src/app/http.js:18  branch in post  no test takes it`, and open
-the source only to read what a named branch does. Before a `collapse` or a
+`Passed by` → `src/app/http.js:17-19  handler in post  no test takes it`, and
+open the source only to read what a named region does. Before a `collapse` or a
 `delete`, break the line the test's claim needs and run it beside the tests
 next to it: a test that alone fails checks something they do not.
 [orient](../variance-authority/references/orient.md#test-claims)

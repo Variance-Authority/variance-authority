@@ -12,8 +12,8 @@ use crate::journey_record::{Block, Module};
 fn recorded() -> JourneyMasks {
     let names = ["a unit", "b uses a", "c unit", "a again", "end to end", "setup one", "setup two", "setup three"];
     let modules = [
-        module("src/a.ts", vec![block("module", "", 1, 20), block("function", "a", 1, 10), block("branch", "", 3, 4), block("branch", "", 6, 7)]),
-        module("src/b.ts", vec![block("module", "", 1, 9), block("function", "b", 1, 9), block("branch", "", 3, 4)]),
+        module("src/a.ts", vec![block("module", "", 1, 20), block("function", "a", 1, 10), block("branch", "a", 3, 4), block("branch", "a", 6, 7)]),
+        module("src/b.ts", vec![block("module", "", 1, 9), block("function", "b", 1, 9), block("branch", "b", 3, 4)]),
         module("src/c.ts", vec![block("module", "", 1, 5), block("function", "c", 1, 5)]),
         module("src/setup.ts", vec![block("module", "", 1, 4), block("function", "setup", 1, 4)]),
     ];
@@ -218,4 +218,36 @@ fn a_test_ran_says_how_many_other_tests_entered_each_region_and_the_smallest_of_
 fn a_test_ran_refuses_a_test_the_recording_cannot_choose() {
     let mut masks = recorded();
     assert_eq!(ran(&mut masks, "absent.test.ts", None).unwrap().not_recorded.unwrap(), "The recording holds no test declared in absent.test.ts.");
+}
+
+#[test]
+fn a_test_ran_marks_structure_whether_each_regions_function_was_entered_and_the_case_id() {
+    // Two cases over `f`, `g` and `setup`: each enters its own function, and both enter `setup`.
+    let modules = [module(
+        "src/m.ts",
+        vec![
+            block("module", "", 1, 30),
+            block("function", "f", 1, 10),
+            block("branch", "f", 3, 4),
+            block("function", "g", 12, 20),
+            block("handler", "g", 14, 15),
+            block("function", "setup", 22, 30),
+        ],
+    )];
+    let entered: [&[&[u32]]; 1] = [&[&[], &[0], &[0], &[1], &[1], &[0, 1]]];
+    let mut masks = masks_of(&["f unit", "g unit"], |case| format!("m{case}.test.ts"), &modules, &entered);
+    let answer = ran(&mut masks, "m0.test.ts", None).unwrap();
+    assert_eq!(answer.test.as_ref().unwrap().id, "t0");
+    let rows: Vec<(&str, u32, bool, Option<bool>)> =
+        answer.modules[0].regions.iter().map(|region| (region.kind.as_str(), region.line, region.structure, region.function_entered)).collect();
+    assert_eq!(
+        rows,
+        vec![
+            ("function", 1, false, Some(true)),
+            ("branch", 3, false, Some(true)),
+            ("function", 12, false, Some(false)),
+            ("handler", 14, false, Some(false)),
+            ("function", 22, true, Some(true)),
+        ]
+    );
 }

@@ -230,25 +230,38 @@ impl JourneyMasks {
     }
 }
 
-/// Give each region of one module the function it is written in.
+/// Give each region of one module the function it is written in: the function
+/// its declaration path names, as the instrumenter wrote it, and of two such
+/// functions the smaller one holding its first line. A line alone does not
+/// say: a callback and a branch of the function that calls it can begin on
+/// one line. A region whose path names no function, code at the top of the
+/// module, is written in none.
 fn enclose(bits: &mut [Bit], from: u32) {
-    let functions: Vec<(u32, u32, u32)> = bits
+    let functions: Vec<(u32, u32, u32, u32)> = bits
         .iter()
         .enumerate()
         .filter(|(_, bit)| bit.shape == Shape::Function)
-        .map(|(at, bit)| (bit.start, bit.end, from + at as u32))
+        .map(|(at, bit)| (bit.name, bit.start, bit.end, from + at as u32))
         .collect();
     for (at, bit) in bits.iter_mut().enumerate() {
         bit.function = match bit.shape {
             Shape::Module => None,
             Shape::Function => Some(from + at as u32),
+            // The journey keeps one id per string, so the same path is the same id.
             Shape::Inner => functions
                 .iter()
-                .filter(|(start, end, _)| *start <= bit.start && bit.start <= *end)
-                .min_by_key(|(start, end, row)| (end - start, *row))
-                .map(|(_, _, row)| *row),
+                .filter(|(name, start, end, _)| *name == bit.name && *start <= bit.start && bit.start <= *end)
+                .min_by_key(|(_, start, end, row)| (end - start, *row))
+                .map(|(_, _, _, row)| *row),
         };
     }
+}
+
+/// Whether a region `entered_by` of the `suite` cases entered is structure:
+/// more than half of them entered it, so entering it tells one case from
+/// another by nothing.
+pub(crate) fn is_structural(entered_by: usize, suite: usize) -> bool {
+    entered_by * 2 > suite
 }
 
 /// How much two ascending masks share, over the larger of them.

@@ -1,7 +1,7 @@
 // The claim under test is that a Playwright suite's own recording run, with
 // Eyes on, is enough to hold each test against what it says: the steps and
-// assertions it made, what it ran, what it adds to the suite, and the branches
-// it passed by. Nothing runs at question time.
+// assertions it made, what it ran, what it adds to the suite, and what it
+// passed by. Nothing runs at question time.
 //
 // The suite runs in a checkout of its own, as a project that installed
 // variance runs it: the record is kept for that checkout, where `variance ask`
@@ -83,7 +83,7 @@ live('a Playwright suite recorded with Eyes', () => {
       };
 
       // Its name says it retries; what it did is what the plain submit does,
-      // and the retry is a branch no test takes.
+      // and the retry, the handler that catches a failed post, no test takes.
       const retries = await ask('retries a failed post');
       expect(retries.slice(0, 10)).toEqual([
         `${SPEC}  signup > retries a failed post`,
@@ -97,9 +97,9 @@ live('a Playwright suite recorded with Eyes', () => {
         '    action click on getByRole("button", {"name":"Sign up"})',
         '    assertion to.have.text on getByRole("status")',
       ]);
-      expect(retries).toContain('  executes exactly what 1 other test executes:');
+      expect(retries).toContain('  runs the same regions as 1 other test, structure aside:');
       expect(retries).toContain(`    ${SPEC}  signup > submits the form`);
-      expect(retries).toContain('  src/app/http.js:18  branch in post  no test takes it');
+      expect(retries).toContain('  src/app/http.js:17-19  handler in post  no test takes it');
 
       // An assertion against something keeps its `.not`, and the one branch
       // this test enters alone is the one its name is about.
