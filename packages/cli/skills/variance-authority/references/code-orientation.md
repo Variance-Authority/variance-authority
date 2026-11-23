@@ -47,10 +47,9 @@ or stack trace already gives you a path, pass it as a start point (`--from`,
 `--to`; see [the shared scope rules](../SKILL.md#rules-every-answer-shares)). Read a plausible owner's named lines before another
 search; ask `symbol` when you need its contract, or `uses` for its import sites.
 
-Directory membership, import reach and runtime loading answer different
-questions. `discover --path <regex>` selects paths; `--from` and `--to` follow
-imports at any depth, including type imports. Cross those relations with a declaration or
-path predicate for the responsibility you still need.
+After a near match, the printed `Next:` is a lexical suggestion, not verified
+task ownership. If a broad `--declares 'Client|Server|Handler'` mixes unrelated
+responsibilities, narrow it with an observed name or role before expanding it.
 
 When you have both a feature file and an implementation file, combine `--from`
 and `--to` to find the files on import paths between them:
@@ -66,12 +65,40 @@ imports by file, so later rows need not import that name. Use the file target
 when you need the connecting paths regardless of which name each import uses. See
 [the operands and chain format](workspace-discover.md).
 
-For matching text in only
-one known file, combine its exact path with `--text`:
+For consumers inside one observed area, cross reverse imports with path membership:
+
+```bash
+variance ask discover --to src/pricing/price.ts --path '^src/checkout/' --limit 6
+```
+
+Read the returned source to establish how it uses the value. An empty
+intersection does not rule out a runtime consumer: dependency injection can
+leave no corresponding import path.
+
+## Choose directory membership or import reach
+
+`grep --from src/pricing/` searches files under that path and files
+reachable through their imports. A match in `src/shared/` answers that import
+question. For text only under the observed directory, select path membership:
+
+```bash
+variance ask discover --path '^src/pricing/' --text 'roundingMode|precision'
+```
+
+For one known file, anchor both ends and escape regex metacharacters in its path:
 
 ```bash
 variance ask discover --path '^src/PriceCard[.]tsx$' --text 'onComplete|error'
 ```
+
+Text is read live; membership comes from the published index. Check the
+[answer's notes](workspace-discover.md) for unresolved imports or ripgrep errors
+before interpreting an empty intersection.
+
+Directory membership, import reach and runtime loading answer different
+questions. `discover` walks imports, including type imports; `grep` also searches
+the modules a test loads for real beside its mocks, as its
+[contract](workspace-grep.md) describes.
 
 A quoted UI label or error is source text: use scoped `grep`. If its exact
 wording misses, retry a distinctive fragment in the same scope before name
@@ -79,7 +106,9 @@ queries. Escape regex metacharacters in literal text, such as `Failed \(retry\)`
 see the [grep contract](workspace-grep.md). A matching line names
 a candidate; read it before deciding it owns the requested behavior.
 
-For example, find an example that transitively imports a component, then a
+## Find an example and its mock
+
+Find an example that transitively imports a component, then a
 mock that example reaches:
 
 ```bash

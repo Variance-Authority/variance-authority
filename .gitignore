@@ -42,6 +42,8 @@ packages/sense/.overhead-*
 # a run makes for itself and no later run can use.
 .variance-authority/
 coverage/
+# The site's `/coverage` route, whose address is its folder's name.
+!site/app/coverage/
 packages/react/browser-check/www/bundle.js
 
 # Agent worktrees

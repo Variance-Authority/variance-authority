@@ -62,3 +62,8 @@ when an entry is added.
    configuration again, or guesses which unresolved specifier might be an
    importer, is a second resolver. The `alignment` reviewer asks it of every
    diff. #1387.
+16. **Which completion criterion of the linked issue does the diff advance?** A
+   documentation clarification does not implement automatic behavior when the
+   issue explicitly leaves instruction-only solutions out. The fidelity
+   reviewer checks the issue's outcome against the diff before accepting the
+   link. #1774.
