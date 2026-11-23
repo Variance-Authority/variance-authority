@@ -17,6 +17,9 @@ unbroken run's time, and at least two seconds, is stopped and named as hung. A
 command that fails with nothing broken is refused, and so is a checkout whose
 configuration names a `cacheRoot`, which the command's runs would record into.
 
-`serveBase` takes the environment, the standard streams and a deadline for the
-command it starts, and says whether the run was stopped at it; `extremeBreaks`
-is exported beside it.
+Each break is cut from the file as the checkout holds it now, under the probes
+the recording was made with, and placed at the recording's commit; a region
+whose recording names no commit, or whose lines cannot be placed, is left
+unbroken with the reason rather than read where its lines stand now. One ask
+runs at most twenty breaks and counts the regions it did not try.
+`extremeBreaks` is exported from `@variance-authority/sense/test-selection`.

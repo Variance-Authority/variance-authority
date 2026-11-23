@@ -9,7 +9,7 @@
  * that cannot be written is an error of its own, after the command has run.
  */
 
-import { execFileSync, spawn, type StdioOptions } from 'node:child_process';
+import { execFileSync, spawn, type ChildProcess, type StdioOptions } from 'node:child_process';
 import { closeSync, openSync, readSync, statSync } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { constants, tmpdir } from 'node:os';
@@ -122,19 +122,44 @@ function* linesOf(file: string): Generator<string> {
 /** How long a program stopped at its deadline has to end before it is killed. */
 const GRACE = 5_000;
 
+/** How many milliseconds a program may run, and what is told when it is stopped for running longer. */
+export interface Deadline {
+  readonly after: number;
+  readonly stopped: () => void;
+}
+
+/** Send `signal` to the child and everything it started: a test runner's workers outlive a signal to the runner alone. */
+function signalled(child: ChildProcess, signal: NodeJS.Signals, group: boolean): void {
+  if (!group || child.pid === undefined) {
+    child.kill(signal);
+    return;
+  }
+  try {
+    process.kill(-child.pid, signal);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error;
+  }
+}
+
 /**
  * The exit of `program`, as a shell states one: a signal is 128 and its number. Undefined when there is no such program. `env`, when given, is its whole environment.
- * `stdio` is where its streams go: this process's own by default. Past `deadline` milliseconds it is asked to stop, and killed when it has not after a grace.
+ * `stdio` is where its streams go: this process's own by default. Past its `deadline` the program and every process it started are asked to stop, `stopped` is told, and they are killed when they have not after a grace.
  */
-export function started(program: string, args: readonly string[], cwd: string, env?: NodeJS.ProcessEnv, stdio: StdioOptions = 'inherit', deadline?: number): Promise<number | undefined> {
+export function started(program: string, args: readonly string[], cwd: string, env?: NodeJS.ProcessEnv, stdio: StdioOptions = 'inherit', deadline?: Deadline): Promise<number | undefined> {
   return new Promise((resolve, reject) => {
-    const child = spawn(program, args, { cwd, stdio, ...(env === undefined ? {} : { env }) });
+    // A run with a deadline leads its own process group, so stopping it stops what it started too.
+    const group = deadline !== undefined && process.platform !== 'win32';
+    const child = spawn(program, args, { cwd, stdio, detached: group, ...(env === undefined ? {} : { env }) });
     const timers: NodeJS.Timeout[] = [];
+    let stopped = false;
     if (deadline !== undefined) {
+      // A deadline that names a run that never answered, not a wait for one to settle: the run's close is the signal, and these only stop it.
       timers.push(setTimeout(() => {
-        child.kill('SIGTERM');
-        timers.push(setTimeout(() => child.kill('SIGKILL'), GRACE));
-      }, deadline));
+        stopped = true;
+        deadline.stopped();
+        signalled(child, 'SIGTERM', group);
+        timers.push(setTimeout(() => signalled(child, 'SIGKILL', group), GRACE));
+      }, deadline.after));
     }
     const settled = (): void => timers.forEach(clearTimeout);
     child.on('error', (error: NodeJS.ErrnoException) => {
@@ -144,6 +169,8 @@ export function started(program: string, args: readonly string[], cwd: string, e
     });
     child.on('close', (code, signal) => {
       settled();
+      // What the stopped run started and left behind goes with it.
+      if (stopped) signalled(child, 'SIGKILL', group);
       resolve(code ?? 128 + (signal === null ? 0 : constants.signals[signal]));
     });
   });

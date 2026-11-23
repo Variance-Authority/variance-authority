@@ -38,7 +38,7 @@ export async function runProves({ file, name, run }: ParsedProves, streams: Pick
       ...section('Hung, the test was still running at its deadline with the region broken, and was stopped:', answer.hung.map(broken)),
       ...section('Not broken:', [
         ...answer.unbroken.map(({ region, reason }) => `  ${place(region)}  ${reason}`),
-        ...(answer.pastCap === 0 ? [] : [`  ${answer.pastCap} more ${answer.pastCap === 1 ? 'region' : 'regions'} past the cap of ${CAP}, fewest other tests first: ask about a narrower test to reach them`]),
+        ...(answer.pastCap === 0 ? [] : [`  ${answer.pastCap} more ${answer.pastCap === 1 ? 'region the test entered was' : 'regions the test entered were'} not tried: one ask breaks at most ${CAP}, fewest other tests first`]),
       ]),
       LIMIT,
       '',

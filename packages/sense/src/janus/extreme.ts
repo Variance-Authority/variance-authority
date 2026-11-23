@@ -11,24 +11,30 @@
  * the loop running for ever. A break that still runs past a deadline is
  * stopped and named as hung.
  *
- * Each break is cut from the source as the checkout has it now, by the same
- * `spliced` the instrumenter cuts the record's regions with, after the
- * record's lines are placed in it from the commit it was made at; and it is
- * served by {@link serveBase}: nothing is written to the checkout, and the
- * command's record goes to a scratch directory, so the real one is left as it
- * was.
+ * Each break is cut from the source as the checkout has it now by
+ * `sourceCut`, under the probes the recording was made with, and matched to
+ * the record's region by placing the cut's lines at the recording's commit
+ * with `linesThen`; a line that cannot be placed leaves its region unbroken
+ * rather than read where it stands now. It is served as `serveBase` serves a base:
+ * nothing is written to the checkout, and the command's record goes to a
+ * scratch directory, so the real one is left as it was.
  */
 
+import type { StdioOptions } from 'node:child_process';
 import { mkdtemp, readFile, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parseSync } from 'oxc-parser';
-import { spliced, type Block } from '../instrument/spliced.js';
+import { instrumentModeOf } from '../instrument/identity.js';
+import type { Block } from '../instrument/index.js';
+import type { WalkMode } from '../instrument/spliced.js';
 import { linesThen, testsRan } from '../journeys.js';
-import type { NativeJourneyCase, NativeRanRegion } from '../native-journeys.js';
-import { linesOf } from '../read.js';
+import type { NativeJourneyCase, NativeLinesThen, NativeRanRegion } from '../native-journeys.js';
 import { CACHE_VARIABLE, rootConfig } from '../test-selection/cache-layers.js';
-import { serveBase, type ServedOptions } from './serve-base.js';
+import { sourceCut } from '../test-selection/coverage-rows.js';
+import { askCoverageFile } from '../test-selection/coverage-file.js';
+import type { CoverageBlock } from '../test-selection/index.js';
+import { servedRun } from './serve-base.js';
 
 /** The kinds of region a break is made in. */
 const BROKEN = new Set(['function', 'branch', 'continuation', 'handler']);
@@ -37,10 +43,11 @@ const BROKEN = new Set(['function', 'branch', 'continuation', 'handler']);
 const DEADLINE_FACTOR = 5;
 const DEADLINE_FLOOR = 2_000;
 
-/** One region the asked test entered, where the record places it. */
+/** One region the asked test entered. */
 export interface ExtremeRegion {
   readonly file: string;
   readonly kind: string;
+  /** Where the region stands in the file now when it was broken, and where the record places it when it was not. */
   readonly line: number;
   readonly end: number;
   readonly function?: string;
@@ -64,7 +71,7 @@ export interface ExtremeAnswer {
   /** Broken, and the command was still running at its deadline, so it was stopped: neither a pass nor a failure. */
   readonly hung: readonly ExtremeRegion[];
   readonly unbroken: readonly Unbroken[];
-  /** How many regions the test entered past the cap, and so were not broken. */
+  /** How many more regions the test entered once the cap of breaks was run, which were not tried. */
   readonly pastCap: number;
 }
 
@@ -83,14 +90,15 @@ export interface ExtremeAsk {
   /** The command that runs the asked test, started in `cwd`. */
   readonly command: readonly [string, ...string[]];
   readonly cwd: string;
-  /** How many regions to break, fewest other tests first. */
+  /** How many breaks to run, fewest other tests first. */
   readonly limit: number;
 }
 
-/** A region with the commit its lines are spans of, when its recording names one. */
+/** A region, with the commit its lines are spans of and the probes it was cut by, as its recording names them. */
 interface Asked {
   readonly region: ExtremeRegion;
   readonly commit: string | undefined;
+  readonly mode: WalkMode | undefined;
 }
 
 /**
@@ -110,32 +118,58 @@ export async function extremeBreaks({ root, file, name, command, cwd, limit }: E
   const scratch = await mkdtemp(join(tmpdir(), 'variance-extreme-'));
   try {
     // The command's own record goes here, so no break folds into the checkout's.
-    const unbrokenOptions: ServedOptions = { env: { [CACHE_VARIABLE]: scratch }, stdio: ['ignore', 2, 2] };
+    const stdio: StdioOptions = ['ignore', 2, 2];
+    const unbrokenOptions = { env: { [CACHE_VARIABLE]: scratch }, stdio };
     const begun = performance.now();
-    const unbrokenRun = await serveBase({}, command, cwd, unbrokenOptions);
+    const unbrokenRun = await servedRun({}, command, cwd, unbrokenOptions);
     if (unbrokenRun === undefined) return { refused: `\`${command[0]}\` could not be started: no such command` };
     if (unbrokenRun.exit !== 0) return { refused: `the command fails with nothing broken (exit ${unbrokenRun.exit}), so no break can be told apart from it: run it alone to see why` };
-    const options: ServedOptions = { ...unbrokenOptions, deadline: Math.max(DEADLINE_FLOOR, Math.ceil((performance.now() - begun) * DEADLINE_FACTOR)) };
+    const options = { ...unbrokenOptions, deadline: Math.max(DEADLINE_FLOOR, Math.ceil((performance.now() - begun) * DEADLINE_FACTOR)) };
     const survived: ExtremeRegion[] = [];
     const noticed: ExtremeRegion[] = [];
     const hung: ExtremeRegion[] = [];
     const unbroken: Unbroken[] = [];
     const cuts = new Map<string, Cut | undefined>();
-    for (const { region, commit } of asked.regions.slice(0, limit)) {
-      if (!cuts.has(region.file)) cuts.set(region.file, await cutOf(root, region.file));
-      const cut = cuts.get(region.file);
-      const broken = cut === undefined ? { reason: 'the checkout no longer holds the file, or the instrumenter does not cut it' } : extremeBreak(root, cut, region, commit);
-      if ('reason' in broken) {
-        unbroken.push({ region, reason: broken.reason });
+    const tried = new Set<string>();
+    let pastCap = 0;
+    for (const { region, commit, mode } of asked.regions) {
+      if (tried.size >= limit) {
+        pastCap += 1;
         continue;
       }
-      const served = await serveBase({ [cut!.path]: broken.text }, command, cwd, options);
+      const reason = (why: string): void => void unbroken.push({ region, reason: why });
+      if (mode === undefined) {
+        reason('its recording was made by probes this build does not cut, so no region of the file can be matched to it');
+        continue;
+      }
+      if (commit === undefined) {
+        reason('its recording names no commit, so its lines cannot be placed in the file as it is now');
+        continue;
+      }
+      const key = `${mode}\0${region.file}`;
+      if (!cuts.has(key)) cuts.set(key, await cutOf(root, region.file, mode));
+      const cut = cuts.get(key);
+      if (cut === undefined) {
+        reason('the checkout no longer holds the file, or the instrumenter does not cut it');
+        continue;
+      }
+      const broken = extremeBreak(root, cut, region, commit);
+      if ('reason' in broken) {
+        reason(broken.reason);
+        continue;
+      }
+      // Two suites can record one region at two commits: it is the block in today's text that is broken, once.
+      const block = `${cut.path}\0${broken.start}\0${broken.end}`;
+      if (tried.has(block)) continue;
+      tried.add(block);
+      const now = { ...region, line: broken.line, end: broken.endLine };
+      const served = await servedRun({ [cut.path]: broken.text }, command, cwd, options);
       if (served === undefined) return { refused: `\`${command[0]}\` could not be started: no such command` };
-      if (served.late) hung.push(region);
-      else if (served.unread.length > 0) unbroken.push({ region, reason: 'no process the command started read the file, so the break was not run' });
-      else (served.exit === 0 ? survived : noticed).push(region);
+      if (served.late) hung.push(now);
+      else if (served.unread.length > 0) unbroken.push({ region: now, reason: 'no process the command started read the file, so the break was not run' });
+      else (served.exit === 0 ? survived : noticed).push(now);
     }
-    return { test: asked.test, survived, noticed, hung, unbroken, pastCap: Math.max(0, asked.regions.length - limit) };
+    return { test: asked.test, survived, noticed, hung, unbroken, pastCap };
   } finally {
     await rm(scratch, { recursive: true, force: true });
   }
@@ -150,12 +184,14 @@ function enteredRegions(root: string, file: string, name: string | undefined): {
   const other = named.map((suite) => suite.ran.test!).find((each) => each.file !== test.file || each.name !== test.name);
   if (other !== undefined) return { refused: `the suites name different tests for it, \`${test.name}\` and \`${other.name}\`: ask by the whole name` };
   const regions = new Map<string, Asked>();
-  for (const { ran, commit } of named) {
+  for (const { ran, commit, recording } of named) {
+    const mode = instrumentModeOf(askCoverageFile(recording, (view) => view.instrumentation));
+    const walked = mode === 'loads' ? undefined : mode;
     for (const { file: module, regions: ranRegions } of ran.modules) {
       for (const region of ranRegions.filter(breakable)) {
-        const key = `${commit ?? ''}\0${module}\0${region.kind}\0${region.line}\0${region.end}\0${region.function ?? ''}`;
+        const key = `${commit ?? ''}\0${walked ?? ''}\0${module}\0${region.kind}\0${region.line}\0${region.end}\0${region.function ?? ''}`;
         const held = regions.get(key);
-        if (held === undefined || region.others < held.region.others) regions.set(key, { region: placed(module, region), commit });
+        if (held === undefined || region.others < held.region.others) regions.set(key, { region: placed(module, region), commit, mode: walked });
       }
     }
   }
@@ -171,53 +207,68 @@ function placed(file: string, region: NativeRanRegion): ExtremeRegion {
   return { file, kind, line, end, others, ...(region.function == null ? {} : { function: region.function }) };
 }
 
-/** One file as the checkout holds it now, cut into the regions the instrumenter keeps. */
+/** One file as the checkout holds it now, cut as a seam under the recording's probes would cut it. */
 interface Cut {
   readonly file: string;
   readonly path: string;
   readonly source: string;
-  readonly blocks: readonly Block[];
-  readonly lineOf: (offset: number) => number;
+  /** Each row the cut makes at the file's own lines, beside the block it was made from. */
+  readonly rows: readonly { readonly row: CoverageBlock; readonly block: Block }[];
   /** Where each line now stood at a commit, read once per commit. */
-  readonly atCommit: Map<string, ReturnType<typeof linesThen>>;
+  readonly atCommit: Map<string, NativeLinesThen>;
+  readonly lines: number;
 }
 
-async function cutOf(root: string, file: string): Promise<Cut | undefined> {
+async function cutOf(root: string, file: string, mode: WalkMode): Promise<Cut | undefined> {
   const path = await realpath(join(root, file)).catch(() => undefined);
   if (path === undefined) return undefined;
   const source = await readFile(path, 'utf8');
-  const cut = spliced(source, path, 'presence');
+  const cut = sourceCut(source, path, mode);
   if (cut === undefined) return undefined;
-  return { file, path, source, blocks: cut.blocks, lineOf: linesOf(source), atCommit: new Map() };
-}
-
-/** Where the lines `first` to `last` of the cut file stood at `commit`: as they are when there is no commit, or nothing to place them by. */
-function placedThen(root: string, cut: Cut, commit: string | undefined, first: number, last: number): readonly (number | null)[] {
-  const now = Array.from({ length: last - first + 1 }, (_, at) => first + at);
-  if (commit === undefined) return now;
-  if (!cut.atCommit.has(commit)) {
-    const count = cut.lineOf(cut.source.length);
-    cut.atCommit.set(commit, linesThen(root, commit, cut.file, Array.from({ length: count }, (_, at) => at + 1)));
-  }
-  const then = cut.atCommit.get(commit)!;
-  return then.unplaced != null ? now : now.map((line) => then.lines[line - 1] ?? null);
-}
-
-/** The cut file's text with `region` broken in the extreme, or why it cannot be. */
-function extremeBreak(root: string, cut: Cut, region: ExtremeRegion, commit: string | undefined): { text: string } | { reason: string } {
-  const matching = cut.blocks.filter((block) => {
-    if (block.kind !== region.kind || block.start === block.end || (region.function !== undefined && block.name !== region.function)) return false;
-    // The record's lines are the recorded commit's; a line written since is in no region it holds.
-    const lines = placedThen(root, cut, commit, cut.lineOf(block.start), cut.lineOf(block.end - 1));
-    return lines[0] === region.line && lines.at(-1) === region.end && lines.every((line) => line !== null);
+  const blocks = new Map(cut.blocks.map((block) => [block.ordinal, block]));
+  const rows = cut.rows.flatMap((row) => {
+    const block = blocks.get(row.ordinal);
+    return block === undefined ? [] : [{ row, block }];
   });
-  const [block, ...more] = matching;
-  if (block === undefined || more.length > 0) return { reason: 'its source changed since the recording, so no region of the file is the one it holds' };
-  // A function's region runs from its parameters to the end of its body: replaced whole, it takes nothing and returns nothing.
-  const empties = block.kind === 'function' ? ['() {}', '() => undefined'] : [cut.source[block.start] === '{' ? '{}' : ';'];
-  for (const empty of empties) {
+  return { file, path, source, rows, atCommit: new Map(), lines: source.split('\n').length };
+}
+
+/** Where every line of the cut file stood at `commit`, read once. */
+function placedAt(root: string, cut: Cut, commit: string): NativeLinesThen {
+  if (!cut.atCommit.has(commit)) cut.atCommit.set(commit, linesThen(root, commit, cut.file, Array.from({ length: cut.lines }, (_, at) => at + 1)));
+  return cut.atCommit.get(commit)!;
+}
+
+/** The empty text a block's span is replaced with, in the order each is tried: a function's span runs from its parameters to the end of its body. */
+const empties = (kind: string, opening: string | undefined): readonly string[] => (kind === 'function' ? ['() {}', '() => undefined'] : [opening === '{' ? '{}' : ';']);
+
+/** The broken block: the cut file's text with `region` broken in the extreme, and where the block stands now; or why it cannot be broken. */
+function extremeBreak(
+  root: string,
+  cut: Cut,
+  region: ExtremeRegion,
+  commit: string,
+): { text: string; start: number; end: number; line: number; endLine: number } | { reason: string } {
+  const then = placedAt(root, cut, commit);
+  if (then.unplaced != null) return { reason: `its lines cannot be placed in the file as it is now: ${then.unplaced}` };
+  const at = (line: number): number | null => then.lines[line - 1] ?? null;
+  const matching = cut.rows.filter(({ row, block }) => {
+    if (row.kind !== region.kind || !row.source || row.startLine === undefined || row.endLine === undefined) return false;
+    if (region.function !== undefined && block.name !== region.function) return false;
+    // A line written since the recording is in no region it holds.
+    const spans = Array.from({ length: row.endLine - row.startLine + 1 }, (_, offset) => at(row.startLine! + offset));
+    return spans[0] === region.line && spans.at(-1) === region.end && spans.every((line) => line !== null);
+  });
+  if (matching.length > 1) return { reason: 'more than one region of the file is the one the record holds, so which to break cannot be told' };
+  const [match] = matching;
+  if (match === undefined) {
+    return { reason: then.changed ? 'its source changed since the recording, so no region of the file is the one it holds' : 'no region the file is cut into is the one the record holds' };
+  }
+  const { row, block } = match;
+  for (const empty of empties(block.kind, cut.source[block.start])) {
     const text = cut.source.slice(0, block.start) + empty + cut.source.slice(block.end);
-    if (parseSync(cut.path, text).errors.length === 0) return { text };
+    if (text === cut.source) return { reason: 'it is empty already, so breaking it changes nothing' };
+    if (parseSync(cut.path, text).errors.length === 0) return { text, start: block.start, end: block.end, line: row.startLine!, endLine: row.endLine! };
   }
   return { reason: 'the break does not parse' };
 }

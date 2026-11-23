@@ -22,12 +22,15 @@ const PRELOAD = `--require ${JSON.stringify(fileURLToPath(new URL('./serve-fs.cj
 export interface ServedRun {
   exit: number;
   unread: string[];
-  /** Stopped at its deadline rather than ended. */
+}
+
+/** A served run started with options, and whether it was stopped at its deadline rather than ended. */
+export interface OptionedRun extends ServedRun {
   late: boolean;
 }
 
 /** What a served run starts with besides its files: the environment it adds to this one, where its streams go, and how many milliseconds it may run. */
-export interface ServedOptions {
+interface ServedOptions {
   readonly env?: Readonly<Record<string, string>>;
   readonly stdio?: StdioOptions;
   readonly deadline?: number;
@@ -38,7 +41,12 @@ export interface ServedOptions {
  * checkout holds, to the base text it reads for this run — served in every
  * Node process it starts. Undefined when there is no such command.
  */
-export async function serveBase(files: Readonly<Record<string, string>>, command: readonly [string, ...string[]], cwd: string, { env: added = {}, stdio, deadline }: ServedOptions = {}): Promise<ServedRun | undefined> {
+export function serveBase(files: Readonly<Record<string, string>>, command: readonly [string, ...string[]], cwd: string): Promise<ServedRun | undefined> {
+  return servedRun(files, command, cwd).then((run) => (run === undefined ? undefined : { exit: run.exit, unread: run.unread }));
+}
+
+/** {@link serveBase}, started with `options` besides its files. */
+export async function servedRun(files: Readonly<Record<string, string>>, command: readonly [string, ...string[]], cwd: string, { env: added = {}, stdio, deadline }: ServedOptions = {}): Promise<OptionedRun | undefined> {
   const [program, ...args] = command;
   const scratch = await mkdtemp(join(tmpdir(), 'variance-janus-'));
   try {
@@ -53,10 +61,9 @@ export async function serveBase(files: Readonly<Record<string, string>>, command
       VARIANCE_JANUS_MANIFEST: manifest,
       VARIANCE_JANUS_READS: notes,
     };
-    const begun = performance.now();
-    const exit = await started(program, args, cwd, env, stdio, deadline);
+    let late = false;
+    const exit = await started(program, args, cwd, env, stdio, deadline === undefined ? undefined : { after: deadline, stopped: () => (late = true) });
     if (exit === undefined) return undefined;
-    const late = deadline !== undefined && performance.now() - begun >= deadline;
     const read = new Set<string>();
     for (const note of await readdir(notes)) for (const file of (await readFile(join(notes, note), 'utf8')).split('\n')) if (file !== '') read.add(file);
     return { exit, unread: Object.keys(files).filter((file) => !read.has(file)), late };

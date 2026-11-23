@@ -345,9 +345,10 @@ tell those apart, so read the region before you write the assertion. `Noticed`
 is a region the test checks. `Hung` is a region whose break kept the test
 running past its deadline, five times the unbroken run and at least two
 seconds, so it was stopped: neither a pass nor a failure. `Not broken` names
-why a region was left alone: its source changed since the recording, it is past
-the cap, or no process the command started read the file, which happens when a
-bundler or the browser reads it rather than Node.
+why a region was left alone: its source changed since the recording, the record
+names no commit to place its lines by, or no process the command started read
+the file, which happens when a bundler or the browser reads it rather than
+Node; the regions past the cap are counted there too.
 
 ## Rules
 

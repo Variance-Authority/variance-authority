@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { instrumentationId } from '@variance-authority/sense/instrument';
 import { encodeAsSetExecutionIndex, landCases, testCoverageFile, withCaseSections, writeTestCoverage } from '@variance-authority/sense/test-selection';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import '../bin.fixture.js';
@@ -41,7 +42,7 @@ const SOURCES: Record<string, string> = {
   // A test that waits on `ready`: emptied, it never returns true.
   'test/wait.check.mjs': "import { ready } from '../src/ready.mjs';\nwhile (!ready()) {}\n",
   // One more function than one ask breaks, each on its own line, and a test that calls them all.
-  'src/many.mjs': MANY.map((name) => `export function ${name}() {}\n`).join(''),
+  'src/many.mjs': MANY.map((name) => `export function ${name}() { return 0; }\n`).join(''),
   'test/many.check.mjs': `import * as many from '../src/many.mjs';\n${MANY.map((name) => `many.${name}();\n`).join('')}`,
 };
 
@@ -75,7 +76,17 @@ describe('variance proves', () => {
     const answered = await run(['proves', '--file', 'test/total.check.mjs', '--name', 'adds', '--', process.execPath, 'test/total.check.mjs']);
 
     expect([answered.code, answered.err]).toEqual([EXIT_CLEAN, '']);
-    expect(answered.out).toContain('Noticed, the test failed with the region broken:\n  src/total.mjs:1-3  function total  returns nothing\n');
+    expect(answered.out).toContain('Noticed, the test failed with the region broken:\n  src/total.mjs:3-5  function total  returns nothing\n');
+  });
+
+  it('leaves unbroken every region of a recording that names no commit, rather than read its lines where they stand now', async () => {
+    await recorded({}, { commit: false });
+
+    const answered = await run(['proves', '--file', 'test/total.check.mjs', '--name', 'adds', '--', process.execPath, 'test/total.check.mjs']);
+
+    expect([answered.code, answered.err]).toEqual([EXIT_CLEAN, '']);
+    expect(answered.out).not.toContain('Survived');
+    expect(answered.out).toContain('  src/total.mjs:1-3  function total  its recording names no commit, so its lines cannot be placed in the file as it is now\n');
   });
 
   it('stops a break the test is still running at its deadline, and names it hung', async () => {
@@ -99,7 +110,7 @@ describe('variance proves', () => {
     const answered = await run(['proves', '--file', 'test/many.check.mjs', '--name', 'calls', '--', process.execPath, 'test/many.check.mjs']);
 
     expect([answered.code, answered.err]).toEqual([EXIT_CLEAN, '']);
-    expect(answered.out).toContain('  src/many.mjs:20  function f19  returns nothing\n\nNot broken:\n  1 more region past the cap of 20, fewest other tests first: ask about a narrower test to reach them\n');
+    expect(answered.out).toContain('  src/many.mjs:20  function f19  returns nothing\n\nNot broken:\n  1 more region the test entered was not tried: one ask breaks at most 20, fewest other tests first\n');
   });
 
   it('refuses a checkout whose configuration names a cache root, which the runs would record into', async () => {
@@ -142,9 +153,9 @@ function snapshot(root: string): Record<string, string> {
 /**
  * A checkout holding three functions, committed and recorded at that commit:
  * `adds` entered `total` and `log`, `adds again` entered `total` too, and
- * `waits` entered `ready`, and `calls` entered each of `MANY`. `extra` files are written beside them first.
+ * `waits` entered `ready`, and `calls` entered each of `MANY`. `extra` files are written beside them first; without `commit` the record names none.
  */
-async function recorded(extra: Readonly<Record<string, string>> = {}): Promise<string> {
+async function recorded(extra: Readonly<Record<string, string>> = {}, { commit = true }: { readonly commit?: boolean } = {}): Promise<string> {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'va-proves-')));
   execFileSync('git', ['init', '--quiet', '--initial-branch', 'main'], { cwd: root, stdio: 'pipe' });
   for (const [file, text] of Object.entries({ ...SOURCES, ...extra })) {
@@ -175,8 +186,8 @@ async function recorded(extra: Readonly<Record<string, string>> = {}): Promise<s
   const owners = modules.map(({ regions }) => Uint32Array.from(regions, () => none));
   await writeTestCoverage(at, {
     version: 3,
-    instrumentation: 'fixture-instrumentation',
-    commit: git('rev-parse', 'HEAD'),
+    instrumentation: instrumentationId('presence'),
+    ...(commit ? { commit: git('rev-parse', 'HEAD') } : {}),
     tests: files.map((file) => ({ file, complete: true, preconditions: [] })),
     modules: modules.map(({ file, regions }) => ({
       file,
