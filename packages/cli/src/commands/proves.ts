@@ -19,7 +19,7 @@ import type { Streams } from './configless.js';
 const CAP = 20;
 
 /** What a survivor can mean, said under every answer. */
-const LIMIT = 'A survivor is an assertion that does not read the region, or a break that changes nothing the test can observe: this run cannot tell which.';
+const LIMIT = 'A survivor is an assertion that does not read the region, or a break that changes nothing the test can observe, such as code its break is equivalent to: this run cannot tell which.';
 
 /** Run `parsed`'s command under each break, and print which the test survived. */
 export async function runProves({ file, name, run }: ParsedProves, streams: Pick<Streams, 'out'>, cwd = process.cwd()): Promise<ExitCode> {

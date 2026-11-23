@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, writeF
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { instrumentationId } from '@variance-authority/sense/instrument';
-import { encodeAsSetExecutionIndex, landCases, testCoverageFile, withCaseSections, writeTestCoverage } from '@variance-authority/sense/test-selection';
+import { encodeAsSetExecutionIndex, landCases, sourceCut, testCoverageFile, withCaseSections, writeTestCoverage } from '@variance-authority/sense/test-selection';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import '../bin.fixture.js';
 import { main } from '../bin.js';
@@ -44,6 +44,18 @@ const SOURCES: Record<string, string> = {
   // One more function than one ask breaks, each on its own line, and a test that calls them all.
   'src/many.mjs': MANY.map((name) => `export function ${name}() { return 0; }\n`).join(''),
   'test/many.check.mjs': `import * as many from '../src/many.mjs';\n${MANY.map((name) => `many.${name}();\n`).join('')}`,
+  // A branch the test enters and does not assert, and a continuation it does.
+  'src/sign.mjs': 'export function sign(n) {\n  if (n < 0) {\n    return -1;\n  }\n  return 1;\n}\n',
+  'test/sign.check.mjs': "import { sign } from '../src/sign.mjs';\nsign(-2);\nif (sign(5) !== 1) process.exit(1);\n",
+};
+
+/** The tests that entered each region, by the region's name and path as the walk cuts the file. */
+const ENTERED: Readonly<Record<string, Readonly<Record<string, readonly number[]>>>> = {
+  'src/log.mjs': { 'log entry': [0] },
+  'src/many.mjs': Object.fromEntries(MANY.map((name) => [`${name} entry`, [3]])),
+  'src/ready.mjs': { 'ready entry': [2] },
+  'src/sign.mjs': { 'sign entry': [4], 'sign if#0/then': [4], 'sign if#0/after': [4] },
+  'src/total.mjs': { 'total entry': [0, 1] },
 };
 
 describe('variance proves', () => {
@@ -63,7 +75,7 @@ describe('variance proves', () => {
       'Noticed, the test failed with the region broken:',
       '  src/total.mjs:1-3  function total  returns nothing',
       '',
-      'A survivor is an assertion that does not read the region, or a break that changes nothing the test can observe: this run cannot tell which.',
+      'A survivor is an assertion that does not read the region, or a break that changes nothing the test can observe, such as code its break is equivalent to: this run cannot tell which.',
       '',
     ]);
     expect(snapshot(root)).toEqual(before);
@@ -79,14 +91,25 @@ describe('variance proves', () => {
     expect(answered.out).toContain('Noticed, the test failed with the region broken:\n  src/total.mjs:3-5  function total  returns nothing\n');
   });
 
-  it('leaves unbroken every region of a recording that names no commit, rather than read its lines where they stand now', async () => {
-    await recorded({}, { commit: false });
+  it('leaves unbroken a region whose source changed since the recording, which the record says nothing about', async () => {
+    const root = await recorded();
+    writeFileSync(join(root, 'src/total.mjs'), SOURCES['src/total.mjs']!.replace('a + b', 'b + a'));
 
     const answered = await run(['proves', '--file', 'test/total.check.mjs', '--name', 'adds', '--', process.execPath, 'test/total.check.mjs']);
 
     expect([answered.code, answered.err]).toEqual([EXIT_CLEAN, '']);
-    expect(answered.out).not.toContain('Survived');
-    expect(answered.out).toContain('  src/total.mjs:1-3  function total  its recording names no commit, so its lines cannot be placed in the file as it is now\n');
+    expect(answered.out).not.toContain('Noticed');
+    expect(answered.out).toContain('Not broken:\n  src/total.mjs:1-3  function total  its source changed since the recording, so the record says nothing about it as it is now\n');
+  });
+
+  it('skips a branch and a continuation the test entered, and names the branch it does not assert', async () => {
+    await recorded();
+
+    const answered = await run(['proves', '--file', 'test/sign.check.mjs', '--name', 'signs', '--', process.execPath, 'test/sign.check.mjs']);
+
+    expect([answered.code, answered.err]).toEqual([EXIT_CLEAN, '']);
+    expect(answered.out).toContain('Survived, the test passed with the region broken:\n  src/sign.mjs:2-4');
+    expect(answered.out).toMatch(/Noticed, the test failed with the region broken:\n {2}src\/sign\.mjs:1-6 [^\n]*returns nothing\n {2}src\/sign\.mjs:5 [^\n]*skipped\n/);
   });
 
   it('stops a break the test is still running at its deadline, and names it hung', async () => {
@@ -120,7 +143,7 @@ describe('variance proves', () => {
     const answered = await run(['proves', '--file', 'test/total.check.mjs', '--name', 'adds', '--', process.execPath, 'test/total.check.mjs']);
 
     expect(answered.code).toBe(EXIT_OPERATOR);
-    expect(answered.err).toContain('names a `cacheRoot`');
+    expect(answered.err).toContain('names a cache root');
     expect(snapshot(root)).toEqual(before);
   });
 
@@ -151,11 +174,12 @@ function snapshot(root: string): Record<string, string> {
 }
 
 /**
- * A checkout holding three functions, committed and recorded at that commit:
- * `adds` entered `total` and `log`, `adds again` entered `total` too, and
- * `waits` entered `ready`, and `calls` entered each of `MANY`. `extra` files are written beside them first; without `commit` the record names none.
+ * A checkout, committed and recorded at that commit with the regions the walk
+ * cuts each file into: `adds` entered `total` and `log`, `adds again` entered
+ * `total` too, `waits` entered `ready`, `calls` entered each of `MANY`, and
+ * `signs` entered `sign`, its `if` and what follows it. `extra` files are written beside them first.
  */
-async function recorded(extra: Readonly<Record<string, string>> = {}, { commit = true }: { readonly commit?: boolean } = {}): Promise<string> {
+async function recorded(extra: Readonly<Record<string, string>> = {}): Promise<string> {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'va-proves-')));
   execFileSync('git', ['init', '--quiet', '--initial-branch', 'main'], { cwd: root, stdio: 'pipe' });
   for (const [file, text] of Object.entries({ ...SOURCES, ...extra })) {
@@ -167,41 +191,39 @@ async function recorded(extra: Readonly<Record<string, string>> = {}, { commit =
   git('-c', 'user.name=fixture', '-c', 'user.email=fixture@example.com', 'commit', '--quiet', '-m', 'recorded');
   process.chdir(root);
   const at = testCoverageFile(root);
-  const files = ['test/total.check.mjs', 'test/other.check.mjs', 'test/wait.check.mjs', 'test/many.check.mjs'];
   const tests = [
-    { id: 'a', file: files[0] ?? '', name: 'adds' },
-    { id: 'o', file: files[1] ?? '', name: 'adds again' },
-    { id: 'w', file: files[2] ?? '', name: 'waits' },
-    { id: 'm', file: files[3] ?? '', name: 'calls' },
+    { id: 'a', file: 'test/total.check.mjs', name: 'adds' },
+    { id: 'o', file: 'test/other.check.mjs', name: 'adds again' },
+    { id: 'w', file: 'test/wait.check.mjs', name: 'waits' },
+    { id: 'm', file: 'test/many.check.mjs', name: 'calls' },
+    { id: 's', file: 'test/sign.check.mjs', name: 'signs' },
   ];
+  const files = tests.map(({ file }) => file);
   const fileOf = (test: number) => tests[test]?.file ?? '';
-  const region = (kind: string, name: string, startLine: number, endLine: number, entered: readonly number[]) => ({ kind, name, path: 'entry', startLine, endLine, source: true, entered });
-  const modules = [
-    { file: 'src/log.mjs', regions: [region('function', 'log', 1, 3, [0])] },
-    { file: 'src/many.mjs', regions: MANY.map((name, at) => region('function', name, at + 1, at + 1, [3])) },
-    { file: 'src/ready.mjs', regions: [region('function', 'ready', 1, 3, [2])] },
-    { file: 'src/total.mjs', regions: [region('function', 'total', 1, 3, [0, 1])] },
-  ];
+  const modules = Object.entries(ENTERED).map(([file, entered]) => {
+    const cut = sourceCut(SOURCES[file]!, join(root, file), 'presence')!;
+    return { file, sourceDigest: cut.sourceDigest, rows: cut.rows.map((row) => ({ row, entered: entered[`${row.name} ${row.path}`] ?? [] })) };
+  });
   const none = 0xffffffff;
-  const owners = modules.map(({ regions }) => Uint32Array.from(regions, () => none));
+  const owners = modules.map(({ rows }) => Uint32Array.from(rows, ({ row }) => row.owner ?? none));
   await writeTestCoverage(at, {
     version: 3,
     instrumentation: instrumentationId('presence'),
-    ...(commit ? { commit: git('rev-parse', 'HEAD') } : {}),
+    commit: git('rev-parse', 'HEAD'),
     tests: files.map((file) => ({ file, complete: true, preconditions: [] })),
-    modules: modules.map(({ file, regions }) => ({
+    modules: modules.map(({ file, sourceDigest, rows }) => ({
       file,
-      sourceDigest: `digest:${file}`,
+      sourceDigest,
       instrumented: true,
-      blocks: regions.map(({ entered, ...block }, ordinal) => ({ ...block, ordinal, digest: `block:${file}:${ordinal}`, testFiles: [...new Set(entered.map(fileOf))] })),
+      blocks: rows.map(({ row, entered }) => ({ ...row, testFiles: [...new Set(entered.map(fileOf))] })),
     })),
   });
   const shard = join(mkdtempSync(join(tmpdir(), 'va-proves-shard-')), 'run.bin');
   writeFileSync(shard, withCaseSections(readFileSync(at), { index: encodeAsSetExecutionIndex({
     tests,
-    modules: modules.map(({ file, regions }) => ({
+    modules: modules.map(({ file, rows }) => ({
       file,
-      blocks: regions.map(({ entered, ...block }) => ({ ...block, crossings: entered.map((test) => ({ test, distance: 0 })) })),
+      blocks: rows.map(({ row: { kind, name, path, startLine, endLine, source }, entered }) => ({ kind, name, path, startLine, endLine, source, crossings: entered.map((test) => ({ test, distance: 0 })) })),
     })),
   }, owners) }));
   const { sections } = await landCases(at, {}, root, [{ path: shard, coverage: { tests: files.map((file) => ({ file, complete: true })) } }]);

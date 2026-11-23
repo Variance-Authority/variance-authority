@@ -176,7 +176,7 @@ export function recordedBlocks(
 }
 
 /** A region as a walk names it, apart from the ordinal the walk gave it. */
-interface Region {
+export interface Region {
   readonly kind: string;
   readonly name: string;
   readonly path: string;
@@ -185,7 +185,7 @@ interface Region {
 }
 
 /** What names a region in a walk: two that claim text apart are not one region. */
-function regionKey(region: Region): string {
+export function regionKey(region: Region): string {
   return `${region.kind}\0${region.name}\0${region.path}\0${region.source ? 1 : 0}`;
 }
 

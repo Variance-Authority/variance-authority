@@ -151,17 +151,35 @@ export function started(program: string, args: readonly string[], cwd: string, e
     const group = deadline !== undefined && process.platform !== 'win32';
     const child = spawn(program, args, { cwd, stdio, detached: group, ...(env === undefined ? {} : { env }) });
     const timers: NodeJS.Timeout[] = [];
-    let stopped = false;
+    // A detached group does not hear the terminal's signals, so this process passes them on, and stops the group if it exits first.
+    const forwarded = (signal: NodeJS.Signals): void => {
+      released();
+      signalled(child, signal, group);
+      process.kill(process.pid, signal);
+    };
+    const leaving = (): void => signalled(child, 'SIGKILL', group);
+    const released = (): void => {
+      process.off('SIGINT', forwarded);
+      process.off('SIGTERM', forwarded);
+      process.off('exit', leaving);
+    };
+    if (group) {
+      process.on('SIGINT', forwarded);
+      process.on('SIGTERM', forwarded);
+      process.on('exit', leaving);
+    }
     if (deadline !== undefined) {
       // A deadline that names a run that never answered, not a wait for one to settle: the run's close is the signal, and these only stop it.
       timers.push(setTimeout(() => {
-        stopped = true;
         deadline.stopped();
         signalled(child, 'SIGTERM', group);
         timers.push(setTimeout(() => signalled(child, 'SIGKILL', group), GRACE));
       }, deadline.after));
     }
-    const settled = (): void => timers.forEach(clearTimeout);
+    const settled = (): void => {
+      timers.forEach(clearTimeout);
+      released();
+    };
     child.on('error', (error: NodeJS.ErrnoException) => {
       settled();
       if (error.code === 'ENOENT') resolve(undefined);
@@ -169,8 +187,8 @@ export function started(program: string, args: readonly string[], cwd: string, e
     });
     child.on('close', (code, signal) => {
       settled();
-      // What the stopped run started and left behind goes with it.
-      if (stopped) signalled(child, 'SIGKILL', group);
+      // What the run started and left behind goes with it.
+      if (group) signalled(child, 'SIGKILL', group);
       resolve(code ?? 128 + (signal === null ? 0 : constants.signals[signal]));
     });
   });
