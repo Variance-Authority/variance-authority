@@ -16,7 +16,7 @@ import { type Help, type Use, undecided } from '@variance-authority/package/help
 import { aliasesOf, type Alias } from '@variance-authority/sense';
 import { queryDependencyLexicon } from '../dependency-lexicon.js';
 import { askedOnce } from './asked-once.js';
-import { entriesNamed, isPackage, specifierOf } from './find.js';
+import { entryNamed, isPackage } from './find.js';
 import { memberRows } from './container.js';
 import { block } from './format.js';
 import { keyOf, SLOT } from './declaration-key.js';
@@ -148,11 +148,8 @@ export const localNames = askedOnce((
  */
 function originalOf(help: Help, root: string, alias: Alias, wanted: string | undefined, said: string): Original | undefined {
   const name = alias.imported;
-  const named = entriesNamed(help, name);
   // An import across packages names the entry by its specifier; one within the package names the file, which the index resolved.
-  const door =
-    named.find(([published, held]) => specifierOf(published, held) === alias.specifier) ??
-    (alias.to == null ? undefined : named.find(([, , entry]) => entry.at === alias.to));
+  const door = entryNamed(help, name, alias.specifier, alias.to ?? undefined);
   if (door !== undefined) {
     const [published, held, entry] = door;
     if (wanted !== undefined && !isPackage(published, held, wanted)) return undefined;

@@ -15,15 +15,15 @@ import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { Spelling } from '@variance-authority/mcp/tools';
 import { limitOf, stringArg } from '@variance-authority/mcp/tools';
 import type { Documented, Entry, Help, Named, Opening, Use } from '@variance-authority/package/help';
-import { everyEntry } from '@variance-authority/package/help';
 import type { DeclaredName } from '@variance-authority/sense';
 import { askedOnce } from './asked-once.js';
 import { type PathSite, how, ownerOf, sitesByPath } from './by-path.js';
 import { DECLARED_CAP, declarationsNamed } from './declared.js';
 import { FoundNothing, isPackage, nowhere, specifierOf } from './find.js';
 import { type Members, membersOf } from './members.js';
-import { answers, keyOf, originKey, originOf, says, SLOT } from './declaration-key.js';
+import { answering, answers, keyOf, originKey, originOf, says, SLOT } from './declaration-key.js';
 import { exportedIn } from './rows.js';
+import { searchIndexOf } from '../snapshot.js';
 import { type IndexedUse, type Within, exportsNamed, importsOf, indexMissing } from './unpublished.js';
 import { declaredIn, membersIn, notDeclaredIn } from './uses-declarations.js';
 
@@ -78,9 +78,15 @@ export interface PublishedDeclaration {
  * order directories were read in.
  */
 export function publishedDeclarations(help: Help, root: string | undefined, name: string, wanted: string | undefined): readonly PublishedDeclaration[] {
-  const doors = [...everyEntry(help)]
-    .filter(([held, opening, entry]) => (says(entry.name, name) || answers(help, root, { at: entry.at, name: entry.declared }, name)) && (wanted === undefined || isPackage(held, opening, wanted)))
-    .map((door) => [door, keyOf(help, root, { at: door[2].at, name: door[2].declared })] as const)
+  const rows = searchIndexOf(help).rows;
+  const doors = rows.publishedCandidates(name, answering(help, root, name))
+    .flatMap((row) => {
+      const [held, opening, entry] = rows.published(row);
+      const declared = { at: entry.at, name: entry.declared };
+      if (!(says(entry.name, name) || answers(help, root, declared, name)) || (wanted !== undefined && !isPackage(held, opening, wanted))) return [];
+      const door: Published = [held, opening, rows.entry(row)];
+      return [[door, keyOf(help, root, declared)] as const];
+    })
     .sort(([left], [right]) => byDoor(left, right));
   const declarations = new Map<string, { at: string; line: number; declared: string; spellings: readonly string[]; doors: Published[] }>();
   for (const [door, { named, spellings }] of doors) {
@@ -341,7 +347,7 @@ function sitesOfPublished(help: Help, root: string | undefined, name: string, wa
  * source index followed it into, written at a file an entry opens.
  */
 function publishedInside(help: Help, namespaces: ReturnType<typeof sitesOfOne>['namespaces']): readonly string[] {
-  const doors = help.packages.flatMap((held) => held.openings.map((opening) => [opening.source, specifierOf(held, opening)] as const));
+  const doors = searchIndexOf(help).rows.openingsIn(namespaces.map((inside) => inside.at)).map(([held, opening]) => [opening.source, specifierOf(held, opening)] as const);
   return [
     ...new Set(
       namespaces.flatMap((inside) =>
