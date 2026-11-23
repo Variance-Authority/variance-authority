@@ -303,6 +303,7 @@ function answered(answer: Answer, input: Readonly<Record<string, unknown>>, show
     imported(answer, from, ownLines(answer.inFile, name, shown), answer.file === undefined ? othersLines(name, answer.namesakes, kept, ordered) : [], shown),
     ...namesakeLines(name, answer.namesakes, from, shown),
     ...(kept.length === 0 ? [] : ['', ...keeping]),
+    ...unread,
   ].join('\n');
   // An index the imports already said did not read is not said twice.
   if (declared === 0 && members.unread !== undefined && answer.unread === undefined) {

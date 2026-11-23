@@ -20,14 +20,14 @@ afterEach(() => {
   for (const directory of temporary.splice(0)) rmSync(directory, { recursive: true, force: true });
 });
 
-async function fixture(extra: Readonly<Record<string, string>> = {}) {
+async function fixture(extra: Readonly<Record<string, string>> = {}, published = false) {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'va-member-files-')));
   const cache = mkdtempSync(join(tmpdir(), 'va-member-files-cache-'));
   temporary.push(root, cache);
   vi.stubEnv('VARIANCE_AUTHORITY_CACHE', cache);
   execFileSync('git', ['init', '--quiet', root]);
   mkdirSync(join(root, 'src'));
-  writeFileSync(join(root, 'package.json'), JSON.stringify({ name: 'member-files', private: true, exports: { '.': './src/widget.ts' } }));
+  writeFileSync(join(root, 'package.json'), JSON.stringify({ name: 'member-files', private: !published, exports: { '.': './src/widget.ts' } }));
   for (const [file, text] of Object.entries({
     'widget.ts': 'export interface Widget { completed: boolean; }\nexport const ready = true;\n',
     ...extra,
@@ -90,3 +90,23 @@ it('a batched symbol membership keeps the member coverage and all positive files
   expect(membership.unread?.join('\n')).toContain('Rust files were not read');
   expect(new Set(membership.unread).size).toBe(membership.unread?.length);
 });
+
+for (const published of [true, false]) {
+  for (const selected of [true, false]) {
+    it(`uses qualifies unread declarations beside an unused ${published ? 'published' : 'unpublished'} export${selected ? ' selected by file' : ''}`, async () => {
+      const name = published ? 'ready' : 'other';
+      const file = published ? 'src/widget.ts' : 'src/other.ts';
+      const { root, help } = await fixture({
+        'other.ts': 'export const other = true;\n',
+        'opaque.ts': `const ${name} = false; export {};\n${'// filler line\n'.repeat(80_000)}`,
+      }, published);
+      const input = { name, ...(selected ? { file } : {}) };
+      const membership = uses.files!(help, input, { root });
+      expect([...membership.files]).toEqual([]);
+      expect(membership.unread?.join('\n')).toContain('src/opaque.ts');
+      const answer = uses.run(help, input, { root });
+      expect(answer).toContain('src/opaque.ts');
+      expect(answer).toContain(published ? 'is published' : 'without being published');
+    });
+  }
+}

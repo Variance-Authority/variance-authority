@@ -436,7 +436,7 @@ export function usesOf(help: Help, input: Readonly<Record<string, unknown>>, roo
   // The answer names one export's place, so only a name exported once is followed.
   const origin = only === undefined || exported.length > 1 ? undefined : originOf(help, root, only);
   const originNamed = origin === undefined ? undefined : originKey(help, root, origin).named;
-  return { ...shared, home, sites, unread, within, inFile, undeclared: [] as readonly string[], origin, originNamed, inside: publishedInside(help, namespaces) };
+  return { ...shared, home, sites, unread, within, inFile, undeclared, origin, originNamed, inside: publishedInside(help, namespaces) };
 }
 
 /** The package a published declaration is declared in, which a re-exporting door is not. */
