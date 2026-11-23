@@ -45,6 +45,7 @@ const ran: TestRan = {
         region('function', 2, 20, true, 1, 'submit', true),
         region('branch', 4, 5, false, 0, 'submit', true),
         { ...region('handler', 7, 8, false, 1, 'submit', true), smallest: other('validates', 2) },
+        { ...region('case', 14, 15, false, 2, 'submit', true), smallest: other('posts', 2) },
         region('function', 10, 12, true, 0, undefined, true),
         region('branch', 11, 11, true, 0, undefined, true),
         region('function', 22, 28, false, 1, 'reset', false),
@@ -83,6 +84,7 @@ describe('formatTestClaims', () => {
       'Passed by, the regions of the functions it entered that it did not take:',
       '  app/form.js:4-5  branch in submit  no test takes it',
       '  app/form.js:7-8  handler in submit  taken by 1 other test: e2e/signup.spec.ts  validates',
+      '  app/form.js:14-15  case in submit  taken by 2 other tests, the smallest e2e/signup.spec.ts  posts',
     ]);
   });
 

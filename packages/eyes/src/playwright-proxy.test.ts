@@ -93,14 +93,18 @@ describe('Playwright API-compatible proxies', () => {
     expect(snapshot).toHaveBeenCalledTimes(4);
   });
 
-  it('records an assertion made through `.not` as negated, whether it passed or threw', async () => {
+  it('records an assertion made through `.not` as negated, whether it passed, threw, or its Locator could not be read before it', async () => {
     const log = createEyesLog();
     let fails = false;
+    let blind = false;
     const child = {
       _expect: () => (fails ? Promise.reject(new Error('received ""')) : Promise.resolve({ matches: true })),
     };
     const page = { getByLabel: () => child };
-    const locator = instrumentPage(page as unknown as Page, log, async () => [target]).getByLabel('Count') as unknown as {
+    const locator = instrumentPage(page as unknown as Page, log, async () => {
+      if (blind) throw new Error('the page closed');
+      return [target];
+    }).getByLabel('Count') as unknown as {
       _expect: (matcher: string, options: { isNot: boolean }) => Promise<unknown>;
     };
 
@@ -108,10 +112,13 @@ describe('Playwright API-compatible proxies', () => {
     await locator._expect('to.have.text', { isNot: false });
     fails = true;
     await expect(locator._expect('to.be.empty', { isNot: true })).rejects.toThrow('received ""');
+    blind = true;
+    await expect(locator._expect('to.be.empty', { isNot: true })).rejects.toThrow('the page closed');
 
     const said = log.seen.filter((entry) => entry.kind === 'playwright-locator' && entry.operation === 'assertion');
     expect(said.map((entry) => [entry.kind === 'playwright-locator' && entry.operation !== 'planned' && entry.member, 'negated' in entry ? entry.negated : 'absent']))
-      .toEqual([['to.be.empty', true], ['to.have.text', 'absent'], ['to.be.empty', true]]);
+      .toEqual([['to.be.empty', true], ['to.have.text', 'absent'], ['to.be.empty', true], ['to.be.empty', true]]);
+    expect(said.at(-1)).toMatchObject({ outcome: 'threw', error: 'could not capture locator before to.be.empty: the page closed' });
   });
 
   it('keeps a successful action passing when the post-operation read is lost', async () => {

@@ -60,6 +60,21 @@ describe('recordedSteps', () => {
     expect(recordedSteps(at, 'firefox')).toEqual({ steps: ['query getByRole("button", {"name":"Cancel"})'], attempt: 1, attempts: 1 });
   });
 
+  it('lists each Locator a test acted on or asserted on, and whether it threw, but not one it only planned', async () => {
+    const log = createEyesLog();
+    const locator = [{ member: 'getByLabel', arguments: ['Count'] }];
+    log.record({ kind: 'playwright-locator', operation: 'planned', locator });
+    log.record({ kind: 'playwright-locator', operation: 'action', member: 'fill', locator, before: [], after: [], outcome: 'resolved' });
+    log.record({ kind: 'playwright-locator', operation: 'assertion', member: 'to.be.empty', locator, negated: true, before: [], outcome: 'threw', error: 'received "2"' });
+    const at = await written([{ case: 'chromium', attempt: 1, journal: eyesJournal(log.drain()) }]);
+
+    expect(recordedSteps(at, 'chromium')).toEqual({
+      steps: ['action fill on getByLabel("Count")', 'assertion not.to.be.empty on getByLabel("Count") threw'],
+      attempt: 1,
+      attempts: 1,
+    });
+  });
+
   it('says why no step is recorded: a watched case with no journal, a case not watched, and a run that kept none', async () => {
     const kept = await written([{ case: 'chromium', attempt: 1, journal: queried([]) }]);
     expect(recordedSteps(kept, 'firefox')).toEqual({ unrecorded: 'Eyes watched it and kept no journal' });
