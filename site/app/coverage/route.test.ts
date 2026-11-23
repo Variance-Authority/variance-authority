@@ -9,7 +9,7 @@ afterEach(() => {
 });
 
 describe("/coverage", () => {
-  it("answers the page kept at refs/coverage/main as HTML that may run its own inline style and script, and fetch nothing", async () => {
+  it("answers the page kept at refs/coverage/main as HTML that may run its own inline style and script, fetch nothing, and reach nothing of the site's origin", async () => {
     const fetched = vi.fn(async () => new Response("<!doctype html><p>coverage</p>"));
     vi.stubGlobal("fetch", fetched);
 
@@ -20,7 +20,7 @@ describe("/coverage", () => {
     expect(await response.text()).toBe("<!doctype html><p>coverage</p>");
     expect(response.headers.get("content-type")).toBe("text/html; charset=utf-8");
     expect(response.headers.get("content-security-policy")).toBe(
-      "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'",
+      "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; sandbox allow-scripts",
     );
   });
 

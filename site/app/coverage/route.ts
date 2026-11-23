@@ -12,14 +12,15 @@ const KEPT =
 /**
  * The page draws itself from its own inline style and script and loads
  * nothing, so the policy allows those two and refuses every request a changed
- * page could make.
+ * page could make. The sandbox gives it an origin of its own, so its script
+ * reaches nothing the site's origin holds.
  */
 const POLICY =
-  "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'";
+  "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; sandbox allow-scripts";
 
 /**
  * `main`'s coverage page, read again on the hour. A ref that cannot be read
- * answers 503 and is not stored, so the next request reads it again.
+ * answers 503 with `no-store`, telling every cache not to hold it.
  */
 export async function GET(): Promise<Response> {
   const read = await fetch(KEPT).then(

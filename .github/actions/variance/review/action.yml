@@ -77,9 +77,10 @@ inputs:
       not the change the comment reviews, uploads it unzipped as the
       `variance-coverage-<suite>.html` artifact, and links it from the comment
       and the step summary: every package with its files, the test files that
-      cover each, and what no suite loads. On a push to the default branch, a
-      job that posts its own comment also keeps the page as `coverage.html` at
-      `refs/coverage/<branch>`, and needs `contents: write`. Off by default.
+      cover each, and what no suite loads. On a push to the default branch, the
+      page is also kept as `coverage.html` at `refs/coverage/<branch>`, pushed
+      with the badge by the job that posts the comment, which needs `contents:
+      write`. Off by default.
     required: false
     default: 'false'
 
@@ -105,7 +106,7 @@ inputs:
   github-token:
     description: >-
       Token for the comment, which needs `pull-requests: write`, and for the
-      badge, which needs `contents: write`.
+      badge and the kept coverage page, which need `contents: write`.
     required: false
     default: ${{ github.token }}
 
@@ -222,17 +223,23 @@ runs:
       env:
         VARIANCE_COMMAND: ${{ inputs.command }}
         SUITE: ${{ inputs.suite }}
+        REVIEW: ${{ steps.carry.outputs.review }}
+        KEEP: ${{ github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
       # The repository's coverage, as `variance coverage` answers it: every
       # suite over the regions any suite loaded, against the mainline's share.
       # The comment counts the change, each suite over its own regions, against
       # the base the review names. The file is named for the review's suite
-      # only so that two reviews in one run upload two artifacts.
+      # only so that two reviews in one run upload two artifacts. On a push to
+      # the default branch it is also copied into the review, so the step that
+      # publishes the badge keeps it, here or in a job with `from`.
       run: |
         page="$RUNNER_TEMP/variance-coverage/variance-coverage${SUITE:+-$SUITE}.html"
         mkdir -p "$(dirname "$page")"
         # shellcheck disable=SC2086
         if $VARIANCE_COMMAND coverage --packages --fan-in --format html > "$page"; then
           echo "path=$page" >> "$GITHUB_OUTPUT"
+          [ "$KEEP" != true ] || cp "$page" "$REVIEW/coverage.html" \
+            || echo '::warning title=coverage page not kept::the drawn page could not be copied into the review, so the last page stands.'
         else
           echo '::warning title=coverage page not drawn::`variance coverage` failed, so the comment links no page.'
         fi
@@ -309,76 +316,59 @@ runs:
         node "$here/../diff-marks.mjs" "$REVIEW/review.json" || echo '::warning::The diff carries no marks: the comment holds what they would say.'
 
     # The figure the text of `variance coverage` leads with, every suite
-    # together, in shields.io's endpoint schema, as the one file of a commit with
-    # no parent: the ref is replaced on every push and never grows a history.
-    # No figure, or a refused push, warns, and the last badge stands. Before the
-    # failure on uncovered code, which would skip it.
-    - name: publish the badge
-      if: (steps.taken.outcome == 'success' || (inputs.from == '' && inputs.comment != 'false' && inputs.badge == 'true')) && github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    # together, in shields.io's endpoint schema, and the coverage page, each as
+    # the one file of a commit with no parent: the ref is replaced on every push
+    # and never grows a history, and a clone fetches nothing outside
+    # `refs/heads/`. A browser is served the page as text from
+    # raw.githubusercontent.com, so a site reads it from there and serves it as
+    # a page. No figure, or a refused push, warns, and the last one stands.
+    # Before the failure on uncovered code, which would skip it.
+    - name: publish the badge and the page
+      if: (steps.taken.outcome == 'success' || (inputs.from == '' && inputs.comment != 'false' && (inputs.badge == 'true' || inputs.coverage-page == 'true'))) && github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
       shell: bash
       env:
         GITHUB_TOKEN: ${{ inputs.github-token }}
         BRANCH: ${{ github.ref_name }}
         FROM: ${{ inputs.from }}
+        BADGE: ${{ inputs.badge }}
         REVIEW: ${{ inputs.from != '' && format('{0}/variance-review', runner.temp) || steps.carry.outputs.review }}
       run: |
         set -uo pipefail
-        skip() { echo "::warning title=badge not updated::$1, so the last badge stands."; exit 0; }
-        # Under `from`, the job that ran the tests decided: no figure handed on is no badge asked for.
-        if [ ! -s "$REVIEW/regions-run.json" ]; then [ -n "${FROM:-}" ] && exit 0; skip 'no figure was counted'; fi
-        paths="$(mktemp)"
-        echo regions-run.json > "$paths"
         # In a container job `github.action_path` is the runner's host path; the
         # container mounts the same tree elsewhere, as in the post above.
         here="${{ github.action_path }}"
         host_root=$(dirname "$(dirname "${{ github.workspace }}")")
         here="$(dirname "$(dirname "$GITHUB_WORKSPACE")")${here#"$host_root"}"
-        # `|| pushed=$?`: GitHub runs the step under errexit, as in the images step.
-        pushed=0
-        bash "$here/../push-ref.sh" "$REVIEW" "$paths" "refs/badge/$BRANCH" "variance: regions run at $GITHUB_SHA" \
-          "refs/heads/$BRANCH" "$GITHUB_SHA" > /dev/null || pushed=$?
-        case $pushed in
-          0) ;;
-          2) skip "pushing refs/badge/$BRANCH was refused: the job needs \`contents: write\`" ;;
-          3) skip "$BRANCH has moved past $GITHUB_SHA, and the newer commit's run publishes the badge" ;;
-          *) skip "the badge could not be committed" ;;
-        esac
-        echo "regions run: $(cat "$REVIEW/regions-run.json")" >> "$GITHUB_STEP_SUMMARY"
-
-    # The page the job drew, as the one file of a commit with no parent, the way
-    # the badge is kept: the ref is replaced on every push and never grows a
-    # history, and a clone fetches nothing outside `refs/heads/`. A browser is
-    # served the file as text from raw.githubusercontent.com, so a site reads it
-    # from there and serves it as a page. A refused push warns, and the last
-    # page stands.
-    - name: keep the coverage page
-      if: inputs.from == '' && inputs.comment != 'false' && steps.page.outputs.path != '' && github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
-      shell: bash
-      env:
-        GITHUB_TOKEN: ${{ inputs.github-token }}
-        BRANCH: ${{ github.ref_name }}
-        PAGE: ${{ steps.page.outputs.path }}
-      run: |
-        set -uo pipefail
-        skip() { echo "::warning title=coverage page not kept::$1, so the last page stands."; exit 0; }
-        kept="$(mktemp -d)"
-        cp "$PAGE" "$kept/coverage.html" || skip 'the drawn page could not be read'
-        paths="$(mktemp)"
-        echo coverage.html > "$paths"
-        # In a container job `github.action_path` is the runner's host path, as in the badge above.
-        here="${{ github.action_path }}"
-        host_root=$(dirname "$(dirname "${{ github.workspace }}")")
-        here="$(dirname "$(dirname "$GITHUB_WORKSPACE")")${here#"$host_root"}"
-        pushed=0
-        bash "$here/../push-ref.sh" "$kept" "$paths" "refs/coverage/$BRANCH" "variance: coverage page at $GITHUB_SHA" \
-          "refs/heads/$BRANCH" "$GITHUB_SHA" > /dev/null || pushed=$?
-        case $pushed in
-          0) ;;
-          2) skip "pushing refs/coverage/$BRANCH was refused: the job needs \`contents: write\`" ;;
-          3) skip "$BRANCH has moved past $GITHUB_SHA, and the newer commit's run keeps the page" ;;
-          *) skip "the page could not be committed" ;;
-        esac
-        echo "coverage page kept at \`refs/coverage/$BRANCH\`" >> "$GITHUB_STEP_SUMMARY"
+        # Pushes the review's `$1` to `$2`; a push that fails warns under `$4`.
+        publish() {
+          local file=$1 ref=$2 what=$3 title=$4 paths reason pushed=0
+          paths="$(mktemp)"
+          echo "$file" > "$paths"
+          # `|| pushed=$?`: GitHub runs the step under errexit, as in the images step.
+          bash "$here/../push-ref.sh" "$REVIEW" "$paths" "$ref" "variance: $what at $GITHUB_SHA" \
+            "refs/heads/$BRANCH" "$GITHUB_SHA" > /dev/null || pushed=$?
+          case $pushed in
+            0) return 0 ;;
+            2) reason="pushing $ref was refused: the job needs \`contents: write\`" ;;
+            3) reason="$BRANCH has moved past $GITHUB_SHA, and the newer commit's run publishes the $what" ;;
+            *) reason="the $what could not be committed" ;;
+          esac
+          echo "::warning title=$title::$reason, so the last $what stands."
+          return 1
+        }
+        if [ -s "$REVIEW/regions-run.json" ]; then
+          publish regions-run.json "refs/badge/$BRANCH" badge 'badge not updated' \
+            && echo "regions run: $(cat "$REVIEW/regions-run.json")" >> "$GITHUB_STEP_SUMMARY"
+        # Under `from`, the job that ran the tests decided: no figure handed on is no badge asked for.
+        elif [ -z "${FROM:-}" ] && [ "${BADGE:-}" = true ]; then
+          echo '::warning title=badge not updated::no figure was counted, so the last badge stands.'
+        fi
+        # The draw step copies the page into the review on a push to the default branch alone.
+        if [ -s "$REVIEW/coverage.html" ]; then
+          publish coverage.html "refs/coverage/$BRANCH" 'coverage page' 'coverage page not kept' \
+            && echo "coverage page kept at \`refs/coverage/$BRANCH\`" >> "$GITHUB_STEP_SUMMARY"
+        fi
+        exit 0
 
     # `!cancelled()`, so a red test, a review that did not happen or a post that
     # failed still saves what the tests ran. `carry save` prints a suite key only

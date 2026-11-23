@@ -122,8 +122,7 @@ describe('the review a project with only unit tests puts on the pull request', (
       'take the review',
       'say the review job handed nothing on',
       'post the review',
-      'publish the badge',
-      'keep the coverage page',
+      'publish the badge and the page',
       'what the host keeps',
       "keep the suite's record for the next pull request",
       'keep what this push ran',
@@ -141,7 +140,7 @@ describe('the review a project with only unit tests puts on the pull request', (
     });
 
     it('runs nothing of the carry around the tests when no `test` is named, so the review reads the record as before', () => {
-      for (const name of order.slice(1, 5).concat(order.slice(16, 19), order.slice(21))) expect(stepNamed(name).if).toContain("inputs.test != ''");
+      for (const name of order.slice(1, 5).concat(order.slice(15, 18), order.slice(20))) expect(stepNamed(name).if).toContain("inputs.test != ''");
     });
 
     it('restores the record the carry names for the suite, and the last push only on a pull request, which alone has one', () => {
@@ -199,7 +198,7 @@ describe('the review a project with only unit tests puts on the pull request', (
       const review = await mkdtemp(join(tmpdir(), 'variance-action-badge-review-'));
       try {
         const counted = await ran('count the regions run', { REVIEW: review }, exit);
-        return { ...(await ran('publish the badge', { ...env, REVIEW: review })), said: counted.said, counted: counted.printed };
+        return { ...(await ran('publish the badge and the page', { BADGE: 'true', ...env, REVIEW: review })), said: counted.said, counted: counted.printed };
       } finally {
         await rm(review, { recursive: true, force: true });
       }
@@ -257,7 +256,7 @@ describe('the review a project with only unit tests puts on the pull request', (
     it('pushes nothing and says nothing under `from` when the job that ran the tests counted no figure', async () => {
       const remote = await origin();
       try {
-        const { status, printed } = await ran('publish the badge', { ...remote.env, FROM: 'variance-review' });
+        const { status, printed } = await ran('publish the badge and the page', { ...remote.env, FROM: 'variance-review' });
 
         expect(status).toBe(0);
         expect(printed).not.toContain('::warning');
@@ -284,11 +283,11 @@ describe('the review a project with only unit tests puts on the pull request', (
       expect(stepNamed('count the regions run').if).toBe(
         "inputs.from == '' && inputs.badge == 'true' && github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)",
       );
-      expect(stepNamed('publish the badge').if).toBe(
-        "(steps.taken.outcome == 'success' || (inputs.from == '' && inputs.comment != 'false' && inputs.badge == 'true')) && github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)",
+      expect(stepNamed('publish the badge and the page').if).toBe(
+        "(steps.taken.outcome == 'success' || (inputs.from == '' && inputs.comment != 'false' && (inputs.badge == 'true' || inputs.coverage-page == 'true'))) && github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)",
       );
       const names = action().runs.steps.map((step) => step.name);
-      expect(names.indexOf('publish the badge')).toBeLessThan(names.indexOf('fail on what the review counted'));
+      expect(names.indexOf('publish the badge and the page')).toBeLessThan(names.indexOf('fail on what the review counted'));
     });
   });
 
@@ -302,7 +301,7 @@ describe('the review a project with only unit tests puts on the pull request', (
     it("reads the token only in a step `comment: 'false'` skips, and hands on the review that step would post", () => {
       const reading = steps().filter((step) => text(step).includes('inputs.github-token'));
 
-      expect(reading.map((step) => step.name)).toEqual(['post the review', 'publish the badge', 'keep the coverage page']);
+      expect(reading.map((step) => step.name)).toEqual(['post the review', 'publish the badge and the page']);
       for (const step of reading) expect(step.if).toContain("inputs.comment != 'false'");
       const handed = stepNamed('hand the review on');
       expect(handed.if).toBe("inputs.from == '' && inputs.comment == 'false'");
@@ -321,7 +320,7 @@ describe('the review a project with only unit tests puts on the pull request', (
         'take the review',
         'say the review job handed nothing on',
         'post the review',
-        'publish the badge',
+        'publish the badge and the page',
       ]);
       for (const step of running) expect(text(step)).not.toMatch(/inputs\.(test|command)\b|actions\/checkout/u);
       expect(stepNamed('take the review').with).toMatchObject({ name: '${{ inputs.from }}' });
@@ -336,7 +335,7 @@ describe('the review a project with only unit tests puts on the pull request', (
       expect(stepNamed('say the review job handed nothing on').if).toBe(
         "inputs.from != '' && steps.taken.outcome != 'success'",
       );
-      for (const name of ['post the review', 'publish the badge'])
+      for (const name of ['post the review', 'publish the badge and the page'])
         expect(stepNamed(name).if).toContain("steps.taken.outcome == 'success'");
     });
   });

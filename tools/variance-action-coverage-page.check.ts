@@ -1,3 +1,4 @@
+import { existsSync, readFileSync } from 'node:fs';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -41,14 +42,16 @@ describe('the coverage page the review action draws', () => {
   });
 
   describe('the page kept at `refs/coverage/<branch>`', () => {
-    /** Keeps a page reading `body` from where the draw step left it, as the run's last step before the failures does. */
+    const PUBLISH = 'publish the badge and the page';
+
+    /** Publishes a page reading `body` from the review directory, where the draw step leaves it on a push to the default branch. */
     async function kept(env: Readonly<Record<string, string>>, body: string) {
-      const drawn = await mkdtemp(join(tmpdir(), 'variance-action-page-'));
+      const review = await mkdtemp(join(tmpdir(), 'variance-action-page-'));
       try {
-        await writeFile(join(drawn, 'variance-coverage-unit.html'), body);
-        return await ran('keep the coverage page', { ...env, PAGE: join(drawn, 'variance-coverage-unit.html') });
+        await writeFile(join(review, 'coverage.html'), body);
+        return await ran(PUBLISH, { BADGE: 'false', ...env, REVIEW: review });
       } finally {
-        await rm(drawn, { recursive: true, force: true });
+        await rm(review, { recursive: true, force: true });
       }
     }
 
@@ -56,15 +59,35 @@ describe('the coverage page the review action draws', () => {
       const remote = await origin();
       try {
         await kept(remote.env, '<p>first</p>');
-        const { status, summary } = await kept(remote.env, '<p>second</p>');
+        const { status, summary, printed } = await kept(remote.env, '<p>second</p>');
 
         expect(status).toBe(0);
+        expect(printed).not.toContain('::warning');
         expect(git(remote.dir, 'ls-tree', '--name-only', 'refs/coverage/main')).toBe('coverage.html');
         expect(git(remote.dir, 'show', 'refs/coverage/main:coverage.html')).toBe('<p>second</p>');
         expect(git(remote.dir, 'rev-list', '--count', 'refs/coverage/main')).toBe('1');
+        expect(() => git(remote.dir, 'rev-parse', '--verify', '--quiet', 'refs/badge/main')).toThrow();
         expect(summary).toContain('refs/coverage/main');
       } finally {
         await remote.done();
+      }
+    });
+
+    it('is handed on with the review on a push to the default branch, so the job with `from` keeps it', async () => {
+      const review = await mkdtemp(join(tmpdir(), 'variance-action-page-review-'));
+      const remote = await origin();
+      try {
+        await ran('draw the coverage page', { SUITE: 'unit', REVIEW: review, KEEP: 'false' });
+        expect(existsSync(join(review, 'coverage.html'))).toBe(false);
+
+        await ran('draw the coverage page', { SUITE: 'unit', REVIEW: review, KEEP: 'true' });
+        const { status } = await ran(PUBLISH, { ...remote.env, FROM: 'variance-review', REVIEW: review });
+
+        expect(status).toBe(0);
+        expect(git(remote.dir, 'show', 'refs/coverage/main:coverage.html')).toBe(readFileSync(join(review, 'coverage.html'), 'utf8').trim());
+      } finally {
+        await remote.done();
+        await rm(review, { recursive: true, force: true });
       }
     });
 
@@ -97,13 +120,14 @@ describe('the coverage page the review action draws', () => {
       }
     });
 
-    it('is kept only from a page this job drew, on a push to the default branch, by the job that holds the token, before a failure can skip it', () => {
-      expect(stepNamed('keep the coverage page').if).toBe(
-        "inputs.from == '' && inputs.comment != 'false' && steps.page.outputs.path != '' && github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)",
+    it('is drawn into the review only on a push to the default branch, and published with the badge, before a failure can skip it', () => {
+      expect(stepNamed('draw the coverage page').env?.['KEEP']).toBe(
+        "${{ github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}",
       );
+      expect(stepNamed(PUBLISH).if).toContain("inputs.coverage-page == 'true'");
       const names = action().runs.steps.map((step) => step.name);
-      expect(names.indexOf('keep the coverage page')).toBeGreaterThan(names.indexOf('draw the coverage page'));
-      expect(names.indexOf('keep the coverage page')).toBeLessThan(names.indexOf('fail on what the review counted'));
+      expect(names.indexOf('draw the coverage page')).toBeLessThan(names.indexOf('hand the review on'));
+      expect(names.indexOf(PUBLISH)).toBeLessThan(names.indexOf('fail on what the review counted'));
     });
   });
 });
