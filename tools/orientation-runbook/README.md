@@ -41,7 +41,7 @@ query: panel
 Steps run in listed order. `input` uses the tool schema's property names and
 types, not CLI flags. `request` binds input properties from request keys.
 `fromFiles` dispatches once per distinct file observed by an earlier step,
-binding an array of one path; `as: string` binds a string instead. A `when`
+binding an array of one path. A `when`
 condition tests an earlier step's aggregate `empty`, `nonempty`, `incomplete`,
 `unknown`, or `error` state. The example's fallback is retrieval only; graph
 expansion uses the declaration seed. It is an illustrative policy, not an

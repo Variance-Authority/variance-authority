@@ -22,7 +22,7 @@ const schema = {
         },
         fromFiles: {
           type: 'object', additionalProperties: false, required: ['step', 'input'],
-          properties: { step: reference, input: reference, as: { enum: ['array', 'string'] } },
+          properties: { step: reference, input: reference },
         },
       },
     } },
@@ -48,7 +48,7 @@ function checkProgram(program) {
 function summarize(observations, parent) {
   const files = [...new Set(observations.flatMap(row => (row.files ?? []).map(file => file.file)))];
   let state;
-  if (!observations.length) state = 'unknown';
+  if (!observations.length) state = parent?.membershipStatus === 'incomplete' ? 'incomplete' : 'unknown';
   else if (observations.some(row => row.status === 'error')) state = 'error';
   else if (parent && parent.membershipStatus !== 'complete') state = parent.membershipStatus === 'incomplete' ? 'incomplete' : 'unknown';
   else if (observations.some(row => !['complete', 'incomplete'].includes(row.membershipStatus))) state = 'unknown';
@@ -74,7 +74,7 @@ export async function executeProgram(supplied, {
   let calls = 0, apiCalls = 0, answerBytes = 0, omittedAnswerBytes = 0;
   const elapsed = () => Math.max(0, clock() - started);
   const finish = (halt, offset = program.steps.length, omittedBindings = 0) => ({
-    version: 1, programHash: digestValue(program),
+    version: 1, programHash: digestValue(program), budgets: { ...program.budgets },
     provenance, halt, completion: 'unproved', elapsedMs: elapsed(), calls, apiCalls,
     underlyingReaderExecutions: null, deadline: 'soft; in-flight readers cannot be cancelled',
     answerBytes, omittedAnswerBytes, omittedSteps: program.steps.slice(offset).map(step => step.id),
@@ -113,7 +113,7 @@ export async function executeProgram(supplied, {
       const bound = structuredClone(input);
       const binding = step.fromFiles ? { step: step.fromFiles.step, file: bindings[position],
         membershipStatus: parent.membershipStatus } : undefined;
-      if (binding) bound[step.fromFiles.input] = step.fromFiles.as === 'string' ? binding.file : [binding.file];
+      if (binding) bound[step.fromFiles.input] = [binding.file];
       // Validation happens after request/file binding, never only on the template.
       try {
         validate(step.question, bound);

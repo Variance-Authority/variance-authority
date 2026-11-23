@@ -101,6 +101,30 @@ test('one soft deadline spans every dispatch and includes the in-flight overrun'
   assert.equal(result.elapsedMs, 6);
 });
 
+test('empty incomplete bindings remain incomplete through another follow-up', async () => {
+  const result = await executeProgram(program([
+    step('seed'),
+    step('child', { fromFiles: { step: 'seed', input: 'from' } }),
+    step('recover', { when: { step: 'child', is: 'incomplete' }, input: { query: 'recover' } }),
+    step('skipped', { when: { step: 'seed', is: 'empty' } }),
+    step('unrelated', { when: { step: 'skipped', is: 'incomplete' } }),
+  ]), options({ drive: async () => observation([], { membershipStatus: 'incomplete' }) }));
+  assert.equal(result.calls, 2);
+  assert.equal(result.trace.find(row => row.step === 'recover').state, 'incomplete');
+  assert.equal(result.trace.find(row => row.step === 'unrelated').state, 'condition-skipped');
+});
+
+test('every execution receipt carries an independent copy of its configured budgets', async () => {
+  for (const limits of [{}, { calls: 0 }, { milliseconds: 0 }, { answerBytes: 0 }]) {
+    const supplied = program([step('one')], limits);
+    const expected = { ...supplied.budgets };
+    const result = await executeProgram(supplied, options());
+    assert.deepEqual(result.budgets, expected);
+    supplied.budgets.calls++;
+    assert.deepEqual(result.budgets, expected);
+  }
+});
+
 test('the invocation deadline includes time already spent opening the published index', async () => {
   const result = await executeProgram(program([step('one')], { milliseconds: 5 }), options({
     startedAt: 0, clock: () => 6,

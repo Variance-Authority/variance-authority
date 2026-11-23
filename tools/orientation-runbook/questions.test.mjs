@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { FoundNothing } from '@variance-authority/help';
 import { parse, stringify } from 'yaml';
-import { createQuestionDriver, openQuestions, questionCatalogue } from './questions.mjs';
+import { createQuestionDriver, openQuestions } from './questions.mjs';
 import { executeProgram } from './execute.mjs';
 
 test('canonical answers survive unavailable membership and report the separate API failure', async () => {
@@ -77,7 +77,6 @@ test('published-index execution follows component, example and mock relations on
     assert.equal(fallback.trace.find(row => row.step === 'fallback').state, 'nonempty');
     assert.equal(direct.calls, 3);
     assert.equal(fallback.calls, 4);
-    assert.ok(questionCatalogue().some(row => row.question === 'discover' && row.inputSchema));
     assert.throws(() => context.validate('summary', {}), /membership/u);
     assert.throws(() => context.validate('discover', { to: 'not-an-array' }), /input/u);
     const programFile = join(artifacts, 'program.yaml');
@@ -97,6 +96,12 @@ test('published-index execution follows component, example and mock relations on
     assert.ok(receipt.evidence[0].observation.files.some(row => row.file === 'src/Panel.ts'));
     assert.equal(receipt.evidence.at(-1).step, 'mocks');
     assert.throws(() => execFileSync(process.execPath, command, { stdio: 'pipe' }), /Command failed/u);
+    const insideReceipt = join(root, 'forbidden-receipt.yaml');
+    const insideCommand = [...command];
+    insideCommand[4] = insideReceipt;
+    assert.throws(() => execFileSync(process.execPath, insideCommand, { stdio: 'pipe' }),
+      error => /outside the queried checkout/u.test(error.stderr.toString()));
+    assert.equal(existsSync(insideReceipt), false);
   } finally {
     rmSync(root, { recursive: true, force: true });
     rmSync(artifacts, { recursive: true, force: true });

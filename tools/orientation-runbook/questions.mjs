@@ -8,10 +8,6 @@ import { sourceIndexPath } from '@variance-authority/sense';
 // questions without FileSet membership are outside this research increment.
 const tools = new Map(QUESTIONS.filter(row => row.source?.files).map(row => [verbOf(row.tool), row.source]));
 
-export function questionCatalogue() {
-  return [...tools].map(([question, tool]) => ({ question, description: tool.description, inputSchema: tool.inputSchema }));
-}
-
 const details = error => ({ name: error.name, message: error.message });
 
 /** Canonical text and complete membership are distinct, separately timed APIs. */
