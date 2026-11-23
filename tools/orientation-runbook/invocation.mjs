@@ -4,6 +4,7 @@ import { closeSync, openSync, readFileSync, realpathSync, writeFileSync } from '
 import { basename, dirname, resolve } from 'node:path';
 import { parse, stringify } from 'yaml';
 import { executeProgram } from './execute.mjs';
+import { candidateCatalog } from './catalog.mjs';
 import { openQuestions } from './questions.mjs';
 
 /** Execute supplied research inputs and exclusively publish their receipt. */
@@ -31,7 +32,8 @@ export async function runExperiment(args) {
     const { halt, completion, calls, apiCalls, elapsedMs, answers, omittedAnswerBytes,
       omittedSteps, omittedBindings } = result;
     return { summary: { receipt: output, halt, completion, calls, apiCalls, elapsedMs,
-      answers, omittedAnswerBytes, omittedSteps, omittedBindings },
+      answers, omittedAnswerBytes, omittedSteps, omittedBindings,
+      candidateCatalog: candidateCatalog(result.evidence, result.budgets.answerBytes) },
       exitCode: halt === 'binding-error' ? 2 : 0 };
   } catch (error) {
     writeFileSync(receipt, stringify({ status: 'failed',
