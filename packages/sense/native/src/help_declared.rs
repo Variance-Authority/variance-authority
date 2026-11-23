@@ -205,17 +205,16 @@ pub(crate) fn declared_terms(layers: &[Layer], files: Option<&[String]>) -> Vec<
     terms.into_iter().collect()
 }
 
-/// One harvested file's search-term count for the top-level names no export
-/// binds. A file without a harvested parse has no row, rather than zero words.
+/// One harvested file's searchable private-name presence and requested-stem
+/// matches. A file without a harvested parse has no row.
 pub(crate) struct PrivateWords {
     pub(crate) at: String,
-    pub(crate) words: u32,
+    pub(crate) declares: bool,
     pub(crate) named: Vec<u32>,
 }
 
-/// The private half of each file's declaration vocabulary, for normalization
-/// beside the exported names held by the search index. Count each local name
-/// once, including names unrelated to a question, and never read source files.
+/// Which files hold a searchable private name, and the requested stems their
+/// distinct top-level private names hold. Read only the published parses.
 pub(crate) fn private_words(layers: &[Layer], folded: &std::collections::HashMap<&str, At>, stems: &[String]) -> Vec<PrivateWords> {
     crossings(layers, folded, None)
         .par_iter()
@@ -228,15 +227,15 @@ pub(crate) fn private_words(layers: &[Layer], folded: &std::collections::HashMap
                 .map(|symbol| text.text(parses.symbol_name.at(symbol)))
                 .filter(|name| !own.contains(name))
                 .collect();
-            let words = names.iter().map(|name| crate::help_search::name_terms(name).len() as u32).sum();
+            let declares = names.iter().any(|name| crate::help_search::name_has_terms(name));
             let named = names.iter().flat_map(|name| held_in(stems, name)).collect();
-            Some(PrivateWords { at: crossing.file.to_owned(), words, named })
+            Some(PrivateWords { at: crossing.file.to_owned(), declares, named })
         })
         .collect()
 }
 
 /// Local names bound by an export, including renamed exports. Both private
-/// matching and private vocabulary counts use this boundary.
+/// matching and searchable-name presence use this boundary.
 pub(crate) fn exported_locals<'a>(layer: &'a Layer<'a>, row: usize) -> BTreeSet<&'a str> {
     let (text, parses) = (&layer.stored, &layer.parses);
     if parses.exports_present[row] != 1 { return BTreeSet::new() }

@@ -47,17 +47,16 @@ pub(crate) fn headed(kind: &str) -> bool {
 /// and, when it is written in several words, each word (`words_of`); short
 /// terms dropped, counted in UTF-16 code units, the rest lowercased; once each.
 pub(crate) fn terms_of(split: &Regex, text: &str) -> HashSet<String> {
-    let long = |term: &str| term.encode_utf16().nth(1).is_some();
     let mut found = HashSet::new();
     for token in split.split(text) {
-        if long(token) {
+        if long_term(token) {
             found.insert(token.to_lowercase());
         }
         let words = words_of(token);
         if words.len() < 2 {
             continue;
         }
-        found.extend(words.into_iter().filter(|word| long(word)).map(str::to_lowercase));
+        found.extend(words.into_iter().filter(|word| long_term(word)).map(str::to_lowercase));
     }
     found
 }
@@ -82,6 +81,19 @@ mod tests {
     use super::*;
 
     #[test]
+    fn name_presence_matches_the_tokenizer_without_building_its_terms() {
+        let pieces = ["", "x", "é", "𐐀", "😀", "worker", "HTTP2", "_", "-", " ", "`", "+", "\u{301}"];
+        for left in pieces {
+            for middle in pieces {
+                for right in pieces {
+                    let name = format!("{left}{middle}{right}");
+                    assert_eq!(name_has_terms(&name), !name_terms(&name).is_empty(), "{name:?}");
+                }
+            }
+        }
+    }
+
+    #[test]
     fn an_inline_tag_is_no_term_of_the_doc() {
         // Javadoc's `{@code <layer>/coverage.bin}` writes `layer`, not `code`.
         let terms = doc_terms(&SPLIT, "Goes to {@code <layer>/coverage.bin}, see {@link Sink sink} and {@inheritDoc}.");
@@ -99,6 +111,17 @@ mod tests {
 /// which is a symbol (`Sk`) and a code span's delimiter, never a word's, or a
 /// math symbol (`Sm`), which a type writes between names: `Promise<Node>`, `A | B`.
 pub(crate) static SPLIT: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"[\n\r\p{Z}\p{P}\p{Sm}`]+").expect("the pattern is fixed"));
+
+/// The minimum term length is measured in UTF-16 code units, as in the search writer.
+fn long_term(term: &str) -> bool {
+    term.encode_utf16().nth(1).is_some()
+}
+
+/// Whether a name contributes any search term. Every qualifying whole token
+/// is a term, so splitting its words and lowercasing cannot change presence.
+pub(crate) fn name_has_terms(name: &str) -> bool {
+    SPLIT.split(name).any(long_term)
+}
 
 /// A name's terms as the search file indexes an exported one, so a name the
 /// file does not hold answers the loose pass by the same rule.

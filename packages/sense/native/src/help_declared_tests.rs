@@ -67,14 +67,13 @@ fn only_the_rows_whose_names_or_doc_words_hold_the_question_are_candidates() {
 }
 
 #[test]
-fn private_word_counts_include_unasked_names_once_and_exclude_exported_locals() {
+fn private_words_include_unasked_names_once_and_exclude_exported_locals() {
     let source = "function restartWorker() {}\ninterface unrelatedName {}\nconst unrelatedName = 1;\nfunction publishedLocal() {}\nexport { publishedLocal as renamed };\n";
     let (records, parses) = chain(&[("src/private.ts", "git:a", source), ("src/public.ts", "git:b", "export function restartWorker() {}")]);
     let layers = [Layer::open(&records).unwrap(), Layer::open(&parses).unwrap()];
     let found = super::private_words(&layers, &crate::chain_lookup::fold(&layers), &["restart".to_owned(), crate::dependency_lexicon::purposes::code_stems("unrelated").into_iter().next().unwrap(), "publish".to_owned()]);
-    let rows: Vec<(&str, u32)> = found.iter().map(|row| (row.at.as_str(), row.words)).collect();
-    let expected = ["restartWorker", "unrelatedName"].iter().map(|name| crate::help_search::name_terms(name).len() as u32).sum();
-    assert_eq!(rows, vec![("src/private.ts", expected), ("src/public.ts", 0)]);
+    let rows: Vec<(&str, bool)> = found.iter().map(|row| (row.at.as_str(), row.declares)).collect();
+    assert_eq!(rows, vec![("src/private.ts", true), ("src/public.ts", false)]);
     assert_eq!(found[0].named, vec![0, 1]);
     assert!(found[1].named.is_empty());
     let unmatched = declared("/nonexistent-root", &layers, "notDeclaredAnywhere", Matching::Exact, None);
@@ -108,4 +107,19 @@ fn classifier_names_come_only_from_the_published_workspace() {
     assert_eq!(drifted.named[0].count, answer.named[0].count);
     assert_eq!(drifted.declared.iter().map(|row| (&row.name, &row.at, row.line)).collect::<Vec<_>>(), answer.declared.iter().map(|row| (&row.name, &row.at, row.line)).collect::<Vec<_>>());
     std::fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
+fn private_file_eligibility_requires_a_searchable_top_level_name() {
+    let (records, parses) = chain(&[
+        ("src/short.ts", "git:a", "const x = 1; const a_b = 2; const é = 3;"),
+        ("src/astral.ts", "git:b", "function 𐐀() {}"),
+        ("src/alias.ts", "git:c", "function searchableLocal() {} export { searchableLocal as x };"),
+        ("src/empty.ts", "git:d", "export {};"),
+        ("src/nested.ts", "git:e", "function x() { function searchableNested() {} }"),
+    ]);
+    let layers = [Layer::open(&records).unwrap(), Layer::open(&parses).unwrap()];
+    let found = super::private_words(&layers, &crate::chain_lookup::fold(&layers), &[]);
+    let eligible: std::collections::BTreeSet<&str> = found.iter().filter(|row| row.declares).map(|row| row.at.as_str()).collect();
+    assert_eq!(eligible, ["src/astral.ts"].into_iter().collect());
 }
