@@ -172,7 +172,8 @@ Reasons you reject on, and you name the one you use:
   body does not say what changed.
 
 A change that stands on one not yet landed is never rejected for it. Review it
-as if what it stands on had landed as its own issue says.
+as if what it stands on had landed as its own issue says; one closed as not
+planned is nothing to stand on, and the change is reviewed without it.
 
 Report each rejection as: **no, because** or **yes, but**; the reason by its
 name above; the evidence for it — a path and line, a quote, a count from step
