@@ -71,19 +71,19 @@ cargo build --release --example symbol-spike --features symbol-spike \
 ```
 
 In a Kibana checkout at the revision above, run the built Node CLI's
-`index --wait`. Back in this repository, pass that checkout and the resulting
-`source-index.bin` path to the harness, together with a hyperfine executable
-and an output path outside the repository:
+`index --wait`. Back in this repository, pass that checkout to the harness,
+together with a hyperfine executable and an output path outside the repository.
+The harness resolves the generated source index the same way as Node.
 
 ```sh
-node tools/native-symbol-spike.mjs "$KIBANA" "$SOURCE_INDEX" \
-  "$HYPERFINE" /tmp/native-symbol-results.json
+node tools/native-symbol-spike.mjs "$KIBANA" "$HYPERFINE" /tmp/native-symbol-results.json
 ```
 
 The help store must be the matching `${SOURCE_INDEX}.help.bin`. Run without
 concurrent builds or suites. For diagnostic stages, set
 `VARIANCE_AUTHORITY_SPIKE_STAGES=1` and `VARIANCE_AUTHORITY_INDEX_STAGES=1`
 when calling the example directly with `<checkout> <index> <help-store> Button`.
+Leave both variables unset for the benchmark.
 
 ## What this establishes
 

@@ -3,16 +3,18 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { ok } from 'node:assert';
 import { resolve } from 'node:path';
 import { arch, cpus, platform, release } from 'node:os';
+import { sourceIndexPath } from '@variance-authority/sense';
 
-const [rootArg, indexArg, hyperfine, outputArg, name = 'Button'] = process.argv.slice(2);
-if (!rootArg || !indexArg || !hyperfine || !outputArg) {
-  throw new Error('usage: node tools/native-symbol-spike.mjs <checkout> <index> <hyperfine> <output.json> [name]');
+const [rootArg, hyperfine, outputArg, name = 'Button'] = process.argv.slice(2);
+if (!rootArg || !hyperfine || !outputArg || process.argv.length > 6) {
+  throw new Error('usage: node tools/native-symbol-spike.mjs <checkout> <hyperfine> <output.json> [name]');
 }
-const root = resolve(rootArg);
-const index = resolve(indexArg);
+const implementation = resolve(import.meta.dirname, '..');
+const root = execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd: resolve(rootArg), encoding: 'utf8' }).trim();
+const index = sourceIndexPath(root);
 const output = resolve(outputArg);
-const native = resolve(import.meta.dirname, '../packages/sense/native/target/release/examples/symbol-spike');
-const cli = resolve(import.meta.dirname, '../packages/cli/dist/bin.js');
+const native = resolve(implementation, 'packages/sense/native/target/release/examples/symbol-spike');
+const cli = resolve(implementation, 'packages/cli/dist/bin.js');
 const nativeArgs = [root, index, `${index}.help.bin`, name];
 const nodeArgs = [cli, 'ask', 'symbol', '--name', name];
 const options = { cwd: root, maxBuffer: 64 * 1024 * 1024 };
@@ -35,7 +37,7 @@ results.context = {
   measuredAt: new Date().toISOString(),
   machine: { platform: platform(), release: release(), arch: arch(), cpu: cpus()[0]?.model, cores: cpus().length },
   node: process.version,
-  varianceCommit: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
+  varianceCommit: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: implementation, encoding: 'utf8' }).trim(),
   corpusCommit: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim(),
   answerBytes: actual.length,
   name,
