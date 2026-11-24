@@ -25,9 +25,7 @@ main questions; pick the one that fits what you hold, each is one command:
 | A file | [its place on that map, and what it declares on which lines](references/orient.md#orient) | `variance ask orient --files src/billing/invoice.ts` |
 | What a thing does | [the names that do it](references/workspace-search.md) | `variance ask search --query "retry payment" --from src/billing/` |
 | A name, or several | [where each is declared: `--name <name>[,...]`](references/workspace-symbol.md) | `variance ask symbol --name PaymentRetry,RetryPolicy` |
-| A named export; you need its import sites | [where it is imported; `--file` selects the declaration and `--from` only sorts](references/workspace-uses.md) | `variance ask uses --name PaymentRetry --file src/billing/retry.ts` |
-| A JavaScript/TypeScript contract member | [its declarations and explicitly typed uses](references/workspace-uses.md) | `variance ask uses --name size --file src/shapes/props.ts` |
-| A component; you need its example or mock | [an importing example, then the mocks it reaches](references/code-orientation.md#find-an-example-and-its-mock) | `variance ask discover --to src/PriceCard.tsx --path '(^\|/)(examples\|stories)/'` |
+| A name | [every file that imports it; `--from` sorts them, it does not narrow](references/workspace-uses.md) | `variance ask uses --name PaymentRetry` |
 | A name and an area | [the files there that import it](references/workspace-discover.md) | `variance ask discover --imports src/billing/retry.ts#PaymentRetry --path '^src/checkout/'` |
 | A file | [what it reaches through its imports, nearest first; `--declares <regex>` keeps the ones declaring a name](references/workspace-discover.md) | `variance ask discover --from src/billing/invoice.ts --declares Retry` |
 | A file | [what reaches it through imports](references/workspace-discover.md) | `variance ask discover --to src/billing/invoice.ts` |
