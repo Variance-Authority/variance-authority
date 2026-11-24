@@ -5282,7 +5282,7 @@ __metadata:
     "@variance-authority/sense-win32-x64-msvc":
       optional: true
   bin:
-    variance: ./dist/variance.exe
+    variance: ./dist/variance
   languageName: unknown
   linkType: soft
 
