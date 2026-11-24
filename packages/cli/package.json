@@ -33,7 +33,7 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "bin": {
-    "variance": "./dist/variance.exe"
+    "variance": "./dist/variance"
   },
   "files": [
     "dist",

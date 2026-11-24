@@ -283,11 +283,11 @@ function buildScanner(cpu) {
 
 function installCli() {
   const installed = join(here, '..', '..', 'cli', 'dist');
-  const staging = join(installed, `variance.exe.${process.pid}`);
+  const staging = join(installed, `variance.${process.pid}`);
   mkdirSync(installed, { recursive: true });
   copyFileSync(join(into, artifact), staging);
   chmodSync(staging, 0o755);
-  renameSync(staging, join(installed, 'variance.exe'));
+  renameSync(staging, join(installed, 'variance'));
 }
 
 if (cli) {

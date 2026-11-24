@@ -44,6 +44,7 @@ try {
   copyFileSync(join(cli, 'scripts/install-native.mjs'), join(installable, 'scripts/install-native.mjs'));
   run(process.execPath, ['scripts/install-native.mjs', '--stage'], { cwd: installable });
 
+  writeFileSync(join(installable, 'dist/bin.js'), "process.stdout.write('0.0.0\\n');\n");
   const cliPackage = npm(['pack', './cli', '--quiet']);
   write(consumer, { name: 'native-bin-test', private: true });
   npm(['install', `../${cliPackage}`, '--no-audit', '--no-fund'], consumer);
@@ -58,6 +59,12 @@ try {
     env: { ...env, PATH: empty, CI: 'true', VARIANCE_AUTHORITY_CACHE: join(temporary, 'index') },
   });
   if (!indexed.includes('questions: published')) throw new Error(indexed);
+  const skipped = join(temporary, 'skipped');
+  mkdirSync(skipped);
+  write(skipped, { name: 'native-bin-skipped-test', private: true });
+  npm(['install', `../${cliPackage}`, '--no-audit', '--no-fund', '--ignore-scripts'], skipped);
+  const shimmed = run(executable, ['--version'], { cwd: skipped, shell: windows });
+  if (!/^\d+\.\d+\.\d+/.test(shimmed)) throw new Error(`an install without scripts did not run: ${shimmed}`);
   process.stdout.write(`${binary.name}: installed and ran the native package bin\n`);
 } finally {
   rmSync(temporary, { recursive: true, force: true });

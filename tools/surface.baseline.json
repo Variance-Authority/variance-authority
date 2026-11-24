@@ -20,7 +20,7 @@
         "skills"
       ],
       "bin": {
-        "variance": "./dist/variance.exe"
+        "variance": "./dist/variance"
       },
       "engines": {
         "node": ">=22.15"
