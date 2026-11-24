@@ -335,7 +335,7 @@ if (!existsSync(join(into, 'scan.node'))) process.exit(1);
 // binary over its floor fails the build that produced it, in CI as at release.
 if (floor !== undefined) {
   const verify = join(here, '..', 'scripts', 'verify-native-pack.mjs');
-  const checked = spawnSync(process.execPath, [verify, into], { stdio: 'inherit' });
+  const checked = spawnSync(process.execPath, [verify, into, 'scan.node'], { stdio: 'inherit' });
   if (checked.status !== 0) process.exit(checked.status ?? 1);
 }
 if (plain && full && pinned && tree !== undefined) writeFileSync(stamp, `${floor === undefined ? tree : identity}\n`);

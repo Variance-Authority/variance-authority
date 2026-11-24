@@ -9,7 +9,9 @@ const root = resolve(process.argv[2] ?? process.cwd());
 const manifest = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8'));
 const floor = Object.values(TARGETS).find((target) => target.package === basename(root))?.glibc;
 
-for (const name of manifest.files) {
+// Named files narrow the check to what the caller has built so far; the
+// package's own `prepack` names none and checks every shipped file.
+for (const name of process.argv.length > 3 ? process.argv.slice(3) : manifest.files) {
   const binary = resolve(root, name);
   let size;
   try {
