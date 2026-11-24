@@ -195,6 +195,8 @@ mod source_update;
 mod stages;
 mod specifier;
 mod stored;
+#[cfg(feature = "symbol-spike")]
+pub mod symbol_spike;
 mod style;
 mod text_cut;
 #[cfg(feature = "grammars")]

@@ -6,7 +6,11 @@ publish = false
 description = "The scanning path of @variance-authority/sense, where a cold repository is the cost."
 
 [lib]
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "rlib"]
+
+[[example]]
+name = "symbol-spike"
+required-features = ["symbol-spike"]
 
 # The instrumenter is its own crate so that a Rust transform pipeline can depend
 # on it from `node_modules`; this addon is one of its two callers. The vendored
@@ -29,6 +33,7 @@ exclude = ["vendor"]
 # records every file in them as unknown (`read_any.rs`).
 [features]
 default = ["grammars"]
+symbol-spike = []
 grammars = [
     "dep:tree-sitter",
     "dep:tree-sitter-java",
