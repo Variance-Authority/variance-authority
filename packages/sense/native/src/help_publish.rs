@@ -32,7 +32,7 @@ use crate::help_names::{published_names, HelpEntry, PublishedName};
 use crate::help_names_filter::{names_filter, ImportAsked, NamesFound};
 use crate::help_origin::{declaration_exported, export_line, ExportedDeclaration};
 use crate::help_usage::{importers, usage, Asked, DeepRequest, Importers, NameUse, NamedExport};
-use crate::index_chain::read_chain;
+use crate::index_chain::{read_chain, Chain};
 use crate::source_tree::{tree, Mocking};
 
 /// What the chain says for a Help value, held on this side until it is published.
@@ -308,7 +308,12 @@ impl OpenedIndex {
 /// The chain at `index`, read and opened for one question.
 #[napi(catch_unwind)]
 pub fn open_index(index: String) -> napi::Result<OpenedIndex> {
+    open_index_checked(index, |_| Ok(()))
+}
+
+pub(crate) fn open_index_checked(index: String, check: impl FnOnce(Option<&Chain>) -> Result<(), String>) -> napi::Result<OpenedIndex> {
     let chain = read_chain(&index).map_err(|error| refused(&index, error))?;
+    check(chain.as_ref()).map_err(|error| refused(&index, error))?;
     let opened = chain.map(|chain| Opened::open(chain.segments)).transpose().map_err(|error| refused(&index, error))?;
     Ok(OpenedIndex { index, opened, closed: false })
 }

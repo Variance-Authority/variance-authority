@@ -23,8 +23,6 @@ process.stdout.write(`Complete symbol answer agrees (${actual.length} bytes).\n`
 const commands = [
   ['native-symbol', [native, ...nativeArgs]],
   ['node-symbol', [process.execPath, ...nodeArgs]],
-  ['node-search', [process.execPath, cli, 'ask', 'search', '--query', 'recalculation']],
-  ['node-classify', [process.execPath, cli, 'ask', 'classify', '--query', 'recalculation']],
   ['rg-text', ['rg', '-n', '-F', '--glob', '*.{ts,tsx,js,jsx}', name, '.']],
 ];
 const quote = (value) => `'${value.replaceAll("'", "'\\''")}'`;
@@ -41,7 +39,7 @@ results.context = {
   corpusCommit: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim(),
   answerBytes: actual.length,
   name,
-  comparison: 'native-symbol and node-symbol return byte-identical answers; search and classify are Node controls; rg-text returns source matches and answers a different question',
+  comparison: 'native-symbol and node-symbol return byte-identical answers; rg-text returns source matches and answers a different question',
   fff: 'not measured: no standalone fff executable; fff documents a resident library/MCP interface rather than an equivalent one-shot command',
 };
 writeFileSync(output, `${JSON.stringify(results, null, 2)}\n`);

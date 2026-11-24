@@ -3,11 +3,17 @@
 //! This deliberately does not implement exports, aliases, members or the
 //! dependency lexicon, and is absent from the released addon.
 
+// compass: variance-authority.report.agent-surface
+
+use std::path::Path;
 use std::time::Instant;
 
+use sha2::{Digest, Sha256};
+
 use crate::help_declared::DeclaredName;
-use crate::help_publish::{declared_of, open_index};
-use crate::stored::Stored;
+use crate::help_publish::{declared_of, open_index_checked};
+use crate::help_store::symbol_spike_generation;
+use crate::journeys::hex;
 
 fn timed<T>(stage: &str, read: impl FnOnce() -> T) -> T {
     let start = Instant::now();
@@ -20,8 +26,23 @@ fn timed<T>(stage: &str, read: impl FnOnce() -> T) -> T {
 
 /// A declaration-only answer. Equality with the production CLI is the caller's gate.
 pub fn answer(root: &str, index: &str, help: &str, name: &str) -> Result<String, String> {
-    let generated = timed("help-store", || snapshot_time(help))?;
-    let opened = timed("source-index", || open_index(index.to_owned())).map_err(|error| error.to_string())?;
+    let (generated, digest) = timed("help-store", || {
+        let bytes = std::fs::read(help).map_err(|error| error.to_string())?;
+        let (generated, digest) = symbol_spike_generation(&bytes, Path::new(root))?;
+        Ok::<_, String>((generated.to_owned(), digest.to_owned()))
+    })?;
+    let opened = timed("source-index", || {
+        open_index_checked(index.to_owned(), |chain| {
+            let chain = chain.ok_or("no source index is published")?;
+            if chain.dropped != 0 {
+                return Err("the source index is incomplete".into());
+            }
+            if hex(&Sha256::digest(chain.published())) != digest {
+                return Err("the help store describes a different source-index generation".into());
+            }
+            Ok(())
+        })
+    }).map_err(|error| error.to_string())?;
     let mut read = timed("declarations", || declared_of(root.to_owned(), &opened, name.to_owned(), false, None))
         .map_err(|error| error.to_string())?
         .ok_or("no source index is published")?;
@@ -39,17 +60,6 @@ pub fn answer(root: &str, index: &str, help: &str, name: &str) -> Result<String,
         let blocks: Vec<_> = read.names.iter().map(declaration).collect();
         Ok(format!("{}\nSnapshot {generated}, not compared with the checkout: run `variance index` if files changed since.", blocks.join("\n\n")))
     })
-}
-
-fn snapshot_time(path: &str) -> Result<String, String> {
-    let bytes = std::fs::read(path).map_err(|error| error.to_string())?;
-    let store = Stored::open_as(&bytes, "variance-authority-help-store", 8)?;
-    let id = store.u32s("head")?.at(3) as usize;
-    let off = store.u32s("head.off")?;
-    let blob = store.u8s("head.blob")?;
-    let range = off.at(id) as usize..off.at(id + 1) as usize;
-    std::str::from_utf8(blob.get(range).ok_or("invalid snapshot timestamp")?)
-        .map(str::to_owned).map_err(|error| error.to_string())
 }
 
 fn declaration(held: &DeclaredName) -> String {

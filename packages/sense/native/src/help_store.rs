@@ -150,6 +150,14 @@ pub fn restamp_help_store(bytes: Buffer, generated_at: String) -> napi::Result<B
 
 fn restamped(bytes: &[u8], generated_at: &str) -> Result<Vec<u8>, String> {
     let stored = Stored::open_as(bytes, FORMAT, VERSION)?;
+    let mut meta = read_head(&stored)?;
+    meta[GENERATED_AT] = Some(generated_at);
+    let mut columns = Vec::from(head_columns(&meta));
+    columns.extend(stored.columns().into_iter().filter(|(name, _, _)| !is_head(name)).map(|(name, width, bytes)| segment::column(name.to_owned(), width, bytes.to_vec())));
+    Ok(segment::encode_as(FORMAT, VERSION, columns))
+}
+
+fn read_head<'a>(stored: &Stored<'a>) -> Result<Vec<Option<&'a str>>, String> {
     let (blob, off, ids) = (stored.u8s("head.blob")?, stored.u32s("head.off")?, stored.u32s("head")?);
     if ids.len() != META {
         return Err(format!("a help store head of {} fields, not {META}", ids.len()));
@@ -164,10 +172,22 @@ fn restamped(bytes: &[u8], generated_at: &str) -> Result<Vec<u8>, String> {
         let text = (id + 1 < off.len()).then(|| blob.get(off.at(id) as usize..off.at(id + 1) as usize)).flatten();
         meta.push(Some(text.and_then(|text| std::str::from_utf8(text).ok()).ok_or("a help store head field that is not a string")?));
     }
-    meta[GENERATED_AT] = Some(generated_at);
-    let mut columns = Vec::from(head_columns(&meta));
-    columns.extend(stored.columns().into_iter().filter(|(name, _, _)| !is_head(name)).map(|(name, width, bytes)| segment::column(name.to_owned(), width, bytes.to_vec())));
-    Ok(segment::encode_as(FORMAT, VERSION, columns))
+    Ok(meta)
+}
+
+#[cfg(feature = "symbol-spike")]
+pub(crate) fn symbol_spike_generation<'a>(bytes: &'a [u8], root: &std::path::Path) -> Result<(&'a str, &'a str), String> {
+    let stored = Stored::open_as(bytes, FORMAT, VERSION)?;
+    let meta = read_head(&stored)?;
+    let [Some(workspace), Some(graph), _, Some(generated), _, _, _, Some(digest), _] = meta.as_slice() else {
+        return Err("the help store has no complete source-index generation".into());
+    };
+    let canonical = std::fs::canonicalize(root).map_err(|error| error.to_string())?;
+    let at_root = |path| std::fs::canonicalize(path).is_ok_and(|held| held == canonical);
+    if !at_root(workspace) || !at_root(graph) {
+        return Err("the help store belongs to another checkout".into());
+    }
+    Ok((generated, digest))
 }
 
 fn is_head(name: &str) -> bool {
