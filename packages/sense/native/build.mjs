@@ -62,6 +62,7 @@ import { spawnSync } from 'node:child_process';
 import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { cargoPath } from '../../../tools/cargo-path.mjs';
 import { LINKER, TARGETS, hostTarget, linkedAt } from './targets.mjs';
 import { nativeBuildInputs } from './build-inputs.mjs';
 
@@ -142,9 +143,7 @@ if (fresh) {
  * on `PATH` has — including Windows, where `HOME` is not the variable holding
  * the home directory and the constructed path is not one.
  */
-const cargo = [process.env['CARGO'], 'cargo', join(process.env['HOME'] ?? '', '.cargo', 'bin', 'cargo')]
-  .filter((candidate) => candidate !== undefined && candidate !== '')
-  .find((candidate) => spawnSync(candidate, ['--version'], { stdio: 'ignore' }).status === 0);
+const cargo = cargoPath();
 
 if (cargo === undefined) {
   if (asked !== undefined) {

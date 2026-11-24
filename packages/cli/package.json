@@ -38,6 +38,8 @@
   "files": [
     "dist",
     "!dist/**/*.d.ts.map",
+    "!dist/variance",
+    "!dist/variance.exe",
     "mark.svg",
     "schema",
     "skills"
