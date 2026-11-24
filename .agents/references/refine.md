@@ -208,6 +208,12 @@ no count of reviews closes one. Nobody else is asked: the loop decides, and a ti
 goes to the smaller change. A closed issue is reopened when new evidence arrives,
 and the review starts over; the owner may reopen one at any time.
 
+**A change that stands on another is reviewed now.** File it blocked by the one
+it stands on, both sub-issues of one epic, filed when none holds them. Review it
+as if that one had landed as its issue says; one closed as not planned is
+nothing to stand on, and the change is reviewed without it. The blocked-by link
+orders the building; it never holds back a brief, a review or a `build`.
+
 **A verdict is a comment.** Whoever runs the review posts the verdict on the
 issue, with its reason, ending in `<!-- idea-verdict: <name> -->`, where the name
 is `incomplete`, `build`, `yes-but` or `no-because`. Whoever picks an issue up
