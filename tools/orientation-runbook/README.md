@@ -77,15 +77,3 @@ that does not fit is omitted whole; execution continues, and later smaller
 answers can still fit. Metadata and the full evidence receipt are not
 byte-limited. The illustrative program is a supplied policy, not an evaluated
 recommendation or an automatic policy selector.
-
-The stdout `candidateCatalog` separately lists exact observed paths and their
-receipt evidence indices, including paths from omitted answers. It preserves
-per-observation membership states, unread notes and errors; it ranks nothing.
-Match lines, inputs, bindings and source detail remain in the receipt.
-Its standalone YAML `payload` has a second allowance equal to `answerBytes`;
-`payloadBytes` counts that encoding, without stdout's surrounding indentation.
-These two allowances do not bound total stdout. Paths are omitted whole when
-they do not fit; later smaller rows can fit. If observation metadata alone
-exceeds the allowance, no payload is displayed. `omittedFiles` and
-`omittedObservations` disclose both cases. An empty catalog is no claim of
-empty source membership or task completion.

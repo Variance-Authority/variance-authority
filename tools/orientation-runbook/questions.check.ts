@@ -118,10 +118,7 @@ test('published-index execution follows component, example and mock relations on
     rmSync(join(root, 'src'), { recursive: true });
     const command = [resolve('tools/orientation-runbook/run.mjs'), root, programFile,
       requestFile, receiptFile];
-    const summary = parse(execFileSync(process.execPath, command, { encoding: 'utf8' }));
-    assert.ok(summary.candidateCatalog.payload.files.some(row => row.file === 'src/Panel.ts'));
-    assert.equal(summary.candidateCatalog.payloadBytes,
-      Buffer.byteLength(stringify(summary.candidateCatalog.payload)));
+    execFileSync(process.execPath, command, { stdio: 'pipe' });
     const receipt = parse(readFileSync(receiptFile, 'utf8'));
     assert.equal(receipt.provenance.generation, context.provenance.generation);
     assert.ok(receipt.evidence[0].observation.files.some(row => row.file === 'src/Panel.ts'));
