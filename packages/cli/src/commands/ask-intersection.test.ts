@@ -160,7 +160,7 @@ describe('ask intersection refuses what it cannot cross', () => {
   });
 
   it('refuses an intersection inside an intersection', async () => {
-    await expect(ask("intersection 'symbol --name a' 'symbol --name b'", 'symbol --name selectBalance')).rejects.toThrow(/question 1, .*`intersection` answers no set of files/);
+    await expect(ask("intersection 'symbol --name a' 'symbol --name b'", 'symbol --name selectBalance')).rejects.toThrow(/question 1, .*`intersection` is not crossed inside another; list its questions in this one instead/);
   });
 
   it.each(['--changed-file', '--taint-file', '--format', '--at', '--claims', '--config'])(

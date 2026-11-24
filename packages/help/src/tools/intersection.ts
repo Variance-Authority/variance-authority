@@ -108,7 +108,10 @@ export function intersectionOf<Subject>(operands: readonly Tool<Subject>[]): Too
       if (operand === undefined) {
         throw new Error(`${which}: \`${question.question}\` is not a question; the questions that answer a set of files: ${crossable()}`);
       }
-      if (question.question === 'intersection' || operand.files === undefined) {
+      if (question.question === 'intersection') {
+        throw new Error(`${which}: \`intersection\` is not crossed inside another; list its questions in this one instead`);
+      }
+      if (operand.files === undefined) {
         throw new Error(`${which}: \`${question.question}\` answers no set of files; the questions that do: ${crossable()}`);
       }
       return { question, which, files: operand.files.bind(operand) };

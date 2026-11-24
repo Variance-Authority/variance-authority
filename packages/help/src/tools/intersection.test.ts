@@ -292,7 +292,7 @@ describe('canonical intersection membership', () => {
     const watched = intersectionOf([operand('symbol', () => set({ 'a.ts': [] }), asked)]);
     const nested = { questions: [{ question: 'symbol' }, { question: 'intersection', input: { questions } }] };
     for (const answer of [watched.files!, watched.run]) {
-      expect(() => answer('workspace', nested)).toThrow(/`intersection` answers no set of files/);
+      expect(() => answer('workspace', nested)).toThrow(/`intersection` is not crossed inside another; list its questions in this one instead/);
       expect(() => answer('workspace', { questions, limit: 0 })).toThrow(/takes a whole number of rows/);
     }
     expect(asked).toEqual([]);
