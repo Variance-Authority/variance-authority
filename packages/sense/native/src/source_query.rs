@@ -304,6 +304,8 @@ impl SourceTree {
     }
 
     /// Answer a scoped grep through the same walk and renderer as the standalone CLI.
+    ///
+    /// bound: the page of matches the caller asked for
     #[napi(catch_unwind)]
     pub fn scoped_grep(&self, request: ScopedGrep) -> napi::Result<String> {
         let page = Page { limit: request.limit as usize, offset: request.offset as usize };

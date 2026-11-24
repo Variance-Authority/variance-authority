@@ -15,11 +15,12 @@
         "dist",
         "!dist/**/*.d.ts.map",
         "mark.svg",
+        "scripts/install-native.mjs",
         "schema",
         "skills"
       ],
       "bin": {
-        "variance": "./dist/bin.js"
+        "variance": "./dist/variance.exe"
       },
       "engines": {
         "node": ">=22.15"
@@ -2986,6 +2987,7 @@
         "SOURCE_INDEX_PIECE": "const",
         "SOURCE_INDEX_VERSION": "const",
         "ScopeCounts": "interface",
+        "ScopedGrep": "interface",
         "ShadowReach": "interface",
         "ShippedFiles": "interface",
         "SourceFetch": "type",
@@ -4719,7 +4721,8 @@
     "declared": {
       "main": "scan.node",
       "files": [
-        "scan.node"
+        "scan.node",
+        "variance.exe"
       ],
       "engines": {
         "node": ">=22.15"
@@ -4731,7 +4734,8 @@
     "declared": {
       "main": "scan.node",
       "files": [
-        "scan.node"
+        "scan.node",
+        "variance.exe"
       ],
       "engines": {
         "node": ">=22.15"
@@ -4743,7 +4747,8 @@
     "declared": {
       "main": "scan.node",
       "files": [
-        "scan.node"
+        "scan.node",
+        "variance.exe"
       ],
       "engines": {
         "node": ">=22.15"
@@ -4755,7 +4760,8 @@
     "declared": {
       "main": "scan.node",
       "files": [
-        "scan.node"
+        "scan.node",
+        "variance.exe"
       ],
       "engines": {
         "node": ">=22.15"

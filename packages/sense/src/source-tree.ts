@@ -34,6 +34,11 @@ export interface SourceWalk {
   chain(file: string): SourceLink[];
 }
 
+/**
+ * One scoped grep question: the pattern, the start points it walks from and to,
+ * and the page of rendered matches wanted. The native workspace answers it, so
+ * the CLI and the MCP tool share one walk and one renderer.
+ */
 export interface ScopedGrep {
   readonly query: string;
   readonly from: string[];

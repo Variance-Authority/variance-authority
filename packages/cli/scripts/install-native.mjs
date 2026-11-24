@@ -23,7 +23,7 @@ if (process.argv[2] === '--stage') {
     throw new Error(`variance has no published native executable for ${platform} ${arch}`);
   }
   const require = createRequire(import.meta.url);
-  const manifest = require.resolve(`@variance-authority/sense-${suffix}/package.json`);
+  const manifest = require.resolve(['@variance-authority', `sense-${suffix}`, 'package.json'].join('/'));
   const platformBinary = join(dirname(manifest), 'variance.exe');
   const temporary = `${executable}.${process.pid}.tmp`;
   try {
