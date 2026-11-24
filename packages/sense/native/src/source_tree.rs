@@ -59,8 +59,45 @@ static TEST_LIKE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"\.(test|spec|stories)\.[cm]?[jt]sx?$|(^|/)(setup|setupTests|test-setup|vitest\.setup|jest\.setup)\.[cm]?[jt]sx?$|(^|/)\.storybook/").expect("a valid pattern")
 });
 
+#[cfg(feature = "standalone-cli")]
+pub(crate) fn mock_cuts(layers: &[Layer], root: &str, tsconfig: crate::resolve::Tsconfig) -> Vec<(String, Vec<String>)> {
+    let folded = fold(layers);
+    let tests = test_crossings(layers, &folded);
+    let mut pending = Vec::new();
+    for test in tests {
+        let Some((layer, row)) = test.parse else { continue };
+        let (stored, parses) = (&layers[layer].stored, &layers[layer].parses);
+        let specifiers: Vec<_> = parses.mocks_minus.range(row).map(|at| stored.text(parses.mock_minus.at(at))).collect();
+        if !specifiers.is_empty() { pending.push((test.file, specifiers)); }
+    }
+    if pending.is_empty() { return Vec::new() }
+    let mocking = Mocking::at(root, tsconfig, Vec::new());
+    let known = excluded_paths(&folded);
+    let mut cuts: Vec<_> = pending.into_par_iter().filter_map(|(file, specifiers)| {
+        let from = mocking.root.join(file);
+        let targets: Vec<_> = specifiers.into_iter()
+            .filter_map(|value| mocking.resolvers.resolve(&mocking.root, &from, value, Some(&known))).collect();
+        (!targets.is_empty()).then(|| (file.to_owned(), targets))
+    }).collect();
+    cuts.sort_unstable_by(|a, b| crate::order::code_unit(&a.0, &b.0));
+    cuts
+}
 
-/// What one test adds: its edges, and the reason its relative misses make it unknown.
+fn test_crossings<'a>(layers: &'a [Layer], folded: &HashMap<&'a str, (usize, usize)>) -> Vec<Crossing<'a>> {
+    let mut tests: Vec<_> = folded.iter()
+        .filter(|(path, _)| MODULE_EXTENSIONS.iter().any(|extension| path.ends_with(extension)) && TEST_LIKE.is_match(path))
+        .map(|(&file, &at)| Crossing { file, owner: NO_OWNER, others: Vec::new(), at, parse: None })
+        .collect();
+    join_parses(layers, &mut tests);
+    tests
+}
+
+fn excluded_paths(folded: &HashMap<&str, (usize, usize)>) -> HashMap<String, u32> {
+    folded.keys().filter(|path| path.split('/').any(crate::path::excluded))
+        .map(|path| ((*path).to_owned(), 0)).collect()
+}
+
+/// What one test adds: its edges and why unresolved relative loads are unknown.
 struct Added {
     edges: Vec<(String, &'static str)>,
     holes: Option<String>,
@@ -68,19 +105,9 @@ struct Added {
 
 /// Every test's loads beside its mocks, resolved, keyed by the test.
 fn additions<'l>(layers: &'l [Layer], folded: &HashMap<&'l str, (usize, usize)>, mocking: &Mocking) -> HashMap<&'l str, Added> {
-    let mut crossings: Vec<Crossing> = folded
-        .iter()
-        .filter(|(path, _)| MODULE_EXTENSIONS.iter().any(|extension| path.ends_with(extension)) && TEST_LIKE.is_match(path))
-        .map(|(&file, &at)| Crossing { file, owner: NO_OWNER, others: Vec::new(), at, parse: None })
-        .collect();
-    join_parses(layers, &mut crossings);
-    // A tracked `build/` is source only where the index holds it, as the scan's
-    // own resolve decides: the indexed files under one are what it may land on.
-    let known: HashMap<String, u32> = folded
-        .keys()
-        .filter(|path| path.split('/').any(crate::path::excluded))
-        .map(|path| ((*path).to_owned(), 0))
-        .collect();
+    let crossings = test_crossings(layers, folded);
+    // A tracked build path is source only where the index holds it.
+    let known = excluded_paths(folded);
     crossings
         .par_iter()
         .filter_map(|crossing| {

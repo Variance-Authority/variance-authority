@@ -59,7 +59,7 @@
  */
 
 import { spawnSync } from 'node:child_process';
-import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { LINKER, TARGETS, hostTarget, linkedAt } from './targets.mjs';
@@ -76,6 +76,7 @@ const HOST_ARTIFACT = {
 
 const at = process.argv.indexOf('--target');
 const asked = at === -1 ? undefined : process.argv[at + 1];
+const cli = process.argv.includes('--cli');
 
 if (at !== -1 && (asked === undefined || !(asked in TARGETS))) {
   console.error(`sense: no such target \`${asked}\` — one of ${Object.keys(TARGETS).join(', ')}`);
@@ -88,7 +89,8 @@ const host = hostTarget();
 const published = asked === undefined ? host?.package : TARGETS[asked].package;
 const into =
   published === undefined ? join(here, '..', 'dist', 'native') : join(here, '..', 'npm', published);
-const stamp = join(into, 'scan.node.tree');
+const artifact = cli ? 'variance.exe' : 'scan.node';
+const stamp = join(into, `${artifact}.tree`);
 
 /**
  * Git's identity of the compiled inputs, or nothing when git cannot vouch for it.
@@ -112,7 +114,7 @@ const plain =
   (process.env['RUSTFLAGS'] ?? '') === '' &&
   (process.env['CARGO_ENCODED_RUSTFLAGS'] ?? '') === '';
 const stamped = existsSync(stamp) ? readFileSync(stamp, 'utf8').trim() : undefined;
-const current = plain && tree !== undefined && existsSync(join(into, 'scan.node'));
+const current = plain && tree !== undefined && existsSync(join(into, artifact));
 const fresh = current && stamped === identity;
 
 /**
@@ -127,8 +129,9 @@ if (process.argv.includes('--compiles')) {
 }
 
 if (fresh) {
+  if (cli) installCli();
   console.log(
-    `sense: native scanner at ${join(into, 'scan.node')} was built from inputs ${identity}, ` +
+    `sense: ${artifact} at ${join(into, artifact)} was built from inputs ${identity}, ` +
       'which is unchanged — not rebuilt',
   );
   process.exit(0);
@@ -276,6 +279,34 @@ function buildScanner(cpu) {
   );
   console.error('sense: will be recorded as unknown: no reader here can parse them.');
   return false;
+}
+
+function installCli() {
+  const installed = join(here, '..', '..', 'cli', 'dist');
+  const staging = join(installed, `variance.exe.${process.pid}`);
+  mkdirSync(installed, { recursive: true });
+  copyFileSync(join(into, artifact), staging);
+  chmodSync(staging, 0o755);
+  renameSync(staging, join(installed, 'variance.exe'));
+}
+
+if (cli) {
+  rmSync(stamp, { force: true });
+  const status = build(undefined, ['--locked', '--bin', 'variance', '--features', 'standalone-cli']);
+  if (status !== 0) process.exit(status);
+
+  const executable = (target === undefined ? process.platform === 'win32' : target.includes('-windows-'))
+    ? 'variance.exe'
+    : 'variance';
+  const compiled = join(here, 'target', ...(target === undefined ? [] : [target]), 'release', executable);
+  mkdirSync(into, { recursive: true });
+  const staging = join(into, `${artifact}.${process.pid}`);
+  copyFileSync(compiled, staging);
+  renameSync(staging, join(into, artifact));
+  if (plain && identity !== undefined) writeFileSync(stamp, `${identity}\n`);
+  if (asked === undefined) installCli();
+  console.log(`variance: native CLI at ${join(into, artifact)}`);
+  process.exit(0);
 }
 
 // Removed before building, so a build that fails or narrows leaves no claim

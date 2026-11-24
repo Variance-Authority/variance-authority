@@ -44,7 +44,11 @@ pub struct Grepped {
 /// The matching lines of `files`, each relative to `root`, for one ripgrep pattern.
 #[napi(js_name = "ripgrep")]
 pub fn ripgrep(root: String, pattern: String, files: Vec<String>) -> napi::Result<Grepped> {
-    search(Path::new(&root), &pattern, &files, STORE_CROSSOVER).map(|(grepped, _)| grepped)
+    match_lines(Path::new(&root), &pattern, &files).map_err(napi::Error::from_reason)
+}
+
+pub(crate) fn match_lines(root: &Path, pattern: &str, files: &[String]) -> Result<Grepped, String> {
+    search(root, pattern, files, STORE_CROSSOVER).map(|(grepped, _)| grepped)
 }
 
 /// One file's matching lines, numbered, or why it could not be searched; and
@@ -73,14 +77,14 @@ impl Sink for TextLines {
 
 /// The search, and how many files it read out of the store: none when `files`
 /// is under `crossover`, which pays for no git call and no index.
-fn search(root: &Path, pattern: &str, files: &[String], crossover: usize) -> napi::Result<(Grepped, usize)> {
+fn search(root: &Path, pattern: &str, files: &[String], crossover: usize) -> Result<(Grepped, usize), String> {
     let matcher = RegexMatcherBuilder::new()
         .multi_line(true)
         .line_terminator(Some(b'\n'))
         // NUL marks binary data, so a pattern holding one cannot match text; `rg` refuses it.
         .ban_byte(Some(b'\0'))
         .build(pattern)
-        .map_err(|error| napi::Error::from_reason(format!("ripgrep refused the pattern: {error}")))?;
+        .map_err(|error| format!("ripgrep refused the pattern: {error}"))?;
     let store = if files.len() >= crossover { Store::open(root) } else { None };
     let (searched, rewritten) = std::thread::scope(|scope| {
         let below = store.as_ref().map(|store| scope.spawn(|| store.rewritten_below(files)));

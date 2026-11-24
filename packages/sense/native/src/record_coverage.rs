@@ -105,6 +105,24 @@ pub(crate) fn read(bytes: &[u8]) -> Result<Record, String> {
     Ok(Record { coverage, parts })
 }
 
+/// Decode the coverage columns from an open snapshot, leaving its case parts on disk.
+#[cfg(feature = "standalone-cli")]
+pub(crate) fn from_file(file: &mut crate::journey_columns::FileFrame) -> Result<Option<Coverage>, String> {
+    let layout = &LAYOUT.coverage;
+    readable(file.version)?;
+    for column in &file.columns {
+        if !layout.sections.contains(&column.name) && !layout.parts.iter().any(|(_, part)| *part == column.name) {
+            return Err(format!("the record holds a section this build does not know: {}", column.name));
+        }
+    }
+    let names: Vec<_> = layout.sections.iter().map(String::as_str).collect();
+    let selected = file.selected(&names)?;
+    if selected.is_empty() {
+        return Ok(None);
+    }
+    coverage(selected, file.version).map(Some)
+}
+
 /// Refuses a record version this build does not read.
 fn readable(version: u8) -> Result<(), String> {
     let layout = &LAYOUT.coverage;

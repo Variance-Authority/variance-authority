@@ -34,6 +34,10 @@ mod case_said;
 mod case_said_napi;
 mod case_shard;
 mod case_times;
+#[cfg(feature = "standalone-cli")]
+pub mod cli;
+#[cfg(feature = "standalone-cli")]
+mod covering_answer;
 mod commit_text;
 mod compact;
 #[cfg(any(target_os = "macos", target_os = "linux"))]
@@ -160,6 +164,8 @@ mod read_rows;
 mod span_text;
 mod ready_index;
 mod record;
+#[cfg(feature = "standalone-cli")]
+mod record_case_names;
 mod record_combine;
 mod record_coverage;
 mod record_coverage_address;

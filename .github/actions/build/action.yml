@@ -93,6 +93,8 @@ runs:
         path: |
           packages/sense/npm/*/scan.node
           packages/sense/npm/*/scan.node.tree
+          packages/sense/npm/*/variance.exe
+          packages/sense/npm/*/variance.exe.tree
         key: ${{ steps.native.outputs.key }}
 
     # Cache compiled dependencies across source edits, rather than starting
@@ -117,7 +119,14 @@ runs:
       id: compiles
       if: steps.native.outputs.floor != ''
       shell: bash
-      run: echo "native=$(node packages/sense/native/build.mjs --compiles)" >> "$GITHUB_OUTPUT"
+      run: |
+        scanner=$(node packages/sense/native/build.mjs --compiles)
+        cli=$(node packages/sense/native/build.mjs --cli --compiles)
+        if [ "$scanner" = true ] || [ "$cli" = true ]; then
+          echo "native=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "native=false" >> "$GITHUB_OUTPUT"
+        fi
 
     - name: a linker for the glibc floor
       if: steps.compiles.outputs.native == 'true'

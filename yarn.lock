@@ -5263,13 +5263,26 @@ __metadata:
     "@variance-authority/remote": "workspace:^"
     "@variance-authority/report": "workspace:^"
     "@variance-authority/sense": "workspace:^"
+    "@variance-authority/sense-darwin-arm64": "workspace:*"
+    "@variance-authority/sense-linux-arm64-gnu": "workspace:*"
+    "@variance-authority/sense-linux-x64-gnu": "workspace:*"
+    "@variance-authority/sense-win32-x64-msvc": "workspace:*"
     "@variance-authority/store": "workspace:^"
     "@variance-authority/storybook": "workspace:^"
     "@variance-authority/vantage": "workspace:^"
     ci-info: "npm:^4.4.0"
     jest: "npm:^30.5.2"
+  dependenciesMeta:
+    "@variance-authority/sense-darwin-arm64":
+      optional: true
+    "@variance-authority/sense-linux-arm64-gnu":
+      optional: true
+    "@variance-authority/sense-linux-x64-gnu":
+      optional: true
+    "@variance-authority/sense-win32-x64-msvc":
+      optional: true
   bin:
-    variance: ./dist/bin.js
+    variance: ./dist/variance.exe
   languageName: unknown
   linkType: soft
 

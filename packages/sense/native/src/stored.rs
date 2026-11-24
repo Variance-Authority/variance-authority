@@ -14,6 +14,7 @@
 // compass: variance-authority.reach.source-index
 
 use std::collections::HashMap;
+use std::io::{Read, Seek, SeekFrom};
 use std::ops::Range;
 
 use serde::Deserialize;
@@ -41,7 +42,12 @@ struct Section {
 #[derive(Clone, Copy, Default)]
 pub struct U32s<'a>(&'a [u8]);
 
-impl U32s<'_> {
+impl<'a> U32s<'a> {
+    /// A column whose width has already been checked by the segment reader.
+    pub(crate) fn from_column(bytes: &'a [u8]) -> Self {
+        Self(bytes)
+    }
+
     pub fn len(&self) -> usize {
         self.0.len() / 4
     }
@@ -128,33 +134,8 @@ impl<'a> Stored<'a> {
             .map(|head| u32::from_le_bytes([head[0], head[1], head[2], head[3]]) as usize)
             .ok_or("shorter than its header length")?;
         let header = bytes.get(4..4 + length).ok_or("shorter than its header")?;
-        let text = std::str::from_utf8(header).map_err(|_| "a header that is not UTF-8")?;
-        let header: Header =
-            serde_json::from_str(text.trim_end_matches('\0')).map_err(|error| format!("a header that does not parse: {error}"))?;
-        if header.format != format {
-            return Err(format!("{} version {}, not {format} version {version}", header.format, header.version));
-        }
-        // Another release wrote it: told apart from bytes that do not read.
-        let Some(written) = u8::try_from(header.version).ok().filter(|written| (oldest..=version).contains(written)) else {
-            return Err(format!(
-                "a {format} written in format version {}, and this release reads version {version}; `variance index` rebuilds it",
-                header.version
-            ));
-        };
         let base = 4 + length;
-        let body = bytes.len() - base;
-        let mut sections = HashMap::with_capacity(header.sections.len());
-        for (place, section) in header.sections.into_iter().enumerate() {
-            let fits = section.offset % ALIGNMENT == 0
-                && section.offset.checked_add(section.length).is_some_and(|end| end <= body)
-                && (section.width == 1 || (section.width == 4 && section.length % 4 == 0));
-            if !fits {
-                return Err(format!("section {} lies outside the segment", section.name));
-            }
-            if sections.insert(section.name.clone(), (base + section.offset, section.length, section.width, place)).is_some() {
-                return Err(format!("section {} is named twice", section.name));
-            }
-        }
+        let (sections, written) = sections_of(header, bytes.len() - base, format, oldest, version)?;
         let mut stored = Stored { bytes, sections, strings: Vec::new(), texts: None };
         let blob = std::str::from_utf8(stored.u8s("strings.blob")?).map_err(|_| "a dictionary that is not UTF-8")?;
         let off = stored.u32s("strings.off")?;
@@ -296,6 +277,73 @@ impl<'a> Stored<'a> {
         let at = partition(strings.len(), |index| crate::order::code_unit(strings[index], value).is_lt());
         (strings.get(at) == Some(&value)).then_some(at as u32)
     }
+}
+
+type Sections = HashMap<String, (usize, usize, u8, usize)>;
+
+fn sections_of(header: &[u8], body: usize, format: &str, oldest: u8, version: u8) -> Result<(Sections, u8), String> {
+    let base = 4 + header.len();
+    let text = std::str::from_utf8(header).map_err(|_| "a header that is not UTF-8")?;
+    let header: Header = serde_json::from_str(text.trim_end_matches('\0')).map_err(|error| format!("a header that does not parse: {error}"))?;
+    if header.format != format {
+        return Err(format!("{} version {}, not {format} version {version}", header.format, header.version));
+    }
+    let Some(written) = u8::try_from(header.version).ok().filter(|written| (oldest..=version).contains(written)) else {
+        return Err(format!(
+            "a {format} written in format version {}, and this release reads version {version}; `variance index` rebuilds it",
+            header.version
+        ));
+    };
+    let mut sections = HashMap::with_capacity(header.sections.len());
+    for (place, section) in header.sections.into_iter().enumerate() {
+        let fits = section.offset % ALIGNMENT == 0
+            && section.offset.checked_add(section.length).is_some_and(|end| end <= body)
+            && (section.width == 1 || (section.width == 4 && section.length % 4 == 0));
+        if !fits {
+            return Err(format!("section {} lies outside the segment", section.name));
+        }
+        if sections.insert(section.name.clone(), (base + section.offset, section.length, section.width, place)).is_some() {
+            return Err(format!("section {} is named twice", section.name));
+        }
+    }
+    Ok((sections, written))
+}
+
+/// Read only selected columns, using the same framing as an in-memory segment.
+pub(crate) fn read_sections<const N: usize>(
+    file: &mut (impl Read + Seek),
+    format: &str,
+    version: u8,
+    wanted: [(&str, u8); N],
+) -> Result<[Vec<u8>; N], String> {
+    let size = usize::try_from(file.seek(SeekFrom::End(0)).map_err(|error| error.to_string())?)
+        .map_err(|_| "segment too large")?;
+    let mut prefix = [0; 4];
+    file.seek(SeekFrom::Start(0)).and_then(|_| file.read_exact(&mut prefix)).map_err(|error| error.to_string())?;
+    let length = u32::from_le_bytes(prefix) as usize;
+    let base = 4usize.checked_add(length).filter(|base| *base <= size).ok_or("shorter than its header")?;
+    let (sections, _) = sections_of(&read_bytes(file, length)?, size - base, format, version, version)?;
+    let end = sections.values().map(|(at, length, _, _)| at + length).max().unwrap_or(base) - base;
+    let padded = end.checked_add(ALIGNMENT - 1).map(|end| end & !(ALIGNMENT - 1));
+    if padded.and_then(|end| base.checked_add(end)) != Some(size) {
+        return Err("the segment length does not match its header".into());
+    }
+    let mut columns = std::array::from_fn(|_| Vec::new());
+    for ((name, width), bytes) in wanted.into_iter().zip(&mut columns) {
+        let &(at, length, _, _) = sections.get(name).filter(|column| column.2 == width)
+            .ok_or_else(|| format!("no {width}-byte section {name}"))?;
+        file.seek(SeekFrom::Start(at as u64)).map_err(|error| error.to_string())?;
+        *bytes = read_bytes(file, length)?;
+    }
+    Ok(columns)
+}
+
+fn read_bytes(file: &mut impl Read, length: usize) -> Result<Vec<u8>, String> {
+    let mut bytes = Vec::new();
+    bytes.try_reserve_exact(length).map_err(|error| error.to_string())?;
+    bytes.resize(length, 0);
+    file.read_exact(&mut bytes).map_err(|error| error.to_string())?;
+    Ok(bytes)
 }
 
 /// The first of `0..length` for which `before` is false, where it is true of

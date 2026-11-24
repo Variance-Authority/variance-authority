@@ -16,11 +16,12 @@
 
 use napi::bindgen_prelude::Buffer;
 use napi_derive::napi;
+use sha2::{Digest, Sha256};
 
 use crate::help_search::{exported_digest, joined};
 use crate::help_usage::{DeepRequest, NameUse, NamedExport};
 use crate::segment::{self, Column};
-use crate::stored::Stored;
+use crate::stored::{read_sections, Stored, U32s};
 
 /// `FORMAT` and `VERSION` in `packages/help/src/store-layout.ts`.
 pub(crate) const FORMAT: &str = "variance-authority-help-store";
@@ -30,6 +31,10 @@ pub(crate) const USE_KINDS: [&str; 3] = ["source", "test", "story"];
 /// The generation's fields, in the order `head` holds them.
 const META: usize = 9;
 const GENERATED_AT: usize = 3;
+
+pub(crate) fn graph_digest(bytes: &[u8]) -> String {
+    Sha256::digest(bytes).iter().map(|byte| format!("{byte:02x}")).collect()
+}
 
 /// One place a name is used: `Use`, and `Taken`'s `name` for an import by path.
 #[napi(object)]
@@ -150,24 +155,34 @@ pub fn restamp_help_store(bytes: Buffer, generated_at: String) -> napi::Result<B
 
 fn restamped(bytes: &[u8], generated_at: &str) -> Result<Vec<u8>, String> {
     let stored = Stored::open_as(bytes, FORMAT, VERSION)?;
-    let (blob, off, ids) = (stored.u8s("head.blob")?, stored.u32s("head.off")?, stored.u32s("head")?);
-    if ids.len() != META {
-        return Err(format!("a help store head of {} fields, not {META}", ids.len()));
-    }
-    let mut meta: Vec<Option<&str>> = Vec::with_capacity(META);
-    for field in 0..META {
-        let id = ids.at(field) as usize;
-        if ids.at(field) == NONE {
-            meta.push(None);
-            continue;
-        }
-        let text = (id + 1 < off.len()).then(|| blob.get(off.at(id) as usize..off.at(id + 1) as usize)).flatten();
-        meta.push(Some(text.and_then(|text| std::str::from_utf8(text).ok()).ok_or("a help store head field that is not a string")?));
-    }
+    let mut meta = decode_head(stored.u8s("head.blob")?, stored.u32s("head.off")?, stored.u32s("head")?)?;
     meta[GENERATED_AT] = Some(generated_at);
     let mut columns = Vec::from(head_columns(&meta));
     columns.extend(stored.columns().into_iter().filter(|(name, _, _)| !is_head(name)).map(|(name, width, bytes)| segment::column(name.to_owned(), width, bytes.to_vec())));
     Ok(segment::encode_as(FORMAT, VERSION, columns))
+}
+
+/// Read the generation without loading the store's dictionary or its rows.
+pub(crate) fn read_head(file: &mut (impl std::io::Read + std::io::Seek)) -> Result<[Option<String>; META], String> {
+    let [blob, offsets, fields] = read_sections(file, FORMAT, VERSION, [("head.blob", 1), ("head.off", 4), ("head", 4)])?;
+    Ok(decode_head(&blob, U32s::from_column(&offsets), U32s::from_column(&fields))?.map(|field| field.map(str::to_owned)))
+}
+
+fn decode_head<'a>(blob: &'a [u8], off: U32s<'_>, ids: U32s<'_>) -> Result<[Option<&'a str>; META], String> {
+    if ids.len() != META {
+        return Err(format!("a help store head of {} fields, not {META}", ids.len()));
+    }
+    let mut meta = [None; META];
+    for (field, value) in meta.iter_mut().enumerate() {
+        let id = ids.at(field);
+        if id == NONE {
+            continue;
+        }
+        let id = id as usize;
+        let text = (id + 1 < off.len()).then(|| blob.get(off.at(id) as usize..off.at(id + 1) as usize)).flatten();
+        *value = Some(text.and_then(|text| std::str::from_utf8(text).ok()).ok_or("a help store head field that is not a string")?);
+    }
+    Ok(meta)
 }
 
 fn is_head(name: &str) -> bool {
@@ -388,4 +403,48 @@ pub(crate) fn flags(held: &UseRef) -> u8 {
         flags |= u8::from(held.through_default) << 5 | u8::from(held.whole) << 6;
     }
     flags
+}
+
+#[cfg(test)]
+mod head_tests {
+    use super::*;
+
+    #[test]
+    fn reading_the_generation_does_not_read_the_store_body() {
+        use std::io::{Cursor, Read, Seek, SeekFrom};
+
+        struct HeadOnly {
+            file: Cursor<Vec<u8>>,
+            body: u64,
+        }
+
+        impl Read for HeadOnly {
+            fn read(&mut self, bytes: &mut [u8]) -> std::io::Result<usize> {
+                assert!(self.file.position() + bytes.len() as u64 <= self.body);
+                self.file.read(bytes)
+            }
+        }
+
+        impl Seek for HeadOnly {
+            fn seek(&mut self, at: SeekFrom) -> std::io::Result<u64> {
+                self.file.seek(at)
+            }
+        }
+
+        let columns = head_columns(&[
+            Some("/checkout"), Some("/checkout"), Some("graph"), Some("generated"),
+            Some("started"), Some("exports"), None, Some("index"), None,
+        ]);
+        let mut columns = Vec::from(columns);
+        columns.push(crate::segment::u8s("body", vec![0; 4096]));
+        let bytes = crate::segment::encode_as(FORMAT, VERSION, columns);
+        let body = (bytes.len() - 4096) as u64;
+        let mut file = HeadOnly { file: Cursor::new(bytes), body };
+        let head = read_head(&mut file).unwrap();
+        assert_eq!(head[0].as_deref(), Some("/checkout"));
+        assert_eq!(head[3].as_deref(), Some("generated"));
+        assert_eq!(head[7].as_deref(), Some("index"));
+        file.file.get_mut().pop();
+        assert!(read_head(&mut file).is_err());
+    }
 }

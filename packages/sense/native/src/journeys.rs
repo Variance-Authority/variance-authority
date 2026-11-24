@@ -203,6 +203,13 @@ impl GitTree {
     }
 }
 
+#[cfg(feature = "standalone-cli")]
+pub(crate) fn prepare_listed(
+    root: &str, index: &str, recording: &str, at: JourneysCommit, out: &str, tree: Option<&GitTree>, tsconfig: Tsconfig,
+) -> napi::Result<Option<JourneysPrepared>> {
+    prepare(root, index, recording, at, out, tree.map(GitTree::listed), tsconfig)
+}
+
 #[allow(clippy::too_many_arguments, reason = "the two N-API entries' arguments, carried")]
 fn prepare(
     root: &str,

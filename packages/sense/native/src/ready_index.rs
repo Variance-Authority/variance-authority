@@ -32,7 +32,7 @@ pub fn ready_source_index(index: String) -> AsyncTask<OffThread<bool>> {
     off_thread(move || readied(&index).map_err(|error| napi::Error::from_reason(format!("the source index at {index} was not readied: {error}"))))
 }
 
-fn readied(index: &str) -> Result<bool, String> {
+pub(crate) fn readied(index: &str) -> Result<bool, String> {
     let Some(chain) = read_chain(index)? else { return Ok(false) };
     if chain.working == 0 || chain.dropped > 0 {
         return Ok(false);

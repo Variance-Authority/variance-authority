@@ -63,8 +63,12 @@ pub(crate) fn readmes<'a>(root: &Path, files: impl Iterator<Item = &'a str>) -> 
 /// the nearest is there and does not read.
 #[napi(catch_unwind)]
 pub fn readme_mention(root: String, at: String, name: String) -> napi::Result<Option<Mention>> {
-    let held = readmes(Path::new(&root), std::iter::once(at.as_str())).map_err(napi::Error::from_reason)?;
-    Ok(nearest(&held, &at).and_then(|readme| mention(readme, &name)))
+    mention_at(Path::new(&root), &at, &name).map_err(napi::Error::from_reason)
+}
+
+pub(crate) fn mention_at(root: &Path, at: &str, name: &str) -> Result<Option<Mention>, String> {
+    let held = readmes(root, std::iter::once(at))?;
+    Ok(nearest(&held, at).and_then(|readme| mention(readme, name)))
 }
 
 /// The README paths above `at`, nearest first: `nearest`'s walk.

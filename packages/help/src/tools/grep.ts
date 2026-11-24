@@ -1,5 +1,5 @@
 import type { FileSet, Tool, ToolInvocation } from '@variance-authority/mcp/tools';
-import { START_POINT_SCHEMA, nextPage, pageAt, pageOf, paged, saysStartPoint, spellingOf, startPointArg, stringArg } from '@variance-authority/mcp/tools';
+import { START_POINT_SCHEMA, nextPage, pageAt, pageOf, paged, pathsOf, saysStartPoint, spellingOf, startPointArg, stringArg } from '@variance-authority/mcp/tools';
 import { testsRan } from '@variance-authority/sense';
 import { areaLine, areaOf, startPointNeeded } from './area.js';
 import { byFile } from './format.js';
@@ -78,6 +78,16 @@ export const grep: Tool<unknown> = {
     const page = pageOf(input, SHOWN, spell);
     const test = testOf(input, invocation);
     if (test !== undefined) return formatGrepRan(test.query, grepRan(test.root, test.query, test.file, test.name), page, spell);
+    const tree = invocation?.tree;
+    if (tree?.scopedGrep !== undefined && saysStartPoint(input) && page.offset <= 0xffff_ffff && page.limit <= 0xffff_ffff) {
+      return tree.scopedGrep({
+        query: stringArg(input, 'query'),
+        from: [...pathsOf(startPointArg(input, 'from'))],
+        to: [...pathsOf(startPointArg(input, 'to'))],
+        ...page,
+        offsetFlag: spell.input('offset'),
+      });
+    }
     const { query, area, hits, errors, distanceOf } = grepped(input, invocation);
 
     const unread =

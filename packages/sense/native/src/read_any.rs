@@ -35,6 +35,13 @@ impl Language {
     }
 }
 
+/// Every suffix the standalone source updater may seed.
+#[cfg(feature = "standalone-cli")]
+pub(crate) const EXTENSIONS: &[&str] = &[
+    ".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs", ".css", ".scss", ".sass",
+    ".less", ".py", ".pyi", ".rs", ".java", ".kt", ".kts", ".swift",
+];
+
 /// The language a path is read as, by the extension its name ends in, or
 /// nothing when no reader claims it.
 pub(crate) fn language_of(file: &str) -> Option<Language> {

@@ -8,6 +8,11 @@ use crate::record_layout::LAYOUT;
 
 #[path = "journey_columns_decode.rs"]
 mod decode;
+#[cfg(feature = "standalone-cli")]
+#[path = "journey_file.rs"]
+mod file;
+#[cfg(feature = "standalone-cli")]
+pub(crate) use file::FileFrame;
 
 /// A column as it goes to the file. `Bytes`, `Words` and `Blob` are stored as
 /// runs when that pays (`record-layout.json` says when); `Plain` holds bytes of

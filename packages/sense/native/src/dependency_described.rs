@@ -20,25 +20,25 @@ use super::Api;
 /// A package that says it does what was asked.
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-pub(super) struct Described {
+pub(crate) struct Described {
     package: String,
-    specifier: String,
+    pub(crate) specifier: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    version: Option<String>,
-    manifest: String,
+    pub(crate) version: Option<String>,
+    pub(crate) manifest: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    declared_as: Option<String>,
+    pub(crate) declared_as: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    imports: Option<u32>,
+    pub(crate) imports: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    site: Option<String>,
+    pub(crate) site: Option<String>,
     imported: bool,
     /// The question's words the package holds, as the question wrote them.
-    words: Vec<String>,
+    pub(crate) words: Vec<String>,
     /// How many of them the package says about itself rather than through a name.
     said: u32,
     #[serde(skip_serializing_if = "Option::is_none")]
-    description: Option<String>,
+    pub(crate) description: Option<String>,
 }
 
 /// The question's distinct stems by the rule `cut`, each with the word it was written as.

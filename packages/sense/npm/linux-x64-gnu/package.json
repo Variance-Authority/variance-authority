@@ -35,6 +35,7 @@
     "prepack": "node ../../scripts/verify-native-pack.mjs"
   },
   "files": [
-    "scan.node"
+    "scan.node",
+    "variance.exe"
   ]
 }

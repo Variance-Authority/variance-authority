@@ -228,6 +228,11 @@ pub(crate) fn carried(tree: &GitTree, root: &str, index: &str) -> napi::Result<O
     prepare(root, index, Some(Listed::from(tree)), false, false, Tsconfig::Auto)
 }
 
+#[cfg(feature = "standalone-cli")]
+pub(crate) fn prepare_listed(tree: &GitTree, root: &str, index: &str, workspaces: bool, tsconfig: Tsconfig) -> napi::Result<Option<OrientMapPrepared>> {
+    prepare(root, index, Some(Listed::from(tree)), false, workspaces, tsconfig)
+}
+
 #[napi]
 impl GitTree {
     /// Fold the index at `index` into the code map, carrying this listing of

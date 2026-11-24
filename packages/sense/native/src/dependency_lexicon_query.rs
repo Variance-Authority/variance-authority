@@ -11,79 +11,82 @@ use super::{Api, Readme};
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-struct Match {
+pub(crate) struct Match {
     source: &'static str,
-    name: String,
-    specifier: String,
-    kind: String,
-    package: String,
+    pub(crate) name: String,
+    pub(crate) specifier: String,
+    pub(crate) kind: String,
+    pub(crate) package: String,
     /// The manifest that declares it, or the one it was imported under.
-    manifest: String,
+    pub(crate) manifest: String,
     /// The installed package's own manifest: which copy of it answered.
     #[serde(skip_serializing_if = "Option::is_none")]
     installed: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    declared_as: Option<String>,
+    pub(crate) declared_as: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    imports: Option<u32>,
+    pub(crate) imports: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    site: Option<String>,
+    pub(crate) site: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    version: Option<String>,
+    pub(crate) version: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    summary: Option<String>,
+    pub(crate) summary: Option<String>,
     imported: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
-    at: Option<String>,
+    pub(crate) at: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    line: Option<u32>,
+    pub(crate) line: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    signature: Option<String>,
+    pub(crate) signature: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    doc: Option<String>,
+    pub(crate) doc: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    declaration_provider: Option<String>,
+    pub(crate) declaration_provider: Option<String>,
 }
 
 /// A package the workspace can resolve that publishes no names to match against, and what it ships instead.
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-struct Silent {
-    package: String,
-    specifier: String,
+pub(crate) struct Silent {
+    pub(crate) package: String,
+    pub(crate) specifier: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    version: Option<String>,
+    pub(crate) version: Option<String>,
     /// The installed package's own manifest: which copy of it is silent.
     #[serde(skip_serializing_if = "Option::is_none")]
     installed: Option<String>,
-    reason: String,
+    pub(crate) reason: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    readme: Option<Readme>,
+    pub(crate) readme: Option<Readme>,
     imported: bool,
 }
 
 /// `silent` is asked for by an exact name only: a search over words has no name to be silent about.
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-struct Matches {
-    total: u32, shown: Vec<Match>, silent: Vec<Silent>, scope: Scope,
+pub(crate) struct Matches {
+    pub(crate) total: u32,
+    pub(crate) shown: Vec<Match>,
+    pub(crate) silent: Vec<Silent>,
+    pub(crate) scope: Scope,
     /// Packages whose own words describe the question, asked for by words rather than one name.
     #[serde(skip_serializing_if = "Option::is_none")]
-    described: Option<Vec<Described>>,
+    pub(crate) described: Option<Vec<Described>>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    described_total: Option<u32>,
+    pub(crate) described_total: Option<u32>,
     /// Why no package was asked to describe the question, when the catalogue cannot answer it.
     #[serde(skip_serializing_if = "Option::is_none")]
-    described_unread: Option<String>,
+    pub(crate) described_unread: Option<String>,
 }
 
 /// What the question searched, so an empty answer says how much it looked at.
 #[derive(Serialize)]
-struct Scope {
+pub(crate) struct Scope {
     /// Manifests whose declared and imported dependencies were searched, by path.
-    owners: Vec<String>,
+    pub(crate) owners: Vec<String>,
     /// Distinct packages those manifests offered to the question.
-    packages: u32,
+    pub(crate) packages: u32,
     /// The manifests that own the paths the question stood at; absent when it stood nowhere.
     #[serde(skip_serializing_if = "Option::is_none")]
     location: Option<Vec<String>>,
@@ -121,6 +124,27 @@ fn matches(api: &Api, row: &Row, query: &str, exact: bool) -> Vec<Match> {
 #[napi(catch_unwind)]
 pub fn query_dependency_lexicon(path: String, sites: String, query: String, files: Option<Vec<String>>,
     exact: bool, package: Option<String>, limit: u32) -> napi::Result<Option<String>> {
+    query_matches(path, sites, query, files, exact, package, limit)?
+        .map(|answer| serde_json::to_string(&answer).map_err(|error| napi::Error::from_reason(error.to_string())))
+        .transpose()
+}
+
+#[cfg(feature = "standalone-cli")]
+pub(crate) fn exact_dependencies(directory: &std::path::Path, name: &str, package: Option<&str>, limit: u32) -> Option<Option<Matches>> {
+    let catalogue = directory.join("dependency-lexicon.bin");
+    let sites = directory.join("dependency-lexicon.sites.bin");
+    query_matches(catalogue.to_str()?.to_owned(), sites.to_str()?.to_owned(), name.to_owned(), None, true, package.map(str::to_owned), limit).ok()
+}
+
+#[cfg(feature = "standalone-cli")]
+pub(crate) fn search_dependencies(directory: &std::path::Path, query: &str, files: Option<Vec<String>>, limit: u32) -> Option<Option<Matches>> {
+    let catalogue = directory.join("dependency-lexicon.bin");
+    let sites = directory.join("dependency-lexicon.sites.bin");
+    query_matches(catalogue.to_str()?.to_owned(), sites.to_str()?.to_owned(), query.to_owned(), files, false, None, limit).ok()
+}
+
+fn query_matches(path: String, sites: String, query: String, files: Option<Vec<String>>,
+    exact: bool, package: Option<String>, limit: u32) -> napi::Result<Option<Matches>> {
     let Some((catalogue, held)) = read(&path, &sites)? else { return Ok(None) };
     let lexicon = Lexicon::open(&catalogue, held.as_deref())?;
     let allowed = files.as_ref().map(|files| lexicon.located(files));
@@ -199,9 +223,7 @@ pub fn query_dependency_lexicon(path: String, sites: String, query: String, file
         .map(|version| format!("The dependency lexicon was written at version {version}, whose stems this release does not compare"));
     let words = if !describing { None } else { described(&query, read.iter().copied(), limit as usize) };
     let (described_total, described) = match words { Some((total, shown)) => (Some(total), Some(shown)), None => (None, None) };
-    let answer = serde_json::to_string(&Matches { total, shown, silent, described, described_total, described_unread,
+    Ok(Some(Matches { total, shown, silent, described, described_total, described_unread,
         scope: Scope { owners: looked.0.into_iter().map(str::to_owned).collect(), packages: looked.1.len() as u32,
-            location: allowed.map(|allowed| { let mut held: Vec<String> = allowed.into_iter().map(str::to_owned).collect(); held.sort_unstable(); held }) } })
-        .map_err(|error| napi::Error::from_reason(error.to_string()))?;
-    Ok(Some(answer))
+            location: allowed.map(|allowed| { let mut held: Vec<String> = allowed.into_iter().map(str::to_owned).collect(); held.sort_unstable(); held }) } }))
 }

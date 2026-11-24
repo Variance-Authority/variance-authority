@@ -21,6 +21,8 @@
 use rayon::prelude::*;
 use serde::Deserialize;
 
+use crate::compact::Layer;
+
 const MAGIC: &[u8] = b"VAIDXLSM";
 const HEADER_BYTES: usize = MAGIC.len() + 4;
 
@@ -89,6 +91,34 @@ pub(crate) fn read_chain(path: &str) -> Result<Option<Chain>, String> {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
         Err(error) => Err(format!("{path}: {error}")),
     })
+}
+
+type Layers<'a> = Vec<Layer<'a>>;
+
+self_cell::self_cell!(
+    /// The published segments and the layers that borrow their bytes.
+    pub(crate) struct OpenedChain {
+        owner: Vec<Vec<u8>>,
+        #[covariant]
+        dependent: Layers,
+    }
+);
+
+impl OpenedChain {
+    /// Open the valid prefix of the published chain for one question.
+    pub(crate) fn read(path: &str) -> Result<Option<Self>, String> {
+        let open = |chain: Chain| Self::try_new(chain.segments, |segments| {
+            segments.par_iter().enumerate()
+                .map(|(at, bytes)| Layer::open(bytes).map_err(|error| format!("segment {at}: {error}")))
+                .collect()
+        });
+        read_chain(path).and_then(|chain| chain.map(open).transpose())
+            .map_err(|error| format!("the source index at {path} did not read: {error}"))
+    }
+
+    pub(crate) fn layers(&self) -> &[Layer<'_>] {
+        self.borrow_dependent()
+    }
 }
 
 /// `read_chain`'s retry, over a reader of the chain and of the manifest's

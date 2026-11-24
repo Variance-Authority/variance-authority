@@ -258,14 +258,15 @@ pub(crate) fn absent(root: &str, commit: &str) -> Option<String> {
 
 /// Each of `oids` from one `cat-file --batch`, in order. An object git answers
 /// `missing` is that object's error; output that does not parse fails the read.
-fn objects(root: &str, oids: &[&str]) -> Result<Vec<Result<Vec<u8>, String>>, String> {
+pub(crate) fn objects(root: &str, oids: &[&str]) -> Result<Vec<Result<Vec<u8>, String>>, String> {
     let asked: String = oids.iter().map(|oid| format!("{oid}\n")).collect();
     let out = answer(root, &["cat-file", "--batch"], Some(asked.into_bytes()))?;
     let mut rest = out.as_slice();
     let mut read = Vec::with_capacity(oids.len());
     for _ in oids {
         read.push(match reply(&mut rest)? {
-            Reply::Object { body, .. } => Ok(body),
+            Reply::Object { body, kind, .. } if kind == "blob" => Ok(body),
+            Reply::Object { oid, kind, .. } => Err(format!("git answered `{oid}` as {kind}, expected a blob")),
             Reply::Missing(name) => Err(format!("git answered `{name} missing`")),
         });
     }

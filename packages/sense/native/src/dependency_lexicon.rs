@@ -24,7 +24,7 @@ mod finds_tests;
 #[path = "dependency_lexicon_view.rs"] mod view;
 #[path = "dependency_lexicon_wanted.rs"] mod wanted;
 #[path = "dependency_lexicon_query.rs"]
-mod query;
+pub(crate) mod query;
 #[path = "dependency_stack.rs"]
 mod stack;
 #[path = "dependency_described.rs"]
@@ -46,12 +46,12 @@ struct Name { name: String, kind: String, at: String, line: u32, signature: Opti
 struct Source { at: String, digest: String }
 /// The `README.md` beside an installed package's manifest: where it is and how long, or why it did not read.
 #[derive(Clone, Serialize)]
-struct Readme {
-    at: String,
+pub(crate) struct Readme {
+    pub(crate) at: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    lines: Option<u32>,
+    pub(crate) lines: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    unreadable: Option<String>,
+    pub(crate) unreadable: Option<String>,
 }
 #[derive(Clone)]
 struct Api {
@@ -114,7 +114,7 @@ pub fn refresh_dependency_lexicon(
 /// the chain, and the next refresh reads that increment again.
 enum Wrote { Held, None, Appended(usize, sites::Writer), Rebuilt(Vec<u8>, sites::Writer) }
 
-fn refresh(root: String, index: String, path: String, sites_path: String, tsconfig: crate::resolve::Tsconfig) -> napi::Result<LexiconRefresh> {
+pub(crate) fn refresh(root: String, index: String, path: String, sites_path: String, tsconfig: crate::resolve::Tsconfig) -> napi::Result<LexiconRefresh> {
     let root_path = Path::new(&root);
     // Read before anything else, so a chain that moves during the refresh is never recorded as the one it read.
     let (chain, working) = crate::index_chain::manifest_references(&index).map_or((None, 0), |(chain, working)| (Some(chain), working));
