@@ -149,9 +149,8 @@ Reasons you reject on, and you name the one you use:
   did not happen. That nothing shows the need yet is not this reason, nor is
   whether anybody asked.
 - **Nobody waits for it.** Something that opens shows that nothing is held back
-  while it is not done, and what it costs buys nothing yet. Unlike **not now**,
-  nothing unlanded stands in its way; unlike **too much for what it buys**, the
-  size of the cost does not decide it.
+  while it is not done, and what it costs buys nothing yet. Unlike **too much
+  for what it buys**, the size of the cost does not decide it.
 - **Not the task.** Diff mode only: the task sentence and the issue's Change do
   not name this part, and the body cannot show the task needs it.
 - **It already exists.** A command, a capability or a page on `main` already
@@ -171,8 +170,11 @@ Reasons you reject on, and you name the one you use:
   opens, and when nothing opens either way this reason does not stand.
 - **Rejected before.** `docs/context/` already decided against it, and the
   body does not say what changed.
-- **Not now.** It stands on a change that has not landed. A premise nothing
-  has measured is not this reason when building is how it gets measured.
+
+A change that stands on one not yet landed is never rejected for it. Review it
+as if what it stands on had landed as that change's own issue says, and check
+that the issue is blocked by it, both under one epic. Building takes time;
+capturing a direction does not wait for it, and neither does its review.
 
 Report each rejection as: **no, because** or **yes, but**; the reason by its
 name above; the evidence for it — a path and line, a quote, a count from step
