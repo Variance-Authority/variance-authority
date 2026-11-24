@@ -43,6 +43,20 @@ fn a_doc_is_matched_by_the_words_the_index_cut_from_it_with_no_file_to_read() {
 }
 
 #[test]
+fn exact_declarations_keep_live_shared_paths_in_order_and_report_unread_files() {
+    let source = "function start() {}\nfunction holder() {\n  function start() {}\n}\n";
+    let (records, parses) = chain(&[("src/z.ts", "git:a", source), ("src/gone.ts", "git:b", MOUNT)]);
+    let (shared, _) = chain(&[("src/a.ts", "git:a", source), ("src/unread-z.ts", "git:c", PLAIN), ("src/unread-a.ts", "git:d", PLAIN)]);
+    let changes = Delta::of(vec![r#"{"deletedRecords":["src/gone.ts"]}"#.to_owned()]).unwrap();
+    let removed = merged(&[], &changes);
+    let layers = [&records, &parses, &shared, &removed].map(|bytes| Layer::open(bytes).unwrap());
+    let found = declared("/nonexistent-root", &layers, "start", Matching::Exact, None);
+    let sites: Vec<_> = found.names.iter().map(|name| (name.at.as_str(), name.line)).collect();
+    assert_eq!(sites, [("src/a.ts", 1), ("src/a.ts", 3), ("src/z.ts", 1), ("src/z.ts", 3)]);
+    assert_eq!(found.unread, ["src/unread-a.ts", "src/unread-z.ts"]);
+}
+
+#[test]
 fn a_file_described_by_its_name_alone_still_counts_the_words_of_its_module_doc() {
     let source = "/** Starts the app. */\n\nexport const x = 1;\n";
     let (records, parses) = chain(&[("src/mount.ts", "git:a", source)]);
