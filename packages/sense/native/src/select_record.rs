@@ -339,16 +339,19 @@ fn standing(file: &Path, commit: &str, coverage: &Coverage, text: &Text<'_>, han
     if runs.get("commit")?.as_str()? != commit {
         return None;
     }
-    let no_retained_text = |value: &Value, field| {
-        value.get(field).is_none_or(|named| named.as_object().is_some_and(|object| object.is_empty()))
-    };
+    let no_retained_text = no_retained;
     if !no_retained_text(&runs, "installed") {
         return None;
     }
     let mut files = HashSet::new();
     if let Some(standing) = runs.get("standing") {
         for entry in standing.as_array()? {
-            if entry.get("commit")?.as_str()? != commit || entry.get("assumed").is_some_and(|value| value != false) {
+            if entry.get("commit")?.as_str()? != commit
+                || entry.get("assumed").is_some_and(|value| value != false)
+                || !no_retained_text(entry, "installed")
+                || !no_retained_text(entry, "texts")
+                || entry.get("partly").is_some()
+            {
                 return None;
             }
             for file in entry.get("files")?.as_array()? {
@@ -383,6 +386,13 @@ fn standing(file: &Path, commit: &str, coverage: &Coverage, text: &Text<'_>, han
     coverage.test_path.iter().all(|id| files.contains(text.at(*id))).then(Vec::new)
 }
 
+/// Whether `value` names no install or texts under `field`: a run that kept
+/// either ran against something other than its commit's own, so the record
+/// cannot be read as a clean stand and the Node selector reads it instead.
+fn no_retained(value: &Value, field: &str) -> bool {
+    value.get(field).is_none_or(|named| named.as_object().is_some_and(|object| object.is_empty()))
+}
+
 fn parse_files(value: &Value) -> Option<HashSet<&str>> {
     value.as_array()?.iter().map(Value::as_str).collect()
 }
@@ -407,5 +417,19 @@ impl Kept {
 
     fn has(&self, digest: &str) -> bool {
         digest.strip_prefix("v1:").is_some_and(|hex| self.0.contains(hex))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::no_retained;
+    use serde_json::json;
+
+    #[test]
+    fn a_standing_entry_that_kept_texts_or_an_install_is_not_clean() {
+        assert!(no_retained(&json!({"files": []}), "texts"));
+        assert!(no_retained(&json!({"texts": {}}), "texts"));
+        assert!(!no_retained(&json!({"texts": {"a.ts": "abc"}}), "texts"));
+        assert!(!no_retained(&json!({"installed": {"lock": "x"}}), "installed"));
     }
 }
