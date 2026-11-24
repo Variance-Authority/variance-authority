@@ -83,14 +83,15 @@ describe('variance ask search about the name a test ran under', () => {
     expect(answer).toMatch(/\n\nNext: `variance ask (?:orient --files packages\/kit\/src\/tuner\.ts|symbol --name tuner --package \S+)`\n/u);
   });
 
-  it('leaves out the unread language of an answer a case gave, in JSON as in text', async () => {
+  it('keeps the unread language beside an answer a case gave, in JSON as in text', async () => {
     checkout({ ...FILES, 'packages/kit/Cargo.toml': '[package]\nname = "kit"\nversion = "0.1.0"\n', 'packages/kit/src/lib.rs': 'pub fn restart() {}\n' });
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
     await record([[ALONE, 'alone > qqzzq']]);
 
     const { out } = await run(['ask', 'search', '--query', 'qqzzq', '--format', 'json']);
 
-    expect(JSON.parse(out)).not.toHaveProperty('membersUnread');
+    expect(JSON.parse(out).membersUnread).toEqual(['Rust']);
+    expect(await searched('--query', 'qqzzq')).toContain('Rust files were not read');
   });
 
   it('holds every word in any order, and no case that lacks one', async () => {

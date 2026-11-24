@@ -3,18 +3,18 @@ import { describedWordsNative, wordStemsNative } from '@variance-authority/sense
 import type { SearchIndex } from '../search-index.js';
 import { tokensOf } from '../search-index.js';
 import type { Area } from './area.js';
-import { areaOf } from './area.js';
+import { areaLine, areaOf } from './area.js';
 import { looseNames, matchingTerms, rowWithin, termsOfStems } from './loose.js';
 import { carriedThrough, carriesMost } from './carried.js';
 import { countedOf, describedDeclarations, describedNames, describedShown, fileMatch, rowTextOrder, type RowOrder } from './described.js';
 import { declaredKey, looseDeclarations } from './loose-declared.js';
 import { queryDependencyLexicon } from '../dependency-lexicon.js';
-import { aliasMatches, declaredMatches, declaredTold, exactness } from './declared.js';
+import { aliasMatches, declaredMatches, declaredTold, exactness, unreadLine } from './declared.js';
 import { saidFor, type Said } from './held-sentence.js';
-import { membersUnreadOf } from './members.js';
+import { membersUnreadOf, unreadStop } from './members.js';
 import { docRows, exported, exportedOrder, first, type DeclarationLookups } from './exported-matches.js';
 import { counting, type ImportingOf, type InArea, type PublishedMatch } from './published-match.js';
-import type { DescribedMatch, Matches, SearchAnswer, SearchArea, Searched, SearchQuestion } from './search-matches.js';
+import type { DescribedMatch, Matches, SearchAnswer, SearchArea, Searched, SearchQuestion, MatchingFiles } from './search-matches.js';
 import { docsSaying } from './phrase.js';
 import { recordedTests, suiteCaseNames } from './search-tests.js';
 
@@ -208,19 +208,42 @@ function matched(index: SearchIndex, question: SearchQuestion, tree: Tree | unde
   return { query, said, area, within, named, hits, answered, rest, byDoc: [...through.keys()] } as const;
 }
 
-/**
- * The same search's workspace files, before display caps. Each evaluated
- * section contributes its matching coordinates, including described and loose
- * candidates when those passes run. Installed names identify no workspace file.
- */
-export function searchedFiles(index: SearchIndex, question: SearchQuestion, tree?: Tree, root?: string): FileSet {
-  const files = new Map<string, { lines: Set<number>; kinds: Set<MatchKind> }>();
-  const found = searchedBy(index, question, tree, root, undefined, undefined, (at, line, kind = 'query') => {
-    const one = files.get(at) ?? { lines: new Set<number>(), kinds: new Set<MatchKind>() };
-    if (line !== undefined) one.lines.add(line);
-    one.kinds.add(kind);
-    files.set(at, one);
-  });
+/** Matching facts shared by the uncapped file set and the enriched text view. */
+export interface PreparedSearch {
+  readonly files: () => FileSet;
+  readonly read: (importingOf?: ImportingOf, declarations?: DeclarationLookups) => Searched;
+}
+
+/** Prepare matching once; importer counts and declaration locations are read only for text. */
+export function preparedSearch(index: SearchIndex, question: SearchQuestion, tree?: Tree, root?: string): PreparedSearch {
+  const visits: ((file: MatchingFile) => void)[] = [];
+  let coverage: Searched = { answer: { query: question.query }, area: undefined };
+  const render = searchedBy(index, question, tree, root, (visit) => visits.push(visit), (found) => { coverage = found; });
+  let membership: FileSet | undefined;
+  return {
+    files: () => {
+      if (membership !== undefined) return membership;
+      const files = new Map<string, { lines: Set<number>; kinds: Set<MatchKind> }>();
+      const file: MatchingFile = (at, line, kind = 'query') => {
+        const one = files.get(at) ?? { lines: new Set<number>(), kinds: new Set<MatchKind>() };
+        if (line !== undefined) one.lines.add(line);
+        one.kinds.add(kind);
+        files.set(at, one);
+      };
+      for (const visit of visits) visit(file);
+      return membership = matchingFiles(files, coverage);
+    },
+    read: (importingOf, declarations) => {
+      const count = importingOf === undefined ? undefined : counting(importingOf);
+      const found = render(count?.of, declarations);
+      if (count === undefined) return found;
+      const unread = count.unread();
+      return { ...found, publishing: count.publishing(), ...(unread === undefined ? {} : { answer: { ...found.answer, importsUnread: unread } }) };
+    },
+  };
+}
+
+function matchingFiles(files: ReadonlyMap<string, { lines: Set<number>; kinds: Set<MatchKind> }>, found: Searched): FileSet {
   if (found.answer.refused !== undefined) throw new Error(`\`search\` searched nothing: ${found.answer.refused}.`);
   const qualifications = new Map<string, string>();
   for (const [at, { kinds }] of files) {
@@ -228,9 +251,16 @@ export function searchedFiles(index: SearchIndex, question: SearchQuestion, tree
     const labels = (['query', 'near', 'loose'] as const).filter((kind) => kinds.has(kind)).map((kind) => `${kind} matches`);
     qualifications.set(at, `${labels.join(' and ')}${kinds.has('query') ? '' : ', not exact'}`);
   }
+  const members = unreadStop(found.answer.membersUnread ?? []);
+  const unread = [
+    ...unreadLine(found.answer.declared?.unread),
+    ...(members === undefined ? [] : [members]),
+    ...(found.area === undefined || found.area.unresolved.length === 0 ? [] : [areaLine(found.area)]),
+  ];
   return {
     files: new Map([...files].map(([at, { lines }]) => [at, [...lines].sort((left, right) => left - right)])),
     ...(qualifications.size === 0 ? {} : { qualifications }),
+    ...(unread.length === 0 ? {} : { unread }),
   };
 }
 
@@ -250,11 +280,7 @@ function indexedFiles(index: SearchIndex, published: Iterable<number>, exported:
  * is declared and entered.
  */
 export function searched(index: SearchIndex, question: SearchQuestion, tree?: Tree, root?: string, importingOf?: ImportingOf, declarations?: DeclarationLookups): Searched {
-  const count = importingOf === undefined ? undefined : counting(importingOf);
-  const found = searchedBy(index, question, tree, root, count?.of, declarations);
-  if (count === undefined) return found;
-  const unread = count.unread();
-  return { ...found, publishing: count.publishing(), ...(unread === undefined ? {} : { answer: { ...found.answer, importsUnread: unread } }) };
+  return preparedSearch(index, question, tree, root).read(importingOf, declarations);
 }
 
 function searchedBy(
@@ -262,14 +288,17 @@ function searchedBy(
   question: SearchQuestion,
   tree: Tree | undefined,
   root: string | undefined,
-  importingOf: ImportingOf | undefined,
-  declaredAt: DeclarationLookups | undefined,
-  file?: MatchingFile,
-): Searched {
+  filesOf: (visit: (file: MatchingFile) => void) => void,
+  covered: (found: Searched) => void,
+): (importingOf?: ImportingOf, declaredAt?: DeclarationLookups) => Searched {
   const found = matched(index, question, tree);
-  if ('refused' in found) return { answer: { query: found.query, refused: found.refused }, area: found.area };
+  if ('refused' in found) {
+    const answer: SearchAnswer = { query: found.query, refused: found.refused };
+    covered({ answer, area: found.area });
+    return () => ({ answer, area: found.area });
+  }
   const { query, said, area, within, named, hits, answered, rest, byDoc } = found;
-  if (file !== undefined) indexedFiles(index, hits.map((hit) => hit.row), rest.rows(), file);
+  filesOf((file) => indexedFiles(index, hits.map((hit) => hit.row), rest.rows(), file));
 
   const counted: SearchArea | undefined =
     area === undefined
@@ -281,19 +310,21 @@ function searchedBy(
   const thirdParty = root === undefined ? undefined : queryDependencyLexicon(root, query, area === undefined ? undefined : [...area.from, ...area.to], false, undefined, question.limit);
   const told = declaredTold(said);
   const cap = (shown: number): number => question.limit ?? shown;
-  const read = declaredMatches(root, question.query, area?.files, cap(ELSEWHERE_CAP), told, file);
+  const read = declaredMatches(root, question.query, area?.files, cap(ELSEWHERE_CAP), told, filesOf);
   const declared = read?.declared;
   const aliases = aliasMatches(root, question.query, area?.files);
-  const tests = root === undefined ? undefined : recordedTests(suiteCaseNames(root), question.query, area?.files, cap(ELSEWHERE_CAP), file);
+  const tests = root === undefined ? undefined : recordedTests(suiteCaseNames(root), question.query, area?.files, cap(ELSEWHERE_CAP), filesOf);
+  const membersUnread = root === undefined ? [] : membersUnreadOf(root, question.query, area?.files);
   const others = hits.length > 0 || rest.total > 0 || (declared?.total ?? 0) > 0 || (thirdParty?.total ?? 0) > 0;
   // A row that holds the words adds nothing to an answer; the row that is the question does.
   const inside = read === undefined ? undefined : others ? read.held.slice(0, read.exact) : read.held;
-  if (file !== undefined) {
+  filesOf((file) => {
     for (const one of inside ?? []) file(one.at, one.line);
     for (const one of aliases ?? []) file(one.at, one.line);
-  }
+  });
+  covered({ answer: { query, ...(declared === undefined ? {} : { declared }), membersUnread }, area });
 
-  const answer: SearchAnswer = {
+  const answer = (importingOf?: ImportingOf, declaredAt?: DeclarationLookups): SearchAnswer => ({
     query,
     ...(counted === undefined ? {} : { area: counted }),
     published: published(index, hits, cap(CAP), said, importingOf),
@@ -303,7 +334,8 @@ function searchedBy(
     ...(aliases === undefined ? {} : { aliases: { total: aliases.length, shown: aliases.slice(0, cap(ELSEWHERE_CAP)) } }),
     ...(tests === undefined ? {} : { tests }),
     ...(thirdParty === undefined ? {} : { thirdParty }),
-  };
+    ...(membersUnread.length === 0 ? {} : { membersUnread }),
+  });
   // Installed packages that describe the words never stand in for this repository's
   // names: only an installed name holding the query as written ends the search.
   // A held row ends it only by being the question: one that holds the words prints
@@ -311,7 +343,7 @@ function searchedBy(
   const direct = others || (read?.exact ?? 0) > 0 || (aliases?.length ?? 0) > 0;
   const asked = describedWordsNative(query).map(([, word]) => word);
   // A question of one word answered as written is a name found: nothing nearer follows it.
-  if (direct && new Set(asked).size < 2) return { answer, area };
+  if (direct && new Set(asked).size < 2) return (importingOf, declaredAt) => ({ answer: answer(importingOf, declaredAt), area });
 
   // The question read as a description: names holding any of its words,
   // stemmed by the rule packages are. After a direct answer they are its near
@@ -333,17 +365,18 @@ function searchedBy(
   // Each of a name's rows is asked, not only the row the ranking would show.
   const carried = described?.flatMap((one) => carriedThrough(one, carries) ?? []);
   const recordCarried = (rows: NonNullable<typeof carried>): void => {
-    if (file === undefined) return;
-    const nearFile: MatchingFile = (at, line) => file(at, line, 'near');
-    for (const one of rows) {
-      if ('match' in one) nearFile(one.match.at, one.match.line);
-      else if ('file' in one) nearFile(one.file.at);
-      else for (const { through } of one.picks) {
-        indexedFiles(index, through.kind === 'published' ? [through.row] : [], through.kind === 'exported' ? [through.row] : [], nearFile);
+    filesOf((file) => {
+      const nearFile: MatchingFile = (at, line) => file(at, line, 'near');
+      for (const one of rows) {
+        if ('match' in one) nearFile(one.match.at, one.match.line);
+        else if ('file' in one) nearFile(one.file.at);
+        else for (const { through } of one.picks) {
+          indexedFiles(index, through.kind === 'published' ? [through.row] : [], through.kind === 'exported' ? [through.row] : [], nearFile);
+        }
       }
-    }
+    });
   };
-  const shownOf = (rows: NonNullable<typeof carried>, most: number): readonly DescribedMatch[] => describedShown(index, query, rows, most, described ?? [])
+  const shownOf = (rows: NonNullable<typeof carried>, most: number, importingOf?: ImportingOf, declaredAt?: DeclarationLookups): readonly DescribedMatch[] => describedShown(index, query, rows, most, described ?? [])
     .flatMap((one): DescribedMatch[] => {
       if ('match' in one) return [{ ...told(one.match), words: one.words }];
       if ('file' in one) return [{ ...fileMatch(one.file, said), words: one.words }];
@@ -358,9 +391,9 @@ function searchedBy(
     // A declaration the direct sections already show is not offered again as near.
     const shownHere = new Set([...(declared?.shown ?? []), ...(inside ?? [])].map(declaredKey));
     const near = (carried ?? []).filter((one) => !('match' in one && shownHere.has(declaredKey(one.match))));
-    if (near.length === 0) return { answer, area };
+    if (near.length === 0) return (importingOf, declaredAt) => ({ answer: answer(importingOf, declaredAt), area });
     recordCarried(near);
-    return { answer: { ...answer, described: { total: near.length, shown: shownOf(near, cap(NEAR_CAP)) } }, area };
+    return (importingOf, declaredAt) => ({ answer: { ...answer(importingOf, declaredAt), described: { total: near.length, shown: shownOf(near, cap(NEAR_CAP), importingOf, declaredAt) } }, area });
   }
 
   // The loose pass — names the words reach when they are allowed apart and
@@ -372,23 +405,25 @@ function searchedBy(
   const viaDoc = new Map<number, Set<number>>();
   const loose = looseNames(index, query, FUZZY, within, claimed, viaDoc);
   const alsoHits = loose.size === 0 ? [] : surface(index, publishedOf(index, loose), area, within);
-  const alsoFound = published(index, alsoHits, cap(LOOSE_CAP), said, importingOf);
   const alsoRest = exported(index, loose, new Set(alsoHits.map((hit) => hit.name)), within, said, viaDoc);
-  const looseFile: MatchingFile | undefined = file === undefined ? undefined : (at, line) => file(at, line, 'loose');
-  if (looseFile !== undefined) indexedFiles(index, alsoHits.map((hit) => hit.row), alsoRest.rows(), looseFile);
+  const looseFiles: MatchingFiles = (visit) => filesOf((file) => visit((at, line) => file(at, line, 'loose')));
+  looseFiles((file) => indexedFiles(index, alsoHits.map((hit) => hit.row), alsoRest.rows(), file));
   // A name its file keeps to itself is in no dictionary row: the source index
   // answers for it, by the same rule, after every name that is.
   const describedHere = new Set((carried ?? []).flatMap((one) => ('match' in one ? [declaredKey(one.match)] : [])));
   const kept = looseDeclarations(root, query, FUZZY, area?.files, describedHere) ?? [];
-  if (looseFile !== undefined) for (const one of kept) looseFile(one.at, one.line);
+  looseFiles((file) => { for (const one of kept) file(one.at, one.line); });
   recordCarried(carried ?? []);
-  const heldRows = described === undefined || carried === undefined ? undefined : shownOf(carried, cap(DESCRIBED_CAP));
-  const reachedNames = [...alsoFound.shown, ...alsoRest.head(cap(LOOSE_CAP) - alsoFound.shown.length, declaredAt)];
-  const shown = [...reachedNames, ...kept.slice(0, cap(LOOSE_CAP) - reachedNames.length).map(told)];
-  const membersUnread = root === undefined || (inside?.length ?? 0) > 0 || (tests?.total ?? 0) > 0 ? [] : membersUnreadOf(root, question.query);
-  const loosely: SearchAnswer = { ...answer, ...(membersUnread.length === 0 ? {} : { membersUnread }), loose: { total: alsoFound.total + alsoRest.total + kept.length, shown } };
-  if (carried === undefined || heldRows === undefined) return { answer: loosely, area };
-  return { answer: { ...loosely, described: { total: carried.length, shown: heldRows } }, area };
+  return (importingOf, declaredAt) => {
+    const base = answer(importingOf, declaredAt);
+    const alsoFound = published(index, alsoHits, cap(LOOSE_CAP), said, importingOf);
+    const heldRows = described === undefined || carried === undefined ? undefined : shownOf(carried, cap(DESCRIBED_CAP), importingOf, declaredAt);
+    const reachedNames = [...alsoFound.shown, ...alsoRest.head(cap(LOOSE_CAP) - alsoFound.shown.length, declaredAt)];
+    const shown = [...reachedNames, ...kept.slice(0, cap(LOOSE_CAP) - reachedNames.length).map(told)];
+    const loosely: SearchAnswer = { ...base, loose: { total: alsoFound.total + alsoRest.total + kept.length, shown } };
+    if (carried === undefined || heldRows === undefined) return { answer: loosely, area };
+    return { answer: { ...loosely, described: { total: carried.length, shown: heldRows } }, area };
+  };
 }
 
 /**

@@ -191,11 +191,12 @@ describe('the words of an empty answer', () => {
     expect(text).not.toContain('if `qq-zzq` is a member');
   });
 
-  it('leaves that language out of an answer a held row gave, in JSON as in text', async () => {
+  it('keeps that language beside an answer a held row gave, in JSON as in text', async () => {
     checkout({ ...HELD, 'packages/kit/Cargo.toml': '[package]\nname = "kit"\nversion = "0.1.0"\n', 'packages/kit/src/lib.rs': 'pub fn restart() {}\n' });
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
     const { out } = await run(['ask', 'search', '--query', 'rewindAl', '--format', 'json']);
-    expect(JSON.parse(out)).not.toHaveProperty('membersUnread');
+    expect(JSON.parse(out).membersUnread).toEqual(['Rust']);
+    expect(await searched('rewindAl')).toContain('Rust files were not read');
   });
 
   it('still answers when the source index does not read, and says so', async () => {

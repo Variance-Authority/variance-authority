@@ -2,20 +2,19 @@ import type { FileSet, Spelling, Tool, ToolInvocation, Tree } from '@variance-au
 import { limitOf, notShownPast, START_POINT_SCHEMA, saysStartPoint, spellingOf, startPointArg, stringArg } from '@variance-authority/mcp/tools';
 import type { Help } from '@variance-authority/package/help';
 import type { SearchIndex } from '../search-index.js';
-import { searchIndexOf } from '../snapshot.js';
 import { areaLine } from './area.js';
 import { describedLine, thirdLine, thirdScope } from './third-party.js';
 import type { Matches, Searched, SearchQuestion } from './search-matches.js';
 import { aliasLine, declaredLine, heldLine, unreadLine } from './declared.js';
 import { casesUnder, describedRow, exportedLine, isPublished, matchLine, publishedLine, testLine } from './search-rows.js';
 import { unreadStop } from './members.js';
-import { CAP, ELSEWHERE_CAP, LOOSE_CAP, NEAR_CAP, searched, searchedFiles } from './search-answer.js';
-import { type ImportingOf, importingOf } from './published-match.js';
-import { declarationLookupsOf } from './declaration-key.js';
+import { CAP, ELSEWHERE_CAP, LOOSE_CAP, NEAR_CAP, searched } from './search-answer.js';
+import type { ImportingOf } from './published-match.js';
 import type { DeclarationLookups } from './exported-matches.js';
 import { named } from './format.js';
 import { orient } from './orient.js';
 import { symbol } from './symbol.js';
+import { searchReading, renderedFiles } from './search-reading.js';
 
 /**
  * `docs_search` — the name for a thing somebody can only describe.
@@ -250,7 +249,8 @@ function spoken({ answer, area }: Searched, asked: SearchQuestion, root: string 
   // Below the exports, since none of these is a name its file hands out.
   const place = area === undefined ? 'somewhere in the repository' : 'in that area';
   const declared = answer.declared ?? { total: 0, shown: [], unread: [] };
-  const unread = unreadLine(declared.unread).map((line) => `\n${line}`);
+  const stop = unreadStop(answer.membersUnread ?? []);
+  const unread = [...unreadLine(declared.unread), ...(stop === undefined ? [] : [stop])].map((line) => `\n${line}`);
   const inside = answer.held ?? { total: 0, shown: [] };
   const insideSection = section(`${inside.total} ${inside.total === 1 ? 'name is' : 'names are'} held by a container or a function ${place}:`, inside, heldLine, spell);
   const aliases = answer.aliases ?? { total: 0, shown: [] };
@@ -280,7 +280,7 @@ function spoken({ answer, area }: Searched, asked: SearchQuestion, root: string 
     // with is read only for the words, so a file may still write the phrase.
     const reach = area === undefined ? 'in this repository' : 'in reach of that start point';
     const read = answer.declared === undefined
-      ? `No export ${reach}, nor the doc of one, writes \`${query}\`; no source index was read, so a name no file exports is not known`
+      ? `No export ${reach}, nor the doc of one, writes \`${query}\`; ${unreadLine(undefined).join(' ')}`
       : `No export, top-level declaration or member of a class, an interface or a type ${reach}, nor the doc of one, nor a function inside a function, writes \`${query}\``;
     // A miss of the text is not a miss of the code: with names to offer, the line
     // says only that the text was not written. Inside an area the text may be
@@ -293,8 +293,7 @@ function spoken({ answer, area }: Searched, asked: SearchQuestion, root: string 
         : area === undefined
         ? `${read}. \`packages\` lists every entrypoint; \`entrypoint\` lists what one opens.`
         : `${read}. That is a fact about the area, not about the word — ask again without \`from\`/\`to\` to search the whole workspace.`;
-    const stop = unreadStop(answer.membersUnread ?? []);
-    return [...where, nowhere, ...(stop === undefined ? [] : ['', stop]), ...declaredSection, ...own, ...thirdSection, ...describedSection, ...missing, ...next].join('\n');
+    return [...where, nowhere, ...declaredSection, ...own, ...thirdSection, ...describedSection, ...missing, ...next].join('\n');
   }
 
   // A capped list that does not say it was capped reads as the whole answer,
@@ -418,27 +417,13 @@ export const search: Tool<Help> = {
   wants: saysStartPoint,
 
   run: (help, input, invocation) =>
-    spoken(searchedOnce(help, input, invocation), searchQuestionOf(input, spellingOf(invocation)), invocation?.root, spellingOf(invocation)),
+    spoken(searchReading(help, searchQuestionOf(input, spellingOf(invocation)), invocation).read(), searchQuestionOf(input, spellingOf(invocation)), invocation?.root, spellingOf(invocation)),
 
   // The file set is the files that matched, every file exporting a name, and
   // walks no declaration: one outside an area is the row's to name, not the set's.
   files: (help, input, invocation): FileSet =>
-    searchedFiles(searchIndexOf(help), searchQuestionOf(input, spellingOf(invocation)), invocation?.tree, invocation?.root),
+    searchReading(help, searchQuestionOf(input, spellingOf(invocation)), invocation).membership(),
 };
-
-/** The last search of each generation, and what it was asked. */
-const lastSearched = new WeakMap<Help, { readonly asked: string; readonly tree: Tree | undefined; readonly found: Searched }>();
-
-/** One search for an answer and the look at its files, which asks the same of the same generation just after it. */
-function searchedOnce(help: Help, input: Readonly<Record<string, unknown>>, invocation: ToolInvocation<Help> | undefined): Searched {
-  const question = searchQuestionOf(input, spellingOf(invocation));
-  const asked = JSON.stringify([question, invocation?.root]);
-  const last = lastSearched.get(help);
-  if (last?.asked === asked && last.tree === invocation?.tree) return last.found;
-  const found = searched(searchIndexOf(help), question, invocation?.tree, invocation?.root, importingOf(help, invocation?.root), declarationLookupsOf(help, invocation?.root));
-  lastSearched.set(help, { asked, tree: invocation?.tree, found });
-  return found;
-}
 
 /**
  * The files of the rows `run` prints, and the entries and barrels that make a
@@ -449,7 +434,5 @@ function searchedOnce(help: Help, input: Readonly<Record<string, unknown>>, invo
  * so a test file gone since then says nothing about the generation's age.
  */
 export function printedFiles(help: Help, input: Readonly<Record<string, unknown>>, invocation?: ToolInvocation<Help>): ReadonlySet<string> {
-  const { answer, publishing = [] } = searchedOnce(help, input, invocation);
-  const sections: readonly (Matches<{ readonly at: string }> | undefined)[] = [answer.published, answer.exported, answer.declared, answer.held, answer.aliases, answer.loose, answer.described];
-  return new Set([...sections.flatMap((section) => section?.shown.map((row) => row.at) ?? []), ...publishing]);
+  return renderedFiles(help, searchQuestionOf(input, spellingOf(invocation)), invocation);
 }

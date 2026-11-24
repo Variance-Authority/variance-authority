@@ -30,7 +30,7 @@ fn paths() -> Vec<String> {
 }
 
 fn words(words: &[(&str, u64)]) -> DeclaredWords {
-    DeclaredWords { holding: BTreeMap::new(), words: words.iter().map(|&(file, held)| (file.to_owned(), held)).collect() }
+    DeclaredWords { holding: BTreeMap::new(), files: words.iter().map(|&(file, _)| file.to_owned()).collect() }
 }
 
 fn path_words(areas: &[RankedArea]) -> Vec<(&str, Vec<&str>)> {
@@ -196,7 +196,7 @@ fn ranks_the_generated_trees_as_recorded() {
     let cases: Vec<Golden> = serde_json::from_str(include_str!("classify_areas_golden.json")).expect("the golden cases read");
     assert!(!cases.is_empty());
     for (at, case) in cases.iter().enumerate() {
-        let declared = DeclaredWords { holding: case.holding.clone(), words: case.words.clone() };
+        let declared = DeclaredWords { holding: case.holding.clone(), files: case.words.keys().cloned().collect() };
         let found = ranked(&case.query, &case.paths, &declared, case.most);
         let expected: Vec<RankedArea> = case
             .areas
@@ -240,4 +240,24 @@ fn ranks_the_published_inventory_without_a_checkout() {
     let refused_scope = classify_areas("/no-checkout".to_owned(), "task old new".to_owned(), vec![vec![], vec![], vec![]], Some(store.bytes), index, "app".to_owned(), true, None, None).unwrap();
     assert!(refused_scope.areas.is_empty());
     std::fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
+fn exported_file_eligibility_comes_from_searchable_names_not_their_docs_or_local_bindings() {
+    use crate::help_store::{encode_help_store, HelpStore};
+    use crate::help_usage::NamedExport;
+    let names = [("x", false), ("a_b", false), ("__", false), ("é", false), ("𐐀", true), ("HTTP2Server", true), ("[worker]", true)];
+    let exports = names.iter().enumerate().flat_map(|(at, (name, _))| [false, true].map(|is_type| NamedExport {
+        name: (*name).to_owned(), at: format!("src/{at}.ts"), by: String::new(), line: 1,
+        r#type: is_type, kind: "source".to_owned(), bound: Some("searchableLocal".to_owned()),
+        declaration: Some("const".to_owned()), bound_line: Some(1),
+        doc: Some("searchable documentation".to_owned()), signature: Some("searchable signature".to_owned()),
+    })).collect();
+    let store = encode_help_store(HelpStore { packages: vec![], deep: vec![], by_path: vec![], unfollowed: vec![], unreadable: vec![] }, exports, None);
+    let stored = Stored::open_as(&store.bytes, FORMAT, VERSION).unwrap();
+    let dictionary = stored.u32s("terms.nameOff").unwrap().len() - 1;
+    let declared = store_words(&stored, &["any".to_owned()], &[(0..dictionary as u32).collect()]).unwrap();
+    let expected: HashSet<String> = names.iter().enumerate().filter(|(_, (_, held))| *held).map(|(at, _)| format!("src/{at}.ts")).collect();
+    assert_eq!(declared.files, expected);
+    assert_eq!(declared.holding["any"], expected.into_iter().map(|file| (file, 1)).collect());
 }

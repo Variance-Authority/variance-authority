@@ -246,15 +246,17 @@ export function formatClassified(
     return area === undefined ? [] : [`variance ask orient --area ${shell(area.id)}`];
   }));
   // `search` takes the words of one name, so the best area is asked for the
-  // two that weigh most there. A start point the asker said is kept, as the
-  // area's directory may hold files it never reached; otherwise the search
-  // starts in the area, unless that is the root or declares no name, which is
-  // no start point the source tree holds, and then it runs whole.
+  // two that weigh most there. Directory membership cannot replace a supplied
+  // import scope: the area may hold files it never reached. Cross both facts.
   const best = areas.find((area) => area.declares) ?? areas[0];
   if (best !== undefined) {
     const flags = Object.entries(said).flatMap(([which, paths]) => (paths ?? []).map((path) => ` --${which} ${shell(path)}`));
     const from = flags.length > 0 || best.path === '.' || !best.declares ? flags.join('') : ` --from ${shell(best.path)}`;
-    asks.push(`variance ask search --query ${shell(best.words.slice(0, 2).join(' '))}${from}`);
+    const search = `search --query ${shell(best.words.slice(0, 2).join(' '))}${from}`;
+    if (scoped && best.path !== '.' && best.declares) {
+      const directory = `^${best.path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/`;
+      asks.push(`variance ask intersection ${shell(search)} ${shell(`discover --path ${shell(directory)}`)}`);
+    } else asks.push(`variance ask ${search}`);
   }
   lines.push(...narrower([...new Set(asks)]));
   if (unfolded !== undefined) lines.push('', unfolded);

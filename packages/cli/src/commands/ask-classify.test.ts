@@ -3,6 +3,8 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSyn
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { wordsOf } from '@variance-authority/help';
+import * as sense from '@variance-authority/sense';
 import '../bin.fixture.js';
 import { main } from '../bin.js';
 import { EXIT_CLEAN } from '../exit.js';
@@ -148,6 +150,38 @@ function unpackaged(): string {
 }
 
 describe('variance ask classify', () => {
+  it('prints an executable continuation retaining original reach and ranked directory membership', async () => {
+    const root = families();
+    writeFileSync(join(root, 'packages/shop/shop-0/src/isolated.ts'), 'export function shopUnreached() {}\n');
+    expect((await run(['index', '--wait'])).code).toBe(EXIT_CLEAN);
+    const broad = await run(['ask', 'search', '--query', 'shop', '--from', 'packages/shop/shop-4/src/index.ts']);
+    expect(broad.code).toBe(EXIT_CLEAN);
+    expect(broad.out).toContain('packages/shop/shop-4/src/index.ts');
+    const area = await run(['ask', 'search', '--query', 'shop', '--from', 'packages/shop/shop-0/src/']);
+    expect(area.code).toBe(EXIT_CLEAN);
+    expect(area.out).toContain('packages/shop/shop-0/src/isolated.ts');
+    // The rank is supplied, not asserted: this case exercises the handoff of
+    // a nonroot area, which a tiny indexed workspace normally groups at root.
+    const ranked = vi.spyOn(sense, 'classifiedAreas').mockReturnValue({
+      areas: [{ path: 'packages/shop/shop-0/src', files: 1, words: ['shop'], score: 1, declares: true }], reached: 5, unresolved: 0,
+    });
+    let classified;
+    try {
+      classified = await run(['ask', 'classify', '--query', 'shop', '--from', 'packages/shop/shop-4/src/index.ts']);
+    } finally {
+      ranked.mockRestore();
+    }
+    expect(classified.code).toBe(EXIT_CLEAN);
+    const next = classified.out.split('\n').find((line) => line.startsWith('  variance ask intersection '));
+    expect(next).toBeDefined();
+    const answer = await run(wordsOf(next!).slice(1));
+    expect(answer.code, answer.err).toBe(EXIT_CLEAN);
+    expect(answer.out).toContain('1 file in all of them:');
+    expect(answer.out).toMatch(/^packages\/shop\/shop-0\/src\/index.ts — /m);
+    expect(answer.out).not.toMatch(/^packages\/shop\/shop-0\/src\/isolated.ts — /m);
+    expect(answer.out).not.toMatch(/^packages\/shop\/shop-4\/src\/index.ts — /m);
+  });
+
   it.each(['alpha', 'beta'])('counts a merged type and value name once regardless of export visibility (%s)', async (privateArea) => {
     const root = declarationAreas({ privateArea, merged: true });
     expect((await run(['index', '--wait'])).code).toBe(EXIT_CLEAN);

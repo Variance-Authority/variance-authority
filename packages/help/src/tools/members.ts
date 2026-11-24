@@ -183,10 +183,11 @@ function unreadMemberLanguages(extensions: readonly string[]): readonly string[]
   );
 }
 
-/** The languages of the checkout at `root` whose members were not read, by name; none when its index does not read. */
-export function membersUnreadOf(root: string, name: string): readonly string[] {
+/** The languages whose members were not read, within `files` when given; none when the source index does not read. */
+export function membersUnreadOf(root: string, name: string, files?: ReadonlySet<string>): readonly string[] {
   try {
-    return unreadMemberLanguages(memberDeclarationsOf(root, name)?.extensions ?? []);
+    const found = memberDeclarationsOf(root, name);
+    return unreadMemberLanguages(found === undefined ? [] : files === undefined ? found.extensions : [...files]);
   } catch {
     // A question's other readings say why the index does not read.
     return [];
@@ -205,6 +206,15 @@ export function membersStop(members: Members): string | undefined {
   if (languages.length === 0) return undefined;
   const there = members.declared.length === 0 ? 'there' : 'there too';
   return `${unread(languages)}: if \`${members.member}\` is a member ${there}, ask their language server's workspace symbols for it, then its find-references on the declaration.`;
+}
+
+/** Existing member coverage qualifications for a canonical file-set answer. */
+export function membersUnread(members: Members): readonly string[] {
+  const stop = membersStop(members);
+  return [
+    ...(members.unread === undefined ? [] : [`member declarations: ${members.unread}`]),
+    ...(stop === undefined ? [] : [stop]),
+  ];
 }
 
 /** Where a search for words stops, given the same languages: its question may be a phrase, so it names no member. */

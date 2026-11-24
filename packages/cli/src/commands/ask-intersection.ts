@@ -24,7 +24,7 @@ const OUTSIDE = ['--changed-file', '--taint-file', '--format', '--at', '--claims
 
 /** The questions whose answer is a set of files, as they are typed. */
 const crossable = (): string =>
-  QUESTIONS.filter((question) => question.source?.files !== undefined).map((question) => verbOf(question.tool)).join(', ');
+  QUESTIONS.filter((question) => question.source?.files !== undefined && verbOf(question.tool) !== 'intersection').map((question) => verbOf(question.tool)).join(', ');
 
 /** One question, parsed as `variance ask` would parse it alone. */
 function parsedQuestion(
@@ -49,6 +49,7 @@ function parsedQuestion(
     if (tool === undefined) throw new OperatorError(`\`${parsed.question}\` is about a run, not the source`);
     // A question with nothing to cross is refused before its words, so a
     // nested `intersection` reads as what it is rather than as stray quotes.
+    if (parsed.question === 'intersection') throw new OperatorError('`intersection` is not crossed inside another; list its questions in this one instead');
     if (tool.files === undefined) throw new OperatorError(`\`${parsed.question}\` answers no set of files; the questions that do: ${crossable()}`);
     const unknown = wordless(tool, parsed.unknown, parsed.reports);
     const told = (message: string): void => ignore(`question ${at}, \`${text}\`: ${message}`);

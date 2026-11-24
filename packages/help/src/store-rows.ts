@@ -1,6 +1,7 @@
-import type { Deep, Named, Taken, Use } from '@variance-authority/package/help';
+import type { Deep, Documented, Entry, Named, Opening } from '@variance-authority/package/help';
 import { NONE } from '@variance-authority/core/segment';
-import { THROUGH, USE_KINDS, type Sections } from './store-layout.js';
+import type { Sections } from './store-layout.js';
+import { decodersOf } from './store-decoders.js';
 
 /**
  * The rows of one opened store a question names, found by what the question
@@ -23,6 +24,16 @@ const GROUPS: readonly PathGroup[] = ['deep', 'byPath', 'unfollowed'];
 
 /** The rows of one opened store, by name, by file and by specifier. */
 export interface StoreRows {
+  /** Published candidates by their written name and the exports the declaration resolver selected. */
+  publishedCandidates(name: string, declared: readonly Pick<Named, 'at' | 'name'>[]): readonly number[];
+  /** One publishing door and its carried declaration identity, without its entry's metadata. */
+  published(row: number): readonly [Documented, Opening, Pick<Entry, 'name' | 'at' | 'declared'>];
+  /** One complete published entry. */
+  entry(row: number): Entry;
+  /** Every published spelling, once each, in the order its first entry has. */
+  publishedNames(): readonly string[];
+  /** The openings whose source files are among `files`, in their stored order. */
+  openingsIn(files: Iterable<string>): readonly (readonly [Documented, Opening])[];
   /** The export rows written under `name`. */
   exportedNamed(name: string): Uint32Array;
   /** The export rows of the file `at`. */
@@ -41,87 +52,6 @@ export interface StoreRows {
   path(row: number): readonly [Deep, PathGroup];
 }
 
-/** The decoders of one store's rows, which the whole lists and a single row share. */
-export function decodersOf({ bytesOf, u32, string, maybe }: Sections): {
-  readonly use: (row: number) => Use;
-  readonly named: (row: number) => Named;
-  readonly path: (row: number) => Deep;
-} {
-  const nameString = u32('names.name');
-  const use = {
-    by: u32('use.by'), at: u32('use.at'), line: u32('use.line'), flags: bytesOf('use.flags'),
-    throughLine: u32('use.throughLine'), local: u32('use.local'), name: u32('use.name'),
-  };
-  const useOf = (row: number): Use => {
-    const flags = use.flags[row] ?? 0;
-    const local = maybe(use.local[row]);
-    const through = THROUGH[(flags >> 3) & 3];
-    return {
-      by: string(use.by[row] ?? NONE),
-      at: string(use.at[row] ?? NONE),
-      line: use.line[row] ?? 0,
-      type: (flags & 1) === 1,
-      kind: USE_KINDS[(flags >> 1) & 3] ?? 'source',
-      ...(local === undefined ? {} : { local }),
-      ...(through === undefined
-        ? {}
-        : {
-            through: {
-              kind: through,
-              line: use.throughLine[row] ?? 0,
-              ...((flags & 32) === 0 ? {} : { throughDefault: true as const }),
-              ...((flags & 64) === 0 ? {} : { whole: true as const }),
-            },
-          }),
-    };
-  };
-  const exp = {
-    name: u32('exp.name'), at: u32('exp.at'), by: u32('exp.by'), line: u32('exp.line'), doc: u32('exp.doc'),
-    kind: bytesOf('exp.kind'), type: bytesOf('exp.type'), bound: u32('exp.bound'), declaration: u32('exp.declaration'),
-    boundLine: u32('exp.boundLine'), signature: u32('exp.signature'),
-  };
-  const named = (row: number): Named => {
-    const bound = maybe(exp.bound[row]);
-    const declaration = maybe(exp.declaration[row]);
-    const boundLine = exp.boundLine[row] ?? NONE;
-    const doc = maybe(exp.doc[row]);
-    const signature = maybe(exp.signature[row]);
-    return {
-      name: string(nameString[exp.name[row] ?? NONE] ?? NONE),
-      at: string(exp.at[row] ?? NONE),
-      by: string(exp.by[row] ?? NONE),
-      line: exp.line[row] ?? 0,
-      type: exp.type[row] === 1,
-      kind: USE_KINDS[exp.kind[row] ?? 0] ?? 'source',
-      ...(bound === undefined ? {} : { bound }),
-      ...(declaration === undefined ? {} : { declaration }),
-      ...(boundLine === NONE ? {} : { boundLine }),
-      ...(doc === undefined ? {} : { doc }),
-      ...(signature === undefined ? {} : { signature }),
-    };
-  };
-  const deep = {
-    specifier: u32('deep.specifier'), by: u32('deep.by'), at: u32('deep.at'), line: u32('deep.line'),
-    to: u32('deep.to'), namesOff: u32('deep.namesOff'),
-  };
-  const path = (row: number): Deep => {
-    const to = maybe(deep.to[row]);
-    const names: Taken[] = [];
-    for (let at = deep.namesOff[row] ?? 0; at < (deep.namesOff[row + 1] ?? 0); at += 1) {
-      names.push({ name: string(use.name[at] ?? NONE), ...useOf(at) });
-    }
-    return {
-      specifier: string(deep.specifier[row] ?? NONE),
-      by: string(deep.by[row] ?? NONE),
-      at: string(deep.at[row] ?? NONE),
-      line: deep.line[row] ?? 0,
-      ...(to === undefined ? {} : { to }),
-      names,
-    };
-  };
-  return { use: useOf, named, path };
-}
-
 /** The rows of one opened store, each lookup reading the columns it compares and the rows it found. */
 export function rowsOf(sections: Sections): StoreRows {
   const { bytesOf, u32, string, slice } = sections;
@@ -130,6 +60,14 @@ export function rowsOf(sections: Sections): StoreRows {
   const stringBlob = bytesOf('strings.blob');
   const files = u32('files');
   const nameString = u32('names.name');
+  const namesPubOff = u32('names.pubOff');
+  const namesPub = u32('names.pub');
+  const pubName = u32('pub.name');
+  const pubAt = u32('pub.at');
+  const pubDeclared = u32('pub.declared');
+  const openEntryOff = u32('open.entryOff');
+  const openSource = u32('open.source');
+  const pkgOpenOff = u32('pkg.openOff');
   const namesExpOff = u32('names.expOff');
   const namesExp = u32('names.exp');
   const expAt = u32('exp.at');
@@ -213,7 +151,44 @@ export function rowsOf(sections: Sections): StoreRows {
   const paths = new Map<number, readonly [Deep, PathGroup]>();
   const firstUse = deepNamesOff[0] ?? 0;
   const lastUse = deepNamesOff[deepNamesOff.length - 1] ?? firstUse;
+  const openingOwner = (row: number): number => pkgOpenOff.findIndex((end, at) => at > 0 && row < end) - 1;
   return {
+    publishedCandidates(name, declared) {
+      const id = nameId(name);
+      const found = new Set(id === undefined ? [] : slice(namesPubOff, namesPub, id));
+      const named = Buffer.from(name, 'utf8');
+      const bindings = new Map<number, Buffer[]>();
+      for (const held of declared) {
+        const at = fileId(held.at);
+        if (at === undefined) continue;
+        const names = bindings.get(at) ?? [];
+        bindings.set(at, names);
+        names.push(Buffer.from(held.name, 'utf8'));
+      }
+      for (let row = 0; row < pubDeclared.length; row += 1) {
+        const binding = pubDeclared[row] ?? NONE;
+        if (says(binding, named) || bindings.get(pubAt[row] ?? NONE)?.some((one) => says(binding, one)) === true) found.add(row);
+      }
+      return [...found].sort((left, right) => left - right);
+    },
+    published(row) {
+      const opening = openEntryOff.findIndex((end, at) => at > 0 && row < end) - 1;
+      return [decoders.package(openingOwner(opening)), decoders.opening(opening), {
+        name: string(nameString[pubName[row] ?? NONE] ?? NONE),
+        at: string(pubAt[row] ?? NONE),
+        declared: string(pubDeclared[row] ?? NONE),
+      }];
+    },
+    entry: decoders.entry,
+    publishedNames: () => [...new Set(pubName)].map((id) => string(nameString[id] ?? NONE)),
+    openingsIn(files) {
+      const ids = new Set([...files].map(fileId).filter((id) => id !== undefined));
+      const found: (readonly [Documented, Opening])[] = [];
+      for (let row = 0; row < openSource.length; row += 1) {
+        if (ids.has(openSource[row] ?? NONE)) found.push([decoders.package(openingOwner(row)), decoders.opening(row)]);
+      }
+      return found;
+    },
     exportedNamed(name) {
       const id = nameId(name);
       return id === undefined ? new Uint32Array() : slice(namesExpOff, namesExp, id);

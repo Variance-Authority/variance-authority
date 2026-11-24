@@ -248,3 +248,53 @@ describe('an intersection refuses what is not an operation over sets', () => {
     );
   });
 });
+
+
+describe('canonical intersection membership', () => {
+  const questions = [{ question: 'discover' }, { question: 'grep' }];
+
+  it('returns the complete common set and combined evidence independent of display pagination', () => {
+    const membership = intersection.files!('workspace', { questions, limit: 1, offset: 1 });
+    expect([...membership.files]).toEqual([
+      ['src/Wallet.ts', [2]],
+      ['src/store/selectors.ts', [4, 9]],
+    ]);
+    expect(membership.qualifications?.get('src/store/selectors.ts')).toBe('1: the file · 2: lines 4, 9');
+    expect(membership.unread).toEqual(['2: ripgrep: src/big.bin: binary']);
+  });
+
+  it('distinguishes complete emptiness from empty membership with unread operands', () => {
+    const complete = intersection.files!('workspace', { questions: [{ question: 'symbol' }, { question: 'search' }] });
+    expect([...complete.files]).toEqual([]);
+    expect(complete.unread).toBeUndefined();
+    const incomplete = intersection.files!('workspace', { questions: [{ question: 'grep' }, { question: 'search' }] });
+    expect([...incomplete.files]).toEqual([]);
+    expect(incomplete.unread).toEqual(['1: ripgrep: src/big.bin: binary']);
+  });
+
+  it('deduplicates and orders lines while retaining the qualification of each operand', () => {
+    const qualified = intersectionOf([
+      operand('search', () => ({ ...set({ 'a.ts': [9, 1] }), qualifications: new Map([['a.ts', 'near name match']]) })),
+      operand('grep', () => set({ 'a.ts': [4, 9] })),
+    ]);
+    const membership = qualified.files!('workspace', { questions: [{ question: 'search' }, { question: 'grep' }] });
+    expect([...membership.files]).toEqual([['a.ts', [1, 4, 9]]]);
+    expect(membership.qualifications?.get('a.ts')).toBe('1: lines 9, 1 (near name match) · 2: lines 4, 9');
+  });
+
+  it('retains the canonical found-nothing refusal rather than reporting exhaustive emptiness', () => {
+    const missing = intersectionOf([operand('symbol', () => { throw new FoundNothing('No file declares `gone`.'); })]);
+    expect(() => missing.files!('workspace', { questions: [{ question: 'symbol' }, { question: 'symbol' }] })).toThrow(FoundNothing);
+  });
+
+  it('refuses nested intersection and invalid display input before asking any operand', () => {
+    const asked: Asked[] = [];
+    const watched = intersectionOf([operand('symbol', () => set({ 'a.ts': [] }), asked)]);
+    const nested = { questions: [{ question: 'symbol' }, { question: 'intersection', input: { questions } }] };
+    for (const answer of [watched.files!, watched.run]) {
+      expect(() => answer('workspace', nested)).toThrow(/`intersection` is not crossed inside another; list its questions in this one instead/);
+      expect(() => answer('workspace', { questions, limit: 0 })).toThrow(/takes a whole number of rows/);
+    }
+    expect(asked).toEqual([]);
+  });
+});

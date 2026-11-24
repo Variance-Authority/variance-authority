@@ -11,7 +11,7 @@ import { silentBlocks } from './silent.js';
 import { thirdBlock } from './third-party.js';
 import { DECLARED_CAP, declarationsNamed, declaredAt, declaredBlocks, isNested, textRows, unreadLine } from './declared.js';
 import { uses } from './uses.js';
-import { type Members, containerOf, isUnnamedContainer, membersOf, membersStop } from './members.js';
+import { type Members, containerOf, isUnnamedContainer, membersOf, membersStop, membersUnread } from './members.js';
 import { exportedRows } from './passed-on.js';
 import { answers, boundOf, keyOf, originOf, SLOT } from './declaration-key.js';
 import { UNCOUNTED, exportsNamed, importsApart } from './unpublished.js';
@@ -299,7 +299,9 @@ function declaredIn(help: Help, input: Readonly<Record<string, unknown>>, invoca
     written.push(...names.filter((one) => !written.includes(one)));
     spelled.set(`${file}:${line}`, written);
   }
-  return { files, spelled, bound };
+  const read = declarationsNamed(help, invocation?.root, name);
+  const unread = [...('refused' in read ? [`declarations: ${read.refused}`] : unreadLine(read.unread)), ...membersUnread(members)];
+  return { files, spelled, bound, ...(unread.length === 0 ? {} : { unread }) };
 }
 
 /**

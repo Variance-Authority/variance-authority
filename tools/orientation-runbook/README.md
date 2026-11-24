@@ -44,6 +44,10 @@ query: panel
 Steps run in listed order. `input` uses tool property names and types, not CLI
 flags. `request` binds input properties from request keys. `fromFiles`
 dispatches once per distinct observed file, binding an array of one path.
+For a scalar input such as `uses.file`, write
+`fromFiles: { step: declarations, input: file, as: string }` to bind the path
+as a string instead. Supply the name separately through `input` or `request`;
+the binding selects neither a name nor a relevant declaration.
 Bindings follow observed set order, which is not relevance order. Receipts
 retain the parent candidates, calls made and omitted-binding count when a
 budget stops a fan-out.

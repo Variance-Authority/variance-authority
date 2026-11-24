@@ -196,7 +196,7 @@ export interface SearchAnswer {
   readonly aliases?: Matches<AliasMatch>;
   /** Recorded test cases whose names hold every word of the question. Absent when no checkout was named. */
   readonly tests?: RecordedTests;
-  /** The languages of this workspace whose members were not read, by name, when nothing answered; absent otherwise and when there are none. */
+  /** Languages in the search scope whose members were not read; absent when none are present or no source index was read. */
   readonly membersUnread?: readonly string[];
   /**
    * Present only when the exact sections are empty, which is when it runs: the
@@ -243,3 +243,6 @@ export interface Searched {
   /** The entries and barrels that publish the rows counted; absent when none was. */
   readonly publishing?: ReadonlySet<string>;
 }
+
+/** Register a deferred visit of already matched coordinates, before any display cap. */
+export type MatchingFiles = (visit: (file: (at: string, line?: number) => void) => void) => void;

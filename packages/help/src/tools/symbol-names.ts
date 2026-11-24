@@ -53,9 +53,10 @@ function missedAll(answers: readonly ({ value: unknown } | { missed: FoundNothin
   return new FoundNothing(missed.map((refusal) => refusal.message).join('\n\n'));
 }
 
-/** The files of every set, each with the lines any of them names, in the order first named. */
+/** The files of every set, each with the lines any names and the coverage any could not read. */
 export function joinedFiles(sets: readonly FileSet[]): FileSet {
   const files = new Map<string, number[]>();
+  const unread = [...new Set(sets.flatMap((set) => set.unread ?? []))];
   for (const set of sets) {
     for (const [file, lines] of set.files) {
       const held = files.get(file) ?? [];
@@ -63,5 +64,5 @@ export function joinedFiles(sets: readonly FileSet[]): FileSet {
       files.set(file, held);
     }
   }
-  return { files };
+  return { files, ...(unread.length === 0 ? {} : { unread }) };
 }
