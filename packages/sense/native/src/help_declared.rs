@@ -32,9 +32,13 @@ use crate::help_declared_candidates::{candidates, sure, Said};
 use crate::help_usage::kind_of;
 use crate::name_table::Item;
 use crate::orient_map_read::beside;
-use crate::package_graph::{join_parses, Crossing};
-use crate::package_owners::{owners, NO_OWNER};
+use crate::package_owners::owners;
 use crate::text_cut;
+
+#[path = "help_declared_scope.rs"]
+mod scope;
+use scope::joined_crossings;
+pub(crate) use scope::crossings;
 
 /// One declaration no export of its file binds: at its top level, inside a
 /// function, or a member of a container.
@@ -171,19 +175,6 @@ type Hit<'a> = (usize, &'a str, Row, Option<Held>);
 /// A file described by its name and module doc: its layer, its parse row, and how it was held.
 type FileHit<'a> = (usize, &'a str, usize, Held);
 
-/// The files of the chain, in `files` when they are named, by file in code units, each joined to its parse.
-pub(crate) fn crossings<'a>(layers: &[Layer], folded: &std::collections::HashMap<&'a str, At>, files: Option<&[String]>) -> Vec<Crossing<'a>> {
-    let wanted: Option<std::collections::HashSet<&str>> = files.map(|files| files.iter().map(String::as_str).collect());
-    let mut crossings: Vec<Crossing> = folded
-        .iter()
-        .filter(|(file, _)| wanted.as_ref().is_none_or(|wanted| wanted.contains(*file)))
-        .map(|(&file, &at)| Crossing { file, owner: NO_OWNER, others: Vec::new(), at, parse: None })
-        .collect();
-    crossings.sort_unstable_by(|a, b| crate::order::code_unit(a.file, b.file));
-    join_parses(layers, &mut crossings);
-    crossings
-}
-
 /// The distinct search terms of every top-level name the chain harvested, in
 /// `files` when they are named, sorted by their UTF-8 bytes as the search
 /// file's dictionary is: what the loose pass looks a word up in for the names
@@ -271,7 +262,10 @@ pub(crate) fn declaration_locations(layers: &[Layer], query: &str) -> Vec<Declar
 /// The matching shared by a full declaration answer and its location projection.
 fn matched<'a>(layers: &'a [Layer<'a>], query: &str, matching: Matching, files: Option<&[String]>, admits: impl Fn(bool) -> bool + Sync) -> (Vec<Hit<'a>>, Vec<FileHit<'a>>, Vec<String>) {
     let folded = crate::stages::timed("declared/fold", || fold(layers));
-    let crossings = crate::stages::timed("declared/crossings", || crossings(layers, &folded, files));
+    let exact = matches!(matching, Matching::Exact);
+    let crossings = crate::stages::timed("declared/crossings", || {
+        if exact { joined_crossings(layers, &folded, files) } else { crossings(layers, &folded, files) }
+    });
     // Cut once for every doc; a question of one stem is no phrase, and no doc is cut for it.
     let run = matches!(matching, Matching::Containing).then(|| phrase_run(query)).flatten();
     // The stem pairs `near` counts: a doc whose words lack a stem of every pair is near nothing, and is not read for it.
@@ -351,7 +345,7 @@ fn matched<'a>(layers: &'a [Layer<'a>], query: &str, matching: Matching, files: 
                 named.push(name);
                 hits.push((layer, crossing.file, Row::Symbol(symbol), described));
             }
-            if matches!(matching, Matching::Exact) {
+            if exact {
                 // Each is its own declaration, under its own holder: none stands for another.
                 hits.extend(parses.nested.range(row).filter(|&at| picked.nested(at) && text.text(parses.nested_name.at(at)) == query).map(|at| (layer, crossing.file, Row::Nested(at), None)));
             }
@@ -378,6 +372,10 @@ fn matched<'a>(layers: &'a [Layer<'a>], query: &str, matching: Matching, files: 
     for (found, _, file) in found {
         hits.extend(found);
         files.extend(file);
+    }
+    if exact {
+        // Stable for declarations in the same file, which the matcher already orders.
+        crate::stages::timed("declared/order", || hits.sort_by(|a, b| crate::order::code_unit(a.1, b.1)));
     }
     (hits, files, unread)
 }
