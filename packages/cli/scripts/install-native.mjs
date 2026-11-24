@@ -27,8 +27,9 @@ if (process.argv[2] === '--stage') {
     'linux-x64': 'linux-x64-gnu',
     'win32-x64': 'win32-x64-msvc',
   }[`${platform}-${arch}`];
-  if (suffix === undefined || (platform === 'linux' && process.report.getReport().header.glibcVersionRuntime === undefined)) {
-    // No native executable for this platform: the shim stays.
+  if (platform === 'win32' || suffix === undefined || (platform === 'linux' && process.report.getReport().header.glibcVersionRuntime === undefined)) {
+    // No native executable to run here: the shim stays. On Windows npm has already
+    // written a command that runs `node` on the bin, so the shim must remain one.
   } else {
     const temporary = `${executable}.${process.pid}.tmp`;
     try {

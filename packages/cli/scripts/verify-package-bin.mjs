@@ -54,11 +54,14 @@ try {
   const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => key.toUpperCase() !== 'PATH'));
   const executable = windows ? '.\\node_modules\\.bin\\variance.cmd' : './node_modules/.bin/variance';
   writeFileSync(join(consumer, 'indexed.ts'), 'export const indexed = 1;\n');
+  // On Windows the command npm wrote runs Node on the bin, so the shim stays.
+  if (!windows) {
   const indexed = run(executable, ['index', '--wait'], {
     cwd: consumer, shell: windows,
     env: { ...env, PATH: empty, CI: 'true', VARIANCE_AUTHORITY_CACHE: join(temporary, 'index') },
   });
   if (!indexed.includes('questions: published')) throw new Error(indexed);
+  }
   const skipped = join(temporary, 'skipped');
   mkdirSync(skipped);
   write(skipped, { name: 'native-bin-skipped-test', private: true });

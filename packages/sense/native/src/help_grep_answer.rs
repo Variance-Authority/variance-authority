@@ -86,7 +86,7 @@ fn under_root(term: &str, root: &str) -> Option<String> {
 }
 
 fn segments(path: &str) -> impl Iterator<Item = &str> {
-    path.split('/').filter(|segment| !segment.is_empty())
+    path.split(['/', '\\']).filter(|segment| !segment.is_empty())
 }
 
 fn width_of(path: &str) -> Option<&'static str> {
@@ -192,4 +192,14 @@ pub(crate) fn area_line(scope: &Scope) -> String {
 
 fn plural<'a>(count: usize, one: &'a str, many: &'a str) -> &'a str {
     if count == 1 { one } else { many }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::segments;
+
+    #[test]
+    fn a_windows_separator_splits_a_path_like_a_slash() {
+        assert_eq!(segments(r"C:\repo\src/a.ts").collect::<Vec<_>>(), ["C:", "repo", "src", "a.ts"]);
+    }
 }
