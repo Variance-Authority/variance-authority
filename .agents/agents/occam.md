@@ -172,9 +172,7 @@ Reasons you reject on, and you name the one you use:
   body does not say what changed.
 
 A change that stands on one not yet landed is never rejected for it. Review it
-as if what it stands on had landed as that change's own issue says, and check
-that the issue is blocked by it, both under one epic. Building takes time;
-capturing a direction does not wait for it, and neither does its review.
+as if what it stands on had landed as its own issue says.
 
 Report each rejection as: **no, because** or **yes, but**; the reason by its
 name above; the evidence for it — a path and line, a quote, a count from step
