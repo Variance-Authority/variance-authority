@@ -4,7 +4,8 @@
 
 use crate::dependency_lexicon::query::Matches;
 use crate::help_grep_answer::Scope;
-use crate::help_search_answer::{section, shell};
+use crate::help_search_answer::section;
+use crate::help_surface::{CLI, Value, typed};
 
 pub(crate) fn lines(answer: &mut Vec<String>, query: &str, lowered: &str, scope: Option<&Scope>, limit: Option<usize>, matches: Option<&Matches>, own: bool) {
     let Some(matches) = matches else {
@@ -12,13 +13,14 @@ pub(crate) fn lines(answer: &mut Vec<String>, query: &str, lowered: &str, scope:
         return;
     };
     let all = |total: usize| {
-        let mut ask = format!("variance ask search --query {}", shell(query));
-        if let Some(scope) = scope {
-            for (flag, from) in [("--from", &scope.from), ("--to", &scope.to)] {
-                for from in from { ask.push_str(&format!(" {flag} {}", shell(from))); }
-            }
-        }
-        format!("`{ask} --limit {}` lists all matching names.", total.max(20usize))
+        let from: Vec<&str> = scope.iter().flat_map(|scope| &scope.from).map(String::as_str).collect();
+        let to: Vec<&str> = scope.iter().flat_map(|scope| &scope.to).map(String::as_str).collect();
+        let limit = total.max(20usize).to_string();
+        let mut inputs = vec![("query", Value::Text(query))];
+        if !from.is_empty() { inputs.push(("from", Value::List(&from))); }
+        if !to.is_empty() { inputs.push(("to", Value::List(&to))); }
+        inputs.push(("limit", Value::Text(&limit)));
+        format!("`{}` lists all matching names.", typed(CLI, "search", &inputs))
     };
     let total = matches.total as usize;
     if total == 0 && !own {

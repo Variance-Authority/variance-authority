@@ -1584,6 +1584,7 @@
         "saturation": "function",
         "saysStartPoint": "function",
         "scenarioToolByName": "function",
+        "shellWord": "function",
         "spellingOf": "function",
         "startPointArg": "function",
         "stringArg": "function",

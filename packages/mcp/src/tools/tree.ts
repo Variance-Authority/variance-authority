@@ -22,8 +22,8 @@ export interface Tree {
    * `root`; a file a walk names is opened from here.
    */
   readonly graphRoot?: string;
-  /** The scoped grep answer when the published tree exposes its native reader. */
-  scopedGrep?(request: ScopedGrep): string;
+  /** The lines a pattern matches in the area a start point reaches, as the answer says them. */
+  scopedGrep(request: ScopedGrep): string;
   /** How many files the tree holds a coordinate for. */
   readonly size: number;
   /** Whether the tree holds a file at `file`, repo-relative, forward slashes, compared whole. */
@@ -126,11 +126,10 @@ const PAGE = 4096;
 
 function treeAt(native: SourceTree, root: string, graphRoot?: string): Tree {
   const walk = (seeds: Iterable<string>, against: boolean) => native.walk([...seeds], against);
-  const scopedGrep = native.scopedGrep?.bind(native);
   return {
     root,
     ...(graphRoot === undefined ? {} : { graphRoot }),
-    ...(scopedGrep === undefined ? {} : { scopedGrep: (request: ScopedGrep) => scopedGrep({ ...request, root, graphRoot: graphRoot ?? root }) }),
+    scopedGrep: (request) => native.scopedGrep({ ...request, root, graphRoot: graphRoot ?? root }),
     size: native.size,
     has: (file) => native.has(file),
     *files() {

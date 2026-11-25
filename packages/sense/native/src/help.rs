@@ -17,6 +17,8 @@ pub(crate) mod help_declared_candidates;
 pub(crate) mod help_grep;
 #[path = "help_grep_answer.rs"]
 pub(crate) mod help_grep_answer;
+#[path = "help_grep_collapse.rs"]
+pub(crate) mod help_grep_collapse;
 #[path = "help_in_file.rs"]
 pub(crate) mod help_in_file;
 #[path = "help_member_uses.rs"]
@@ -72,6 +74,8 @@ pub(crate) mod help_search_rows;
 pub(crate) mod help_store;
 #[path = "help_store_encode.rs"]
 pub(crate) mod help_store_encode;
+#[path = "help_surface.rs"]
+pub(crate) mod help_surface;
 #[cfg(feature = "standalone-cli")]
 #[path = "help_symbol_answer.rs"]
 pub(crate) mod help_symbol_answer;

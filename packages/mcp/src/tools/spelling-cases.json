@@ -1,0 +1,32 @@
+[
+  {
+    "verb": "grep",
+    "input": { "query": "x" },
+    "shell": "`variance ask grep --query x`",
+    "wire": "`docs_grep` with `query` `x`"
+  },
+  {
+    "verb": "discover",
+    "input": { "from": ["src/a.ts", "src/b/"], "path": "^src/b/", "text": "a|it's" },
+    "shell": "`variance ask discover --from src/a.ts,src/b/ --path ^src/b/ --text 'a|it'\\''s'`",
+    "wire": "`docs_discover` with `from` `[\"src/a.ts\",\"src/b/\"]` and `path` `^src/b/` and `text` `a|it's`"
+  },
+  {
+    "verb": "discover",
+    "input": { "exceptPath": "#top", "text": "->" },
+    "shell": "`variance ask discover --except-path '#top' --text='->'`",
+    "wire": "`docs_discover` with `exceptPath` `#top` and `text` `->`"
+  },
+  {
+    "verb": "grep",
+    "input": { "from": "", "query": "--flag" },
+    "shell": "`variance ask grep --from '' --query=--flag`",
+    "wire": "`docs_grep` with `from` `` and `query` `--flag`"
+  },
+  {
+    "verb": "grep",
+    "input": { "query": "=ls", "to": "a=b" },
+    "shell": "`variance ask grep --query '=ls' --to a=b`",
+    "wire": "`docs_grep` with `query` `=ls` and `to` `a=b`"
+  }
+]

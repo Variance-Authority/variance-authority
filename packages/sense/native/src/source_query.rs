@@ -17,7 +17,8 @@ use napi::bindgen_prelude::{AsyncTask, Buffer};
 use napi_derive::napi;
 
 use crate::breadth_first::breadth_first;
-use crate::help_grep_answer::{self, Page};
+use crate::help_grep_answer::{self, Roots, Said};
+use crate::help_surface::Surface;
 use crate::index_chain::OpenedChain;
 use crate::off_thread::{off_thread, OffThread};
 use crate::order::code_unit;
@@ -264,9 +265,9 @@ pub struct ScopedGrep {
     pub query: String,
     pub from: Vec<String>,
     pub to: Vec<String>,
-    pub limit: u32,
-    pub offset: u32,
-    pub offset_flag: String,
+    pub limit: Option<i64>,
+    pub offset: Option<i64>,
+    pub shell: Option<String>,
 }
 
 /// The tree in `bytes` as a workspace at `workspace` below its root sees it; empty for the root itself.
@@ -305,12 +306,14 @@ impl SourceTree {
 
     /// Answer a scoped grep through the same walk and renderer as the standalone CLI.
     ///
-    /// bound: the page of matches the caller asked for
+    /// bound: the page of matches the caller asked for, or the rows they collapse to when it asked for none
     #[napi(catch_unwind)]
     pub fn scoped_grep(&self, request: ScopedGrep) -> napi::Result<String> {
-        let page = Page { limit: request.limit as usize, offset: request.offset as usize };
+        let counted = |said: Option<i64>| said.map(|said| usize::try_from(said).unwrap_or(0));
+        let said = Said { limit: counted(request.limit), offset: counted(request.offset) };
+        let roots = Roots { workspace: std::path::Path::new(&request.root), graph: std::path::Path::new(&request.graph_root) };
         help_grep_answer::scope(self, &request.root, request.from, request.to)
-            .and_then(|scope| help_grep_answer::answer(std::path::Path::new(&request.graph_root), &request.query, scope, page, &request.offset_flag))
+            .and_then(|scope| help_grep_answer::answer(roots, &request.query, scope, said, Surface(request.shell.as_deref())))
             .map_err(napi::Error::from_reason)
     }
 

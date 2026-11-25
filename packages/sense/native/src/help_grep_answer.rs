@@ -6,6 +6,8 @@ use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
 use crate::help_grep::match_lines;
+use crate::help_grep_collapse::{collapsed, Held, Start};
+use crate::help_surface::Surface;
 use crate::order::code_unit;
 use crate::source_query::SourceTree;
 use crate::text_cut::blank;
@@ -21,6 +23,21 @@ pub(crate) struct Scope {
 pub(crate) struct Page {
     pub offset: usize,
     pub limit: usize,
+}
+
+/// The page a question said; an answer it would not all fit is collapsed when neither is said.
+pub(crate) struct Said {
+    pub offset: Option<usize>,
+    pub limit: Option<usize>,
+}
+
+/// Matching lines shown when no limit is said.
+const SHOWN: usize = 200;
+
+/// Where the area's files are said from, which a start point said from a nested workspace is not.
+pub(crate) struct Roots<'a> {
+    pub workspace: &'a Path,
+    pub graph: &'a Path,
 }
 
 pub(crate) fn scope(tree: &SourceTree, root: &str, from: Vec<String>, to: Vec<String>) -> Result<Scope, String> {
@@ -109,19 +126,13 @@ pub(crate) fn refusal(root: &str, unmatched: &[&str]) -> String {
     format!("{named} {} not found — the source tree holds no file at that path", plural(unmatched.len(), "is", "are"))
 }
 
-pub(crate) fn answer(
-    root: &Path,
-    query: &str,
-    mut scope: Scope,
-    page: Page,
-    offset_flag: &str,
-) -> Result<String, String> {
+pub(crate) fn answer(roots: Roots, query: &str, mut scope: Scope, said: Said, surface: Surface) -> Result<String, String> {
     scope.files.sort_unstable_by(|(left, left_hops), (right, right_hops)| {
         left_hops.cmp(right_hops).then_with(|| code_unit(left, right))
     });
     let area = area_line(&scope);
-    let (files, distances): (Vec<_>, Vec<_>) = scope.files.into_iter().unzip();
-    let found = match_lines(root, query, &files)?;
+    let (files, distances): (Vec<_>, Vec<_>) = std::mem::take(&mut scope.files).into_iter().unzip();
+    let found = match_lines(roots.graph, query, &files)?;
     let error = found.errors.first().map(|first| {
         let count = found.errors.len();
         format!("ripgrep reported {count} {} reading them; the first: {first}", plural(count, "error", "errors"))
@@ -132,6 +143,18 @@ pub(crate) fn answer(
         return Ok(format!("{area}{unread}\n\nNothing in those files matches `{query}`."));
     }
 
+    let mut notes = vec![format!("note: {area}")];
+    notes.extend(error.map(|error| format!("note: {error}")));
+    if total > SHOWN && said.limit.is_none() && said.offset.is_none() {
+        let held = found.file.chunk_by(|left, right| left == right).map(|rows| {
+            let at = rows[0] as usize;
+            Held { path: &files[at], lines: rows.len(), hops: distances[at] }
+        });
+        return Ok(collapsed(held.collect(), query, repeatable(&roots, &scope, query), notes, surface));
+    }
+
+    let page = Page { offset: said.offset.unwrap_or(0), limit: said.limit.unwrap_or(SHOWN) };
+    let offset_flag = surface.input("offset");
     let count = 1 + found.file.windows(2).filter(|rows| rows[0] != rows[1]).count();
     let mut lines = vec![format!("{total} matching {} in {count} {}, nearest first:", plural(total, "line", "lines"), plural(count, "file", "files"))];
     let start = page.offset.min(total);
@@ -162,15 +185,22 @@ pub(crate) fn answer(
         }
         row += group;
     }
-    lines.push(format!("note: {area}"));
-    if let Some(error) = error {
-        lines.push(format!("note: {error}"));
-    }
+    lines.extend(notes);
     if end < total {
         let rest = total - end;
         lines.push(format!("{rest} more not shown; `{offset_flag}` {end} shows the next {}.", rest.min(page.limit)));
     }
     Ok(lines.join("\n"))
+}
+
+/// The scope as one start point `discover` reads as this did. It intersects two start points, splits a comma and drops a blank text; and where the graph's root is not the workspace's it opens the graph's names under the workspace.
+fn repeatable<'a>(roots: &Roots, scope: &'a Scope, query: &str) -> Option<Start<'a>> {
+    let (direction, path) = match (scope.from.as_slice(), scope.to.as_slice()) {
+        ([only], []) => ("from", only),
+        ([], [only]) => ("to", only),
+        _ => return None,
+    };
+    (roots.workspace == roots.graph && !path.contains(',') && !query.trim().is_empty()).then_some(Start { direction, path })
 }
 
 pub(crate) fn area_line(scope: &Scope) -> String {
@@ -190,7 +220,7 @@ pub(crate) fn area_line(scope: &Scope) -> String {
     line
 }
 
-fn plural<'a>(count: usize, one: &'a str, many: &'a str) -> &'a str {
+pub(crate) fn plural<'a>(count: usize, one: &'a str, many: &'a str) -> &'a str {
     if count == 1 { one } else { many }
 }
 

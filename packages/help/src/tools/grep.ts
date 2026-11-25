@@ -1,8 +1,7 @@
 import type { FileSet, Tool, ToolInvocation } from '@variance-authority/mcp/tools';
-import { START_POINT_SCHEMA, nextPage, pageAt, pageOf, paged, pathsOf, saysStartPoint, spellingOf, startPointArg, stringArg } from '@variance-authority/mcp/tools';
+import { START_POINT_SCHEMA, pageOf, pathsOf, saysStartPoint, spellingOf, startPointArg, stringArg } from '@variance-authority/mcp/tools';
 import { testsRan } from '@variance-authority/sense';
-import { areaLine, areaOf, startPointNeeded } from './area.js';
-import { byFile } from './format.js';
+import { areaOf, startPointNeeded } from './area.js';
 import { formatGrepRan, grepRan } from './grep-ran.js';
 import { ripgrep, type Hit } from './ripgrep.js';
 
@@ -16,15 +15,13 @@ import { ripgrep, type Hit } from './ripgrep.js';
  * closure is the whole value, so a call without a start point is refused, and
  * the root too: a top folder is the widest single path.
  *
- * ripgrep answers in the order it was given files, which is not distance, so
- * the lines are regrouped by import distance, then path in code-unit order and
- * line: the same question gives the same bytes, nearest first.
+ * The answer is the addon's (`help_grep_answer.rs`): the lines by import
+ * distance, or the paths they are in when nobody said how many lines to show
+ * and there are too many to.
  */
 
-/** Matching lines shown when `limit` is not said. */
+/** Matching lines shown when `limit` is not said; past it a scoped answer is its paths and their counts. */
 const SHOWN = 200;
-
-const byCodeUnit = (left: string, right: string): number => (left < right ? -1 : left > right ? 1 : 0);
 
 /**
  * Typed over nothing because it reads nothing of the workspace value: the tree
@@ -34,7 +31,9 @@ export const grep: Tool<unknown> = {
   name: 'docs_grep',
   description:
     'Run ripgrep over the files a start point reaches along the imports, and answer with the ' +
-    'matching lines nearest first. `from` searches the files that path imports, at any depth; ' +
+    'matching lines nearest first; past ' +
+    `${SHOWN} of them, and no \`limit\` or \`offset\` said, with the paths they are in, the line count ` +
+    'of each, and what lists them. `from` searches the files that path imports, at any depth; ' +
     '`to` the files that import it. The pattern is ripgrep\'s, unchanged: a ' +
     'regular expression. A start point is required: name the file or ' +
     'folder you are working in, or a top folder at the widest. Or name a recorded test with `test` ' +
@@ -59,7 +58,7 @@ export const grep: Tool<unknown> = {
       },
       limit: {
         type: 'integer',
-        description: `Matching lines to show. ${SHOWN} when not said; the rest are counted.`,
+        description: `Matching lines to show; the rest are counted. Not said, the answer shows ${SHOWN} lines, and with a start point an answer of more is its paths.`,
       },
       offset: {
         type: 'integer',
@@ -79,43 +78,18 @@ export const grep: Tool<unknown> = {
     const test = testOf(input, invocation);
     if (test !== undefined) return formatGrepRan(test.query, grepRan(test.root, test.query, test.file, test.name), page, spell);
     const tree = invocation?.tree;
-    if (tree?.scopedGrep !== undefined && saysStartPoint(input) && page.offset <= 0xffff_ffff && page.limit <= 0xffff_ffff) {
-      return tree.scopedGrep({
-        query: stringArg(input, 'query'),
-        from: [...pathsOf(startPointArg(input, 'from'))],
-        to: [...pathsOf(startPointArg(input, 'to'))],
-        ...page,
-        offsetFlag: spell.input('offset'),
-      });
-    }
-    const { query, area, hits, errors, distanceOf } = grepped(input, invocation);
-
-    const unread =
-      errors.length === 0 ? [] : [`ripgrep reported ${errors.length} ${errors.length === 1 ? 'error' : 'errors'} reading them; the first: ${errors[0]}`];
-
-    if (hits.length === 0) {
-      return [areaLine(area), ...unread.flatMap((line) => ['', line]), '', `Nothing in those files matches \`${query}\`.`].join('\n');
-    }
-
-    const matched = new Set(hits.map((hit) => hit.file)).size;
-    const lines = [
-      `${hits.length} matching ${hits.length === 1 ? 'line' : 'lines'} in ${matched} ${matched === 1 ? 'file' : 'files'}, nearest first:`,
-      ...pageAt(page, hits.length, spell),
-    ];
-    // A heading per distance, and under it the rows of one file said under its path once.
-    const shown = paged(hits, page);
-    for (let at = 0; at < shown.length; ) {
-      const distance = distanceOf(shown[at]!.file);
-      let end = at;
-      while (end < shown.length && distanceOf(shown[end]!.file) === distance) end++;
-      lines.push(`${distance} ${distance === 1 ? 'import' : 'imports'} away:`, ...byFile(shown.slice(at, end)));
-      at = end;
-    }
-    // The area searched bounds every count above, so it is said after them, whole or not.
-    lines.push(`note: ${areaLine(area)}`);
-    for (const line of unread) lines.push(`note: ${line}`);
-    lines.push(...nextPage(page, hits.length, spell));
-    return lines.join('\n');
+    const query = stringArg(input, 'query');
+    if (!saysStartPoint(input)) throw noStartPoint(invocation);
+    if (tree === undefined) throw ranNothing(areaOf(startPointArg(input, 'from'), startPointArg(input, 'to'), undefined).refused);
+    return tree.scopedGrep({
+      query,
+      from: [...pathsOf(startPointArg(input, 'from'))],
+      to: [...pathsOf(startPointArg(input, 'to'))],
+      // The page is said only where the caller said it: an answer past an unsaid one collapses.
+      ...(input['limit'] === undefined ? {} : { limit: page.limit }),
+      ...(input['offset'] === undefined ? {} : { offset: page.offset }),
+      ...(invocation?.shell === undefined ? {} : { shell: invocation.shell }),
+    });
   },
 
   files: (_help, input, invocation): FileSet => {
@@ -171,31 +145,27 @@ function testOf(input: Readonly<Record<string, unknown>>, invocation: ToolInvoca
   return { query: stringArg(input, 'query'), root, file, name };
 }
 
-/** The lines `query` matches in the area a start point reaches, nearest first, or the refusal. */
+/** The lines `query` matches in the area a start point reaches, or the refusal. */
 function grepped(input: Readonly<Record<string, unknown>>, invocation: ToolInvocation<unknown> | undefined) {
   const query = stringArg(input, 'query');
-  const from = startPointArg(input, 'from');
-  const to = startPointArg(input, 'to');
-  if (from === undefined && to === undefined) {
-    throw new Error(`\`grep\` searches the files a start point reaches, and none was given. ${startPointNeeded(invocation)}`);
-  }
+  if (!saysStartPoint(input)) throw noStartPoint(invocation);
 
-  const area = areaOf(from, to, invocation?.tree);
-  if (area.refused !== undefined || invocation?.tree === undefined) {
-    throw new Error(
-      `\`grep\` ran nothing: ${area.refused ?? 'no source tree was read'}. Say a real path from the root — ` +
-        "`src/dispatch/read.ts` is that file, `src/dispatch/*` its folder's own files, `src/dispatch/` " +
-        'everything under it.',
-    );
-  }
+  const area = areaOf(startPointArg(input, 'from'), startPointArg(input, 'to'), invocation?.tree);
+  if (area.refused !== undefined || invocation?.tree === undefined) throw ranNothing(area.refused);
   // The walk names files from the graph's root, which a nested workspace sits below.
   const root = invocation.tree.graphRoot ?? invocation.tree.root;
 
-  const distanceOf = (file: string): number => area.distance.get(file) ?? Number.POSITIVE_INFINITY;
-  const ordered = [...area.files].sort((left, right) => distanceOf(left) - distanceOf(right) || byCodeUnit(left, right));
+  return ripgrep(root, query, [...area.files]);
+}
 
-  const { hits: found, errors } = ripgrep(root, query, ordered);
-  const hits: Hit[] = [...found];
-  hits.sort((left, right) => distanceOf(left.file) - distanceOf(right.file) || byCodeUnit(left.file, right.file) || left.line - right.line);
-  return { query, area, hits, errors, distanceOf };
+function noStartPoint(invocation: ToolInvocation<unknown> | undefined): Error {
+  return new Error(`\`grep\` searches the files a start point reaches, and none was given. ${startPointNeeded(invocation)}`);
+}
+
+function ranNothing(refused = 'no source tree was read'): Error {
+  return new Error(
+    `\`grep\` ran nothing: ${refused}. Say a real path from the root — ` +
+      "`src/dispatch/read.ts` is that file, `src/dispatch/*` its folder's own files, `src/dispatch/` " +
+      'everything under it.',
+  );
 }

@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { FileRecord, Tree } from '@variance-authority/mcp/tools';
 import { treeOf } from '@variance-authority/mcp/tools';
+import { discover } from './discover.js';
 import { grep } from './grep.js';
 
 /**
@@ -21,6 +22,10 @@ const CROWDED = 200_000;
 /** A closure of thousands of files with long paths. */
 const MANY = 3000;
 const leaf = (at: number): string => `src/leaves/${'deep-folder-name/'.repeat(5)}leaf-${String(at).padStart(5, '0')}.ts`;
+
+/** Ten files of ten lines below a one-child folder, forty of two, and one of thirty. */
+const NEAR = Array.from({ length: 10 }, (_, at) => `wide/a/only/deep/x${at}.ts`);
+const FAR = Array.from({ length: 40 }, (_, at) => `wide/b/f${String(at).padStart(2, '0')}.ts`);
 
 let root: string;
 let tree: Tree;
@@ -41,6 +46,12 @@ beforeAll(() => {
   write('src/outside.ts', 'export const needle = 2;\n');
   write('src/leaves.ts', '');
   write('src/crowded.ts', 'crowd\n'.repeat(CROWDED));
+  write('wide/index.ts', '');
+  for (const file of NEAR) write(file, 'broad\n'.repeat(10));
+  for (const file of FAR) write(file, 'broad\n'.repeat(2));
+  write('edge/at.ts', 'edge\n'.repeat(200));
+  write('edge/over.ts', 'edge  \n'.repeat(201));
+  write('wide/c/c1.ts', 'broad\n'.repeat(30));
   const leaves = Array.from({ length: MANY }, (_, at) => leaf(at));
   for (const [at, file] of leaves.entries()) write(file, `export const leaf${at} = ${at === MANY - 1 ? "'haystack'" : at};\n`);
   tree = treeOf(
@@ -50,8 +61,13 @@ beforeAll(() => {
       reads('src/far.ts'),
       reads('src/outside.ts'),
       reads('src/crowded.ts'),
+      reads('edge/at.ts'),
+      reads('edge/over.ts'),
       reads('src/leaves.ts', ...leaves),
       ...leaves.map((file) => reads(file)),
+      reads('wide/index.ts', ...NEAR, 'wide/c/c1.ts'),
+      reads('wide/c/c1.ts', ...FAR),
+      ...[...NEAR, ...FAR].map((file) => reads(file)),
     ],
     root,
   );
@@ -81,6 +97,25 @@ describe('grep refuses without a closure', () => {
   it('refuses a path the tree does not hold', () => {
     expect(() => ask({ query: 'needle', from: 'src/nope.ts' })).toThrow('`src/nope.ts` is not found');
   });
+
+  it('refuses a start point when no source tree was read', () => {
+    expect(() => grep.run(undefined, { query: 'needle', from: 'src/entry.ts' })).toThrow('`grep` ran nothing: a start point is a path in the source tree, and no source tree was read');
+  });
+});
+
+describe('the files a grep names, for a question that intersects them', () => {
+  const files = (input: Record<string, unknown>) => grep.files!(undefined, input, { tree });
+
+  it('holds each file in reach with its matching lines, and no file out of it', () => {
+    expect(files({ query: 'needle', from: 'src/entry.ts' })).toEqual({
+      files: new Map([['src/entry.ts', [2]], ['src/far.ts', [1]]]),
+    });
+  });
+
+  it('refuses what a printed answer refuses', () => {
+    expect(() => files({ query: 'needle' })).toThrow('none was given');
+    expect(() => files({ query: 'needle', from: 'src/nope.ts' })).toThrow('`src/nope.ts` is not found');
+  });
 });
 
 describe('grep over a closure', () => {
@@ -108,7 +143,7 @@ describe('grep over a closure', () => {
   });
 
   it('answers a file that matches on more lines than a call takes as arguments', () => {
-    const text = ask({ query: 'crowd', from: 'src/crowded.ts' });
+    const text = ask({ query: 'crowd', from: 'src/crowded.ts', limit: 200 });
     // The answer first, and a file with several lines named once above them.
     expect(text.split('\n').slice(0, 5)).toEqual([`${CROWDED} matching lines in 1 file, nearest first:`, '0 imports away:', 'src/crowded.ts', '  1: crowd', '  2: crowd']);
     expect(text.split('\n').filter((line) => line.startsWith('src/crowded.ts'))).toEqual(['src/crowded.ts']);
@@ -160,5 +195,91 @@ describe('grep over a closure', () => {
       if (path === undefined) delete process.env.PATH;
       else process.env.PATH = path;
     }
+  });
+});
+
+describe('grep over more lines than it shows', () => {
+  const ROWS = [
+    '210 matching lines in 51 files, by path, most lines first:',
+    'wide/b/ — 80 lines in 40 files, nearest 2 imports away',
+    'wide/c/c1.ts — 30 lines, 1 import away',
+    ...NEAR.map((file) => `${file} — 10 lines, 1 import away`),
+  ];
+
+  it('says where they are, by path, and what answers less and what answers all of it', () => {
+    const lines = ask({ query: 'broad', from: 'wide/index.ts' }).split('\n');
+    expect(lines.slice(0, ROWS.length)).toEqual(ROWS);
+    expect(lines.slice(ROWS.length)).toEqual([
+      'note: In 52 file(s) reachable from `wide/index.ts` along the imports, at any depth — 1 named by the path itself.',
+      '`docs_discover` with `from` `["wide/index.ts"]` and `path` `^wide/b/` and `text` `broad`: the 40 matching files under `wide/b/`',
+      '`limit` 210: every line, nearest first',
+    ]);
+  });
+
+  it('names a question that answers the files it counted', () => {
+    const printed = /^`docs_discover` with `from` `(.+)` and `path` `(.+)` and `text` `(.+)`: the 40 matching files/mu.exec(ask({ query: 'broad', from: 'wide/index.ts' }));
+    const [, from = '', path, text] = printed ?? [];
+    expect(discover.run(undefined, { from: JSON.parse(from), path, text }, { tree })).toContain('40 files in all of them');
+  });
+
+  it('spells the question as a shell takes it', () => {
+    const shell = (query: string): string => grep.run(undefined, { query, from: 'wide/index.ts' }, { tree, shell: 'variance ask' });
+    expect(shell('broad')).toContain("\n`variance ask discover --from wide/index.ts --path ^wide/b/ --text broad`: the 40 matching files under `wide/b/`\n`--limit` 210: every line");
+    expect(shell("broad|it's")).toContain("--text 'broad|it'\\''s'`");
+    expect(shell('--broad|broad')).toContain("--text='--broad|broad'`");
+    expect(shell('-*broad')).toContain("--text='-*broad'`");
+  });
+
+  it('names no question where discover answers another set', () => {
+    for (const start of [{ from: ['wide/a/', 'wide/b/', 'wide/c/'] }, { from: 'wide/', to: 'wide/' }]) {
+      const text = ask({ query: 'broad', ...start });
+      expect(text).toContain(' matching lines in 51 files, by path');
+      expect(text).not.toContain('docs_discover');
+    }
+  });
+
+  it('names no question where the pattern is blank, which discover drops', () => {
+    const text = ask({ query: '  ', from: 'edge/over.ts' });
+    expect(text).toContain('201 matching lines in 1 file, by path');
+    expect(text).not.toContain('docs_discover');
+  });
+
+  it('names no question where the start point holds a comma, which discover splits', () => {
+    const file = 'odd/a,b.ts';
+    write(file, 'odd\n'.repeat(201));
+    const text = grep.run(undefined, { query: 'odd', from: [file] }, { tree: treeOf([reads(file)], root) });
+    expect(text).toContain('201 matching lines in 1 file, by path');
+    expect(text).not.toContain('docs_discover');
+  });
+
+  it('names no question for a workspace nested below the graph, whose files discover opens elsewhere', () => {
+    write('app/src/start.ts', "import './flood';\n");
+    write('app/src/flood.ts', 'flood\n'.repeat(201));
+    const nested = treeOf([reads('app/src/start.ts', 'app/src/flood.ts'), reads('app/src/flood.ts')], root, join(root, 'app'));
+    const text = grep.run(undefined, { query: '^flood', from: 'src/start.ts' }, { tree: nested });
+    expect(text).toContain('201 matching lines in 1 file, by path');
+    expect(text).not.toContain('docs_discover');
+  });
+
+  it('says one row of a file that holds every line', () => {
+    const lines = ask({ query: 'crowd', from: 'src/crowded.ts' }).split('\n');
+    expect(lines.slice(0, 2)).toEqual([`${CROWDED} matching lines in 1 file, by path, most lines first:`, `src/crowded.ts — ${CROWDED} lines`]);
+  });
+
+  it('counts what it has no row for', () => {
+    const lines = ask({ query: 'leaf', from: 'src/leaves.ts' }).split('\n');
+    const rows = lines.filter((line) => line.includes(' — ') && !line.startsWith('note:'));
+    expect(rows).toHaveLength(20);
+    expect(rows[0]).toBe(`the rest of src/leaves/${'deep-folder-name/'.repeat(5)} — ${MANY - 19} lines in ${MANY - 19} files`);
+  });
+
+  it.each([{ limit: 5 }, { offset: 5 }, { limit: 210 }])('shows lines when a page is said: %o', (said) => {
+    expect(ask({ query: 'broad', from: 'wide/index.ts', ...said })).toContain('210 matching lines in 51 files, nearest first:');
+  });
+
+  it('shows every line where they are no more than it shows', () => {
+    expect(ask({ query: 'edge', from: 'edge/at.ts' })).toContain('200 matching lines in 1 file, nearest first:');
+    expect(ask({ query: 'edge', from: 'edge/over.ts' })).toContain('201 matching lines in 1 file, by path');
+    expect(ask({ query: 'broad', from: 'wide/b/' })).toContain('80 matching lines in 40 files, nearest first:');
   });
 });
