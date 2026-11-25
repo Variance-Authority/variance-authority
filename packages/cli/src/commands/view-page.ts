@@ -66,7 +66,8 @@ dl.facts dd{margin:0;font-family:var(--mono);overflow-wrap:anywhere}
 .vfilter{width:100%;max-width:24rem;margin:0 0 .6rem;background:var(--panel);border:1px solid var(--hairline);
 border-radius:5px;color:var(--ivory);font:12px/1.6 var(--mono);padding:.35rem .5rem}
 .vfilter::placeholder{color:var(--warm)}
-.grid{border:1px solid var(--hairline);border-radius:5px;overflow:hidden;font:12px/26px var(--mono)}
+.grid{border:1px solid var(--hairline);border-radius:5px;overflow-x:auto;overflow-y:hidden;font:12px/26px var(--mono)}
+.grid>*{min-width:var(--wide)}
 .scroll{height:calc(var(--shown) * 26px);overflow-y:scroll;overflow-x:hidden}
 .body{position:relative}
 .row{display:grid;gap:0 .75rem;height:26px;padding:0 .6rem}

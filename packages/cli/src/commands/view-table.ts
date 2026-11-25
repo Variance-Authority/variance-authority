@@ -81,7 +81,10 @@ export function tableOf(table: Table): HTMLElement {
   filter.placeholder = `filter ${table.label.toLowerCase()}`;
   filter.setAttribute('aria-label', filter.placeholder);
   const grid = element('div', 'grid');
-  const template = table.columns.map((column, at) => (column.bar !== undefined ? 'minmax(16rem,3fr)' : column.link !== undefined ? `minmax(12rem,${at === 0 ? 6 : 4}fr)` : 'minmax(4rem,1fr)')).join(' ');
+  const widths = table.columns.map((column, at) => (column.bar !== undefined ? [16, 3] : column.link !== undefined ? [12, at === 0 ? 6 : 4] : [4, 1]));
+  const template = widths.map(([least, share]) => `minmax(${least}rem,${share}fr)`).join(' ');
+  // The columns' least widths, their gaps, the row's padding and the scrollbar: narrower, and the grid scrolls sideways.
+  grid.style.setProperty('--wide', `${widths.reduce((sum, [least]) => sum + least!, 0) + 0.75 * (widths.length - 1) + 2.2}rem`);
   const header = element('div', 'row head');
   header.style.gridTemplateColumns = template;
   const scroll = element('div', 'scroll');

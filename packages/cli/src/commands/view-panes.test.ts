@@ -24,6 +24,15 @@ const COVERAGE = {
         { ordinal: 1, kind: 'function' as const, digest: 'f', name: 'greet', path: 'greet', startLine: 2, endLine: 4, source: true, testFiles: ['src/b.test.ts'] },
       ],
     },
+    {
+      file: 'src/split.ts',
+      sourceDigest: 's',
+      instrumented: true,
+      blocks: [
+        { ordinal: 0, kind: 'function' as const, digest: 'x', name: 'one', path: 'one', startLine: 1, endLine: 2, source: true, testFiles: ['src/a.test.ts'] },
+        { ordinal: 1, kind: 'function' as const, digest: 'y', name: 'two', path: 'two', startLine: 3, endLine: 4, source: true, testFiles: ['src/b.test.ts'] },
+      ],
+    },
   ],
 };
 
@@ -46,22 +55,28 @@ describe('the panes of a record', () => {
     const facts = new Map(tab('overview').facts());
     expect(facts.get('suite')).toBe('unit');
     expect(facts.get('test files')).toBe(2);
-    expect(facts.get('modules')).toBe(1);
-    expect(facts.get('regions')).toBe(2);
+    expect(facts.get('modules')).toBe(2);
+    expect(facts.get('regions')).toBe(4);
   });
 
   it('reads every test file with its duration and the regions it entered', () => {
     const [files] = tab('files').tables();
     expect(column(files!, 'test file')).toEqual(['src/a.test.ts', 'src/b.test.ts']);
     expect(column(files!, 'took')).toEqual([40, 900]);
-    expect(column(files!, 'regions entered')).toEqual([1, 2]);
+    expect(column(files!, 'regions entered')).toEqual([2, 3]);
+  });
+
+  it('counts the test files of a module across all its regions, not its first', () => {
+    const [modules] = tab('modules').tables();
+    expect(column(modules!, 'module')).toEqual(['src/split.ts', 'src/world.ts']);
+    expect(column(modules!, 'test files')).toEqual([2, 2]);
   });
 
   it('opens a test file and a module by their addresses', () => {
     const test = panes.detail('test', 'src/b.test.ts')!;
     expect(test.title).toBe('src/b.test.ts');
     const entered = test.tables.find(({ id }) => id === 'entered')!;
-    expect(column(entered, 'name')).toEqual(['(no name)', 'greet']);
+    expect(column(entered, 'name')).toEqual(['two', '(no name)', 'greet']);
     const module = panes.detail('module', 'src/world.ts')!;
     expect(column(module.tables.find(({ id }) => id === 'into')!, 'test file')).toEqual(['src/a.test.ts', 'src/b.test.ts']);
   });

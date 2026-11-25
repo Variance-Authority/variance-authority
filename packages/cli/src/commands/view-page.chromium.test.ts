@@ -127,6 +127,27 @@ describe.runIf(BROWSER_AVAILABLE)('the view page in a browser', () => {
     await page!.locator('main p.empty', { hasText: 'The record holds nothing at test/' }).waitFor();
   });
 
+  it('scrolls a table wider than the window sideways, its header moving with its rows', async () => {
+    await page!.setViewportSize({ width: 375, height: 800 });
+    try {
+      await go('#regions');
+      const grid = page!.locator('.grid').first();
+      await grid.locator('.body .row').first().waitFor();
+      const reach = await grid.evaluate((held) => {
+        const wider = held.scrollWidth > held.clientWidth;
+        held.scrollLeft = held.scrollWidth;
+        const edge = held.getBoundingClientRect().right;
+        const last = held.querySelector('.row.head button.col:last-of-type')!.getBoundingClientRect();
+        const header = held.querySelector('.row.head > :first-child')!.getBoundingClientRect().left;
+        const row = held.querySelector('.body .row > :first-child')!.getBoundingClientRect().left;
+        return { wider, lastShown: last.right <= edge + 1, aligned: Math.abs(header - row) < 1 };
+      });
+      expect(reach).toEqual({ wider: true, lastShown: true, aligned: true });
+    } finally {
+      await page!.setViewportSize({ width: 1280, height: 800 });
+    }
+  });
+
   it('asked the network for nothing but its own file', () => {
     expect(requests.filter((url) => !url.startsWith('file://'))).toEqual([]);
   });

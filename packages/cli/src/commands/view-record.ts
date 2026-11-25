@@ -109,6 +109,12 @@ function coverageTables(view: TestCoverageView, cases: Cases | undefined): Cover
     ],
   };
   const moduleRegions = (row: number) => moduleBlocks()[row + 1]! - moduleBlocks()[row]!;
+  /** Every test file that entered any region of a module, in row order. */
+  const moduleTests = each((row: number): readonly number[] => {
+    const into = new Set<number>();
+    for (const set of new Set(Array.from(span(moduleBlocks()[row]!, moduleBlocks()[row + 1]!), (block) => blockSet()[block]!))) for (const test of sets.members(set)) into.add(test);
+    return [...into].sort((a, b) => a - b);
+  });
   const modules: Table = {
     id: 'modules',
     label: 'Modules',
@@ -118,7 +124,7 @@ function coverageTables(view: TestCoverageView, cases: Cases | undefined): Cover
       { name: 'module', at: modulePath, link: (row) => address('module', modulePath(row)) },
       { name: 'regions', at: moduleRegions },
       { name: 'regions no test entered', at: (row) => span(moduleBlocks()[row]!, moduleBlocks()[row + 1]!).filter((block) => sets.count(blockSet()[block]!) === 0).length },
-      { name: 'test files', at: (row) => (moduleRegions(row) === 0 ? undefined : sets.count(blockSet()[moduleBlocks()[row]!]!)) },
+      { name: 'test files', at: (row) => (moduleRegions(row) === 0 ? undefined : moduleTests(row).length) },
       { name: 'instrumented', at: (row) => yes(view.moduleInstrumented.at(row)) },
       { name: 'source', at: (row) => string(view.moduleSource.at(row)) },
       { name: 'git blob', at: (row) => named(unless(view.moduleBlob?.at(row), NO_BLOB)) },
@@ -200,14 +206,12 @@ function coverageTables(view: TestCoverageView, cases: Cases | undefined): Cover
       const row = moduleRow().get(path)?.[0];
       if (row === undefined) return undefined;
       const blocks = span(moduleBlocks()[row]!, moduleBlocks()[row + 1]!);
-      const into = new Set<number>();
-      for (const set of new Set(Array.from(blocks, (block) => blockSet()[block]!))) for (const test of sets.members(set)) into.add(test);
       return {
         title: path,
         facts: factsOf(modules, row, 1),
         tables: [
           rowsOf(regions, blocks, { id: 'of-module', label: 'Regions', hint: 'every region of this file' }),
-          rowsOf(tests, [...into].sort((a, b) => a - b), { id: 'into', label: 'Test files', hint: 'every test file that entered a region of this file' }),
+          rowsOf(tests, moduleTests(row), { id: 'into', label: 'Test files', hint: 'every test file that entered a region of this file' }),
           ...(cases === undefined ? [] : [rowsOf(cases.regions, cases.ofModule(path), { id: 'of-module-cases', label: 'Regions by case', hint: 'every region of this file the case index holds' })]),
         ],
       };
