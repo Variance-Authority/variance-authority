@@ -166,7 +166,7 @@ function landedAt(runs: string, commit: string | undefined): { readonly landed?:
 }
 
 /** What running test `test` of `view` cost, as {@link fileCost} reads it; absent where its runner timed nothing. */
-function costs(view: TestCoverageView): (test: number) => number | undefined {
+export function costs(view: TestCoverageView): (test: number) => number | undefined {
   const durations = view.testDuration?.all();
   const phases = view.testPhases?.all();
   const width = PHASE_NAMES.length;

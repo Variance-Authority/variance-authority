@@ -63,9 +63,11 @@ export const varianceCompletedFixtures: Fixtures<
 > = {
   varianceCompleted: [
     async ({ varianceRecorder }, use, testInfo) => {
-      // The runner's clock when this test began, read here because `TestInfo`
-      // publishes no start of its own: this is the first thing a test's setup
-      // reaches, before any `beforeEach` or fixture the test asked for.
+      // The clock when this fixture was set up. `TestInfo` has no start of its
+      // own (`startTime` belongs to a reporter's `TestResult`), so this is the
+      // nearest a worker can read: before any `beforeEach` and before the
+      // fixtures the test asked for, and after those Playwright sets up ahead
+      // of an automatic one, so it can trail the runner's own start by their cost.
       const began = Date.now();
       // Open for every fixture the test asked for, which are set up after this
       // one and torn down before it: Eyes hands its journal over in its own

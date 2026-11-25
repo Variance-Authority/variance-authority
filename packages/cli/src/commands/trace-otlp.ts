@@ -2,12 +2,16 @@
  * A recorded run as OpenTelemetry spans: the run, each test file with a start
  * the runner reported, the phases it timed and the cases it ran.
  *
- * Every span is a figure the record holds. A file the runner gave no start
- * yields no span, because placing it would be an invention; its phases and
- * cases go with it. Phases follow one another from the file's start in the
- * order the runner works through them, and the cases follow the phases before
- * them, inside the `cases` phase's span, since the record keeps a case's
- * duration and not when it began.
+ * The run and file spans are the record's own: a file's start is the runner's
+ * clock and its end is that start plus the cost the record holds. A file the
+ * runner gave no start yields no span, because placing it would be an
+ * invention; its phases and cases go with it. The phase and case spans are
+ * placed here, not measured: the record keeps a phase's and a case's duration
+ * and not when either began, so phases follow one another from the file's
+ * start in the order the runner works through them, and the cases follow in
+ * recorded order inside the `cases` phase. Each of those spans carries
+ * `variance.placed = derived`, so a viewer shows which positions are not the
+ * runner's clock.
  *
  * The ids come from the recording and the paths, so the same record renders the
  * same trace, and a viewer that is handed it twice shows one.
@@ -39,6 +43,9 @@ export interface OtlpTrace {
     },
   ];
 }
+
+/** Marks a span whose position was derived from durations, not read from a clock. */
+const DERIVED = { key: 'variance.placed', value: { stringValue: 'derived' } } as const;
 
 /** The nanoseconds a millisecond count is, as the string OTLP/JSON carries 64-bit integers in. */
 function nanos(ms: number): string {
@@ -92,7 +99,7 @@ export function otlpOf(trace: Extract<RecordedTrace, { files: readonly TracedFil
       let casesParent = at;
       let casesFrom = cursor;
       for (const phase of file.phases) {
-        const span = add(`phase\0${file.file}\0${phase.name}`, at, phase.name, cursor, cursor + phase.ms);
+        const span = add(`phase\0${file.file}\0${phase.name}`, at, phase.name, cursor, cursor + phase.ms, [DERIVED]);
         if (phase.name === 'cases') {
           casesParent = span;
           casesFrom = cursor;
@@ -102,9 +109,11 @@ export function otlpOf(trace: Extract<RecordedTrace, { files: readonly TracedFil
       // The cases begin where the phases before them end, one after another as the index lists them.
       if (!file.phases.some((phase) => phase.name === 'cases')) casesFrom = cursor;
       let offset = casesFrom;
-      for (const test of file.cases) {
-        add(`case\0${file.file}\0${test.name}`, casesParent, test.name, offset, offset + test.duration, [
+      // The ordinal keeps two cases of one name, such as one per project, two spans.
+      for (const [ordinal, test] of file.cases.entries()) {
+        add(`case\0${file.file}\0${ordinal}\0${test.name}`, casesParent, test.name, offset, offset + test.duration, [
           { key: 'code.filepath', value: { stringValue: file.file } },
+          DERIVED,
         ]);
         offset += test.duration;
       }

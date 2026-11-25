@@ -62,6 +62,31 @@ describe('the OTLP trace of a recording', () => {
     expect(spans.map((span) => span.name)).not.toContain('x');
   });
 
+  it('marks every placed span as derived and no measured one', () => {
+    const marked = (name: string) => named(name).attributes.some((a) => a.key === 'variance.placed' && 'stringValue' in a.value && a.value.stringValue === 'derived');
+
+    expect(['setup', 'cases', 'opens', 'closes'].map(marked)).toEqual([true, true, true, true]);
+    expect(['run', 'e2e/a.spec.ts', 'e2e/b.spec.ts'].map(marked)).toEqual([false, false, false]);
+  });
+
+  it('keeps two cases of one name two spans', () => {
+    const twice = otlpOf(
+      trace([
+        {
+          file: 'e2e/c.spec.ts',
+          start: T0,
+          cost: 20,
+          phases: [{ name: 'cases', ms: 20 }],
+          cases: [{ name: 'same', duration: 10 }, { name: 'same', duration: 10 }],
+        },
+      ]),
+    ).resourceSpans[0].scopeSpans[0].spans;
+
+    const same = twice.filter((span) => span.name === 'same');
+    expect(same).toHaveLength(2);
+    expect(new Set(twice.map((span) => span.spanId)).size).toBe(twice.length);
+  });
+
   it('holds no span at all where no file has a start', () => {
     const none = otlpOf(trace([{ file: 'a.test.ts', cost: 3, phases: [], cases: [] }])).resourceSpans[0].scopeSpans[0].spans;
     expect(none).toEqual([]);

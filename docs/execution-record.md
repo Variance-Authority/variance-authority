@@ -547,13 +547,14 @@ opens with every file unphased.
 
 **Start.** `tests.start` is when the runner started the file, in milliseconds
 since the epoch on the runner's own clock, the earliest of its attempts. Only
-Playwright records one today: its fixture reads the clock before the first hook
-of the test. A file whose runner gave none stores the sentinel and a reader
-answers it as absent, never as zero. When two records carry the same file, the
+Playwright records one today: its fixture reads the clock when it is set up, before
+the test's own hooks. A file whose runner gave none stores the sentinel and a reader
+answers it as absent, never as zero. When a join folds two records that carry the same file, the
 earlier start stands. A record written before starts were kept opens with every
 file unstarted. `variance trace --format otlp` prints a recorded run as
 OpenTelemetry spans — the run, each file with a start, the phases it timed one
-after another from that start, and its cases inside the `cases` phase — so any
+after another from that start, and its cases inside the `cases` phase, the
+latter two marked as placed, not measured — so any
 trace viewer draws it on a real time axis. A file with no start has no span.
 [Trace](trace.md) walks the journey from recording to viewer.
 

@@ -3,9 +3,10 @@
  * runner started it, what it cost, where that went by phase, and the cases it
  * declared with the time each took.
  *
- * Nothing here is derived or placed. A figure the runner did not report is
- * absent, and the reader that draws the timeline leaves its span out rather
- * than lending it a width from its neighbours.
+ * Each figure is the one the runner reported, read where the record's other
+ * readers read it (`costs`, `fileCost`); a figure it did not report is absent,
+ * never lent a width from its neighbours. Where a case began is not recorded,
+ * so a caller that places cases places them itself.
  */
 
 // compass: variance-authority.reach
@@ -15,11 +16,10 @@ import { codeUnitOrder } from '@variance-authority/core/segment';
 import { keepsCases } from './test-selection/case-record.js';
 import { askCoverageFile } from './test-selection/coverage-file.js';
 import { decodeExecutionTests } from './test-selection/execution-format.js';
-import { fileCost } from './test-selection/file-cost.js';
 import { NO_DURATION, PHASE_NAMES } from './test-selection/format-layout.js';
 import { startAt } from './test-selection/format.js';
 import { nearestRecord } from './test-selection/record-location.js';
-import { takenAt } from './recorded-durations.js';
+import { costs, takenAt } from './recorded-durations.js';
 
 /** One phase of a test file and the milliseconds the runner timed it at. */
 export interface TracedPhase {
@@ -74,14 +74,14 @@ export function recordedTrace(root: string, suite?: string): RecordedTrace {
     }
     const read = askCoverageFile(recording, (view) => {
       const paths = view.testPath.all();
-      const durations = view.testDuration?.all();
+      const costOf = costs(view);
       const phases = view.testPhases?.all();
       const starts = view.testStart?.all();
       const width = PHASE_NAMES.length;
       const files = Array.from(paths, (path, test): TracedFile => {
         const file = view.string(path);
         const words = phases?.subarray(test * width, (test + 1) * width);
-        const cost = fileCost(durations?.[test] ?? NO_DURATION, words);
+        const cost = costOf(test);
         return {
           file,
           ...startAt(starts, test),

@@ -33,7 +33,10 @@ It has one trace id, a `run` span over every file with a start, and under it:
 The record keeps how long a case took and not when it began, so cases follow
 one another inside `cases` in recorded order, even where the runner ran them
 in parallel. Read a case's width as its duration and its position as an
-approximation. A file the runner gave no start has no spans at all, because
+approximation. The same holds for a phase: the run and file spans are the
+runner's clock, and every phase and case span carries the attribute
+`variance.placed` with the value `derived`, which marks a position worked out
+from durations and not read from a clock. A file the runner gave no start has no spans at all, because
 placing it would be an invention. Only Playwright records a start today, so a
 Jest or Vitest run prints an empty trace and says so on stderr.
 
@@ -82,7 +85,7 @@ nothing on your machine; the local one is a downloaded binary.
 
 Honeycomb is a hosted observability service that takes OTLP directly, and its
 free tier is enough for this: make an account, create an API key, and send the
-file with one `curl`. Not run here.
+file with one `curl`. Not run.
 
 ```bash
 curl -X POST -H 'Content-Type: application/json' \
@@ -104,9 +107,9 @@ Download the archive for your system from
 [Jaeger's releases](https://github.com/jaegertracing/jaeger/releases), named
 `jaeger-<version>-<os>-<arch>.tar.gz` (`darwin`, `linux` or `windows`; `amd64`
 or `arm64`), unpack it, and run the `jaeger` binary it holds. By default it
-serves the UI on port 16686 and takes OTLP over HTTP on port 4318. Not run
-here: the archive names are from the releases listing and the ports from
-Jaeger's README, and I ran the same Jaeger in a container.
+serves the UI on port 16686 and takes OTLP over HTTP on port 4318. Not run:
+the archive names are from the releases listing and the ports from Jaeger's
+README.
 
 ```bash
 ./jaeger
@@ -134,11 +137,10 @@ request, and its exporters forward the trace to whatever backend you run.
 ## Read the trace
 
 **In Honeycomb**, open the dataset your key writes to, find the `run` span and
-open it as a trace to see the waterfall. Honeycomb's interface was not seen
-here, so its layout is not described.
+open it as a trace to see the waterfall. Not run: its layout is not described.
 
-**In Jaeger**, which was seen here running in a container, with its UI at
-`http://localhost:16686`:
+**In Jaeger**, with its UI at `http://localhost:16686`. Not run: these steps
+were not followed on a live trace:
 
 1. In **Service**, choose `variance`, then press **Find Traces**.
 2. Open the trace named `variance: run`.
