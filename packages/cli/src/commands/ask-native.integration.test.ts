@@ -87,6 +87,8 @@ it.each([
   { question: ['grep', '--query', 'absentText', '--from', 'apps/app/src/hello.ts'], contains: 'Nothing in those files matches' },
   { question: ['grep', '--query', '[', '--from', 'apps/app/src/hello.ts'], contains: 'ripgrep refused the pattern' },
   { question: ['grep', '--query', 'greet', '--from', 'missing.ts'], contains: 'is not found' },
+  { question: ['grep', '--query', 'greet', '--from', 'packages/lib/src/missing.ts'], contains: 'is not found. 3 matching lines in 3 files reachable from `packages/lib/src/`' },
+  { question: ['grep', '--query', 'crowdedLine', '--from', 'apps/app/src/hello.ts'], contains: 'reachable from `apps/app/src/hello.ts`. ' },
   { question: ['discover', '--from', 'apps/app/src/hello.ts', '--declares', '^greet$'], contains: 'declares greet' },
   { question: ['discover', '--to', 'packages/lib/src/greet.ts', '--limit', '1', '--offset', '1'], contains: 'Rows 2–2' },
   { question: ['discover', '--to', 'packages/lib/src/greet.ts#greet'], contains: 'imports greet from @acme/lib' },

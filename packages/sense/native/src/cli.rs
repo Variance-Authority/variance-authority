@@ -84,8 +84,8 @@ pub fn answer(args: &[OsString], mut waiting: impl FnMut(&str)) -> Option<(i32, 
             let tree = published_tree(&root, &index, &published)?;
             let said = Said { offset: request.offset, limit: request.limit };
             let roots = Roots { workspace: &root, graph: &published.graph_root };
-            help_grep_answer::scope(&tree, root.to_str()?, request.from, request.to)
-                .and_then(|scope| help_grep_answer::answer(roots, request.query, scope, said, Surface(Some(CLI))))
+            let asked = help_grep_answer::Asked { query: request.query, from: request.from, to: request.to, said };
+            help_grep_answer::answered(&tree, &roots, asked, Surface(Some(CLI)))
         }
         Question::Symbol(request) => Ok(exact_symbols(root.to_str()?, &index, &mut file, &request.names, request.package, request.limit)?),
         Question::Uses(request) => Ok(uses(root.to_str()?, &index, &mut file, request.name, request.package, request.from, request.file, request.limit)?),

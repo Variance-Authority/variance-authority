@@ -32,10 +32,10 @@ struct Row<'a, 'b> {
     held: &'b [Held<'a>],
 }
 
-/// The rows over every line, then `notes`, then what answers less and what answers all of it.
-pub(crate) fn collapsed(mut held: Vec<Held>, query: &str, start: Option<Start>, notes: Vec<String>, surface: Surface) -> Vec<String> {
-    held.sort_unstable_by(|left, right| left.path.cmp(right.path));
+/// The rows over every line, then `notes`, then what answers less and `all`, which answers all of it.
+pub(crate) fn collapsed(mut held: Vec<Held>, query: &str, start: Option<Start>, notes: Vec<String>, all: &str, surface: Surface) -> Vec<String> {
     let total: usize = held.iter().map(|file| file.lines).sum();
+    held.sort_unstable_by(|left, right| left.path.cmp(right.path));
     let near = held.iter().map(|file| file.hops).min();
     let apart = held.iter().any(|file| Some(file.hops) != near);
     let rows = rows_of(&held);
@@ -49,7 +49,7 @@ pub(crate) fn collapsed(mut held: Vec<Held>, query: &str, start: Option<Start>, 
         let place = if first.files == 1 { "matching file" } else { "matching files under" };
         lines.push(format!("{question}: the {} {place} `{}`", first.files, first.path));
     }
-    lines.push(format!("`{}` {total}: every line, nearest first", surface.input("limit")));
+    lines.push(format!("{all}: every line, nearest first"));
     lines
 }
 

@@ -160,7 +160,7 @@ describe('grep over a closure', () => {
   });
 
   it('says the area held nothing, not that the word is nowhere', () => {
-    expect(ask({ query: 'needle', from: 'src/leaves.ts' })).toContain('Nothing in those files matches `needle`.');
+    expect(ask({ query: 'needle', from: 'src/leaves.ts', limit: 200 })).toContain('Nothing in those files matches `needle`.');
   });
 
   it('anchors `^` at every line, as ripgrep does', () => {
@@ -301,5 +301,105 @@ describe('grep over more lines than it shows', () => {
     expect(ask({ query: 'edge', from: 'edge/at.ts' }).split('\n')).toHaveLength(24);
     expect(ask({ query: 'edge', from: 'edge/at.ts' })).toContain('20 matching lines in 1 file, nearest first:');
     expect(ask({ query: 'edge', from: 'edge/over.ts' })).toContain('21 matching lines in 1 file, the first 10, nearest first:');
+  });
+});
+
+describe('grep of a start point that answers nothing', () => {
+  /** What the call prints, or what it refuses with. */
+  const said = (input: Record<string, unknown>): string => {
+    try {
+      return ask(input);
+    } catch (refusal) {
+      return `refused: ${(refusal as Error).message}`;
+    }
+  };
+  /** What the call says when it looks nowhere else, which a page said asks for. */
+  const alone = (input: Record<string, unknown>): string => said({ ...input, limit: 200 });
+
+  const NEEDLES = [
+    'src/entry.ts:2: const needle = 0;',
+    'src/far.ts:1: export const needle = 1;',
+    'src/outside.ts:1: export const needle = 2;',
+  ];
+
+  it.each([
+    ['a path the tree does not hold', { from: 'src/nope.ts' }, 'refused: `src/nope.ts` is not found.', 'reachable from'],
+    ['a reach that holds no match', { from: 'src/leaves.ts' }, `No match in the ${MANY + 1} files reachable from \`src/leaves.ts\`.`, 'reachable from'],
+    ['a folder whose reach holds no match', { from: 'src/leaves/' }, `No match in the ${MANY} files reachable from \`src/leaves/\`.`, 'reachable from'],
+    ["a folder's own files", { from: 'src/leaves/deep-folder-name/*' }, 'refused: `src/leaves/deep-folder-name/*` is not found.', 'reachable from'],
+    ['a path of two slashes', { from: 'src//nope.ts' }, 'refused: `src//nope.ts` is not found.', 'reachable from'],
+    ['a path against the imports', { to: 'src/nope.ts' }, 'refused: `src/nope.ts` is not found.', 'reaching'],
+  ])('answers from the folder around %s, in one line and the rows', (_, start, opens, along) => {
+    expect(said({ query: 'needle', ...start }).split('\n')).toEqual([`${opens} 3 matching lines in 3 files ${along} \`src/\`, nearest first:`, ...NEEDLES]);
+  });
+
+  it('says how far a line outside the folder is, and nothing of the folder itself', () => {
+    write('around/in/blank.ts', '');
+    write('around/near.ts', "import '../beyond/far';\n");
+    write('beyond/far.ts', 'const beyond = 1;\n');
+    const records = [reads('around/in/blank.ts'), reads('around/near.ts', 'beyond/far.ts'), reads('beyond/far.ts')];
+    expect(grep.run(undefined, { query: 'beyond =', from: 'around/in/blank.ts' }, { tree: treeOf(records, root) }).split('\n')).toEqual([
+      'No match in the 1 file reachable from `around/in/blank.ts`. 1 matching line in 1 file reachable from `around/`:',
+      '1 import away:',
+      'beyond/far.ts:1: const beyond = 1;',
+    ]);
+  });
+
+  it('keeps what it could not read, of the path asked about and of the folder', () => {
+    write('around/hit.ts', 'const partial = 1;\n');
+    const records = [reads('around/gone.ts'), reads('around/hit.ts')];
+    const text = grep.run(undefined, { query: 'partial', from: 'around/gone.ts' }, { tree: treeOf(records, root) });
+    expect(text).toContain('reachable from `around/`:\naround/hit.ts:1: const partial = 1;\nnote: ripgrep reported 1 error reading them; the first: ');
+    expect(text.split('\n')).toHaveLength(3);
+  });
+
+  it('stops at the nearest folder with a match', () => {
+    expect(said({ query: 'broad', from: 'wide/a/only/deep/nope.ts' })).toContain('100 matching lines in 10 files reachable from `wide/a/only/deep/`, nearest first:\n');
+    expect(said({ query: 'broad', from: 'wide/a/nope/nope/nope.ts' })).toContain('100 matching lines in 10 files reachable from `wide/a/`, nearest first:\n');
+    expect(said({ query: 'broad', from: 'wide/a/only/nope.ts' })).toContain('reachable from `wide/a/only/`, nearest first:\n');
+  });
+
+  it('collapses a folder of more lines than it shows, and asks on from that folder', () => {
+    const text = said({ query: 'broad', from: 'wide/nope.ts' });
+    expect(text).toMatch(/^refused: `wide\/nope\.ts` is not found\. 210 matching lines in 51 files reachable from `wide\/`, by path, most lines first:\n/u);
+    expect(text).not.toContain('note:');
+    expect(text).toContain('`docs_discover` with `from` `["wide/"]`');
+    expect(text.split('\n').at(-1)).toBe('`docs_grep` with `query` `broad` and `from` `["wide/"]` and `limit` `210`: every line, nearest first');
+    expect(ask({ query: 'broad', from: ['wide/'], limit: 210 })).not.toContain('more not shown');
+    expect(() => grep.run(undefined, { query: 'broad', from: 'wide/nope.ts' }, { tree, shell: 'variance ask' })).toThrow(
+      /\n`variance ask grep --query broad --from wide\/ --limit 210`: every line, nearest first$/u,
+    );
+  });
+
+  it('names the folder from the root when the path is absolute', () => {
+    expect(said({ query: 'needle', from: join(root, 'src/nope.ts') })).toContain('3 files reachable from `src/`, nearest first:');
+  });
+
+  it.each([
+    ['no folder around it holds a match, though the root does', { query: 'needle', from: 'wide/index.ts' }],
+    ['no folder around a missing path holds a match', { query: 'needle', from: 'wide/nope.ts' }],
+    ['a top folder holds no match', { query: 'needle', from: 'wide/' }],
+    ['a missing path has no folder around it', { query: 'needle', from: 'nope.ts' }],
+    ['no folder around a missing path is in the tree', { query: 'needle', from: 'nope/nope.ts' }],
+    ['a folder with a similar name holds the match', { query: 'needle', from: 'srcs/entry.ts' }],
+    ['the path leaves the folder it names', { query: 'needle', from: 'src/../nope.ts' }],
+    ['the path is spelled from here', { query: 'needle', from: './src/nope.ts' }],
+    ['the path stands still', { query: 'needle', from: 'src/./nope.ts' }],
+    ['a backslash is a character in the name', { query: 'needle', from: 'src\\nope.ts' }],
+    ['the path is the root', { query: 'needle', from: './' }],
+    ['two start points are said', { query: 'needle', from: ['src/leaves.ts', 'src/crowded.ts'] }],
+    ['one of two start points is missing', { query: 'needle', from: 'src/leaves.ts', to: 'src/nope.ts' }],
+    ['the start point answers', { query: 'needle', from: 'src/far.ts' }],
+  ])('looks nowhere else when %s', (_, input) => {
+    expect(said(input)).toBe(alone(input));
+  });
+
+  it.each([{ limit: 5 }, { offset: 0 }])('looks nowhere else when a page is said: %o', (page) => {
+    expect(said({ query: 'needle', from: 'src/leaves.ts', ...page })).toMatch(/\n\nNothing in those files matches `needle`\.$/u);
+    expect(said({ query: 'needle', from: 'src/nope.ts', ...page })).toMatch(/^refused: `grep` ran nothing: .+ everything under it\.$/u);
+  });
+
+  it('refuses a missing path as missing under a broken pattern', () => {
+    expect(said({ query: '(', from: 'src/nope.ts' })).toBe(alone({ query: '(', from: 'src/nope.ts' }));
   });
 });
