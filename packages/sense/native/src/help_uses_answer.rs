@@ -6,24 +6,31 @@ use std::collections::BTreeSet;
 use std::fs::File;
 use std::path::Path;
 
-use crate::compact::Layer;
-use crate::help_surface::{CLI, Value, typed};
 use crate::harvest::is_bound;
 use crate::help_aliases::aliases;
 use crate::help_declared::{declared, DeclaredName, Matching};
 use crate::help_in_file::InFile;
 use crate::help_members::{member_declarations, MemberSite};
 use crate::help_name_scope::{owner_of, PackageScope};
-use crate::help_symbol_answer::{declaration_kind_order, kept_as, member_name, member_stop, nowhere, unread_line};
+use crate::help_symbol_answer::{member_name, nowhere};
 use crate::help_symbol_published::{joined_sites, published_imports, PublicationScope};
 use crate::help_symbol_rows::{Entry, Rows, Site};
-use crate::help_usage::{importers, Asked};
 use crate::index_chain::OpenedChain;
 use crate::help_unpublished::{exports_named, UNCOUNTED};
 use crate::order::code_unit;
 
 #[path = "help_uses_exported.rs"]
 mod exported;
+#[path = "help_uses_kept.rs"]
+mod kept;
+
+/// What an exported name's answer says beside its imports: the kept and member declarations it names under the headline, what follows the imports, and their files.
+struct Beside<'a> {
+    kept: Vec<&'a DeclaredName>,
+    members: Vec<&'a MemberSite>,
+    after: Vec<String>,
+    files: Vec<&'a str>,
+}
 
 const NARROW: &str = "\n`--file`, the file one of them is declared in, answers for that declaration alone.";
 
@@ -52,27 +59,36 @@ pub(crate) fn uses(root: &str, index: &Path, store: &mut File, name: &str, wante
     let (container, member) = member_name(name);
     let mut members = member_declarations(root, layers, member);
     members.retain(|site| package.member(&site.by) && container.is_none_or(|on| site.on == on));
-    if entries.is_empty() && paths.is_empty() && in_package.is_empty() {
+    let exported = if entries.is_empty() { exports_named(&rows, layers, name, &exports, &in_package)? } else { Vec::new() };
+    let kept_here: Vec<&DeclaredName> = kept.names.iter().filter(|held| file.is_none_or(|file| held.at == file)).collect();
+    members.retain(|site| file.is_none_or(|file| site.at == file));
+    // A file that keeps the name, or declares it as a member, answers for that declaration and not for an export's.
+    let elsewhere = file.is_some_and(|file| (!kept_here.is_empty() || !members.is_empty())
+        && !entries.iter().any(|entry| entry.at == file) && !exported.iter().any(|held| held.export.at == file && held.export.bound.is_some()));
+    if (entries.is_empty() && paths.is_empty() && exported.is_empty()) || elsewhere {
         if !aliases(root, layers, name).is_empty() { return None }
         if !members.is_empty() {
-            if !kept.names.is_empty() { return None }
-            members.retain(|site| file.is_none_or(|file| site.at == file));
-            return member_uses(name, member, &members, from, file, limit, layers, &kept.unread);
+            return kept::member_uses(root, layers, name, member, &members, &kept_here, from, file, limit, &kept.unread);
         }
         if container.is_some() { return None }
         if kept.names.iter().any(|held| !is_bound(&held.kind)) {
-            return private_uses(root, layers, name, from, file, limit, &kept.names, &kept.unread);
+            return kept::private_uses(root, layers, name, from, file, limit, &kept.names, &kept.unread);
         }
         let absent = nowhere(name, &rows.published_names()?, layers, &kept.unread, None, wanted, package.export_hint(&rows, name, &exports)?.as_deref());
         if kept.names.is_empty() { return Some(absent) }
         // What was read is said with the absence, so the files it could not read are not said again.
-        return Some(format!("{absent}\n\n{}", private_uses(root, layers, name, from, file, limit, &kept.names, &[])?));
+        return Some(format!("{absent}\n\n{}", kept::private_uses(root, layers, name, from, file, limit, &kept.names, &[])?));
     }
-    if !members.is_empty() || !kept.names.is_empty() { return None }
+    let beside = Beside {
+        kept: if file.is_none() { kept_here.clone() } else { Vec::new() },
+        members: if file.is_none() { kept::ordered(&members, from) } else { Vec::new() },
+        after: kept::beside(root, layers, name, member, &members, &kept_here, from, limit, &kept.unread)?,
+        files: kept::declaring(&kept_here).chain(members.iter().map(|site| site.at.as_str())).collect(),
+    };
     if entries.is_empty() {
-        let exported = exports_named(&rows, layers, name, &exports, &in_package)?;
         if exported.is_empty() { return None }
-        return exported::exported_uses(root, layers, name, from, file, limit, &paths, &exported, &package, &kept.unread);
+        let doors = |files: &[&str]| Some(Rows::openings(store)?.openings_in(files)?.into_iter().map(|(at, door)| (at.to_owned(), door)).collect());
+        return exported::exported_uses(root, layers, name, from, file, limit, &paths, &exported, &package, beside, doors);
     }
     let (declarations, read) = published_imports(root, layers, name, entries, &exports, PublicationScope::Asked(&package))?;
     let mut selected: Vec<_> = declarations.iter().zip(&read.groups).collect();
@@ -87,15 +103,11 @@ pub(crate) fn uses(root: &str, index: &Path, store: &mut File, name: &str, wante
     let sites = joined_sites(lead, for_file(lead[0].at), &group.uses, &group.through);
     let kinds: BTreeSet<_> = lead.iter().map(|entry| entry.kind).collect();
     let kinds = kinds.into_iter().collect::<Vec<_>>().join(", ");
-    let many = answers.len() > 0;
-    let which = many.then(|| published_at(lead));
+    let namesakes = if answers.len() > 0 { declarations[1..].iter().map(|(entries, _)| format!("{}:{}, published by {}", entries[0].at, entries[0].line, publishers(entries))).collect() } else { Vec::new() };
+    let others = kept::others_lines(name, namesakes, &beside.kept, &beside.members);
+    let which = (!others.is_empty()).then(|| published_at(lead));
     let mut lines = vec![headline(name, &kinds, which.as_deref(), None, owner, &sites)];
-    if many {
-        let count = declarations.len() - 1;
-        let times = if count == 1 { "once more, as another thing".to_owned() } else { format!("{count} more times, each another thing") };
-        lines.push(format!("It is declared {times}, answered below:"));
-        lines.extend(declarations[1..].iter().map(|(entries, _)| format!("  {}:{}, published by {}", entries[0].at, entries[0].line, publishers(entries))));
-    }
+    lines.extend(others);
     primary_sites(&mut lines, name, owner, &[lead[0].at], sites, &read.in_file, from, limit);
     for ((entries, owner), group) in answers {
         lines.push(format!("\n`{name}` is {} as well, which is another declaration.", published_at(entries)));
@@ -109,139 +121,10 @@ pub(crate) fn uses(root: &str, index: &Path, store: &mut File, name: &str, wante
         }
         list_own(&mut lines, entries[0].at, "declares", &read.in_file, limit);
     }
-    lines.extend(unread_line(&kept.unread));
-    if many {
-        lines.push(NARROW.into());
-    }
+    lines.extend(beside.after);
+    let files: BTreeSet<_> = declarations.iter().map(|(entries, _)| entries[0].at).chain(beside.files).collect();
+    if file.is_none() && files.len() > 1 { lines.push(NARROW.into()); }
     Some(lines.join("\n"))
-}
-
-fn member_uses(name: &str, member: &str, members: &[MemberSite], from: Option<&str>, file: Option<&str>, limit: usize, layers: &[Layer], unread: &[String]) -> Option<String> {
-    if members.is_empty() { return None }
-    let mut lines = vec![
-        format!("`{name}` is no exported name; it is a member, declared in {}:", places(members.len())),
-        from.map_or_else(|| "Path order; `--from` sorts nearest first.".into(), |from| format!("Nearest to {from} first.")),
-    ];
-    let mut ordered: Vec<_> = members.iter().collect();
-    ordered.sort_by(|a, b| nearest(from, &a.at, a.line, &b.at, b.line));
-    member_list(&mut lines, "Member declarations:", ordered.len(), limit, ordered.iter().map(|site| format!("{}:{} — {}", site.at, site.line, site.on)));
-    let mut unused = Vec::new();
-    for site in members {
-        let Some(uses) = &site.uses else { continue };
-        if uses.is_empty() {
-            unused.push(format!("`{}` at {}:{}", site.on, site.at, site.line));
-            continue;
-        }
-        let heading = format!("`{}.{member}`, declared at {}:{}, is used in {}:", site.on, site.at, site.line, places(uses.len()));
-        let mut uses: Vec<_> = uses.iter().collect();
-        uses.sort_by(|a, b| nearest(from, &a.at, a.line, &b.at, b.line));
-        member_list(&mut lines, &heading, uses.len(), limit, uses.iter().map(|site| {
-            let by = if site.by.is_empty() { String::new() } else { format!("{}, ", site.by) };
-            format!("{}:{} — {by}{}", site.at, site.line, site.how)
-        }));
-    }
-    if !unused.is_empty() {
-        lines.extend([String::new(), format!("No line uses `{member}` through a value whose type is written as {}.", unused.join(", "))]);
-    }
-    let (named, where_, reference) = match members {
-        [site] => {
-            let named = site.uses.as_ref().map_or_else(|| member.to_owned(), |_| format!("{}.{member}", site.on));
-            let where_ = format!("{}:{}", site.at, site.line);
-            let reference = format!("`{named}` at {where_}");
-            (named, where_, reference)
-        }
-        _ => (member.to_owned(), "the declaration you mean".into(), "the declaration you mean, each listed above with its file and line (`--package` narrows the declarations to one package)".into()),
-    };
-    lines.extend([
-        String::new(),
-        format!("An implementation of `{named}` that takes its type from where it goes — an argument, a property, a returned value — writes no type on its line and is not listed: TypeScript's language service's go-to-implementation on {where_} names it."),
-        "A use is listed here only where its line writes the value's type. A use through an inferred value, a generic, a subtype by `extends`, a JSX attribute, a utility type or an inline type literal is not: which type a value has is a type checker's answer, and none runs here.".into(),
-        format!("Ask TypeScript for those: its language service's find-references on {reference}."),
-    ]);
-    lines.extend(member_stop(layers, member, "there too"));
-    lines.extend(unread_line(unread));
-    if file.is_none() && members.iter().any(|site| site.at != members[0].at) { lines.push(NARROW.into()); }
-    Some(lines.join("\n"))
-}
-
-fn member_list(lines: &mut Vec<String>, heading: &str, count: usize, limit: usize, rows: impl Iterator<Item = String>) {
-    lines.extend([String::new(), heading.to_owned(), String::new()]);
-    lines.extend(rows.take(limit));
-    if count > limit { lines.push(format!("… {} more not shown; a higher `--limit` shows them.", count - limit)); }
-}
-
-fn private_uses(root: &str, layers: &[Layer], name: &str, from: Option<&str>, file: Option<&str>, limit: usize, declarations: &[DeclaredName], unread: &[String]) -> Option<String> {
-    let mut selected: Vec<_> = declarations.iter().filter(|held| file.is_none_or(|file| held.at == file)).collect();
-    selected.sort_by_key(|held| declaration_kind_order(held));
-    let first = selected.first()?;
-    let files = files_of(&selected);
-    let (bound, declaring): (Vec<_>, Vec<_>) = selected.iter().copied().partition(|held| is_bound(&held.kind));
-    let mut lines = kept_lines(name, &declaring);
-    lines.extend(kept_lines(name, &bound));
-    let declaring = files_of(&declaring);
-    let asked = files.iter().map(|&file| Asked { file: file.to_owned(), name: name.to_owned() }).collect();
-    let read = importers(root, layers, &[asked]);
-    let group = read.groups.first()?;
-    if !group.uses.is_empty() {
-        let home = (!first.by.is_empty()).then_some(first.by.as_str());
-        let sites = joined_sites(&[], [], &group.uses, &group.through);
-        let count = Counts::of(&sites, home.unwrap_or(""));
-        let split = home.map_or_else(String::new, |home| count.split(home));
-        lines.push(format!("\nImported in {}{split}.{}", places(count.certain), count.may_read(name)));
-        list_kinds(&mut lines, name, home, sites, from, limit);
-    }
-    let mut at = None;
-    for site in &read.in_file {
-        if at == Some(site.at.as_str()) { continue }
-        list_own(&mut lines, &site.at, if declaring.contains(site.at.as_str()) { "declares" } else { "binds" }, &read.in_file, limit);
-        at = Some(&site.at);
-    }
-    lines.extend(unread_line(unread));
-    if file.is_none() && declaring.len() > 1 { lines.push(NARROW.into()); }
-    Some(lines.join("\n"))
-}
-
-fn files_of<'d>(rows: &[&'d DeclaredName]) -> BTreeSet<&'d str> {
-    rows.iter().map(|held| held.at.as_str()).collect()
-}
-
-/// What each row is, where it is written and who can reach it there; every row is declared, or every one is bound.
-fn kept_lines(name: &str, rows: &[&DeclaredName]) -> Vec<String> {
-    match rows {
-        [] => Vec::new(),
-        [only] => vec![format!("`{name}` [{}] is {}, at {}:{}{}{}.", only.kind, kept_as(only), only.at, only.line, spelled(only, name), private_reach(only))],
-        [first, ..] => {
-            let files = files_of(rows).len();
-            let count = if files == rows.len() { format!("{files} files") } else { places(rows.len()) };
-            let mut lines = vec![format!("`{name}` is {}, in {count}:", kept_as(first))];
-            lines.extend(rows.iter().map(|held| format!("  {}:{}{} [{}]{}", held.at, held.line, spelled(held, name), held.kind, private_reach(held))));
-            lines
-        }
-    }
-}
-
-fn spelled(held: &DeclaredName, name: &str) -> String {
-    if held.name == name { String::new() } else { format!(" as `{}`", held.name) }
-}
-
-fn private_reach(held: &DeclaredName) -> String {
-    if let Some(line) = held.holder_line {
-        let holder = held.holder.as_ref().map(|name| format!("`{name}`"));
-        let who = holder.clone().unwrap_or_else(|| format!("the function written at {}:{line}", held.at));
-        let inside = holder.as_deref().unwrap_or("that function");
-        return format!(", so only {who} can name it: it is declared inside {inside}");
-    }
-    match held.reach.as_deref() {
-        Some("file") => ", so nothing outside that file can import it".into(),
-        Some("module") => ", so only its module and the modules inside it can name it".into(),
-        Some("underscore" | "all") => {
-            let file = &held.at;
-            let query = format!(r"\b{}\b", held.name);
-            let ask = typed(CLI, "grep", &[("query", Value::Text(&query)), ("to", Value::Text(file))]);
-            format!("; another module can still import it by name, which `{ask}` finds")
-        }
-        _ => "; who can reach it is not recorded".into(),
-    }
 }
 
 /// The imports of the declaration answered first, then the lines of each of `files` that use it.
@@ -264,18 +147,19 @@ fn published_at(entries: &[Entry<'_>]) -> String {
     format!("published by {}, declared at {}:{}", publishers(entries), entries[0].at, entries[0].line)
 }
 
-fn headline(name: &str, kinds: &str, published: Option<&str>, exported: Option<&str>, home: &str, sites: &[Site<'_>]) -> String {
+fn headline(name: &str, kinds: &str, published: Option<&str>, exported: Option<(&str, Option<&str>)>, home: &str, sites: &[Site<'_>]) -> String {
     let named = if kinds.is_empty() { format!("`{name}`") } else { format!("`{name}` [{kinds}]") };
     if sites.is_empty() {
-        if let Some(at) = exported {
-            return format!("{named} is exported, without being published, at {at}, and nothing in this workspace imports it; {UNCOUNTED}.");
+        if let Some((at, member)) = exported {
+            let how = member.map_or_else(|| format!("exported, without being published, at {at}"), |member| format!("{member}, and exported at {at}"));
+            return format!("{named} is {how}, and nothing in this workspace imports it; {UNCOUNTED}.");
         }
         let published = published.map_or_else(|| "published".into(), |at| format!("{at},"));
         return format!("{named} is {published} and nothing in this workspace imports it; {UNCOUNTED}. `variance ask symbol` has its signature and what is written above it.");
     }
     let which = match (published, exported) {
         (Some(at), _) => format!(", {at}"),
-        (_, Some(at)) => format!(", and no entry publishes it; it is exported at {at}"),
+        (_, Some((at, member))) => format!(", {}; it is exported at {at}", member.unwrap_or("and no entry publishes it")),
         _ => String::new(),
     };
     let count = Counts::of(sites, home);

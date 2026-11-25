@@ -10,14 +10,14 @@ use crate::compact::Layer;
 use crate::help_in_file::InFile;
 use crate::help_name_scope::PackageScope;
 use crate::help_origin::declaration_exported;
-use crate::help_symbol_answer::unread_line;
 use crate::help_symbol_published::joined_sites;
 use crate::help_symbol_rows::PathSite;
 use crate::help_unpublished::{exported_at, Unpublished};
-use crate::help_usage::{importers, Asked};
+use crate::help_usage::{importers, Asked, Namespace};
 use crate::order::code_unit;
 
-use super::{headline, list_kinds, list_own, places, primary_sites, Counts, NARROW};
+use super::kept::others_lines;
+use super::{headline, list_kinds, list_own, places, primary_sites, Beside, Counts, NARROW};
 
 /// The exports of one declaration: the file declaring it, and every export of it, the declaring ones first.
 type Declaration<'e, 'a> = (&'e str, Vec<&'e Unpublished<'a>>);
@@ -28,7 +28,7 @@ type Declaration<'e, 'a> = (&'e str, Vec<&'e Unpublished<'a>>);
 /// needs what this reading does not carry: a namespace that passes the name
 /// on, or an export no package owns.
 #[allow(clippy::too_many_arguments)]
-pub(super) fn exported_uses(root: &str, layers: &[Layer], name: &str, from: Option<&str>, file: Option<&str>, limit: usize, paths: &[PathSite<'_>], exported: &[Unpublished<'_>], package: &PackageScope<'_>, unread: &[String]) -> Option<String> {
+pub(super) fn exported_uses(root: &str, layers: &[Layer], name: &str, from: Option<&str>, file: Option<&str>, limit: usize, paths: &[PathSite<'_>], exported: &[Unpublished<'_>], package: &PackageScope<'_>, beside: Beside<'_>, doors: impl FnOnce(&[&str]) -> Option<Vec<Door>>) -> Option<String> {
     let chosen: Vec<_> = match file {
         None => exported.iter().collect(),
         Some(file) => {
@@ -41,7 +41,14 @@ pub(super) fn exported_uses(root: &str, layers: &[Layer], name: &str, from: Opti
     let every: HashSet<&str> = declarations.iter().flat_map(|(_, held)| held.iter().map(|one| one.export.at)).collect();
     let asked: Vec<_> = declarations.iter().map(|(_, held)| files(held).into_iter().map(|at| Asked { file: at.to_owned(), name: name.to_owned() }).collect()).collect();
     let mut read = importers(root, layers, &asked);
-    if !read.namespaces.is_empty() || read.groups.len() != declarations.len() { return None }
+    if read.groups.len() != declarations.len() { return None }
+    let mut inside = published_inside(&read.namespaces, doors)?;
+    // The walk does not say which declaration a namespace passes on, so the one answered first is walked alone.
+    if !inside.is_empty() && declarations.len() > 1 {
+        let own = &importers(root, layers, &asked[..1]).namespaces;
+        inside.retain(|door| own.iter().any(|one| door.starts_with(&format!("`{}` by ", dotted(one)))));
+    }
+    let member = (!inside.is_empty()).then(|| format!("published as {}", inside.join(" and as ")));
     for group in &mut read.groups { group.uses.retain(|site| package.through(&site.key)); }
 
     let ((_, primary), others) = declarations.split_first()?;
@@ -61,13 +68,9 @@ pub(super) fn exported_uses(root: &str, layers: &[Layer], name: &str, from: Opti
     };
     let kinds: BTreeSet<_> = primary.iter().filter_map(|held| held.declaration).collect();
     let kinds = kinds.into_iter().collect::<Vec<_>>().join(", ");
-    let mut lines = vec![headline(name, &kinds, None, Some(&format!("{}{passed}", exported_at(primary))), home, &sites)];
-    if !others.is_empty() {
-        let count = others.len();
-        let times = if count == 1 { "once more, as another thing".to_owned() } else { format!("{count} more times, each another thing") };
-        lines.push(format!("It is declared {times}, answered below:"));
-        lines.extend(others.iter().map(|(_, held)| format!("  {}, exported without being published", exported_at(held))));
-    }
+    let mut lines = vec![headline(name, &kinds, None, Some((&format!("{}{passed}", exported_at(primary)), member.as_deref())), home, &sites)];
+    let namesakes = others.iter().map(|(_, held)| format!("{}, exported without being published", exported_at(held))).collect();
+    lines.extend(others_lines(name, namesakes, &beside.kept, &beside.members));
     primary_sites(&mut lines, name, home, &in_file_of(&read.in_file, &own), sites, &read.in_file, from, limit);
     for ((_, held), group) in others.iter().zip(&read.groups[1..]) {
         lines.push(format!("\n`{name}` is exported, without being published, at {} as well, which is another declaration.", exported_at(held)));
@@ -85,10 +88,34 @@ pub(super) fn exported_uses(root: &str, layers: &[Layer], name: &str, from: Opti
         }
         for at in in_file_of(&read.in_file, &at) { list_own(&mut lines, at, "declares", &read.in_file, limit); }
     }
-    lines.extend(unread_line(unread));
-    let declaring: HashSet<_> = exported.iter().filter(|held| held.export.bound.is_some()).map(|held| held.export.at).collect();
+    lines.extend(beside.after);
+    let declaring: HashSet<_> = exported.iter().filter(|held| held.export.bound.is_some()).map(|held| held.export.at).chain(beside.files).collect();
     if file.is_none() && declaring.len() > 1 { lines.push(NARROW.into()); }
     Some(lines.join("\n"))
+}
+
+/// A door an entry opens: the file it opens and the specifier it is imported by.
+pub(super) type Door = (String, String);
+
+/// The doors that publish the name only inside a namespace, `shout.greet` by
+/// `@acme/lib` for an entry doing `export * as shout`: each namespace the walk
+/// followed it into, at a file an entry opens.
+fn published_inside(namespaces: &[Namespace], doors: impl FnOnce(&[&str]) -> Option<Vec<Door>>) -> Option<Vec<String>> {
+    if namespaces.is_empty() { return Some(Vec::new()) }
+    let doors = doors(&namespaces.iter().map(|one| one.at.as_str()).collect::<Vec<_>>())?;
+    let mut inside: Vec<String> = Vec::new();
+    for one in namespaces {
+        for (_, door) in doors.iter().filter(|(at, _)| *at == one.at) {
+            let named = format!("`{}` by {door}", dotted(one));
+            if !inside.contains(&named) { inside.push(named) }
+        }
+    }
+    Some(inside)
+}
+
+/// A namespace and the members read off it to reach the name, joined by dots.
+fn dotted(one: &Namespace) -> String {
+    std::iter::once(one.name.as_str()).chain(one.members.iter().map(String::as_str)).collect::<Vec<_>>().join(".")
 }
 
 /// The exports grouped by the file declaring what they export, in code-unit order of that file, each group's declaring exports first.

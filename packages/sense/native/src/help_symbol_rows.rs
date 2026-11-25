@@ -163,6 +163,26 @@ impl Rows {
         Some(())
     }
 
+    /// Where each entry opening's source is, with the package and subpath that spell its door.
+    pub(crate) fn openings(file: &mut File) -> Option<Self> {
+        Self::columns(file, [("strings.blob", 1), ("strings.off", 4), ("open.source", 4), ("pkg.name", 4), ("pkg.openOff", 4), ("open.subpath", 4)])
+    }
+
+    /// The doors of the entry openings whose source is one of `files`, in row order: the source and the door's specifier.
+    pub(crate) fn openings_in(&self, files: &[&str]) -> Option<Vec<(&str, String)>> {
+        let packages = self.column("pkg.openOff");
+        let mut doors = Vec::new();
+        for row in 0..self.column("open.source").len() {
+            let Some(source) = self.optional("open.source", row)? else { continue };
+            if !files.contains(&source) { continue }
+            let package = partition(packages.len(), |at| packages.at(at) as usize <= row).checked_sub(1)?;
+            let subpath = self.string("open.subpath", row)?;
+            let name = self.string("pkg.name", package)?;
+            doors.push((source, if subpath == "." { name.to_owned() } else { format!("{name}{}", &subpath[1..]) }));
+        }
+        Some(doors)
+    }
+
     pub(crate) fn read_search(&mut self, file: &mut File) -> Option<()> {
         let columns = read_sections(file, FORMAT, VERSION, SEARCH_COLUMNS).ok()?;
         self.0.extend(SEARCH_COLUMNS.into_iter().map(|(name, _)| name).zip(columns));
