@@ -167,6 +167,15 @@ describe('variance ask about a name a file binds and does not declare', () => {
     expect(await asked('intersection', 'uses --name theCallee', `discover --path ${AT}`)).toContain(`${AT}/c.js — 1: line`);
   });
 
+  it('locates the container of a dotted name where a file declares it, never where one binds it', async () => {
+    await indexed({ [`${AT}/z.js`]: 'function theCallee() {}\nexports.held = () => theCallee();\n' });
+
+    const mixed = await run(['ask', 'symbol', '--name', 'theCallee.missing']);
+    expect(mixed.out + mixed.err).toContain(`\`theCallee\` is declared at ${AT}/z.js:1, and no interface`);
+    const bound = await run(['ask', 'symbol', '--name', 'heldValue.missing']);
+    expect(bound.out + bound.err).toContain('No file read here declares `heldValue` at its top level');
+  });
+
   it('still answers an exported destructuring and a name set to a call as declarations', async () => {
     await indexed();
 
