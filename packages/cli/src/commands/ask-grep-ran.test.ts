@@ -125,6 +125,17 @@ describe('variance ask grep --test', () => {
     expect(answered.out).toContain('3 more not shown; `--offset` 1 shows the next 1.');
   });
 
+  it('shows twenty lines where no limit is said, and counts the rest', async () => {
+    const root = await recorded();
+    writeFileSync(join(root, 'src/order.ts'), `${'// give up\n'.repeat(25)}${readFileSync(join(root, 'src/order.ts'), 'utf8')}`);
+
+    const answered = await run(['ask', 'grep', '--query', 'give up', '--test', 'test/order.test.ts', '--name', 'pays']);
+
+    expect([answered.code, answered.err]).toEqual([EXIT_CLEAN, '']);
+    expect(answered.out).toContain('27 matching lines in 1 of the 1 recorded file');
+    expect(answered.out).toContain('7 more not shown; `--offset` 20 shows the next 7.');
+  });
+
   it('pages across its sections, so an offset past the ran lines starts in the ones not taken', async () => {
     await recorded();
 

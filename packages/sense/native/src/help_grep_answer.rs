@@ -3,9 +3,10 @@
 // compass: variance-authority.report.agent-surface
 
 use std::collections::{HashMap, HashSet};
+use std::ops::Range;
 use std::path::Path;
 
-use crate::help_grep::match_lines;
+use crate::help_grep::{match_lines, Grepped};
 use crate::help_grep_collapse::{collapsed, Held, Start};
 use crate::help_surface::Surface;
 use crate::order::code_unit;
@@ -32,7 +33,10 @@ pub(crate) struct Said {
 }
 
 /// Matching lines shown when no limit is said.
-const SHOWN: usize = 200;
+const SHOWN: usize = 20;
+
+/// Of an answer past that, the lines shown above where they all are.
+const FIRST: usize = 10;
 
 /// Where the area's files are said from, which a start point said from a nested workspace is not.
 pub(crate) struct Roots<'a> {
@@ -145,17 +149,20 @@ pub(crate) fn answer(roots: Roots, query: &str, mut scope: Scope, said: Said, su
 
     let mut notes = vec![format!("note: {area}")];
     notes.extend(error.map(|error| format!("note: {error}")));
+    let count = 1 + found.file.windows(2).filter(|rows| rows[0] != rows[1]).count();
     if total > SHOWN && said.limit.is_none() && said.offset.is_none() {
         let held = found.file.chunk_by(|left, right| left == right).map(|rows| {
             let at = rows[0] as usize;
             Held { path: &files[at], lines: rows.len(), hops: distances[at] }
         });
-        return Ok(collapsed(held.collect(), query, repeatable(&roots, &scope, query), notes, surface));
+        let mut lines = vec![format!("{total} matching lines in {count} {}, the first {FIRST}, nearest first:", plural(count, "file", "files"))];
+        lines.extend(listed(&found, 0..FIRST, &files, &distances));
+        lines.extend(collapsed(held.collect(), query, repeatable(&roots, &scope, query), notes, surface));
+        return Ok(lines.join("\n"));
     }
 
     let page = Page { offset: said.offset.unwrap_or(0), limit: said.limit.unwrap_or(SHOWN) };
     let offset_flag = surface.input("offset");
-    let count = 1 + found.file.windows(2).filter(|rows| rows[0] != rows[1]).count();
     let mut lines = vec![format!("{total} matching {} in {count} {}, nearest first:", plural(total, "line", "lines"), plural(count, "file", "files"))];
     let start = page.offset.min(total);
     let end = start.saturating_add(page.limit).min(total);
@@ -164,9 +171,21 @@ pub(crate) fn answer(roots: Roots, query: &str, mut scope: Scope, said: Said, su
     } else if page.offset != 0 {
         lines.push(format!("Rows {}–{end} of {total}.", start + 1));
     }
-    let mut row = start;
+    lines.extend(listed(&found, start..end, &files, &distances));
+    lines.extend(notes);
+    if end < total {
+        let rest = total - end;
+        lines.push(format!("{rest} more not shown; `{offset_flag}` {end} shows the next {}.", rest.min(page.limit)));
+    }
+    Ok(lines.join("\n"))
+}
+
+/// The rows `shown` of what was found, which is in the order of `files`.
+fn listed(found: &Grepped, shown: Range<usize>, files: &[String], distances: &[u32]) -> Vec<String> {
+    let mut lines = Vec::new();
+    let mut row = shown.start;
     let mut previous_hops = None;
-    while row < end {
+    while row < shown.end {
         let file = found.file[row];
         let at = file as usize;
         let hops = distances[at];
@@ -174,7 +193,7 @@ pub(crate) fn answer(roots: Roots, query: &str, mut scope: Scope, said: Said, su
             lines.push(format!("{hops} {} away:", if hops == 1 { "import" } else { "imports" }));
             previous_hops = Some(hops);
         }
-        let group = found.file[row..end].partition_point(|other| *other == file);
+        let group = found.file[row..shown.end].partition_point(|other| *other == file);
         if group == 1 {
             lines.push(format!("{}:{}: {}", files[at], found.line[row], found.text[row].trim_start_matches(blank)));
         } else {
@@ -185,12 +204,7 @@ pub(crate) fn answer(roots: Roots, query: &str, mut scope: Scope, said: Said, su
         }
         row += group;
     }
-    lines.extend(notes);
-    if end < total {
-        let rest = total - end;
-        lines.push(format!("{rest} more not shown; `{offset_flag}` {end} shows the next {}.", rest.min(page.limit)));
-    }
-    Ok(lines.join("\n"))
+    lines
 }
 
 /// The scope as one start point `discover` reads as this did. It intersects two start points, splits a comma, drops a blank text and reads a `#` after `to` as a name the file exports; and where the graph's root is not the workspace's it opens the graph's names under the workspace.

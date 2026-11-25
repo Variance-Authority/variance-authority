@@ -23,8 +23,8 @@ const CROWDED = 200_000;
 const MANY = 3000;
 const leaf = (at: number): string => `src/leaves/${'deep-folder-name/'.repeat(5)}leaf-${String(at).padStart(5, '0')}.ts`;
 
-/** Ten files of ten lines below a one-child folder, forty of two, and one of thirty. */
-const NEAR = Array.from({ length: 10 }, (_, at) => `wide/a/only/deep/x${at}.ts`);
+/** Five files of twenty lines below a one-child folder, forty of two, and one of thirty. */
+const NEAR = Array.from({ length: 5 }, (_, at) => `wide/a/only/deep/x${at}.ts`);
 const FAR = Array.from({ length: 40 }, (_, at) => `wide/b/f${String(at).padStart(2, '0')}.ts`);
 
 let root: string;
@@ -47,10 +47,10 @@ beforeAll(() => {
   write('src/leaves.ts', '');
   write('src/crowded.ts', 'crowd\n'.repeat(CROWDED));
   write('wide/index.ts', '');
-  for (const file of NEAR) write(file, 'broad\n'.repeat(10));
+  for (const file of NEAR) write(file, 'broad\n'.repeat(20));
   for (const file of FAR) write(file, 'broad\n'.repeat(2));
-  write('edge/at.ts', 'edge\n'.repeat(200));
-  write('edge/over.ts', 'edge  \n'.repeat(201));
+  write('edge/at.ts', 'edge\n'.repeat(20));
+  write('edge/over.ts', 'edge  \n'.repeat(21));
   write('wide/c/c1.ts', 'broad\n'.repeat(30));
   const leaves = Array.from({ length: MANY }, (_, at) => leaf(at));
   for (const [at, file] of leaves.entries()) write(file, `export const leaf${at} = ${at === MANY - 1 ? "'haystack'" : at};\n`);
@@ -199,18 +199,22 @@ describe('grep over a closure', () => {
 });
 
 describe('grep over more lines than it shows', () => {
-  const ROWS = [
-    '210 matching lines in 51 files, by path, most lines first:',
+  const SAID = [
+    '210 matching lines in 46 files, the first 10, nearest first:',
+    '1 import away:',
+    NEAR[0],
+    ...Array.from({ length: 10 }, (_, at) => `  ${at + 1}: broad`),
+    'All 210, by path, most lines first:',
     'wide/b/ — 80 lines in 40 files, nearest 2 imports away',
     'wide/c/c1.ts — 30 lines, 1 import away',
-    ...NEAR.map((file) => `${file} — 10 lines, 1 import away`),
+    ...NEAR.map((file) => `${file} — 20 lines, 1 import away`),
   ];
 
-  it('says where they are, by path, and what answers less and what answers all of it', () => {
+  it('shows the nearest few, then says where they all are, by path, and what answers less and what answers all of it', () => {
     const lines = ask({ query: 'broad', from: 'wide/index.ts' }).split('\n');
-    expect(lines.slice(0, ROWS.length)).toEqual(ROWS);
-    expect(lines.slice(ROWS.length)).toEqual([
-      'note: In 52 file(s) reachable from `wide/index.ts` along the imports, at any depth — 1 named by the path itself.',
+    expect(lines.slice(0, SAID.length)).toEqual(SAID);
+    expect(lines.slice(SAID.length)).toEqual([
+      'note: In 47 file(s) reachable from `wide/index.ts` along the imports, at any depth — 1 named by the path itself.',
       '`docs_discover` with `from` `["wide/index.ts"]` and `path` `^wide/b/` and `text` `broad`: the 40 matching files under `wide/b/`',
       '`limit` 210: every line, nearest first',
     ]);
@@ -233,28 +237,28 @@ describe('grep over more lines than it shows', () => {
   it('names no question where discover answers another set', () => {
     for (const start of [{ from: ['wide/a/', 'wide/b/', 'wide/c/'] }, { from: 'wide/', to: 'wide/' }]) {
       const text = ask({ query: 'broad', ...start });
-      expect(text).toContain(' matching lines in 51 files, by path');
+      expect(text).toContain(' matching lines in 46 files, the first 10, ');
       expect(text).not.toContain('docs_discover');
     }
   });
 
   it('names no question where the pattern is blank, which discover drops', () => {
     const text = ask({ query: '  ', from: 'edge/over.ts' });
-    expect(text).toContain('201 matching lines in 1 file, by path');
+    expect(text).toContain('21 matching lines in 1 file, the first 10, nearest first:');
     expect(text).not.toContain('docs_discover');
   });
 
   it('names no question where the start point holds a comma, which discover splits', () => {
     const file = 'odd/a,b.ts';
-    write(file, 'odd\n'.repeat(201));
+    write(file, 'odd\n'.repeat(21));
     const text = grep.run(undefined, { query: 'odd', from: [file] }, { tree: treeOf([reads(file)], root) });
-    expect(text).toContain('201 matching lines in 1 file, by path');
+    expect(text).toContain('21 matching lines in 1 file, the first 10, nearest first:');
     expect(text).not.toContain('docs_discover');
   });
 
   it('names no question where a `#` follows a file of the tree, which discover reads as a name it exports', () => {
     const file = 'odd/a.ts#over.ts';
-    write(file, 'odd\n'.repeat(201));
+    write(file, 'odd\n'.repeat(21));
     const named = treeOf([reads(file), reads('odd/a.ts')], root);
     const lines = (direction: 'from' | 'to'): string[] => grep.run(undefined, { query: 'odd', [direction]: file }, { tree: named, shell: 'variance ask' }).split('\n');
     expect(lines('to').filter((line) => line.includes('discover'))).toEqual([]);
@@ -263,32 +267,39 @@ describe('grep over more lines than it shows', () => {
 
   it('names no question for a workspace nested below the graph, whose files discover opens elsewhere', () => {
     write('app/src/start.ts', "import './flood';\n");
-    write('app/src/flood.ts', 'flood\n'.repeat(201));
+    write('app/src/flood.ts', 'flood\n'.repeat(21));
     const nested = treeOf([reads('app/src/start.ts', 'app/src/flood.ts'), reads('app/src/flood.ts')], root, join(root, 'app'));
     const text = grep.run(undefined, { query: '^flood', from: 'src/start.ts' }, { tree: nested });
-    expect(text).toContain('201 matching lines in 1 file, by path');
+    expect(text).toContain('21 matching lines in 1 file, the first 10, nearest first:');
     expect(text).not.toContain('docs_discover');
   });
 
   it('says one row of a file that holds every line', () => {
     const lines = ask({ query: 'crowd', from: 'src/crowded.ts' }).split('\n');
-    expect(lines.slice(0, 2)).toEqual([`${CROWDED} matching lines in 1 file, by path, most lines first:`, `src/crowded.ts — ${CROWDED} lines`]);
+    expect(lines[0]).toBe(`${CROWDED} matching lines in 1 file, the first 10, nearest first:`);
+    expect(lines.slice(13, 15)).toEqual([`All ${CROWDED}, by path, most lines first:`, `src/crowded.ts — ${CROWDED} lines`]);
   });
 
   it('counts what it has no row for', () => {
     const lines = ask({ query: 'leaf', from: 'src/leaves.ts' }).split('\n');
     const rows = lines.filter((line) => line.includes(' — ') && !line.startsWith('note:'));
-    expect(rows).toHaveLength(20);
-    expect(rows[0]).toBe(`the rest of src/leaves/${'deep-folder-name/'.repeat(5)} — ${MANY - 19} lines in ${MANY - 19} files`);
+    expect(rows).toHaveLength(10);
+    expect(rows[0]).toBe(`the rest of src/leaves/${'deep-folder-name/'.repeat(5)} — ${MANY - 9} lines in ${MANY - 9} files`);
   });
 
   it.each([{ limit: 5 }, { offset: 5 }, { limit: 210 }])('shows lines when a page is said: %o', (said) => {
-    expect(ask({ query: 'broad', from: 'wide/index.ts', ...said })).toContain('210 matching lines in 51 files, nearest first:');
+    expect(ask({ query: 'broad', from: 'wide/index.ts', ...said })).toContain('210 matching lines in 46 files, nearest first:');
+  });
+
+  it('shows a page of twenty where an offset is said and no limit', () => {
+    const text = ask({ query: 'broad', from: 'wide/index.ts', offset: 5 });
+    expect(text).toContain('Rows 6–25 of 210.');
+    expect(text).toContain('185 more not shown; `offset` 25 shows the next 20.');
   });
 
   it('shows every line where they are no more than it shows', () => {
-    expect(ask({ query: 'edge', from: 'edge/at.ts' })).toContain('200 matching lines in 1 file, nearest first:');
-    expect(ask({ query: 'edge', from: 'edge/over.ts' })).toContain('201 matching lines in 1 file, by path');
-    expect(ask({ query: 'broad', from: 'wide/b/' })).toContain('80 matching lines in 40 files, nearest first:');
+    expect(ask({ query: 'edge', from: 'edge/at.ts' }).split('\n')).toHaveLength(24);
+    expect(ask({ query: 'edge', from: 'edge/at.ts' })).toContain('20 matching lines in 1 file, nearest first:');
+    expect(ask({ query: 'edge', from: 'edge/over.ts' })).toContain('21 matching lines in 1 file, the first 10, nearest first:');
   });
 });

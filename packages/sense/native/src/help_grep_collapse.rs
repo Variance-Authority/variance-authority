@@ -6,8 +6,8 @@ use crate::help_grep_answer::plural;
 use crate::help_surface::{Surface, Value};
 use crate::order::code_unit;
 
-/// The most rows a collapsed answer says.
-const ROWS: usize = 20;
+/// The most rows that say where the lines are.
+const ROWS: usize = 10;
 
 /// One matched file: its path, how many of its lines matched, and its import distance.
 pub(crate) struct Held<'a> {
@@ -33,15 +33,15 @@ struct Row<'a, 'b> {
     held: &'b [Held<'a>],
 }
 
-/// The heading and the rows, then `notes`, then what answers less and what answers all of it.
-pub(crate) fn collapsed(mut held: Vec<Held>, query: &str, start: Option<Start>, notes: Vec<String>, surface: Surface) -> String {
+/// The rows over every line, then `notes`, then what answers less and what answers all of it.
+pub(crate) fn collapsed(mut held: Vec<Held>, query: &str, start: Option<Start>, notes: Vec<String>, surface: Surface) -> Vec<String> {
     held.sort_unstable_by(|left, right| left.path.cmp(right.path));
     let total: usize = held.iter().map(|file| file.lines).sum();
     let near = held.iter().map(|file| file.hops).min();
     let apart = held.iter().any(|file| Some(file.hops) != near);
     let rows = rows_of(&held);
 
-    let mut lines = vec![format!("{total} matching lines in {} {}, by path, most lines first:", held.len(), plural(held.len(), "file", "files"))];
+    let mut lines = vec![format!("All {total}, by path, most lines first:")];
     lines.extend(rows.iter().map(|row| said(row, apart)));
     lines.extend(notes);
     if let (Some(start), Some(first)) = (start, rows.iter().find(|row| !row.rest)) {
@@ -51,7 +51,7 @@ pub(crate) fn collapsed(mut held: Vec<Held>, query: &str, start: Option<Start>, 
         lines.push(format!("{question}: the {} {place} `{}`", first.files, first.path));
     }
     lines.push(format!("`{}` {total}: every line, nearest first", surface.input("limit")));
-    lines.join("\n")
+    lines
 }
 
 fn said(row: &Row, apart: bool) -> String {

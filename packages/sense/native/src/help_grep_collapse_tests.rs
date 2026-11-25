@@ -43,7 +43,7 @@ fn a_folder_of_more_than_the_rows_says_the_widest_and_one_rest() {
     let names: Vec<&'static str> = (0..30).map(|at| &*format!("t/f{at:02}.ts").leak()).collect();
     let said = rows(&held(&names.iter().enumerate().map(|(at, name)| (*name, at + 1)).collect::<Vec<_>>()));
     assert_eq!(said.len(), ROWS);
-    assert_eq!(said[0], ("rest t/".into(), (1..=11).sum()));
+    assert_eq!(said[0], ("rest t/".into(), (1..=21).sum()));
     assert_eq!(said[1], ("t/f29.ts".into(), 30));
 }
 
@@ -54,7 +54,7 @@ fn a_stray_file_beside_a_wide_folder_leaves_the_folder_split() {
     paths.push(("u/stray.ts", 1));
     let said = rows(&held(&paths));
     assert_eq!(said.len(), ROWS);
-    assert_eq!(said[0], ("rest t/".into(), (10..=21).sum()));
+    assert_eq!(said[0], ("rest t/".into(), (10..=31).sum()));
     assert_eq!(said[1], ("t/f29.ts".into(), 39));
     assert_eq!(said[ROWS - 1], ("u/stray.ts".into(), 1));
 }
@@ -62,10 +62,10 @@ fn a_stray_file_beside_a_wide_folder_leaves_the_folder_split() {
 #[test]
 fn a_folder_is_split_only_where_two_of_its_parts_have_rows() {
     let wide: Vec<&'static str> = (0..5).map(|at| &*format!("w/f{at}.ts").leak()).collect();
-    let single: Vec<&'static str> = (0..18).map(|at| &*format!("s{at:02}.ts").leak()).collect();
+    let single: Vec<&'static str> = (0..8).map(|at| &*format!("s{at:02}.ts").leak()).collect();
     let files = held(&wide.iter().chain(&single).enumerate().map(|(at, name)| (*name, if at < 5 { at + 2 } else { 1 })).collect::<Vec<_>>());
     let said = rows(&files);
-    assert_eq!(said.len(), 19);
+    assert_eq!(said.len(), 9);
     assert_eq!(said[0], ("w/".into(), 20));
 }
 
