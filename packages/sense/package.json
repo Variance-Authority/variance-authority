@@ -121,6 +121,10 @@
       "types": "./dist/test-selection/runner.d.ts",
       "default": "./dist/test-selection/runner.js"
     },
+    "./node-test": {
+      "types": "./dist/test-selection/node-test.d.ts",
+      "default": "./dist/test-selection/node-test.js"
+    },
     "./jest-setup": "./dist/test-selection/jest-setup.cjs",
     "./jest-globals": "./dist/test-selection/jest-globals.cjs",
     "./case-journey": "./dist/test-selection/case-journey.cjs"
