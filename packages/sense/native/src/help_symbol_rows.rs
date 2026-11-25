@@ -42,6 +42,11 @@ const SEARCH_COLUMNS: [(&str, u8); 22] = [
     ("terms.pubSigOff", 4), ("terms.pubSig", 4), ("terms.expSigOff", 4), ("terms.expSig", 4),
 ];
 
+const EXPORTED_COLUMNS: [(&str, u8); 7] = [
+    ("exp.line", 4), ("exp.type", 1), ("exp.kind", 1), ("exp.declaration", 4),
+    ("pkg.name", 4), ("pkg.entry", 1), ("pkg.openOff", 4),
+];
+
 pub(crate) struct Rows(HashMap<&'static str, Vec<u8>>);
 
 #[derive(Clone, Copy)]
@@ -148,6 +153,13 @@ impl Rows {
     pub(crate) fn read_export_lines(&mut self, file: &mut File) -> Option<()> {
         let [lines] = read_sections(file, FORMAT, VERSION, [("exp.line", 4)]).ok()?;
         self.0.insert("exp.line", lines);
+        Some(())
+    }
+
+    /// What an answer about an unpublished export says of it: its line, kind and type-only flag, its declaration's kind, and whether its package's entry was followed.
+    pub(crate) fn read_exported(&mut self, file: &mut File) -> Option<()> {
+        let columns = read_sections(file, FORMAT, VERSION, EXPORTED_COLUMNS).ok()?;
+        self.0.extend(EXPORTED_COLUMNS.into_iter().map(|(name, _)| name).zip(columns));
         Some(())
     }
 
@@ -278,6 +290,31 @@ impl Rows {
 
     pub(crate) fn export_line(&self, export: &Export<'_>) -> Option<u32> {
         self.number("exp.line", export.row)
+    }
+
+    /// Whether `export` is written `export type`, as `read_exported` reads it.
+    pub(crate) fn export_type(&self, export: &Export<'_>) -> Option<bool> {
+        Some(*self.bytes("exp.type").get(export.row)? != 0)
+    }
+
+    /// Whether the file `export` is in is a story, a test, or ordinary source.
+    pub(crate) fn export_kind(&self, export: &Export<'_>) -> Option<&'static str> {
+        crate::help_store::USE_KINDS.get(*self.bytes("exp.kind").get(export.row)? as usize).copied()
+    }
+
+    /// The kind of the declaration `export` binds in its own file; `None` for `export … from`.
+    pub(crate) fn export_declaration(&self, export: &Export<'_>) -> Option<Option<&str>> {
+        self.optional("exp.declaration", export.row)
+    }
+
+    /// Whether `package` declares an entry this reading followed to no source file.
+    pub(crate) fn unfollowed(&self, package: &str) -> Option<bool> {
+        for row in 0..self.column("pkg.name").len() {
+            if self.string("pkg.name", row)? == package {
+                return Some(*self.bytes("pkg.entry").get(row)? != 0 && self.range("pkg.openOff", row)?.is_empty());
+            }
+        }
+        Some(false)
     }
 
     pub(crate) fn entry(&self, row: usize) -> Option<Entry<'_>> {

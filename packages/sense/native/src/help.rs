@@ -83,6 +83,12 @@ pub(crate) mod help_symbol_answer;
 #[path = "help_symbol_rows.rs"]
 pub(crate) mod help_symbol_rows;
 #[cfg(feature = "standalone-cli")]
+#[path = "help_symbol_exported.rs"]
+pub(crate) mod help_symbol_exported;
+#[cfg(feature = "standalone-cli")]
+#[path = "help_unpublished.rs"]
+pub(crate) mod help_unpublished;
+#[cfg(feature = "standalone-cli")]
 #[path = "help_symbol_published.rs"]
 pub(crate) mod help_symbol_published;
 #[cfg(feature = "standalone-cli")]

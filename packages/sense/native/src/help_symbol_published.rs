@@ -162,25 +162,41 @@ fn reach(entry: &Entry<'_>, sites: &Counts) -> String {
 }
 
 fn append_members(lines: &mut Vec<String>, layers: &[Layer], entry: &Entry<'_>) {
-    let mut seen = HashSet::from([entry.line]);
-    let members: Vec<_> = members_on(layers, entry.at, entry.declared).into_iter().filter(|one| seen.insert(one.line)).collect();
-    if members.is_empty() { return }
-    lines.extend([String::new(), "Members:".to_owned()]);
-    let prefix = if members.len() == 1 { format!("{}:", entry.at) } else { lines.push(entry.at.to_owned()); "  ".to_owned() };
+    lines.extend(member_rows(layers, entry.at, entry.declared, entry.line));
+}
+
+/// A blank row, `Members:` and one row per line of `at` declaring a member of
+/// the container `on`, as the index recorded the line; a line `line` already
+/// shows is not shown again. Nothing when the container declares no members.
+pub(crate) fn member_rows(layers: &[Layer], at: &str, on: &str, line: u32) -> Vec<String> {
+    let mut seen = HashSet::from([line]);
+    let members: Vec<_> = members_on(layers, at, on).into_iter().filter(|one| seen.insert(one.line)).collect();
+    if members.is_empty() { return Vec::new() }
+    let mut lines = vec![String::new(), "Members:".to_owned()];
+    let prefix = if members.len() == 1 { format!("{at}:") } else { lines.push(at.to_owned()); "  ".to_owned() };
     for member in members {
         let text = member.text.as_deref().map_or(member.name.as_str(), |text| text.trim_matches(blank));
         lines.push(format!("{prefix}{}: {text}", member.line));
     }
+    lines
 }
 
 fn append_renames(lines: &mut Vec<String>, sites: &[Site<'_>], name: &str) {
-    let mut sites = sites.to_vec();
-    sites.sort_by(|a, b| code_unit(a.at, b.at).then(a.line.cmp(&b.line)));
-    let renamed: Vec<_> = sites.iter().filter_map(|site| {
-        let local = site.local.filter(|local| *local != name)?;
-        Some(format!("{}:{} as `{local}`", site.at, site.line))
+    lines.extend(renamed_line(name, sites.iter().map(|site| (site.at, site.line, site.local))).map(|line| format!("\n{line}")));
+}
+
+/// `Imported under another name:` and each import of `sites` that knows it
+/// by a name other than `name`, once, by file in code units, then by line.
+pub(crate) fn renamed_line<'s>(name: &str, sites: impl IntoIterator<Item = (&'s str, u32, Option<&'s str>)>) -> Option<String> {
+    let mut sites: Vec<_> = sites.into_iter().collect();
+    sites.sort_by(|a, b| code_unit(a.0, b.0).then(a.1.cmp(&b.1)));
+    let mut seen = HashSet::new();
+    let renamed: Vec<_> = sites.into_iter().filter_map(|(at, line, known)| {
+        let known = known.filter(|known| *known != name)?;
+        let said = format!("{at}:{line} as `{known}`");
+        seen.insert(said.clone()).then_some(said)
     }).collect();
-    if renamed.is_empty() { return }
+    if renamed.is_empty() { return None }
     let more = if renamed.len() > 12 { format!(", and {} more", renamed.len() - 12) } else { String::new() };
-    lines.push(format!("\nImported under another name: {}{more}.", renamed[..renamed.len().min(12)].join(", ")));
+    Some(format!("Imported under another name: {}{more}.", renamed[..renamed.len().min(12)].join(", ")))
 }

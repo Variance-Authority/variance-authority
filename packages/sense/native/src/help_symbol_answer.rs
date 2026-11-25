@@ -14,7 +14,9 @@ use crate::help_members::{indexed_extensions, member_sites};
 use crate::help_name_scope::{owner_of, PackageScope};
 use crate::help_origin::declaration_exported;
 use crate::help_symbol_published::published_symbols;
+use crate::help_symbol_exported::exported_only;
 use crate::help_symbol_rows::{Export, PathKind, PathSite, Rows};
+use crate::help_unpublished::exports_named;
 use crate::help_usage::requested;
 use crate::index_chain::OpenedChain;
 use crate::read_any::{language_of, Language};
@@ -26,13 +28,17 @@ mod dependencies;
 pub(crate) fn exact_symbols(root: &str, index: &Path, store: &mut File, names: &[&str], wanted: Option<&str>, limit: Option<usize>) -> Option<String> {
     let mut rows = Rows::read(store)?;
     let mut entries = false;
+    let mut unpublished = false;
     let mut paths = false;
     for &name in names {
         if name == "default" { return None }
-        entries |= !rows.published(name)?.is_empty();
+        let published = !rows.published(name)?.is_empty();
+        entries |= published;
+        unpublished |= !published;
         paths |= !rows.path_uses(name)?.is_empty();
     }
     if entries { rows.read_entries(store)?; }
+    if unpublished { rows.read_exported(store)?; }
     if paths {
         rows.read_paths(store)?;
     } else if wanted.is_some_and(|wanted| owner_of(wanted) != wanted) {
@@ -54,9 +60,7 @@ fn exact_symbol(root: &str, index: &Path, layers: &[Layer], rows: &Rows, name: &
     if package.wanted().is_none() && !published.is_empty() && !paths.is_empty() { return None }
     let exports = rows.exports(name)?;
     let in_package = exports.iter().filter(|export| package.export(export)).cloned().collect::<Vec<_>>();
-    if published.is_empty() && paths.is_empty() && !in_package.is_empty() {
-        return None;
-    }
+    let exported = if published.is_empty() { exports_named(rows, layers, name, &exports, &in_package)? } else { Vec::new() };
     if !aliases(root, layers, name).is_empty() {
         return None;
     }
@@ -68,9 +72,15 @@ fn exact_symbol(root: &str, index: &Path, layers: &[Layer], rows: &Rows, name: &
     if !published.is_empty() {
         blocks.extend(published_symbols(root, layers, name, published, &exports, &paths, package)?);
     } else if !paths.is_empty() {
-        blocks.extend(by_path(layers, rows, name, &in_package, paths)?);
+        let (by_path, imported) = by_path(layers, rows, name, &in_package, paths)?;
+        blocks.extend(by_path);
+        let rest: Vec<_> = exported.iter().filter(|held| !imported.contains(held.export.at)).collect();
+        if !rest.is_empty() { blocks.push(exported_only(root, layers, rows, name, &rest)?); }
     }
     let workspace_door = !blocks.is_empty();
+    if !workspace_door && !exported.is_empty() {
+        blocks.push(exported_only(root, layers, rows, name, &exported.iter().collect::<Vec<_>>())?);
+    }
     let mut reading = declared(root, layers, name, Matching::Exact, None);
     reading.names.retain(|held| package.declared(&held.by));
     reading.names.sort_by_key(declaration_kind_order);
@@ -201,7 +211,8 @@ pub(crate) fn member_stop(layers: &[Layer], member: &str, where_: &str) -> Optio
     Some(format!("Members are read from JavaScript and TypeScript files only, and this workspace's {languages} files were not read for them: if `{member}` is a member {where_}, ask their language server's workspace symbols for it, then its find-references on the declaration."))
 }
 
-fn by_path(layers: &[crate::compact::Layer], rows: &Rows, name: &str, exports: &[Export<'_>], sites: Vec<PathSite<'_>>) -> Option<Vec<String>> {
+/// One block per file the imports by path name, and every file they name or reach an export of `name` in.
+fn by_path<'a>(layers: &[crate::compact::Layer], rows: &Rows, name: &str, exports: &[Export<'a>], sites: Vec<PathSite<'a>>) -> Option<(Vec<String>, HashSet<&'a str>)> {
     let mut groups: Vec<(&str, Vec<PathSite<'_>>)> = Vec::new();
     let mut positions = HashMap::new();
     for site in sites {
@@ -224,10 +235,10 @@ fn by_path(layers: &[crate::compact::Layer], rows: &Rows, name: &str, exports: &
             None => export.by == owner,
         });
         let export = matching.next().filter(|_| first.to.is_some() || matching.next().is_none());
+        if let Some(held) = export { covered.insert(held.at); }
         let bound = export.and_then(|held| declaration_exported(layers, held.at, held.name));
         let mut lines = vec![bound.as_ref().map_or_else(|| name.to_owned(), |held| format!("{name} [{}]", held.kind)), format!("import {{ {name} }} from '{specifier}';")];
         if let Some(held) = &bound {
-            covered.insert(held.at.clone());
             lines.push(format!("declared at {}:{}", held.at, held.line));
         } else if let Some(held) = export {
             lines.push(format!("declared at {}:{}", held.at, rows.export_line(held)?));
@@ -247,10 +258,10 @@ fn by_path(layers: &[crate::compact::Layer], rows: &Rows, name: &str, exports: &
             let typed = if site.site.type_only { " (type only)" } else { "" };
             lines.push(format!("  {}:{} — {}{how}{local}{typed}", site.site.at, site.site.line, site.site.by));
         }
-        covered.insert(file.to_owned());
+        covered.insert(file);
         blocks.push(lines.join("\n"));
     }
-    exports.iter().all(|export| covered.contains(export.at)).then_some(blocks)
+    Some((blocks, covered))
 }
 
 fn block(held: &DeclaredName) -> String {
