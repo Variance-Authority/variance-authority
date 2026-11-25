@@ -432,16 +432,18 @@ describe('variance ask classify', () => {
   });
 
   it('names the file a path or a name with its extension spells, with what it declares, and no other', async () => {
-    unpackaged();
+    const root = unpackaged();
+    writeFileSync(join(root, 'checkout.js'), 'export function atRoot() {}\n');
+    writeFileSync(join(root, 'lib/cart.mjs'), "import './checkout.js';\n");
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
 
     const asked = await run(['ask', 'classify', '--query', 'fix lib/loader.js and checkout.js, not lib/missing.js or b/loader.js']);
 
     expect(asked.code).toBe(EXIT_CLEAN);
     expect(asked.out).toMatch(/^lib\/loader\.js — file lib\/loader\.js · in no package$/m);
-    expect(asked.out).toMatch(/^checkout\.js — file lib\/checkout\.js · in no package$/m);
+    expect(asked.out).toMatch(/^checkout\.js — file checkout\.js · in no package\n +— file lib\/checkout\.js · in no package$/m);
     expect(asked.out).toMatch(/^Not entities: fix and not lib\/missing\.js or b\/loader\.js$/m);
-    expect(asked.out).toContain('  lib/loader.js — ModuleLoader (exported)\n  lib/checkout.js — checkoutPath (exported)\n');
+    expect(asked.out).toContain('  lib/loader.js — ModuleLoader (exported)\n  checkout.js — atRoot (exported)\n  lib/checkout.js — checkoutPath (exported)\n');
   });
 
   it('keeps a plain word that is only part of a declared name plain', async () => {
