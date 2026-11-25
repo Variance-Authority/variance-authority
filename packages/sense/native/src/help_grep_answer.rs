@@ -7,7 +7,7 @@ use std::ops::Range;
 use std::path::Path;
 
 use crate::help_grep::{match_lines, Grepped};
-use crate::help_grep_collapse::{collapsed, Held, Start};
+use crate::help_grep_collapse::{collapsed, plural, Held, Start};
 use crate::help_surface::Surface;
 use crate::order::code_unit;
 use crate::source_query::SourceTree;
@@ -233,10 +233,6 @@ pub(crate) fn area_line(scope: &Scope) -> String {
         line.push_str(&format!(" {} file(s) in it import something the scan could not resolve, so what lies behind those is not enumerated.", scope.unresolved));
     }
     line
-}
-
-pub(crate) fn plural<'a>(count: usize, one: &'a str, many: &'a str) -> &'a str {
-    if count == 1 { one } else { many }
 }
 
 #[cfg(test)]

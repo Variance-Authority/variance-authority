@@ -2,7 +2,6 @@
 
 // compass: variance-authority.report.agent-surface
 
-use crate::help_grep_answer::plural;
 use crate::help_surface::{Surface, Value};
 use crate::order::code_unit;
 
@@ -138,6 +137,10 @@ fn literal(path: &str) -> String {
         written.push(letter);
     }
     written
+}
+
+pub(crate) fn plural<'a>(count: usize, one: &'a str, many: &'a str) -> &'a str {
+    if count == 1 { one } else { many }
 }
 
 #[cfg(test)]
