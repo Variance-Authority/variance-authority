@@ -543,7 +543,7 @@ can reach it under the file's language, after any export of the same name in
 another file. A name a file does not export and only binds, by destructuring
 it out of a value or with `const x = require('m')`, is not declared there:
 `docs_symbol` lists the file after every declaration as one that binds it, and
-says so when no file declares the name. `docs_uses` lists it as a use, not as
+when nothing else answers the name, says first that no file declares it. `docs_uses` lists it as a use, not as
 another declaration. A name
 in a JavaScript or TypeScript module, a Swift `private` or `fileprivate` one
 and a Kotlin `private` one are that file's alone: no other file can import

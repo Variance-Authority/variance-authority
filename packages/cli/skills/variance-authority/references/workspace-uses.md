@@ -120,7 +120,8 @@ line, else by the nearest re-export that names it. Every local name an import
 gives an anonymous default answers it; the nearest one heads the answer. Asked
 by `default`, `symbol` and `uses` answer only the defaults nothing names.
 
-A `--file` that declares nothing by the name is answered with the files that do.
+A `--file` that declares nothing by the name is answered with the files that do,
+or, when none does, with the files that bind it.
 
 `--limit <n>` sets how many rows of each list are shown, 12 when not said:
 each kind of site, the lines of the declaring file, the member declarations

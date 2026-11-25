@@ -131,6 +131,21 @@ describe('variance ask about a name a file binds and does not declare', () => {
     expect(uses).not.toContain('No file in this workspace declares');
   });
 
+  it.each([
+    ['a destructured value', 'const { PooledThing } = pg;\ntype PooledThing = InstanceType<typeof pg.PooledThing>;\nexport const pool = (of: PooledThing) => of;\n', 2],
+    ['a whole required module', "const PooledThing = require('pg');\ninterface PooledThing {}\nexport const pool = (of: PooledThing) => of;\n", 2],
+    ['a value bound below it', 'type PooledThing = string;\nconst { PooledThing } = pg;\nexport const pool = (of: PooledThing) => of;\n', 1],
+  ])('answers the type a file declares under the name of %s', async (_, text, line) => {
+    await indexed({ [`${AT}/pooled.ts`]: text });
+
+    const symbol = await asked('symbol', '--name', 'PooledThing');
+    expect(symbol).toContain(`declared, not exported, at ${AT}/pooled.ts:${line}`);
+    const uses = await asked('uses', '--name', 'PooledThing');
+    expect(uses).toContain(`is declared, not exported, at ${AT}/pooled.ts:${line}`);
+    for (const out of [symbol, uses]) expect(out).not.toContain('No file in this workspace declares');
+    expect(await asked('classify', '--query', 'PooledThing')).toContain(`PooledThing — declared ${AT}/pooled.ts:${line}`);
+  });
+
   it('narrows `uses --file` to the file that binds the name', async () => {
     await indexed({ [`${AT}/z.js`]: 'function theCallee() {}\nexports.held = () => theCallee();\n' });
 

@@ -12,8 +12,8 @@ entrypoint's specifier (both matched without case), or a published exported
 name (matched as spelled). A word shaped as an identifier — a capital past its
 first letter, an underscore, or a digit after a letter — that is none of those
 is then looked up as spelled among the lines `symbol --name` names as
-declaring it — leaving out a line it calls `[binding]`, which only takes the
-name from another file — and the indexed files whose name before its first dot it is:
+declaring it — leaving out a line it calls `[binding]`, which takes the name
+from a value and declares nothing — and the indexed files whose name before its first dot it is:
 in Node.js, `ModuleLoader` is declared in the ESM loader's file, at its line,
 and `child_process` is the file of that name under `lib/`. Ordinary source comes before
 tests and stories, then the file more files import; three of each are shown and

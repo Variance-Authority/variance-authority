@@ -74,9 +74,12 @@ top-level name a file destructures out of a value, whatever the value is, or
 sets to a whole module with `const x = require('m')`, is kind `[binding]`:
 unless the file exports it, the file binds the name and does not declare it.
 Each such file follows every declaration as `bound, not declared, at
-<path>:<line>`, and is not counted as one. When no file declares the name, the
-answer says so and then lists the files that bind it. It does not say where the
-value comes from. A name an import binds with `as` is answered with that import and
+<path>:<line>`, and is not counted as one. When nothing else answers the name —
+no declaration, no installed package that publishes it and no import that
+renames to it — the answer says that no file declares it and then lists the
+files that bind it. A file that binds the name and declares it too, as a type,
+is listed at its declaration alone. The answer does not say where the value
+comes from. A name an import binds with `as` is answered with that import and
 the original it names. A member of an interface, a type literal or a class is answered with its
 container and the file and line that declare it, one block per declaration,
 after every other declaration of the name. `Tree.has` asks for the member `has`
