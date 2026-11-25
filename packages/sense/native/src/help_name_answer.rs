@@ -49,6 +49,8 @@ impl NameAnswer {
 /// `symbol`'s answer about `asked.name` in the checkout at `root`, read from
 /// the help store `store` and the chain `index` holds; `None` when there is
 /// no index or the answer needs the reading only the tool carries.
+///
+/// bound: the help store JavaScript already holds, lent without a copy, and one answer whose lists are cut at the limit
 #[napi(catch_unwind)]
 pub fn answer_symbol(root: String, index: &OpenedIndex, store: Uint8Array, asked: NameAsked) -> napi::Result<Option<NameAnswer>> {
     let lexicon = Path::new(index.path()).parent().map(Path::to_path_buf);
@@ -68,6 +70,8 @@ pub fn answer_symbol(root: String, index: &OpenedIndex, store: Uint8Array, asked
 
 /// `uses`'s answer about `asked.name`, read as [`answer_symbol`] reads, and
 /// cut at `asked.limit`, which the tool always says.
+///
+/// bound: the help store JavaScript already holds, lent without a copy, and one answer whose lists are cut at `asked.limit`
 #[napi(catch_unwind)]
 pub fn answer_uses(root: String, index: &OpenedIndex, store: Uint8Array, asked: NameAsked) -> napi::Result<Option<NameAnswer>> {
     Ok(opened_chain(index, |layers| {
