@@ -70,7 +70,7 @@ nothing was found.
 ```
 $ variance ask grep --query 'fn area_line' --from packages/sense/native/src/text_cut.rs
 No match in the 1 file reachable from `packages/sense/native/src/text_cut.rs`. 1 matching line in 1 file reachable from `packages/sense/native/src/`:
-packages/sense/native/src/help_grep_answer.rs:335: pub(crate) fn area_line(scope: &Scope) -> String {
+packages/sense/native/src/help_grep_answer.rs:350: pub(crate) fn area_line(scope: &Scope) -> String {
 ```
 
 With `--test`, 20 lines are listed and the rest counted. The answer opens
