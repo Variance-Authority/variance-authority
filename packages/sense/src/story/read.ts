@@ -51,7 +51,7 @@ import { cutText } from './cut.js';
 import { recordOfStories, storyDirectories } from './directory.js';
 import { foldSteps, type Step } from './fold.js';
 import stories from './format.cjs';
-import { addedTime, timeStops, type Timing } from './times.js';
+import { addedTime, extentOf, timeStops, type Extent, type Timing } from './times.js';
 
 /** A declaration a route goes through. */
 export interface Place {
@@ -129,6 +129,8 @@ export interface Route {
    * runner, not the order it ran.
    */
   readonly documents?: number;
+  /** When its steps ran, where it was stamped: only a live head's is. */
+  readonly extent?: Extent;
 }
 
 /** One reading on disk, as a listing names it. */
@@ -335,6 +337,8 @@ export function drawRoute(
   const stops = stopsOf(story.visits, heard(story.notes, story.lines, documents === undefined ? [] : story.parts), opening.route, firsts);
   const route = foldSteps(timeStops(stops, firsts, story), keyOf, added);
 
+  const extent = extentOf(story);
+
   const untaken: Untaken[] = [];
   for (const { place, row } of placed.values()) {
     const arms: Omit<Arm, 'times'>[] = [];
@@ -374,6 +378,7 @@ export function drawRoute(
     ...(story.project === undefined ? {} : { project: story.project }),
     ...(story.lost === undefined ? {} : { lost: story.lost }),
     ...(documents === undefined ? {} : { documents }),
+    ...(extent === undefined ? {} : { extent }),
   };
 }
 

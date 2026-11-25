@@ -159,9 +159,6 @@ function encodeStory(tape: Tape, key: string, stopped?: boolean, page: Parameter
   return Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
 }
 
-/** How many bytes a visit takes: its region, and its stamp where the header says it has one. */
-const visitBytes = (stamped: true | undefined): number => (stamped === true ? 12 : 4);
-
 /**
  * A story's bytes read back, or an error naming what they are not: the magic,
  * a `u32` length and that much JSON padded to 4, then an `i32` a visit, those
@@ -181,7 +178,7 @@ function decodeStory(bytes: Uint8Array): Story {
     Story,
     'before' | 'visits' | 'notes' | 'beforeNotes' | 'unnoted' | 'lines' | 'beforeLines' | 'stamps'
   > & { before: number; stamped?: true } & Partial<Pick<Story, 'notes' | 'beforeNotes' | 'unnoted' | 'lines' | 'beforeLines'>>;
-  const width = visitBytes(stamped);
+  const width = stamped === true ? 12 : 4;
   if ((buffer.length - body) % width !== 0) throw damaged();
   const all = new Int32Array((buffer.length - body) / width);
   for (let at = 0; at < all.length; at += 1) all[at] = buffer.readInt32LE(body + at * 4);
@@ -222,17 +219,15 @@ function storyHeader(file: string): {
     for (let at = 0; at < MAGIC.length; at += 1) if (lead[at] !== MAGIC[at]) throw damaged();
     const length = lead.readUInt32LE(MAGIC.length);
     const body = lead.length + ((length + 3) & ~3);
-    if (body > size) throw damaged();
+    if (body > size || (size - body) % 4 !== 0) throw damaged();
     const text = Buffer.alloc(length);
     if (fs.readSync(descriptor, text, 0, length, lead.length) !== length) throw damaged();
-    const header = JSON.parse(text.toString('utf8')) as { file: string; name: string; project?: string; before: number; stopped?: boolean; lost?: boolean; stamped?: true };
-    const width = visitBytes(header.stamped);
-    if ((size - body) % width !== 0) throw damaged();
+    const header = JSON.parse(text.toString('utf8')) as { file: string; name: string; project?: string; before: number; stopped?: boolean; lost?: boolean };
     return {
       file: header.file,
       name: header.name,
       ...(header.project === undefined ? {} : { project: header.project }),
-      visits: (size - body) / width - header.before,
+      visits: (size - body) / 4 - header.before,
       ...(header.stopped === undefined ? {} : { stopped: header.stopped }),
       ...(header.lost === undefined ? {} : { lost: header.lost }),
     };

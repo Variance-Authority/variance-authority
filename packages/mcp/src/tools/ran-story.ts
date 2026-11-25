@@ -1,4 +1,4 @@
-import { drawToldRoute, gapText, routeText, toldModules, toldSpan, unnotedText, unresolvedText, untapedText, type Region, type Route, type Span } from '@variance-authority/sense/story';
+import { drawToldRoute, gapText, routeText, toldModules, unnotedText, unresolvedText, untapedText, type Region, type Route, type Span } from '@variance-authority/sense/story';
 import type { HeadRan } from '@variance-authority/vantage';
 import { cappedRows } from './capped.js';
 import type { CutModules } from './tool.js';
@@ -20,16 +20,11 @@ export function toldIds(head: HeadRan): readonly string[] {
   return (head.stories ?? []).flatMap((story) => toldModules(Buffer.from(story, 'base64')));
 }
 
-/** When the stories its heads told of one execution began and ended, where a head stamped any. */
-export function spanOf(heads: readonly HeadRan[]): Span | undefined {
-  return toldSpan(heads.flatMap((head) => (head.stories ?? []).map((story) => Buffer.from(story, 'base64'))));
-}
-
 /** How many lines of one head's stories are printed before the rest are counted. */
 const TOLD = 80;
 
-/** The stories a head told of one execution, a step a line, each with when in `span` it ran and what was handed under it. */
-export function toldRows(head: HeadRan, cut: CutModules | undefined, span: Span | undefined): string[] {
+/** The routes of the stories a head told of one execution, in the order it told them. */
+export function toldRoutes(head: HeadRan, cut: CutModules | undefined): readonly Route[] {
   const modules = cut?.get(head.instrumentation);
   const regionsOf = (id: string, count: number): readonly Region[] | undefined => {
     const read = modules?.get(id);
@@ -45,10 +40,14 @@ export function toldRows(head: HeadRan, cut: CutModules | undefined, span: Span 
     }
     return regions.length === count && regions.every((region) => region !== undefined) ? regions : undefined;
   };
-  const stories = (head.stories ?? []).map((story) => Buffer.from(story, 'base64'));
-  const rows = stories.flatMap((story, told) => [
-    ...(told === 0 ? [] : [`told again, once more of it had run${span === undefined ? '' : gapText(stories[told - 1]!, story, span)}:`]),
-    ...routeRows(drawToldRoute(story, regionsOf), span),
+  return (head.stories ?? []).map((story) => drawToldRoute(Buffer.from(story, 'base64'), regionsOf));
+}
+
+/** The `routes` a head told of one execution, a step a line, each with when in `span` it ran and what was handed under it. */
+export function toldRows(head: HeadRan, routes: readonly Route[], span: Span | undefined): string[] {
+  const rows = routes.flatMap((route, told) => [
+    ...(told === 0 ? [] : [`told again, once more of it had run${span === undefined ? '' : gapText(routes[told - 1]!, route, span, head.untold !== undefined)}:`]),
+    ...routeRows(route, span),
   ]);
   const more = head.stories === undefined ? '' : ' more';
   const untold = head.untold === undefined ? [] : [`    told ${head.untold}${more} ${head.untold === 1 ? 'time' : 'times'}, which the watcher did not keep`];

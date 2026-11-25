@@ -3834,6 +3834,7 @@
         "Comparison": "interface",
         "Declaration": "interface",
         "Drawing": "type",
+        "Extent": "interface",
         "Gap": "interface",
         "Line": "interface",
         "Moment": "type",

@@ -108,16 +108,19 @@ every execution is read for the name.
 order they ran, drawn as `variance story` draws every step: `N  name
 file:lines` with its branches under it, and `» handed name=value`, the
 arguments only: no local or module variable is shown. The row under the
-execution says when it began and how long it took; a step ends in
+execution says when it began and how long it took, `in all`, or `as far as it
+was recorded` where its end was not seen; a step ends in
 `+<start> ms, then <time> ms (<share>%)`: when it ran from that beginning, the
 time to the next recorded step, and its share of the whole. That time is elapsed
 time, with unrecorded code and waiting in it, never the function's own; read
 the largest shares first. `another execution's work in it` marks one that a
-concurrent request ran in the middle of. A loop drawn once adds up its passes.
-Heads are placed by their own machines' clocks. A page's last step, and the
+concurrent request ran in the middle of. A loop drawn once adds up its passes,
+and has no time where one has none. Heads are placed by their own machines'
+clocks and run at once, so their shares can pass 100% together. A page's last step, and the
 last kept step of a story that lost some, have a start only. Concurrent requests are
 taped apart. An execution told again lists what ran since under `told again`, with how long
-after the list above it began: under a `trace` and no `enter`, a head tells one each
+after the list above ended it began (a page's, after the last recorded of it),
+and whether a telling the watcher did not keep may have run between: under a `trace` and no `enter`, a head tells one each
 turn it ran, so most of a wait is there and in no step.
 What the tape lost is said above the steps; the watcher keeps 8 tellings of an
 execution, up to 1 MiB, and counts the rest as `told N more times`. A head

@@ -440,10 +440,12 @@ after another function had returned, it is a step of its own: steps 3 and 6 are
 Each step is the function, where it is, the branches it took under it, and what
 it was handed under those, as [a test story](test-stories.md) prints it.
 
-The line under the execution says when it began and how long it took. Each step
-then has the time from that beginning to the step, the time to the next
-recorded step, and what share of the whole that is. A server's last step runs
-to the moment the request settled.
+The line under the execution says when it began and how long it took, `in all`.
+Where its end was not seen, because it is still open, its last step is a page's
+or the watcher left some of it out, the line says the length `as far as it was
+recorded`. Each step then has the time from that beginning to the step, the time
+to the next recorded step, and what share of that length it is. A server's last
+step runs to the moment the request settled, or the turn its list told ended.
 
 - The time to the next step is elapsed time. It holds the work of any code the
   build put no probe in, and the time the code waited, for a query or a
@@ -453,16 +455,21 @@ to the moment the request settled.
   many functions pays it at each. The times and the shares are of the server
   with both in it.
 - A step drawn once for several passes of a loop has the times of all its
-  passes added up. Its start is the first pass's.
+  passes added up, and none where one of them has no next step. Its start is the
+  first pass's.
 - Where another request's work ran in the middle of that time, the step says
   `another execution's work in it`.
 - Every server and page in an execution is placed from the same beginning, by
   the clock of the machine it ran on. When more than one is listed, the
   line says so: two machines whose clocks differ are placed apart by that much.
+  They work at the same time, so their shares can add up to more than 100%.
 - A request told again has another list under `told again`, which says how long
-  after the list above ended it begins. That time is no step's. A server with a
-  `trace` and no `enter` tells a request each turn of the event loop in which it
-  ran, so there most of a wait is between two lists.
+  after the list above ended it begins. For a page, whose end is not seen, that
+  is after the last recorded of the list. Two processes of one head name can
+  tell lists that overlap, which have no time between them. That time is no
+  step's, and where the watcher left lists out, one may have run in it. A server
+  with a `trace` and no `enter` tells a request each turn of the event loop in
+  which it ran, so there most of a wait is between two lists.
 - A page's last step, and the last step kept of a story that lost some, have no
   next step, and so only their start.
 - A head that stamps no times is listed without them.

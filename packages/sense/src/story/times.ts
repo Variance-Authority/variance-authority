@@ -12,8 +12,8 @@
 
 import { durationText } from '@variance-authority/core/shard';
 
-import stories from './format.cjs';
-import type { Stop } from './read.js';
+import type stories from './format.cjs';
+import type { Route, Stop } from './read.js';
 
 /** When a step ran: its stamp, in milliseconds since the epoch, and the time to the next recorded step, where there is one. */
 export interface Timing {
@@ -24,10 +24,22 @@ export interface Timing {
   readonly crossed?: true;
 }
 
-/** When the first recorded step of an execution ran, on any head, and when the last known of it ended. */
+/** When one telling's steps ran, in milliseconds since the epoch. */
+export interface Extent {
+  readonly first: number;
+  readonly last: number;
+  /** When the execution settled, where its head saw it settle: a page never does. */
+  readonly end?: number;
+}
+
+/** When the first recorded step of an execution ran, on any head, and how far the tellings of it reach. */
 export interface Span {
   readonly start: number;
   readonly end: number;
+  /** Whether `end` is where the execution ended, and not only the latest of it that was told. */
+  readonly whole: boolean;
+  /** How many heads stamped it, each with its own machine's clock. */
+  readonly heads: number;
 }
 
 /** `stops` with when each ran, `firsts` holding the visit each opened with. */
@@ -50,32 +62,41 @@ export function timeStops(stops: readonly Stop[], firsts: readonly number[], sto
 /** Two passes of one step as one time: when the first ran, and the legs of both. */
 export function addedTime(kept: Timing | undefined, folded: Timing | undefined): { readonly time?: Timing } {
   if (kept === undefined || folded === undefined) return kept === undefined ? {} : { time: kept };
-  const legs = kept.leg === undefined && folded.leg === undefined ? {} : { leg: (kept.leg ?? 0) + (folded.leg ?? 0) };
-  return { time: { at: kept.at, ...legs, ...(kept.crossed === true || folded.crossed === true ? { crossed: true as const } : {}) } };
+  // A pass whose leg is not known leaves none to add up.
+  if (kept.leg === undefined || folded.leg === undefined) return { time: { at: kept.at } };
+  return { time: { at: kept.at, leg: kept.leg + folded.leg, ...(kept.crossed === true || folded.crossed === true ? { crossed: true as const } : {}) } };
 }
 
-/** From the first stamp of the stories told of one execution to the last, or `undefined` where none carries any. */
-export function toldSpan(told: readonly Uint8Array[]): Span | undefined {
-  let span: Span | undefined;
-  for (const bytes of told) {
-    const { stamps, end } = stories.decodeStory(bytes);
-    if (stamps === undefined || stamps.length === 0) continue;
-    const last = end ?? stamps.at(-1)!;
-    span = { start: Math.min(stamps[0]!, span?.start ?? Infinity), end: Math.max(last, span?.end ?? -Infinity) };
-  }
-  return span;
+/** When the steps of one telling ran, or `undefined` where it carries no stamps. */
+export function extentOf({ stamps, end }: ReturnType<typeof stories.decodeStory>): Extent | undefined {
+  if (stamps === undefined || stamps.length === 0) return undefined;
+  return { first: stamps[0]!, last: stamps.at(-1)!, ...(end === undefined ? {} : { end }) };
+}
+
+/** What each head's tellings of one execution cover, `complete` where none of it is still to come or was left out; `undefined` where none is stamped. */
+export function toldSpan(heads: readonly (readonly Route[])[], complete: boolean): Span | undefined {
+  const stamped = heads.map((routes) => routes.flatMap(({ extent }) => extent ?? [])).filter((extents) => extents.length > 0);
+  if (stamped.length === 0) return undefined;
+  const extents = stamped.flat();
+  const end = Math.max(...extents.map((one) => one.end ?? one.last));
+  return { start: Math.min(...extents.map((one) => one.first)), end, whole: complete && extents.some((one) => one.end === end), heads: stamped.length };
 }
 
 /**
- * How long after one telling of an execution ended the next began, `, 100.0 ms
- * (50%) after the above ended`, or nothing where either is not known. No step's
- * time: nothing was taped in it, so whose work ran then is not known.
+ * How long after one telling of an execution the next began, `, 100.0 ms (50%)
+ * after the above ended`, or nothing where either carries no times, or where
+ * they overlap: two processes of one head name tell theirs side by side. Its
+ * end is the head's word for it; without one, the last visit recorded.
+ * It is no step's time, and where the watcher left tellings out, `untold`, one
+ * may have run in it.
  */
-export function gapText(before: Uint8Array, after: Uint8Array, span: Span): string {
-  const [told, next] = [stories.decodeStory(before), stories.decodeStory(after).stamps?.[0]];
-  const ended = told.end ?? (told.untaped === 0 ? told.stamps?.at(-1) : undefined);
-  if (ended === undefined || next === undefined) return '';
-  return `, ${shareText(next - ended, span)} after the above ended`;
+export function gapText(before: Route, after: Route, span: Span, untold: boolean): string {
+  const [told, next] = [before.extent, after.extent];
+  if (told === undefined || next === undefined) return '';
+  const gap = next.first - (told.end ?? told.last);
+  if (gap < 0) return '';
+  const from = told.end === undefined ? 'the last recorded of the above' : 'the above ended';
+  return `, ${shareText(gap, span)} after ${from}${untold ? ', where a telling not kept may have run' : ''}`;
 }
 
 /** When a step ran within `span`, as a reader reads it: `+10.0 ms, then 30.0 ms (60%)`. */
@@ -85,9 +106,11 @@ export function timeText(time: Timing, span: Span): string {
   return `${at}, then ${shareText(time.leg, span)}${time.crossed === true ? ", another execution's work in it" : ''}`;
 }
 
-/** What a span's steps are placed in: when it began and how long it was. */
+/** What a span's steps are placed in: when it began and how long it was, or how far the tellings of it reach. */
 export function spanText(span: Span): string {
-  return `began ${new Date(span.start).toISOString()}, ${duration(span.end - span.start)} in all; each step: when it ran, then the time to the next recorded step and its share`;
+  const length = `${duration(span.end - span.start)} ${span.whole ? 'in all' : 'as far as it was recorded'}`;
+  const clocks = span.heads > 1 ? "; heads are placed by their own machines' clocks" : '';
+  return `began ${new Date(span.start).toISOString()}, ${length}; each step: when it ran, then the time to the next recorded step and its share${clocks}`;
 }
 
 /** A part of `span`, as its length and its share of the whole. */

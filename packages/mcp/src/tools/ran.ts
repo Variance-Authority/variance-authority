@@ -1,8 +1,8 @@
 import { loadedUnprobed, modulePath } from '@variance-authority/sense';
 import type { HeadRan, VantageState, WatchedExecution } from '@variance-authority/vantage';
-import { spanText, STORY_VARIABLE } from '@variance-authority/sense/story';
+import { spanText, STORY_VARIABLE, toldSpan } from '@variance-authority/sense/story';
 import { cappedRows } from './capped.js';
-import { spanOf, toldIds, toldRows } from './ran-story.js';
+import { toldIds, toldRoutes, toldRows } from './ran-story.js';
 import { limitOf } from './limit.js';
 import { spellingOf } from './spelling.js';
 import type { CutModules, Tool } from './tool.js';
@@ -183,14 +183,14 @@ const told = (head: HeadRan): boolean => head.stories !== undefined || head.unto
 
 function listed(execution: WatchedExecution, cut: CutModules | undefined, story: boolean): string[] {
   const mark = execution.open ? '▸' : ' ';
-  const span = story ? spanOf(execution.heads) : undefined;
-  const clocks = span !== undefined && execution.heads.filter((head) => spanOf([head]) !== undefined).length > 1 ? "; heads are placed by their own machines' clocks" : '';
+  const routes = story ? execution.heads.map((head) => toldRoutes(head, cut)) : [];
+  const span = toldSpan(routes, !execution.open && execution.heads.every((head) => head.untold === undefined));
   return [
     `${mark} ${execution.id}`,
-    ...(span === undefined ? [] : [`  ${spanText(span)}${clocks}`]),
-    ...execution.heads.flatMap((head) => [
+    ...(span === undefined ? [] : [`  ${spanText(span)}`]),
+    ...execution.heads.flatMap((head, at) => [
       `  head ${head.head}`,
-      ...(story && told(head) ? toldRows(head, cut, span) : regionsOf(head, cut).map(line)),
+      ...(story && told(head) ? toldRows(head, routes[at]!, span) : regionsOf(head, cut).map(line)),
     ]),
     // A request that reached a head and none of its probed code: a route the build left out.
     ...(execution.heads.some((head) => head.modules.length > 0 || (story && told(head))) ? [] : [execution.open ? '  still open: what it ran is listed when it settles' : '  ran no code the build placed a probe in']),

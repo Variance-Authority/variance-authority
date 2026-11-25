@@ -31,8 +31,9 @@ const PART_LIMIT = 30 << 10;
 const PART_NOTES = 1024;
 // The bytes a part's notes and the rows of the modules it entered take in the
 // story's JSON, a note with its place and key, a row with its count, and each
-// position another's work crossed it at, up to six characters: with the visits, base64 keeps the telling under the watcher's 1 MiB whatever script a
-// note is written in and however many modules the execution entered.
+// position another's work crossed it at, up to six characters: with the visits,
+// base64 keeps the telling under the watcher's 1 MiB whatever script a note is
+// written in and however many modules the execution entered.
 const PART_TEXT_BYTES = 384 << 10;
 // Counted by hand: a jsdom suite's realm loads this module and has no `TextEncoder`.
 const utf8Length = (text: string): number => {

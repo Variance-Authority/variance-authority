@@ -126,7 +126,7 @@ export interface AskRequest extends Crossing {
   readonly changedFile?: string;
   /** An addition-only Sense taint table for declarative module edges. */
   readonly taintFile?: string;
-  /** `--story`: what each execution's functions were handed, for `ran`. */
+  /** `--story`: when each execution's functions ran and what they were handed, for `ran`. */
   readonly story?: boolean;
   /** `--over <time>`: only the cases that ran at least that long. */
   readonly over?: string;

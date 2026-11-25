@@ -255,10 +255,10 @@ describe('variance_ran', () => {
       },
       JOURNEY, undefined, end === undefined ? {} : { end: T0 + end },
     ).toString('base64');
-    const drawn = (heads: Readonly<Record<string, readonly string[]>>): string[] => ran.run(state({
+    const drawn = (heads: Readonly<Record<string, readonly string[]>>, untold?: number): string[] => ran.run(state({
       executions: [{
         id: JOURNEY, ordinal: 0, open: false,
-        heads: Object.entries(heads).map(([head, stories]) => ({ head, instrumentation: PROBES, modules: [], stories })),
+        heads: Object.entries(heads).map(([head, stories]) => ({ head, instrumentation: PROBES, modules: [], stories, ...(untold === undefined ? {} : { untold }) })),
       }],
       common: [],
     }), { story: true }, { modules: BOTH }).split('\n');
@@ -305,6 +305,33 @@ describe('variance_ran', () => {
       expect(steps(text).at(2)).toBe('3  toggle  actions.ts:15  +40.0 ms, then 10.0 ms (5%)');
     });
 
+    it('measures a telling of more of it from the last step recorded where the head did not see the one before end', () => {
+      const text = drawn({ page: [stamped([0, 10, 40]), stamped([500, 510, 520])] });
+      expect(heading(text)).toContain('520.0 ms as far as it was recorded;');
+      expect(text.map((row) => row.trim()).filter((row) => row.startsWith('told again'))).toEqual([
+        'told again, once more of it had run, 460.0 ms (88%) after the last recorded of the above:',
+      ]);
+    });
+
+    it('says a telling the watcher did not keep may have run between two it kept, and that the length is not the whole', () => {
+      const text = drawn({ api: [stamped([0, 10, 40], 50), stamped([150, 160, 190], 200)] }, 1);
+      expect(heading(text)).toContain('200.0 ms as far as it was recorded;');
+      expect(text.map((row) => row.trim()).filter((row) => row.startsWith('told'))).toEqual([
+        'told again, once more of it had run, 100.0 ms (50%) after the above ended, where a telling not kept may have run:',
+        'told 1 more time, which the watcher did not keep',
+      ]);
+    });
+
+    it('gives no time between two tellings that overlap, as two processes of one head name tell', () => {
+      const text = drawn({ api: [stamped([0, 10, 40], 200), stamped([20, 30, 60], 70)] });
+      expect(text.map((row) => row.trim())).toContain('told again, once more of it had run:');
+    });
+
+    it('says how far it was recorded where the latest of it is a step and no end', () => {
+      expect(heading(drawn({ page: [stamped([0, 10, 40], undefined, { at: [0], keys: [JOURNEY], visits: 9 })] }))).toContain('40.0 ms as far as it was recorded;');
+      expect(heading(drawn({ page: [stamped([0, 10, 140])], api: [stamped([12, 22, 30], 32)] }))).toContain('140.0 ms as far as it was recorded;');
+    });
+
     it('gives the last kept step no time to the next when the tape kept none of what came after it', () => {
       const text = drawn({ api: [stamped([0, 10, 40], 50, { at: [0], keys: [JOURNEY], visits: 9 })] });
       expect(steps(text).at(-1)).toBe('3  toggle  actions.ts:15  +40.0 ms');
@@ -324,6 +351,19 @@ describe('variance_ran', () => {
         '1    toggle  actions.ts:15 ×2  +0.0 ms, then 7.0 ms (35%)',
         '2    save  store.ts:4 ×2  +1.0 ms, then 13.0 ms (65%)',
       ]);
+    });
+
+    it('gives a step no time to the next where one of its passes has none', () => {
+      const loop = encodeStory(
+        {
+          tape: Int32Array.from([1, 3, 1, 3]), taped: 4, visits: 4, at: [0], keys: [JOURNEY], lines: [], unnoted: 0, notes: [],
+          stamps: Float64Array.from([0, 1, 4, 10], (stamp) => T0 + stamp),
+          rows: { ids: [ACTIONS, STORE], counts: [3, 1], bases: [0, 3] },
+          held: new Map(),
+        },
+        JOURNEY, undefined, {},
+      ).toString('base64');
+      expect(steps(drawn({ page: [loop] })).at(-1)).toBe('2    save  store.ts:4 ×2  +1.0 ms');
     });
 
     it('reads a time of a second or more in seconds', () => {
