@@ -56,31 +56,14 @@ to a different address.
 
 ## Where to put it
 
-### Jaeger on your machine
-
-Jaeger is a free, open-source trace viewer (a CNCF project), run here as one
-Docker container, that draws an OpenTelemetry trace as a waterfall. It is only
-the quickest viewer to run locally: any OTLP tool, such as Tempo, Honeycomb or
-a Collector below, opens the same file.
-
-```bash
-docker run -d --rm --name jaeger -p 16686:16686 -p 4318:4318 jaegertracing/all-in-one
-curl -X POST -H 'Content-Type: application/json' --data @trace.json http://localhost:4318/v1/traces
-```
-
-Open `http://localhost:16686`, choose the service `variance`, and the run is
-one trace. The receiver answers `200` when it took the document.
-
-### Grafana Tempo
-
-Grafana Tempo is Grafana's open-source trace store, read through Grafana. Send
-the same document to the OTLP HTTP receiver of your Tempo distributor,
-`/v1/traces` on port 4318 unless you configured another. Grafana's Explore
-opens it by trace id.
+Nothing here needs Docker. The quickest start is a hosted backend, which needs
+nothing on your machine; the local one is a downloaded binary.
 
 ### Honeycomb
 
-Honeycomb is a hosted observability service that takes OTLP directly.
+Honeycomb is a hosted observability service that takes OTLP directly, and its
+free tier is enough for this: make an account, create an API key, and send the
+file with one `curl`. Not run here.
 
 ```bash
 curl -X POST -H 'Content-Type: application/json' \
@@ -91,6 +74,37 @@ curl -X POST -H 'Content-Type: application/json' \
 The key belongs to your environment: keep it in a secret and never in a
 file. Use `api.eu1.honeycomb.io` for an account in the EU region.
 
+### Jaeger on your machine
+
+Jaeger is a free, open-source trace viewer (a CNCF project) that draws an
+OpenTelemetry trace as a waterfall. It runs as a single binary, and it is only
+the quickest viewer to run locally: any OTLP tool, such as Tempo, Honeycomb or
+a Collector, opens the same file.
+
+Download the archive for your system from
+[Jaeger's releases](https://github.com/jaegertracing/jaeger/releases), named
+`jaeger-<version>-<os>-<arch>.tar.gz` (`darwin`, `linux` or `windows`; `amd64`
+or `arm64`), unpack it, and run the `jaeger` binary it holds. By default it
+serves the UI on port 16686 and takes OTLP over HTTP on port 4318. Not run
+here: the archive names are from the releases listing and the ports from
+Jaeger's README, and I ran the same Jaeger in a container.
+
+```bash
+./jaeger
+curl -X POST -H 'Content-Type: application/json' --data @trace.json http://localhost:4318/v1/traces
+```
+
+The receiver answers `200` when it took the document, and `http://localhost:16686`
+is the UI. If you already run Docker, `docker run -p 16686:16686 -p 4318:4318
+jaegertracing/jaeger` is the same Jaeger in a container.
+
+### Grafana Tempo
+
+Grafana Tempo is Grafana's open-source trace store, read through Grafana. Send
+the same document to the OTLP HTTP receiver of your Tempo distributor,
+`/v1/traces` on port 4318 unless you configured another. Grafana's Explore
+opens it by trace id.
+
 ### An OpenTelemetry Collector
 
 The OpenTelemetry Collector is the project's vendor-neutral relay: it receives
@@ -100,11 +114,15 @@ request, and its exporters forward the trace to whatever backend you run.
 
 ## Read the trace
 
-In the Jaeger from the section above:
+**In Honeycomb**, open the dataset your key writes to, find the `run` span and
+open it as a trace to see the waterfall. Honeycomb's interface was not seen
+here, so its layout is not described.
 
-1. Open `http://localhost:16686`.
-2. In **Service**, choose `variance`, then press **Find Traces**.
-3. Open the trace named `variance: run`.
+**In Jaeger**, which was seen here running in a container, with its UI at
+`http://localhost:16686`:
+
+1. In **Service**, choose `variance`, then press **Find Traces**.
+2. Open the trace named `variance: run`.
 
 The trace opens as a timeline: a bar per span on one time axis, nested under
 its parent, with the span's duration printed beside the bar and a minimap
@@ -121,8 +139,9 @@ above for zooming into one stretch.
 - **A case** is a row under `cases`, in recorded order and not at its real
   start, as [Limits](#limits) says.
 
-Click a row to open its span: the duration, the start time as an offset from
-the run's start, and its tags, among them `code.filepath`, the file's path.
+Click a row in Jaeger to open its span: the duration, the start time as an
+offset from the run's start, and its tags, among them `code.filepath`, the
+file's path.
 
 ## In CI
 
