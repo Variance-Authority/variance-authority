@@ -17,13 +17,19 @@ server, no network and no account: open the file in a browser.
   sent to a viewer. Only Playwright records a start; a file without one is
   counted in a note and not drawn, because placing it would be an invention.
 - **Coverage** is the [coverage report](compare-coverage.md) as a tab: how much
-  of the source the run reached, by suite, kind and package. When coverage
-  cannot be counted for a recording, the page says so in a chip and still
-  opens.
+  of the source the run reached, by suite, kind and package, and below it each
+  source file with the test files that entered it. When coverage cannot be
+  counted for a recording, the page says so in a chip and still opens; the list
+  of entered files needs only the record's covering relation.
 
-A name in one tab links to its row in another: the address is `#tests`,
-`#timeline` or `#coverage`, and `#tests/<needle>` opens a tab with the needle in
-its filter and its row marked.
+Click a test file anywhere and its pane opens: each attempt of its retried cases
+with the outcome, time, message and nearest frame, its phases and place on the
+timeline, and the source files its cases entered, each a link to that file in
+Coverage. A file in Coverage links back to every test file that entered it.
+
+The address is the page's position: `#tests`, `#timeline` or `#coverage`;
+`#<tab>/<needle>` opens a tab with the needle in its filter and its row marked;
+`#test/<file>` opens one test file's pane, which has no tab of its own.
 
 ## Open it
 
@@ -44,4 +50,4 @@ yours: the command starts no browser.
 - Cases sit in recorded order inside a file's bar, not at their real start,
   as in [the trace](trace.md#what-a-trace-shows-and-what-it-does-not).
 - A recording made before Playwright carried starts has no Timeline.
-- The page does not yet draw which test covered which source file.
+- A list of entered files is cut to a hundred, with the true count beside it, and the page shows a pane only for the test files it holds a row for.
