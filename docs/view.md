@@ -1,35 +1,49 @@
 # View: a recorded test run as one page you open from disk
 
-`variance view` writes one HTML file from the [execution record](execution-record.md)
-your last test run left, and prints its path. The page has three tabs: which
-test files and cases were slowest and which were retried, where each file sat
-on the run's clock, and which suites and packages the run covered. It needs no
-server, no network and no account: open the file in a browser.
+`variance view` turns the [execution record](execution-record.md) your last
+Playwright run wrote into one HTML file and prints its path. The page shows
+which test files and cases were slowest and which were retried, where each
+file sat on the run's clock, and how much of the source the run reached. It is
+a single self-contained file, with no server, network or account behind it, so
+you can open it from disk, attach it to a CI run as an artifact, or link it
+from a pull request.
 
-## What the page shows
+You need a record first. Install and configure the
+[Playwright integration](start-playwright.md) and run your suite: the run
+writes the record. [Record a run](trace.md#record-a-run) says what to pass to
+put the record at a path you name in CI.
+
+## What you see first
+
+The header names the suite, the commit and the record the page was read from,
+and counts the files recorded and the files placed on the clock. Below it sit
+three tabs, **Tests**, **Timeline** and **Coverage**, with Tests open: the
+slowest test files and the slowest cases as sortable tables, each row a link,
+above a filter box, then every retried case with each attempt. The Timeline is
+a chart with one lane per test file; Coverage is the coverage report's tables.
+
+## What each tab shows
 
 - **Tests** lists the slowest test files and the slowest cases, and every case
   that was retried with each attempt, its time and its failure message. Click a
   column header to sort, and type in the filter box to narrow the rows.
 - **Timeline** draws each test file as a bar from the moment the runner started
-  it, with the phases the runner timed in colour. It is the picture
-  [`variance trace`](trace.md) prints as spans, drawn on the page instead of
-  sent to a viewer. Only Playwright records a start; a file without one is
-  counted in a note and not drawn, because placing it would be an invention.
-- **Coverage** is the [coverage report](compare-coverage.md) as a tab: how much
-  of the source the run reached, by suite, kind and package, and below it each
-  source file with the test files that entered it. When coverage cannot be
-  counted for a recording, the page says so in a chip and still opens; the list
-  of entered files needs only the record's covering relation.
+  it, with the phases the runner timed in colour: `prepare`, `environment`,
+  `setup`, `collect` and `cases`. It is the picture [`variance trace`](trace.md),
+  the command that prints a run as spans for a trace viewer, prints, drawn on
+  the page. Only Playwright records a start; a file without one is counted in a
+  note and not drawn, because placing it would be an invention.
+- **Coverage** is the [coverage report](compare-coverage.md), the account of how
+  much of the source the run reached, as a tab: by suite, kind and package, and
+  below it each source file with the test files that entered it. When coverage
+  cannot be counted for a record, the page says so in a chip and still opens;
+  the list of entered files needs only the record's covering relation.
 
 Click a test file anywhere and its pane opens: each attempt of its retried cases
-with the outcome, time, message and nearest frame, its phases and place on the
-timeline, and the source files its cases entered, each a link to that file in
-Coverage. A file in Coverage links back to every test file that entered it.
-
-The address is the page's position: `#tests`, `#timeline` or `#coverage`;
-`#<tab>/<needle>` opens a tab with the needle in its filter and its row marked;
-`#test/<file>` opens one test file's pane, which has no tab of its own.
+with the outcome, time, message and the frame closest to the failure, its phases
+and place on the timeline, and the source files its cases entered, each a link
+to that file in Coverage. A file in Coverage links back to every test file that
+entered it.
 
 ## Open it
 
@@ -37,11 +51,16 @@ The address is the page's position: `#tests`, `#timeline` or `#coverage`;
 variance view
 ```
 
-The command reads the nearest recording, writes
-`variance-view.html` in the variance cache directory, and prints the path.
-`--out <file>` writes elsewhere, and `--suite <name>` reads the record of one
-declared suite when the repository has more than one. Opening the file is
-yours: the command starts no browser.
+The command reads the record, writes `variance-view.html` in the variance cache
+directory, and prints the path. `--out <file>` writes elsewhere, and
+`--suite <name>` reads the record of one declared suite when the repository has
+more than one. Opening the file is yours: the command starts no browser.
+
+## Addresses
+
+The address is the page's position: `#tests`, `#timeline` or `#coverage`;
+`#<tab>/<needle>` opens a tab with the needle in its filter and its row marked;
+`#test/<file>` opens one test file's pane, which has no tab of its own.
 
 ## Limits
 
@@ -49,5 +68,5 @@ yours: the command starts no browser.
   a size a browser opens at once; the filter searches those rows only.
 - Cases sit in recorded order inside a file's bar, not at their real start,
   as in [the trace](trace.md#what-a-trace-shows-and-what-it-does-not).
-- A recording made before Playwright carried starts has no Timeline.
-- A list of entered files is cut to a hundred, with the true count beside it, and the page shows a pane only for the test files it holds a row for.
+- A record made before Playwright carried starts has no Timeline.
+- A pane exists only for the test files the page holds a row for.
