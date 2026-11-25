@@ -68,7 +68,7 @@ fn wired(value: Value) -> String {
 
 /// A value as one shell word: quoted only when a word would not survive.
 pub(crate) fn shell(value: &str) -> String {
-    let plain = |byte: u8| byte.is_ascii_alphanumeric() || b"_./:@^,+=%#-".contains(&byte);
+    let plain = |byte: u8| byte.is_ascii_alphanumeric() || b"_./:@,+=%#-".contains(&byte);
     if !value.is_empty() && !value.starts_with(['#', '=']) && value.bytes().all(plain) {
         value.to_owned()
     } else {

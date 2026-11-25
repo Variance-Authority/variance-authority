@@ -41,7 +41,7 @@ packages/sense/src/ — 142 lines in 71 files, nearest 2 imports away
 packages/mcp/src/tools/ — 57 lines in 17 files, nearest 3 imports away
 …
 note: In 1089 file(s) reachable from `packages/help/src/index.ts` along the imports, at any depth — 1 named by the path itself. 4 file(s) in it import something the scan could not resolve, so what lies behind those is not enumerated.
-`variance ask discover --from packages/help/src/index.ts --path ^packages/sense/native/src/ --text spell`: the 95 matching files under `packages/sense/native/src/`
+`variance ask discover --from packages/help/src/index.ts --path '^packages/sense/native/src/' --text spell`: the 95 matching files under `packages/sense/native/src/`
 `--limit` 781: every line, nearest first
 ```
 

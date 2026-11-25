@@ -224,7 +224,7 @@ describe('grep over more lines than it shows', () => {
 
   it('spells the question as a shell takes it', () => {
     const shell = (query: string): string => grep.run(undefined, { query, from: 'wide/index.ts' }, { tree, shell: 'variance ask' });
-    expect(shell('broad')).toContain("\n`variance ask discover --from wide/index.ts --path ^wide/b/ --text broad`: the 40 matching files under `wide/b/`\n`--limit` 210: every line");
+    expect(shell('broad')).toContain("\n`variance ask discover --from wide/index.ts --path '^wide/b/' --text broad`: the 40 matching files under `wide/b/`\n`--limit` 210: every line");
     expect(shell("broad|it's")).toContain("--text 'broad|it'\\''s'`");
     expect(shell('--broad|broad')).toContain("--text='--broad|broad'`");
     expect(shell('-*broad')).toContain("--text='-*broad'`");

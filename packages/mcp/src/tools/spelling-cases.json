@@ -8,7 +8,7 @@
   {
     "verb": "discover",
     "input": { "from": ["src/a.ts", "src/b/"], "path": "^src/b/", "text": "a|it's" },
-    "shell": "`variance ask discover --from src/a.ts,src/b/ --path ^src/b/ --text 'a|it'\\''s'`",
+    "shell": "`variance ask discover --from src/a.ts,src/b/ --path '^src/b/' --text 'a|it'\\''s'`",
     "wire": "`docs_discover` with `from` `[\"src/a.ts\",\"src/b/\"]` and `path` `^src/b/` and `text` `a|it's`"
   },
   {

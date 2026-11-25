@@ -21,8 +21,9 @@ caller said them, and takes the caller's `shell` in place of `offsetFlag`.
 
 A question an answer prints joins a flag to a value that starts with `-` with
 `=`, so the printed command runs as it is. The commands `search`, `packages` and
-the dependency answers print are quoted as the others are: `^`, `,`, `%` and `#`
-stand plain, and an empty value or one that starts with `#` or `=` is quoted.
+the dependency answers print are quoted as the others are: `,`, `%` and `#`
+stand plain, and an empty value, one that starts with `#` or `=`, or one that
+holds `^`, which zsh's `extendedglob` expands, is quoted.
 
 `@variance-authority/mcp/tools` exports `shellWord`, the quoting every printed
 command shares.
