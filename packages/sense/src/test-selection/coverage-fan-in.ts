@@ -61,12 +61,6 @@ export interface FanInFile {
   readonly tests?: readonly string[];
 }
 
-/** What {@link coverageFanIn} adds when asked. */
-export interface FanInOptions {
-  /** Name the test files behind each file's `entered`: a list per file, so only for a page that draws it. */
-  readonly tests?: boolean;
-}
-
 /** How many test files called into each region: per kind, and per file. */
 export interface FanIn {
   /** In the order of the counted suites, one row per kind. */
@@ -81,7 +75,10 @@ export interface FanIn {
  * made while the module evaluated is not one. An edit also sends the test
  * files that only loaded the region, which `coveringTests` names per file.
  */
-export function coverageFanIn(suites: readonly CountedSuite[], options: FanInOptions = {}): FanIn {
+export function coverageFanIn(suites: readonly CountedSuite[], options: {
+    /** Name the test files behind each file's `entered`: a list per file, so only for a page that draws it. */
+    readonly tests?: boolean;
+  } = {}): FanIn {
   const kinded = suites.every((suite) => suite.kind !== undefined);
   const kindOf = (at: number): SuiteKind | undefined => (kinded ? suites[at]!.kind : undefined);
   // A test file is a file of one suite: two suites running one path are two runs of it.
