@@ -59,7 +59,7 @@ function snapshotOf(out: string): string | undefined {
 }
 
 describe('variance ask about a name written after the source index', () => {
-  it.each(['symbol', 'uses'])('answers `%s` for a function written since `variance index` from the index, and says the checkout was not compared', async (question) => {
+  it.each(['symbol', 'uses'])('answers `%s` for a function written since `variance index` from the index, and says it may miss later changes', async (question) => {
     const root = checkout();
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
     const published = snapshotOf((await run(['ask', 'symbol', '--name', 'taxOf'])).out);
@@ -98,7 +98,7 @@ describe('variance ask about a name written after the source index', () => {
     expect(out).toContain('exported, without being published');
   });
 
-  it('says `search` read an index it did not compare with the checkout, since it reads the published one at any age', async () => {
+  it('says `search` may miss later changes, since it reads the published one at any age', async () => {
     const root = checkout();
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
     write(root, KEPT);
@@ -109,7 +109,7 @@ describe('variance ask about a name written after the source index', () => {
     expect(out).toMatch(/^Snapshot \d{4}-\d\d-\d\dT[\d:.]+Z may miss later changes: run `variance index`\.$/mu);
   });
 
-  it('says in `search --format json` that nothing compared the index to the files', async () => {
+  it('says in `search --format json` that the index was not compared with the checkout', async () => {
     const root = checkout();
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
     write(root, KEPT);

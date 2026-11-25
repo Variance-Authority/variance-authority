@@ -108,8 +108,8 @@ export function serveWorkspace(root: string, options: WorkspaceOptions = {}): ()
         outlived(asked, subject, input, { root, ...(tree === undefined ? {} : { tree }) }, started),
     }),
     // A name nothing declares is the answer, said as `variance ask` says it: from
-    // the generation it was refused from, which says so when it was made before the
-    // call and may miss later changes. Keeping it fresh is `variance index`'s job.
+    // the generation it was refused from, whose date line says it may miss later
+    // changes when it was made before the call. Keeping it fresh is `variance index`'s job.
     answered: (thrown: unknown, subject: Help, again, started) => foundNothingAnswer(thrown, again, workspaceGeneration(subject), justAnswer || (again === undefined && madeBefore(workspaceGeneration(subject), started))),
     // No question here compares one call with the last, and a copy of the whole
     // reading, held beside the one a changed file asks for, is what ran a large

@@ -17,7 +17,7 @@ import { uses } from './tools/uses.js';
  * A question about a name written after the last published generation, asked
  * of this package's server. A generation is reused for an hour, so the name is
  * answered as not published, from that generation, with a date line that says
- * the checkout was not compared with it, as `variance ask` answers it.
+ * it may miss later changes, as `variance ask` answers it.
  */
 
 const fixture = publishing();
@@ -294,7 +294,7 @@ describe('caughtUp', () => {
       return true;
     });
     expect(looked).toEqual([]);
-    expect(caught?.unseen).toBe('it could not be read again: a manifest is half-written');
+    expect(caught?.unseen).toBe('the checkout could not be read again: a manifest is half-written');
   });
 
   it('reads again an outlived answer from a generation made before the question', async () => {
@@ -360,7 +360,7 @@ describe('foundNothingAnswer', () => {
 });
 
 describe('snapshotLine', () => {
-  it('names the generation time, and says when the checkout was not compared with it, and why when it was asked to be', () => {
+  it('names the generation time, and that the answer may miss later changes when the checkout was not compared with it, with the reason when it was asked to be', () => {
     expect(snapshotLine('2026-01-02T03:04:05.000Z', false)).toBe('Snapshot 2026-01-02T03:04:05.000Z.');
     expect(snapshotLine('2026-01-02T03:04:05.000Z', true)).toMatch(UNCOMPARED);
     expect(snapshotLine('2026-01-02T03:04:05.000Z', 'it could not be read')).toMatch(UNREAD);
@@ -368,7 +368,7 @@ describe('snapshotLine', () => {
 });
 
 describe('the help server about a name written after the published generation', () => {
-  it.each([false, true])('answers `docs_symbol` from the published generation, `justAnswer` %s, that nothing declares it, and that the checkout was not compared with it', async (justAnswer) => {
+  it.each([false, true])('answers `docs_symbol` from the published generation, `justAnswer` %s, that nothing declares it, and that the answer may miss later changes', async (justAnswer) => {
     const answer = await served(await fixture.published(), justAnswer);
     expect(answer.isError).toBeUndefined();
     expect(answer.text).toMatch(/^`keptOf` is not published by this workspace/u);

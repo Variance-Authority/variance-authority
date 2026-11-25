@@ -39,8 +39,8 @@ the first argument is positional.
   only a text match, in `grep` and `discover --text`, reads files as they are on
   disk now. It
   does not check which files changed, and it writes no index. Every answer and
-  refusal says when that generation was made and that the checkout was not
-  compared with it; as JSON, `search` gives `compared: false`. With no
+  refusal says when that generation was made and that it may miss later
+  changes; as JSON, `search` gives `compared: false`. With no
   generation, a question refuses in one line that names `variance index`.
   `--changed-file` and `--taint-file` are the one exception: they name the paths
   a watcher already has, and the question updates the generation from them

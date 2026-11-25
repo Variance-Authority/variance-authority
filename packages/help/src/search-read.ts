@@ -71,7 +71,7 @@ const reasonOf = (error: unknown): string => (error instanceof Error ? error.mes
  * Changed paths or taints are the one exception, because they ask for a new
  * generation by name: that reading is {@link readWorkspaceForAnswer}'s, and it
  * publishes the search it answers from; under `justAnswer` it reads nothing
- * new, so the checkout is not compared with that search either.
+ * new, so that search is not compared with the checkout either.
  */
 export async function readSearchForAnswer(root: string, options: AnsweringOptions = {}): Promise<SearchReading> {
   const { justAnswer = false, refreshAfterMs: _age, ...reading } = options;

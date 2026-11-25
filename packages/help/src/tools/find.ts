@@ -175,8 +175,8 @@ export function unfound(help: Help, name: string, within: string | undefined, sp
  * than a refusal: what was read and found nothing, and where else the name
  * may be written. It is thrown, not returned, so a surface tells it from a
  * found answer; it is given as the answer from the generation it was read
- * from, whose date line says when it may miss later changes:
- * `variance ask` and `variance-authority-help` print it on stdout and exit cleanly.
+ * from, whose date line says it may miss later changes when nothing compared
+ * it with the checkout: `variance ask` and `variance-authority-help` print it on stdout and exit cleanly.
  */
 export class FoundNothing extends Error {
   override readonly name = 'FoundNothing';

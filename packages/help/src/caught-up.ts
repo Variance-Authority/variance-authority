@@ -66,10 +66,10 @@ export async function outlived(
 /**
  * What a source question does before an answer {@link outlived} found changed
  * is believed, on `variance serve` and this package's server, which hold a
- * generation across requests. A refusal, and a name not found, is not brought here: it answers
- * from the generation it was refused from, whose date line says when it may miss
- * later changes, and keeping that generation fresh is `variance index`'s
- * job. `answeredAt` is the generation the answer came from. `again` reads a
+ * generation across requests. A refusal, and a name not found, is not brought
+ * here: it answers from the generation it was refused from, whose date line says
+ * it may miss later changes when it was made before the call, and keeping that
+ * generation fresh is `variance index`'s job. `answeredAt` is the generation the answer came from. `again` reads a
  * generation made now and asks once more, and `still` looks once at what that
  * read gave, or with no subject at the generation `answeredAt` dates, when it
  * was made during the question and is not read again. Undefined when
@@ -93,7 +93,7 @@ export async function caughtUp<Answer>(
     return { subject, ...(moved ? { unseen: MOVED } : {}) };
   } catch (failure) {
     // An answer from a reading that could not be brought up to date is no fact about the checkout.
-    return unread(`it could not be read again: ${messageOf(failure)}`);
+    return unread(`the checkout could not be read again: ${messageOf(failure)}`);
   }
 }
 

@@ -9,8 +9,8 @@ import { publishing, UNCOMPARED } from './__fixtures__/published-then-written.js
 /**
  * A question about a name written after the last published generation, asked
  * of `variance-authority-help`. A question answers from the published
- * generation at any age, as `variance ask` answers it: the answer says the
- * checkout was not compared with it, and `variance index` publishes a new one.
+ * generation at any age, as `variance ask` answers it: the answer says it
+ * may miss later changes, and `variance index` publishes a new one.
  */
 
 const BIN = fileURLToPath(new URL('../dist/bin.js', import.meta.url));
@@ -28,7 +28,7 @@ function bin(root: string, args: readonly string[]): Promise<{ code: number; out
 }
 
 describe('variance-authority-help about a name written after the published generation', () => {
-  it('answers `symbol` for a name written since from the generation, saying the checkout was not compared with it', async () => {
+  it('answers `symbol` for a name written since from the generation, saying it may miss later changes', async () => {
     const { code, out, err } = await bin(await fixture.published(), ['symbol', '--name', 'keptOf']);
     expect(err).toBe('');
     expect(code).toBe(0);
@@ -56,7 +56,7 @@ describe('variance-authority-help about a name written after the published gener
     expect(out).toMatch(UNCOMPARED);
   });
 
-  it('says in `search --format json` that nothing compared the index to the files', async () => {
+  it('says `search --format json` was not compared with the checkout', async () => {
     const { code, out } = await bin(await fixture.published(), ['search', '--query', 'tax', '--format', 'json']);
     expect(code).toBe(0);
     expect(JSON.parse(out)).toMatchObject({ compared: false });

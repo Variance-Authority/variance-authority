@@ -28,9 +28,10 @@ import { uses } from './tools/uses.js';
 /**
  * `tool`, its answer dated by the workspace generation it was read from. With
  * `unseen`, that generation was never compared with the checkout: the date says
- * so, and a refusal adds that the name may only be newer than it. An invocation's
- * `unseen` is the reason a host has for this one call. Each answer is one
- * question to the source index, which it opens once however many readers ask it.
+ * it may miss later changes, and a refusal adds that the name may only be newer
+ * than it. An invocation's `unseen` is the reason a host has for this one call.
+ * Each answer is one question to the source index, which it opens once however
+ * many readers ask it.
  */
 function dated(tool: Tool<Help>, unseen: boolean): Tool<Help> {
   return {
