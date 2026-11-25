@@ -2,7 +2,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { caseSectionsOf, withCaseSections } from './case-record.js';
+import { caseSectionsOf, recordOfCases, withCaseSections } from './case-record.js';
 import { commitRunsFile, readCommitRuns, writeCommitRuns } from './commit-runs.js';
 import { decodeTestCoverage, encodeTestCoverage } from './format.js';
 import type { TestCoverage } from './index.js';
@@ -69,5 +69,23 @@ describe('restateRecord', () => {
 
     expect(await readFile(file)).toEqual(bytes);
     expect(await readFile(commitRunsFile(file))).toEqual(runs);
+  });
+
+  it('restates a record of cases without coverage by the commit its last run names, the only one it holds', async () => {
+    const file = join(home, 'coverage.bin');
+    await writeFile(file, recordOfCases({ last: Buffer.from(JSON.stringify(last)) }));
+
+    expect(await restateRecord(file, MERGE, LANDED)).toEqual({ restated: true });
+
+    expect(JSON.parse(Buffer.from(caseSectionsOf(await readFile(file)).last!).toString('utf8'))).toEqual({ ...last, commit: LANDED });
+  });
+
+  it('leaves a record of cases without coverage whose last run names another commit as it is', async () => {
+    const file = join(home, 'coverage.bin');
+    const bytes = recordOfCases({ last: Buffer.from(JSON.stringify(last)) });
+    await writeFile(file, bytes);
+
+    expect(await restateRecord(file, BEFORE, LANDED)).toEqual({ madeAt: MERGE });
+    expect(await readFile(file)).toEqual(bytes);
   });
 });

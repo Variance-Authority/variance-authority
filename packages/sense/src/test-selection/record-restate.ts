@@ -12,29 +12,36 @@
 import { readFile } from 'node:fs/promises';
 import { caseSectionsOf, withCaseSections } from './case-record.js';
 import { commitRunsFile, readCommitRuns, writeCommitRuns } from './commit-runs.js';
+import { RecordWithoutCoverage } from './format-validation.js';
 import { decodeTestCoverage, encodeTestCoverage } from './format.js';
+import type { TestCoverage } from './index.js';
 import { writeCoverageBytes } from './record-location.js';
 
 /**
  * State the record at `coverageFile`, made at `from`, at `to`: its coverage's
  * commit, its last run's, and every commit its runs record names that is
- * `from`. A record made at another commit, or at none, is left as it is, and
- * the answer names where it was made.
+ * `from`. A record of cases without coverage is made where its last run says.
+ * A record made at another commit, or at none, is left as it is, and the
+ * answer names where it was made.
  */
 export async function restateRecord(coverageFile: string, from: string, to: string): Promise<{ readonly restated: true } | { readonly madeAt: string | undefined }> {
   const bytes = await readFile(coverageFile);
-  const coverage = decodeTestCoverage(bytes);
-  if (coverage.commit !== from) return { madeAt: coverage.commit };
   const sections = caseSectionsOf(bytes);
-  const runs = await readCommitRuns(coverageFile);
+  const run = sections.last === undefined ? undefined : (JSON.parse(Buffer.from(sections.last).toString('utf8')) as { commit?: string; before?: string });
+  let coverage: TestCoverage | undefined;
+  try {
+    coverage = decodeTestCoverage(bytes);
+  } catch (error) {
+    if (!(error instanceof RecordWithoutCoverage)) throw error;
+  }
+  const madeAt = coverage === undefined ? run?.commit : coverage.commit;
+  if (madeAt !== from) return { madeAt };
   const at = (commit: string): string => (commit === from ? to : commit);
 
-  let last = sections.last;
-  if (last !== undefined) {
-    const run = JSON.parse(Buffer.from(last).toString('utf8')) as { commit?: string; before?: string };
-    last = Buffer.from(JSON.stringify({ ...run, ...(run.commit === undefined ? {} : { commit: at(run.commit) }), ...(run.before === undefined ? {} : { before: at(run.before) }) }));
-  }
-  await writeCoverageBytes(coverageFile, withCaseSections(encodeTestCoverage({ ...coverage, commit: to }), { ...sections, ...(last === undefined ? {} : { last }) }));
+  const last = run === undefined ? undefined : Buffer.from(JSON.stringify({ ...run, ...(run.commit === undefined ? {} : { commit: at(run.commit) }), ...(run.before === undefined ? {} : { before: at(run.before) }) }));
+  const record = coverage === undefined ? bytes : encodeTestCoverage({ ...coverage, commit: to });
+  await writeCoverageBytes(coverageFile, withCaseSections(record, { ...sections, ...(last === undefined ? {} : { last }) }));
+  const runs = await readCommitRuns(coverageFile);
   if (runs !== undefined) {
     await writeCommitRuns(commitRunsFile(coverageFile), {
       ...runs,
