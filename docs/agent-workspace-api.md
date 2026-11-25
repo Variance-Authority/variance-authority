@@ -128,10 +128,12 @@ manager runs a local binary:
 
 Ask before you grep: `variance ask uses --name <name>` lists who imports a
 name, `ask symbol --name <name>` prints what it is and where it is declared, and
-`ask search --query <words>` finds a name by what it does. They answer from the
-code its index parses; YAML, JSON, Markdown and shell are `rg`'s, run beside
-them, and an empty answer says nothing about a file they did not search. The
-`variance-authority` skill lists what the index parses, and has the rest.
+`ask search --query <words>` finds a name by what it does. `ask classify --query
+'<the task text>'` lists the files and names a task's words spell, with what
+those files declare. They answer from the code its index parses; YAML, JSON,
+Markdown and shell are `rg`'s, run beside them, and an empty answer says nothing
+about a file they did not search. The `variance-authority` skill lists what the
+index parses, and has the rest.
 ```
 
 The skill is `variance-authority`. It ships in `@variance-authority/cli` at
@@ -444,17 +446,20 @@ file, such as a build output the checkout does not hold, opens no names, and
 the imports that name that entry are counted apart from the deep ones. Either
 row goes to `docs_entrypoint` as `package`, exactly as printed.
 
-Holding a request in words rather than a name, call `docs_classify` with it as
-`query` instead. It says which of its words are, whole, a package, an
-entrypoint or an exported name, and then which identifier-shaped words left —
-`ModuleLoader`, `child_process` — are a name `docs_symbol` finds declared or a
-file's name before its first dot in the published source index, each with its area and layer on the code map,
-and then the question each one takes next, written as the `variance ask`
-command whatever the caller: `symbol` (`docs_symbol`) for an exported or
-declared name, none for a file, which is already the answer,
-`entrypoint` (`docs_entrypoint`) for a published package or entrypoint, and
-`orient --area` (`docs_orient`) for a package that publishes nothing, or no
-question when the map placed it in no area. When words remain unrecognized or
+Holding a request in words, whether or not it spells code names and paths, call
+`docs_classify` with it as `query` instead. It says which of its words are,
+whole, a package, an entrypoint or an exported name, and then which
+identifier-shaped words left — `ModuleLoader`, `child_process` — are a name
+`docs_symbol` finds declared or a file's name before its first dot in the
+published source index, and which paths and file names written with an
+extension — `lib/loader.js`, `run_main.js` — are a file in it; a path that names
+nothing is read as the words in it. Each is listed with its
+area and layer on the code map, and then the question each one takes next,
+written as the `variance ask` command whatever the caller: `symbol`
+(`docs_symbol`) for an exported or declared name, none for a file, which is
+already the answer, `entrypoint` (`docs_entrypoint`) for a published package or
+entrypoint, and `orient --area` (`docs_orient`) for a package that publishes
+nothing, or no question when the map placed it in no area. When words remain unrecognized or
 `from` or `to` is supplied, it also ranks the areas of the tree the request's
 words point to, best first — a directory of at
 most 500 indexed files, scored by the words its path, its files' names and the
