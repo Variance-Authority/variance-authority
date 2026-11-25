@@ -252,6 +252,15 @@ describe('grep over more lines than it shows', () => {
     expect(text).not.toContain('docs_discover');
   });
 
+  it('names no question where a `#` follows a file of the tree, which discover reads as a name it exports', () => {
+    const file = 'odd/a.ts#over.ts';
+    write(file, 'odd\n'.repeat(201));
+    const named = treeOf([reads(file), reads('odd/a.ts')], root);
+    const lines = (direction: 'from' | 'to'): string[] => grep.run(undefined, { query: 'odd', [direction]: file }, { tree: named, shell: 'variance ask' }).split('\n');
+    expect(lines('to').filter((line) => line.includes('discover'))).toEqual([]);
+    expect(lines('from').filter((line) => line.includes('discover'))).not.toEqual([]);
+  });
+
   it('names no question for a workspace nested below the graph, whose files discover opens elsewhere', () => {
     write('app/src/start.ts', "import './flood';\n");
     write('app/src/flood.ts', 'flood\n'.repeat(201));

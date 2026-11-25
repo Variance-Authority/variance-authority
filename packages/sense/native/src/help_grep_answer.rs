@@ -193,14 +193,15 @@ pub(crate) fn answer(roots: Roots, query: &str, mut scope: Scope, said: Said, su
     Ok(lines.join("\n"))
 }
 
-/// The scope as one start point `discover` reads as this did. It intersects two start points, splits a comma and drops a blank text; and where the graph's root is not the workspace's it opens the graph's names under the workspace.
+/// The scope as one start point `discover` reads as this did. It intersects two start points, splits a comma, drops a blank text and reads a `#` after `to` as a name the file exports; and where the graph's root is not the workspace's it opens the graph's names under the workspace.
 fn repeatable<'a>(roots: &Roots, scope: &'a Scope, query: &str) -> Option<Start<'a>> {
     let (direction, path) = match (scope.from.as_slice(), scope.to.as_slice()) {
         ([only], []) => ("from", only),
         ([], [only]) => ("to", only),
         _ => return None,
     };
-    (roots.workspace == roots.graph && !path.contains(',') && !query.trim().is_empty()).then_some(Start { direction, path })
+    let read_alike = !path.contains(',') && !(direction == "to" && path.contains('#'));
+    (roots.workspace == roots.graph && read_alike && !query.trim().is_empty()).then_some(Start { direction, path })
 }
 
 pub(crate) fn area_line(scope: &Scope) -> String {
