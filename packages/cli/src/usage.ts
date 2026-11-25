@@ -21,6 +21,7 @@ export const COMMANDS = [
   'shards',
   'reach',
   'trace',
+  'view',
   'covering',
   'coverage',
   'layers',
@@ -73,6 +74,7 @@ export const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> =
   shards: ['--setup', '--budget', '--max', '--workers', '--since', '--ran-at', '--collected', '--at-distance', '--suite', '--unrecorded', '--format'],
   reach: ['--since', '--format', '--whole-files', '--no-git'],
   trace: ['--format', '--suite'],
+  view: ['--suite', '--out'],
   covering: [
     '--file',
     '--line',
@@ -173,6 +175,7 @@ export const USAGE = [
   'variance shards  [--setup <seconds>] [--budget <seconds>] [--max <n>] [--workers <n>] [--since <ref> [--ran-at <commit>] [--collected <file>]] [--at-distance <hops>] [--suite <name>] [--unrecorded <n>] [--format text|json]',
   'variance reach   --since <ref> [--format plain|json] [--whole-files] [--no-git]',
   'variance trace   [--format otlp] [--suite <name>]',
+  'variance view    [--suite <name>] [--out <file>]',
   'variance covering --file <path> [--line <n>|<a>-<b>] [--function <name>] [--at-distance <hops>] [--in-package] [--hops] [--text <path>|-] | --since <ref> [--against <record>] [--cases last|<test file>] [--where <name>[=<value>]]... [--read <name>[=<value>]]... [--execution <path> | --suite <name>] [--root <path>] [--format text|refs|json] [--limit <n>] [--offset <n>]',
   'variance coverage [--suite <name> [--against <record>]] [--from <dir> | --packages] [--at-distance <hops>] [--fan-in] [--session <name>=<path>]... [--served <dir>] [--root <path>] [--format text|markdown|json|badge|html]',
   'variance layers  [--against <index>] [--package <name>]... [--root <path>] [--format text|markdown|json]',
@@ -211,7 +214,7 @@ export const USAGE = [
  * the repository root, as `prune`, `job`, `cargo` and `carry` do. `carry` still names
  * `--config`, and reads a project only when one is named.
  */
-const CONFIGLESS: readonly string[] = ['watch', 'distill', 'covering', 'coverage', 'layers', 'restrictions', 'review', 'story', 'index', 'select', 'shards', 'reach', 'trace', 'prune', 'job', 'cargo', 'janus', 'carry'];
+const CONFIGLESS: readonly string[] = ['watch', 'distill', 'covering', 'coverage', 'layers', 'restrictions', 'review', 'story', 'index', 'select', 'shards', 'reach', 'trace', 'view', 'prune', 'job', 'cargo', 'janus', 'carry'];
 
 export function flagsFor(command: (typeof COMMANDS)[number]): readonly string[] {
   return CONFIGLESS.includes(command)
