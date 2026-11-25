@@ -45,7 +45,7 @@ function masthead(answer: Coverage, tag: 'header' | 'div'): string {
   const { count } = answer;
   const lead = leading(count);
   const chips: string[] = [];
-  if (answer.at !== undefined) chips.push(chip('commit', short(answer.at), answer.at));
+  if (answer.at !== undefined && tag === 'header') chips.push(chip('commit', short(answer.at), answer.at));
   const recorded = answer.suites.filter((suite) => suite.from !== undefined).length;
   chips.push(chip('suites', `${recorded} of ${answer.suites.length} recorded`));
   const bases = [...new Set(answer.suites.flatMap((suite) => suite.base === undefined ? [] : [suite.base.commit]))];
@@ -302,5 +302,5 @@ box.open=q!==''&&any;box.classList.toggle('hidden',q!==''&&!any);}
 `;
 
 /** What the Coverage view alone draws, for a shell that holds it among others. */
-export const COVERAGE_STYLE = STYLE;
+export const COVERAGE_STYLE = `${STYLE}\n.lead{margin-bottom:2rem}\n`;
 export const COVERAGE_SCRIPT = SCRIPT;

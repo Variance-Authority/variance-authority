@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { SuiteChange } from '@variance-authority/sense/test-selection';
 import { readFlags } from '../args.js';
 import { parseCoverageArgs } from '../coverage-args.js';
+import { COVERAGE_STYLE, coverageView } from './coverage-html.js';
 import { formatCoverage } from './coverage-text.js';
 import type { CoverageSource } from './coverage-source.js';
 import type { Coverage } from './coverage.js';
@@ -262,5 +263,15 @@ describe('--format html', () => {
 
   it('is named among the formats a wrong one is refused with', () => {
     expect(() => parse('--format', 'pdf')).toThrow('--format must be text, markdown, json, badge or html, not `pdf`');
+  });
+});
+
+describe('the coverage view inside another page', () => {
+  it('does not repeat the commit chip the page already carries, and keeps its own lead apart from the first heading', () => {
+    expect(formatCoverage(ANSWER, 'html')).toContain('<b>commit</b>');
+    const body = coverageView(ANSWER, true).body;
+    expect(body).toContain('regions run');
+    expect(body).not.toContain('<b>commit</b>');
+    expect(COVERAGE_STYLE).toMatch(/\.lead\{[^}]*margin-bottom/u);
   });
 });
