@@ -3,7 +3,7 @@
 // compass: variance-authority.report.agent-surface
 
 use std::cmp::Ordering;
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::fs::File;
 use std::ops::Range;
 
@@ -42,9 +42,9 @@ const SEARCH_COLUMNS: [(&str, u8); 22] = [
     ("terms.pubSigOff", 4), ("terms.pubSig", 4), ("terms.expSigOff", 4), ("terms.expSig", 4),
 ];
 
-const EXPORTED_COLUMNS: [(&str, u8); 7] = [
+const EXPORTED_COLUMNS: [(&str, u8); 9] = [
     ("exp.line", 4), ("exp.type", 1), ("exp.kind", 1), ("exp.declaration", 4),
-    ("pkg.name", 4), ("pkg.entry", 1), ("pkg.openOff", 4),
+    ("pkg.name", 4), ("pkg.entry", 1), ("pkg.openOff", 4), ("open.source", 4), ("open.subpath", 4),
 ];
 
 pub(crate) struct Rows(HashMap<&'static str, Vec<u8>>);
@@ -156,26 +156,22 @@ impl Rows {
         Some(())
     }
 
-    /// What an answer about an unpublished export says of it: its line, kind and type-only flag, its declaration's kind, and whether its package's entry was followed.
+    /// What an answer about an unpublished export says of it: its line, kind and type-only flag, its declaration's kind, whether its package's entry was followed, and the doors of the entries that publish it inside a namespace.
     pub(crate) fn read_exported(&mut self, file: &mut File) -> Option<()> {
         let columns = read_sections(file, FORMAT, VERSION, EXPORTED_COLUMNS).ok()?;
         self.0.extend(EXPORTED_COLUMNS.into_iter().map(|(name, _)| name).zip(columns));
         Some(())
     }
 
-    /// Where each entry opening's source is, with the package and subpath that spell its door.
-    pub(crate) fn openings(file: &mut File) -> Option<Self> {
-        Self::columns(file, [("strings.blob", 1), ("strings.off", 4), ("open.source", 4), ("pkg.name", 4), ("pkg.openOff", 4), ("open.subpath", 4)])
-    }
-
     /// The doors of the entry openings whose source is one of `files`, in row order: the source and the door's specifier.
-    pub(crate) fn openings_in(&self, files: &[&str]) -> Option<Vec<(&str, String)>> {
+    pub(crate) fn openings_in(&self, files: &HashSet<&str>) -> Option<Vec<(&str, String)>> {
         let packages = self.column("pkg.openOff");
         let mut doors = Vec::new();
+        let mut package = 0;
         for row in 0..self.column("open.source").len() {
+            while packages.at(package + 1) as usize <= row { package += 1 }
             let Some(source) = self.optional("open.source", row)? else { continue };
-            if !files.contains(&source) { continue }
-            let package = partition(packages.len(), |at| packages.at(at) as usize <= row).checked_sub(1)?;
+            if !files.contains(source) { continue }
             let subpath = self.string("open.subpath", row)?;
             let name = self.string("pkg.name", package)?;
             doors.push((source, if subpath == "." { name.to_owned() } else { format!("{name}{}", &subpath[1..]) }));
@@ -327,14 +323,14 @@ impl Rows {
         self.optional("exp.declaration", export.row)
     }
 
-    /// Whether `package` declares an entry this reading followed to no source file.
-    pub(crate) fn unfollowed(&self, package: &str) -> Option<bool> {
+    /// The packages that declare an entry this reading followed to no source file.
+    pub(crate) fn unfollowed(&self) -> Option<HashSet<&str>> {
+        let entry = self.bytes("pkg.entry");
+        let mut unfollowed = HashSet::new();
         for row in 0..self.column("pkg.name").len() {
-            if self.string("pkg.name", row)? == package {
-                return Some(*self.bytes("pkg.entry").get(row)? != 0 && self.range("pkg.openOff", row)?.is_empty());
-            }
+            if *entry.get(row)? != 0 && self.range("pkg.openOff", row)?.is_empty() { unfollowed.insert(self.string("pkg.name", row)?); }
         }
-        Some(false)
+        Some(unfollowed)
     }
 
     pub(crate) fn entry(&self, row: usize) -> Option<Entry<'_>> {

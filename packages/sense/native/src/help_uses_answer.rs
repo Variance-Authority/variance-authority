@@ -6,6 +6,7 @@ use std::collections::BTreeSet;
 use std::fs::File;
 use std::path::Path;
 
+use crate::compact::Layer;
 use crate::harvest::is_bound;
 use crate::help_aliases::aliases;
 use crate::help_declared::{declared, DeclaredName, Matching};
@@ -32,6 +33,16 @@ struct Beside<'a> {
     files: Vec<&'a str>,
 }
 
+/// One `uses` question: the checkout and index it reads, the name, and how its answer is ordered and cut.
+struct Asking<'q> {
+    root: &'q str,
+    layers: &'q [Layer<'q>],
+    name: &'q str,
+    from: Option<&'q str>,
+    file: Option<&'q str>,
+    limit: usize,
+}
+
 const NARROW: &str = "\n`--file`, the file one of them is declared in, answers for that declaration alone.";
 
 pub(crate) fn uses(root: &str, index: &Path, store: &mut File, name: &str, wanted: Option<&str>, from: Option<&str>, file: Option<&str>, limit: usize) -> Option<String> {
@@ -44,7 +55,8 @@ pub(crate) fn uses(root: &str, index: &Path, store: &mut File, name: &str, wante
     } else if wanted.is_some_and(|wanted| owner_of(wanted) != wanted) {
         rows.read_path_targets(store)?;
     }
-    if published.is_empty() { rows.read_exported(store)?; } else if wanted.is_some() { rows.read_export_lines(store)?; }
+    // `--package` can leave a published name nothing published, which is answered from its exports.
+    if published.is_empty() || wanted.is_some() { rows.read_exported(store)?; }
     let package = PackageScope::read(&rows, wanted)?;
     let mut entries = published.into_iter().map(|row| rows.entry(row)).collect::<Option<Vec<_>>>()?;
     entries.retain(|entry| package.entry(entry));
@@ -61,6 +73,8 @@ pub(crate) fn uses(root: &str, index: &Path, store: &mut File, name: &str, wante
     members.retain(|site| package.member(&site.by) && container.is_none_or(|on| site.on == on));
     let exported = if entries.is_empty() { exports_named(&rows, layers, name, &exports, &in_package)? } else { Vec::new() };
     let kept_here: Vec<&DeclaredName> = kept.names.iter().filter(|held| file.is_none_or(|file| held.at == file)).collect();
+    // A name nothing declares anywhere is answered as one before the files that bind it, whichever file was asked.
+    let nothing = entries.is_empty() && paths.is_empty() && exported.is_empty() && members.is_empty();
     members.retain(|site| file.is_none_or(|file| site.at == file));
     // A file that keeps the name, or declares it as a member, answers for that declaration and not for an export's.
     let elsewhere = file.is_some_and(|file| (!kept_here.is_empty() || !members.is_empty())
@@ -76,6 +90,7 @@ pub(crate) fn uses(root: &str, index: &Path, store: &mut File, name: &str, wante
         }
         let absent = nowhere(name, &rows.published_names()?, layers, &kept.unread, None, wanted, package.export_hint(&rows, name, &exports)?.as_deref());
         if kept.names.is_empty() { return Some(absent) }
+        if !nothing { return kept::private_uses(root, layers, name, from, file, limit, &kept.names, &kept.unread) }
         // What was read is said with the absence, so the files it could not read are not said again.
         return Some(format!("{absent}\n\n{}", kept::private_uses(root, layers, name, from, file, limit, &kept.names, &[])?));
     }
@@ -87,8 +102,7 @@ pub(crate) fn uses(root: &str, index: &Path, store: &mut File, name: &str, wante
     };
     if entries.is_empty() {
         if exported.is_empty() { return None }
-        let doors = |files: &[&str]| Some(Rows::openings(store)?.openings_in(files)?.into_iter().map(|(at, door)| (at.to_owned(), door)).collect());
-        return exported::exported_uses(root, layers, name, from, file, limit, &paths, &exported, &package, beside, doors);
+        return exported::exported_uses(&Asking { root, layers, name, from, file, limit }, &rows, &paths, &exported, &package, beside);
     }
     let (declarations, read) = published_imports(root, layers, name, entries, &exports, PublicationScope::Asked(&package))?;
     let mut selected: Vec<_> = declarations.iter().zip(&read.groups).collect();

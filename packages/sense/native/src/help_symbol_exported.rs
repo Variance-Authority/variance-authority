@@ -26,8 +26,9 @@ pub(crate) fn exported_only(root: &str, layers: &[Layer], rows: &Rows, name: &st
     let passing: HashSet<&str> = read.groups.iter().flat_map(|group| group.through.iter().map(String::as_str)).collect();
     let mut declaring: Vec<_> = exported.iter().zip(&read.groups).filter(|(held, _)| !passing.contains(held.export.at)).collect();
     if declaring.is_empty() { declaring = exported.iter().zip(&read.groups).collect() }
+    let unfollowed = rows.unfollowed()?;
     let blocks = declaring.into_iter().map(|(held, group)| {
-        let (at, on, line, mut lines) = exported_rows(layers, rows, name, held)?;
+        let (at, on, line, mut lines) = exported_rows(layers, &unfollowed, name, held)?;
         let count = group.uses.len();
         lines.push(if count == 0 {
             format!("Nothing in this workspace imports it; {UNCOUNTED}.")
@@ -45,7 +46,7 @@ pub(crate) fn exported_only(root: &str, layers: &[Layer], rows: &Rows, name: &st
 /// follow them: the name and its kind, where it is exported, the declaration
 /// it passes on from another file, and that declaration's text, or the
 /// export's own line when the walk reaches none.
-fn exported_rows(layers: &[Layer], rows: &Rows, name: &str, held: &Unpublished<'_>) -> Option<(String, String, u32, Vec<String>)> {
+fn exported_rows(layers: &[Layer], unfollowed: &HashSet<&str>, name: &str, held: &Unpublished<'_>) -> Option<(String, String, u32, Vec<String>)> {
     let export = &held.export;
     let bound = declaration_exported(layers, export.at, export.name);
     let origin = bound.as_ref().filter(|bound| bound.at != export.at);
@@ -55,7 +56,7 @@ fn exported_rows(layers: &[Layer], rows: &Rows, name: &str, held: &Unpublished<'
     let exported = format!("at {}:{} by {}{typed}", export.at, held.line, export.by);
     let mut lines = vec![
         bound.as_ref().map_or_else(|| name.to_owned(), |bound| format!("{name} [{}]", bound.kind)),
-        if rows.unfollowed(export.by)? {
+        if unfollowed.contains(export.by) {
             format!("exported {exported}; whether it is published is not known: the package declares an entry {UNFOLLOWED}")
         } else {
             format!("exported, without being published, {exported}")

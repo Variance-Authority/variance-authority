@@ -22,9 +22,6 @@ pub struct Importers {
     /// Every line of one of the files asked about that uses the name asked of
     /// it, declared at its top level, by file in code units, then by line.
     pub in_file: Vec<InFile>,
-    /// Every namespace a file passes a name asked on inside, by file in code
-    /// units, then by name: `export * as shout` passes `greet` as `shout.greet`.
-    pub namespaces: Vec<Namespace>,
 }
 
 /// One file asked about, and the name it exports what is asked under.
@@ -42,6 +39,9 @@ pub struct Group {
     /// Every file that passes one of its names on with `export … from`, under
     /// the name it exports, in code-unit order; none of the group's own files.
     pub through: Vec<String>,
+    /// Every namespace a file passes one of its names on inside, by file in
+    /// code units, then by name: `export * as shout` passes `greet` as `shout.greet`.
+    pub namespaces: Vec<Namespace>,
 }
 
 /// A namespace one file passes a name on inside: the name it exports the
@@ -100,10 +100,15 @@ pub(crate) fn importers(root: &str, layers: &[Layer], asked: &[Vec<Asked>]) -> I
     for (origin, passing) in walked.through {
         if !asked[origin].iter().any(|one| one.file == passing) { through[origin].push(passing); }
     }
+    let mut namespaces: Vec<Vec<Namespace>> = asked.iter().map(|_| Vec::new()).collect();
+    for (origin, inside) in walked.namespaces {
+        namespaces[origin].push(inside);
+    }
     let groups = uses
         .into_iter()
         .zip(through)
-        .map(|(mut uses, mut through)| {
+        .zip(namespaces)
+        .map(|((mut uses, mut through), mut namespaces)| {
             uses.sort_by(|a, b| {
                 crate::order::code_unit(&a.at, &b.at)
                     .then(a.line.cmp(&b.line))
@@ -113,12 +118,11 @@ pub(crate) fn importers(root: &str, layers: &[Layer], asked: &[Vec<Asked>]) -> I
                     .then_with(|| crate::order::code_unit(a.local.as_deref().unwrap_or(""), b.local.as_deref().unwrap_or("")))
             });
             through.sort_unstable_by(|a, b| crate::order::code_unit(a, b));
-            Group { uses, through }
+            namespaces.sort_unstable_by(|a, b| {
+                crate::order::code_unit(&a.at, &b.at).then_with(|| crate::order::code_unit(&a.name, &b.name)).then_with(|| a.members.len().cmp(&b.members.len()))
+            });
+            Group { uses, through, namespaces }
         })
         .collect();
-    let mut namespaces = walked.namespaces;
-    namespaces.sort_unstable_by(|a, b| {
-        crate::order::code_unit(&a.at, &b.at).then_with(|| crate::order::code_unit(&a.name, &b.name)).then_with(|| a.members.len().cmp(&b.members.len()))
-    });
-    Importers { groups, in_file, namespaces }
+    Importers { groups, in_file }
 }

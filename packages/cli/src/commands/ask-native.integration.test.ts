@@ -81,6 +81,10 @@ it.each([
   { question: ['symbol', '--name', 'orphan'], contains: 'Nothing in this workspace imports it' },
   { question: ['uses', '--name', 'twinName'], contains: 'which is another declaration' },
   { question: ['uses', '--name', 'twinName', '--file', 'packages/lib-exports/src/twin.ts'], contains: 'packages/lib-exports/src/twins.ts:1' },
+  { question: ['uses', '--name', 'twinName', '--from', 'packages/lib-exports/src'], contains: 'Nearest to packages/lib-exports/src first.' },
+  { question: ['uses', '--name', 'twinName', '--limit', '1'], contains: 'which is another declaration' },
+  { question: ['symbol', '--name', 'twinName', '--limit', '1'], contains: 'twinName' },
+  { question: ['uses', '--name', 'relayed', '--package', '@acme/lib'], contains: 'relayed' },
   { question: ['uses', '--name', 'relayed'], contains: 'it is exported at packages/lib/src/origin.ts:2 and 1 more.' },
   { question: ['uses', '--name', 'Frame'], contains: 'packages/lib-exports/src/frame.ts:1, not exported' },
   { question: ['uses', '--name', 'Frame', '--file', 'packages/lib-exports/src/frame.ts'], contains: 'so nothing outside that file can import it' },
@@ -90,6 +94,15 @@ it.each([
   { question: ['uses', '--name', 'DeleteRequest'], contains: 'published as `Api.DeleteRequest` by @acme/lib-exports' },
   { question: ['uses', '--name', 'MetricsRequest'], contains: 'and no entry publishes it' },
   { question: ['uses', '--name', 'mockOnly'], contains: 'mockOnly' },
+  { question: ['symbol', '--name', 'mockOnly'], contains: 'mockOnly' },
+  { question: ['symbol', '--name', 'Panel'], contains: 'Panel' },
+  { question: ['uses', '--name', 'Panel', '--limit', '1'], contains: 'Panel' },
+  { question: ['uses', '--name', 'stepAll'], contains: '`--file`, the file one of them is declared in, answers for that declaration alone.' },
+  { question: ['uses', '--name', 'greet', '--package', '@acme/lib-exports'], contains: 'greet' },
+  { question: ['symbol', '--name', 'greet', '--package', '@acme/lib-exports'], contains: 'greet' },
+  { question: ['uses', '--name', 'heldFoo', '--file', 'packages/lib/src/held.ts'], contains: 'heldFoo', absent: 'No file' },
+  { question: ['uses', '--name', 'PutRequest'], contains: 'published as `Api.PutRequest` by @acme/lib-exports,', absent: 'by @acme/lib,' },
+  { question: ['symbol', '--name', 'PutRequest'], contains: 'PutRequest' },
   { question: ['search', '--query', 'greet'], contains: 'greet' },
   { question: ['search', '--query', 'taxOf'], contains: 'taxOf' },
   { question: ['search', '--query', 'levy'], contains: 'The levy on an amount.' },
@@ -125,7 +138,7 @@ it.each([
   { question: ['discover', '--path', '^packages/lib/src/(?!greet\\.ts$).*'], contains: 'also.ts' },
   { question: ['discover', '--from', 'apps/app/src/hello.ts,packages/lib/src/also.ts', '--except-declares', '^greet$'], contains: 'taken out' },
   { question: ['discover', '--from', 'missing.ts'], contains: 'ran nothing' },
-])('answers $question through the package bin with Node absent from PATH', async ({ question, contains, status }) => {
+] as readonly { question: readonly string[]; contains: string; absent?: string; status?: number }[])('answers $question through the package bin with Node absent from PATH', async ({ question, contains, absent, status }) => {
   const previous = process.cwd();
   const root = checkout({
     'packages/lib/src/index.ts': "export { greet } from './greet.js';\nexport const shared = 'lib';\n",
@@ -214,9 +227,30 @@ it.each([
       'packages/lib/src/runs.ts': "import { runJob } from './run.js';\nexport const ran = runJob();\n",
       'packages/lib-exports/src/runner.ts': 'export class Runner {\n  runJob(): number { return 2; }\n}\nexport const job = new Runner().runJob();\n',
       'packages/lib/src/zoom.ts': 'function zoomIn(level: number): number { return level + 1; }\nexport const zoomed = zoomIn(1);\n',
-      'packages/lib-exports/src/camera.ts': 'export class Camera {\n  zoomIn(): void {}\n}\nexport const camera = new Camera().zoomIn();\n',
+      'packages/lib-exports/src/camera.ts': 'export class Camera {\n  zoomIn(): void {}\n  Panel(): void {}\n}\nexport const camera = new Camera().zoomIn();\n',
       'packages/lib/src/mock.test.ts': 'export const mockOnly = 1;\n',
       'packages/lib/src/mocked.test.ts': "import { mockOnly } from './mock.test.js';\nexport const seen = mockOnly;\n",
+    } : {}),
+    ...(question[2] === 'stepAll' ? {
+      'packages/lib/src/step.ts': 'export function stepAll(): number { return 1; }\n',
+      'packages/lib/src/steps.ts': "import { stepAll } from './step.js';\nexport const stepped = stepAll();\n",
+      'packages/lib-exports/src/stepper.ts': 'export class Stepper {\n  stepAll(): number { return 2; }\n}\nexport const once = new Stepper().stepAll();\n',
+      'packages/lib-exports/src/kept.ts': 'function stepAll(): number { return 3; }\nexport const kept = stepAll();\n',
+    } : {}),
+    ...(question[2] === 'greet' && question[4] === '@acme/lib-exports' ? {
+      'packages/lib-exports/src/greet.ts': "export const greet = 'unpublished';\n",
+      'packages/lib-exports/src/greeted.ts': "import { greet } from './greet.js';\nexport const greeted = greet;\n",
+    } : {}),
+    ...(question[2] === 'heldFoo' ? {
+      'packages/lib/src/held.ts': 'const { heldFoo } = make();\nexport const held = heldFoo;\n',
+      'packages/lib-exports/src/foo.ts': 'export const heldFoo = 1;\n',
+    } : {}),
+    ...(question[2] === 'PutRequest' ? {
+      'packages/lib/src/index.ts': "export { greet } from './greet.js';\nexport * as Api from './api.js';\n",
+      'packages/lib/src/api.ts': 'export type PutRequest = { id: string };\n',
+      'packages/lib-exports/src/index.ts': "export const slug = (title: string): string => title;\nexport * as Api from './api.js';\n",
+      'packages/lib-exports/src/api.ts': 'export type PutRequest = { name: string };\n',
+      'apps/app/src/put.ts': "import { slug } from '@acme/lib-exports';\nimport { Api } from '@acme/lib';\nexport const put: Api.PutRequest = { id: slug('a') };\n",
     } : {}),
     'packages/lib/src/session.ts': 'interface AgentSession { sessionToken: string }\ninterface SavedSession { sessionToken: number }\nexport function tokenOf(session: AgentSession) { return session.sessionToken; }\n',
     ...(question[2] === 'packages/lib/src/greet.ts,packages/lib/src/index.ts' ? {
@@ -241,6 +275,7 @@ it.each([
     const expected = spawnSync(process.execPath, [nodeEntry, ...args], { cwd: root, env, encoding: 'utf8' });
     expect(expected.error).toBeUndefined();
     expect(expected.stdout + expected.stderr).toContain(contains);
+    if (absent !== undefined) expect(expected.stdout + expected.stderr).not.toContain(absent);
     if (status !== undefined) expect(expected.status).toBe(status);
     const actual = spawnSync(executable, args, { cwd: root, env: { ...env, PATH: empty }, encoding: 'utf8' });
     expect(actual.error).toBeUndefined();

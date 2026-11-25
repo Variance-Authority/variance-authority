@@ -38,13 +38,14 @@ pub(crate) fn exact_symbols(root: &str, index: &Path, store: &mut File, names: &
         paths |= !rows.path_uses(name)?.is_empty();
     }
     if entries { rows.read_entries(store)?; }
-    if unpublished { rows.read_exported(store)?; }
+    // `--package` can leave a published name nothing published, which is answered from its exports.
+    if unpublished || wanted.is_some() { rows.read_exported(store)?; }
     if paths {
         rows.read_paths(store)?;
     } else if wanted.is_some_and(|wanted| owner_of(wanted) != wanted) {
         rows.read_path_targets(store)?;
     }
-    if paths || wanted.is_some() { rows.read_export_lines(store)?; }
+    if paths && !unpublished && wanted.is_none() { rows.read_export_lines(store)?; }
     let chain = OpenedChain::read(index.to_str()?).ok()??;
     let package = PackageScope::read(&rows, wanted)?;
     let answers = names.iter().map(|name| exact_symbol(root, index, chain.layers(), &rows, name, limit, &package))
