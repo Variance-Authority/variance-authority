@@ -206,6 +206,14 @@ impl Journey {
         self.columns.test_settled.map(|column| self.lazy.byte(column, test)).transpose()
     }
 
+    #[cfg(feature = "standalone-cli")]
+    pub(crate) fn test_words(&self, name: &str) -> Result<Option<Vec<u32>>, String> {
+        if !self.lazy.has(name) { return Ok(None) }
+        let column = self.lazy.column(name, 4)?;
+        if self.lazy.rows(column) != self.tests { return Err("test columns disagree".into()) }
+        (0..self.tests).map(|row| self.lazy.word(column, row)).collect::<Result<_, _>>().map(Some)
+    }
+
     /// What each case said it arranged and the code read, `None` for a case
     /// nobody listened to.
     pub fn heard(&self) -> Result<Vec<Option<Heard>>, String> {
@@ -318,9 +326,19 @@ pub(crate) fn holds_any(region: &Region, ranges: &[(u32, u32)]) -> bool {
 /// it. `kinds[at]` is the kind of `candidates[at]`. Nothing, as
 /// `blocksChargedAt` answers, when no region with source holds the line.
 pub(crate) fn charge_line(candidates: &[Region], kinds: &[&str], line: u32, into: &mut Vec<Region>) {
+    let holds = charged_line(candidates, kinds, line, into);
+    if !holds {
+        into.clear();
+    }
+    into.sort_unstable_by_key(|region| region.at);
+}
+
+/// The same walk in charge order, retaining synthetic crossings on a line the
+/// snapshot has no source for. The snapshot selector uses that order for reasons.
+pub(crate) fn charged_line(candidates: &[Region], kinds: &[&str], line: u32, into: &mut Vec<Region>) -> bool {
     into.clear();
     if line < 1 {
-        return;
+        return false;
     }
     let mut found: Vec<usize> = Vec::new();
     let mut around: Vec<usize> = Vec::new();
@@ -334,9 +352,7 @@ pub(crate) fn charge_line(candidates: &[Region], kinds: &[&str], line: u32, into
             found.push(at);
         }
     }
-    if around.is_empty() {
-        return;
-    }
+    let held = !around.is_empty();
     let span = |at: usize| i64::from(candidates[at].end) - i64::from(candidates[at].start);
     around.sort_by_key(|at| span(*at));
     let mut index = 0;
@@ -356,9 +372,8 @@ pub(crate) fn charge_line(candidates: &[Region], kinds: &[&str], line: u32, into
         outwards = shares;
         index = next;
     }
-    found.sort_unstable();
-    found.dedup();
     into.extend(found.into_iter().map(|at| candidates[at]));
+    held
 }
 
 /// Whether the region's text on `line` sits beside a wider region's, by the

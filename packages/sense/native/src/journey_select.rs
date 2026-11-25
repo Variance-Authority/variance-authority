@@ -48,15 +48,25 @@ pub struct JourneySelection {
 struct Selecting<'a> {
     journey: &'a Journey,
     tests: Vec<&'a str>,
-    graph: Option<Graph<'a>>,
+    graph: Option<&'a dyn Importers>,
     held: HashSet<&'a str>,
     entered: HashSet<&'a str>,
     seen: Vec<bool>,
 }
 
+pub(crate) trait Importers {
+    fn importers(&self, file: &str) -> Option<Vec<&str>>;
+}
+
+impl Importers for Graph<'_> {
+    fn importers(&self, file: &str) -> Option<Vec<&str>> {
+        Graph::importers(self, file)
+    }
+}
+
 impl<'a> Selecting<'a> {
     fn importers(&self, file: &str) -> Option<Vec<&'a str>> {
-        let graph = self.graph.as_ref()?;
+        let graph = self.graph?;
         let found = graph.importers(file)?;
         Some(found.into_iter().filter(|test| self.held.contains(test)).collect())
     }
@@ -161,12 +171,23 @@ fn select(
     declines: bool,
 ) -> Result<JourneySelection, String> {
     let journey = Journey::open(file)?;
+    let graph = graph.map(Graph::new).transpose()?;
+    select_from(&journey, changed, graph.as_ref().map(|graph| graph as &dyn Importers), declines, &[])
+}
+
+fn select_from(
+    journey: &Journey,
+    changed: &[JourneyChange],
+    graph: Option<&dyn Importers>,
+    declines: bool,
+    declared: &[&str],
+) -> Result<JourneySelection, String> {
     let tests = journey.test_file_names()?;
     let mut selecting = Selecting {
-        journey: &journey,
+        journey,
         held: tests.iter().copied().collect(),
         tests,
-        graph: graph.map(Graph::new).transpose()?,
+        graph,
         entered: HashSet::new(),
         seen: vec![false; journey.tests()],
     };
@@ -190,12 +211,38 @@ fn select(
             unread.push(file);
         }
     }
+    for &reader in declared {
+        let held = selecting.held.get(reader).copied();
+        let module = journey.module_of(reader)?;
+        selecting.entered.extend(held);
+        if let Some(module) = module {
+            selecting.every_entrant(module)?;
+        } else if held.is_none() {
+            match selecting.importers(reader) {
+                Some(tests) => selecting.entered.extend(tests),
+                None => unread.push(reader.to_owned()),
+            }
+        }
+    }
     Ok(JourneySelection {
         whole: selecting.held.iter().map(|test| (*test).to_owned()).collect(),
         entered: selecting.entered.iter().map(|test| (*test).to_owned()).collect(),
         unread,
         declined,
     })
+}
+
+/// Select from an explicit journey. Coverage snapshots have their own reader.
+#[cfg(feature = "standalone-cli")]
+pub(crate) fn select_lines(
+    file: &str,
+    bytes: Vec<u8>,
+    changed: &[JourneyChange],
+    graph: &dyn Importers,
+    declared: &[&str],
+) -> Result<JourneySelection, String> {
+    let journey = Journey::of(file, bytes)?;
+    select_from(&journey, changed, Some(graph), false, declared)
 }
 
 /// The test files `changed` needs, read off the journey file at `file` and,

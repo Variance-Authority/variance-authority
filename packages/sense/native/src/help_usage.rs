@@ -148,12 +148,16 @@ fn own_binding<'a>(local: Option<&'a str>, imported: &HashSet<&str>) -> Option<&
 
 /// `requested` in `package/src/manifest.ts`: `"<package> .<rest>"`.
 pub(crate) fn requested(specifier: &str) -> (&str, String) {
-    let name = if specifier.starts_with('@') {
+    let name = package_name(specifier);
+    (name, format!("{name} .{}", &specifier[name.len()..]))
+}
+
+pub(crate) fn package_name(specifier: &str) -> &str {
+    if specifier.starts_with('@') {
         specifier.match_indices('/').nth(1).map_or(specifier, |(at, _)| &specifier[..at])
     } else {
         specifier.split('/').next().unwrap_or(specifier)
-    };
-    (name, format!("{name} .{}", &specifier[name.len()..]))
+    }
 }
 
 #[derive(Default)]

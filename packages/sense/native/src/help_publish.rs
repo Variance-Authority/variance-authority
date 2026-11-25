@@ -18,21 +18,19 @@ use std::path::Path;
 
 use napi::bindgen_prelude::{AsyncTask, Buffer};
 use napi_derive::napi;
-use rayon::prelude::*;
-use sha2::{Digest, Sha256};
 
 use crate::compact::Layer;
 use crate::help_aliases::{aliases, Alias};
 use crate::help_declared::{declared, declared_terms, Declared, Matching};
 use crate::off_thread::{off_thread, OffThread};
 use crate::help_join::{mentions, Joined, OpeningSkeleton, Skeleton};
-use crate::help_store::{encode, DeepRef, StoreDeep, StoreMeta, StoreRef};
+use crate::help_store::{encode, graph_digest, DeepRef, StoreDeep, StoreMeta, StoreRef};
 use crate::help_members::{indexed_extensions, member_declarations, members_on, ContainerMember, MemberDeclarations};
 use crate::help_names::{published_names, HelpEntry, PublishedName};
 use crate::help_names_filter::{names_filter, ImportAsked, NamesFound};
 use crate::help_origin::{declaration_exported, export_line, ExportedDeclaration};
 use crate::help_usage::{importers, usage, Asked, DeepRequest, Importers, NameUse, NamedExport};
-use crate::index_chain::read_chain;
+use crate::index_chain::OpenedChain;
 use crate::source_tree::{tree, Mocking};
 
 /// What the chain says for a Help value, held on this side until it is published.
@@ -58,6 +56,7 @@ struct Held {
 
 /// One opening a package publishes, as its manifest names it.
 #[napi(object)]
+#[derive(Clone)]
 pub struct PublishOpening {
     pub subpath: String,
     /// The file it opens, relative to the root of the value.
@@ -69,6 +68,7 @@ pub struct PublishOpening {
 /// One package the manifests publish, and its openings in the order the
 /// entries were given to the reading.
 #[napi(object)]
+#[derive(Clone)]
 pub struct PublishPackage {
     pub name: String,
     pub entry: bool,
@@ -132,22 +132,27 @@ pub fn read_help(
     let tsconfig = crate::resolve::Tsconfig::from_js(tsconfig);
     off_thread(move || {
         let mocking = drawn.then(|| Mocking::at(&root, tsconfig, code));
-        let mut opened: Vec<String> = Vec::new();
-        for entry in &entries {
-            if !opened.contains(&entry.key) {
-                opened.push(entry.key.clone());
-            }
-        }
         opened_chain(&open_index(index)?, |layers| {
-            let (mut read, (tree, names)) = rayon::join(
-                || usage(&root, layers, &opened, &published, &unentered, &declared),
-                || rayon::join(|| mocking.as_ref().map(|mocking| tree(layers, mocking)), || published_names(layers, &entries)),
-            );
-            let exported = std::mem::take(&mut read.exported);
-            let deep = [std::mem::take(&mut read.deep), std::mem::take(&mut read.by_path), std::mem::take(&mut read.unfollowed)];
-            HelpReading { held: Some(Held { exported, deep, tree, uses: read.names, unreadable: read.unreadable, names }) }
+            HelpReading { held: Some(read_held(&root, layers, &entries, [&published, &unentered, &declared], mocking.as_ref())) }
         })
     })
+}
+
+fn read_held(root: &str, layers: &[Layer], entries: &[HelpEntry], targets: [&[String]; 3], mocking: Option<&Mocking>) -> Held {
+    let mut seen = std::collections::HashSet::new();
+    let opened: Vec<_> = entries.iter().filter(|entry| seen.insert(entry.key.as_str())).map(|entry| entry.key.clone()).collect();
+    let [published, unentered, declared] = targets;
+    let (read, (tree, names)) = rayon::join(
+        || usage(root, layers, &opened, published, unentered, declared),
+        || rayon::join(|| mocking.map(|mocking| tree(layers, mocking)), || published_names(layers, entries)),
+    );
+    Held { exported: read.exported, deep: [read.deep, read.by_path, read.unfollowed], tree, uses: read.names, unreadable: read.unreadable, names }
+}
+
+#[cfg(feature = "standalone-cli")]
+pub(crate) fn publish_index(index: &str, options: HelpPublish, entries: &[HelpEntry], targets: [&[String]; 3], mocking: &Mocking) -> napi::Result<Option<HelpEncoded>> {
+    let Some(chain) = OpenedChain::read(index).map_err(napi::Error::from_reason)? else { return Ok(None) };
+    read_held(&options.graph_root, chain.layers(), entries, targets, Some(mocking)).publish(options).map(Some)
 }
 
 /// Every import of each asked name out of the file asked with it, which is
@@ -256,7 +261,7 @@ pub fn declared_loose_of(root: String, index: &OpenedIndex, groups: Vec<Vec<Stri
 
 /// The source index at a path, opened once for one question: every segment the
 /// manifest names, cut at the first that is missing or of another length, as
-/// [`read_chain`] reads them, and each opened in place. A damaged segment of the
+/// [`OpenedChain::read`] reads them, and each opened in place. A damaged segment of the
 /// right length is refused with an error by every reading here, never a crash.
 /// A question opens it at its start and closes it at its end, and each reading
 /// in between is handed the opened layers, so a name declared in ten files no
@@ -267,31 +272,8 @@ pub fn declared_loose_of(root: String, index: &OpenedIndex, groups: Vec<Vec<Stri
 pub struct OpenedIndex {
     index: String,
     /// The opened chain; `None` when nothing was ever published.
-    opened: Option<Opened>,
+    opened: Option<OpenedChain>,
     closed: bool,
-}
-
-/// The layers opened over a chain's segments.
-type Layers<'a> = Vec<Layer<'a>>;
-
-self_cell::self_cell!(
-    /// Segments and the layers opened over them, kept together because the
-    /// layers borrow the bytes.
-    struct Opened {
-        owner: Vec<Vec<u8>>,
-        #[covariant]
-        dependent: Layers,
-    }
-);
-
-impl Opened {
-    fn open(segments: Vec<Vec<u8>>) -> Result<Self, String> {
-        Opened::try_new(segments, |segments| {
-            segments.par_iter().enumerate()
-                .map(|(at, bytes)| Layer::open(bytes).map_err(|error| format!("segment {at}: {error}")))
-                .collect()
-        })
-    }
 }
 
 #[napi]
@@ -308,13 +290,8 @@ impl OpenedIndex {
 /// The chain at `index`, read and opened for one question.
 #[napi(catch_unwind)]
 pub fn open_index(index: String) -> napi::Result<OpenedIndex> {
-    let chain = read_chain(&index).map_err(|error| refused(&index, error))?;
-    let opened = chain.map(|chain| Opened::open(chain.segments)).transpose().map_err(|error| refused(&index, error))?;
+    let opened = OpenedChain::read(&index).map_err(napi::Error::from_reason)?;
     Ok(OpenedIndex { index, opened, closed: false })
-}
-
-fn refused(index: &str, error: String) -> napi::Error {
-    napi::Error::from_reason(format!("the source index at {index} did not read: {error}"))
 }
 
 /// The layers `opened` holds, handed to `read`; `None` when there is no index.
@@ -322,7 +299,7 @@ pub(crate) fn opened_chain<T>(opened: &OpenedIndex, read: impl FnOnce(&[Layer]) 
     if opened.closed {
         return Err(napi::Error::from_reason(format!("the source index at {} was opened for a question that has ended", opened.index)));
     }
-    Ok(opened.opened.as_ref().map(|held| read(held.borrow_dependent())))
+    Ok(opened.opened.as_ref().map(|held| read(held.layers())))
 }
 
 #[napi]
@@ -383,7 +360,7 @@ fn skeleton_of(packages: &[PublishPackage]) -> Vec<Skeleton<'_>> {
 impl Held {
     fn publish(self, o: HelpPublish) -> napi::Result<HelpEncoded> {
         let graph_digest = match (&self.tree, o.graph_digest) {
-            (Some(tree), _) => Sha256::digest(tree).iter().map(|byte| format!("{byte:02x}")).collect(),
+            (Some(tree), _) => graph_digest(tree),
             (None, Some(digest)) => digest,
             (None, None) => return Err(napi::Error::from_reason("a reading that drew no tree is encoded under the digest of the caller's")),
         };
@@ -416,6 +393,7 @@ impl Held {
 
 #[cfg(test)]
 mod tests {
+    use sha2::{Digest, Sha256};
     use super::*;
     use crate::generation::Delta;
     use crate::log::{written, Over};

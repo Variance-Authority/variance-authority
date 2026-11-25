@@ -444,6 +444,8 @@ jobs:
           path: |
             packages/sense/npm/*/scan.node
             packages/sense/npm/*/scan.node.tree
+            packages/sense/npm/*/variance.exe
+            packages/sense/npm/*/variance.exe.tree
           if-no-files-found: error
           retention-days: 30
 
@@ -1133,6 +1135,8 @@ jobs:
           path: |
             packages/sense/npm/*/scan.node
             packages/sense/npm/*/scan.node.tree
+            packages/sense/npm/*/variance.exe
+            packages/sense/npm/*/variance.exe.tree
           if-no-files-found: error
           retention-days: 30
 

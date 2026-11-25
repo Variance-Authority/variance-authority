@@ -394,7 +394,11 @@ pub struct ModuleVerdict {
 /// The verdict on one file's change, or nothing when either text does not parse.
 #[napi(catch_unwind)]
 pub fn module_verdict(file: String, before: String, after: String) -> Option<ModuleVerdict> {
-    let (kind, names, exports, gone, imported, moved) = match verdict(&file, &before, &after)? {
+    classified(&file, &before, &after)
+}
+
+pub(crate) fn classified(file: &str, before: &str, after: &str) -> Option<ModuleVerdict> {
+    let (kind, names, exports, gone, imported, moved) = match verdict(file, before, after)? {
         Verdict::None => ("none", Vec::new(), Vec::new(), Vec::new(), Vec::new(), Some(Vec::new())),
         Verdict::Load => ("load", Vec::new(), Vec::new(), Vec::new(), Vec::new(), None),
         Verdict::Values { names, exports, gone, imported, moved } => {

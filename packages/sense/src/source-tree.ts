@@ -35,10 +35,25 @@ export interface SourceWalk {
 }
 
 /**
+ * One scoped grep question: the pattern, the start points it walks from and to,
+ * and the page of rendered matches wanted. The native workspace answers it, so
+ * the CLI and the MCP tool share one walk and one renderer.
+ */
+export interface ScopedGrep {
+  readonly query: string;
+  readonly from: string[];
+  readonly to: string[];
+  readonly limit: number;
+  readonly offset: number;
+  readonly offsetFlag: string;
+}
+
+/**
  * The tree as one workspace sees it. Its own files are said from it; a seed
  * is its file when it holds one at that path, else the graph's.
  */
 export interface SourceTree {
+  scopedGrep?(request: ScopedGrep & { readonly root: string; readonly graphRoot: string }): string;
   /** How many files the workspace holds. */
   readonly size: number;
   has(file: string): boolean;

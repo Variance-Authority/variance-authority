@@ -293,6 +293,7 @@ export {
   sourceTreeOf,
   type SourceLink,
   type SourceTree,
+  type ScopedGrep,
   type SourceWalk,
 } from './source-tree.js';
 export {

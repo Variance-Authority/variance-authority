@@ -237,18 +237,23 @@ jobs:
 
       # No `yarn install`. This builds a Rust crate and copies the result — it
       # needs neither the workspace's dependencies nor its `dist/`.
-      - run: node packages/sense/native/build.mjs --target ${{ matrix.target }}
+      - run: |
+          node packages/sense/native/build.mjs --target ${{ matrix.target }}
+          node packages/sense/native/build.mjs --cli --target ${{ matrix.target }}
 
       # The same refusal `prepack` makes at publish, made here so a binary over
       # its glibc floor fails the platform that built it.
       - run: node packages/sense/scripts/verify-native-pack.mjs packages/sense/npm/${{ matrix.platform }}
+      - run: node packages/cli/scripts/verify-package-bin.mjs packages/sense/npm/${{ matrix.platform }}
 
       - uses: actions/upload-artifact@v7
         with:
           name: scan-${{ matrix.platform }}
           # Every binary the platform built, because how many there are is the
           # build script's decision and not this file's.
-          path: packages/sense/npm/${{ matrix.platform }}/*.node
+          path: |
+            packages/sense/npm/${{ matrix.platform }}/*.node
+            packages/sense/npm/${{ matrix.platform }}/variance.exe
           if-no-files-found: error
           retention-days: 1
 
@@ -411,13 +416,17 @@ jobs:
                 continue
               fi
               cp "$from" "packages/sense/npm/$platform/$binary"
+              if [ "$binary" = variance.exe ]; then
+                chmod +x "packages/sense/npm/$platform/$binary"
+              fi
             done
           done
           if [ ${#wrong[@]} -gt 0 ]; then
             printf '%s\n' "no usable scanner was built for:" "${wrong[@]}"
             exit 1
           fi
-          ls -l packages/sense/npm/*/*.node
+          ls -l packages/sense/npm/*/*.node packages/sense/npm/*/variance.exe
+          node packages/cli/scripts/install-native.mjs --stage
 
       - name: Publish, and tag what was published
         env:

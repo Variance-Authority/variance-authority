@@ -55,7 +55,7 @@ pub(crate) struct Graph<'a> {
     dependents: Adjacency<'a>,
     allowed: [bool; 256],
     files: HashMap<&'a str, u32>,
-    shadows: &'a [JourneyShadow],
+    shadows: Vec<(u32, Vec<u32>)>,
 }
 
 impl<'a> Graph<'a> {
@@ -91,6 +91,10 @@ impl<'a> Graph<'a> {
                 .collect::<HashMap<_, _>>()
         };
         let files = of_kind(FILE);
+        let shadows = graph.shadows.iter().filter_map(|row| {
+            Some((*files.get(row.file.as_str())?, row.shadows.iter()
+                .filter_map(|target| files.get(target.as_str()).copied()).collect()))
+        }).collect();
         Ok(Graph {
             names: &graph.names,
             kinds,
@@ -98,7 +102,7 @@ impl<'a> Graph<'a> {
             dependents,
             allowed,
             files,
-            shadows: &graph.shadows,
+            shadows,
         })
     }
 
@@ -122,14 +126,6 @@ impl<'a> Graph<'a> {
         mask
     }
 
-    fn avoiding(&self, ids: &[u32]) -> Vec<u8> {
-        let mut avoid = vec![0u8; self.names.len()];
-        for id in ids {
-            avoid[*id as usize] = 1;
-        }
-        avoid
-    }
-
     /// `affectedBy(relations, [file]).files`, or `None` where that call reports
     /// the file `missing`.
     pub fn importers(&self, file: &str) -> Option<Vec<&'a str>> {
@@ -144,45 +140,46 @@ impl<'a> Graph<'a> {
             .collect()
     }
 
-    /// The walk against the arrows with every file left out whose own shadows
-    /// cut every trail to it, repeated until a walk finds no new such file.
     fn unshadowed(&self, seeds: &[u32]) -> Vec<u8> {
-        let mut avoid = vec![0u8; self.names.len()];
-        let mut mask = self.search(&self.dependents, seeds, &avoid);
-        if self.shadows.is_empty() {
-            return mask;
-        }
-        let seeded = self.avoiding(seeds);
-        let mut decided: HashSet<u32> = HashSet::new();
-        loop {
-            let mut found = 0;
-            for row in self.shadows {
-                let Some(id) = self.file(&row.file) else { continue };
-                let at = id as usize;
-                if mask[at] != 1 || seeded[at] == 1 || decided.contains(&id) {
-                    continue;
-                }
-                let cut: Vec<u32> = row
-                    .shadows
-                    .iter()
-                    .filter_map(|shadow| self.file(shadow))
-                    .filter(|target| mask[*target as usize] == 1)
-                    .collect();
-                if cut.is_empty() {
-                    continue;
-                }
-                decided.insert(id);
-                let forward = self.search(&self.depends, &[id], &self.avoiding(&cut));
-                if forward.iter().zip(&seeded).any(|(reached, seed)| *reached == 1 && *seed == 1) {
-                    continue;
-                }
-                avoid[at] = 1;
-                found += 1;
+        without_shadows(self.names.len(), &self.shadows, seeds, |backward, seeds, avoid| {
+            self.search(if backward { &self.dependents } else { &self.depends }, seeds, avoid)
+        }).0
+    }
+}
+
+/// Repeat the backward walk while a reached mock cuts every forward trail
+/// from its file to the seeds. The second mask names the files cut directly.
+pub(crate) fn without_shadows(
+    nodes: usize,
+    shadows: &[(u32, Vec<u32>)],
+    seeds: &[u32],
+    search: impl Fn(bool, &[u32], &[u8]) -> Vec<u8>,
+) -> (Vec<u8>, Vec<u8>) {
+    let mut avoid = vec![0; nodes];
+    let mut mask = search(true, seeds, &avoid);
+    if shadows.is_empty() { return (mask, avoid) }
+    let mut seeded = vec![0; nodes];
+    for &seed in seeds { seeded[seed as usize] = 1; }
+    let mut decided = HashSet::new();
+    loop {
+        let mut found = false;
+        for (id, row) in shadows {
+            let at = *id as usize;
+            if mask[at] != 1 || seeded[at] == 1 || decided.contains(id) { continue }
+            let mut cut = Vec::new();
+            cut.extend(row.iter().copied().filter(|&target| mask[target as usize] == 1));
+            if cut.is_empty() { continue }
+            decided.insert(*id);
+            let mut excluded = vec![0; nodes];
+            for target in cut { excluded[target as usize] = 1; }
+            let forward = search(false, &[*id], &excluded);
+            if forward.iter().zip(&seeded).any(|(reached, seed)| *reached == 1 && *seed == 1) {
+                continue;
             }
-            if found == 0 {
-                return mask;
-            }
-            mask = self.search(&self.dependents, seeds, &avoid);
+            avoid[at] = 1;
+            found = true;
         }
+        if !found { return (mask, avoid) }
+        mask = search(true, seeds, &avoid);
     }
 }

@@ -33,17 +33,19 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "bin": {
-    "variance": "./dist/bin.js"
+    "variance": "./dist/variance"
   },
   "files": [
     "dist",
     "!dist/**/*.d.ts.map",
     "mark.svg",
+    "scripts/install-native.mjs",
     "schema",
     "skills"
   ],
   "scripts": {
-    "build": "tsc --build"
+    "build": "tsc --build",
+    "postinstall": "node scripts/install-native.mjs"
   },
   "dependencies": {
     "@variance-authority/core": "workspace:^",
@@ -64,6 +66,12 @@
     "@variance-authority/storybook": "workspace:^",
     "@variance-authority/vantage": "workspace:^",
     "ci-info": "^4.4.0"
+  },
+  "optionalDependencies": {
+    "@variance-authority/sense-darwin-arm64": "workspace:*",
+    "@variance-authority/sense-linux-arm64-gnu": "workspace:*",
+    "@variance-authority/sense-linux-x64-gnu": "workspace:*",
+    "@variance-authority/sense-win32-x64-msvc": "workspace:*"
   },
   "devDependencies": {
     "@playwright/test": "^1.64.1",

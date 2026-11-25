@@ -14,7 +14,7 @@
     "cases/*"
   ],
   "scripts": {
-    "build": "yarn build:js && yarn build:native",
+    "build": "yarn build:js && yarn build:native && node packages/sense/native/build.mjs --cli",
     "build:js": "tsc --build && node tools/page-agents.mjs && node tools/tribunal-ui.mjs && node tools/tribunal-migrations.mjs",
     "build:native": "node packages/sense/native/build.mjs",
     "check": "vitest run --config vitest.checks.config.ts",

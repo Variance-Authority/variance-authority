@@ -17,12 +17,19 @@ use napi::bindgen_prelude::{AsyncTask, Buffer};
 use napi_derive::napi;
 
 use crate::breadth_first::breadth_first;
-use crate::help_publish::{open_index, opened_chain};
+use crate::help_grep_answer::{self, Page};
+use crate::index_chain::OpenedChain;
 use crate::off_thread::{off_thread, OffThread};
 use crate::order::code_unit;
 use crate::segment::NONE;
 use crate::source_tree::{tree, Mocking, EDGE_KINDS, FORMAT, VERSION};
 use crate::stored::{partition, Stored};
+
+#[cfg(feature = "standalone-cli")]
+#[path = "source_runtime.rs"]
+mod runtime;
+#[cfg(feature = "standalone-cli")]
+pub(crate) use runtime::RuntimeTree;
 
 /// One direction of the arrows: each file's row of neighbours, and the kind of each arrow.
 #[derive(Default)]
@@ -172,6 +179,7 @@ impl Graph {
     /// one it was entered from, so the way back is a shortest chain, and the
     /// first row wins a tie.
     pub(crate) fn walk(&self, seeds: &[u32], backward: bool) -> Walked {
+
         let rows = if backward { &self.backward } else { &self.forward };
         let (mut depth, mut via) = (vec![NONE; self.nodes()], vec![NONE; self.nodes()]);
         breadth_first(&rows.offset, &rows.target, seeds, |from, next| {
@@ -228,6 +236,20 @@ pub struct SourceTree {
     graph: Arc<Graph>,
 }
 
+impl SourceTree {
+    pub(crate) fn read(bytes: &[u8], workspace: &str) -> Result<Self, String> {
+        Graph::read(bytes, workspace)
+            .map(|graph| Self { graph: Arc::new(graph) })
+            .map_err(|error| format!("the source tree did not read: {error}"))
+    }
+
+    #[cfg(feature = "standalone-cli")]
+    pub(crate) fn workspace_paths(&self) -> impl Iterator<Item = &str> {
+        (self.graph.lo..self.graph.hi).map(|id| self.graph.said(id))
+    }
+
+}
+
 /// A walk over a [`SourceTree`], held so each file it reached can say how.
 #[napi]
 pub struct SourceWalk {
@@ -235,10 +257,22 @@ pub struct SourceWalk {
     walked: Walked,
 }
 
+#[napi(object)]
+pub struct ScopedGrep {
+    pub root: String,
+    pub graph_root: String,
+    pub query: String,
+    pub from: Vec<String>,
+    pub to: Vec<String>,
+    pub limit: u32,
+    pub offset: u32,
+    pub offset_flag: String,
+}
+
 /// The tree in `bytes` as a workspace at `workspace` below its root sees it; empty for the root itself.
 #[napi(catch_unwind)]
 pub fn open_source_tree(bytes: Buffer, workspace: String) -> napi::Result<SourceTree> {
-    Graph::read(&bytes, &workspace).map(|graph| SourceTree { graph: Arc::new(graph) }).map_err(|error| napi::Error::from_reason(format!("the source tree did not read: {error}")))
+    SourceTree::read(&bytes, &workspace).map_err(napi::Error::from_reason)
 }
 
 /// The tree drawn from the source index at `index`, as `read_help` draws the
@@ -247,9 +281,11 @@ pub fn open_source_tree(bytes: Buffer, workspace: String) -> napi::Result<Source
 pub fn source_tree_of(root: String, index: String, tsconfig: Option<napi::Either<String, bool>>, code: Vec<String>) -> AsyncTask<OffThread<Option<SourceTree>>> {
     let tsconfig = crate::resolve::Tsconfig::from_js(tsconfig);
     off_thread(move || {
+        let opened = OpenedChain::read(&index).map_err(napi::Error::from_reason)?;
         let mocking = Mocking::at(&root, tsconfig, code);
-        let drawn = opened_chain(&open_index(index)?, |layers| tree(layers, &mocking))?;
-        drawn.map(|bytes| open_source_tree(bytes.into(), String::new())).transpose()
+        opened.map(|held| SourceTree::read(&tree(held.layers(), &mocking), ""))
+            .transpose()
+            .map_err(napi::Error::from_reason)
     })
 }
 
@@ -265,6 +301,17 @@ impl SourceTree {
     #[napi]
     pub fn has(&self, path: String) -> bool {
         self.graph.own(&path).is_some()
+    }
+
+    /// Answer a scoped grep through the same walk and renderer as the standalone CLI.
+    ///
+    /// bound: the page of matches the caller asked for
+    #[napi(catch_unwind)]
+    pub fn scoped_grep(&self, request: ScopedGrep) -> napi::Result<String> {
+        let page = Page { limit: request.limit as usize, offset: request.offset as usize };
+        help_grep_answer::scope(self, &request.root, request.from, request.to)
+            .and_then(|scope| help_grep_answer::answer(std::path::Path::new(&request.graph_root), &request.query, scope, page, &request.offset_flag))
+            .map_err(napi::Error::from_reason)
     }
 
     /// The workspace's files from the `from`th, at most `limit` of them, said from it.
@@ -388,6 +435,11 @@ pub(crate) fn reached_by<'a>(walks: &[&'a SourceWalk]) -> HashMap<&'a str, bool>
 }
 
 impl SourceWalk {
+    #[cfg(feature = "standalone-cli")]
+    pub(crate) fn reached_with_depth(&self) -> impl Iterator<Item = (&str, u32)> {
+        self.reached().map(|id| (self.graph.path(id), self.walked.depth[id as usize]))
+    }
+
     fn reached(&self) -> impl Iterator<Item = u32> + '_ {
         (0..self.graph.nodes() as u32).filter(|&id| self.walked.depth[id as usize] != NONE)
     }

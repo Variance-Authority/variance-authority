@@ -6,7 +6,12 @@ publish = false
 description = "The scanning path of @variance-authority/sense, where a cold repository is the cost."
 
 [lib]
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "rlib"]
+
+[[bin]]
+name = "variance"
+path = "src/bin/variance.rs"
+required-features = ["standalone-cli"]
 
 # The instrumenter is its own crate so that a Rust transform pipeline can depend
 # on it from `node_modules`; this addon is one of its two callers. The vendored
@@ -29,6 +34,7 @@ exclude = ["vendor"]
 # records every file in them as unknown (`read_any.rs`).
 [features]
 default = ["grammars"]
+standalone-cli = ["dep:jiff", "dep:tempfile", "dep:regress", "serde_json/preserve_order", "dep:yaml_serde", "napi/noop", "napi/dyn-symbols"]
 grammars = [
     "dep:tree-sitter",
     "dep:tree-sitter-java",
@@ -39,6 +45,9 @@ grammars = [
 ]
 
 [dependencies]
+jiff = { version = "0.2.45", optional = true }
+tempfile = { version = "3", optional = true }
+yaml_serde = { version = "0.10.7", optional = true }
 # rustc's coverage map and a `.profraw`'s counters, read in-process for a Rust
 # suite's recording (`rust_coverage.rs`) instead of through `llvm-cov`.
 llvm_profparser = { version = "0.16", default-features = false }
@@ -93,6 +102,8 @@ rayon = "1"
 # `oxc_resolver` already builds with.
 self_cell = "1"
 regex = "1"
+# A discover path pattern uses JavaScript RegExp syntax, including lookaround.
+regress = { version = "0.11.1", features = ["utf16"], optional = true }
 rustc-hash = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["raw_value"] }

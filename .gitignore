@@ -30,6 +30,8 @@ docs-examples
 # be a fourth answer to which bytes ship.
 packages/sense/npm/*/*.node
 packages/sense/npm/*/scan.node.tree
+packages/sense/npm/*/variance.exe
+packages/sense/npm/*/variance.exe.tree
 
 # The two copies of `dist` the probe-overhead benchmark compares. Inside the
 # package because a bare specifier only resolves from somewhere `node_modules` is

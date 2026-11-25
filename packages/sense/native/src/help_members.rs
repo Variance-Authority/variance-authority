@@ -104,6 +104,12 @@ pub struct MemberUseSite {
 /// in code units, then by line. A file whose parse the chain does not hold
 /// declares nothing.
 pub(crate) fn member_declarations(root: &str, layers: &[Layer], name: &str) -> Vec<MemberSite> {
+    let mut found = member_sites(root, layers, name);
+    used(root, layers, name, &mut found);
+    found
+}
+
+pub(crate) fn member_sites(root: &str, layers: &[Layer], name: &str) -> Vec<MemberSite> {
     // The digests whose parse declares the name somewhere on the chain; the
     // file's newest parse is joined below and asked again.
     let mut declaring: HashSet<&str> = HashSet::new();
@@ -149,7 +155,6 @@ pub(crate) fn member_declarations(root: &str, layers: &[Layer], name: &str) -> V
         sites.sort_by_key(|site| site.line);
         found.extend(sites);
     }
-    used(root, layers, name, &mut found);
     found
 }
 

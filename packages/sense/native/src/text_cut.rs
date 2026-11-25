@@ -12,7 +12,7 @@
 // compass: variance-authority.reach.source-index
 
 /// Whether `c` is whitespace to JavaScript's `trim`.
-fn blank(c: char) -> bool {
+pub(crate) fn blank(c: char) -> bool {
     (c.is_whitespace() && c != '\u{85}') || c == '\u{feff}'
 }
 

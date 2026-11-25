@@ -167,7 +167,7 @@ describe('the platform packages', () => {
 
     it('publishes its binary and nothing else', () => {
       expect(platform.main).toBe('scan.node');
-      expect(platform.files).toEqual(['scan.node']);
+      expect(platform.files).toEqual(['scan.node', 'variance.exe']);
     });
 
     it('refuses to pack without a usable binary', () => {
