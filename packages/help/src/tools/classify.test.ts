@@ -312,11 +312,11 @@ describe('docs_classify', () => {
     });
     const declaration = (name: string, line: number, kind = 'function', exported = false) => ({ name, kind, line, exported, members: [] });
     const orient = vi.spyOn(sense, 'declarationsOf').mockReturnValue([
-        { file: 'lib/loader.js', read: true, more: 0, moreMembers: 0, declarations: [
+        { file: 'lib/loader.js', read: true, more: 0, moreMembers: 0, bound: 0, exportsKept: true, declarations: [
           declaration('helper', 1), declaration('CACHE', 2, 'const', true), declaration('ModuleLoader', 3, 'class', true),
           ...['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'].map((name, at) => declaration(name, 10 + at)),
         ] },
-        { file: 'lib/run_main.js', read: true, more: 0, moreMembers: 0, declarations: [declaration('runEntryPointWithESMLoader', 5, 'function', true)] },
+        { file: 'lib/run_main.js', read: true, more: 0, moreMembers: 0, bound: 0, exportsKept: true, declarations: [declaration('runEntryPointWithESMLoader', 5, 'function', true)] },
     ]);
 
     const text = classify.run(HELP, { query: 'ModuleLoader run_main' }, { root: '/unused' });
@@ -336,8 +336,8 @@ describe('docs_classify', () => {
       named: [], declared: [{ name: 'ModuleLoader', at: 'lib/loader.js', line: 3 }],
     });
     const read = vi.spyOn(sense, 'declarationsOf').mockReturnValue([
-      { file: 'app/packages/sense/src/checkoutPath.ts', read: true, more: 0, moreMembers: 0, declarations: [{ name: 'checkoutPath', kind: 'function', line: 1, exported: true, members: [] }] },
-      { file: 'app/lib/loader.js', read: true, more: 0, moreMembers: 0, declarations: [{ name: 'ModuleLoader', kind: 'class', line: 3, exported: true, members: [] }] },
+      { file: 'app/packages/sense/src/checkoutPath.ts', read: true, more: 0, moreMembers: 0, bound: 0, exportsKept: true, declarations: [{ name: 'checkoutPath', kind: 'function', line: 1, exported: true, members: [] }] },
+      { file: 'app/lib/loader.js', read: true, more: 0, moreMembers: 0, bound: 0, exportsKept: true, declarations: [{ name: 'ModuleLoader', kind: 'class', line: 3, exported: true, members: [] }] },
     ]);
 
     const text = classify.run(HELP, { query: 'checkoutPath ModuleLoader' }, { root: '/unused', sourceIndex: { index: '/scoped/source-index.bin', within: 'app' } });
@@ -352,9 +352,9 @@ describe('docs_classify', () => {
 
   it('gives a named file it can list nothing of a row that says why', () => {
     const text = formatNamedFiles(['lib/unread.js', 'lib/consts.js', 'lib/bare.js', 'lib/new_thing.js'], [
-      { file: 'lib/unread.js', read: false, more: 0, moreMembers: 0, declarations: [] },
-      { file: 'lib/consts.js', read: true, more: 3, moreMembers: 0, declarations: [{ name: 'A', kind: 'const', line: 1, exported: true, members: [] }] },
-      { file: 'lib/bare.js', read: true, more: 0, moreMembers: 0, declarations: [{ name: 'run', kind: 'function', line: 1, exported: null, members: [] }] },
+      { file: 'lib/unread.js', read: false, more: 0, moreMembers: 0, bound: 0, exportsKept: true, declarations: [] },
+      { file: 'lib/consts.js', read: true, more: 3, moreMembers: 0, bound: 0, exportsKept: true, declarations: [{ name: 'A', kind: 'const', line: 1, exported: true, members: [] }] },
+      { file: 'lib/bare.js', read: true, more: 0, moreMembers: 0, bound: 0, exportsKept: false, declarations: [{ name: 'run', kind: 'function', line: 1, exported: null, members: [] }] },
     ] as unknown as Parameters<typeof formatNamedFiles>[0]);
 
     expect(text.split('\n').slice(3)).toEqual([

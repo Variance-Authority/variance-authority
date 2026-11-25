@@ -80,6 +80,10 @@ export interface FileDeclarations {
   readonly more: number;
   /** The member lines the budget left out, those of a declaration it cut included; a line that declares several members is one. */
   readonly moreMembers: number;
+  /** The top-level names the file binds, does not declare and is not known to export: none is listed. */
+  readonly bound: number;
+  /** False when the index kept no exports of the file, or no parse: whether a name is exported is unknown, the bound ones included. */
+  readonly exportsKept: boolean;
 }
 
 /**
@@ -87,7 +91,8 @@ export interface FileDeclarations {
  * what either costs: where the repository leaves `core.fsmonitor` off, `git status` is 2.2 s on seven copies
  * of Material UI, and a question that made it twice paid 4.4 s. The same read gives what each file the index
  * holds declares at its top level, in the order asked, each within `declarationLines` lines: top-level
- * declarations first, then the members of a class, an interface or a type alias while lines are left.
+ * declarations first, then the members of a class, an interface or a type alias while lines are left. A name
+ * the file only binds is counted, unless an export binds it.
  */
 export function orientAround(
   root: string,

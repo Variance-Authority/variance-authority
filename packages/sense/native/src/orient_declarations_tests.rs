@@ -109,3 +109,83 @@ fn a_member_goes_under_the_declaration_it_is_written_in_when_another_shares_its_
         "  5 b",
     ]);
 }
+
+#[test]
+fn a_name_the_file_only_binds_spends_no_line_of_the_budget_and_is_counted() {
+    let held: Vec<String> = (0..45).map(|at| format!("const {{ held{at} }} = primordials;\n")).collect();
+    let source = format!("const path = require('path');\n{}let debug = 1;\nfunction run() {{}}\nclass Loader {{\n  load() {{}}\n}}\nmodule.exports = {{ run }};\n", held.concat());
+    let (records, parses) = chain(&[("src/loader.js", "git:e", &source)]);
+    let layers = [Layer::open(&records).unwrap(), Layer::open(&parses).unwrap()];
+    let found = declarations_of(&layers, &["src/loader.js".to_owned()], 40).remove(0);
+    assert_eq!(rows(&found), vec![
+        "47 let debug Some(false)",
+        "48 function run Some(true)",
+        "49 class Loader Some(false)",
+        "  50 load",
+    ]);
+    assert_eq!((found.more, found.more_members, found.bound), (0, 0, 46));
+}
+
+#[test]
+fn a_bound_name_the_file_exports_keeps_its_row() {
+    let source = "export const { width, height } = box;\nconst { depth } = box;\n";
+    let (records, parses) = chain(&[("src/box.js", "git:f", source)]);
+    let layers = [Layer::open(&records).unwrap(), Layer::open(&parses).unwrap()];
+    let found = declarations_of(&layers, &["src/box.js".to_owned()], 40).remove(0);
+    assert_eq!(rows(&found), vec!["1 binding width Some(true)", "1 binding height Some(true)"]);
+    assert_eq!((found.more, found.bound), (0, 1));
+}
+
+#[test]
+fn a_file_that_only_binds_names_declares_nothing_and_counts_them() {
+    let (records, parses) = chain(&[("src/binds.js", "git:g", "const { a, b } = require('./c');\n")]);
+    let layers = [Layer::open(&records).unwrap(), Layer::open(&parses).unwrap()];
+    let found = declarations_of(&layers, &["src/binds.js".to_owned()], 40).remove(0);
+    assert!(found.read);
+    assert_eq!((rows(&found), found.more, found.bound), (Vec::new(), 0, 2));
+}
+
+#[test]
+fn a_file_the_index_kept_no_exports_of_says_so_when_every_name_it_has_is_only_bound() {
+    let sources = [
+        ("src/assigned.js", "git:j", "const { A } = require('./x');\nexports.A = A;\n"),
+        ("src/spread.js", "git:k", "const { A } = require('./x');\nmodule.exports = { A, ...rest };\n"),
+        ("src/kept.js", "git:l", "const { A } = require('./x');\nmodule.exports = { b: 1 };\n"),
+    ];
+    let (records, parses) = chain(&sources);
+    let layers = [Layer::open(&records).unwrap(), Layer::open(&parses).unwrap()];
+    let files: Vec<String> = sources.iter().map(|(file, _, _)| (*file).to_owned()).collect();
+    let found: Vec<(u32, bool)> = declarations_of(&layers, &files, 40).iter().map(|one| (one.bound, one.exports_kept)).collect();
+    assert_eq!(found, vec![(1, false), (1, false), (1, true)]);
+}
+
+#[test]
+fn a_name_the_file_binds_twice_is_counted_once() {
+    let source = "var { a } = require('./x');\nvar { a } = require('./y');\nvar util = require('util');\nvar util = require('util');\n";
+    let (records, parses) = chain(&[("src/twice.js", "git:m", source)]);
+    let layers = [Layer::open(&records).unwrap(), Layer::open(&parses).unwrap()];
+    assert_eq!(declarations_of(&layers, &["src/twice.js".to_owned()], 40).remove(0).bound, 2);
+}
+
+#[test]
+fn a_member_written_in_a_bound_value_is_not_put_under_the_declaration_above_it() {
+    let source = "class Box {\n  open() {}\n}\nconst { made } = make(class Box {\n  shut() {}\n});\n";
+    let (records, parses) = chain(&[("src/made.js", "git:h", source)]);
+    let layers = [Layer::open(&records).unwrap(), Layer::open(&parses).unwrap()];
+    let found = declarations_of(&layers, &["src/made.js".to_owned()], 40).remove(0);
+    let lines: Vec<String> = rows(&found).iter().map(|row| row.replace(" None", "").replace(" Some(false)", "")).collect();
+    assert_eq!(lines, vec!["1 class Box", "  2 open"]);
+    assert_eq!((found.more_members, found.bound), (0, 1));
+}
+
+#[test]
+fn a_name_the_file_binds_and_declares_is_listed_at_the_declaration_and_not_counted() {
+    let source = "const { Pool } = pg;\ntype Pool = number;\nconst { other } = pg;\nexport const run = 1;\n";
+    let (records, parses) = chain(&[("src/pool.ts", "git:i", source)]);
+    let layers = [Layer::open(&records).unwrap(), Layer::open(&parses).unwrap()];
+    let found = declarations_of(&layers, &["src/pool.ts".to_owned()], 40).remove(0);
+    assert_eq!(rows(&found), vec!["2 type Pool Some(false)", "4 const run Some(true)"]);
+    assert_eq!(found.bound, 1);
+    let cut = declarations_of(&layers, &["src/pool.ts".to_owned()], 0).remove(0);
+    assert_eq!((cut.more, cut.bound), (2, 1), "a name whose declaration the budget cut is still declared");
+}

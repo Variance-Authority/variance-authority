@@ -29,7 +29,7 @@ use crate::dependency_lexicon::purposes::{asked_run, code_stems, near, phrase_ru
 
 use crate::compact::Layer;
 use crate::help_declared_candidates::{candidates, sure, Said};
-use crate::harvest::BINDING;
+use crate::harvest::is_bound;
 use crate::help_usage::kind_of;
 use crate::name_table::Item;
 use crate::orient_map_read::beside;
@@ -256,7 +256,7 @@ pub(crate) fn declaration_locations(layers: &[Layer], query: &str) -> Vec<Declar
             Row::Nested(row) => (text.text(parses.nested_name.at(row)), parses.nested_line.at(row), text.text(parses.nested_kind.at(row))),
             Row::Member(_) => return None,
         };
-        (name == query && kind != BINDING).then(|| DeclarationLocation { name: name.to_owned(), at: at.to_owned(), line })
+        (name == query && !is_bound(kind)).then(|| DeclarationLocation { name: name.to_owned(), at: at.to_owned(), line })
     }).collect()
 }
 
@@ -324,7 +324,7 @@ fn matched<'a>(layers: &'a [Layer<'a>], query: &str, matching: Matching, files: 
             let mut hits = Vec::new();
             for symbol in parses.symbols.range(row).filter(|&symbol| picked.symbol(symbol)) {
                 let name = text.text(parses.symbol_name.at(symbol));
-                let bound = text.text(parses.symbol_kind.at(symbol)) == BINDING;
+                let bound = is_bound(text.text(parses.symbol_kind.at(symbol)));
                 let held = named.iter().position(|&(held, _)| held == name);
                 if !admits(own.contains(&name)) || held.is_some_and(|at| bound || !named[at].1) { continue }
                 let doc_text = parses.doc_of_symbol(text, symbol);
