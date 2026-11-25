@@ -460,10 +460,10 @@ export function picture(raster: Raster, subject: string): Pictured {
  * equal documents may paint different images. Names each kind present, in
  * code-unit order; empty when the document is fully described by its markup.
  *
- * A subject with a black box is always photographed in place: neither a digest
- * match nor the render cache may stand in for the image.
+ * Read from the serialized markup, so a `<canvas` spelled inside script text or
+ * a comment also counts, and one a script creates later does not.
  */
-export function blackBoxes(document: RenderDocument): readonly string[] {
+function blackBoxes(document: RenderDocument): readonly string[] {
   const found = new Set<string>();
   for (const match of document.html.matchAll(/<(canvas|video)[\s>/]/gi)) {
     found.add((match[1] ?? '').toLowerCase());

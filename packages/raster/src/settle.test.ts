@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-  blackBoxes,
   documentDigest,
   type RenderDocument,
   type RenderIdentity,
@@ -63,31 +62,11 @@ describe('settle', () => {
       missingFonts: [],
     };
 
-    expect(settle(digest, found, IDENTITY, undefined, undefined, [])).toEqual({
+    expect(settle(digest, found, IDENTITY)).toEqual({
       kind: 'settled',
       verdict: 'unchanged',
       because: expect.stringContaining('byte-identical'),
     });
-  });
-
-  it('renders a subject holding a canvas even when the digest matches, and names the box', () => {
-    // A canvas keeps its bitmap outside the markup, so equal documents do not
-    // imply equal images: the digest cannot see the one thing that changed.
-    const drawn = documentFor('fixture:canvas', '<div data-va-path="0"><canvas data-va-path="0.0"></canvas></div>');
-    const found: Described = {
-      documentDigest: documentDigest(drawn),
-      comparable: true,
-      storedUnder: IDENTITY,
-      missingFonts: [],
-    };
-
-    const settlement = settle(documentDigest(drawn), found, IDENTITY, undefined, undefined, blackBoxes(drawn));
-    expect(settlement.kind).toBe('render');
-    expect(settlement.because).toContain('canvas');
-  });
-
-  it('still settles a document with no black box on a digest hit', () => {
-    expect(blackBoxes(document)).toEqual([]);
   });
 
   it('renders against a baseline another machine painted, and names the field that moved', () => {
@@ -101,7 +80,7 @@ describe('settle', () => {
       missingFonts: [],
     };
 
-    const settlement = settle(digest, found, IDENTITY, undefined, undefined, []);
+    const settlement = settle(digest, found, IDENTITY);
     expect(settlement.kind).toBe('render');
     // The one field that moved, both sides of it, and nothing the two share.
     expect(settlement.because).toContain('platform darwin/arm64 → linux/x64');
@@ -122,7 +101,7 @@ describe('settle', () => {
       missingFonts: [],
     };
 
-    const settlement = settle(digest, found, NEW_RECIPE, undefined, undefined, []);
+    const settlement = settle(digest, found, NEW_RECIPE);
     expect(settlement.kind).toBe('render');
     expect(settlement.because).toContain('rasterization e5ed66c6 → 865368fe');
   });
@@ -135,7 +114,7 @@ describe('settle', () => {
       missingFonts: [],
     };
 
-    const settlement = settle(digest, found, IDENTITY, undefined, undefined, []);
+    const settlement = settle(digest, found, IDENTITY);
     expect(settlement.kind).toBe('render');
     expect(settlement.because).toContain('rasterization e5ed66c6 → not recorded');
   });
@@ -150,7 +129,7 @@ describe('settle', () => {
       missingFonts: [],
     };
 
-    const settlement = settle(digest, found, undefined, undefined, undefined, []);
+    const settlement = settle(digest, found);
     expect(settlement.kind).toBe('render');
     expect(settlement.because).toContain('another identity');
   });
@@ -168,7 +147,7 @@ describe('settle', () => {
       missingFonts: ['Inter'],
     };
 
-    const settlement = settle(digest, found, IDENTITY, undefined, undefined, []);
+    const settlement = settle(digest, found, IDENTITY);
     expect(settlement).toMatchObject({ kind: 'settled', missingFonts: ['Inter'] });
     expect(settlement.because).toContain('substituted font');
   });
@@ -180,13 +159,13 @@ describe('settle', () => {
       storedUnder: IDENTITY,
       missingFonts: [],
     };
-    expect(settle(digest, found, IDENTITY, undefined, undefined, []).kind).toBe('render');
+    expect(settle(digest, found, IDENTITY).kind).toBe('render');
   });
 
   it('renders when there is no baseline, so the subject can be accepted at all', () => {
     // The verdict `new` needs no image; `accept` does, and `accept` may never
     // re-render. This is the one render this function knowingly pays for.
-    expect(settle(digest, null, IDENTITY, undefined, undefined, [])).toEqual({
+    expect(settle(digest, null, IDENTITY)).toEqual({
       kind: 'render',
       because: expect.stringContaining('no baseline'),
     });
@@ -207,7 +186,7 @@ describe('settle', () => {
       missingFonts: [],
     };
 
-    expect(settle(digest, found, IDENTITY, undefined, COLLECTED, [])).toEqual({
+    expect(settle(digest, found, IDENTITY, undefined, COLLECTED)).toEqual({
       kind: 'render',
       because: expect.stringContaining('records no snapshot of its nodes'),
     });
@@ -225,7 +204,7 @@ describe('settle', () => {
       missingFonts: [],
     };
 
-    expect(settle(digest, found, IDENTITY, undefined, undefined, []).kind).toBe('settled');
+    expect(settle(digest, found, IDENTITY).kind).toBe('settled');
   });
 
   it('settles a photographed baseline that kept its snapshot', () => {
@@ -238,7 +217,7 @@ describe('settle', () => {
       missingFonts: [],
     };
 
-    expect(settle(digest, found, IDENTITY, undefined, COLLECTED, []).kind).toBe('settled');
+    expect(settle(digest, found, IDENTITY, undefined, COLLECTED).kind).toBe('settled');
   });
 
   it('settles a baseline with no pixels whatever it kept, since no region is joined there', () => {
@@ -251,7 +230,7 @@ describe('settle', () => {
       missingFonts: [],
     };
 
-    expect(settle(digest, found, IDENTITY, undefined, COLLECTED, []).kind).toBe('settled');
+    expect(settle(digest, found, IDENTITY, undefined, COLLECTED).kind).toBe('settled');
   });
 
   it('renders a baseline read from where an earlier layout kept it, so an accepting run moves it', () => {
@@ -266,7 +245,7 @@ describe('settle', () => {
       relocated: { from: 'v1-abc/button', to: 'Components/Button/Primary-chromium' },
     };
 
-    expect(settle(digest, found, IDENTITY, undefined, undefined, [])).toEqual({
+    expect(settle(digest, found, IDENTITY)).toEqual({
       kind: 'render',
       because: expect.stringMatching(/read from v1-abc\/button.*Components\/Button\/Primary-chromium/),
     });

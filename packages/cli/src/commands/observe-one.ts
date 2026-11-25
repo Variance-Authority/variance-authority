@@ -1,5 +1,5 @@
 import { locateSites } from '@variance-authority/core/attribute';
-import { blackBoxes, documentDigest, timeOn } from '@variance-authority/core/format';
+import { blackBoxRefusal, documentDigest, timeOn } from '@variance-authority/core/format';
 import type { Level } from '@variance-authority/core/judge';
 import {
   declaredIgnores,
@@ -126,6 +126,9 @@ export async function observeOne(
     };
   }
 
+  const blackBox = blackBoxRefusal(collected.document);
+  if (blackBox !== undefined) throw new Error(blackBox);
+
   const key: BaselineKey = keyFor(planned);
 
   // The settlement query, and it reads no image. `describe` answers from the
@@ -147,14 +150,7 @@ export async function observeOne(
     const described = await deps.store.describe(key, identity);
     return {
       described,
-      settlement: settle(
-        documentDigest(collected.document),
-        described,
-        identity,
-        undefined,
-        collected.snapshot,
-        blackBoxes(collected.document),
-      ),
+      settlement: settle(documentDigest(collected.document), described, identity, undefined, collected.snapshot),
     };
   });
 
