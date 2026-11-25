@@ -22,7 +22,7 @@ more than one. Opening the file is yours: the command starts no browser. With no
 
 The header names the suite, the commit and the record the page was read from,
 and counts the files recorded and the files placed on the clock. Below it sit
-the tabs **Tests**, **Timeline**, **Cadence** and **Coverage**, with Tests open, and a
+the tabs **Tests**, **Timeline**, **Coverage** and, unrelated to [the cadence line](test-level-coverage.md) of a case, **Cadence**, with Tests open, and a
 filter box above the tables of the open tab. Tests holds the slowest test files
 and the slowest cases as sortable tables, each row a link, then every case whose
 attempts ended differently, then every retried case no attempt of which passed, with each attempt. The Timeline is a chart with one lane per test file;
@@ -48,8 +48,8 @@ no Coverage tab, and the header says coverage was not counted.
 - **Cadence** draws one point for each run the record has kept a summary row
   for: its total duration against the time it landed, with the suite and case
   count in a table beneath. Here "cadence" means how often runs land and how
-  long each took; it is not the per-case first-test `cadence` line that
-  [the agent CLI](agent-cli.md) lists. Each recorded run
+  long each took; it is not the per-case first-test `cadence` line of
+  test-level coverage. Each recorded run
   appends one row (time, suite, total duration, case count) to
   `coverage.rows.json` beside the record, and a row older than four weeks goes
   when the next run lands, with at most four hundred kept. A cache with one row
