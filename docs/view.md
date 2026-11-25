@@ -33,7 +33,8 @@ no Coverage tab, and the header says coverage was not counted.
 ## What each tab shows
 
 - **Tests** lists the slowest test files and the slowest cases, and every case
-  whose attempts ended differently or never passed, with each attempt, its time and its failure message. Click a
+  whose attempts ended differently or never passed, with each attempt, its time and its failure message, and the nearest source frame of the failure as `path:line`
+  where the record holds one. Click a
   column header to sort, and type in the filter box to narrow the rows.
 - **Timeline** draws each test file as a bar from the moment the runner started
   it, with the phases the runner timed in colour: `prepare`, `environment`,

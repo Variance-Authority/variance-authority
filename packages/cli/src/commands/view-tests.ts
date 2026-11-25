@@ -65,7 +65,10 @@ function trail(title: string, hint: string, cases: TestsData['retried']): string
       .map((one) => `<span class="mark ${one.ended === 'passed' ? 'ok' : 'warn'}" title="${text(`attempt ${one.attempt}: ${one.duration === undefined ? "no time" : ms(one.duration)}`)}">${text(`${one.attempt} ${one.ended}`)}</span>`)
       .join('');
     const said = tries.flatMap((one) => (one.message === undefined || one.message === '' ? [] : [`${one.attempt}: ${one.message}`]));
-    const message = said.length === 0 ? '' : `<div class="msg">${text(said.at(-1)!.slice(0, MESSAGE))}</div>`;
+    const framed = tries.map((one) => one.frame).filter((frame) => frame !== undefined && frame !== '').at(-1);
+    const message =
+      (said.length === 0 ? '' : `<div class="msg">${text(said.at(-1)!.slice(0, MESSAGE))}</div>`) +
+      (framed === undefined ? '' : `<div class="msg">${text(framed)}</div>`);
     return `<tr data-key="${text(`${file} ${name}`)}"><td>${text(name)}${message}</td><td>${fileLink(file)}</td><td>${marks}</td><td class="num" data-v="${tries.length}">${tries.length}</td></tr>`;
   });
   return section(title, hint, table([['case', false], ['file', false], ['attempts', false], ['n', true]], rows), undefined, undefined, 'part');

@@ -3,8 +3,9 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { encodeTestCoverage, runRowsFile, testCoverageFile } from '@variance-authority/sense/test-selection';
+import { encodeExecutionIndex, encodeTestCoverage, runRowsFile, testCoverageFile, withCaseSections } from '@variance-authority/sense/test-selection';
 import type { FanIn, FanInFile } from '@variance-authority/sense/test-selection';
+import { encodeRecordedAttempts } from '../../../sense/src/test-selection/attempts-record.js';
 import { TOP, viewData } from './view-data.js';
 
 /** What `variance view` cuts from a recording: the rows a page holds, and the true size of what it was cut from. */
@@ -92,5 +93,21 @@ describe('the rows a view page holds', () => {
     record([{ file: 'a.test.ts', duration: 9 }]);
 
     expect(viewData(root).cadence).toEqual({ rows: [] });
+  });
+
+  it('holds an attempt\'s nearest frame where the record has one, and none where it has not', () => {
+    const at = testCoverageFile(root, {});
+    mkdirSync(dirname(at), { recursive: true });
+    const bytes = encodeTestCoverage({ version: 3, instrumentation: 'fixture', commit: 'f'.repeat(40), tests: [{ file: 'test/a.test.ts', duration: 30, complete: true, preconditions: [] }], modules: [] });
+    writeFileSync(at, withCaseSections(bytes, {
+      index: encodeExecutionIndex({ tests: [{ id: 'a', file: 'test/a.test.ts', name: 'pays twice', duration: 30 }], modules: [] }),
+      attempts: encodeRecordedAttempts([
+        { case: 'a', attempt: 1, ended: 'failed', duration: 12, message: 'boom', frame: 'test/a.test.ts:7' },
+        { case: 'a', attempt: 2, ended: 'failed', duration: 12, message: 'boom' },
+      ]),
+    }));
+    const [first, second] = viewData(root).tests.unpassed[0]!.attempts;
+    expect(first!.frame).toBe('test/a.test.ts:7');
+    expect(second).not.toHaveProperty('frame');
   });
 });

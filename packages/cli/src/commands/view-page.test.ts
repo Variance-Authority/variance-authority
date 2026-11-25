@@ -65,6 +65,15 @@ describe('variance view page', () => {
     expect(html).toContain('expected 1 to be 2');
   });
 
+  it('draws a failed attempt\'s nearest frame as path:line on the Tests tab, and none for an attempt without one', () => {
+    const withFrame = { ...DATA.tests, unpassed: [{ file: 'src/broken.test.ts', name: 'always <breaks>', attempts: [{ attempt: 1, ended: 'failed', duration: 50, message: 'boom', frame: 'src/broken.test.ts:21' }] }], retried: [] };
+    expect(viewPage({ ...DATA, tests: withFrame })).toContain('src/broken.test.ts:21');
+    const without = { ...withFrame, unpassed: [{ ...withFrame.unpassed[0]!, attempts: [{ attempt: 1, ended: 'failed', duration: 50, message: 'boom' }] }] };
+    const html = viewPage({ ...DATA, tests: without });
+    expect(html).not.toMatch(/src\/broken\.test\.ts:\d/);
+    expect(html).toContain('boom');
+  });
+
   it('lists a case that never passed under its own heading, with every attempt', () => {
     const html = viewPage(DATA);
     expect(html).toContain('Cases that did not pass');
