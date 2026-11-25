@@ -60,6 +60,13 @@ describe('indexDeclarations', () => {
     });
   });
 
+  it('indexes a name a file both binds and declares at the declaration, whichever comes first', () => {
+    const bound = 'var { Button } = source;\nfunction Button() {}\n';
+    const declared = 'function Button() {}\nvar { Button } = source;\n';
+    expect(indexDeclarations('src/kit.js', bound)).toEqual({ Button: [{ file: 'src/kit.js', line: 2, via: 'function' }] });
+    expect(indexDeclarations('src/kit.js', declared)).toEqual({ Button: [{ file: 'src/kit.js', line: 1, via: 'function' }] });
+  });
+
   it('indexes nothing from a file the parser cannot read', () => {
     const source = '// @flow\ntype Props = {| label: string |};\nexport function Button(props: Props) { return null; }\n';
     expect(indexDeclarations('src/Button.js', source)).toEqual({});
