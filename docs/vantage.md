@@ -388,7 +388,7 @@ has each of them, and what to do about a region that was not named.
 
 Set the server up as in [watch an application you use by
 hand](#watch-an-application-you-use-by-hand): a watcher, probes in its build and
-its handler inside `enter`. Nothing the page does is needed. Then start it with a
+its handler inside `enter`, or a `trace` in its place. Nothing the page does is needed. Then start it with a
 third variable, `VARIANCE_AUTHORITY_STORY=1`:
 
 ```bash
@@ -432,7 +432,10 @@ charges for it:
 ```
 
 Step 5 holds 92% of the request: the 182.1 ms from entering `charge` to the next
-recorded step. `await 21` under it is the one wait it recorded in that time.
+recorded step. `await 21 ×1` under it says that the code after the `await` on
+line 21 ran within this step, so the step holds the wait. Where that code ran
+after another function had returned, it is a step of its own: steps 3 and 6 are
+`checkout` after its first and its last `await`.
 
 Each step is the function, where it is, the branches it took under it, and what
 it was handed under those, as [a test story](test-stories.md) prints it.
@@ -447,8 +450,8 @@ to the moment the request settled.
   response. It is not the running time of the function named, which can call
   the next step and continue after it.
 - The probes and the recording take time of their own, and a request that enters
-  many functions pays it at each. Read the shares; do not quote a time as what
-  the request takes without them.
+  many functions pays it at each. The times and the shares are of the server
+  with both in it.
 - A step drawn once for several passes of a loop has the times of all its
   passes added up. Its start is the first pass's.
 - Where another request's work ran in the middle of that time, the step says
@@ -456,6 +459,10 @@ to the moment the request settled.
 - Every server and page in an execution is placed from the same beginning, by
   the clock of the machine it ran on. When more than one is listed, the
   line says so: two machines whose clocks differ are placed apart by that much.
+- A request told again has another list under `told again`, which says how long
+  after the list above ended it begins. That time is no step's. A server with a
+  `trace` and no `enter` tells a request each turn of the event loop in which it
+  ran, so there most of a wait is between two lists.
 - A page's last step, and the last step kept of a story that lost some, have no
   next step, and so only their start.
 - A head that stamps no times is listed without them.

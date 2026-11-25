@@ -3876,6 +3876,7 @@
         "drawingText": "function",
         "drawings": "function",
         "foldSteps": "function",
+        "gapText": "function",
         "listStories": "function",
         "numbered": "function",
         "pageChanges": "function",

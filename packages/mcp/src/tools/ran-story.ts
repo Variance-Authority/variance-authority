@@ -1,4 +1,4 @@
-import { drawToldRoute, routeText, toldModules, toldSpan, unnotedText, unresolvedText, untapedText, type Region, type Route, type Span } from '@variance-authority/sense/story';
+import { drawToldRoute, gapText, routeText, toldModules, toldSpan, unnotedText, unresolvedText, untapedText, type Region, type Route, type Span } from '@variance-authority/sense/story';
 import type { HeadRan } from '@variance-authority/vantage';
 import { cappedRows } from './capped.js';
 import type { CutModules } from './tool.js';
@@ -45,9 +45,10 @@ export function toldRows(head: HeadRan, cut: CutModules | undefined, span: Span 
     }
     return regions.length === count && regions.every((region) => region !== undefined) ? regions : undefined;
   };
-  const rows = (head.stories ?? []).flatMap((story, told) => [
-    ...(told === 0 ? [] : ['told again, once more of it had run:']),
-    ...routeRows(drawToldRoute(Buffer.from(story, 'base64'), regionsOf), span),
+  const stories = (head.stories ?? []).map((story) => Buffer.from(story, 'base64'));
+  const rows = stories.flatMap((story, told) => [
+    ...(told === 0 ? [] : [`told again, once more of it had run${span === undefined ? '' : gapText(stories[told - 1]!, story, span)}:`]),
+    ...routeRows(drawToldRoute(story, regionsOf), span),
   ]);
   const more = head.stories === undefined ? '' : ' more';
   const untold = head.untold === undefined ? [] : [`    told ${head.untold}${more} ${head.untold === 1 ? 'time' : 'times'}, which the watcher did not keep`];

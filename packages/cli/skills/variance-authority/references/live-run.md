@@ -116,7 +116,9 @@ the largest shares first. `another execution's work in it` marks one that a
 concurrent request ran in the middle of. A loop drawn once adds up its passes.
 Heads are placed by their own machines' clocks. A page's last step, and the
 last kept step of a story that lost some, have a start only. Concurrent requests are
-taped apart. An execution told again lists what ran since under `told again`.
+taped apart. An execution told again lists what ran since under `told again`, with how long
+after the list above it began: under a `trace` and no `enter`, a head tells one each
+turn it ran, so most of a wait is there and in no step.
 What the tape lost is said above the steps; the watcher keeps 8 tellings of an
 execution, up to 1 MiB, and counts the rest as `told N more times`. A head
 without the variable tells no story, and the answer says so and lists regions.

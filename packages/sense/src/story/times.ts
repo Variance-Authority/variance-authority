@@ -66,18 +66,34 @@ export function toldSpan(told: readonly Uint8Array[]): Span | undefined {
   return span;
 }
 
+/**
+ * How long after one telling of an execution ended the next began, `, 100.0 ms
+ * (50%) after the above ended`, or nothing where either is not known. No step's
+ * time: nothing was taped in it, so whose work ran then is not known.
+ */
+export function gapText(before: Uint8Array, after: Uint8Array, span: Span): string {
+  const [told, next] = [stories.decodeStory(before), stories.decodeStory(after).stamps?.[0]];
+  const ended = told.end ?? (told.untaped === 0 ? told.stamps?.at(-1) : undefined);
+  if (ended === undefined || next === undefined) return '';
+  return `, ${shareText(next - ended, span)} after the above ended`;
+}
+
 /** When a step ran within `span`, as a reader reads it: `+10.0 ms, then 30.0 ms (60%)`. */
 export function timeText(time: Timing, span: Span): string {
   const at = `+${duration(time.at - span.start)}`;
   if (time.leg === undefined) return at;
-  const whole = span.end - span.start;
-  const share = whole > 0 ? Math.round((time.leg / whole) * 100) : 0;
-  return `${at}, then ${duration(time.leg)} (${share}%)${time.crossed === true ? ", another execution's work in it" : ''}`;
+  return `${at}, then ${shareText(time.leg, span)}${time.crossed === true ? ", another execution's work in it" : ''}`;
 }
 
 /** What a span's steps are placed in: when it began and how long it was. */
 export function spanText(span: Span): string {
   return `began ${new Date(span.start).toISOString()}, ${duration(span.end - span.start)} in all; each step: when it ran, then the time to the next recorded step and its share`;
+}
+
+/** A part of `span`, as its length and its share of the whole. */
+function shareText(milliseconds: number, span: Span): string {
+  const whole = span.end - span.start;
+  return `${duration(milliseconds)} (${whole > 0 ? Math.round((milliseconds / whole) * 100) : 0}%)`;
 }
 
 /** Below a second a step's own tenths, which {@link durationText} rounds away. */

@@ -297,6 +297,14 @@ describe('variance_ran', () => {
       ]);
     });
 
+    it('says how long after the steps above a telling of more of it began, which is no step\'s time', () => {
+      const text = drawn({ api: [stamped([0, 10, 40], 50), stamped([150, 160, 190], 200)] });
+      expect(text.map((row) => row.trim()).filter((row) => row.startsWith('told again'))).toEqual([
+        'told again, once more of it had run, 100.0 ms (50%) after the above ended:',
+      ]);
+      expect(steps(text).at(2)).toBe('3  toggle  actions.ts:15  +40.0 ms, then 10.0 ms (5%)');
+    });
+
     it('gives the last kept step no time to the next when the tape kept none of what came after it', () => {
       const text = drawn({ api: [stamped([0, 10, 40], 50, { at: [0], keys: [JOURNEY], visits: 9 })] });
       expect(steps(text).at(-1)).toBe('3  toggle  actions.ts:15  +40.0 ms');
