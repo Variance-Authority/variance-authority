@@ -988,11 +988,12 @@ jobs:
 
       # The group's run built the native scanner of this tree in `plan`, and
       # compiling it again was most of this job's time whenever the crate
-      # moved: four to ten minutes, against seconds to download. The run is
-      # the one `share --from-queue` reads below, matched the same way: this
-      # workflow, the event, the commit and a green conclusion, the latest
-      # when the queue ran it twice. None found builds as before.
-      - name: the group's run
+      # moved: four to ten minutes, against seconds to download. Any queue run
+      # of this commit built it, green or not, and the build action takes its
+      # binary only when build.mjs's stamp says it is current; the run whose
+      # records are published is `share --from-queue`'s choice, below. No run,
+      # or a lookup that fails, builds as before.
+      - name: a run that built this tree's scanner
         id: group
         shell: bash
         env:
@@ -1002,7 +1003,7 @@ jobs:
           workflow=${WORKFLOW#"$GITHUB_REPOSITORY/"}
           workflow=${workflow%%@*}
           id=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$GITHUB_SHA&event=merge_group&per_page=100" \
-            --jq "[.workflow_runs[] | select(.path == \"$workflow\" and .status == \"completed\" and .conclusion == \"success\") | .id] | max // empty")
+            --jq "[.workflow_runs[] | select(.path == \"$workflow\" and .status == \"completed\") | .id] | max // empty") || id=
           echo "id=$id" >> "$GITHUB_OUTPUT"
 
       - uses: ./.github/actions/build

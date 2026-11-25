@@ -12,7 +12,7 @@ inputs:
     description: Restore Cargo dependencies even on a binary hit, for native tests.
     default: 'false'
   native-run:
-    description: Another run of this tree whose `variance-native` artifact the build takes; build.mjs's stamp decides whether it is current.
+    description: Another run of this tree whose `variance-native` artifact the build takes when build.mjs's stamp says it is current.
     default: ''
 
 outputs:
@@ -92,9 +92,9 @@ runs:
     # the commit a push landed: its cache is scoped to a ref this run cannot
     # read, so its artifact is the only way to its binary. The key cannot be
     # compared across runs, since each resolves its own compiler, so the
-    # binary is laid down and build.mjs's stamp, the compiled inputs' tree and
-    # the glibc floor, decides whether Cargo runs. A stamp that disagrees
-    # compiles from nothing rather than trusting it.
+    # binary is laid down and build.mjs, which owns the stamp, says below
+    # whether it is current: the compiled inputs' tree, the glibc floor and the
+    # pinned linker, not the compiler.
     - name: take another run's native scanner
       id: borrowed
       if: inputs.native-run != '' && steps.download.outcome != 'success'
@@ -106,9 +106,23 @@ runs:
         run-id: ${{ inputs.native-run }}
         github-token: ${{ github.token }}
 
+    # Asked before either cache, so a borrowed binary that is not current
+    # falls through to the cache and Cargo's dependencies as any miss does.
+    - name: is the borrowed scanner current
+      id: current
+      if: steps.borrowed.outcome == 'success'
+      continue-on-error: true
+      shell: bash
+      run: |
+        scanner=$(node packages/sense/native/build.mjs --compiles)
+        cli=$(node packages/sense/native/build.mjs --cli --compiles)
+        if [ "$scanner" = false ] && [ "$cli" = false ]; then
+          echo "current=true" >> "$GITHUB_OUTPUT"
+        fi
+
     - name: restore the native scanner
       id: cache
-      if: steps.download.outcome != 'success' && steps.borrowed.outcome != 'success'
+      if: steps.download.outcome != 'success' && steps.current.outputs.current != 'true'
       uses: actions/cache@v6
       with:
         path: |
@@ -125,7 +139,7 @@ runs:
     # their debug dependencies separately, so a release-only producer cannot
     # win a save race and discard them. Cargo owns freshness.
     - name: restore Cargo compilation
-      if: (steps.cache.outputs.cache-hit != 'true' && steps.download.outcome != 'success' && steps.borrowed.outcome != 'success') || inputs.native-tests == 'true'
+      if: (steps.cache.outputs.cache-hit != 'true' && steps.download.outcome != 'success' && steps.current.outputs.current != 'true') || inputs.native-tests == 'true'
       uses: Swatinem/rust-cache@v2
       with:
         workspaces: packages/sense/native
