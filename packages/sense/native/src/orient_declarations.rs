@@ -12,14 +12,18 @@
 //! for. Top-level declarations are shown first, then member lines in line order
 //! while lines are left, a line that declares several members spending one;
 //! the declarations and the member lines cut are each counted once for the
-//! file, so the counts add no line per container.
+//! file, so the counts add no line per container. A name the file only binds is
+//! no declaration: unless an export binds it, it takes no line and is counted.
 
 // compass: variance-authority.reach.relations
+
+use std::collections::HashSet;
 
 use napi_derive::napi;
 
 use crate::chain_lookup::record;
 use crate::compact::Layer;
+use crate::harvest::BINDING;
 use crate::help_declared::exported_locals;
 use crate::help_publish::{opened_chain, OpenedIndex};
 use crate::help_members::{members_of_row, ContainerMember};
@@ -53,6 +57,9 @@ pub struct FileDeclarations {
     /// The member lines the budget left out, those of a declaration it cut
     /// included; a line that declares several members is one.
     pub more_members: u32,
+    /// The top-level names the file binds, does not declare and is not known to
+    /// export: none is listed and none spends the budget.
+    pub bound: u32,
 }
 
 /// The top level of each of `files` the chain holds, in the order asked, each
@@ -79,7 +86,7 @@ pub fn file_declarations_of(index: &OpenedIndex, files: Vec<String>, budget: u32
 }
 
 fn outline(layers: &[Layer], crossing: &Crossing, budget: usize) -> FileDeclarations {
-    let unread = FileDeclarations { file: crossing.file.to_owned(), read: false, declarations: Vec::new(), more: 0, more_members: 0 };
+    let unread = FileDeclarations { file: crossing.file.to_owned(), read: false, declarations: Vec::new(), more: 0, more_members: 0, bound: 0 };
     let Some((layer, row)) = crossing.parse else { return unread };
     let (stored, parses) = (&layers[layer].stored, &layers[layer].parses);
     if parses.harvested[row] != 1 { return unread }
@@ -106,10 +113,16 @@ fn outline(layers: &[Layer], crossing: &Crossing, budget: usize) -> FileDeclarat
     // type may share a name, and an interface may be declared twice; each keeps
     // its own members. One in a container nested elsewhere — a function, a
     // call — is not the file's top level, and is not listed.
+    // The holder is looked for among the names only bound too: what is written
+    // in a binding's value is not in the declaration above it.
+    let places = places(&declarations);
     let mut members: Vec<(usize, ContainerMember)> = members_of_row(&layers[layer], row)
         .into_iter()
-        .filter_map(|(of, member)| Some((holder(&declarations, of, member.line)?, member)))
+        .filter_map(|(of, member)| Some((places[holder(&declarations, of, member.line)?]?, member)))
         .collect();
+    let bindings: Vec<FileDeclaration> = declarations.extract_if(.., |declaration| only_bound(declaration)).collect();
+    let declared: HashSet<&str> = declarations.iter().map(|declaration| declaration.name.as_str()).collect();
+    let bound = bindings.iter().filter(|binding| !declared.contains(binding.name.as_str())).count() as u32;
     let more = declarations.len().saturating_sub(budget) as u32;
     declarations.truncate(budget);
     // The budget is spent by the line shown, as `symbol`'s rule shows one row
@@ -133,7 +146,18 @@ fn outline(layers: &[Layer], crossing: &Crossing, budget: usize) -> FileDeclarat
             _ => {}
         }
     }
-    FileDeclarations { file: crossing.file.to_owned(), read: true, declarations, more, more_members }
+    FileDeclarations { file: crossing.file.to_owned(), read: true, declarations, more, more_members, bound }
+}
+
+/// Whether the row only binds its name, and no export of the file is known to bind it.
+fn only_bound(declaration: &FileDeclaration) -> bool {
+    declaration.kind == BINDING && declaration.exported != Some(true)
+}
+
+/// Where each of `declarations` stands once the names only bound are left out.
+fn places(declarations: &[FileDeclaration]) -> Vec<Option<usize>> {
+    let mut listed = 0..;
+    declarations.iter().map(|declaration| if only_bound(declaration) { None } else { listed.next() }).collect()
 }
 
 /// The declaration among `declarations`, by line, that a member of the

@@ -8,7 +8,7 @@ import { checkout, paragraph, run } from './ask-packages.fixture.js';
 /**
  * A name a file takes off another value, by destructuring it or by binding a
  * whole required module, is bound there and declared elsewhere or nowhere.
- * `symbol`, `uses` and `classify` keep it apart from the declarations.
+ * `symbol`, `uses`, `classify` and `orient` keep it apart from the declarations.
  */
 
 const cwd = process.cwd();
@@ -185,5 +185,21 @@ describe('variance ask about a name a file binds and does not declare', () => {
     const made = await asked('symbol', '--name', 'madeValue');
     expect(made).toContain(`madeValue [const]\ndeclared, not exported, at ${AT}/c.js:3`);
     expect(made).not.toContain('bound, not declared');
+  });
+
+  it('lists what a file declares under more bound names than `orient` has rows, and counts the bound ones', async () => {
+    const held = Array.from({ length: 45 }, (_, at) => `const { held${at} } = primordials;\n`).join('');
+    await indexed({ [`${AT}/many.js`]: `const whole = require('./a');\n${held}let debug = whole;\nfunction start() {}\nclass Loader {\n  load() {}\n}\nmodule.exports = { start };\n` });
+
+    const out = await asked('orient', '--files', `${AT}/many.js`);
+    expect(out).toContain([
+      `  ${AT}/many.js`,
+      '    47  let debug',
+      '    48  exported function start',
+      '    49  class Loader',
+      '        50  load() {}',
+      '    46 names it binds and does not declare not shown.',
+      '',
+    ].join('\n'));
   });
 });
