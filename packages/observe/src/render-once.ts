@@ -1,5 +1,5 @@
 import { hashComponents } from '@variance-authority/core/attribute';
-import { documentDigest, timeOn } from '@variance-authority/core/format';
+import { blackBoxRefusal, documentDigest, timeOn } from '@variance-authority/core/format';
 import type {
   AccessibilitySnapshot,
   ComponentHash,
@@ -50,6 +50,11 @@ export async function renderOnce(
   /** Takes `cache.get`, `cache.put`, and the renderer's steps under `render.`. */
   steps?: StepClock,
 ): Promise<{ raster: Raster; rendered: boolean }> {
+  // A replay paints a canvas or video blank, so whatever it produced would be an
+  // image of nothing the page drew: refused here, the one place every replay passes.
+  const blackBox = blackBoxRefusal(document);
+  if (blackBox !== undefined) throw new Error(blackBox);
+
   const identity = renderer.identityFor(document);
   const hit = await timeOn(steps, 'cache.get', async () => store.renderCache.get(documentDigest(document), identity));
 

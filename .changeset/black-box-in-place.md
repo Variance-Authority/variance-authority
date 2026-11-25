@@ -1,6 +1,7 @@
 ---
 '@variance-authority/cli': patch
 '@variance-authority/core': patch
+'@variance-authority/observe': patch
 '@variance-authority/playwright-test': patch
 ---
 
