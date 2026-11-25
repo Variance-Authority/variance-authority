@@ -21,7 +21,7 @@ export function sourceLink(file: string): string {
 
 function attemptsOf(data: ViewData, file: string): string {
   const cases = data.tests.retried.filter((one) => one.file === file);
-  if (cases.length === 0) return '<p class="note">no retried case in this file</p>';
+  if (cases.length === 0) return '<p class="note">no case in this file ended differently from one attempt to the next</p>';
   return cases
     .map((one) => {
       const rows = one.attempts
@@ -68,7 +68,7 @@ function filesOf(data: ViewData): string[] {
 export function detailView(data: ViewData): View {
   const panes = filesOf(data).map((file) => {
     const timed = data.tests.slowestFiles.find((r) => r.file === file);
-    const body = section('Attempts', 'every attempt of a retried case', attemptsOf(data, file)) +
+    const body = section('Attempts', 'every attempt of a case whose attempts ended differently', attemptsOf(data, file)) +
       section('Phases and place', 'where the file ran on the runner\'s clock', placeOf(data, file)) +
       section('Source files reached', 'the files its cases entered, from the covering relation', reachedBy(data, file));
     return (

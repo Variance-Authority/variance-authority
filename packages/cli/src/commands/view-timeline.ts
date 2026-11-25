@@ -22,7 +22,7 @@ function lane(file: TimelineData['files'][number], t0: number, span: number): st
   const cost = file.cost!;
   const left = ((start - t0) / span) * 100;
   const width = Math.max((cost / span) * 100, 0.15);
-  const total = file.phases.reduce((sum, phase) => sum + phase.ms, 0);
+  const total = Math.max(file.phases.reduce((sum, phase) => sum + phase.ms, 0), cost);
   const inside = total === 0
     ? ''
     : file.phases

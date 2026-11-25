@@ -13,16 +13,17 @@ import { OperatorError } from '../exit.js';
 import type { ParsedView } from '../view-args.js';
 import { coverage, type Coverage } from './coverage.js';
 import { textOver } from './coverage-over-text.js';
-import { viewData } from './view-data.js';
+import { viewData, viewSuite } from './view-data.js';
 import { viewPage } from './view-page.js';
 
 /** The page's path on stdout, and what could not be counted on stderr. */
 export async function viewOutput(parsed: ParsedView, cwd: string): Promise<{ readonly out: string; readonly err: string }> {
   let counted: Coverage | { readonly missed: string };
   let err = '';
+  const suite = viewSuite(cwd, parsed.suite);
   try {
     counted = await coverage(
-      { command: 'coverage', root: cwd, format: 'html', fanIn: true, fanInTests: true, ...(parsed.suite === undefined ? {} : { suite: parsed.suite }) },
+      { command: 'coverage', root: cwd, format: 'html', fanIn: true, fanInTests: true, ...(suite === undefined ? {} : { suite }) },
       textOver,
     );
   } catch (error) {
@@ -30,7 +31,7 @@ export async function viewOutput(parsed: ParsedView, cwd: string): Promise<{ rea
     counted = { missed: error.message };
     err = `view: coverage was not counted: ${error.message}\n`;
   }
-  const data = viewData(cwd, parsed.suite, 'missed' in counted ? counted : counted.fanIn);
+  const data = viewData(cwd, suite, 'missed' in counted ? counted : counted.fanIn);
   const path = resolve(cwd, `${cacheRootFor(cwd)}/variance-view.html`);
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, viewPage(data, counted));

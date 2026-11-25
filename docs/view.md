@@ -24,8 +24,8 @@ The header names the suite, the commit and the record the page was read from,
 and counts the files recorded and the files placed on the clock. Below it sit
 the tabs **Tests**, **Timeline** and **Coverage**, with Tests open, and a
 filter box above the tables of the open tab. Tests holds the slowest test files
-and the slowest cases as sortable tables, each row a link, then every retried
-case with each attempt. The Timeline is a chart with one lane per test file;
+and the slowest cases as sortable tables, each row a link, then every case whose
+attempts ended differently, with each attempt. The Timeline is a chart with one lane per test file;
 Coverage is how much of the source the run executed. When the run cannot be
 counted and no test file is known to have called into a source file, there is
 no Coverage tab, and the header says coverage was not counted.
@@ -33,7 +33,7 @@ no Coverage tab, and the header says coverage was not counted.
 ## What each tab shows
 
 - **Tests** lists the slowest test files and the slowest cases, and every case
-  that was retried with each attempt, its time and its failure message. Click a
+  whose attempts ended differently, with each attempt, its time and its failure message. Click a
   column header to sort, and type in the filter box to narrow the rows.
 - **Timeline** draws each test file as a bar from the moment the runner started
   it, with the phases the runner timed in colour: `prepare`, `environment`,
@@ -49,11 +49,10 @@ no Coverage tab, and the header says coverage was not counted.
   file needs only the record.
 
 Click a test file anywhere and its pane opens, with these headings:
-**Attempts** for its retried cases, **Phases and place** on the timeline, and
+**Attempts** for its cases that ended differently, **Phases and place** on the timeline, and
 **Source files reached**, each a link to that file in Coverage. A source file in
 Coverage links back to the test files that called into it, when the record has
-that. Coverage can also link to a test file the page holds no pane for, and that
-link opens nothing.
+that. A test file the page holds no pane for is named there without a link.
 
 ## If you have no record yet
 

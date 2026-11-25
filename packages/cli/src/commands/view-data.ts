@@ -136,6 +136,11 @@ function reachFrom(fan: FanIn | { readonly missed: string } | undefined, shown: 
   return { tests, files };
 }
 
+/** The suite the page is about: the one asked for, or the first that holds a recording. */
+export function viewSuite(root: string, suite?: string): string | undefined {
+  return suite ?? pick(recordedDurations(root, TOP), undefined, (row) => !('unread' in row))?.suite;
+}
+
 /** The recording at `root` as the rows the page shows. */
 export function viewData(root: string, suite?: string, fanIn?: FanIn | { readonly missed: string }): ViewData {
   const notes: string[] = [];

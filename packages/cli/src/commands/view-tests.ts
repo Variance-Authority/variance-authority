@@ -63,8 +63,8 @@ function attempts(data: TestsData): string {
     const message = said.length === 0 ? '' : `<div class="msg">${text(said.at(-1)!.slice(0, MESSAGE))}</div>`;
     return `<tr data-key="${text(`${file} ${name}`)}"><td>${text(name)}${message}</td><td>${fileLink(file)}</td><td>${marks}</td><td class="num" data-v="${tries.length}">${tries.length}</td></tr>`;
   });
-  const hint = `${data.differing} ended differently from one attempt to the next`;
-  return section('Retried cases', hint, table([['case', false], ['file', false], ['attempts', false], ['n', true]], rows), undefined, undefined, 'part');
+  const hint = `${data.differing} retried cases whose attempts did not all end the same way`;
+  return section('Cases that ended differently', hint, table([['case', false], ['file', false], ['attempts', false], ['n', true]], rows), undefined, undefined, 'part');
 }
 
 /** The Tests view, with the reason beside every half the recording could not fill. */

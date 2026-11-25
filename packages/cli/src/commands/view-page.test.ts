@@ -76,6 +76,18 @@ describe('variance view page', () => {
     expect(html).toContain('3 recorded files carry no start or no cost');
   });
 
+  it('sizes a phase by the file\'s cost, leaving the unmeasured part of the bar empty', () => {
+    const html = viewPage({ ...DATA, timeline: { ...DATA.timeline, files: [{ file: 'src/slow.test.ts', start: 0, cost: 1000, phases: [{ name: 'setup', ms: 100 }], cases: [] }] } });
+    expect(html).toContain('class="ph setup" style="width:10.00%"');
+  });
+
+  it('links a test file in the entered list only where the page holds its pane', () => {
+    const html = viewPage({ ...DATA, reach: { ...DATA.reach, files: [{ file: 'src/price.ts', tests: ['src/flaky.test.ts', 'src/unlisted.test.ts'], total: 2 }] } });
+    expect(html).toContain('href="#test/src%2Fflaky.test.ts"');
+    expect(html).not.toContain('href="#test/src%2Funlisted.test.ts"');
+    expect(html).toContain('src/unlisted.test.ts');
+  });
+
   it('has one tab per view, Tests first, and no coverage tab when neither coverage nor a relation exists', () => {
     const html = viewPage({ ...DATA, reach: { tests: [], files: [] } });
     expect(html).toContain('data-tab="tests"');
@@ -117,7 +129,7 @@ describe('variance view drill-down', () => {
   });
 
   it('says a file holds no retried case where it holds none, rather than leaving the half empty', () => {
-    expect(pane(viewPage(DATA), 'src/slow.test.ts')).toContain('no retried case');
+    expect(pane(viewPage(DATA), 'src/slow.test.ts')).toContain('no case in this file ended differently');
   });
 
   it('gives a file its phases and its place on the timeline, or says it has none', () => {
