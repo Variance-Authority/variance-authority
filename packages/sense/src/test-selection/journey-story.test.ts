@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -77,6 +78,29 @@ describe('a head started with VARIANCE_AUTHORITY_STORY=1', () => {
       // Absolute, so another head's are on the same line: a millisecond either side for the two clocks' rounding.
       expect(times[0]!).toBeGreaterThanOrEqual(before - 1);
       expect(end!).toBeLessThanOrEqual(after + 1);
+    });
+  });
+
+  it('says no end of an execution it saw no scope settle: one a trace names, a turn at a time, or one still open as the head closes', async () => {
+    await inRoot(async (root) => {
+      process.env[STORY_VARIABLE] = '1';
+      const watcher = await driver();
+      const asked = new AsyncLocalStorage<string>();
+      const traced = 'a'.repeat(32);
+      const collector = collectJourneys({
+        head: 'api', enabled: true, watcher: watcher.origin,
+        trace: { name: 'test', carry: (_journey, _address, body) => body(), current: () => asked.getStore() },
+      });
+      const parts = await head(root);
+
+      await asked.run(traced, () => parts.currency('de'));
+      await new Promise(setImmediate);
+      void collector.enter('theme=dark', () => parts.currency('en').then(() => new Promise(() => {})));
+      await new Promise(setImmediate);
+      await collector.close();
+
+      const stories = watcher.reports.flatMap(({ story }) => (story === undefined ? [] : [storyFormat.decodeStory(Buffer.from(story, 'base64'))]));
+      expect(stories.map(({ stamps, end }) => [stamps!.length > 0, end])).toEqual([[true, undefined], [true, undefined]]);
     });
   });
 

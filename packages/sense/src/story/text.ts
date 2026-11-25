@@ -10,7 +10,7 @@
 
 import type { Place, Route, Untaken } from './read.js';
 import type { Drawing, FileSteps, PackageVisits, Through } from './levels.js';
-import { timeText, type Span } from './times.js';
+import type { Span, Timing } from './times.js';
 import { armTree } from './tree.js';
 import { numbered, type FileVisits, type Gap, type Line } from './view.js';
 
@@ -38,6 +38,48 @@ export function unresolvedText(route: Route): string[] {
   const files = route.unresolved.length;
   if (files === 0) return [];
   return [`${files} ${files === 1 ? 'file is' : 'files are'} drawn as the file alone: the recording holds no regions for ${files === 1 ? 'it' : 'them'} at this text`];
+}
+
+/**
+ * How long after one telling of an execution the next began, `, 100.0 ms (50%)
+ * after the above ended`, or nothing where either carries no times, or where
+ * they overlap: two processes of one head name tell theirs side by side. Its
+ * end is the head's word for it; without one, the last visit recorded.
+ * It is no step's time, and where the watcher left tellings out, `untold`, one
+ * may have run in it.
+ */
+export function gapText(before: Route, after: Route, span: Span, untold: boolean): string {
+  const [told, next] = [before.extent, after.extent];
+  if (told === undefined || next === undefined) return '';
+  const gap = next.first - (told.end ?? told.last);
+  if (gap < 0) return '';
+  const from = told.end === undefined ? 'the last recorded of the above' : 'the above ended';
+  return `, ${shareText(gap, span)} after ${from}${untold ? ', where a telling not kept may have run' : ''}`;
+}
+
+/** When a step ran within `span`, as a reader reads it: `+10.0 ms, then 30.0 ms (60%)`. */
+export function timeText(time: Timing, span: Span): string {
+  const at = `+${duration(time.at - span.start)}`;
+  if (time.leg === undefined) return at;
+  return `${at}, then ${shareText(time.leg, span)}${time.crossed === true ? ', other work of the process in it' : ''}`;
+}
+
+/** What a span's steps are placed in: when it began and how long it was, or how far the tellings of it reach. */
+export function spanText(span: Span): string {
+  const length = `${duration(span.end - span.start)} ${span.whole ? 'in all' : 'as far as it was recorded'}`;
+  const clocks = span.heads > 1 ? "; heads are placed by their own machines' clocks" : '';
+  return `began ${new Date(span.start).toISOString()}, ${length}; each step: when it ran, then the time to the next recorded step and its share${clocks}`;
+}
+
+/** A part of `span`, as its length and its share of the whole, where the whole took any time. */
+function shareText(milliseconds: number, span: Span): string {
+  const whole = span.end - span.start;
+  return `${duration(milliseconds)}${whole > 0 ? ` (${Math.round((milliseconds / whole) * 100)}%)` : ''}`;
+}
+
+/** A step's own tenths, whatever its size, so the steps of one listing read on one scale. */
+function duration(milliseconds: number): string {
+  return `${milliseconds.toFixed(1)} ms`;
 }
 
 /** A drawing as the lines of text it reads as, blank line first. */

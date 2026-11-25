@@ -8,7 +8,7 @@
 
 A head started with `VARIANCE_AUTHORITY_STORY=1` stamps each step with its
 machine's clock. The execution's first row says when it began and how long it
-took, or how far it was recorded where its end was not seen. Each step says how
+took, or how far it was recorded where the end of any head listed was not seen. Each step says how
 far into it the step ran, the time to the next recorded step and that time's
 share. Every head of an execution, and every later telling of it, is placed
 from the same beginning, and `told again` says how long after the list above

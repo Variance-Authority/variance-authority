@@ -23,7 +23,7 @@ import { VARIABLE } from './vantage-lines.js';
 export const ran: Tool<VantageState> = {
   name: 'variance_ran',
   description:
-    'What an application built with the probes on ran while somebody used it by hand: one execution per request no test drove, each with the regions it ran as `file:line name`.',
+    'What an application built with the probes on ran while somebody used it by hand: one execution per request no test drove, each with the regions it ran as `file:line name`. With `story`, each with the steps it took instead: when each ran, and the elapsed time to the next recorded step, which holds waiting and code without probes and is not the running time of the function named.',
   inputSchema: {
     type: 'object',
     properties: {

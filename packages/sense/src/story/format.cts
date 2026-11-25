@@ -82,9 +82,13 @@ interface Story {
   readonly parts?: readonly Part[];
   /** When each of {@link visits} was made, in milliseconds since the epoch; only a live head stamps them. */
   readonly stamps?: Float64Array;
-  /** When the execution settled, as its stamps say; absent where the head could not see it settle. */
+  /** When the execution settled, as its stamps say; absent where the head could not see it settle: a page, a turn a trace alone names, a scope open as the head closed. */
   readonly end?: number;
-  /** How many of {@link visits} came before each time another execution's work ran in the middle of this one's, ascending. */
+  /**
+   * How many of {@link visits} came before each time the process ran other
+   * work in the middle of this execution's, ascending. Work that ran after the
+   * last visit is in it, which {@link interleaved} does not count.
+   */
   readonly crossed?: readonly number[];
 }
 

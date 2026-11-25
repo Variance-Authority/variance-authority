@@ -59,16 +59,12 @@ function storyBytes(
   const { at, keys } = tape;
   const ends = (segment: number): number => (segment + 1 < at.length ? at[segment + 1]! : tape.taped);
   const own: number[] = [];
-  let interleaved = 0;
   // The segments another case's work ran before, since this one's last.
   const crossings = new Set<number>();
   let foreign = 0;
   for (let segment = 0; segment < keys.length; segment += 1) {
     if (keys[segment] === key) {
-      if (own.length > 0 && foreign > 0) {
-        interleaved += 1;
-        crossings.add(segment);
-      }
+      if (own.length > 0 && foreign > 0) crossings.add(segment);
       foreign = 0;
       own.push(segment);
     } else if (own.length > 0 && keys[segment] !== '') foreign += 1;
@@ -173,7 +169,7 @@ function storyBytes(
   const { file, name, project } = owner;
   const header = utf8(
     JSON.stringify({
-      file, name, ...(project === undefined ? {} : { project }), rows, before, untaped: tape.visits - tape.taped, interleaved, stopped,
+      file, name, ...(project === undefined ? {} : { project }), rows, before, untaped: tape.visits - tape.taped, interleaved: crossings.size, stopped,
       ...(notes.length === 0 ? {} : { notes }),
       ...(beforeNotes.length === 0 ? {} : { beforeNotes }),
       ...(tape.unnoted === 0 ? {} : { unnoted: tape.unnoted }),

@@ -16,6 +16,6 @@ export { pageStories, storyPageSource, type PageStories, type StoryCase } from '
 export { PAGE_STORY, type PageStory } from './page-story.js';
 export { numbered, through, window, type Gap, type Line } from './view.js';
 export { BUDGET, drawings, pick, type Drawing, type Through } from './levels.js';
-export { armStarts, drawingText, routeText, saidText, unnotedText, unresolvedText, untapedText, type Starts } from './text.js';
-export { gapText, spanText, toldSpan, type Extent, type Span, type Timing } from './times.js';
+export { armStarts, drawingText, gapText, routeText, saidText, spanText, unnotedText, unresolvedText, untapedText, type Starts } from './text.js';
+export { toldSpan, type Extent, type Span, type Timing } from './times.js';
 export { pageChanges, type PageChange, type PageSearch } from './changes.js';

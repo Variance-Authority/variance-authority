@@ -252,8 +252,10 @@ export function drawRoute(
   // Each declaration stopped at, by key, with the row its regions are in.
   const placed = new Map<string, { place: Place; row: number }>();
 
-  const stopsOf = (visits: Int32Array, notes: readonly (readonly [number, string])[], opening: string[], firsts: number[] = []): Stop[] => {
+  const stopsOf = (visits: Int32Array, notes: readonly (readonly [number, string])[], opening: string[]): { readonly stops: readonly Stop[]; readonly firsts: readonly number[] } => {
     const stops: Stop[] = [];
+    // The visit each stop opened with.
+    const firsts: number[] = [];
     let last = '';
     // The stop being added to, and its arms by path; a stop once left is never reopened.
     let open: { place: Place; entered: number; arms: Arm[] } | undefined;
@@ -326,15 +328,14 @@ export function drawRoute(
       }
     }
     hear(Infinity);
-    return stops;
+    return { stops, firsts };
   };
   const keyOf = (stop: Stop): string => ('loaded' in stop ? `\0${stop.loaded.join('\0')}` : stop.place.at);
   const opening = { before: [] as string[], route: [] as string[] };
   const pages = new Set((story.parts ?? []).flatMap(([, , , document]) => (document === 0 ? [] : [document]))).size;
   const documents = pages > 1 ? pages : undefined;
-  const before = foldSteps(stopsOf(story.before, heard(story.beforeNotes, story.beforeLines), opening.before), keyOf, added);
-  const firsts: number[] = [];
-  const stops = stopsOf(story.visits, heard(story.notes, story.lines, documents === undefined ? [] : story.parts), opening.route, firsts);
+  const before = foldSteps(stopsOf(story.before, heard(story.beforeNotes, story.beforeLines), opening.before).stops, keyOf, added);
+  const { stops, firsts } = stopsOf(story.visits, heard(story.notes, story.lines, documents === undefined ? [] : story.parts), opening.route);
   const route = foldSteps(timeStops(stops, firsts, story), keyOf, added);
 
   const extent = extentOf(story);

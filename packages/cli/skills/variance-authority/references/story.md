@@ -67,7 +67,7 @@ Never record:
   for the tests `covering` names, pass their files and names. Never in CI.
 - **A performance test or a benchmark**, or a test for a question about time. A
   loop that runs thousands of times runs many times slower while recorded, and
-  a story has no times; the test's own line times come from `story --name`
+  a test's story has no times; the test's own line times come from `story --name`
   with no story recorded. If a story shows a loop count in the thousands, or
   prints that the recording filled up, choose another test.
 - **To find which tests run a line.** That is `covering`, from the record every

@@ -277,7 +277,8 @@ describe('variance_ran', () => {
 
     it('places every head of an execution, and every later telling, from the one start', () => {
       const text = drawn({ page: [stamped([0, 10, 40])], api: [stamped([12, 22, 30], 32), stamped([80, 90, 99], 100)] });
-      expect(heading(text)).toContain('100.0 ms in all');
+      // A page never says it ended, so nothing here says the execution did.
+      expect(heading(text)).toContain('100.0 ms as far as it was recorded;');
       expect(heading(text)).toContain("heads are placed by their own machines' clocks");
       expect(steps(text).map((row) => row.slice(row.indexOf('+')))).toEqual([
         '+0.0 ms, then 10.0 ms (10%)', '+10.0 ms, then 30.0 ms (30%)',
@@ -288,11 +289,11 @@ describe('variance_ran', () => {
       ]);
     });
 
-    it("says which step's time another execution ran in the middle of", () => {
-      const text = drawn({ api: [stamped([0, 10, 40], 50, { at: [0, 2, 2], keys: [JOURNEY, '\0elsewhere', JOURNEY] })] });
+    it.each(['\0elsewhere', '\0unattributed'])("says which step's time the process ran other work in the middle of, as %j", (other) => {
+      const text = drawn({ api: [stamped([0, 10, 40], 50, { at: [0, 2, 2], keys: [JOURNEY, other, JOURNEY] })] });
       expect(steps(text)).toEqual([
         '1  toggle  actions.ts:15  +0.0 ms, then 10.0 ms (20%)',
-        "2  save  store.ts:4  +10.0 ms, then 30.0 ms (60%), another execution's work in it",
+        '2  save  store.ts:4  +10.0 ms, then 30.0 ms (60%), other work of the process in it',
         '3  toggle  actions.ts:15  +40.0 ms, then 10.0 ms (20%)',
       ]);
     });
@@ -332,6 +333,17 @@ describe('variance_ran', () => {
       expect(heading(drawn({ page: [stamped([0, 10, 140])], api: [stamped([12, 22, 30], 32)] }))).toContain('140.0 ms as far as it was recorded;');
     });
 
+    it('says the length is not the whole where a head it lists told no end, though another told one', () => {
+      const whole = stamped([0, 10, 40], 50);
+      for (const other of [[], [told], [stamped([5, 10, 20])]]) expect(heading(drawn({ api: [whole], web: other }))).toContain('50.0 ms as far as it was recorded;');
+      expect(heading(drawn({ api: [whole, stamped([60, 70, 80])] }))).toContain('80.0 ms as far as it was recorded;');
+      expect(heading(drawn({ api: [whole], web: [stamped([5, 10, 20], 30)] }))).toContain('50.0 ms in all;');
+    });
+
+    it('gives no share of an execution that took no time', () => {
+      expect(steps(drawn({ api: [stamped([0, 0, 0], 0)] })).at(0)).toBe('1  toggle  actions.ts:15  +0.0 ms, then 0.0 ms');
+    });
+
     it('gives the last kept step no time to the next when the tape kept none of what came after it', () => {
       const text = drawn({ api: [stamped([0, 10, 40], 50, { at: [0], keys: [JOURNEY], visits: 9 })] });
       expect(steps(text).at(-1)).toBe('3  toggle  actions.ts:15  +40.0 ms');
@@ -366,11 +378,11 @@ describe('variance_ran', () => {
       expect(steps(drawn({ page: [loop] })).at(-1)).toBe('2    save  store.ts:4 ×2  +1.0 ms');
     });
 
-    it('reads a time of a second or more in seconds', () => {
+    it('reads a time of a second or more in milliseconds, as it reads the rest', () => {
       expect(steps(drawn({ api: [stamped([0, 10, 2510], 2510)] }))).toEqual([
         '1  toggle  actions.ts:15  +0.0 ms, then 10.0 ms (0%)',
-        '2  save  store.ts:4  +10.0 ms, then 2.5 s (100%)',
-        '3  toggle  actions.ts:15  +2.5 s, then 0.0 ms (0%)',
+        '2  save  store.ts:4  +10.0 ms, then 2500.0 ms (100%)',
+        '3  toggle  actions.ts:15  +2510.0 ms, then 0.0 ms (0%)',
       ]);
     });
 

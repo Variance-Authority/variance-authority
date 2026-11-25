@@ -392,7 +392,7 @@ its handler inside `enter`, or a `trace` in its place. Nothing the page does is 
 third variable, `VARIANCE_AUTHORITY_STORY=1`:
 
 ```bash
-VARIANCE_AUTHORITY_JOURNEYS=1 VARIANCE_AUTHORITY_VANTAGE=http://127.0.0.1:51793 VARIANCE_AUTHORITY_STORY=1 node dist/server.js
+VARIANCE_AUTHORITY_JOURNEYS=1 VARIANCE_AUTHORITY_VANTAGE=http://127.0.0.1:53393 VARIANCE_AUTHORITY_STORY=1 node dist/server.js
 ```
 
 `--story` now prints each of its executions as a [story](test-stories.md): the
@@ -401,13 +401,15 @@ the arguments each was handed, spelled as
 [a test story spells them](test-stories.md#what-each-function-was-handed).
 
 ```bash
-variance ask ran --at http://127.0.0.1:51793 --story
+variance ask ran --at http://127.0.0.1:53393 --story
 ```
 
 This is one request to a checkout service that reads a basket, prices it and
 charges for it:
 
 ```
+1 execution(s) at http://127.0.0.1:53393.
+
   4676c665-28f5-49cf-b1df-fdc68f546bf3
   began 2026-11-25T03:33:30.968Z, 197.2 ms in all; each step: when it ran, then the time to the next recorded step and its share
   head shop
@@ -441,11 +443,13 @@ Each step is the function, where it is, the branches it took under it, and what
 it was handed under those, as [a test story](test-stories.md) prints it.
 
 The line under the execution says when it began and how long it took, `in all`.
-Where its end was not seen, because it is still open, its last step is a page's
-or the watcher left some of it out, the line says the length `as far as it was
-recorded`. Each step then has the time from that beginning to the step, the time
-to the next recorded step, and what share of that length it is. A server's last
-step runs to the moment the request settled, or the turn its list told ended.
+Where the end of any server or page listed was not seen, the line says the
+length `as far as it was recorded`. The end is not seen of a request still
+open, of a page, of a server that used a `trace` and no `enter` or that stamps
+no times, or where the watcher left some of it out. Each step then has the time
+from that beginning to the step, the time to the next recorded step, and what
+share of that length it is. A server's last step runs to the moment the request
+settled, where it ran inside `enter`.
 
 - The time to the next step is elapsed time. It holds the work of any code the
   build put no probe in, and the time the code waited, for a query or a
@@ -457,22 +461,22 @@ step runs to the moment the request settled, or the turn its list told ended.
 - A step drawn once for several passes of a loop has the times of all its
   passes added up, and none where one of them has no next step. Its start is the
   first pass's.
-- Where another request's work ran in the middle of that time, the step says
-  `another execution's work in it`.
+- Where the server ran other work in the middle of that time, another request's
+  or none's, such as a timer's, the step says `other work of the process in it`.
 - Every server and page in an execution is placed from the same beginning, by
   the clock of the machine it ran on. When more than one is listed, the
   line says so: two machines whose clocks differ are placed apart by that much.
   They work at the same time, so their shares can add up to more than 100%.
 - A request told again has another list under `told again`, which says how long
-  after the list above ended it begins. For a page, whose end is not seen, that
-  is after the last recorded of the list. Two processes of one head name can
+  after the list above ended it begins. Where that end was not seen, it is
+  after the last recorded of the list. Two processes of one head name can
   tell lists that overlap, which have no time between them. That time is no
   step's, and where the watcher left lists out, one may have run in it. A server
   with a `trace` and no `enter` tells a request each turn of the event loop in
   which it ran, so there most of a wait is between two lists.
-- A page's last step, and the last step kept of a story that lost some, have no
-  next step, and so only their start.
-- A head that stamps no times is listed without them.
+- The last step of a page, or of a turn under a `trace` alone, and the last step
+  kept of a story that lost some, have no next step, and so only their start.
+- A server that stamps no times is listed without them.
 
 A live story shows arguments only: no variable a function declares, and
 nothing a module holds at its top level. Two requests that run at once are
