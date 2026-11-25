@@ -198,7 +198,7 @@ variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [--to-
 | `select` | names the test files a foreign runner may skip for this diff, for any runner the record holds or a shell |
 | `shards` | prints how many shards a recorded suite is worth, and the `k/n` of each for a CI matrix, from what each shard spends before its first test |
 | `reach` | names every file a diff reaches, in any language it reads, for whatever you pipe it into |
-| `trace` | prints a recorded Playwright run as OTLP spans for any trace viewer; [Trace](../../docs/trace.md) says where to send them |
+| `trace` | prints a recorded Playwright run as OTLP spans for any trace viewer; [Trace](https://variance-authority.dev/docs/trace) says where to send them |
 | `covering` | names the tests that covered one source file, line or function, nearest first with `--hops` |
 | `review` | prints what a change did, after the suite ran it: the edits, the changed code no case covered, the cases added, and what changed outside any import |
 | `report` | re-reads what `run` wrote |
