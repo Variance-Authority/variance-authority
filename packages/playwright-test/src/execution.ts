@@ -36,6 +36,7 @@ import {
   type ObservedSubject,
   type PreconditionStanding,
 } from '@variance-authority/sense/journal';
+import { timedSubjects } from './file-timing.js';
 import { stitchJourneys } from '@variance-authority/sense/journey';
 import { askedForStories, pageStories, storyPageSource, type StoryCase } from '@variance-authority/sense/story';
 import { limitAcross, recordFileFor, repositoryRoot, type CoveragePrecondition } from '@variance-authority/sense/test-selection';
@@ -423,7 +424,7 @@ export function createExecutionRecorder(
     // subjects reads to the merge as a second run and retires what the first
     // wrote. They are joined here and written once, against every inventory
     // the run drove.
-    const joined = joinObservations([subjects, ...stitched.heads.values()]);
+    const joined = timedSubjects(joinObservations([subjects, ...stitched.heads.values()]), spent, began);
     if (joined.length === 0) return;
 
     // A worker is one process of several and the index is one file, so a worker
