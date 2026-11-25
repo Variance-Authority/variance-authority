@@ -10,16 +10,8 @@
  * downloads them. The run is matched by its workflow file, its event, its
  * commit and its conclusion, never by a name: a run of another workflow, of
  * another commit or one that failed is not the queue's word on this commit.
- *
- * The queue's run may keep no record: it ran no shard, or failed and was
- * retried. The pull request's own last run tested its head, the landed
- * merge's second parent, merged with the record's commit (`carry merge`).
- * When that head merged with the landed merge's first parent is the tree the
- * push landed, that run tested this tree, and its records are read instead.
- * Its records must name the merge `carry merge` makes of those two parents,
- * made again here: the hash proves the run merged the head with that parent
- * and no other. Each record is then stated at the landed commit. A different
- * tree, another merge, no green run or no shard reads nothing, and says which.
+ * A queue's run that kept no record leaves the pull request's run of the same
+ * tree to read.
  */
 
 import { execFile } from 'node:child_process';
@@ -81,7 +73,11 @@ export async function recordsFromQueue(
 
 /**
  * The records the pull request's run kept, stated at the landed commit, with
- * the line that says where they came from; or why there are none.
+ * the line that says where they came from; or why there are none. That run
+ * tested the head, the landed merge's second parent, merged with the record's
+ * commit (`carry merge`). The head merged with the first parent must be the
+ * landed tree, and each record must name `carry merge`'s merge of the two,
+ * made again here: the hash proves the run merged with that parent alone.
  */
 async function recordsFromHead(asked: Asked, exec: Gh): Promise<{ readonly dir: string; readonly from: string } | { readonly none: string }> {
   const git = (...args: string[]) => run('git', args, { cwd: asked.root }).then(({ stdout }) => stdout.trim());
