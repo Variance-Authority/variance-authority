@@ -114,7 +114,7 @@ pub fn classify_areas(
             let file = path.strip_prefix(&under)?;
             (!scoped || reach.contains_key(*path)).then_some(file)
         }).collect();
-        for row in stages::timed("classify/private-words", || private_words(layers, &folded, &stems)) {
+        for row in stages::timed("classify/private-words", || private_words(layers, &stems)) {
             let Some(file) = row.at.strip_prefix(&under) else { continue };
             if row.declares {
                 words.files.insert(file.to_owned());

@@ -343,12 +343,9 @@ pub(crate) fn names_object(digest: &str, oid: &Oid) -> bool {
 /// layer that puts or deletes the key decides. Only the wanted keys are looked
 /// up, so a question about three packages reads three packages' parses.
 pub(crate) fn join_parses(layers: &[Layer], crossings: &mut [Crossing]) {
+    let keys = crate::chain_lookup::ParseKeys::new(layers);
     crossings.par_iter_mut().for_each(|crossing| {
-        let (layer, row) = crossing.at;
-        let (stored, records) = (&layers[layer].stored, &layers[layer].records);
-        crossing.parse = stored
-            .optional(records.digest.at(row))
-            .and_then(|digest| crate::chain_lookup::parse(layers, digest, &crate::index::way(crossing.file)));
+        crossing.parse = keys.of(crossing.at, crossing.file);
     });
 }
 

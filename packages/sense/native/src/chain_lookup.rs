@@ -7,14 +7,18 @@
 //! parse keys under a set of digests. `parse_fold` and `directory_fold` are
 //! `fold` for the other two kinds of key, and `in_key_order` lays a fold's
 //! winners out in code-unit order of their keys, the order a reader walks them.
+//! `live_records` is `fold`'s winners without the map, for a reader that walks
+//! every file once and looks none up; `ParseKeys` is `parse` for many records
+//! at once, comparing ids where `parse` compares strings.
 
 // compass: variance-authority.reach.source-index
 
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 use std::hash::{BuildHasher, Hash};
+use std::sync::OnceLock;
 
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 
 use rayon::prelude::*;
 
@@ -130,21 +134,123 @@ pub(crate) fn importers<'l>(layers: &'l [Layer<'l>], path: &str) -> Vec<(&'l str
 /// The parse read from `digest` the way `way` names, as the fold keys it.
 pub(crate) fn parse(layers: &[Layer], digest: &str, way: &str) -> Option<At> {
     for (at, layer) in layers.iter().enumerate().rev() {
-        let (stored, parses) = (&layer.stored, &layer.parses);
+        let stored = &layer.stored;
         let (Some(digest), Some(way)) = (stored.id_of(digest), stored.id_of(way)) else { continue };
-        let key = (digest, way);
-        let found = |keys: crate::stored::U32s, ways: crate::stored::U32s| {
-            let row = partition(keys.len(), |row| (keys.at(row), ways.at(row)) < key);
-            (row < keys.len() && (keys.at(row), ways.at(row)) == key).then_some(row)
-        };
-        if let Some(row) = found(parses.key, parses.way) {
-            return Some((at, row));
-        }
-        if found(parses.deleted, parses.deleted_way).is_some() {
-            return None;
+        if let Some(decided) = keyed(layer, at, (digest, way)) {
+            return decided;
         }
     }
     None
+}
+
+/// What one layer says of the parse key `(digest, way)`, as ids of its own
+/// dictionary: its row when it puts the key, `Some(None)` when it deletes it,
+/// and `None` when it does neither and an older layer decides.
+fn keyed(layer: &Layer, at: usize, key: (u32, u32)) -> Option<Option<At>> {
+    let parses = &layer.parses;
+    let found = |keys: crate::stored::U32s, ways: crate::stored::U32s| {
+        let row = partition(keys.len(), |row| (keys.at(row), ways.at(row)) < key);
+        (row < keys.len() && (keys.at(row), ways.at(row)) == key).then_some(row)
+    };
+    if let Some(row) = found(parses.key, parses.way) {
+        return Some(Some((at, row)));
+    }
+    found(parses.deleted, parses.deleted_way).map(|_| None)
+}
+
+/// Every file's newest record, as `fold` finds it, in no particular order: a
+/// layer's rows that no newer layer puts or deletes. The newest layer's rows
+/// are taken without a lookup, and an older one's are looked up only among
+/// the files the layers above it touch.
+pub(crate) fn live_records<'a>(layers: &'a [Layer<'a>]) -> Vec<(&'a str, At)> {
+    let mut touched: FxHashSet<&str> = FxHashSet::default();
+    let mut live = Vec::new();
+    for (at, layer) in layers.iter().enumerate().rev() {
+        let (stored, records) = (&layer.stored, &layer.records);
+        let rows = (0..records.file.len()).into_par_iter().map(|row| (stored.text(records.file.at(row)), (at, row)));
+        if touched.is_empty() {
+            live.par_extend(rows);
+        } else {
+            live.par_extend(rows.filter(|(file, _)| !touched.contains(file)));
+        }
+        if at > 0 {
+            touched.extend((0..records.file.len()).map(|row| stored.text(records.file.at(row))));
+            touched.extend((0..records.deleted.len()).map(|row| stored.text(records.deleted.at(row))));
+        }
+    }
+    live
+}
+
+/// `parse` for the records of one chain, many at a time. A record's digest is
+/// an id of its own layer's dictionary, so its own layer is searched by that
+/// id; a newer layer by a map of the digests its parse keys name, built once
+/// on first use; an older one by its dictionary, as `parse` does. A file's way
+/// is matched by its two halves against the ways each layer's parse keys name,
+/// so no way is spelled per file.
+pub(crate) struct ParseKeys<'l, 'c> {
+    layers: &'l [Layer<'c>],
+    ways: Vec<OnceLock<FxHashMap<(&'c str, bool), u32>>>,
+    digests: Vec<OnceLock<FxHashMap<&'c str, u32>>>,
+}
+
+impl<'l, 'c> ParseKeys<'l, 'c> {
+    pub(crate) fn new(layers: &'l [Layer<'c>]) -> Self {
+        ParseKeys { layers, ways: layers.iter().map(|_| OnceLock::new()).collect(), digests: layers.iter().map(|_| OnceLock::new()).collect() }
+    }
+
+    /// The parse of the record at `record`, whose file is `file`: what
+    /// `parse(layers, digest, &way(file))` answers, or `None` for a record
+    /// with no digest.
+    pub(crate) fn of(&self, record: At, file: &str) -> Option<At> {
+        let (own, row) = record;
+        let (stored, records) = (&self.layers[own].stored, &self.layers[own].records);
+        let digest = records.digest.at(row);
+        let text = stored.optional(digest)?;
+        let parts = crate::index::way_parts(file);
+        for (at, layer) in self.layers.iter().enumerate().rev() {
+            let parses = &layer.parses;
+            if parses.key.len() == 0 && parses.deleted.len() == 0 { continue }
+            let Some(&way) = self.ways(at).get(&parts) else { continue };
+            let digest = match at.cmp(&own) {
+                Ordering::Equal => Some(digest),
+                Ordering::Greater => self.digests(at).get(text).copied(),
+                Ordering::Less => layer.stored.id_of(text),
+            };
+            let Some(digest) = digest else { continue };
+            if let Some(decided) = keyed(layer, at, (digest, way)) {
+                return decided;
+            }
+        }
+        None
+    }
+
+    /// The ways the parse keys of layer `at` name, put or deleted, by their two halves.
+    fn ways(&self, at: usize) -> &FxHashMap<(&'c str, bool), u32> {
+        self.ways[at].get_or_init(|| {
+            let (stored, parses) = (&self.layers[at].stored, &self.layers[at].parses);
+            let ids: FxHashSet<u32> = (0..parses.way.len()).map(|row| parses.way.at(row))
+                .chain((0..parses.deleted_way.len()).map(|row| parses.deleted_way.at(row)))
+                .collect();
+            ids.into_iter()
+                .filter_map(|id| {
+                    let (suffix, flag) = stored.text(id).rsplit_once('\0')?;
+                    let declaring = match flag { "+" => true, "-" => false, _ => return None };
+                    Some(((suffix, declaring), id))
+                })
+                .collect()
+        })
+    }
+
+    /// The digests the parse keys of layer `at` name, put or deleted, with their ids.
+    fn digests(&self, at: usize) -> &FxHashMap<&'c str, u32> {
+        self.digests[at].get_or_init(|| {
+            let (stored, parses) = (&self.layers[at].stored, &self.layers[at].parses);
+            (0..parses.key.len()).map(|row| parses.key.at(row))
+                .chain((0..parses.deleted.len()).map(|row| parses.deleted.at(row)))
+                .map(|id| (stored.text(id), id))
+                .collect()
+        })
+    }
 }
 
 /// The parse keys the chain holds under `digests`, as `(digest, way)`: the last

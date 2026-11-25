@@ -24,7 +24,6 @@ use std::collections::BTreeSet;
 use napi_derive::napi;
 use rayon::prelude::*;
 
-use crate::chain_lookup::{fold, At};
 use crate::dependency_lexicon::purposes::{asked_run, code_stems, near, phrase_run, writes_run};
 
 use crate::compact::Layer;
@@ -182,8 +181,7 @@ type FileHit<'a> = (usize, &'a str, usize, Held);
 /// no export list holds. A name its file exports is cut too, and
 /// [`Matching::Terms`] passes it over as [`declared`] passes over any.
 pub(crate) fn declared_terms(layers: &[Layer], files: Option<&[String]>) -> Vec<String> {
-    let folded = fold(layers);
-    let terms: BTreeSet<String> = crossings(layers, &folded, files)
+    let terms: BTreeSet<String> = crossings(layers, files)
         .par_iter()
         .filter_map(|crossing| crossing.parse)
         .filter(|&(layer, row)| layers[layer].parses.harvested[row] == 1)
@@ -207,8 +205,8 @@ pub(crate) struct PrivateWords {
 
 /// Which files hold a searchable private name, and the requested stems their
 /// distinct top-level private names hold. Read only the published parses.
-pub(crate) fn private_words(layers: &[Layer], folded: &std::collections::HashMap<&str, At>, stems: &[String]) -> Vec<PrivateWords> {
-    crossings(layers, folded, None)
+pub(crate) fn private_words(layers: &[Layer], stems: &[String]) -> Vec<PrivateWords> {
+    crossings(layers, None)
         .par_iter()
         .filter_map(|crossing| {
             let (layer, row) = crossing.parse?;
@@ -262,10 +260,9 @@ pub(crate) fn declaration_locations(layers: &[Layer], query: &str) -> Vec<Declar
 
 /// The matching shared by a full declaration answer and its location projection.
 fn matched<'a>(layers: &'a [Layer<'a>], query: &str, matching: Matching, files: Option<&[String]>, admits: impl Fn(bool) -> bool + Sync) -> (Vec<Hit<'a>>, Vec<FileHit<'a>>, Vec<String>) {
-    let folded = crate::stages::timed("declared/fold", || fold(layers));
     let exact = matches!(matching, Matching::Exact);
     let crossings = crate::stages::timed("declared/crossings", || {
-        if exact { joined_crossings(layers, &folded, files) } else { crossings(layers, &folded, files) }
+        if exact { joined_crossings(layers, files) } else { crossings(layers, files) }
     });
     // Cut once for every doc; a question of one stem is no phrase, and no doc is cut for it.
     let run = matches!(matching, Matching::Containing).then(|| phrase_run(query)).flatten();

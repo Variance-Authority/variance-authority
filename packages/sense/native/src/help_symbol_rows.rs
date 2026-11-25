@@ -109,10 +109,9 @@ pub(crate) struct Site<'a> {
 impl Rows {
     pub(crate) fn paths_written(&self, specifier: &str) -> Option<BTreeSet<&str>> {
         let mut paths = BTreeSet::new();
-        for row in 0..self.column("deep.specifier").len() {
-            if self.string("deep.specifier", row)? == specifier {
-                paths.extend(self.optional("deep.to", row)?);
-            }
+        let column = self.column("deep.specifier");
+        for row in self.rows_saying(column, 0..column.len(), specifier) {
+            paths.extend(self.optional("deep.to", row)?);
         }
         Some(paths)
     }
@@ -193,6 +192,19 @@ impl Rows {
         (range.start <= range.end).then_some(range)
     }
 
+    /// The rows in `rows` of `column` holding the id `text` has. A string
+    /// lives once in the pool, so the first row that says it gives the id,
+    /// and every other row is an integer compare.
+    fn rows_saying(&self, column: U32s<'_>, rows: Range<usize>, text: &str) -> Vec<usize> {
+        let (off, blob, wanted) = (self.column("strings.off"), self.bytes("strings.blob"), text.as_bytes());
+        // Whether the pooled string `id` is `wanted`, compared as bytes:
+        // nothing is decoded for a row that is not.
+        let says = |id: u32| id != NONE && (id as usize) + 1 < off.len() && blob.get(off.range(id as usize)) == Some(wanted);
+        let Some(first) = rows.clone().find(|&row| says(column.at(row))) else { return Vec::new() };
+        let id = column.at(first);
+        (first..rows.end).filter(|&row| column.at(row) == id).collect()
+    }
+
     fn name_row(&self, name: &str) -> Option<Option<usize>> {
         let (mut first, mut last) = (0, self.column("names.name").len());
         while first < last {
@@ -213,11 +225,8 @@ impl Rows {
                 found.insert(self.number(rows, row)? as usize);
             }
         }
-        for row in 0..self.column(bindings).len() {
-            if self.optional(bindings, row)? == Some(name) {
-                found.insert(row);
-            }
-        }
+        let column = self.column(bindings);
+        found.extend(self.rows_saying(column, 0..column.len(), name));
         Some(found)
     }
 
@@ -248,11 +257,9 @@ impl Rows {
         let off = self.column("deep.namesOff");
         let start = self.number("deep.namesOff", 0)? as usize;
         let end = self.number("deep.namesOff", off.len().checked_sub(1)?)? as usize;
-        let mut matching = Vec::new();
-        for row in start..end {
-            if self.optional("use.name", row)? == Some(name) { matching.push(row); }
-        }
-        Some(matching)
+        let names = self.column("use.name");
+        if end > names.len() { return None }
+        Some(self.rows_saying(names, start..end, name))
     }
 
     pub(crate) fn path_site(&self, use_row: usize) -> Option<PathSite<'_>> {
