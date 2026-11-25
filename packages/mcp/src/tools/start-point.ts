@@ -220,18 +220,15 @@ export function saysStartPoint(input: Readonly<Record<string, unknown>>): boolea
 /**
  * What a tool says about `from` and `to` in its own schema.
  *
- * One rule about what a path means, said once. Two servers that each wrote
- * their own paragraph would drift, and the drift lands on the model as
- * `app/billing/` meaning one thing in one tool and another in the next.
+ * One rule about what a path means, said once and sent in every `tools/list`.
  *
- * The text is sent in every `tools/list`, so it states the rule and not the
- * argument for it. A path is read from the root down, whole segment for whole
- * segment, case included, against the files the repository holds; nothing is
- * looked for inside it, so `Badge.tsx` is a file at the root and not the one
- * under `apps/web`, a path that is not there is rejected as not found, and the
- * root is rejected as the root (`refusalFor`). A `*` anywhere but the last segment is a pattern and is
- * refused. One string is one path, spaces and all; an array is several entry
- * points taken together. Nothing outside the closure is answered from.
+ * A path is read from the root down, whole segment for whole segment, case
+ * included, against the files the repository holds; one that is not there is
+ * rejected as not found, and the root as the root (`refusalFor`). A `*` anywhere
+ * but the last segment is a pattern and is refused. One string is one path,
+ * spaces and all; an array is several entry points taken together. Nothing
+ * outside the closure is answered from, but by `docs_grep`, which names the
+ * folder around the path it answers from.
  */
 export const START_POINT_SCHEMA = {
   from: {

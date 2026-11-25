@@ -75,8 +75,10 @@ top folder at the widest. A string in a YAML, JSON, Markdown or shell file no
 code imports — prose, configuration, workflows and logs — is `rg`'s. When you
 cannot tell which kind of file holds it, run both at once: each reads files the
 other does not. An `ask grep` that comes back empty is either a true answer
-about the files it searched or a sign that something you assumed is wrong. Widen
-its start point one step to find out which.
+about the files it searched or a sign that something you assumed is wrong. Asked
+with one start point and no `limit` or `offset`, it answers from the nearest
+folder around that path with a match. Where it finds one, the string was
+outside what you assumed held it.
 
 ## What Variance searches
 
@@ -136,7 +138,7 @@ it takes.
 | --- | --- | --- |
 | Nothing yet, in a repository you do not know | `variance ask orient` | The code map: the repository's packages in areas, each with its size, its dependency layers and the packages the rest of the repository imports most from it; `--area <id>` opens one area |
 | Text outside the source: YAML, JSON, Markdown, shell, workflows, logs | `rg -n <text> .` | Current files containing that text |
-| A string or a regular expression in code | `variance ask grep --query <pattern> --from <path>`, from the file or folder you are working in, or a top folder at the widest | The lines that match in the files that path reaches, nearest first, or, past 20 of them and with no `limit` or `offset` said, the first 10, then the folders and files they are all in with how many lines each holds; the query is a ripgrep regular expression: to match a literal, escape each metacharacter with a backslash, as `'a\(b'` matches `a(b` |
+| A string or a regular expression in code | `variance ask grep --query <pattern> --from <path>`, from the file or folder you are working in, or a top folder at the widest | The lines that match in the files that path reaches, nearest first, or, past 20 of them and with no `limit` or `offset` said, the first 10, then the folders and files they are all in with how many lines each holds, or, where one path not found or reaching no match is all that was asked from, those of the nearest folder around it with one; the query is a ripgrep regular expression: to match a literal, escape each metacharacter with a backslash, as `'a\(b'` matches `a(b` |
 | An exact string in a committed tree | `git grep -n <text> <tree>` | Committed files containing that text |
 | Files from a stack trace, a ticket or a search | `variance ask orient --files <path>[:<line>][,...]` | What each file declares at its top level, with lines and a class's members, each file's package, the names crossing its package boundary, external packages requested along its local imports, the recorded tests that ran each file, the functions in other files that call into it and those it calls, and the package flows those tests take through it; a line narrows the calls to the function holding it |
 | Words for a source name | `variance ask search --query <words>` | Candidate names, not every match |

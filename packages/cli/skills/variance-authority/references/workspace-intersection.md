@@ -21,8 +21,9 @@ run. Every matching file of a grouped name participates. Each common file labels
 near and loose search matches beside the operand they came from. A file with both
 query matches and near candidates lists both; composition does not make a candidate
 exact. Installed dependency names
-identify no workspace file. The query's area and fallback rules still apply. The
-answer opens with how many files are in all of them, `N files in all of them:`,
+identify no workspace file. The query's area and fallback rules still apply, but
+a `grep` operand is read in the area it names: no folder around that area is
+looked in. The answer opens with how many files are in all of them, `N files in all of them:`,
 then counts each question's files, then lists one row per file: its path, then
 the lines that put it in each question, numbered by question and split by `·`,
 or `the file` when a question answers a file without a line, as in

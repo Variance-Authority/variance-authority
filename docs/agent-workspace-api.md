@@ -159,7 +159,7 @@ search, indexed source search and observed-subject search.
 | You need | Start with |
 | --- | --- |
 | Text outside the source: YAML, JSON, Markdown, shell, workflows, logs | `rg` or `git grep`, beside `variance` rather than after it; it needs no index, and an empty `variance` answer says nothing about a file `variance` did not search. |
-| A string or a regular expression in code | `ask grep --query <pattern> --from <path>`, or `docs_grep` over MCP; the query is a ripgrep regular expression: to match a literal, escape each metacharacter with a backslash, as `'a\(b'` matches `a(b`; it matches only the files that path names and reaches along the imports, a Markdown or JSON file that code imports among them, nearest first, and a top folder is the widest path it takes. Past 20 matching lines, with no `limit` or `offset` said, it answers with the first 10, then the folders and files they are all in, at most 10 rows, the line count of each, a row for what is left of a folder past its own rows, and, where one start point was given and `ask discover` reads it and the pattern as `grep` does, the question that lists the files of the first row that is not such a rest. |
+| A string or a regular expression in code | `ask grep --query <pattern> --from <path>`, or `docs_grep` over MCP; the query is a ripgrep regular expression: to match a literal, escape each metacharacter with a backslash, as `'a\(b'` matches `a(b`; it matches only the files that path names and reaches along the imports, a Markdown or JSON file that code imports among them, nearest first, and a top folder is the widest path it takes. Past 20 matching lines, with no `limit` or `offset` said, it answers with the first 10, then the folders and files they are all in, at most 10 rows, the line count of each, a row for what is left of a folder past its own rows, and, where one start point was given and `ask discover` reads it and the pattern as `grep` does, the question that lists the files of the first row that is not such a rest. One start point that is not found or reaches no match, with no `limit` or `offset` said, is answered from the nearest folder around it that has one. |
 | An exact string in committed source | `git grep <tree>`; a named tree searches Git objects and deliberately leaves working-tree edits out. |
 | A name you can only describe, its exact signature, or the code that imports it | The workspace index; those answers depend on declarations, exports, resolved imports, and the area named by `from` or `to`. |
 | Nothing in hand, and the repository unknown | `ask orient`, or `docs_orient` over MCP; it prints the code map, the repository's packages in areas, and `--area`, `area` over MCP, opens one area. |
@@ -382,8 +382,9 @@ one held. A found `symbol` or `uses`, a `grep`, and a `docs_search`, is asked
 again of a generation made from the checkout as it is when a file it rests on
 changed or went away after the generation: the rows `docs_search` prints with
 the entry and each barrel that publish them, for `grep` every file of the area
-it searched, and for the other two the files that declare the name or pass it
-on and the entry that publishes it, with each row `uses` lists. An edit anywhere
+it was asked about, and for the other two the files that declare the name or pass it
+on and the entry that publishes it, with each row `uses` lists. The folder a `grep`
+answers from where that area holds no match is not among them. An edit anywhere
 else waits for the hour. The look is a stat of each file. When the checkout
 cannot be read again, or the new read cannot be saved, or a file the answer
 rests on is saved during the read that answers it, the answer or the refusal
