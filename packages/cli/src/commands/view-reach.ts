@@ -30,11 +30,6 @@ export function noReach(note: string): ReachData {
   return { tests: [], files: [], note };
 }
 
-/** Code-unit order, so a page does not depend on the reader's locale. */
-function byUnit(a: string, b: string): number {
-  return a < b ? -1 : a > b ? 1 : 0;
-}
-
 /** The index inverted both ways, for the test files in `shown`. */
 export function reachOf(index: ExecutionIndex, shown: ReadonlySet<string>): ReachData {
   const fileOf = index.tests.map((test) => test.file);
@@ -56,13 +51,13 @@ export function reachOf(index: ExecutionIndex, shown: ReadonlySet<string>): Reac
     }
   }
   const fanIn = (file: string): number => entered.get(file)?.size ?? 0;
-  const tests = [...reached].sort(([a], [b]) => byUnit(a, b)).map(([file, set]) => {
-    const all = [...set].sort((a, b) => fanIn(b) - fanIn(a) || byUnit(a, b));
+  const tests = [...reached].sort(([a], [b]) => codeUnitOrder(a, b)).map(([file, set]) => {
+    const all = [...set].sort((a, b) => fanIn(b) - fanIn(a) || codeUnitOrder(a, b));
     return { file, reached: all.slice(0, TOP), total: all.length };
   });
   const files = [...entered]
-    .sort(([a, x], [b, y]) => y.size - x.size || byUnit(a, b))
+    .sort(([a, x], [b, y]) => y.size - x.size || codeUnitOrder(a, b))
     .slice(0, TOP)
-    .map(([file, set]) => ({ file, tests: [...set].sort(byUnit).slice(0, TOP), total: set.size }));
+    .map(([file, set]) => ({ file, tests: [...set].sort(codeUnitOrder).slice(0, TOP), total: set.size }));
   return { tests, files };
 }

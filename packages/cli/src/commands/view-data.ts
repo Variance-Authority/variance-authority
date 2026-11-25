@@ -15,7 +15,6 @@ import { readExecutionIndex, recordedExecutionFile } from './execution-input.js'
 import { noReach, reachOf, TOP, type ReachData } from './view-reach.js';
 import type { RecordedAttempts, RecordedDurations, RecordedTrace, RetriedCase, TracedFile } from '@variance-authority/sense';
 
-export { TOP };
 
 /** What the Tests view holds. */
 export interface TestsData {
