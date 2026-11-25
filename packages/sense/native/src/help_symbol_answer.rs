@@ -3,7 +3,7 @@
 // compass: variance-authority.report.agent-surface
 
 use std::collections::{HashMap, HashSet};
-use std::fs::File;
+use std::io::{Read, Seek};
 use std::path::Path;
 
 use crate::compact::Layer;
@@ -13,19 +13,34 @@ use crate::help_declared::{declared, DeclaredName, Matching};
 use crate::help_members::{indexed_extensions, member_sites};
 use crate::help_name_scope::{owner_of, PackageScope};
 use crate::help_origin::declaration_exported;
+use crate::help_surface::Surface;
 use crate::help_symbol_published::published_symbols;
 use crate::help_symbol_exported::exported_only;
 use crate::help_symbol_rows::{Export, PathKind, PathSite, Rows};
 use crate::help_unpublished::exports_named;
 use crate::help_usage::requested;
-use crate::index_chain::OpenedChain;
 use crate::read_any::{language_of, Language};
 
 #[path = "help_symbol_dependencies.rs"]
-mod dependencies;
+pub(crate) mod dependencies;
 
-/// Answer exact names in request order from one publication and declaration index.
-pub(crate) fn exact_symbols(root: &str, index: &Path, store: &mut File, names: &[&str], wanted: Option<&str>, limit: Option<usize>) -> Option<String> {
+/// One `symbol` question: the checkout, the folder holding the dependency
+/// catalogue and the index layers it reads, how its answer is narrowed and
+/// cut, and the surface whose spelling it is said in.
+pub(crate) struct Asking<'q> {
+    pub root: &'q str,
+    pub lexicon: &'q Path,
+    pub layers: &'q [Layer<'q>],
+    pub wanted: Option<&'q str>,
+    pub limit: Option<usize>,
+    pub surface: Surface<'q>,
+}
+
+/// Answer exact names in request order from the help store `store` and the
+/// index layers `asking` carries, each `Err` when the answer is that nothing
+/// declares it; `None` hands the question to the full reading.
+pub(crate) fn exact_symbols(asking: &Asking<'_>, store: &mut (impl Read + Seek), names: &[&str]) -> Option<Vec<Result<String, String>>> {
+    let wanted = asking.wanted;
     let mut rows = Rows::read(store)?;
     let mut entries = false;
     let mut unpublished = false;
@@ -46,14 +61,14 @@ pub(crate) fn exact_symbols(root: &str, index: &Path, store: &mut File, names: &
         rows.read_path_targets(store)?;
     }
     if paths && !unpublished && wanted.is_none() { rows.read_export_lines(store)?; }
-    let chain = OpenedChain::read(index.to_str()?).ok()??;
     let package = PackageScope::read(&rows, wanted)?;
-    let answers = names.iter().map(|name| exact_symbol(root, index, chain.layers(), &rows, name, limit, &package))
-        .collect::<Option<Vec<_>>>()?;
-    Some(answers.join("\n\n"))
+    names.iter().map(|name| exact_symbol(asking, &rows, name, &package)).collect()
 }
 
-fn exact_symbol(root: &str, index: &Path, layers: &[Layer], rows: &Rows, name: &str, said_limit: Option<usize>, package: &PackageScope<'_>) -> Option<String> {
+/// One name's answer: `Err` when it is that nothing declares the name, said
+/// with the files that only bind it.
+fn exact_symbol(asking: &Asking<'_>, rows: &Rows, name: &str, package: &PackageScope<'_>) -> Option<Result<String, String>> {
+    let &Asking { root, lexicon, layers, limit: said_limit, surface, .. } = asking;
     let mut published = rows.published(name)?.into_iter().map(|row| rows.entry(row)).collect::<Option<Vec<_>>>()?;
     published.retain(|entry| package.entry(entry));
     let mut paths = rows.path_uses(name)?.into_iter().map(|row| rows.path_site(row)).collect::<Option<Vec<_>>>()?;
@@ -70,17 +85,18 @@ fn exact_symbol(root: &str, index: &Path, layers: &[Layer], rows: &Rows, name: &
         .filter(|site| package.member(&site.by) && container.is_none_or(|on| site.on == on)).collect();
     if container.is_some() && members.is_empty() { return None }
     let mut blocks = Vec::new();
+    let mut found = true;
     if !published.is_empty() {
-        blocks.extend(published_symbols(root, layers, name, published, &exports, &paths, package)?);
+        blocks.extend(published_symbols(root, layers, name, published, &exports, &paths, package, surface)?);
     } else if !paths.is_empty() {
         let (by_path, imported) = by_path(layers, rows, name, &in_package, paths)?;
         blocks.extend(by_path);
         let rest: Vec<_> = exported.iter().filter(|held| !imported.contains(held.export.at)).collect();
-        if !rest.is_empty() { blocks.push(exported_only(root, layers, rows, name, &rest)?); }
+        if !rest.is_empty() { blocks.push(exported_only(root, layers, rows, name, &rest, surface)?); }
     }
     let workspace_door = !blocks.is_empty();
     if !workspace_door && !exported.is_empty() {
-        blocks.push(exported_only(root, layers, rows, name, &exported.iter().collect::<Vec<_>>())?);
+        blocks.push(exported_only(root, layers, rows, name, &exported.iter().collect::<Vec<_>>(), surface)?);
     }
     let mut reading = declared(root, layers, name, Matching::Exact, None);
     reading.names.retain(|held| package.declared(&held.by));
@@ -89,8 +105,8 @@ fn exact_symbol(root: &str, index: &Path, layers: &[Layer], rows: &Rows, name: &
     let (bound, kept): (Vec<_>, Vec<_>) = reading.names.into_iter().partition(|held| is_bound(&held.kind));
     let only_members = blocks.is_empty() && kept.is_empty();
     let limit = said_limit.unwrap_or(5);
-    let bindings = listed(&bound, name, limit, "binding");
-    blocks.extend(listed(&kept, name, limit, "declaration"));
+    let bindings = listed(&bound, name, limit, "binding", surface);
+    blocks.extend(listed(&kept, name, limit, "declaration", surface));
     if !kept.is_empty() { blocks.extend(unread_line(&reading.unread)); }
     if !members.is_empty() {
         blocks.extend(members.iter().take(limit).map(|site| {
@@ -98,19 +114,19 @@ fn exact_symbol(root: &str, index: &Path, layers: &[Layer], rows: &Rows, name: &
                 "a type literal" | "a class" => site.on.clone(),
                 on => format!("`{on}`"),
             };
-            format!("{name}\na member of {container}, declared at {}:{}\n`variance ask uses` names the lines that use it through a value written as its container, and the declaration to ask its language's find-references about for the rest.", site.at, site.line)
+            format!("{name}\na member of {container}, declared at {}:{}\n`{}` names the lines that use it through a value written as its container, and the declaration to ask its language's find-references about for the rest.", site.at, site.line, surface.tool("uses"))
         }));
         if members.len() > limit {
             let more = members.len() - limit;
             let noun = if more == 1 { "member declaration" } else { "member declarations" };
-            blocks.push(format!("{more} more {noun} of `{name}` not shown; a higher `--limit` shows them."));
+            blocks.push(format!("{more} more {noun} of `{name}` not shown; a higher `{}` shows them.", surface.input("limit")));
         }
         blocks.extend(member_stop(layers, member, "there too"));
         if only_members { blocks.extend(unread_line(&reading.unread)); }
     }
     if !workspace_door {
         let wanted = package.wanted();
-        let dependencies = dependencies::blocks(root, index.parent()?, name, wanted, said_limit.unwrap_or(100))?;
+        let dependencies = dependencies::blocks(root, lexicon, name, wanted, said_limit.unwrap_or(100), surface)?;
         if let Some(found) = dependencies.as_ref().filter(|found| !found.is_empty()) {
             let no_local = blocks.is_empty();
             blocks.extend(found.iter().cloned());
@@ -122,11 +138,13 @@ fn exact_symbol(root: &str, index: &Path, layers: &[Layer], rows: &Rows, name: &
             } else {
                 "Whether an installed dependency publishes it is not known: the dependency lexicon is not published, and the `variance index` command publishes it.".to_owned()
             };
-            blocks.push(nowhere(name, &rows.published_names()?, layers, &reading.unread, Some(&dependencies), wanted, package.export_hint(rows, name, &exports)?.as_deref()));
+            blocks.push(nowhere(name, &rows.published_names()?, layers, &reading.unread, Some(&dependencies), wanted, package.export_hint(rows, name, &exports)?.as_deref(), surface));
+            found = false;
         }
     }
     blocks.extend(bindings);
-    Some(blocks.join("\n\n"))
+    let text = blocks.join("\n\n");
+    Some(if found { Ok(text) } else { Err(text) })
 }
 
 /// What a file does with a name it does not export, as every answer about the name says it.
@@ -135,12 +153,12 @@ pub(crate) fn kept_as(held: &DeclaredName) -> &'static str {
 }
 
 /// The blocks of the first `limit` rows, and the count of the `noun`s past them.
-fn listed(rows: &[DeclaredName], name: &str, limit: usize, noun: &str) -> Vec<String> {
+fn listed(rows: &[DeclaredName], name: &str, limit: usize, noun: &str, surface: Surface<'_>) -> Vec<String> {
     let mut blocks: Vec<_> = rows.iter().take(limit).map(block).collect();
     if rows.len() > limit {
         let more = rows.len() - limit;
         let plural = if more == 1 { "" } else { "s" };
-        blocks.push(format!("{more} more {noun}{plural} of `{name}` not shown; a higher `--limit` shows them."));
+        blocks.push(format!("{more} more {noun}{plural} of `{name}` not shown; a higher `{}` shows them.", surface.input("limit")));
     }
     blocks
 }
@@ -163,7 +181,9 @@ pub(crate) fn unread_line(unread: &[String]) -> Option<String> {
     })
 }
 
-pub(crate) fn nowhere(name: &str, published: &[&str], layers: &[crate::compact::Layer], unread: &[String], dependencies: Option<&str>, package: Option<&str>, exported: Option<&str>) -> String {
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn nowhere(name: &str, published: &[&str], layers: &[crate::compact::Layer], unread: &[String], dependencies: Option<&str>, package: Option<&str>, exported: Option<&str>, surface: Surface<'_>) -> String {
+    let search = surface.tool("search");
     let lowered = name.to_lowercase();
     let alike = published.iter().filter(|held| held.to_lowercase() == lowered && **held != name)
         .map(|held| format!("`{held}`")).collect::<Vec<_>>();
@@ -172,10 +192,10 @@ pub(crate) fn nowhere(name: &str, published: &[&str], layers: &[crate::compact::
     let not_published = format!("`{name}` is not published by {where_}");
     let hint = match alike.as_slice() {
         [] if exported.is_some() => format!("{not_published}; {}", exported.unwrap_or_default()),
-        [] if around == 0 => format!("{not_published}, and no published name contains it; ask `variance ask search` with a word from its documentation."),
+        [] if around == 0 => format!("{not_published}, and no published name contains it; ask `{search}` with a word from its documentation."),
         [] => {
             let contains = if around == 1 { "name contains" } else { "names contain" };
-            format!("{not_published}; {around} published {contains} it — ask `variance ask search` with it as the `--query`.")
+            format!("{not_published}; {around} published {contains} it — ask `{search}` with it as the `{}`.", surface.input("query"))
         }
         [one] => format!("{not_published}; {one} is. Names are matched exactly."),
         many => format!("{not_published}; {} are. Names are matched exactly.", many.join(" and ")),

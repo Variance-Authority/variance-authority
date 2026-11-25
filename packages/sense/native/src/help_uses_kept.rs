@@ -6,16 +6,15 @@
 
 use std::collections::BTreeSet;
 
-use crate::compact::Layer;
 use crate::harvest::is_bound;
 use crate::help_declared::DeclaredName;
 use crate::help_members::MemberSite;
-use crate::help_surface::{typed, Value, CLI};
+use crate::help_surface::{Surface, Value};
 use crate::help_symbol_answer::{declaration_kind_order, kept_as, member_stop, unread_line};
 use crate::help_symbol_published::joined_sites;
 use crate::help_usage::{importers, Asked};
 
-use super::{list_kinds, list_own, nearest, places, Counts, NARROW};
+use super::{list_kinds, list_own, more_line, narrow, nearest, order_line, places, Asking, Counts};
 
 /// The lines a kept name opens with, its declaring files' block first, and the rest: the binding files, the imports and each file's own uses.
 pub(super) struct Keeping {
@@ -32,46 +31,46 @@ impl Keeping {
 }
 
 /// `uses` for a name no file exports: its member declarations, after the ones its files keep when one declares it, or before them.
-#[allow(clippy::too_many_arguments)]
-pub(super) fn member_uses(root: &str, layers: &[Layer], name: &str, member: &str, members: &[MemberSite], kept: &[&DeclaredName], from: Option<&str>, file: Option<&str>, limit: usize, unread: &[String]) -> Option<String> {
+pub(super) fn member_uses(asking: &Asking<'_>, member: &str, members: &[MemberSite], kept: &[&DeclaredName], unread: &[String]) -> Option<String> {
+    let &Asking { name, from, file, .. } = asking;
     if members.is_empty() { return None }
     let declared = format!("declared in {}:", places(members.len()));
     let mut lines = if kept.iter().any(|held| !is_bound(&held.kind)) {
-        let keeping = keeping(root, layers, name, kept, from, limit)?;
+        let keeping = keeping(asking, kept)?;
         let mut lines = keeping.first;
         if file.is_none() { lines.extend(others_lines(name, Vec::new(), &[], &ordered(members, from))); }
         lines.extend(keeping.rest);
         lines.extend([String::new(), format!("`{name}` is a member too, {declared}")]);
-        lines.extend(member_lines(member, members, from, limit, layers));
+        lines.extend(member_lines(asking, member, members));
         lines
     } else {
         let mut lines = vec![format!("`{name}` is no exported name; it is a member, {declared}")];
-        lines.extend(member_lines(member, members, from, limit, layers));
+        lines.extend(member_lines(asking, member, members));
         if !kept.is_empty() {
             lines.push(String::new());
-            lines.extend(keeping(root, layers, name, kept, from, limit)?.all());
+            lines.extend(keeping(asking, kept)?.all());
         }
         lines
     };
     lines.extend(unread_line(unread));
     let files: BTreeSet<_> = members.iter().map(|site| site.at.as_str()).chain(declaring(kept)).collect();
-    if file.is_none() && files.len() > 1 { lines.push(NARROW.into()); }
+    if file.is_none() && files.len() > 1 { lines.push(narrow(asking.surface)); }
     Some(lines.join("\n"))
 }
 
 /// What follows the imports of an exported name: its kept declarations, the files not read, then its members.
-#[allow(clippy::too_many_arguments)]
-pub(super) fn beside(root: &str, layers: &[Layer], name: &str, member: &str, members: &[MemberSite], kept: &[&DeclaredName], from: Option<&str>, limit: usize, unread: &[String]) -> Option<Vec<String>> {
+pub(super) fn beside(asking: &Asking<'_>, member: &str, members: &[MemberSite], kept: &[&DeclaredName], unread: &[String]) -> Option<Vec<String>> {
+    let name = asking.name;
     let mut lines = Vec::new();
     if !kept.is_empty() {
         lines.push(String::new());
-        lines.extend(keeping(root, layers, name, kept, from, limit)?.all());
+        lines.extend(keeping(asking, kept)?.all());
     }
     lines.extend(unread_line(unread));
     if !members.is_empty() {
         lines.extend([String::new(), format!("`{name}` is a member too, declared in {}:", places(members.len()))]);
         // The imports already said the order, so the members do not say it again.
-        lines.extend(member_lines(member, members, from, limit, layers).into_iter().skip(1));
+        lines.extend(member_lines(asking, member, members).into_iter().skip(1));
     }
     Some(lines)
 }
@@ -104,10 +103,11 @@ pub(super) fn declaring<'k, 's>(kept: &'s [&'k DeclaredName]) -> impl Iterator<I
 }
 
 /// The order line, the member declarations, the uses of each one on a named container, and where a type checker takes over.
-fn member_lines(member: &str, members: &[MemberSite], from: Option<&str>, limit: usize, layers: &[Layer]) -> Vec<String> {
-    let mut lines = vec![from.map_or_else(|| "Path order; `--from` sorts nearest first.".into(), |from| format!("Nearest to {from} first."))];
+fn member_lines(asking: &Asking<'_>, member: &str, members: &[MemberSite]) -> Vec<String> {
+    let &Asking { layers, from, surface, .. } = asking;
+    let mut lines = vec![order_line(asking)];
     let ordered = ordered(members, from);
-    member_list(&mut lines, "Member declarations:", ordered.len(), limit, ordered.iter().map(|site| format!("{}:{} — {}", site.at, site.line, site.on)));
+    member_list(&mut lines, asking, "Member declarations:", ordered.len(), ordered.iter().map(|site| format!("{}:{} — {}", site.at, site.line, site.on)));
     let mut unused = Vec::new();
     for site in members {
         let Some(uses) = &site.uses else { continue };
@@ -118,7 +118,7 @@ fn member_lines(member: &str, members: &[MemberSite], from: Option<&str>, limit:
         let heading = format!("`{}.{member}`, declared at {}:{}, is used in {}:", site.on, site.at, site.line, places(uses.len()));
         let mut uses: Vec<_> = uses.iter().collect();
         uses.sort_by(|a, b| nearest(from, &a.at, a.line, &b.at, b.line));
-        member_list(&mut lines, &heading, uses.len(), limit, uses.iter().map(|site| {
+        member_list(&mut lines, asking, &heading, uses.len(), uses.iter().map(|site| {
             let by = if site.by.is_empty() { String::new() } else { format!("{}, ", site.by) };
             format!("{}:{} — {by}{}", site.at, site.line, site.how)
         }));
@@ -133,7 +133,7 @@ fn member_lines(member: &str, members: &[MemberSite], from: Option<&str>, limit:
             let reference = format!("`{named}` at {where_}");
             (named, where_, reference)
         }
-        _ => (member.to_owned(), "the declaration you mean".into(), "the declaration you mean, each listed above with its file and line (`--package` narrows the declarations to one package)".into()),
+        _ => (member.to_owned(), "the declaration you mean".into(), format!("the declaration you mean, each listed above with its file and line (`{}` narrows the declarations to one package)", surface.input("package"))),
     };
     lines.extend([
         String::new(),
@@ -145,31 +145,33 @@ fn member_lines(member: &str, members: &[MemberSite], from: Option<&str>, limit:
     lines
 }
 
-fn member_list(lines: &mut Vec<String>, heading: &str, count: usize, limit: usize, rows: impl Iterator<Item = String>) {
+fn member_list(lines: &mut Vec<String>, asking: &Asking<'_>, heading: &str, count: usize, rows: impl Iterator<Item = String>) {
+    let limit = asking.limit;
     lines.extend([String::new(), heading.to_owned(), String::new()]);
     lines.extend(rows.take(limit));
-    if count > limit { lines.push(format!("… {} more not shown; a higher `--limit` shows them.", count - limit)); }
+    if count > limit { lines.push(more_line(asking, count - limit)); }
 }
 
 /// `uses` for a name its files keep to themselves or only bind, and nothing exports.
-#[allow(clippy::too_many_arguments)]
-pub(super) fn private_uses(root: &str, layers: &[Layer], name: &str, from: Option<&str>, file: Option<&str>, limit: usize, declarations: &[DeclaredName], unread: &[String]) -> Option<String> {
+pub(super) fn private_uses(asking: &Asking<'_>, declarations: &[DeclaredName], unread: &[String]) -> Option<String> {
+    let file = asking.file;
     let selected: Vec<_> = declarations.iter().filter(|held| file.is_none_or(|file| held.at == file)).collect();
-    let mut lines = keeping(root, layers, name, &selected, from, limit)?.all();
+    let mut lines = keeping(asking, &selected)?.all();
     lines.extend(unread_line(unread));
     let declaring: BTreeSet<_> = declaring(&selected).collect();
-    if file.is_none() && declaring.len() > 1 { lines.push(NARROW.into()); }
+    if file.is_none() && declaring.len() > 1 { lines.push(narrow(asking.surface)); }
     Some(lines.join("\n"))
 }
 
 /// What each kept row is and who can reach it, the imports that reach their files, and the lines of those files that use the name.
-fn keeping(root: &str, layers: &[Layer], name: &str, kept: &[&DeclaredName], from: Option<&str>, limit: usize) -> Option<Keeping> {
+fn keeping(asking: &Asking<'_>, kept: &[&DeclaredName]) -> Option<Keeping> {
+    let &Asking { root, layers, name, surface, .. } = asking;
     let mut selected = kept.to_vec();
     selected.sort_by_key(|held| declaration_kind_order(held));
     let first = selected.first()?;
     let files = files_of(&selected);
     let (bound, declaring): (Vec<_>, Vec<_>) = selected.iter().copied().partition(|held| is_bound(&held.kind));
-    let (opening, mut rest) = if declaring.is_empty() { (kept_lines(name, &bound), Vec::new()) } else { (kept_lines(name, &declaring), kept_lines(name, &bound)) };
+    let (opening, mut rest) = if declaring.is_empty() { (kept_lines(name, &bound, surface), Vec::new()) } else { (kept_lines(name, &declaring, surface), kept_lines(name, &bound, surface)) };
     let declaring = files_of(&declaring);
     let asked = files.iter().map(|&file| Asked { file: file.to_owned(), name: name.to_owned() }).collect();
     let read = importers(root, layers, &[asked]);
@@ -180,12 +182,12 @@ fn keeping(root: &str, layers: &[Layer], name: &str, kept: &[&DeclaredName], fro
         let count = Counts::of(&sites, home.unwrap_or(""));
         let split = home.map_or_else(String::new, |home| count.split(home));
         rest.push(format!("\nImported in {}{split}.{}", places(count.certain), count.may_read(name)));
-        list_kinds(&mut rest, name, home, sites, from, limit);
+        list_kinds(&mut rest, asking, home, sites);
     }
     let mut at = None;
     for site in &read.in_file {
         if at == Some(site.at.as_str()) { continue }
-        list_own(&mut rest, &site.at, if declaring.contains(site.at.as_str()) { "declares" } else { "binds" }, &read.in_file, limit);
+        list_own(&mut rest, asking, &site.at, if declaring.contains(site.at.as_str()) { "declares" } else { "binds" }, &read.in_file);
         at = Some(&site.at);
     }
     Some(Keeping { first: opening, rest })
@@ -196,15 +198,15 @@ fn files_of<'d>(rows: &[&'d DeclaredName]) -> BTreeSet<&'d str> {
 }
 
 /// What each row is, where it is written and who can reach it there; every row is declared, or every one is bound.
-fn kept_lines(name: &str, rows: &[&DeclaredName]) -> Vec<String> {
+fn kept_lines(name: &str, rows: &[&DeclaredName], surface: Surface<'_>) -> Vec<String> {
     match rows {
         [] => Vec::new(),
-        [only] => vec![format!("`{name}` [{}] is {}, at {}:{}{}{}.", only.kind, kept_as(only), only.at, only.line, spelled(only, name), private_reach(only))],
+        [only] => vec![format!("`{name}` [{}] is {}, at {}:{}{}{}.", only.kind, kept_as(only), only.at, only.line, spelled(only, name), private_reach(only, surface))],
         [first, ..] => {
             let files = files_of(rows).len();
             let count = if files == rows.len() { format!("{files} files") } else { places(rows.len()) };
             let mut lines = vec![format!("`{name}` is {}, in {count}:", kept_as(first))];
-            lines.extend(rows.iter().map(|held| format!("  {}:{}{} [{}]{}", held.at, held.line, spelled(held, name), held.kind, private_reach(held))));
+            lines.extend(rows.iter().map(|held| format!("  {}:{}{} [{}]{}", held.at, held.line, spelled(held, name), held.kind, private_reach(held, surface))));
             lines
         }
     }
@@ -223,7 +225,7 @@ fn spelled_as(spelled: &str, asked: &str) -> String {
     }
 }
 
-fn private_reach(held: &DeclaredName) -> String {
+fn private_reach(held: &DeclaredName, surface: Surface<'_>) -> String {
     if let Some(line) = held.holder_line {
         let holder = held.holder.as_ref().map(|name| format!("`{name}`"));
         let who = holder.clone().unwrap_or_else(|| format!("the function written at {}:{line}", held.at));
@@ -236,8 +238,8 @@ fn private_reach(held: &DeclaredName) -> String {
         Some("underscore" | "all") => {
             let file = &held.at;
             let query = format!(r"\b{}\b", held.name);
-            let ask = typed(CLI, "grep", &[("query", Value::Text(&query)), ("to", Value::Text(file))]);
-            format!("; another module can still import it by name, which `{ask}` finds")
+            let ask = surface.question("grep", &[("query", Value::Text(&query)), ("to", Value::Text(file))]);
+            format!("; another module can still import it by name, which {ask} finds")
         }
         _ => "; who can reach it is not recorded".into(),
     }

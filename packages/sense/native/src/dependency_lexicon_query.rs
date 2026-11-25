@@ -129,7 +129,6 @@ pub fn query_dependency_lexicon(path: String, sites: String, query: String, file
         .transpose()
 }
 
-#[cfg(feature = "standalone-cli")]
 pub(crate) fn exact_dependencies(directory: &std::path::Path, name: &str, package: Option<&str>, limit: u32) -> Option<Option<Matches>> {
     let catalogue = directory.join("dependency-lexicon.bin");
     let sites = directory.join("dependency-lexicon.sites.bin");

@@ -289,6 +289,7 @@ export {
   type StorePackage,
   type StoreUse,
 } from './help-reading.js';
+export { answerSymbol, answerUses, type NameAnswer, type NameAsked } from './native-names.js';
 export {
   openSourceTree,
   sourceTreeOf,

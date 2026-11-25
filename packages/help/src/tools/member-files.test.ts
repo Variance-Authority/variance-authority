@@ -59,6 +59,9 @@ for (const tool of [symbol, uses]) {
 
   it(`${tool.name} carries declarations the index did not read`, async () => {
     const { root, help } = await fixture();
+    // The addon reads its own declarations, so the file it did not read is injected into the tool's reading, which a start point or a shape the addon hands back reaches.
+    vi.spyOn(sense, 'answerSymbol').mockReturnValue(undefined);
+    vi.spyOn(sense, 'answerUses').mockReturnValue(undefined);
     const read = sense.declaredOf;
     vi.spyOn(sense, 'declaredOf').mockImplementation((...args) => {
       const result = read(...args);

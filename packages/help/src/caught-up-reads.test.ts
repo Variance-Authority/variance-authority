@@ -30,6 +30,10 @@ vi.mock('@variance-authority/sense', async (actual) => {
       return sense.importersOf(...args);
     },
     memberDeclarationsOf: counted(sense.memberDeclarationsOf),
+    // What is counted is the tools' own reading, which every look reads and an answer the addon hands back
+    // reads; the addon's answer reads the index on its side, so it hands every answer back here.
+    answerSymbol: () => undefined,
+    answerUses: () => undefined,
   };
 });
 

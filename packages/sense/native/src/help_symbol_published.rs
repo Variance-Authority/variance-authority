@@ -2,6 +2,7 @@
 
 // compass: variance-authority.report.agent-surface
 
+use crate::help_surface::Surface;
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 
@@ -16,18 +17,23 @@ use crate::order::code_unit;
 use crate::text_cut::blank;
 
 /// Each declaration published under this spelling, with its own entry points and import sites.
-pub(crate) fn published_symbols<'a>(root: &str, layers: &[Layer], name: &str, entries: Vec<Entry<'a>>, exports: &[Export<'a>], paths: &[crate::help_symbol_rows::PathSite<'a>], package: &PackageScope<'a>) -> Option<Vec<String>> {
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn published_symbols<'a>(root: &str, layers: &[Layer], name: &str, entries: Vec<Entry<'a>>, exports: &[Export<'a>], paths: &[crate::help_symbol_rows::PathSite<'a>], package: &PackageScope<'a>, surface: Surface<'_>) -> Option<Vec<String>> {
     let (declarations, read) = published_imports(root, layers, name, entries, exports, PublicationScope::Asked(package))?;
     Some(declarations.iter().zip(&read.groups).map(|((entries, owner), group)| {
         let paths = paths.iter().filter(|path| path.to == Some(entries[0].at)).map(|path| path.site);
         let sites = joined_sites(entries, paths, &group.uses, &group.through);
-        published_symbol(layers, name, entries, owner, &sites)
+        published_symbol(layers, name, entries, owner, &sites, surface)
     }).collect())
 }
 
 pub(crate) type Published<'a> = (Vec<Entry<'a>>, &'a str);
 
-pub(crate) enum PublicationScope<'a> { Asked(&'a PackageScope<'a>), PublishedOnly }
+pub(crate) enum PublicationScope<'a> {
+    Asked(&'a PackageScope<'a>),
+    #[cfg_attr(not(feature = "standalone-cli"), allow(dead_code))]
+    PublishedOnly,
+}
 
 pub(crate) fn published_imports<'a>(root: &str, layers: &[Layer], name: &str, entries: Vec<Entry<'a>>, exports: &[Export<'a>], scope: PublicationScope<'_>) -> Option<(Vec<Published<'a>>, Importers)> {
     if entries.iter().any(|entry| entry.declared != name || entry.name != name) {
@@ -99,7 +105,7 @@ pub(crate) fn joined_sites<'a>(entries: &'a [Entry<'_>], paths: impl IntoIterato
     held.chain(indexed).filter(|site| seen.insert((site.at, site.line))).collect()
 }
 
-fn published_symbol(layers: &[Layer], name: &str, entries: &[Entry<'_>], owner: &str, sites: &[Site<'_>]) -> String {
+fn published_symbol(layers: &[Layer], name: &str, entries: &[Entry<'_>], owner: &str, sites: &[Site<'_>], surface: Surface<'_>) -> String {
     let lead = &entries[0];
     let at = lead.at;
     let count = Counts::of(sites, owner);
@@ -128,9 +134,9 @@ fn published_symbol(layers: &[Layer], name: &str, entries: &[Entry<'_>], owner: 
         let split = count.split(owner);
         let (place, imports) = if count.certain == 1 { ("place", "imports") } else { ("places", "import") };
         let also = if may { ", and the ones that may read it" } else { "" };
-        lines.push(format!("\n`variance ask uses` names the {} {place} that {imports} this{split}, nearest to a file you name first{also}.", count.certain));
+        lines.push(format!("\n`{}` names the {} {place} that {imports} this{split}, nearest to a file you name first{also}.", surface.tool("uses"), count.certain));
     } else if may {
-        lines.push("\n`variance ask uses` names no place that imports this, and lists the ones that may read it.".into());
+        lines.push(format!("\n`{}` names no place that imports this, and lists the ones that may read it.", surface.tool("uses")));
     }
     lines.join("\n")
 }

@@ -4,6 +4,7 @@ import type { Help, Use } from '@variance-authority/package/help';
 import type { DeclaredName } from '@variance-authority/sense';
 import { isBound, unreadLine } from './declared.js';
 import { FoundNothing } from './find.js';
+import { nativeAnswer } from './native-answer.js';
 import { type Members, membersUnread, places, routes } from './members.js';
 import { passesOn } from './passed-on.js';
 import { nearestTo } from './shared-segments.js';
@@ -225,6 +226,8 @@ export const uses: Tool<Help> = {
   run(help, input, invocation) {
     const spell = spellingOf(invocation);
     const shown: Shown = { limit: limitOf(input, SHOWN, spell), spell };
+    const native = nativeAnswer('uses', help, invocation, input, shown.limit);
+    if (native !== undefined) return native;
     const answer = usesOnce(help, input, invocation?.root, spell);
     return [answered(answer, input, shown), ...narrowing(answer.files, answer.file, spell)].join('\n');
   },

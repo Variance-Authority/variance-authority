@@ -6,9 +6,9 @@ use std::path::Path;
 
 use crate::dependency_lexicon::query::{exact_dependencies, Match, Silent};
 use crate::help_readme::mention_at;
-use crate::help_search_dependencies::provenance;
+use crate::help_surface::Surface;
 
-pub(super) fn blocks(root: &str, directory: &Path, name: &str, package: Option<&str>, limit: usize) -> Option<Option<Vec<String>>> {
+pub(super) fn blocks(root: &str, directory: &Path, name: &str, package: Option<&str>, limit: usize, surface: Surface<'_>) -> Option<Option<Vec<String>>> {
     let Some(matches) = exact_dependencies(directory, name, package, u32::try_from(limit).unwrap_or(u32::MAX))? else {
         return Some(None);
     };
@@ -16,7 +16,7 @@ pub(super) fn blocks(root: &str, directory: &Path, name: &str, package: Option<&
     let rest = matches.total as usize - blocks.len();
     if rest > 0 {
         let noun = if rest == 1 { "match" } else { "matches" };
-        blocks.push(format!("{rest} more {noun} not shown; a higher `--limit` shows them."));
+        blocks.push(format!("{rest} more {noun} not shown; a higher `{}` shows them.", surface.input("limit")));
     }
     blocks.extend(silent(Path::new(root), name, &matches.silent, package.is_some())?);
     Some(Some(blocks))
@@ -70,4 +70,17 @@ fn silent(root: &Path, name: &str, entries: &[Silent], named: bool) -> Option<Ve
         blocks.push(lines.join("\n"));
     }
     Some(blocks)
+}
+
+/// Where an installed dependency stands: its version, the manifest that
+/// declares it, and how often the workspace imports it.
+pub(crate) fn provenance(version: Option<&str>, declared: Option<&str>, manifest: &str, imports: Option<u32>, site: Option<&str>) -> String {
+    let version = version.map_or_else(|| "version not resolved".into(), |version| format!("@{version}"));
+    let declared = declared.map_or_else(|| format!("imported under {manifest}, not declared there"), |kind| format!("{kind} in {manifest}"));
+    let used = match imports {
+        None => "imports not indexed".into(),
+        Some(0) => "not imported".into(),
+        Some(count) => format!("imported {count}× (first {})", site.unwrap_or("site not recorded")),
+    };
+    format!("{version} · {declared} · {used}")
 }

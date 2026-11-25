@@ -13,8 +13,9 @@ use crate::help_package_answer;
 use crate::help_search_answer::search;
 use crate::help_store::{graph_digest, read_head};
 use crate::help_surface::{CLI, Surface};
-use crate::help_symbol_answer::exact_symbols;
-use crate::help_uses_answer::uses;
+use crate::help_symbol_answer::{self, exact_symbols};
+use crate::help_uses_answer::{self, uses};
+use crate::index_chain::OpenedChain;
 use crate::source_query::SourceTree;
 use crate::text_cut::blank;
 
@@ -87,8 +88,22 @@ pub fn answer(args: &[OsString], mut waiting: impl FnMut(&str)) -> Option<(i32, 
             let asked = help_grep_answer::Asked { query: request.query, from: request.from, to: request.to, said };
             help_grep_answer::answered(&tree, &roots, asked, Surface(Some(CLI)))
         }
-        Question::Symbol(request) => Ok(exact_symbols(root.to_str()?, &index, &mut file, &request.names, request.package, request.limit)?),
-        Question::Uses(request) => Ok(uses(root.to_str()?, &index, &mut file, request.name, request.package, request.from, request.file, request.limit)?),
+        Question::Symbol(request) => {
+            let chain = OpenedChain::read(index.to_str()?).ok()??;
+            let asking = help_symbol_answer::Asking {
+                root: root.to_str()?, lexicon: index.parent()?, layers: chain.layers(), wanted: request.package, limit: request.limit, surface: Surface(Some(CLI)),
+            };
+            let answers = exact_symbols(&asking, &mut file, &request.names)?;
+            Ok(answers.into_iter().map(|answer| answer.unwrap_or_else(|nothing| nothing)).collect::<Vec<_>>().join("\n\n"))
+        }
+        Question::Uses(request) => {
+            let chain = OpenedChain::read(index.to_str()?).ok()??;
+            let asking = help_uses_answer::Asking {
+                root: root.to_str()?, layers: chain.layers(), name: request.name, wanted: request.package,
+                from: request.from, file: request.file, limit: request.limit, surface: Surface(Some(CLI)),
+            };
+            Ok(uses(&asking, &mut file)?.unwrap_or_else(|nothing| nothing))
+        }
         Question::Search(request) => {
             if request.offset.is_some() { return None }
             let scope = if request.from.is_empty() && request.to.is_empty() { None } else {
@@ -162,7 +177,7 @@ impl<'a> UsesRequest<'a> {
             }
         }
         let name = name?;
-        (!name.is_empty() && name != "default").then_some(Self { name, package: package.filter(|value| !value.is_empty()), from: from.filter(|value| !value.is_empty()), file: file.filter(|value| !value.is_empty()), limit: limit.unwrap_or(12) })
+        (!name.is_empty()).then_some(Self { name, package: package.filter(|value| !value.is_empty()), from: from.filter(|value| !value.is_empty()), file: file.filter(|value| !value.is_empty()), limit: limit.unwrap_or(12) })
     }
 }
 

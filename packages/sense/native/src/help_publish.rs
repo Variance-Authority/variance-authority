@@ -294,6 +294,13 @@ pub fn open_index(index: String) -> napi::Result<OpenedIndex> {
     Ok(OpenedIndex { index, opened, closed: false })
 }
 
+impl OpenedIndex {
+    /// Where the chain was opened from.
+    pub(crate) fn path(&self) -> &str {
+        &self.index
+    }
+}
+
 /// The layers `opened` holds, handed to `read`; `None` when there is no index.
 pub(crate) fn opened_chain<T>(opened: &OpenedIndex, read: impl FnOnce(&[Layer]) -> T) -> napi::Result<Option<T>> {
     if opened.closed {

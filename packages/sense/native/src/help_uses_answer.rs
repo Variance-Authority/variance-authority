@@ -3,8 +3,7 @@
 // compass: variance-authority.report.agent-surface
 
 use std::collections::BTreeSet;
-use std::fs::File;
-use std::path::Path;
+use std::io::{Read, Seek};
 
 use crate::compact::Layer;
 use crate::harvest::is_bound;
@@ -15,8 +14,8 @@ use crate::help_members::{member_declarations, MemberSite};
 use crate::help_name_scope::{owner_of, PackageScope};
 use crate::help_symbol_answer::{member_name, nowhere};
 use crate::help_symbol_published::{joined_sites, published_imports, PublicationScope};
+use crate::help_surface::Surface;
 use crate::help_symbol_rows::{Entry, Rows, Site};
-use crate::index_chain::OpenedChain;
 use crate::help_unpublished::{exports_named, UNCOUNTED};
 use crate::order::code_unit;
 
@@ -33,19 +32,31 @@ struct Beside<'a> {
     files: Vec<&'a str>,
 }
 
-/// One `uses` question: the checkout and index it reads, the name, and how its answer is ordered and cut.
-struct Asking<'q> {
-    root: &'q str,
-    layers: &'q [Layer<'q>],
-    name: &'q str,
-    from: Option<&'q str>,
-    file: Option<&'q str>,
-    limit: usize,
+/// One `uses` question: the checkout and index it reads, the name, how its
+/// answer is ordered and cut, and the surface whose spelling it is said in.
+pub(crate) struct Asking<'q> {
+    pub root: &'q str,
+    pub layers: &'q [Layer<'q>],
+    pub name: &'q str,
+    pub wanted: Option<&'q str>,
+    pub from: Option<&'q str>,
+    pub file: Option<&'q str>,
+    pub limit: usize,
+    pub surface: Surface<'q>,
 }
 
-const NARROW: &str = "\n`--file`, the file one of them is declared in, answers for that declaration alone.";
+/// The line that says how to narrow an answer naming several declaring files to one.
+fn narrow(surface: Surface<'_>) -> String {
+    format!("\n`{}`, the file one of them is declared in, answers for that declaration alone.", surface.input("file"))
+}
 
-pub(crate) fn uses(root: &str, index: &Path, store: &mut File, name: &str, wanted: Option<&str>, from: Option<&str>, file: Option<&str>, limit: usize) -> Option<String> {
+/// Who uses the name `asking` names, read from the help store `store` and the
+/// index layers it carries: `Err` when the answer is that nothing declares it,
+/// and `None` to hand the question to the full reading.
+pub(crate) fn uses(asking: &Asking<'_>, store: &mut (impl Read + Seek)) -> Option<Result<String, String>> {
+    let &Asking { root, layers, name, wanted, from, file, limit: _, surface: _ } = asking;
+    // `default` names a slot, not a declaration, which only the full reading follows.
+    if name == "default" { return None }
     let mut rows = Rows::read(store)?;
     let published = rows.published(name)?;
     let path_rows = rows.path_uses(name)?;
@@ -64,8 +75,6 @@ pub(crate) fn uses(root: &str, index: &Path, store: &mut File, name: &str, wante
     paths.retain(|path| package.path(path.specifier));
     let exports = rows.exports(name)?;
     let in_package = exports.iter().filter(|export| package.export(export)).cloned().collect::<Vec<_>>();
-    let chain = OpenedChain::read(index.to_str()?).ok()??;
-    let layers = chain.layers();
     let mut kept = declared(root, layers, name, Matching::Exact, None);
     kept.names.retain(|held| package.declared(&held.by));
     let (container, member) = member_name(name);
@@ -82,27 +91,27 @@ pub(crate) fn uses(root: &str, index: &Path, store: &mut File, name: &str, wante
     if (entries.is_empty() && paths.is_empty() && exported.is_empty()) || elsewhere {
         if !aliases(root, layers, name).is_empty() { return None }
         if !members.is_empty() {
-            return kept::member_uses(root, layers, name, member, &members, &kept_here, from, file, limit, &kept.unread);
+            return kept::member_uses(asking, member, &members, &kept_here, &kept.unread).map(Ok);
         }
         if container.is_some() { return None }
         if kept.names.iter().any(|held| !is_bound(&held.kind)) {
-            return kept::private_uses(root, layers, name, from, file, limit, &kept.names, &kept.unread);
+            return kept::private_uses(asking, &kept.names, &kept.unread).map(Ok);
         }
-        let absent = nowhere(name, &rows.published_names()?, layers, &kept.unread, None, wanted, package.export_hint(&rows, name, &exports)?.as_deref());
-        if kept.names.is_empty() { return Some(absent) }
-        if !nothing { return kept::private_uses(root, layers, name, from, file, limit, &kept.names, &kept.unread) }
+        let absent = nowhere(name, &rows.published_names()?, layers, &kept.unread, None, wanted, package.export_hint(&rows, name, &exports)?.as_deref(), asking.surface);
+        if kept.names.is_empty() { return Some(Err(absent)) }
+        if !nothing { return kept::private_uses(asking, &kept.names, &kept.unread).map(Ok) }
         // What was read is said with the absence, so the files it could not read are not said again.
-        return Some(format!("{absent}\n\n{}", kept::private_uses(root, layers, name, from, file, limit, &kept.names, &[])?));
+        return Some(Ok(format!("{absent}\n\n{}", kept::private_uses(asking, &kept.names, &[])?)));
     }
     let beside = Beside {
         kept: if file.is_none() { kept_here.clone() } else { Vec::new() },
         members: if file.is_none() { kept::ordered(&members, from) } else { Vec::new() },
-        after: kept::beside(root, layers, name, member, &members, &kept_here, from, limit, &kept.unread)?,
+        after: kept::beside(asking, member, &members, &kept_here, &kept.unread)?,
         files: kept::declaring(&kept_here).chain(members.iter().map(|site| site.at.as_str())).collect(),
     };
     if entries.is_empty() {
         if exported.is_empty() { return None }
-        return exported::exported_uses(&Asking { root, layers, name, from, file, limit }, &rows, &paths, &exported, &package, beside);
+        return exported::exported_uses(asking, &rows, &paths, &exported, &package, beside).map(Ok);
     }
     let (declarations, read) = published_imports(root, layers, name, entries, &exports, PublicationScope::Asked(&package))?;
     let mut selected: Vec<_> = declarations.iter().zip(&read.groups).collect();
@@ -120,9 +129,9 @@ pub(crate) fn uses(root: &str, index: &Path, store: &mut File, name: &str, wante
     let namesakes = if answers.len() > 0 { declarations[1..].iter().map(|(entries, _)| format!("{}:{}, published by {}", entries[0].at, entries[0].line, publishers(entries))).collect() } else { Vec::new() };
     let others = kept::others_lines(name, namesakes, &beside.kept, &beside.members);
     let which = (!others.is_empty()).then(|| published_at(lead));
-    let mut lines = vec![headline(name, &kinds, which.as_deref(), None, owner, &sites)];
+    let mut lines = vec![headline(asking, &kinds, which.as_deref(), None, owner, &sites)];
     lines.extend(others);
-    primary_sites(&mut lines, name, owner, &[lead[0].at], sites, &read.in_file, from, limit);
+    primary_sites(&mut lines, asking, owner, &[lead[0].at], sites, &read.in_file);
     for ((entries, owner), group) in answers {
         lines.push(format!("\n`{name}` is {} as well, which is another declaration.", published_at(entries)));
         let sites = joined_sites(entries, for_file(entries[0].at), &group.uses, &group.through);
@@ -131,25 +140,29 @@ pub(crate) fn uses(root: &str, index: &Path, store: &mut File, name: &str, wante
         } else {
             let count = Counts::of(&sites, owner);
             lines.push(format!("Imported in {}{}.{}", places(count.certain), count.split(owner), count.may_read(name)));
-            list_kinds(&mut lines, name, Some(owner), sites, from, limit);
+            list_kinds(&mut lines, asking, Some(owner), sites);
         }
-        list_own(&mut lines, entries[0].at, "declares", &read.in_file, limit);
+        list_own(&mut lines, asking, entries[0].at, "declares", &read.in_file);
     }
     lines.extend(beside.after);
     let files: BTreeSet<_> = declarations.iter().map(|(entries, _)| entries[0].at).chain(beside.files).collect();
-    if file.is_none() && files.len() > 1 { lines.push(NARROW.into()); }
-    Some(lines.join("\n"))
+    if file.is_none() && files.len() > 1 { lines.push(narrow(asking.surface)); }
+    Some(Ok(lines.join("\n")))
+}
+
+/// How the sites below are ordered: by path, or nearest the file `from` names.
+fn order_line(asking: &Asking<'_>) -> String {
+    asking.from.map_or_else(|| format!("Path order; `{}` sorts nearest first.", asking.surface.input("from")), |from| format!("Nearest to {from} first."))
 }
 
 /// The imports of the declaration answered first, then the lines of each of `files` that use it.
-#[allow(clippy::too_many_arguments)]
-fn primary_sites(lines: &mut Vec<String>, name: &str, owner: &str, files: &[&str], sites: Vec<Site<'_>>, own: &[InFile], from: Option<&str>, limit: usize) {
+fn primary_sites(lines: &mut Vec<String>, asking: &Asking<'_>, owner: &str, files: &[&str], sites: Vec<Site<'_>>, own: &[InFile]) {
     let imported = !sites.is_empty();
     if imported {
-        lines.push(from.map_or_else(|| "Path order; `--from` sorts nearest first.".into(), |from| format!("Nearest to {from} first.")));
-        list_kinds(lines, name, Some(owner), sites, from, limit);
+        lines.push(order_line(asking));
+        list_kinds(lines, asking, Some(owner), sites);
     }
-    for at in files { list_own(lines, at, "declares", own, limit); }
+    for at in files { list_own(lines, asking, at, "declares", own); }
     if imported { lines.push(format!("\nA{}.", &UNCOUNTED[1..])); }
 }
 
@@ -161,7 +174,8 @@ fn published_at(entries: &[Entry<'_>]) -> String {
     format!("published by {}, declared at {}:{}", publishers(entries), entries[0].at, entries[0].line)
 }
 
-fn headline(name: &str, kinds: &str, published: Option<&str>, exported: Option<(&str, Option<&str>)>, home: &str, sites: &[Site<'_>]) -> String {
+fn headline(asking: &Asking<'_>, kinds: &str, published: Option<&str>, exported: Option<(&str, Option<&str>)>, home: &str, sites: &[Site<'_>]) -> String {
+    let name = asking.name;
     let named = if kinds.is_empty() { format!("`{name}`") } else { format!("`{name}` [{kinds}]") };
     if sites.is_empty() {
         if let Some((at, member)) = exported {
@@ -169,7 +183,7 @@ fn headline(name: &str, kinds: &str, published: Option<&str>, exported: Option<(
             return format!("{named} is {how}, and nothing in this workspace imports it; {UNCOUNTED}.");
         }
         let published = published.map_or_else(|| "published".into(), |at| format!("{at},"));
-        return format!("{named} is {published} and nothing in this workspace imports it; {UNCOUNTED}. `variance ask symbol` has its signature and what is written above it.");
+        return format!("{named} is {published} and nothing in this workspace imports it; {UNCOUNTED}. `{}` has its signature and what is written above it.", asking.surface.tool("symbol"));
     }
     let which = match (published, exported) {
         (Some(at), _) => format!(", {at}"),
@@ -250,39 +264,46 @@ fn nearest(from: Option<&str>, at: &str, line: u32, other_at: &str, other_line: 
     shared(other_at).cmp(&shared(at)).then_with(|| code_unit(at, other_at)).then(line.cmp(&other_line))
 }
 
-fn list_kinds(lines: &mut Vec<String>, name: &str, home: Option<&str>, mut sites: Vec<Site<'_>>, from: Option<&str>, limit: usize) {
+fn list_kinds(lines: &mut Vec<String>, asking: &Asking<'_>, home: Option<&str>, mut sites: Vec<Site<'_>>) {
+    let &Asking { name, from, limit, .. } = asking;
     sites.sort_by(|a, b| nearest(from, a.at, a.line, b.at, b.line));
     for (kind, heading) in [("story", "Stories"), ("test", "Tests"), ("source", "Source")] {
         let of = sites.iter().filter(|site| site.kind == kind);
         let Some(home) = home else {
             let rows: Vec<_> = of.collect();
-            list(lines, &format!("{heading}:"), rows.iter().map(|site| site_line(site, name, false, limit)), limit);
+            list(lines, asking, &format!("{heading}:"), rows.iter().map(|site| site_line(site, name, false, limit)));
             continue;
         };
         let (outside, inside): (Vec<_>, Vec<_>) = of.partition(|site| site.by != home);
-        list(lines, &format!("{heading}, from other packages:"), outside.iter().map(|site| site_line(site, name, false, limit)), limit);
-        list(lines, &format!("{heading}, inside {home}:"), inside.iter().map(|site| site_line(site, name, true, limit)), limit);
+        list(lines, asking, &format!("{heading}, from other packages:"), outside.iter().map(|site| site_line(site, name, false, limit)));
+        list(lines, asking, &format!("{heading}, inside {home}:"), inside.iter().map(|site| site_line(site, name, true, limit)));
     }
 }
 
-fn list_own(lines: &mut Vec<String>, at: &str, does: &str, uses: &[InFile], limit: usize) {
+fn list_own(lines: &mut Vec<String>, asking: &Asking<'_>, at: &str, does: &str, uses: &[InFile]) {
     let start = uses.partition_point(|site| code_unit(&site.at, at).is_lt());
     let group = &uses[start..];
     let end = group.partition_point(|site| site.at == at);
     if end == 0 { return }
     let by = &group[0].by;
     let who = if by.is_empty() { String::new() } else { format!(" — {by}") };
-    list(lines, &format!("Used in {at}{who}, which {does} it:"), group[..end].iter().map(|site| format!("  {}", site.line)), limit);
+    list(lines, asking, &format!("Used in {at}{who}, which {does} it:"), group[..end].iter().map(|site| format!("  {}", site.line)));
 }
 
-fn list(lines: &mut Vec<String>, heading: &str, rows: impl ExactSizeIterator<Item = String>, limit: usize) {
+fn list(lines: &mut Vec<String>, asking: &Asking<'_>, heading: &str, rows: impl ExactSizeIterator<Item = String>) {
+    let limit = asking.limit;
     let count = rows.len();
     if count == 0 { return }
     lines.extend([String::new(), heading.to_owned(), String::new()]);
     lines.extend(rows.take(limit));
     if count > limit {
-        lines.push(format!("… {} more not shown; a higher `--limit` shows them.", count - limit));
+        lines.push(more_line(asking, count - limit));
     }
+}
+
+/// The line counting the `more` rows a list did not show.
+fn more_line(asking: &Asking<'_>, more: usize) -> String {
+    format!("… {more} more not shown; a higher `{}` shows them.", asking.surface.input("limit"))
 }
 
 fn site_line(site: &Site<'_>, name: &str, inside: bool, limit: usize) -> String {

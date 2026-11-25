@@ -16,7 +16,7 @@ use crate::help_usage::{importers, Asked, Namespace};
 use crate::order::code_unit;
 
 use super::kept::others_lines;
-use super::{headline, list_kinds, list_own, places, primary_sites, Asking, Beside, Counts, NARROW};
+use super::{headline, list_kinds, list_own, narrow, places, primary_sites, Asking, Beside, Counts};
 
 /// The exports of one declaration: the file declaring it, and every export of it, the declaring ones first.
 type Declaration<'e, 'a> = (&'e str, Vec<&'e Unpublished<'a>>);
@@ -26,7 +26,7 @@ type Declaration<'e, 'a> = (&'e str, Vec<&'e Unpublished<'a>>);
 /// `file` answers for the one it declares alone. `None` where the answer
 /// needs what this reading does not carry: an export no package owns.
 pub(super) fn exported_uses(asking: &Asking<'_>, rows: &Rows, paths: &[PathSite<'_>], exported: &[Unpublished<'_>], package: &PackageScope<'_>, beside: Beside<'_>) -> Option<String> {
-    let &Asking { root, layers, name, from, file, limit } = asking;
+    let &Asking { root, layers, name, file, .. } = asking;
     let chosen: Vec<_> = match file {
         None => exported.iter().collect(),
         Some(file) => {
@@ -62,10 +62,10 @@ pub(super) fn exported_uses(asking: &Asking<'_>, rows: &Rows, paths: &[PathSite<
     };
     let kinds: BTreeSet<_> = primary.iter().filter_map(|held| held.declaration).collect();
     let kinds = kinds.into_iter().collect::<Vec<_>>().join(", ");
-    let mut lines = vec![headline(name, &kinds, None, Some((&format!("{}{passed}", exported_at(primary)), member.as_deref())), home, &sites)];
+    let mut lines = vec![headline(asking, &kinds, None, Some((&format!("{}{passed}", exported_at(primary)), member.as_deref())), home, &sites)];
     let namesakes = others.iter().map(|(_, held)| format!("{}, exported without being published", exported_at(held))).collect();
     lines.extend(others_lines(name, namesakes, &beside.kept, &beside.members));
-    primary_sites(&mut lines, name, home, &in_file_of(&read.in_file, &own), sites, &read.in_file, from, limit);
+    primary_sites(&mut lines, asking, home, &in_file_of(&read.in_file, &own), sites, &read.in_file);
     for ((_, held), group) in others.iter().zip(&read.groups[1..]) {
         lines.push(format!("\n`{name}` is exported, without being published, at {} as well, which is another declaration.", exported_at(held)));
         let at = files(held);
@@ -78,13 +78,13 @@ pub(super) fn exported_uses(asking: &Asking<'_>, rows: &Rows, paths: &[PathSite<
             let count = Counts::of(&sites, home.unwrap_or_default());
             let split = home.map_or_else(String::new, |home| count.split(home));
             lines.push(format!("Imported in {}{split}.{}", places(count.certain), count.may_read(name)));
-            list_kinds(&mut lines, name, home, sites, from, limit);
+            list_kinds(&mut lines, asking, home, sites);
         }
-        for at in in_file_of(&read.in_file, &at) { list_own(&mut lines, at, "declares", &read.in_file, limit); }
+        for at in in_file_of(&read.in_file, &at) { list_own(&mut lines, asking, at, "declares", &read.in_file); }
     }
     lines.extend(beside.after);
     let declaring: HashSet<_> = exported.iter().filter(|held| held.export.bound.is_some()).map(|held| held.export.at).chain(beside.files).collect();
-    if file.is_none() && declaring.len() > 1 { lines.push(NARROW.into()); }
+    if file.is_none() && declaring.len() > 1 { lines.push(narrow(asking.surface)); }
     Some(lines.join("\n"))
 }
 

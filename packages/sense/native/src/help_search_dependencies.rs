@@ -5,6 +5,7 @@
 use crate::dependency_lexicon::query::Matches;
 use crate::help_grep_answer::Scope;
 use crate::help_search_answer::section;
+use crate::help_symbol_answer::dependencies::provenance;
 use crate::help_surface::{CLI, Value, typed};
 
 pub(crate) fn lines(answer: &mut Vec<String>, query: &str, lowered: &str, scope: Option<&Scope>, limit: Option<usize>, matches: Option<&Matches>, own: bool) {
@@ -81,15 +82,4 @@ fn compact(answer: &mut Vec<String>, heading: String, total: usize, limit: Optio
     let rest = total.saturating_sub(names.len());
     let tail = if rest > 0 { format!(" and {rest} more. {}", again(total)) } else { ".".into() };
     answer.extend([String::new(), format!("{heading}: {}{tail}", names.join(", "))]);
-}
-
-pub(crate) fn provenance(version: Option<&str>, declared: Option<&str>, manifest: &str, imports: Option<u32>, site: Option<&str>) -> String {
-    let version = version.map_or_else(|| "version not resolved".into(), |version| format!("@{version}"));
-    let declared = declared.map_or_else(|| format!("imported under {manifest}, not declared there"), |kind| format!("{kind} in {manifest}"));
-    let used = match imports {
-        None => "imports not indexed".into(),
-        Some(0) => "not imported".into(),
-        Some(count) => format!("imported {count}× (first {})", site.unwrap_or("site not recorded")),
-    };
-    format!("{version} · {declared} · {used}")
 }

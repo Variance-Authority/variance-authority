@@ -3,6 +3,7 @@
 
 // compass: variance-authority.report.agent-surface
 
+use crate::help_surface::Surface;
 use std::collections::HashSet;
 
 use crate::compact::Layer;
@@ -19,7 +20,7 @@ const UNFOLLOWED: &str = "this reading could not follow to a source file, such a
 /// source index resolved to it; a file that passes another one's export on is
 /// left out, unless every one does. `None` where the walk to a declaration
 /// ends at a default.
-pub(crate) fn exported_only(root: &str, layers: &[Layer], rows: &Rows, name: &str, exported: &[&Unpublished<'_>]) -> Option<String> {
+pub(crate) fn exported_only(root: &str, layers: &[Layer], rows: &Rows, name: &str, exported: &[&Unpublished<'_>], surface: Surface<'_>) -> Option<String> {
     let asked: Vec<_> = exported.iter().map(|held| vec![Asked { file: held.export.at.to_owned(), name: held.export.name.to_owned() }]).collect();
     let read = importers(root, layers, &asked);
     if read.groups.len() != exported.len() { return None }
@@ -33,7 +34,7 @@ pub(crate) fn exported_only(root: &str, layers: &[Layer], rows: &Rows, name: &st
         lines.push(if count == 0 {
             format!("Nothing in this workspace imports it; {UNCOUNTED}.")
         } else {
-            format!("Imported in {count} {}; `variance ask uses` lists them, nearest to a file you name first.", if count == 1 { "place" } else { "places" })
+            format!("Imported in {count} {}; `{}` lists them, nearest to a file you name first.", if count == 1 { "place" } else { "places" }, surface.tool("uses"))
         });
         lines.extend(renamed_line(name, group.uses.iter().map(|site| (site.at.as_str(), site.line, Some(site.local.as_deref().unwrap_or(&site.name))))));
         lines.extend(member_rows(layers, &at, &on, line));

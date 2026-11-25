@@ -4,7 +4,7 @@
 
 use std::cmp::Ordering;
 use std::collections::{BTreeSet, HashMap, HashSet};
-use std::fs::File;
+use std::io::{Read, Seek};
 use std::ops::Range;
 
 use crate::help_store::{FORMAT, NONE, VERSION};
@@ -33,6 +33,7 @@ const PATH_COLUMNS: [(&str, u8); 9] = [
     ("use.at", 4), ("use.by", 4), ("use.line", 4), ("use.local", 4), ("use.flags", 1), ("use.throughLine", 4),
 ];
 
+#[cfg(feature = "standalone-cli")]
 const SEARCH_COLUMNS: [(&str, u8); 22] = [
     ("names.lower", 1), ("names.lowerOff", 4),
     ("pub.docLower", 1), ("pub.docLowerOff", 4),
@@ -122,42 +123,42 @@ impl Rows {
         Some(paths)
     }
 
-    pub(crate) fn columns<const N: usize>(file: &mut File, wanted: [(&'static str, u8); N]) -> Option<Self> {
+    pub(crate) fn columns<const N: usize>(file: &mut (impl Read + Seek), wanted: [(&'static str, u8); N]) -> Option<Self> {
         let columns = read_sections(file, FORMAT, VERSION, wanted).ok()?;
         Some(Self(wanted.into_iter().map(|(name, _)| name).zip(columns).collect()))
     }
 
-    pub(crate) fn read(file: &mut File) -> Option<Self> {
+    pub(crate) fn read(file: &mut (impl Read + Seek)) -> Option<Self> {
         Self::columns(file, NAME_COLUMNS)
     }
 
-    pub(crate) fn read_entries(&mut self, file: &mut File) -> Option<()> {
+    pub(crate) fn read_entries(&mut self, file: &mut (impl Read + Seek)) -> Option<()> {
         let columns = read_sections(file, FORMAT, VERSION, ENTRY_COLUMNS).ok()?;
         self.0.extend(ENTRY_COLUMNS.into_iter().map(|(name, _)| name).zip(columns));
         Some(())
     }
 
-    pub(crate) fn read_paths(&mut self, file: &mut File) -> Option<()> {
+    pub(crate) fn read_paths(&mut self, file: &mut (impl Read + Seek)) -> Option<()> {
         let columns = read_sections(file, FORMAT, VERSION, PATH_COLUMNS).ok()?;
         self.0.extend(PATH_COLUMNS.into_iter().map(|(name, _)| name).zip(columns));
         Some(())
     }
 
-    pub(crate) fn read_path_targets(&mut self, file: &mut File) -> Option<()> {
+    pub(crate) fn read_path_targets(&mut self, file: &mut (impl Read + Seek)) -> Option<()> {
         let [specifiers, targets] = read_sections(file, FORMAT, VERSION, [("deep.specifier", 4), ("deep.to", 4)]).ok()?;
         self.0.insert("deep.specifier", specifiers);
         self.0.insert("deep.to", targets);
         Some(())
     }
 
-    pub(crate) fn read_export_lines(&mut self, file: &mut File) -> Option<()> {
+    pub(crate) fn read_export_lines(&mut self, file: &mut (impl Read + Seek)) -> Option<()> {
         let [lines] = read_sections(file, FORMAT, VERSION, [("exp.line", 4)]).ok()?;
         self.0.insert("exp.line", lines);
         Some(())
     }
 
     /// What an answer about an unpublished export says of it: its line, kind and type-only flag, its declaration's kind, whether its package's entry was followed, and the doors of the entries that publish it inside a namespace.
-    pub(crate) fn read_exported(&mut self, file: &mut File) -> Option<()> {
+    pub(crate) fn read_exported(&mut self, file: &mut (impl Read + Seek)) -> Option<()> {
         let columns = read_sections(file, FORMAT, VERSION, EXPORTED_COLUMNS).ok()?;
         self.0.extend(EXPORTED_COLUMNS.into_iter().map(|(name, _)| name).zip(columns));
         Some(())
@@ -179,7 +180,8 @@ impl Rows {
         Some(doors)
     }
 
-    pub(crate) fn read_search(&mut self, file: &mut File) -> Option<()> {
+    #[cfg(feature = "standalone-cli")]
+    pub(crate) fn read_search(&mut self, file: &mut (impl Read + Seek)) -> Option<()> {
         let columns = read_sections(file, FORMAT, VERSION, SEARCH_COLUMNS).ok()?;
         self.0.extend(SEARCH_COLUMNS.into_iter().map(|(name, _)| name).zip(columns));
         Some(())

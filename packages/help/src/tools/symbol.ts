@@ -4,6 +4,7 @@ import type { Help, Named } from '@variance-authority/package/help';
 import { how, sitesByPath, type PathSite } from './by-path.js';
 import { FoundNothing, nowhere, specifierOf } from './find.js';
 import { memberRows } from './container.js';
+import { nativeAnswer } from './native-answer.js';
 import { block, plural } from './format.js';
 import { queryDependencyLexicon, type LexiconMatches } from '../dependency-lexicon.js';
 import { silentBlocks } from './silent.js';
@@ -106,6 +107,9 @@ function answerOf(help: Help, input: Readonly<Record<string, unknown>>, invocati
   const from = input['package'];
   const wanted = typeof from === 'string' && from !== '' ? from : undefined;
   const at = startPointArg(input, 'from');
+  // A start point is read by this tool alone; every other question is the addon's first.
+  const native = at === undefined ? nativeAnswer('symbol', help, invocation, input, input['limit'] === undefined ? undefined : limit) : undefined;
+  if (native !== undefined) return native;
   const paths = at === undefined ? undefined : typeof at === 'string' ? [at] : [...at];
   const bound = boundBlocks(help, invocation?.root, name, wanted, spell, limit, paths);
   try {
