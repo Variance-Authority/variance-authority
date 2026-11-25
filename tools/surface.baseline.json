@@ -305,6 +305,7 @@
         "accessibilitySnapshot": "function",
         "assetUrl": "function",
         "atWidth": "function",
+        "blackBoxes": "function",
         "canonicalNumber": "function",
         "canonicalize": "function",
         "conflicts": "function",
