@@ -28,8 +28,8 @@ import { uses } from './tools/uses.js';
 /**
  * `tool`, its answer dated by the workspace generation it was read from. With
  * `unseen`, that generation was never compared with the checkout: the date says
- * it may miss later changes, and a refusal adds that the name may only be newer
- * than it. An invocation's `unseen` is the reason a host has for this one call.
+ * it may miss later changes, under an answer and under a refusal alike. An
+ * invocation's `unseen` is the reason a host has for this one call.
  * Each answer is one question to the source index, which it opens once however
  * many readers ask it.
  */
@@ -148,7 +148,7 @@ export const HELP: Served<Help> = {
 
 /**
  * The same, for a server that answers from the published generation without
- * comparing it with the checkout: every answer's date says so.
+ * comparing it with the checkout: every answer's date says it may miss later changes.
  */
 export const UNCOMPARED_HELP: Served<Help> = { ...HELP, tools: HELP_TOOLS.map((tool) => dated(tool, true)) };
 

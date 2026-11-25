@@ -37,7 +37,7 @@ describe('variance-authority-help about a name written after the published gener
     expect(out).toMatch(UNCOMPARED);
   });
 
-  it('answers `symbol` from the published generation for a name renamed since, and says the checkout was not compared', async () => {
+  it('answers `symbol` from the published generation for a name renamed since, and says it may miss later changes', async () => {
     const root = await fixture.published();
     const tax = join(root, 'packages/kit/src/tax.ts');
     writeFileSync(tax, readFileSync(tax, 'utf8').replace('taxOf', 'dutyOf'));

@@ -302,7 +302,7 @@ describe('caughtUp', () => {
     expect(await caughtUp(new Date(started - 1000).toISOString(), started, async () => 'asked again')).toEqual({ subject: 'asked again' });
   });
 
-  it('says the checkout was not compared, and why, when reading it again fails', async () => {
+  it('says the answer may miss later changes, and why, when reading the checkout again fails', async () => {
     const started = Date.now();
     const caught = await caughtUp(new Date(started - 1000).toISOString(), started, async () => {
       throw new Error('a manifest is half-written');
