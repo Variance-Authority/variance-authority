@@ -7,6 +7,7 @@
  * could be counted. It arranges what it is handed and computes nothing.
  */
 
+import { CADENCE_STYLE, cadenceView } from './view-cadence.js';
 import { COVERAGE_STYLE, coverageView } from './coverage-html.js';
 import { chip, text } from './report-html-elements.js';
 import { MARK } from './report-html-style.js';
@@ -34,7 +35,7 @@ function masthead(data: ViewData, coverage: Coverage | { readonly missed: string
 
 /** The recording as one self-contained page, opened on its Tests. */
 export function viewPage(data: ViewData, coverage?: Coverage | { readonly missed: string }): string {
-  const views: View[] = [testsView(data.tests), timelineView(data.timeline), detailView(data)];
+  const views: View[] = [testsView(data.tests), timelineView(data.timeline), cadenceView(data.cadence), detailView(data)];
   const entered = enteredSection(data.reach);
   if (coverage !== undefined && !('missed' in coverage)) {
     const counted = coverageView(coverage, true);
@@ -45,6 +46,6 @@ export function viewPage(data: ViewData, coverage?: Coverage | { readonly missed
     header: masthead(data, coverage),
     views,
     first: 'tests',
-    style: `${COVERAGE_STYLE}${TESTS_STYLE}${TIMELINE_STYLE}`,
+    style: `${COVERAGE_STYLE}${TESTS_STYLE}${TIMELINE_STYLE}${CADENCE_STYLE}`,
   });
 }

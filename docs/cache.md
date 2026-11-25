@@ -85,6 +85,8 @@ over it, so a repository that names its cache keeps one answer for everyone.
     coverage.bin.lock            held while a run writes the recording
     coverage.runs.json           the runs at the current commit, the install they ran on, and where each
                                  other test last ran
+    coverage.rows.json           one summary row for each recorded run, for the last four weeks, which
+                                 the Cadence tab of `variance view` draws
     coverage.stories/            a test story for each test a run recorded, when you ask for them
     suites/<name>/               the same files for each suite you declare
     source-index.bin             the source index, and its segments beside it

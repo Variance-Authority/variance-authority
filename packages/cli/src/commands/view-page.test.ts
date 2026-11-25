@@ -36,6 +36,13 @@ const DATA: ViewData = {
     placed: 2,
     unplaced: 3,
   },
+  cadence: {
+    rows: [
+      { at: '2026-11-23T09:00:00.000Z', suite: 'unit', duration: 4000, cases: 310 },
+      { at: '2026-11-24T09:00:00.000Z', suite: 'unit', duration: 4600, cases: 312 },
+      { at: '2026-11-25T09:00:00.000Z', suite: 'unit', duration: 4300 },
+    ],
+  },
   reach: {
     tests: [
       { file: 'src/slow.test.ts', reached: ['src/world.ts', 'src/price.ts'], total: 2 },
@@ -196,5 +203,28 @@ describe('variance view arguments', () => {
     expect(parseViewArgs(readFlags(['--suite', 'unit'], 'view', ['--suite'], 'variance view'))).toEqual({ command: 'view', suite: 'unit' });
     expect(() => parseViewArgs(readFlags(['--out', 'a.html'], 'view', ['--suite'], 'variance view'))).toThrow();
     expect(() => parseViewArgs(readFlags(['x'], 'view', ['--suite'], 'variance view'))).toThrow();
+  });
+
+  describe('the Cadence tab', () => {
+    const points = (html: string) => (html.match(/<circle class="pt /g) ?? []).length;
+
+    it('draws one point for each run row, each with its time, suite, duration and cases', () => {
+      const html = viewPage(DATA);
+      expect(html).toContain('data-tab="cadence"');
+      expect(points(html)).toBe(3);
+      expect(html).toContain('2026-11-24');
+      expect(html).toContain('312');
+    });
+
+    it('draws one point for a cache that holds one run', () => {
+      expect(points(viewPage({ ...DATA, cadence: { rows: [DATA.cadence.rows[0]!] } }))).toBe(1);
+    });
+
+    it('draws an empty tab, with a note and no error, where no run left a row', () => {
+      const html = viewPage({ ...DATA, cadence: { rows: [] } });
+      expect(html).toContain('data-tab="cadence"');
+      expect(points(html)).toBe(0);
+      expect(html).toContain('no run has left a summary row');
+    });
   });
 });

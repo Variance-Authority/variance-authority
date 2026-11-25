@@ -22,7 +22,7 @@ more than one. Opening the file is yours: the command starts no browser. With no
 
 The header names the suite, the commit and the record the page was read from,
 and counts the files recorded and the files placed on the clock. Below it sit
-the tabs **Tests**, **Timeline** and **Coverage**, with Tests open, and a
+the tabs **Tests**, **Timeline**, **Cadence** and **Coverage**, with Tests open, and a
 filter box above the tables of the open tab. Tests holds the slowest test files
 and the slowest cases as sortable tables, each row a link, then every case whose
 attempts ended differently, then every retried case no attempt of which passed, with each attempt. The Timeline is a chart with one lane per test file;
@@ -45,6 +45,17 @@ no Coverage tab, and the header says coverage was not counted.
   recorded"; a record without lanes is drawn as one list.
   Only Playwright records a start today; Tests and Coverage read what any of
   Vitest, Jest, Rstest and Playwright records.
+- **Cadence** draws one point for each run the record has kept a summary row
+  for: its total duration against the time it landed, with the suite and case
+  count in a table beneath. Here "cadence" means how often runs land and how
+  long each took; it is not the per-case first-test `cadence` line that
+  [the agent CLI](agent-cli.md) lists. Each recorded run
+  appends one row (time, suite, total duration, case count) to
+  `coverage.rows.json` beside the record, and a row older than four weeks goes
+  when the next run lands, with at most four hundred kept. A cache with one row
+  draws one point, and one with none draws an empty tab. A run that could not
+  tell its duration draws a hollow point on the baseline and is not lent a
+  duration. No outcome counts are kept.
 - **Coverage** shows how much of your source code the run executed, split by
   suite, kind of test and package, and below that each source file with the test
   files that called into it. When the run cannot be counted that way, the page says so
@@ -87,6 +98,11 @@ name in CI.
   places cases only in recorded order.
 - A record made before Playwright carried starts has no Timeline.
 - A suite you name that has no record says so on the Tests tab and on the Timeline, and nothing is read from it.
+- The rows live in the cache with the record, so they travel as far as it does:
+  a CI cache restored from main carries them forward, but a run that fails, or
+  a cache that is not saved, loses its rows, and a share or a worktree's own
+  layer starts with none. Without the Playwright reporter each worker records
+  its own row.
 - A pane exists only for the test files the page holds a row for.
 
 ## Reference: addresses
