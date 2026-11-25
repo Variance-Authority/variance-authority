@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Help } from '@variance-authority/package/help';
 import * as sense from '@variance-authority/sense';
 import { classify } from './classify.js';
-import { classifyWords, unshownFiles, wordsOf, type Named } from './classify-words.js';
+import { classifyWords, unshownFiles, type Named } from './classify-words.js';
 
 /** The words of a request that are written as a file: a path, or a file's name with its extension. */
 
@@ -34,23 +34,59 @@ describe('the files a request spells', () => {
     expect(unshownFiles(read)).toEqual([{ word: 'index.ts', more: 4 }]);
   });
 
-  it('keeps a path whole, so a part of one is never read as a name of its own', () => {
-    const paths = ['./a.ts', '../lib/a.ts', '.eslintrc.js', 'src/routes/+page.ts', 'lib\\page.ts', 'app/[id]/page.tsx', 'app/[id]-page.tsx', '[id].tsx', 'String+Extensions.swift', '*loader.ts', 'lib/**', '@acme/sense', 'lib/~a%b.ts'];
+  /** What a request's words name among these files and names, as `classify` lists the words. */
+  const FILES = ['lib/a.ts', 'lib/b.ts', 'a.ts', 'page.tsx', 'loader.ts', 'photo/page.tsx', 'app/[id]/page.tsx', 'app/[id]-page.tsx', '[id].tsx', 'docs/[[...slug]].tsx', 'src/routes/+page.ts', 'String+Extensions.swift', '.eslintrc.js', 'lib/~a%b.ts'];
+  const DECLARED = ['ModuleLoader', 'checkoutPath'];
+  const read = (text: string) => classifyWords(text, HELP, ['@acme/sense'], (words) => new Map(words.flatMap((word) => {
+    const files = FILES.filter((at) => at === word.replace(/^\.\//u, '') || (!word.includes('/') && word.includes('.') && at.endsWith(`/${word}`)));
+    const declared = DECLARED.filter((name) => name === word).map((name): Named => ({ ...file(`src/${name}.rs`), kind: 'declared' }));
+    return files.length + declared.length === 0 ? [] : [[word, [...declared, ...files.map((at) => file(at))]]];
+  })));
+  const named = (text: string): readonly string[] => read(text).entities.map((entity) => entity.word);
 
-    expect(wordsOf(paths.join(' '))).toEqual(paths);
+  it.each([
+    ['**Files: lib/b.ts, lib/a.ts**', ['lib/b.ts', 'lib/a.ts']],
+    ['**lib/a.ts:** x', ['lib/a.ts']],
+    ['**[lib/a.ts](x)** [lib/b.ts][1]', ['lib/a.ts', 'lib/b.ts']],
+    ['*see lib/a.ts* or *lib/b.ts*', ['lib/a.ts', 'lib/b.ts']],
+    ['~~lib/a.ts~~ •lib/b.ts', ['lib/a.ts', 'lib/b.ts']],
+    ['lib/a.ts→lib/b.ts', ['lib/a.ts', 'lib/b.ts']],
+    ['lib/a.ts​, “lib/b.ts”…', ['lib/a.ts', 'lib/b.ts']],
+    ['(lib/a.ts) [lib/b.ts loader.ts].', ['lib/a.ts', 'lib/b.ts', 'loader.ts']],
+    ['lib/a.ts:12 lib/b.ts#L10 --file=loader.ts', ['lib/a.ts', 'lib/b.ts', 'loader.ts']],
+    ['[loader.ts](x), ./lib/a.ts. [lib/b.ts]', ['loader.ts', './lib/a.ts', 'lib/b.ts']],
+    ['app/[id]/page.tsx app/[id]-page.tsx [id].tsx docs/[[...slug]].tsx', ['app/[id]/page.tsx', 'app/[id]-page.tsx', '[id].tsx', 'docs/[[...slug]].tsx']],
+    ['src/routes/+page.ts String+Extensions.swift .eslintrc.js lib/~a%b.ts', ['src/routes/+page.ts', 'String+Extensions.swift', '.eslintrc.js', 'lib/~a%b.ts']],
+  ])('finds the files in %j', (text, words) => {
+    expect(named(text)).toEqual(words);
   });
 
-  it('drops the punctuation a sentence puts around a word', () => {
-    expect(wordsOf('/checkoutPath ./checkoutPath. (ModuleLoader) foo+bar @types half-done-')).toEqual(['checkoutPath', 'checkoutPath', 'ModuleLoader', 'foo', 'bar', '@types', 'half-done']);
-    expect(wordsOf('**a.ts**. *b.ts*, `c.ts`: “d.ts” e.ts… f.ts—g.ts 看、h.ts。')).toEqual(['a.ts', 'b.ts', 'c.ts', 'd.ts', 'e.ts', 'f.ts', 'g.ts', '看', 'h.ts']);
-    expect(wordsOf('[lib/a.ts](x) [lib/b.ts lib/c.ts] [app/[id]/page.tsx]. [x]')).toEqual(['lib/a.ts', 'x', 'lib/b.ts', 'lib/c.ts', 'app/[id]/page.tsx', 'x']);
-    expect(wordsOf('lib/a.ts:12 lib/b.ts#L10 --file=lib/c.ts - ../.. **')).toEqual(['lib/a.ts', '12', 'lib/b.ts', 'L10', 'file', 'lib/c.ts']);
+  it.each(['../lib/a.ts', '/lib/a.ts', 'x/lib/a.ts', 'lib\\a.ts', '*loader.ts', 'lib/**/loader.ts', 'https://x.y/lib/a.ts', '~/lib/a.ts', 'x+loader.ts', 'app/(.)photo/page.tsx', 'src/{loader.ts,a.ts}', '(shop)/page.tsx'])('names no file by a part of %s', (text) => {
+    expect(named(text)).toEqual([]);
   });
 
-  it.each(['/', './', '-', '*', '[', '+'])('reads a long run of %s in linear time', (mark) => {
+  it.each([
+    ['**Refactor ModuleLoader.**', 'ModuleLoader'],
+    ['**Upgrade @acme/sense**', '@acme/sense'],
+    ['**[@acme/sense](https://x.y)**', '@acme/sense'],
+    ['[@acme/sense][1]', '@acme/sense'],
+    ['bump @acme/sense/*', '@acme/sense'],
+    ['ModuleLoader.\\nThen load', 'ModuleLoader'],
+    ['ModuleLoader[0].load ModuleLoader→x.y', 'ModuleLoader'],
+    ['./checkoutPath /checkoutPath', 'checkoutPath'],
+    ['./sense/test-selection', 'sense/test-selection'],
+  ])('still finds the name in %j', (text, word) => {
+    expect(named(text)).toEqual([word]);
+  });
+
+  it('reads the words of a text that spells no file as they are written, a path as one of them', () => {
+    expect(read('fix (missing/x.ts), foo+bar and half-done- [x] *gone.ts - ../.. **').plain).toEqual(['fix', 'missing/x.ts', 'foo', 'bar', 'and', 'half-done', 'x', 'gone.ts']);
+  });
+
+  it.each(['/', './', '-', '*', '[', '[a', '+', '~', '(', ']'])('reads a long run of %s in linear time', (mark) => {
     const started = performance.now();
-    wordsOf(`a${mark.repeat(200_000)}b`);
-    wordsOf(`${mark.repeat(200_000)}b`);
+    read(`a${mark.repeat(200_000)}b`);
+    read(`${mark.repeat(200_000)}b`);
 
     expect(performance.now() - started).toBeLessThan(1_000);
   });
@@ -67,8 +103,10 @@ describe('the files a request spells', () => {
     expect(text).toContain('Not entities: fix');
   });
 
-  it('asks for the import graph for a spelled file, as for an identifier', () => {
-    expect(classify.wants?.({ query: 'fix lib/a/loader.ts' })).toBe(true);
+  it('asks for the import graph for what several files can answer: a file name or an identifier, and no path', () => {
+    expect(classify.wants?.({ query: 'fix loader.ts' })).toBe(true);
+    expect(classify.wants?.({ query: 'fix lib/a/loader.ts' })).toBe(false);
+    expect(classify.wants?.({ query: 'fix ModuleLoader' })).toBe(true);
     expect(classify.wants?.({ query: 'fix the loader' })).toBe(false);
   });
 });

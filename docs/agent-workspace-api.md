@@ -451,7 +451,8 @@ whole, a package, an entrypoint or an exported name, and then which
 identifier-shaped words left — `ModuleLoader`, `child_process` — are a name
 `docs_symbol` finds declared or a file's name before its first dot in the
 published source index, and which paths and file names written with an
-extension — `lib/loader.js`, `run_main.js` — are a file in it, each with its
+extension — `lib/loader.js`, `run_main.js` — are a file in it; a path that names
+nothing is read as the words in it. Each is listed with its
 area and layer on the code map, and then the question each one takes next,
 written as the `variance ask` command whatever the caller: `symbol`
 (`docs_symbol`) for an exported or declared name, none for a file, which is

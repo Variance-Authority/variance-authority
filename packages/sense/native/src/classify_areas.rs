@@ -149,13 +149,21 @@ pub struct ClassifiedNames {
     pub refused: Option<String>,
 }
 
-/// Whether `word`, which holds no slash, spells `path`: one with a dot is its
-/// file's name, and any other its file's name before the first dot.
-fn spells(word: &str, path: &str) -> bool {
-    if word.contains('.') {
-        return path.rsplit('/').next() == Some(word);
+/// The files each of `words` spells by their name: a word with a dot is a file's
+/// whole name, and any other its name before the first dot. A word with a slash
+/// is a path, and none of these. In one read of `paths`, in their order.
+fn spelled<'a, 'w>(words: &'w [String], paths: &[&'a str]) -> HashMap<&'w str, Vec<&'a str>> {
+    let mut files: HashMap<&str, Vec<&str>> = words.iter().filter(|word| !word.contains('/')).map(|word| (word.as_str(), Vec::new())).collect();
+    for &path in paths {
+        let name = path.rsplit('/').next().unwrap_or(path);
+        let stem = crate::path::name_and_suffix(path).0;
+        for word in [name.contains('.').then_some(name), (!stem.contains('.')).then_some(stem)].into_iter().flatten() {
+            if let Some(found) = files.get_mut(word) {
+                found.push(path);
+            }
+        }
     }
-    crate::path::name_and_suffix(path).0 == word
+    files
 }
 
 /// The files each word spells, and the exact declaration locations of a word
@@ -170,6 +178,7 @@ pub fn classify_names(words: Vec<String>, cap: u32, index: String, within: Strin
         let folded = fold(layers);
         let mut paths: Vec<&str> = folded.keys().filter_map(|path| path.strip_prefix(&prefix)).collect();
         paths.sort_unstable_by(|one, other| crate::order::code_unit(one, other));
+        let mut by_name = spelled(&words, &paths);
         let mut named = Vec::new();
         let mut declared = Vec::new();
         let mut seen = HashSet::new();
@@ -179,7 +188,7 @@ pub fn classify_names(words: Vec<String>, cap: u32, index: String, within: Strin
                 let path = word.strip_prefix("./").unwrap_or(word);
                 folded.contains_key(format!("{prefix}{path}").as_str()).then_some(path).into_iter().collect()
             } else {
-                let mut files: Vec<&str> = paths.iter().copied().filter(|path| spells(word, path)).collect();
+                let mut files = by_name.remove(word.as_str()).unwrap_or_default();
                 // The file at the root is the word itself, so the cap never drops it.
                 files.sort_by_key(|path| path != word);
                 files
