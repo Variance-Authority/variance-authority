@@ -1,17 +1,36 @@
 # View: a recorded test run as one page you open from disk
 
 `variance view` turns the [execution record](execution-record.md) your last
-Playwright run wrote into one HTML file and prints its path. The page shows
+test run wrote into one HTML file and prints its path. The page shows
 which test files and cases were slowest and which were retried, where each
 file sat on the run's clock, and how much of the source the run reached. It is
 a single self-contained file, with no server, network or account behind it, so
 you can open it from disk, attach it to a CI run as an artifact, or link it
 from a pull request.
 
-You need a record first. Install and configure the
-[Playwright integration](start-playwright.md) and run your suite: the run
-writes the record. [Record a run](trace.md#record-a-run) says what to pass to
-put the record at a path you name in CI.
+## Before you run it
+
+The record is the file a recorded test run leaves in your
+[cache](cache.md): per test file its time, and which source files its tests
+ran. To make one, install `@variance-authority/sense` and
+`@variance-authority/cli` (Playwright also takes
+`@variance-authority/playwright-test`), wrap your runner's configuration with
+[the seam supported frameworks names for it](supported-frameworks.md#record-which-tests-ran-each-line),
+and run the suite as you already do:
+
+```bash
+npx vitest run
+npx jest
+npx rstest run
+npx playwright test
+```
+
+[Run the tests an edit needs](test-an-edit.md#wrap-once-then-set-one-variable)
+covers the install and the wrap for these four, and
+[Record a run](trace.md#record-a-run) says how to keep the record at a path you
+name in CI. Tests and Coverage read what
+any of these runners records; Timeline needs a start time, and only Playwright
+records one today.
 
 ## What you see first
 
@@ -29,15 +48,14 @@ a chart with one lane per test file; Coverage is the coverage report's tables.
   column header to sort, and type in the filter box to narrow the rows.
 - **Timeline** draws each test file as a bar from the moment the runner started
   it, with the phases the runner timed in colour: `prepare`, `environment`,
-  `setup`, `collect` and `cases`. It is the picture [`variance trace`](trace.md),
-  the command that prints a run as spans for a trace viewer, prints, drawn on
-  the page. Only Playwright records a start; a file without one is counted in a
-  note and not drawn, because placing it would be an invention.
-- **Coverage** is the [coverage report](compare-coverage.md), the account of how
-  much of the source the run reached, as a tab: by suite, kind and package, and
-  below it each source file with the test files that entered it. When coverage
-  cannot be counted for a record, the page says so in a chip and still opens;
-  the list of entered files needs only the record's covering relation.
+  `setup`, `collect` and `cases`. It is the picture [`variance trace`](trace.md)
+  prints as spans for a trace viewer, drawn on the page. A file without a start
+  is counted in a note and not drawn, because placing it would be an invention.
+- **Coverage** shows how much of your source code the run executed, split by
+  suite, kind of test and package, and below that each source file with the test
+  files that ran it. When the run cannot be counted that way, the page says so
+  in a chip and still opens; the list of which test files ran which source file
+  needs only the record.
 
 Click a test file anywhere and its pane opens: each attempt of its retried cases
 with the outcome, time, message and the frame closest to the failure, its phases
@@ -56,12 +74,6 @@ directory, and prints the path. `--out <file>` writes elsewhere, and
 `--suite <name>` reads the record of one declared suite when the repository has
 more than one. Opening the file is yours: the command starts no browser.
 
-## Addresses
-
-The address is the page's position: `#tests`, `#timeline` or `#coverage`;
-`#<tab>/<needle>` opens a tab with the needle in its filter and its row marked;
-`#test/<file>` opens one test file's pane, which has no tab of its own.
-
 ## Limits
 
 - Every list is cut to its first hundred rows by the command, so the page stays
@@ -70,3 +82,11 @@ The address is the page's position: `#tests`, `#timeline` or `#coverage`;
   as in [the trace](trace.md#what-a-trace-shows-and-what-it-does-not).
 - A record made before Playwright carried starts has no Timeline.
 - A pane exists only for the test files the page holds a row for.
+
+## Reference: addresses
+
+Read this to share a link to one test, or to open the page at a filtered view.
+
+The address is the page's position: `#tests`, `#timeline` or `#coverage`;
+`#<tab>/<needle>` opens a tab with the needle in its filter and its row marked;
+`#test/<file>` opens one test file's pane, which has no tab of its own.
