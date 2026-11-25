@@ -68,7 +68,7 @@ describe('a recipe move alongside a field the wording does not name', () => {
       missingFonts: [],
     };
 
-    const settlement = settle(documentDigest(document), found, mine);
+    const settlement = settle(documentDigest(document), found, mine, undefined, undefined, []);
     expect(settlement.kind).toBe('render');
     expect(settlement.because).toContain('rasterization e5ed66c6 → 865368fe');
     expect(settlement.because).toContain('a field of the render identity this version does not name');
@@ -86,7 +86,7 @@ describe('a field the wording does not name, and nothing else', () => {
       missingFonts: [],
     };
 
-    const settlement = settle(documentDigest(document), found, mine);
+    const settlement = settle(documentDigest(document), found, mine, undefined, undefined, []);
     expect(settlement.kind).toBe('render');
     expect(settlement.because).toContain('was painted by');
     expect(settlement.because).toContain('playwright-chromium');

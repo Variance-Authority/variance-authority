@@ -470,3 +470,22 @@ export function blackBoxes(document: RenderDocument): readonly string[] {
   }
   return [...found].sort();
 }
+
+/**
+ * Why a document that holds a black box cannot be captured by replaying it, or
+ * `undefined` when it can.
+ *
+ * A renderer paints the document, and the document holds the markup of a canvas
+ * or video, never its bitmap: two different drawings both replay blank and read
+ * `unchanged`. The page itself holds the pixels, so such a subject is captured
+ * in place.
+ */
+export function blackBoxRefusal(document: RenderDocument): string | undefined {
+  const boxes = blackBoxes(document);
+  if (boxes.length === 0) return undefined;
+  return (
+    `\`${document.subject.id}\` holds ${boxes.map((box) => `a ${box}`).join(' and ')}, whose pixels live ` +
+    'outside the document a deferred capture replays, so it would be compared as blank. ' +
+    "Capture it in place: set `materialization: { kind: 'in-place', browser }` for this project."
+  );
+}

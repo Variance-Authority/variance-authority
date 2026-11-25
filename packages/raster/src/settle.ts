@@ -138,29 +138,29 @@ export function settle(
    * the sentence names the stored side alone; the comparison after the render
    * names what moved.
    */
-  mine?: RenderIdentity,
-  accessibility?: AccessibilitySnapshot,
+  mine: RenderIdentity | undefined,
+  accessibility: AccessibilitySnapshot | undefined,
   /**
    * The snapshot this run collected, when it collected one.
    *
    * Read only for whether it is there. Absent, this run has nothing to record
    * on a baseline that kept no snapshot, so rendering it would buy nothing.
    */
-  snapshot?: SemanticSnapshot,
+  snapshot: SemanticSnapshot | undefined,
   /**
    * The black boxes the document holds (`blackBoxes`), when it holds any.
    *
    * A canvas or video keeps its bitmap outside the markup, so a digest match
    * cannot say the image is the same; such a subject is photographed in place.
    */
-  boxes: readonly string[] = [],
+  boxes: readonly string[],
 ): Settlement {
   if (boxes.length > 0) {
     return {
       kind: 'render',
       because:
         `the document holds ${boxes.map((box) => `a ${box}`).join(' and ')}, whose pixels ` +
-        'live outside the markup the digest covers, so this run photographs it in place',
+        'live outside the markup the digest covers, so it is compared in place, never from a replay of the markup',
     };
   }
 

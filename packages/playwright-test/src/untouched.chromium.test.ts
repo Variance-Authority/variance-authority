@@ -56,6 +56,13 @@ const HELD = `${STYLE}<main id="subject"><p id="now">${DEFAULT_NOW}</p><p id="mo
 
 const URL = 'http://subject.test/';
 
+/** A drawing: its pixels live in the canvas context, not in the markup a deferred capture replays. */
+const DRAWN = `<main id="subject"><canvas id="c" width="40" height="20"></canvas></main><script>
+  const context = document.getElementById('c').getContext('2d');
+  context.fillStyle = 'rgb(200, 0, 0)';
+  context.fillRect(0, 0, 40, 20);
+</script>`;
+
 /** Photographed off the live page, whose reading carries the recipe it was held under. */
 const IN_PLACE = {
   kind: 'in-place',
@@ -162,6 +169,14 @@ chromium_('a page the variance fixture hands a test', () => {
       );
     });
 
+  }, 120_000);
+
+  it('refuses a deferred capture of a canvas instead of comparing a blank one', async () => {
+    // The renderer replays the document, and a canvas bitmap is not in it: two
+    // different drawings would both paint blank and read `unchanged`.
+    await throughFixture(DRAWN, 'all', async (page, variance) => {
+      await expect(variance(page.locator('#subject'))).rejects.toThrow(/canvas.*in-place/s);
+    });
   }, 120_000);
 
   it('fixes Date alone, and frames, timers and performance keep running on the page time', async () => {

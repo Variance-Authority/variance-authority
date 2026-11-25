@@ -3,11 +3,7 @@
 '@variance-authority/core': patch
 '@variance-authority/observe': patch
 '@variance-authority/raster': patch
+'@variance-authority/playwright-test': patch
 ---
 
-A subject holding a canvas or video is photographed in place
-
-A canvas or video keeps its bitmap outside the markup the document digest
-covers, so a digest match could report `unchanged` for a changed drawing.
-Such a subject now renders on every run: it neither settles on a digest hit nor
-reads or writes the render cache, and the reason names the box.
+A subject that holds a `<canvas>` or `<video>` is no longer compared from a replay of its markup, which draws it blank. The deferred capture refuses it and names the fix: `materialization: { kind: 'in-place', browser }`, which photographs the live page. `settle` never settles on a digest match for such a document, and the render cache is neither read nor written for it.

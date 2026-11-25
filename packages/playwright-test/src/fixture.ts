@@ -7,7 +7,7 @@ import type {
   PlaywrightWorkerArgs,
 } from '@playwright/test';
 import { hashComponents, overlaySourceIndex } from '@variance-authority/core/attribute';
-import { documentDigest } from '@variance-authority/core/format';
+import { blackBoxRefusal, documentDigest } from '@variance-authority/core/format';
 import { normalize } from '@variance-authority/core/rules';
 import type { CaptureArtifact } from '@variance-authority/core';
 import type { SourceIndex } from '@variance-authority/core/attribute';
@@ -431,6 +431,8 @@ async function observeAcquired(
     return await withEvidence(runtime, key, observation, async () => candidate);
   }
 
+  const blackBox = blackBoxRefusal(document);
+  if (blackBox !== undefined) throw new Error(blackBox);
   if (renderer === undefined) throw new Error('deferred capture needs a renderer');
   const identity = renderer.identityFor(document);
   const described = await store.describe(key, identity);
@@ -440,6 +442,7 @@ async function observeAcquired(
     identity,
     accessibility,
     snapshot,
+    [],
   );
 
   if (settlement.kind === 'settled') {

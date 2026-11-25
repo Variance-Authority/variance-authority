@@ -106,7 +106,7 @@ export type {
 } from './snapshot.js';
 export { isRenderDocument, isSemanticSnapshot, isSubjectRef } from './shape.js';
 
-export { blackBoxes, documentDigest, identityDigest, occupiesPixels, pictured, picture } from './document.js';
+export { blackBoxes, blackBoxRefusal, documentDigest, identityDigest, occupiesPixels, pictured, picture } from './document.js';
 export type {
   RenderDocument,
   RenderFrame,
