@@ -185,6 +185,29 @@ it.each([
   }
 });
 
+it('asks a search from several start points again with one flag for each', async () => {
+  const previous = process.cwd();
+  const root = checkout({
+    'apps/app/package.json': JSON.stringify({ name: '@acme/app', dependencies: Object.fromEntries(FLAG_KITS.map((name) => [name, '1.0.0'])) }),
+    ...Object.fromEntries(FLAG_KITS.flatMap((name) => [
+      [`node_modules/${name}/package.json`, JSON.stringify({ name, version: '1.0.0', types: 'index.d.ts' })],
+      [`node_modules/${name}/index.d.ts`, 'export declare const onlyFlags: true;\n'],
+    ])),
+    'apps/app/src/flags.ts': 'export const onlyFlags = true;\n',
+  });
+  try {
+    expect((await run(['index', '--wait'])).code).toBe(0);
+    const ask = (words: readonly string[]): string => spawnSync(executable, words, { cwd: root, env: { ...process.env, npm_config_user_agent: '' }, encoding: 'utf8' }).stdout;
+    const points = ['--from', 'apps/app/src/flags.ts', '--from', 'apps/app/src/hello.ts'];
+    const again = /`variance (ask search [^`]*)` lists all matching names/u.exec(ask(['ask', 'search', '--query', 'onlyFlags', ...points]))?.[1];
+    expect(again).toBe(`ask search --query onlyFlags ${points.join(' ')} --limit 20`);
+    expect(ask(again?.split(' ') ?? [])).toContain('flag-kit-9');
+  } finally {
+    process.chdir(previous);
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 it('waits for a live index publisher with Node absent from PATH', async () => {
   const previous = process.cwd();
   const root = checkout();

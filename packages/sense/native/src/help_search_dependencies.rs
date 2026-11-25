@@ -12,16 +12,7 @@ pub(crate) fn lines(answer: &mut Vec<String>, query: &str, lowered: &str, scope:
         answer.extend([String::new(), "Dependency lexicon not published; run `variance index` to prepare it.".into()]);
         return;
     };
-    let all = |total: usize| {
-        let from: Vec<&str> = scope.iter().flat_map(|scope| &scope.from).map(String::as_str).collect();
-        let to: Vec<&str> = scope.iter().flat_map(|scope| &scope.to).map(String::as_str).collect();
-        let limit = total.max(20usize).to_string();
-        let mut inputs = vec![("query", Value::Text(query))];
-        if !from.is_empty() { inputs.push(("from", Value::List(&from))); }
-        if !to.is_empty() { inputs.push(("to", Value::List(&to))); }
-        inputs.push(("limit", Value::Text(&limit)));
-        format!("`{}` lists all matching names.", typed(CLI, "search", &inputs))
-    };
+    let all = |total: usize| in_full(query, scope, total);
     let total = matches.total as usize;
     if total == 0 && !own {
         let searched = if matches.scope.packages == 0 {
@@ -71,6 +62,18 @@ pub(crate) fn lines(answer: &mut Vec<String>, query: &str, lowered: &str, scope:
             format!("{} {why} — {says} [holds: {}]", one.specifier, one.words.join(", "))
         }));
     }
+}
+
+/// The question that lists `total` names in full, from every start point the search had: a path to a flag, as `search` reads them.
+fn in_full(query: &str, scope: Option<&Scope>, total: usize) -> String {
+    let limit = total.max(20).to_string();
+    let mut inputs = vec![("query", Value::Text(query))];
+    for scope in scope {
+        inputs.extend(scope.from.iter().map(|path| ("from", Value::Text(path))));
+        inputs.extend(scope.to.iter().map(|path| ("to", Value::Text(path))));
+    }
+    inputs.push(("limit", Value::Text(&limit)));
+    format!("`{}` lists all matching names.", typed(CLI, "search", &inputs))
 }
 
 fn compact(answer: &mut Vec<String>, heading: String, total: usize, limit: Option<usize>, rows: impl Iterator<Item = String>, again: impl Fn(usize) -> String) {
