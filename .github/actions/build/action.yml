@@ -11,6 +11,9 @@ inputs:
   native-tests:
     description: Restore Cargo dependencies even on a binary hit, for native tests.
     default: 'false'
+  native-run:
+    description: Another run of this tree whose `variance-native` artifact the build takes; build.mjs's stamp decides whether it is current.
+    default: ''
 
 outputs:
   native-tree:
@@ -85,9 +88,27 @@ runs:
         name: variance-native
         path: packages/sense/npm
 
+    # A run of another event on the same tree, such as the merge-queue run of
+    # the commit a push landed: its cache is scoped to a ref this run cannot
+    # read, so its artifact is the only way to its binary. The key cannot be
+    # compared across runs, since each resolves its own compiler, so the
+    # binary is laid down and build.mjs's stamp, the compiled inputs' tree and
+    # the glibc floor, decides whether Cargo runs. A stamp that disagrees
+    # compiles from nothing rather than trusting it.
+    - name: take another run's native scanner
+      id: borrowed
+      if: inputs.native-run != '' && steps.download.outcome != 'success'
+      continue-on-error: true
+      uses: actions/download-artifact@v8
+      with:
+        name: variance-native
+        path: packages/sense/npm
+        run-id: ${{ inputs.native-run }}
+        github-token: ${{ github.token }}
+
     - name: restore the native scanner
       id: cache
-      if: steps.download.outcome != 'success'
+      if: steps.download.outcome != 'success' && steps.borrowed.outcome != 'success'
       uses: actions/cache@v6
       with:
         path: |
@@ -104,7 +125,7 @@ runs:
     # their debug dependencies separately, so a release-only producer cannot
     # win a save race and discard them. Cargo owns freshness.
     - name: restore Cargo compilation
-      if: (steps.cache.outputs.cache-hit != 'true' && steps.download.outcome != 'success') || inputs.native-tests == 'true'
+      if: (steps.cache.outputs.cache-hit != 'true' && steps.download.outcome != 'success' && steps.borrowed.outcome != 'success') || inputs.native-tests == 'true'
       uses: Swatinem/rust-cache@v2
       with:
         workspaces: packages/sense/native
