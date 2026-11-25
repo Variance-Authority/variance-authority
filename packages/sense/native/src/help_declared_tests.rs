@@ -120,6 +120,12 @@ fn classifier_names_come_only_from_the_published_workspace() {
     assert_eq!(drifted.named[0].files, answer.named[0].files);
     assert_eq!(drifted.named[0].count, answer.named[0].count);
     assert_eq!(drifted.declared.iter().map(|row| (&row.name, &row.at, row.line)).collect::<Vec<_>>(), answer.declared.iter().map(|row| (&row.name, &row.at, row.line)).collect::<Vec<_>>());
+    let spelled = ["lib/worker_name.ts", "./test/worker_name.test.ts", "./worker_name.ts", "../lib/worker_name.ts", "/lib/worker_name.ts", "worker_name.test.ts", "worker_name.ts", "app/lib/worker_name.ts", "outside/worker_name.ts", "ib/worker_name.ts", "lib/worker_name", "name.ts", "worker_name.t"];
+    let found = crate::classify_areas::classify_names(spelled.map(str::to_owned).to_vec(), 1, directory.join("index.bin").to_str().unwrap().to_owned(), "app".to_owned()).unwrap();
+    let files: Vec<(&str, &str, u32)> = found.named.iter().map(|one| (one.name.as_str(), one.files[0].as_str(), one.count)).collect();
+    assert_eq!(files, vec![("lib/worker_name.ts", "lib/worker_name.ts", 1), ("./test/worker_name.test.ts", "test/worker_name.test.ts", 1), ("worker_name.test.ts", "test/worker_name.test.ts", 1), ("worker_name.ts", "lib/worker_name.ts", 1)]);
+    let shared = crate::classify_areas::classify_names(vec!["worker_name.ts".to_owned()], 1, directory.join("index.bin").to_str().unwrap().to_owned(), String::new()).unwrap();
+    assert_eq!((shared.named[0].files.len(), shared.named[0].count), (1, 2));
     std::fs::remove_dir_all(directory).unwrap();
 }
 

@@ -1,12 +1,12 @@
 # `classify --query <words>`
 
-Use it for task words without a code name. For a product label plus a version
+Give it a task's text as written, code names and paths included. For a product label plus a version
 or state value, start with the
 [two text questions](code-orientation.md#combine-text-clues). It reads the
 published source snapshot without consulting Git, scanning the checkout or
 updating the index; run `variance index` explicitly for a new snapshot.
-If a snapshot lookup is unavailable, its identifiers are `Not looked up`,
-not confirmed nonmatches. It says which of
+If a snapshot lookup is unavailable, the words it would have
+looked up are `Not looked up`, not confirmed nonmatches. It says which of
 the request's words are, whole, a package's name or that name without its scope, an
 entrypoint's specifier (both matched without case), or a published exported
 name (matched as spelled). A word shaped as an identifier — a capital past its
@@ -15,7 +15,12 @@ is then looked up as spelled among the lines `symbol --name` names as
 declaring it — leaving out a line it calls `[binding]`, which only takes the
 name from another file — and the indexed files whose name before its first dot it is:
 in Node.js, `ModuleLoader` is declared in the ESM loader's file, at its line,
-and `child_process` is the file of that name under `lib/`. Ordinary source comes before
+and `child_process` is the file of that name under `lib/`. A word spelled as a
+file is looked up among the indexed files alone: a path is the file at it from
+the workspace's root, and a word with a dot and no slash is every file of that
+name, so `lib/internal/modules/run_main.js` and `run_main.js` both name that
+file. A path that is no indexed file names none: the end of one does not
+(`modules/run_main.js`), and neither does one from outside the root. Ordinary source comes before
 tests and stories, then the file more files import; three of each are shown and
 the rest counted. Each is placed in the package on the code map nearest at or
 above it, or `in no package`, so a checkout with no manifest still gets them. A

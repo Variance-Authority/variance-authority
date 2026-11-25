@@ -33,7 +33,7 @@ export interface Named {
   readonly more?: number;
 }
 
-/** Where the identifier-shaped words that name nothing published are declared, and which files are named them: at most a few of each, in the order to show them. */
+/** Where the words to look up are declared, and which files they spell: at most a few of each, in the order to show them. */
 export type Locate = (words: readonly string[], filesOnly?: ReadonlySet<string>) => ReadonlyMap<string, readonly Named[]>;
 
 /** A word that names something, with everything it names: packages first, then entrypoints, then exports. */
@@ -47,7 +47,7 @@ export interface Classified {
   readonly entities: readonly Entity[];
   /** The words that name nothing, in the asker's order, each once. */
   readonly plain: readonly string[];
-  /** Identifier-shaped words whose source lookup was unavailable, never confirmed nonmatches. */
+  /** Words to look up whose source lookup was unavailable, never confirmed nonmatches. */
   readonly unknown?: readonly string[];
 }
 
@@ -80,11 +80,25 @@ export function identifier(word: string): boolean {
 }
 
 /**
+ * Whether a word is looked up in the source: an identifier, or a word spelled
+ * as a file, which holds a slash or a dot.
+ */
+export function lookedUp(word: string): boolean {
+  return /[./]/u.test(word) || identifier(word);
+}
+
+/**
  * The asker's words: a scoped name, a path and an identifier stay whole, and
- * the punctuation a sentence puts around them is dropped.
+ * the punctuation a sentence puts around them is dropped. What a path starts
+ * with is part of it, so `../lib/a.ts` is not read as `lib/a.ts`.
  */
 export function wordsOf(text: string): readonly string[] {
-  return (text.match(/@?[\p{L}\p{N}_$][\p{L}\p{N}_$@./-]*/gu) ?? []).map((word) => word.replace(/[./-]+$/u, ''));
+  const spelled = text.match(/(?:@|(?:\.{0,2}\/)+|(?<!\.)\.)?[\p{L}\p{N}_$][\p{L}\p{N}_$@./-]*/gu) ?? [];
+  return spelled.map((word) => {
+    const ended = word.replace(/[./-]+$/u, '');
+    const bare = ended.replace(/^[./]+/u, '');
+    return /[./]/u.test(bare) ? ended : bare;
+  });
 }
 
 /** Every spelling of the mapped packages and of what the reading publishes, keyed by how a word is compared with it. */
@@ -119,15 +133,15 @@ function dictionaryOf(help: Help, packages: Iterable<string>): { readonly folded
 /**
  * The words of `text` that are, whole, one of `packages` (scoped or not) or an
  * entrypoint `help` publishes, both without case, or an export it publishes as
- * spelled; or, shaped as an identifier and no package or entrypoint, a name
- * `locate` finds declared or a file it finds named — of an export, only the
+ * spelled; or, `lookedUp` and no package or entrypoint, a name `locate` finds
+ * declared or a file it finds spelled so — of an export, only the
  * files, as the export already says where it is declared; and the words that
  * are not.
  */
 export function classifyWords(text: string, help: Help, packages: Iterable<string>, locate?: Locate): Classified {
   const { folded, exact } = dictionaryOf(help, packages);
   const words = wordsOf(text);
-  const asked = locate === undefined ? [] : [...new Set(words.filter((word) => identifier(word) && !folded.has(word.toLowerCase())))];
+  const asked = locate === undefined ? [] : [...new Set(words.filter((word) => lookedUp(word) && !folded.has(word.toLowerCase())))];
   const exported = new Set(asked.filter((word) => exact.has(word)));
   const found = asked.length === 0 || locate === undefined ? new Map<string, readonly Named[]>() : locate(asked, exported);
   const located = new Map([...found].map(([word, names]) => [word, exported.has(word) ? names.filter((named) => named.kind === 'file') : names] as const));
