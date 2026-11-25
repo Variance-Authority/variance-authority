@@ -17,7 +17,7 @@ import { uses } from './tools/uses.js';
  * A question about a name written after the last published generation, asked
  * of this package's server. A generation is reused for an hour, so the name is
  * answered as not published, from that generation, with a date line that says
- * the checkout was not compared with it, as `variance ask` answers it.
+ * it may miss later changes, as `variance ask` answers it.
  */
 
 const fixture = publishing();
@@ -42,7 +42,7 @@ async function asked(root: string, justAnswer: boolean, tool: string, args: Read
 }
 
 /** The date line of a refusal whose checkout could not be compared with its generation, and why. */
-const UNREAD = /Snapshot \d{4}-\d\d-\d\dT[\d:.]+Z, not compared with the checkout \((.+)\): run `variance index` if files changed since\./u;
+const UNREAD = /Snapshot \d{4}-\d\d-\d\dT[\d:.]+Z may miss later changes \((.+)\): run `variance index`\./u;
 
 /** A package whose entry publishes `deepOf`, `named` and `describedOf` only through a barrel. */
 const BARRELS = {
@@ -294,7 +294,7 @@ describe('caughtUp', () => {
       return true;
     });
     expect(looked).toEqual([]);
-    expect(caught?.unseen).toBe('it could not be read again: a manifest is half-written');
+    expect(caught?.unseen).toBe('the checkout could not be read again: a manifest is half-written');
   });
 
   it('reads again an outlived answer from a generation made before the question', async () => {
@@ -302,7 +302,7 @@ describe('caughtUp', () => {
     expect(await caughtUp(new Date(started - 1000).toISOString(), started, async () => 'asked again')).toEqual({ subject: 'asked again' });
   });
 
-  it('says the checkout was not compared, and why, when reading it again fails', async () => {
+  it('says the answer may miss later changes, and why, when reading the checkout again fails', async () => {
     const started = Date.now();
     const caught = await caughtUp(new Date(started - 1000).toISOString(), started, async () => {
       throw new Error('a manifest is half-written');
@@ -360,7 +360,7 @@ describe('foundNothingAnswer', () => {
 });
 
 describe('snapshotLine', () => {
-  it('names the generation time, and says when the checkout was not compared with it, and why when it was asked to be', () => {
+  it('names the generation time, and that the answer may miss later changes when the checkout was not compared with it, with the reason when it was asked to be', () => {
     expect(snapshotLine('2026-01-02T03:04:05.000Z', false)).toBe('Snapshot 2026-01-02T03:04:05.000Z.');
     expect(snapshotLine('2026-01-02T03:04:05.000Z', true)).toMatch(UNCOMPARED);
     expect(snapshotLine('2026-01-02T03:04:05.000Z', 'it could not be read')).toMatch(UNREAD);
@@ -368,7 +368,7 @@ describe('snapshotLine', () => {
 });
 
 describe('the help server about a name written after the published generation', () => {
-  it.each([false, true])('answers `docs_symbol` from the published generation, `justAnswer` %s, that nothing declares it, and that the checkout was not compared with it', async (justAnswer) => {
+  it.each([false, true])('answers `docs_symbol` from the published generation, `justAnswer` %s, that nothing declares it, and that the answer may miss later changes', async (justAnswer) => {
     const answer = await served(await fixture.published(), justAnswer);
     expect(answer.isError).toBeUndefined();
     expect(answer.text).toMatch(/^`keptOf` is not published by this workspace/u);
@@ -382,7 +382,7 @@ describe('the help server about a name written after the published generation', 
     const answer = await served(await fixture.published(), false, 'writtenNowhere');
     expect(answer.isError).toBeUndefined();
     expect(answer.text).toMatch(/^`writtenNowhere` is not published by this workspace.*declares `writtenNowhere`/su);
-    expect(answer.text).toMatch(/\nSnapshot \d{4}-\d\d-\d\dT[\d:.]+Z, not compared with the checkout: run `variance index` if files changed since\.$/u);
+    expect(answer.text).toMatch(/\nSnapshot \d{4}-\d\d-\d\dT[\d:.]+Z may miss later changes: run `variance index`\.$/u);
   });
 
   it('says why under a refusal, when the file the name was in moved during the read that found it gone', async () => {
@@ -396,7 +396,7 @@ describe('the help server about a name written after the published generation', 
       },
     });
     expect(answer.text).toMatch(/^`taxOf` is not published/u);
-    expect(answer.text).toMatch(/not compared with the checkout \(a file it rests on changed while it was read\)/u);
+    expect(answer.text).toMatch(/may miss later changes \(a file it rests on changed while it was read\)/u);
     expect(answer.text.match(/Snapshot/gu)).toHaveLength(1);
   });
 

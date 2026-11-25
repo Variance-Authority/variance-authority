@@ -54,7 +54,7 @@ import { reportSource } from './report-source.js';
  * Which half is read is decided by the question. A report is a file and is read
  * every request. A source question reads the last published workspace generation
  * until it expires or a newer one is published, as `readAgain` decides; each
- * `--just-answer` answer says it was not compared with the checkout. A source
+ * `--just-answer` answer says it may miss later changes. A source
  * question a reused generation refuses, or whose named files changed since it,
  * is asked again of one read now, as `caughtUp` decides for both servers.
  * Producing a generation remains separate work. Neither half pays for the other.

@@ -81,14 +81,14 @@ describe('variance ask on a checkout with no index', () => {
     expect(answered.err).toContain('Run `variance index`');
   });
 
-  it('search answers once `variance index` has published the generation, and says it opened it uncompared', async () => {
+  it('search answers once `variance index` has published the generation, and says it may miss later changes', async () => {
     cold();
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
     const answered = await run(['ask', 'search', '--query', 'shim']);
     expect(answered.err).toBe('');
     expect(answered.code).toBe(EXIT_CLEAN);
     expect(answered.out).toContain('shim');
-    expect(answered.out).toContain('not compared with the checkout');
+    expect(answered.out).toContain('may miss later changes');
   });
 
   it('packages answers or refuses with a code', async () => {

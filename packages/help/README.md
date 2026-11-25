@@ -57,7 +57,7 @@ on the command line answers from the generation `variance index` last
 published, at any age, and does nothing else: no Git status, no look at the
 files an answer rests on, no index written. So after you edit, run `variance
 index`, then ask. Every answer and refusal says when its generation was produced
-and that the checkout was not compared with it, and with no generation the
+and that it may miss later changes, and with no generation the
 question refuses in one line that names `variance index`. The server keeps its
 own expiry, below. The detailed cost model, including why Git's packed objects
 beat opening hundreds of thousands of small files, is in [find code through the workspace

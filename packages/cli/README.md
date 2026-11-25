@@ -234,7 +234,7 @@ A source question answers from the workspace generation `variance index` last
 published, whatever its age, and does nothing else: no Git status, no look at
 the files the answer rests on, no index written. So after you edit, run
 `variance index`, then ask. Every answer and refusal prints when the generation
-was produced and says the checkout was not compared with it; `search --format
+was produced and says it may miss later changes; `search --format
 json` carries `compared: false` instead. With no generation published, the
 question refuses in one line that names `variance index`. Of a file written
 after the generation's read, an answer gives what the generation recorded: its

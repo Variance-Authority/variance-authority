@@ -197,6 +197,7 @@ it('waits for a live index publisher with Node absent from PATH', async () => {
     expect(status, stderr).toBe(0);
     expect(stderr).toContain(waiting);
     expect(stdout).toContain('greet [function]');
+    expect(stdout).toMatch(/\nSnapshot \S+ may miss later changes: run `variance index`\.\n$/u);
   } finally {
     process.chdir(previous);
     rmSync(root, { recursive: true, force: true });

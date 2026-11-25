@@ -231,8 +231,8 @@ variance index
 variance ask search --query createStore --from src/checkout/
 ```
 
-Every answer prints when its workspace generation was produced and that the
-checkout was not compared with it. If no generation exists, the question
+Every answer prints when its workspace generation was produced and that it
+may miss later changes. If no generation exists, the question
 refuses in one line that names `variance index`. [The source index](source-index.md)
 explains production, incremental reuse and CI caching.
 

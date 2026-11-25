@@ -248,7 +248,7 @@ describe('variance ask over a private app that reaches into another package', ()
       expect(unwritten.out).not.toContain('See the skill');
       // Dated with the generation it was read from, as every answer is, which
       // `variance index` made before the question, so the checkout was not compared with it.
-      expect(unwritten.out).toMatch(/^Snapshot \S+, not compared with the checkout: run `variance index` if files changed since\.$/mu);
+      expect(unwritten.out).toMatch(/^Snapshot \S+ may miss later changes: run `variance index`\.$/mu);
       // `uses` asks nothing of the installed dependencies; `symbol` says what they publish.
       if (verb === 'uses') expect(unwritten.out).not.toContain('installed dependency');
       else expect(unwritten.out).toContain('installed dependency');

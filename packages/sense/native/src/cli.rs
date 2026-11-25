@@ -99,7 +99,7 @@ pub fn answer(args: &[OsString], mut waiting: impl FnMut(&str)) -> Option<(i32, 
             })
         }
     };
-    let footer = format!("Snapshot {}, not compared with the checkout: run `variance index` if files changed since.", published.generated_at);
+    let footer = format!("Snapshot {} may miss later changes: run `variance index`.", published.generated_at);
     Some(match text {
         Ok(text) => (0, format!("{text}\n{footer}\n")),
         Err(error) => (2, format!("{error}\n\n{footer}\n")),

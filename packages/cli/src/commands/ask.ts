@@ -265,7 +265,7 @@ export async function askSource(request: SourceRequest): Promise<string> {
   // A question answers from the generation `variance index` published, at any
   // age and whatever was edited since: the one who edited knows it, and runs
   // `variance index`. Only a changed-file list or a taint, which ask for a new
-  // generation by name, has one made; every other answer says it was not compared.
+  // generation by name, has one made; no other answer is compared with the checkout.
   const named = changed !== undefined || taints !== undefined;
   const reading: SourceReadOptions = {
     ...(changed === undefined ? {} : { changed }),
