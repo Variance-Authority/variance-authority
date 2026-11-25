@@ -7,7 +7,7 @@
  * could be counted. It arranges what it is handed and computes nothing.
  */
 
-import { COVERAGE_SCRIPT, COVERAGE_STYLE, coverageView } from './coverage-html.js';
+import { COVERAGE_STYLE, coverageView } from './coverage-html.js';
 import { chip, text } from './report-html-elements.js';
 import { MARK } from './report-html-style.js';
 import type { Coverage } from './coverage.js';
@@ -23,8 +23,7 @@ function masthead(data: ViewData, coverage: Coverage | { readonly missed: string
   if (data.suite !== undefined) chips.push(chip('suite', data.suite));
   if (data.commit !== undefined) chips.push(chip('commit', data.commit.slice(0, 8), data.commit));
   if (data.recording !== undefined) chips.push(chip('record', data.recording.split('/').slice(-2).join('/'), data.recording));
-  const files = data.timeline.files.length + data.timeline.unplaced;
-  chips.push(chip('files', `${files} recorded, ${data.timeline.files.length} placed on the clock`));
+  if (data.timeline.recorded > 0) chips.push(chip('files', `${data.timeline.recorded} recorded, ${data.timeline.placed} placed on the clock`));
   if (coverage !== undefined && 'missed' in coverage) chips.push(chip('coverage', 'not counted', coverage.missed));
   return (
     `<header><div class="brand">${MARK}<span>variance</span></div>` +
@@ -47,6 +46,5 @@ export function viewPage(data: ViewData, coverage?: Coverage | { readonly missed
     views,
     first: 'tests',
     style: `${COVERAGE_STYLE}${TESTS_STYLE}${TIMELINE_STYLE}`,
-    script: COVERAGE_SCRIPT,
   });
 }

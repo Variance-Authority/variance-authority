@@ -256,7 +256,7 @@ export async function coverage(request: ParsedCoverage, over: typeof textOver | 
     suites,
     ...(bases.length === now.length ? { base: countCoverage(bases) } : {}),
     ...(unloadedChange === undefined ? {} : { unloadedChange }),
-    ...(request.fanIn === true ? { fanIn: coverageFanIn(now) } : {}),
+    ...(request.fanIn === true ? { fanIn: coverageFanIn(now, request.fanInTests === true ? { tests: true } : {}) } : {}),
     ...(request.sessions === undefined ? {} : { sessions: await coverageSessions(request.root, request.sessions, request.served, records) }),
     ...(band === undefined ? {} : {
       atDistance: {

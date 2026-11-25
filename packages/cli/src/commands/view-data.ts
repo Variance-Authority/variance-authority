@@ -9,12 +9,27 @@
  * recording that holds none says so beside the view it would have filled.
  */
 
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import { recordedAttempts, recordedDurations, recordedTrace } from '@variance-authority/sense';
-import { OperatorError } from '../exit.js';
-import { readExecutionIndex, recordedExecutionFile } from './execution-input.js';
-import { noReach, reachOf, TOP, type ReachData } from './view-reach.js';
 import type { RecordedAttempts, RecordedDurations, RecordedTrace, RetriedCase, TracedFile } from '@variance-authority/sense';
+import type { FanIn } from '@variance-authority/sense/test-selection';
 
+/** How many rows of each kind the page holds. The recording keeps the rest. */
+export const TOP = 100;
+
+/**
+ * The covering relation as the page draws it: read from the fan-in `coverage`
+ * counted, so a file is entered the way coverage says it is, and both lists are
+ * cut to `TOP` with the true count beside the cut.
+ */
+export interface ReachData {
+  /** Each shown test file, with the source files its cases entered, the most-shared first. */
+  readonly tests: readonly { readonly file: string; readonly reached: readonly string[]; readonly total: number }[];
+  /** The source files the most test files entered, each with the test files that did. */
+  readonly files: readonly { readonly file: string; readonly tests: readonly string[]; readonly total: number }[];
+  /** Why the relation is empty, in words. */
+  readonly note?: string;
+}
 
 /** What the Tests view holds. */
 export interface TestsData {
@@ -30,7 +45,11 @@ export interface TestsData {
 /** What the Timeline view holds: the files that carry a start, the slowest of them, on the runner's clock. */
 export interface TimelineData {
   readonly files: readonly TracedFile[];
-  /** Files the recording holds that carry no start, which the axis cannot place. */
+  /** Every file the recording holds, before any cut. */
+  readonly recorded: number;
+  /** Of those, the files that carry a start and a cost, before the cut to the slowest `TOP`. */
+  readonly placed: number;
+  /** Files the recording holds that the axis cannot place: no start, or no cost. */
   readonly unplaced: number;
   readonly note?: string;
 }
@@ -48,12 +67,13 @@ export interface ViewData {
 /** The slowest `TOP` files with a start, ordered by start so the page reads left to right. */
 function placed(trace: Extract<RecordedTrace, { files: unknown }>): TimelineData {
   const starts = trace.files.filter((file) => file.start !== undefined && file.cost !== undefined);
-  const kept = [...starts].sort((a, b) => (b.cost ?? 0) - (a.cost ?? 0) || (a.file < b.file ? -1 : 1)).slice(0, TOP);
-  const files = kept.sort((a, b) => (a.start ?? 0) - (b.start ?? 0) || (a.file < b.file ? -1 : 1));
-  const unplaced = trace.files.length - starts.length;
+  const kept = [...starts].sort((a, b) => (b.cost ?? 0) - (a.cost ?? 0) || codeUnitOrder(a.file, b.file)).slice(0, TOP);
+  const files = kept.sort((a, b) => (a.start ?? 0) - (b.start ?? 0) || codeUnitOrder(a.file, b.file));
   return {
     files,
-    unplaced,
+    recorded: trace.files.length,
+    placed: starts.length,
+    unplaced: trace.files.length - starts.length,
     ...(files.length === 0 ? { note: 'no file in the recording has a start offset: record a Playwright run to place files on a clock' } : {}),
   };
 }
@@ -88,31 +108,49 @@ function pick<T extends { readonly suite?: string }>(rows: readonly T[], suite: 
   return rows.find(readable) ?? rows[0];
 }
 
-/** The relation for the test files the page shows, or the reason the record holds none. */
-async function reachFor(root: string, suite: string | undefined, shown: ReadonlySet<string>): Promise<ReachData> {
-  try {
-    return reachOf(await readExecutionIndex(await recordedExecutionFile(root, suite)), shown);
-  } catch (error) {
-    if (error instanceof OperatorError) return noReach(error.message);
-    throw error;
+/** The relation, read from the fan-in coverage counted, or the reason there is none. */
+function reachFrom(fan: FanIn | { readonly missed: string } | undefined, shown: ReadonlySet<string>): ReachData {
+  if (fan === undefined) return { tests: [], files: [], note: 'coverage counted no fan-in, so which test files entered a source file is not known' };
+  if ('missed' in fan) return { tests: [], files: [], note: `coverage was not counted, so which test files entered a source file is not known: ${fan.missed}` };
+  const entered = fan.files.filter((row) => (row.tests?.length ?? 0) > 0);
+  const reached = new Map<string, string[]>();
+  for (const row of entered) {
+    for (const test of row.tests!) {
+      if (!shown.has(test) || test === row.file) continue;
+      const list = reached.get(test);
+      if (list === undefined) reached.set(test, [row.file]);
+      else list.push(row.file);
+    }
   }
+  const size = new Map(entered.map((row) => [row.file, row.tests!.length]));
+  const tests = [...reached]
+    .sort(([a], [b]) => codeUnitOrder(a, b))
+    .map(([file, all]) => {
+      all.sort((a, b) => size.get(b)! - size.get(a)! || codeUnitOrder(a, b));
+      return { file, reached: all.slice(0, TOP), total: all.length };
+    });
+  const files = [...entered]
+    .sort((a, b) => b.tests!.length - a.tests!.length || codeUnitOrder(a.file, b.file))
+    .slice(0, TOP)
+    .map((row) => ({ file: row.file, tests: row.tests!.slice(0, TOP), total: row.tests!.length }));
+  return { tests, files };
 }
 
 /** The recording at `root` as the rows the page shows. */
-export async function viewData(root: string, suite?: string): Promise<ViewData> {
+export function viewData(root: string, suite?: string, fanIn?: FanIn | { readonly missed: string }): ViewData {
   const notes: string[] = [];
   const timed = pick(recordedDurations(root, TOP), suite, (row) => !('unread' in row));
   const attempts = pick(recordedAttempts(root, TOP), suite, (row) => !('unread' in row));
   const traced = recordedTrace(root, suite ?? timed?.suite);
   const tests: TestsData = { ...durationsOf(timed, notes), ...retriedOf(attempts, notes), notes };
-  const timeline: TimelineData = 'unread' in traced ? { files: [], unplaced: 0, note: traced.unread } : placed(traced);
+  const timeline: TimelineData = 'unread' in traced ? { files: [], recorded: 0, placed: 0, unplaced: 0, note: traced.unread } : placed(traced);
   const shown = new Set([
     ...tests.slowestFiles.map((row) => row.file),
     ...tests.slowestCases.map((row) => row.file),
     ...tests.retried.map((row) => row.file),
     ...timeline.files.map((row) => row.file),
   ]);
-  const reach = await reachFor(root, suite ?? timed?.suite, shown);
+  const reach = reachFrom(fanIn, shown);
   const commit = timed !== undefined && !('unread' in timed) ? timed.commit : undefined;
   return {
     ...(timed?.suite === undefined ? {} : { suite: timed.suite }),

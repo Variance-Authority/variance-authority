@@ -101,6 +101,9 @@ for(const row of rows(view))row.classList.toggle('hidden',pick?row.dataset.key.t
 for(const sec of view.querySelectorAll('section.part')){
 const any=sec.querySelector('[data-key]:not(.hidden)')!==null||sec.querySelector('[data-key]')===null;
 sec.classList.toggle('hidden',needle!==''&&!any);}
+for(const box of view.querySelectorAll('details.package')){
+const any=box.querySelector('[data-key]:not(.hidden)')!==null;
+box.open=needle!==''&&any;box.classList.toggle('hidden',needle!==''&&!any);}
 }
 function mark(view,q){
 for(const row of rows(view))row.classList.toggle('hit',q!==''&&row.dataset.key===q);

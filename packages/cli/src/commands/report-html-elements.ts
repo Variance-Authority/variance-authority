@@ -28,15 +28,18 @@ export function section(
   holds?: string,
   /** Starts hidden, and is revealed by pressing the census segment it holds. */
   quiet?: boolean,
+  /** One more class on the section, such as `part` for a view's own sections. */
+  className?: string,
 ): string {
-  return `${opening(name, hint, holds, quiet)}${body}</section>`;
+  return `${opening(name, hint, holds, quiet, className)}${body}</section>`;
 }
 
 /** A section's opening tag and heading, for a body written in pieces. */
-export function opening(name: string, hint: string, holds?: string, quiet?: boolean): string {
+export function opening(name: string, hint: string, holds?: string, quiet?: boolean, className?: string): string {
+  const classes = [...(quiet === true ? ['hidden'] : []), ...(className === undefined ? [] : [className])];
   return (
     `<section id="${text(slug(name))}"` +
-    (quiet === true ? ' class="hidden"' : '') +
+    (classes.length === 0 ? '' : ` class="${classes.join(' ')}"`) +
     (holds === undefined ? '' : ` data-holds="${text(holds)}"`) +
     `><h2>${text(name)}<span class="hint">${text(hint)}</span></h2>`
   );

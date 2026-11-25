@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { chromium, type Browser, type Page } from '@playwright/test';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { ViewData } from './view-data.js';
+import type { Coverage } from './coverage.js';
 import { viewPage } from './view-page.js';
 
 /**
@@ -46,6 +47,8 @@ const DATA: ViewData = {
   },
   timeline: {
     files: [{ file: 'src/slow.test.ts', start: 1000, cost: 4200, phases: [{ name: 'cases', ms: 4000 }], cases: [] }],
+    recorded: 1,
+    placed: 1,
     unplaced: 0,
   },
   reach: {
@@ -57,6 +60,23 @@ const DATA: ViewData = {
 // One page for the whole file, opened once and driven through its address: the
 // owner's pool leases pages per painted subject, and this test paints nothing.
 let root: string;
+/** Counted coverage with two packages, so the filter has something to open and hide. */
+const COUNTED = {
+  at: '0b5b312c',
+  count: { regions: 100, files: 3, run: 60, load: 10, none: 30, unjoined: 0, suites: [{ name: 'unit', kind: 'unit', run: 60, load: 10, regions: 100 }] },
+  suites: [{ suite: 'unit', kind: 'unit', from: 'unit.bin', recorded: '0b5b312c' }],
+  source: { seeds: 'entrypoints', files: 3, ran: 60, regions: 100, unloaded: { files: 0, lines: 0, bytes: 0, regions: 0, uncut: 0, directories: [], list: [] } },
+  entries: [
+    { from: 'packages/cli', own: { files: 2, ran: 40, regions: 60 }, uses: { files: 2, ran: 40, regions: 60 } },
+    { from: 'packages/core', own: { files: 1, ran: 20, regions: 40 }, uses: { files: 1, ran: 20, regions: 40 } },
+  ],
+  ownership: [
+    { file: 'packages/cli/src/a.ts', owner: 'packages/cli', regions: 40, run: 30, own: 30, others: 0, by: {}, kinds: { unit: 30 } },
+    { file: 'packages/cli/src/b.ts', owner: 'packages/cli', regions: 20, run: 10, own: 10, others: 0, by: {}, kinds: { unit: 10 } },
+    { file: 'packages/core/src/c.ts', owner: 'packages/core', regions: 40, run: 20, own: 20, others: 0, by: {}, kinds: { unit: 20 } },
+  ],
+} as unknown as Coverage;
+
 let browser: Browser | undefined;
 let page: Page | undefined;
 const requests: string[] = [];
@@ -64,6 +84,7 @@ const requests: string[] = [];
 beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), 'variance-view-browser-'));
   await writeFile(join(root, 'view.html'), viewPage(DATA));
+  await writeFile(join(root, 'counted.html'), viewPage(DATA, COUNTED));
   if (BROWSER_AVAILABLE) {
     browser = await chromium.launch({ headless: true });
     page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
@@ -127,6 +148,24 @@ describe.skipIf(!BROWSER_AVAILABLE)('variance view page in a browser', () => {
   it('shows no pane for an address that names no file', async () => {
     await page!.evaluate(() => (location.hash = '#test/src/nothing.ts'));
     expect(await page!.locator('.view[data-view="test"] article.pane:not(.hidden)').count()).toBe(0);
+  });
+
+  it('opens the package that holds a match and hides the rest, as the filter is typed in Coverage', async () => {
+    const counted = await browser!.newPage({ viewport: { width: 1280, height: 800 } });
+    try {
+      await counted.goto(`file://${join(root, 'counted.html')}#coverage`);
+      const packages = counted.locator('.view[data-view="coverage"] details.package');
+      expect(await packages.count()).toBe(2);
+      await counted.locator('.view[data-view="coverage"] .vfilter').fill('core/src/c');
+      expect(await counted.locator('.view[data-view="coverage"] details.package:not(.hidden)').count()).toBe(1);
+      expect(await counted.locator('.view[data-view="coverage"] details.package[open]').count()).toBe(1);
+      expect(await counted.locator('.view[data-view="coverage"] tr[data-key]:not(.hidden)').count()).toBe(1);
+      await counted.locator('.view[data-view="coverage"] .vfilter').fill('');
+      expect(await counted.locator('.view[data-view="coverage"] details.package:not(.hidden)').count()).toBe(2);
+      expect(await counted.locator('.view[data-view="coverage"] details.package[open]').count()).toBe(0);
+    } finally {
+      await counted.close();
+    }
   });
 
   it('asked the network for nothing but its own file', () => {

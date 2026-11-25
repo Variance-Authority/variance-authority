@@ -5,8 +5,11 @@
 `variance view` writes a recorded run as one page to open from disk
 
 The page has a Tests tab (slowest files and cases, retried cases with each
-attempt), a Timeline tab (files and phases on the runner's clock) and the
+attempt), a Timeline tab (files and phases on the runner's clock) and a
 Coverage tab, in one self-contained HTML file with no server and no network.
-The command prints the file's path and starts no browser.
-A test file opens a pane with its attempts, phases and the source files it
-entered; Coverage lists the test files that entered each source file.
+The command prints the file's path and starts no browser. A test file opens a
+pane with its attempts, phases and the source files it called into; Coverage
+lists, for each source file, the test files that called into it.
+
+`variance coverage --format html` now shows its views as tabs with a filter
+that narrows the rows and opens the packages that hold a match.

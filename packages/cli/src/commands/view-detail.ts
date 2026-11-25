@@ -8,6 +8,7 @@
  * and the source files its cases entered, each a link to that file in Coverage.
  */
 
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import { section, text } from './report-html-elements.js';
 import type { ViewData } from './view-data.js';
 import { fileLink, ms } from './view-tests.js';
@@ -60,7 +61,7 @@ function filesOf(data: ViewData): string[] {
       ...data.timeline.files.map((r) => r.file),
       ...data.reach.tests.map((r) => r.file),
     ]),
-  ].sort();
+  ].sort(codeUnitOrder);
 }
 
 /** The detail view: a pane per test file, shown only when the address names it. */

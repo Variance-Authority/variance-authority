@@ -14,8 +14,7 @@ variance view
 ```
 
 The command reads the record, writes `variance-view.html` in the variance cache
-directory, and prints the path. `--out <file>` writes elsewhere, and
-`--suite <name>` reads the record of one declared suite when the repository has
+directory, and prints the path. `--suite <name>` reads the record of one declared suite when the repository has
 more than one. Opening the file is yours: the command starts no browser. With no record yet,
 [make one first](#if-you-have-no-record-yet).
 
@@ -23,10 +22,13 @@ more than one. Opening the file is yours: the command starts no browser. With no
 
 The header names the suite, the commit and the record the page was read from,
 and counts the files recorded and the files placed on the clock. Below it sit
-three tabs, **Tests**, **Timeline** and **Coverage**, with Tests open: the
-slowest test files and the slowest cases as sortable tables, each row a link,
-above a filter box, then every retried case with each attempt. The Timeline is
-a chart with one lane per test file; Coverage is how much of the source the run executed.
+the tabs **Tests**, **Timeline** and **Coverage**, with Tests open, and a
+filter box above the tables of the open tab. Tests holds the slowest test files
+and the slowest cases as sortable tables, each row a link, then every retried
+case with each attempt. The Timeline is a chart with one lane per test file;
+Coverage is how much of the source the run executed. When the run cannot be
+counted and no test file is known to have called into a source file, there is
+no Coverage tab, and the header says coverage was not counted.
 
 ## What each tab shows
 
@@ -42,14 +44,16 @@ a chart with one lane per test file; Coverage is how much of the source the run 
   Vitest, Jest, Rstest and Playwright records.
 - **Coverage** shows how much of your source code the run executed, split by
   suite, kind of test and package, and below that each source file with the test
-  files that ran it. When the run cannot be counted that way, the page says so
-  in a chip and still opens; the list of which test files ran which source file
-  needs only the record.
+  files that called into it. When the run cannot be counted that way, the page says so
+  in a chip and still opens; the list of which test files called into which source
+  file needs only the record.
 
 Click a test file anywhere and its pane opens, with these headings:
 **Attempts** for its retried cases, **Phases and place** on the timeline, and
-**Source files reached**, each a link to that file in Coverage. A file in
-Coverage links back to the test files that ran it.
+**Source files reached**, each a link to that file in Coverage. A source file in
+Coverage links back to the test files that called into it, when the record has
+that. Coverage can also link to a test file the page holds no pane for, and that
+link opens nothing.
 
 ## If you have no record yet
 
@@ -76,9 +80,11 @@ name in CI.
 
 - Every list is cut to its first hundred rows by the command, so the page stays
   a size a browser opens at once; the filter searches those rows only.
-- Cases sit in recorded order inside a file's bar, not at their real start,
-  as in [the trace](trace.md#what-a-trace-shows-and-what-it-does-not).
+- The Timeline draws no case: a file's bar shows its phases, and a count of its
+  cases is in the bar's tooltip, as [the trace](trace.md#what-a-trace-shows-and-what-it-does-not)
+  places cases only in recorded order.
 - A record made before Playwright carried starts has no Timeline.
+- A suite you name that has no record says so on the Tests tab and on the Timeline, and nothing is read from it.
 - A pane exists only for the test files the page holds a row for.
 
 ## Reference: addresses

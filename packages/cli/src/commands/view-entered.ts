@@ -5,7 +5,7 @@
  */
 
 import { section, text } from './report-html-elements.js';
-import type { ReachData } from './view-reach.js';
+import type { ReachData } from './view-data.js';
 
 /** One row per source file, with the test files that entered it, each a link back to its pane. */
 export function enteredSection(reach: ReachData): string {
@@ -16,5 +16,5 @@ export function enteredSection(reach: ReachData): string {
     return `<tr data-key="${text(row.file)}"><td>${text(row.file)}</td><td class="num" data-v="${row.total}">${row.total}</td><td>${links}${more}</td></tr>`;
   });
   const head = '<th data-sort>file</th><th data-sort class="num">tests</th><th>entered by</th>';
-  return section('Entered files', `${reach.files.length} source files by how many test files entered them`, `<table><thead><tr>${head}</tr></thead><tbody>${rows.join('')}</tbody></table>`).replace('<section', '<section class="part"');
+  return section('Entered files', `${reach.files.length} source files by how many test files entered them`, `<table><thead><tr>${head}</tr></thead><tbody>${rows.join('')}</tbody></table>`, undefined, undefined, 'part');
 }

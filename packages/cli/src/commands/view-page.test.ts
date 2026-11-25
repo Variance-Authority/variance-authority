@@ -30,6 +30,8 @@ const DATA: ViewData = {
       { file: 'src/slow.test.ts', start: 1000, cost: 4200, phases: [{ name: 'setup', ms: 200 }, { name: 'cases', ms: 4000 }], cases: [] },
       { file: 'src/fast.test.ts', start: 5200, cost: 90, phases: [], cases: [] },
     ],
+    recorded: 5,
+    placed: 2,
     unplaced: 3,
   },
   reach: {
@@ -54,6 +56,12 @@ describe('variance view page', () => {
     expect(html).toContain('expected 1 to be 2');
   });
 
+  it('counts the files the cut left out in the header, not the rows it kept', () => {
+    const html = viewPage({ ...DATA, timeline: { ...DATA.timeline, recorded: 250, placed: 180, unplaced: 70 } });
+    expect(html).toContain('250 recorded, 180 placed on the clock');
+    expect(html).toContain('2 of 180 placed files');
+  });
+
   it('escapes what a test says', () => {
     const html = viewPage(DATA);
     expect(html).toContain('sometimes &lt;fails&gt;');
@@ -65,7 +73,7 @@ describe('variance view page', () => {
     // axis: 1000 .. 5290 ms, so the slow file spans 4200 of 4290 and the fast one starts at 4200 of 4290
     expect(html).toContain('left:0.000%;width:97.902%');
     expect(html).toContain('left:97.902%');
-    expect(html).toContain('3 recorded files carry no start offset');
+    expect(html).toContain('3 recorded files carry no start or no cost');
   });
 
   it('has one tab per view, Tests first, and no coverage tab when neither coverage nor a relation exists', () => {
@@ -142,7 +150,8 @@ describe('variance view drill-down', () => {
 
 describe('variance view arguments', () => {
   it('takes a suite and an output path, and no positional', () => {
-    expect(parseViewArgs(readFlags(['--suite', 'unit', '--out', 'a.html'], 'view', ['--suite', '--out'], 'variance view'))).toEqual({ command: 'view', suite: 'unit', out: 'a.html' });
-    expect(() => parseViewArgs(readFlags(['x'], 'view', ['--suite', '--out'], 'variance view'))).toThrow();
+    expect(parseViewArgs(readFlags(['--suite', 'unit'], 'view', ['--suite'], 'variance view'))).toEqual({ command: 'view', suite: 'unit' });
+    expect(() => parseViewArgs(readFlags(['--out', 'a.html'], 'view', ['--suite'], 'variance view'))).toThrow();
+    expect(() => parseViewArgs(readFlags(['x'], 'view', ['--suite'], 'variance view'))).toThrow();
   });
 });

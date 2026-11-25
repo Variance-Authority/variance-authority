@@ -40,6 +40,14 @@ describe('how many test files each region and each file sends to a change', () =
     ]);
   });
 
+  it('names the test files that entered each file only when asked, in code-unit order, once per suite', () => {
+    const record = index(FOUR, module('src/both.ts', block('left', [1, 0]), block('right', [3]), block('loaded', [], { loaded: true })));
+    const suites = [{ name: 'unit', kind: 'unit' as const, index: record }, { name: 'again', kind: 'unit' as const, index: record }];
+
+    expect(coverageFanIn(suites).files[0]).not.toHaveProperty('tests');
+    expect(coverageFanIn(suites, { tests: true }).files[0]?.tests).toEqual(['a.test.ts', 'b.test.ts', 'd.test.ts']);
+  });
+
   it('counts a test file once per region however many of its cases called in', () => {
     const twice = [test('a.test.ts'), test('a.test.ts')];
     const fanIn = coverageFanIn([{ index: index(twice, module('src/total.ts', block('apply', [0, 1]))) }]);

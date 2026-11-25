@@ -5,8 +5,8 @@
  *
  * Every position is `start` and `cost` as the recording holds them, over an
  * axis from the earliest start shown to the latest end shown. A file with no
- * start is not placed, and the view counts them rather than lending them a
- * place.
+ * start or no cost is not placed, and the view counts them rather than lending
+ * them a place.
  */
 
 import { section, text } from './report-html-elements.js';
@@ -43,13 +43,13 @@ export function timelineView(data: TimelineData): View {
   const end = Math.max(...data.files.map((file) => file.start! + file.cost!));
   const span = Math.max(end - t0, 1);
   const keys = PHASE_CLASS.map((name) => `<span class="key"><i class="ph ${name}"></i>${name}</span>`).join('');
-  const unplaced = data.unplaced === 0 ? '' : `<p class="note">${text(`${data.unplaced} recorded files carry no start offset, so the clock cannot place them.`)}</p>`;
+  const unplaced = data.unplaced === 0 ? '' : `<p class="note">${text(`${data.unplaced} recorded files carry no start or no cost, so the clock cannot place them.`)}</p>`;
   const axis = `<div class="axis"><span>0</span><span>${text(ms(span / 2))}</span><span>${text(ms(span))}</span></div>`;
   const body = `<div class="keys">${keys}</div>${unplaced}${axis}${data.files.map((file) => lane(file, t0, span)).join('')}`;
   return {
     id: 'timeline',
     label: 'Timeline',
-    body: section('Files on the clock', `${data.files.length} slowest files, ordered by start; the axis spans ${ms(span)}`, body).replace('<section', '<section class="part"'),
+    body: section('Files on the clock', `${data.files.length} of ${data.placed} placed files, the slowest, ordered by start; the axis spans ${ms(span)}`, body, undefined, undefined, 'part'),
   };
 }
 

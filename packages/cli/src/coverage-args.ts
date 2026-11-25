@@ -18,6 +18,8 @@ export interface ParsedCoverage {
   readonly atDistance?: string;
   /** `--fan-in`: count, for every region and every file, the test files that called into it. */
   readonly fanIn?: true;
+  /** Name the test files behind each file's fan-in. Set by `variance view`; there is no flag, a list per file is for a page. */
+  readonly fanInTests?: true;
   /** `--session <name>=<path>`, repeatable: V8 coverage a person exported from a run of their own, set beside the record by name. */
   readonly sessions?: readonly { readonly name: string; readonly path: string }[];
   /** `--served <dir>`: the directory a session's `http(s):` scripts were served from. */

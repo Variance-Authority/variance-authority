@@ -57,6 +57,14 @@ export interface FanInFile {
   readonly share: number;
   /** The `entered` test files' share of those suites' time. Absent when a case was not timed. */
   readonly duration?: number;
+  /** The test files that entered the file, by path, once each across suites, in code-unit order. Present only when asked. */
+  readonly tests?: readonly string[];
+}
+
+/** What {@link coverageFanIn} adds when asked. */
+export interface FanInOptions {
+  /** Name the test files behind each file's `entered`: a list per file, so only for a page that draws it. */
+  readonly tests?: boolean;
 }
 
 /** How many test files called into each region: per kind, and per file. */
@@ -73,7 +81,7 @@ export interface FanIn {
  * made while the module evaluated is not one. An edit also sends the test
  * files that only loaded the region, which `coveringTests` names per file.
  */
-export function coverageFanIn(suites: readonly CountedSuite[]): FanIn {
+export function coverageFanIn(suites: readonly CountedSuite[], options: FanInOptions = {}): FanIn {
   const kinded = suites.every((suite) => suite.kind !== undefined);
   const kindOf = (at: number): SuiteKind | undefined => (kinded ? suites[at]!.kind : undefined);
   // A test file is a file of one suite: two suites running one path are two runs of it.
@@ -179,6 +187,7 @@ export function coverageFanIn(suites: readonly CountedSuite[]): FanIn {
       testFiles: all.size,
       share: all.size === 0 ? 0 : entered.size / all.size,
       ...(time === undefined ? {} : { duration: time }),
+      ...(options.tests === true ? { tests: [...new Set([...entered].map((test) => test.slice(test.indexOf('\0') + 1)))].sort(codeUnitOrder) } : {}),
     });
   }
   return { kinds, files: rows.sort((left, right) => codeUnitOrder(left.file, right.file)) };

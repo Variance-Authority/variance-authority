@@ -9,6 +9,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { cacheRootFor } from '@variance-authority/sense/test-selection';
+import { OperatorError } from '../exit.js';
 import type { ParsedView } from '../view-args.js';
 import { coverage, type Coverage } from './coverage.js';
 import { textOver } from './coverage-over-text.js';
@@ -17,17 +18,20 @@ import { viewPage } from './view-page.js';
 
 /** The page's path on stdout, and what could not be counted on stderr. */
 export async function viewOutput(parsed: ParsedView, cwd: string): Promise<{ readonly out: string; readonly err: string }> {
-  const data = await viewData(cwd, parsed.suite);
   let counted: Coverage | { readonly missed: string };
   let err = '';
   try {
-    counted = await coverage({ command: 'coverage', root: cwd, format: 'html', ...(parsed.suite === undefined ? {} : { suite: parsed.suite }) }, textOver);
+    counted = await coverage(
+      { command: 'coverage', root: cwd, format: 'html', fanIn: true, fanInTests: true, ...(parsed.suite === undefined ? {} : { suite: parsed.suite }) },
+      textOver,
+    );
   } catch (error) {
-    const reason = error instanceof Error ? error.message : String(error);
-    counted = { missed: reason };
-    err = `view: coverage was not counted: ${reason}\n`;
+    if (!(error instanceof OperatorError)) throw error;
+    counted = { missed: error.message };
+    err = `view: coverage was not counted: ${error.message}\n`;
   }
-  const path = resolve(cwd, parsed.out ?? `${cacheRootFor(cwd)}/variance-view.html`);
+  const data = viewData(cwd, parsed.suite, 'missed' in counted ? counted : counted.fanIn);
+  const path = resolve(cwd, `${cacheRootFor(cwd)}/variance-view.html`);
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, viewPage(data, counted));
   return { out: `${path}\n`, err };

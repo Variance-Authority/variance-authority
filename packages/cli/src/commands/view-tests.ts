@@ -35,10 +35,7 @@ function files(data: TestsData): string {
     ({ file, duration }) =>
       `<tr data-key="${text(file)}"><td>${fileLink(file)}</td><td class="num" data-v="${duration}">${text(ms(duration))}</td></tr>`,
   );
-  return section('Slowest files', `${data.slowestFiles.length} by what running the file cost`, table([['file', false], ['time', true]], rows)).replace(
-    '<section',
-    '<section class="part"',
-  );
+  return section('Slowest files', `${data.slowestFiles.length} by what running the file cost`, table([['file', false], ['time', true]], rows), undefined, undefined, 'part');
 }
 
 function cases(data: TestsData): string {
@@ -53,7 +50,7 @@ function cases(data: TestsData): string {
     );
   });
   const head = [['case', false], ['file', false], ['time', true], ['limit', true], ['of limit', true]] as const;
-  return section('Slowest cases', `${data.slowestCases.length} by what the runner reported`, table(head, rows)).replace('<section', '<section class="part"');
+  return section('Slowest cases', `${data.slowestCases.length} by what the runner reported`, table(head, rows), undefined, undefined, 'part');
 }
 
 function attempts(data: TestsData): string {
@@ -67,10 +64,7 @@ function attempts(data: TestsData): string {
     return `<tr data-key="${text(`${file} ${name}`)}"><td>${text(name)}${message}</td><td>${fileLink(file)}</td><td>${marks}</td><td class="num" data-v="${tries.length}">${tries.length}</td></tr>`;
   });
   const hint = `${data.differing} ended differently from one attempt to the next`;
-  return section('Retried cases', hint, table([['case', false], ['file', false], ['attempts', false], ['n', true]], rows)).replace(
-    '<section',
-    '<section class="part"',
-  );
+  return section('Retried cases', hint, table([['case', false], ['file', false], ['attempts', false], ['n', true]], rows), undefined, undefined, 'part');
 }
 
 /** The Tests view, with the reason beside every half the recording could not fill. */

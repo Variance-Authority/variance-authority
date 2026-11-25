@@ -31,7 +31,6 @@ export function coverageHtml(answer: Coverage, others: readonly View[] = []): st
     views: [...others, coverageView(answer)],
     first: 'coverage',
     style: STYLE,
-    script: SCRIPT,
   });
 }
 
@@ -224,7 +223,7 @@ function fileRow(file: string, regions: number, run: number, owned: OwnedFile | 
     `<td>${fan?.by === undefined ? '' : Object.entries(fan.by).flatMap(([kind, n]) => (n === undefined ? [] : [`<span class="mark band">${text(`${kind} ${grouped(n)}`)}</span>`])).join('')}</td>`,
     `<td class="num">${fan?.duration === undefined ? '<span class="nil">—</span>' : text(ratio(fan.duration, 1))}</td>`,
   );
-  return `<tr data-row="${text(`file:${file}`)}">${cells.join('')}</tr>`;
+  return `<tr data-row="${text(`file:${file}`)}" data-key="${text(file)}">${cells.join('')}</tr>`;
 }
 
 /* --- what no suite loads ---------------------------------------------------- */
@@ -289,18 +288,5 @@ border-radius:2px;background:var(--charcoal);overflow:hidden}
 .package table{margin:0 0 1rem}
 `;
 
-/** Filtering by path opens each package that holds a match, and shuts the rest again. */
-const SCRIPT = `
-const filter=document.querySelector('#view-coverage .vfilter');
-if(filter)filter.addEventListener('input',()=>{
-const q=filter.value.trim().toLowerCase();
-for(const row of document.querySelectorAll('tr[data-row^="file:"]'))row.classList.toggle('hidden',q!==''&&!row.dataset.row.toLowerCase().includes(q));
-for(const box of document.querySelectorAll('details.package')){
-const any=box.querySelector('tr[data-row^="file:"]:not(.hidden)')!==null;
-box.open=q!==''&&any;box.classList.toggle('hidden',q!==''&&!any);}
-});
-`;
-
 /** What the Coverage view alone draws, for a shell that holds it among others. */
 export const COVERAGE_STYLE = `${STYLE}\n.lead{margin-bottom:2rem}\n`;
-export const COVERAGE_SCRIPT = SCRIPT;
