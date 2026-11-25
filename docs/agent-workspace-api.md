@@ -128,10 +128,12 @@ manager runs a local binary:
 
 Ask before you grep: `variance ask uses --name <name>` lists who imports a
 name, `ask symbol --name <name>` prints what it is and where it is declared, and
-`ask search --query <words>` finds a name by what it does. They answer from the
-code its index parses; YAML, JSON, Markdown and shell are `rg`'s, run beside
-them, and an empty answer says nothing about a file they did not search. The
-`variance-authority` skill lists what the index parses, and has the rest.
+`ask search --query <words>` finds a name by what it does. `ask classify --query
+'<the task text>'` lists the files and names a task's words spell, with what
+those files declare. They answer from the code its index parses; YAML, JSON,
+Markdown and shell are `rg`'s, run beside them, and an empty answer says nothing
+about a file they did not search. The `variance-authority` skill lists what the
+index parses, and has the rest.
 ```
 
 The skill is `variance-authority`. It ships in `@variance-authority/cli` at
@@ -159,7 +161,7 @@ search, indexed source search and observed-subject search.
 | You need | Start with |
 | --- | --- |
 | Text outside the source: YAML, JSON, Markdown, shell, workflows, logs | `rg` or `git grep`, beside `variance` rather than after it; it needs no index, and an empty `variance` answer says nothing about a file `variance` did not search. |
-| A string or a regular expression in code | `ask grep --query <pattern> --from <path>`, or `docs_grep` over MCP; the query is a ripgrep regular expression: to match a literal, escape each metacharacter with a backslash, as `'a\(b'` matches `a(b`; it matches only the files that path names and reaches along the imports, a Markdown or JSON file that code imports among them, nearest first, and a top folder is the widest path it takes. Past 20 matching lines, with no `limit` or `offset` said, it answers with the first 10, then the folders and files they are all in, at most 10 rows, the line count of each, a row for what is left of a folder past its own rows, and, where one start point was given and `ask discover` reads it and the pattern as `grep` does, the question that lists the files of the first row that is not such a rest. |
+| A string or a regular expression in code | `ask grep --query <pattern> --from <path>`, or `docs_grep` over MCP; the query is a ripgrep regular expression: to match a literal, escape each metacharacter with a backslash, as `'a\(b'` matches `a(b`; it matches only the files that path names and reaches along the imports, a Markdown or JSON file that code imports among them, nearest first, and a top folder is the widest path it takes. Past 20 matching lines, with no `limit` or `offset` said, it answers with the first 10, then the folders and files they are all in, at most 10 rows, the line count of each, a row for what is left of a folder past its own rows, and, where one start point was given and `ask discover` reads it and the pattern as `grep` does, the question that lists the files of the first row that is not such a rest. One start point that is not found or reaches no match, with no `limit` or `offset` said, is answered from the nearest folder around it that has one. |
 | An exact string in committed source | `git grep <tree>`; a named tree searches Git objects and deliberately leaves working-tree edits out. |
 | A name you can only describe, its exact signature, or the code that imports it | The workspace index; those answers depend on declarations, exports, resolved imports, and the area named by `from` or `to`. |
 | Nothing in hand, and the repository unknown | `ask orient`, or `docs_orient` over MCP; it prints the code map, the repository's packages in areas, and `--area`, `area` over MCP, opens one area. |
@@ -382,8 +384,9 @@ one held. A found `symbol` or `uses`, a `grep`, and a `docs_search`, is asked
 again of a generation made from the checkout as it is when a file it rests on
 changed or went away after the generation: the rows `docs_search` prints with
 the entry and each barrel that publish them, for `grep` every file of the area
-it searched, and for the other two the files that declare the name or pass it
-on and the entry that publishes it, with each row `uses` lists. An edit anywhere
+it was asked about, and for the other two the files that declare the name or pass it
+on and the entry that publishes it, with each row `uses` lists. The folder a `grep`
+answers from where that area holds no match is not among them. An edit anywhere
 else waits for the hour. The look is a stat of each file. When the checkout
 cannot be read again, or the new read cannot be saved, or a file the answer
 rests on is saved during the read that answers it, the answer or the refusal
@@ -443,17 +446,20 @@ file, such as a build output the checkout does not hold, opens no names, and
 the imports that name that entry are counted apart from the deep ones. Either
 row goes to `docs_entrypoint` as `package`, exactly as printed.
 
-Holding a request in words rather than a name, call `docs_classify` with it as
-`query` instead. It says which of its words are, whole, a package, an
-entrypoint or an exported name, and then which identifier-shaped words left —
-`ModuleLoader`, `child_process` — are a name `docs_symbol` finds declared or a
-file's name before its first dot in the published source index, each with its area and layer on the code map,
-and then the question each one takes next, written as the `variance ask`
-command whatever the caller: `symbol` (`docs_symbol`) for an exported or
-declared name, none for a file, which is already the answer,
-`entrypoint` (`docs_entrypoint`) for a published package or entrypoint, and
-`orient --area` (`docs_orient`) for a package that publishes nothing, or no
-question when the map placed it in no area. When words remain unrecognized or
+Holding a request in words, whether or not it spells code names and paths, call
+`docs_classify` with it as `query` instead. It says which of its words are,
+whole, a package, an entrypoint or an exported name, and then which
+identifier-shaped words left — `ModuleLoader`, `child_process` — are a name
+`docs_symbol` finds declared or a file's name before its first dot in the
+published source index, and which paths and file names written with an
+extension — `lib/loader.js`, `run_main.js` — are a file in it; a path that names
+nothing is read as the words in it. Each is listed with its
+area and layer on the code map, and then the question each one takes next,
+written as the `variance ask` command whatever the caller: `symbol`
+(`docs_symbol`) for an exported or declared name, none for a file, which is
+already the answer, `entrypoint` (`docs_entrypoint`) for a published package or
+entrypoint, and `orient --area` (`docs_orient`) for a package that publishes
+nothing, or no question when the map placed it in no area. When words remain unrecognized or
 `from` or `to` is supplied, it also ranks the areas of the tree the request's
 words point to, best first — a directory of at
 most 500 indexed files, scored by the words its path, its files' names and the
@@ -540,7 +546,11 @@ are all `pub` is not declared on its own: the file exports the outermost of
 them, and you ask for that module by name. `docs_symbol` gives its kind, the
 file and line that declare it, its signature, what is written above it, and who
 can reach it under the file's language, after any export of the same name in
-another file. A name
+another file. A name a file does not export and only binds, by destructuring
+it out of a value or with `const x = require('m')`, is not declared there:
+`docs_symbol` lists the file after every declaration as one that binds it, and
+when nothing else answers the name, says first that no file declares it. `docs_uses` lists it as a use, not as
+another declaration. A name
 in a JavaScript or TypeScript module, a Swift `private` or `fileprivate` one
 and a Kotlin `private` one are that file's alone: no other file can import
 them. Another Python module can still import the name by spelling it. A Rust

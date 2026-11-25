@@ -133,7 +133,7 @@ pub fn classify_areas(
     })
 }
 
-/// The bounded files named by one exact basename, with every match counted.
+/// The bounded files one word spells, with every match counted.
 #[napi(object)]
 pub struct NamedFiles {
     pub name: String,
@@ -141,7 +141,7 @@ pub struct NamedFiles {
     pub count: u32,
 }
 
-/// Identifier-shaped words read from the same published source-index snapshot.
+/// Words shaped as an identifier or spelled as a file, read from the same published source-index snapshot.
 #[napi(object)]
 pub struct ClassifiedNames {
     pub named: Vec<NamedFiles>,
@@ -149,7 +149,25 @@ pub struct ClassifiedNames {
     pub refused: Option<String>,
 }
 
-/// File basenames and exact declaration locations; no live checkout is read.
+/// The files each of `words` spells by their name: a word with a dot is a file's
+/// whole name, and any other its name before the first dot. A word with a slash
+/// is a path, and none of these. In one read of `paths`, in their order.
+fn spelled<'a, 'w>(words: &'w [String], paths: &[&'a str]) -> HashMap<&'w str, Vec<&'a str>> {
+    let mut files: HashMap<&str, Vec<&str>> = words.iter().filter(|word| !word.contains('/')).map(|word| (word.as_str(), Vec::new())).collect();
+    for &path in paths {
+        let name = path.rsplit('/').next().unwrap_or(path);
+        let stem = crate::path::name_and_suffix(path).0;
+        for word in [name.contains('.').then_some(name), (!stem.contains('.')).then_some(stem)].into_iter().flatten() {
+            if let Some(found) = files.get_mut(word) {
+                found.push(path);
+            }
+        }
+    }
+    files
+}
+
+/// The files each word spells, and the exact declaration locations of a word
+/// that is no file's spelling; no live checkout is read.
 ///
 /// bound: only the requested names' exact declarations, and at most `cap` filenames per name
 #[napi(catch_unwind)]
@@ -160,17 +178,26 @@ pub fn classify_names(words: Vec<String>, cap: u32, index: String, within: Strin
         let folded = fold(layers);
         let mut paths: Vec<&str> = folded.keys().filter_map(|path| path.strip_prefix(&prefix)).collect();
         paths.sort_unstable_by(|one, other| crate::order::code_unit(one, other));
+        let mut by_name = spelled(&words, &paths);
         let mut named = Vec::new();
         let mut declared = Vec::new();
         let mut seen = HashSet::new();
         for word in words.iter().filter(|word| seen.insert(word.as_str())) {
-            if !word.is_empty() && !word.chars().any(|c| matches!(c, '.' | '/' | '*' | '?' | '[' | ']' | '\\' | ':')) {
-                let files: Vec<&str> = paths.iter().copied().filter(|path| {
-                    crate::path::name_and_suffix(path).0 == word
-                }).collect();
-                if !files.is_empty() {
-                    named.push(NamedFiles { name: word.clone(), count: files.len() as u32, files: files.into_iter().take(cap as usize).map(str::to_owned).collect() });
-                }
+            let files: Vec<&str> = if word.contains('/') {
+                // A path is the file at it; a leading `./` is the workspace's own folder.
+                let path = word.strip_prefix("./").unwrap_or(word);
+                folded.contains_key(format!("{prefix}{path}").as_str()).then_some(path).into_iter().collect()
+            } else {
+                let mut files = by_name.remove(word.as_str()).unwrap_or_default();
+                // The file at the root is the word itself, so the cap never drops it.
+                files.sort_by_key(|path| path != word);
+                files
+            };
+            if !files.is_empty() {
+                named.push(NamedFiles { name: word.clone(), count: files.len() as u32, files: files.into_iter().take(cap as usize).map(str::to_owned).collect() });
+            }
+            if word.contains(['.', '/']) {
+                continue;
             }
             declared.extend(crate::help_declared::declaration_locations(layers, word).into_iter().filter_map(|mut row| {
                 row.at = row.at.strip_prefix(&prefix)?.to_owned();

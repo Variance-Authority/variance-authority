@@ -18,7 +18,7 @@
 
 // compass: variance-authority.report.agent-surface
 
-import { aliasesOf, declaredOf, type DeclaredName } from '@variance-authority/sense';
+import { aliasesOf, BINDING, declaredOf, type DeclaredName } from '@variance-authority/sense';
 import type { Said } from './held-sentence.js';
 import type { AliasMatch, DeclaredMatch, DeclaredRead, HeldMatch, Matches, MatchingFiles } from './search-matches.js';
 import { boundOf, SLOT } from './declaration-key.js';
@@ -67,15 +67,21 @@ export function declarations(
 /** The declarations of exactly `name`, read once for a generation's answer and the look at it. */
 export const declarationsNamed = askedOnce((_help: Help, root: string | undefined, name: string): Declarations => declarations(root, name));
 
+/** Whether a row only binds the name to a value defined elsewhere, which declares nothing. */
+export const isBound = (one: Pick<DeclaredName, 'kind'>): boolean => one.kind === BINDING;
+
+/** What a file does with a name it does not export, as every answer about the name says it. */
+export const keptAs = (one: Pick<DeclaredName, 'kind'>): string => (isBound(one) ? 'bound, not declared' : 'declared, not exported');
+
 /**
- * One declaration, as `symbol` writes it: the name and its kind, where it is
+ * One declaration or binding, as `symbol` writes it: the name and its kind, where it is
  * declared, its signature and its documentation as the index recorded them,
  * and who can reach it.
  */
 function declaredBlock(held: DeclaredName, spell: Spelling): string {
   return [
     `${held.name} [${held.kind}]`,
-    `declared, not exported, at ${held.at}:${held.line}${held.by === '' ? '' : ` by ${held.by}`}`,
+    `${keptAs(held)}, at ${held.at}:${held.line}${held.by === '' ? '' : ` by ${held.by}`}`,
     ...textRows(held),
     reachSentences(held, spell).block,
   ].join('\n');
@@ -202,7 +208,7 @@ export function declaredBlocks(
   const read = declarationsNamed(help, root, name);
   if (root === undefined || 'refused' in read) return { blocks: [] };
   const held = nearestFirst(
-    read.names.filter((one) => wanted === undefined || one.by === wanted),
+    read.names.filter((one) => !isBound(one) && (wanted === undefined || one.by === wanted)),
     from,
   );
   if (held.length === 0) return { blocks: [] };
@@ -212,6 +218,19 @@ export function declaredBlocks(
     ...unreadLine(read.unread),
   ];
   return { blocks };
+}
+
+/**
+ * The blocks `symbol` answers the files that only bind a name with, after every
+ * declaration of it: the order and the `limit` are those of `declaredBlocks`.
+ */
+export function boundBlocks(help: Help, root: string | undefined, name: string, wanted: string | undefined, spell: Spelling, limit: number, from: readonly string[] = []): readonly string[] {
+  if (root === undefined) return [];
+  const held = nearestFirst(declaredAt(help, root, name, wanted).filter(isBound), from);
+  return [
+    ...held.slice(0, limit).map((one) => declaredBlock(one, spell)),
+    ...notShownPast(held.length, limit, spell, { one: `binding of \`${name}\``, many: `bindings of \`${name}\`` }),
+  ];
 }
 
 /** Whether a function's body declares it, rather than its file's top level. */
@@ -229,7 +248,7 @@ function nearestFirst(held: readonly DeclaredName[], from: readonly string[]): r
 }
 
 /**
- * The file-private declarations of the name, source first, top-level or
+ * The file-private declarations and bindings of the name, source first, top-level or
  * inside a function as `isNested` tells; none when the index is not at hand.
  */
 export function declaredAt(help: Help, root: string | undefined, name: string, wanted: string | undefined): readonly DeclaredName[] {

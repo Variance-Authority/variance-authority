@@ -6,7 +6,7 @@ import { kindOf, type Help } from '@variance-authority/package/help';
 import { classifiedAreas, describedWordsNative, classifyNames, declarationsOf, packageLayers, sourceIndexPath } from '@variance-authority/sense';
 import { searchIndexOf, storeBytesOf } from '../snapshot.js';
 import { reachLine, reachOf, type Reach } from './area.js';
-import { classifyWords, formatClassified, formatNamedFiles, namedFiles, identifier, unshownFiles, ownerOf, placedAreas, wordsOf, type CodeMapPlaces, type Locate, type Named, type StartPoint } from './classify-words.js';
+import { asksOrder, classifyWords, formatClassified, formatNamedFiles, namedFiles, unshownFiles, ownerOf, placedAreas, type CodeMapPlaces, type Locate, type Named, type StartPoint } from './classify-words.js';
 import { noCodeMap, unfoldedCodeMap } from './code-map-format.js';
 import { termsOfStems } from './loose.js';
 
@@ -41,22 +41,29 @@ interface Found {
   readonly test: boolean;
 }
 
+/** Why the source was not read, and the words it was not read for. */
+interface Unread {
+  why?: string;
+  words?: ReadonlySet<string>;
+}
+
 /**
- * Exact declarations and indexed filenames, ordered by reach, source kind,
- * importer count, path and line. Only the shown rows and remaining counts are
- * rendered; an unavailable snapshot is reported through `unread`.
+ * Exact declarations and indexed filenames, ordered by reach, the path that is
+ * the word itself, source kind, importer count, path and line. Only the shown
+ * rows and remaining counts are rendered; an unavailable snapshot is reported
+ * through `unread`.
  */
 function locating(
   root: string,
   places: CodeMapPlaces,
   invocation: ToolInvocation<Help> | undefined,
-  unread: { why?: string },
+  unread: Unread,
   inReach: ((file: string) => boolean) | undefined,
 ): Locate {
   return (words, filesOnly = new Set()) => {
     const owning = ownerOf(places.packages);
     const found = classifyNames(root, words, FILES_READ, invocation?.sourceIndex);
-    if (found.refused != null) unread.why = found.refused;
+    if (found.refused != null) Object.assign(unread, { why: found.refused, words: new Set(words) });
     const named = new Map(found.named.map((one) => [one.name, one]));
     // An export already says where it is declared, so only its files are added.
     const declared = new Map(words.map((word) => [word, filesOnly.has(word) ? [] : found.declared
@@ -67,14 +74,15 @@ function locating(
     const counts = invocation?.tree === undefined || paths.length === 0 ? [] : invocation.tree.importers(paths);
     const importers = new Map(paths.map((path, at) => [path, counts[at] ?? 0]));
     const outside = (found: Found): number => Number(inReach !== undefined && !inReach(found.at));
-    const order = (one: Found, other: Found): number =>
+    const order = (word: string) => (one: Found, other: Found): number =>
       outside(one) - outside(other) ||
+      Number(other.at === word) - Number(one.at === word) ||
       Number(one.test) - Number(other.test) ||
       (importers.get(other.at) ?? 0) - (importers.get(one.at) ?? 0) ||
       codeUnitOrder(one.at, other.at) ||
       (one.line ?? 0) - (other.line ?? 0);
-    const shown = (found: readonly Found[], kind: 'declared' | 'file', count = found.length): readonly Named[] => {
-      const sorted = [...found].sort(order);
+    const shown = (word: string, found: readonly Found[], kind: 'declared' | 'file', count = found.length): readonly Named[] => {
+      const sorted = [...found].sort(order(word));
       return sorted.slice(0, LOCATED_CAP).map((one, at, kept) => ({
         kind,
         specifier: one.line === undefined ? one.at : `${one.at}:${one.line}`,
@@ -87,7 +95,7 @@ function locating(
     return new Map(words.map((word) => {
       const file = named.get(word);
       const asFiles = (file?.files ?? []).map((at) => ({ at, test: kindOf(at) !== 'source' }));
-      return [word, [...shown(declared.get(word) ?? [], 'declared'), ...shown(asFiles, 'file', file?.count)]] as const;
+      return [word, [...shown(word, declared.get(word) ?? [], 'declared'), ...shown(word, asFiles, 'file', file?.count)]] as const;
     }));
   };
 }
@@ -142,17 +150,18 @@ export const classify: Tool<Help> = {
   description:
     'Which words of a request, as written, name a package on the code map or what this workspace publishes. A word is an entity when it is, ' +
     'whole, the name of a package on the code map or that name without its scope, an entrypoint\'s specifier (both without case), or a ' +
-    'published exported name (as spelled). A word shaped as an identifier (a capital past its first letter, an underscore, or a digit ' +
-    'after a letter) that is none of those is then, as spelled, a name docs_symbol finds a file declaring, and the base name of a ' +
-    'indexed file before its first dot: ordinary source before tests, then the more imported file first, three of each and the rest ' +
-    'counted, each in the map package nearest at or above it, or in no package. A plain lowercase word is never looked up so, and a word ' +
+    'published exported name (as spelled). A word that is none of those and is shaped as an identifier (a capital past its first letter, an ' +
+    'underscore, or a digit after a letter) is then, as spelled, a name docs_symbol finds a file declaring, and the base name of an ' +
+    'indexed file before its first dot. A path from the workspace\'s root is the indexed file at it, and a word with a dot and no slash ' +
+    'the indexed files of that name. Files are listed ordinary source before tests, then the more imported file first, three of each and the rest ' +
+    'counted, each in the map package nearest at or above it, or in no package. A plain lowercase word is never looked up so, a path that names nothing is read as the words in it, and a word ' +
     'that is only part of a name is not one. Each entity is listed with ' +
     'what it names, its package\'s area and dependency layer on the code map as docs_orient numbers them, then the ' +
     'words that name nothing on one line. When words remain unrecognized or `from` or `to` is supplied, it also ranks the areas the words point to, ten at most, best first: a directory of at ' +
     'most 500 files held by the published source index, scored by the request\'s words, by stem, that its path, its files\' names and the top-level names its files ' +
     'declare, exported or not, hold, a word held by fewer areas counting for more and every declared name counting once per file in an area\'s length whatever its export visibility; each with the package on the code map nearest at or above it, and that package\'s area and layer. With `from` or `to`, only the files that start point reaches along the ' +
     'imports are ranked: a product\'s folder and the shared code it imports. It ends with the source files the request names, each with up to ' +
-    'eight functions and classes it declares, exported first: they are the answer. Ask it first when holding a request in words and no name.',
+    'eight functions and classes it declares, exported first: they are the answer. Ask it first when holding a request in words, with or without names and paths in them.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -164,8 +173,8 @@ export const classify: Tool<Help> = {
     additionalProperties: false,
   },
 
-  // The import graph orders the places an identifier-shaped word is found, so it is read for one.
-  wants: (input) => saysStartPoint(input) || (typeof input['query'] === 'string' && wordsOf(input['query']).some(identifier)),
+  // The import graph orders the places a looked-up word is found, so it is read for one.
+  wants: (input) => saysStartPoint(input) || (typeof input['query'] === 'string' && asksOrder(input['query'])),
 
   run(help, input, invocation) {
     const query = typeof input['query'] === 'string' ? input['query'] : '';
@@ -187,12 +196,12 @@ export const classify: Tool<Help> = {
         : { ...(from === undefined ? {} : { from: [from].flat() }), ...(to === undefined ? {} : { to: [to].flat() }) };
     const reach = said === undefined ? undefined : reachOf(from, to, invocation?.tree);
     const inReach = reachTest(reach?.walks);
-    const unread: { why?: string } = {};
+    const unread: Unread = {};
     const reading = classifyWords(query, help, places.packages.keys(), locating(root, places, invocation, unread, inReach));
     const classified = unread.why === undefined ? reading : {
       ...reading,
-      plain: reading.plain.filter((word) => !identifier(word)),
-      unknown: reading.plain.filter(identifier),
+      plain: reading.plain.filter((word) => unread.words?.has(word) !== true),
+      unknown: reading.plain.filter((word) => unread.words?.has(word) === true),
     };
     // A word the snapshot could not look up is not said to name none, and the
     // named files come last: they are the answer the rest leads to.

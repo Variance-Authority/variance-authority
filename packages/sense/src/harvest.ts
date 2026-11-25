@@ -28,6 +28,8 @@ export type SourceSymbolKind =
   | 'using'
   | 'await using'
   | 'object'
+  // A name destructured out of a value, or set to a whole required module.
+  | 'binding'
   // The other languages' readers.
   | 'struct'
   | 'union'

@@ -77,6 +77,18 @@ fn a_destructured_binding_is_a_binding_and_a_declarator_its_own_kind() {
 }
 
 #[test]
+fn a_whole_module_bound_by_a_constant_require_is_a_binding() {
+    let source = "const whole = require('./a');\nconst wrapped = (require('./b'));\nconst named = require(name);\nconst made = make();\nconst member = require('./a').A;\nlet both = require('./a'), count = 1;\n";
+    assert_eq!(kind("a.js", source, "whole"), "binding");
+    assert_eq!(kind("a.js", source, "wrapped"), "binding");
+    assert_eq!(kind("a.js", source, "both"), "binding");
+    assert_eq!(kind("a.js", source, "named"), "const");
+    assert_eq!(kind("a.js", source, "made"), "const");
+    assert_eq!(kind("a.js", source, "member"), "const");
+    assert_eq!(kind("a.js", source, "count"), "let");
+}
+
+#[test]
 fn a_published_binding_taken_off_a_module_is_a_binding() {
     let source = "'use strict';\nconst { ChildProcess } = require('internal/child_process');\nmodule.exports = { ChildProcess };\n";
     assert_eq!(kind("lib/child_process.js", source, "ChildProcess"), "binding");

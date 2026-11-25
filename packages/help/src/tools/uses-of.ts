@@ -18,7 +18,7 @@ import type { Documented, Entry, Help, Named, Opening, Use } from '@variance-aut
 import type { DeclaredName } from '@variance-authority/sense';
 import { askedOnce } from './asked-once.js';
 import { type PathSite, how, ownerOf, sitesByPath } from './by-path.js';
-import { DECLARED_CAP, declarationsNamed } from './declared.js';
+import { DECLARED_CAP, declarationsNamed, isBound } from './declared.js';
 import { FoundNothing, isPackage, nowhere, specifierOf } from './find.js';
 import { type Members, membersOf } from './members.js';
 import { answering, answers, keyOf, originKey, originOf, says, SLOT } from './declaration-key.js';
@@ -385,7 +385,7 @@ export function usesOf(help: Help, input: Readonly<Record<string, unknown>>, roo
   const files = [
     ...all.published.map((one) => one.at),
     ...all.exporting.filter((held) => held.bound !== undefined).map((held) => held.at),
-    ...all.kept.map((one) => one.at),
+    ...all.kept.filter((one) => !isBound(one)).map((one) => one.at),
     ...all.members.declared.map((one) => one.at),
   ];
 
@@ -423,14 +423,19 @@ export function usesOf(help: Help, input: Readonly<Record<string, unknown>>, roo
     }),
   ];
   const { keptSites, keptInFile } = keptUses(root, name, kept);
+  const absence = (): string => nowhere(help, name, wanted, root, members, undefined, spell, limitOf(input, DECLARED_CAP, spell));
   const shared = { name, lead, found, exported, namesakes, byPath, members, kept, keptSites, keptInFile, file, files };
   if (found.length === 0 && byPath.length === 0 && exported.length === 0) {
+    // A name nothing here declares, in any file, is answered as one before the files that bind it.
+    const nothing = all.published.length === 0 && all.exporting.length === 0 && paths.length === 0 && all.members.declared.length === 0 && all.kept.every(isBound);
+    const absent = kept.length > 0 && nothing ? absence() : undefined;
     if (kept.length > 0 || members.declared.length > 0) {
-      return { ...shared, home: undefined as string | undefined, sites: [] as readonly Site[], unread: undefined, within: undefined, inFile: [] as readonly Use[], undeclared, origin: undefined, originNamed: undefined as string | undefined, inside: [] as readonly string[] };
+      return { ...shared, absent, home: undefined as string | undefined, sites: [] as readonly Site[], unread: undefined, within: undefined, inFile: [] as readonly Use[], undeclared, origin: undefined, originNamed: undefined as string | undefined, inside: [] as readonly string[] };
     }
-    if (file !== undefined && files.length > 0) throw new FoundNothing(notDeclaredIn(name, file, files));
+    const bound = all.kept.filter(isBound).map((one) => one.at);
+    if (file !== undefined && files.length + bound.length > 0) throw new FoundNothing(notDeclaredIn(name, file, files, bound));
     // The answer `symbol` gives: what was read and declares nothing, and where else the name may be.
-    throw new FoundNothing(nowhere(help, name, wanted, root, members, undefined, spell, limitOf(input, DECLARED_CAP, spell)));
+    throw new FoundNothing(absence());
   }
   // A published declaration is read out of its file by the name it is declared by; the walk follows every door that renames it.
   const { sites, unread, within, inFile, namespaces } = answeredFirst ?? sitesOfOne(help, root, spellingsAt(help, root, exported, name), wanted, found, [...new Set(exported.map((held) => held.at))], byPath);
@@ -442,7 +447,7 @@ export function usesOf(help: Help, input: Readonly<Record<string, unknown>>, roo
   // The answer names one export's place, so only a name exported once is followed.
   const origin = only === undefined || exported.length > 1 ? undefined : originOf(help, root, only);
   const originNamed = origin === undefined ? undefined : originKey(help, root, origin).named;
-  return { ...shared, home, sites, unread, within, inFile, undeclared, origin, originNamed, inside: publishedInside(help, namespaces) };
+  return { ...shared, absent: undefined as string | undefined, home, sites, unread, within, inFile, undeclared, origin, originNamed, inside: publishedInside(help, namespaces) };
 }
 
 /** The package a published declaration is declared in, which a re-exporting door is not. */

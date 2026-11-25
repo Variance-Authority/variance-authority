@@ -1,7 +1,6 @@
 import type { FileSet, Spelling, Tool, ToolInvocation } from '@variance-authority/mcp/tools';
 import { limitOf, notShownPast, START_POINT_SCHEMA, spellingOf, startPointArg, stringArg } from '@variance-authority/mcp/tools';
 import type { Help, Named } from '@variance-authority/package/help';
-import { BINDING } from '@variance-authority/sense';
 import { how, sitesByPath, type PathSite } from './by-path.js';
 import { FoundNothing, nowhere, specifierOf } from './find.js';
 import { memberRows } from './container.js';
@@ -9,7 +8,7 @@ import { block, plural } from './format.js';
 import { queryDependencyLexicon, type LexiconMatches } from '../dependency-lexicon.js';
 import { silentBlocks } from './silent.js';
 import { thirdBlock } from './third-party.js';
-import { DECLARED_CAP, declarationsNamed, declaredAt, declaredBlocks, isNested, textRows, unreadLine } from './declared.js';
+import { DECLARED_CAP, boundBlocks, declarationsNamed, declaredAt, declaredBlocks, isBound, isNested, textRows, unreadLine } from './declared.js';
 import { uses } from './uses.js';
 import { type Members, containerOf, isUnnamedContainer, membersOf, membersStop, membersUnread } from './members.js';
 import { exportedRows } from './passed-on.js';
@@ -45,6 +44,7 @@ export const symbol: Tool<Help> = {
     'that only passes the name on with `export … from` is followed to the declaration it reaches. Names are ' +
     'matched exactly, including a name exported and not published, answered with where it is declared, a ' +
     'name a file declares and does not export, at its top level or inside a function, answered with where it is written and, inside a function, the function that holds it, a ' +
+    'name a file only binds to a value defined elsewhere, answered after the declarations as a binding, a ' +
     'name an import binds with `as`, answered with that import and the original it names, a ' +
     'member of an interface, a type literal or a class, answered with its container and where it is declared, and ' +
     'installed third-party declarations when the API catalogue is ' +
@@ -96,16 +96,29 @@ export const symbol: Tool<Help> = {
   },
 };
 
-/** {@link symbol}'s answer about one name. */
+/** {@link symbol}'s answer about one name: its declarations, then the files that only bind it. */
 function answerOf(help: Help, input: Readonly<Record<string, unknown>>, invocation: ToolInvocation<Help> | undefined): string {
   const spell = spellingOf(invocation);
   // Refused before `line` is read, which orders the declarations whole and hands `limit` on to the answer without it.
   const limit = limitOf(input, DECLARED_CAP, spell);
   if (input['line'] !== undefined) return symbolAtLine(help, input, invocation, symbol, declaredInCheckout);
-  const installed = limitOf(input, INSTALLED_CAP, spell);
   const name = stringArg(input, 'name');
   const from = input['package'];
   const wanted = typeof from === 'string' && from !== '' ? from : undefined;
+  const at = startPointArg(input, 'from');
+  const paths = at === undefined ? undefined : typeof at === 'string' ? [at] : [...at];
+  const bound = boundBlocks(help, invocation?.root, name, wanted, spell, limit, paths);
+  try {
+    return [declaredAnswer(help, input, invocation, spell, name, wanted, limit, paths), ...bound].join('\n\n');
+  } catch (missed) {
+    if (!(missed instanceof FoundNothing) || bound.length === 0) throw missed;
+    throw new FoundNothing([missed.message, ...bound].join('\n\n'));
+  }
+}
+
+/** Where a name is declared: every block of {@link symbol}'s answer but the files that only bind it. */
+function declaredAnswer(help: Help, input: Readonly<Record<string, unknown>>, invocation: ToolInvocation<Help> | undefined, spell: Spelling, name: string, wanted: string | undefined, limit: number, paths: readonly string[] | undefined): string {
+  const installed = limitOf(input, INSTALLED_CAP, spell);
 
   // The door the workspace imports a declaration by leads it. Every adapter
   // that re-exports a core publishes the same declaration, and the first one
@@ -115,8 +128,6 @@ function answerOf(help: Help, input: Readonly<Record<string, unknown>>, invocati
   // Declared in a file and exported by none: still the workspace's
   // own name, and where it is written says who can reach it. Another file's
   // export of the same name is another thing, so it never stands for this one.
-  const at = startPointArg(input, 'from');
-  const paths = at === undefined ? undefined : typeof at === 'string' ? [at] : [...at];
   const { blocks: declared } = declaredBlocks(help, invocation?.root, name, wanted, spell, limit, paths);
 
   // A name no entry publishes, that another package imports by the path of
@@ -220,8 +231,6 @@ export function declaredInCheckout(help: Help, input: Readonly<Record<string, un
 /** The files that declare a name, each at its lines, and every name each `file:line` is written by there. */
 export interface Declared extends FileSet {
   readonly spelled: ReadonlyMap<string, readonly string[]>;
-  /** Each `file:line` whose declaration only binds the name, kind `binding`, to a value defined elsewhere. */
-  readonly bound: ReadonlySet<string>;
 }
 
 /**
@@ -234,12 +243,12 @@ export interface Declared extends FileSet {
  * adds stats and no reading.
  */
 export function restsOn(help: Help, input: Readonly<Record<string, unknown>>, invocation?: ToolInvocation<Help>): Iterable<string> {
-  return eachDeclared(input, (one) => [...declaredIn(help, one, invocation, (exported) => exported).files.keys(), ...publishingEntries(help, one, invocation)]).flat();
+  return eachDeclared(input, (one) => [...declaredIn(help, one, invocation, (exported) => exported, { bindings: true }).files.keys(), ...publishingEntries(help, one, invocation)]).flat();
 }
 
 /** {@link restsOn} for `uses`, which says nothing of a name bound by `as`, and so rests on no such binding. */
 export function usesRestsOn(help: Help, input: Readonly<Record<string, unknown>>, invocation?: ToolInvocation<Help>): Iterable<string> {
-  return [...declaredIn(help, input, invocation, (exported) => exported, false).files.keys(), ...publishingEntries(help, input, invocation)];
+  return [...declaredIn(help, input, invocation, (exported) => exported, { bindings: true, aliases: false }).files.keys(), ...publishingEntries(help, input, invocation)];
 }
 
 /** The entry file of each door a name is published through, and each file between the entry and the declaration. */
@@ -249,8 +258,8 @@ function publishingEntries(help: Help, input: Readonly<Record<string, unknown>>,
   return publishingFiles(help, invocation?.root, published);
 }
 
-/** The files that declare a name, each at its lines, with `exports` choosing which of its unpublished exports count. */
-function declaredIn(help: Help, input: Readonly<Record<string, unknown>>, invocation: ToolInvocation<Help> | undefined, exports: (exported: readonly Named[]) => readonly Named[], aliases = true): Declared {
+/** The files that declare a name, each at its lines, with `exports` choosing which of its unpublished exports count, and those that only bind it where `bindings` asks for them. */
+function declaredIn(help: Help, input: Readonly<Record<string, unknown>>, invocation: ToolInvocation<Help> | undefined, exports: (exported: readonly Named[]) => readonly Named[], { bindings = false, aliases = true } = {}): Declared {
   const name = stringArg(input, 'name');
   const from = input['package'];
   const wanted = typeof from === 'string' && from !== '' ? from : undefined;
@@ -262,22 +271,15 @@ function declaredIn(help: Help, input: Readonly<Record<string, unknown>>, invoca
       if (declared !== undefined) at.push([declared.at, declared.line, declared.name]);
     }
   }
-  const bound = new Set<string>();
-  const binding = (one: { readonly at: string; readonly line: number; readonly kind: string } | undefined): void => {
-    if (one?.kind === BINDING) bound.add(`${one.at}:${one.line}`);
-  };
   const exported = unpublishedExports(help, invocation?.root, name, wanted, published.length > 0 ? published.map((one) => [one.at, one.declared] as const) : at.map(([file]) => [file, name] as const));
   for (const held of exports(exported)) {
     // `export { shout as format }` declares nothing: the function it binds, in the same file, is the declaration.
     const local = boundOf(invocation?.root, held);
     at.push(local !== undefined && local.at === held.at ? [local.at, local.line, local.name, held.name] : [held.at, held.line, held.name]);
-    binding(local);
     const origin = originOf(help, invocation?.root, held);
     if (origin !== undefined) at.push([origin.at, origin.line, origin.name]);
-    binding(origin);
   }
-  const declared = declaredAt(help, invocation?.root, name, wanted);
-  for (const one of declared) binding(one);
+  const declared = declaredAt(help, invocation?.root, name, wanted).filter((one) => bindings || !isBound(one));
   at.push(...declared.filter((one) => !isNested(one)).map((one) => [one.at, one.line, one.name] as const));
   if (aliases) at.push(...localNames(help, invocation?.root, name, wanted).files);
   // A member stands beside every other declaration, as `run` answers it.
@@ -301,7 +303,7 @@ function declaredIn(help: Help, input: Readonly<Record<string, unknown>>, invoca
   }
   const read = declarationsNamed(help, invocation?.root, name);
   const unread = [...('refused' in read ? [`declarations: ${read.refused}`] : unreadLine(read.unread)), ...membersUnread(members)];
-  return { files, spelled, bound, ...(unread.length === 0 ? {} : { unread }) };
+  return { files, spelled, ...(unread.length === 0 ? {} : { unread }) };
 }
 
 /**

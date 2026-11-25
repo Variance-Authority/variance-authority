@@ -36,7 +36,7 @@ variance ask intersection 'grep --query "Acme Chat" --from src/' 'grep --query "
 Use the task's wording. Single-quote each whole question and double-quote its
 text clue, as above, so the shell preserves regex escapes. For example,
 `'grep --query "Cost \$5" --from src/'` matches the literal text `Cost $5`.
-If the pair finds no owner, use the task-word `classify` question. An
+If the pair finds no owner, give the task's text to `classify`. An
 intersection identifies candidate files, not the feature's whole implementation.
 Read the named owner, then use its import relationships for the remaining roles; an example or mock need not contain both text clues.
 

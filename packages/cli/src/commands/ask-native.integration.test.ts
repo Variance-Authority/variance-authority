@@ -46,6 +46,11 @@ it.each([
   { question: ['symbol', '--name', 'sessionToken', '--limit', '1'], contains: '1 more member declaration of `sessionToken`' },
   { question: ['symbol', '--name', 'AgentSession.sessionToken'], contains: 'a member of `AgentSession`' },
   { question: ['symbol', '--name', 'externalOnly'], contains: 'search-kit · externalOnly' },
+  { question: ['symbol', '--name', 'boundOnly'], contains: 'bound, not declared, at packages/lib/src/bound-a.js:1' },
+  { question: ['symbol', '--name', 'boundOnly', '--limit', '1'], contains: '1 more binding of `boundOnly` not shown' },
+  { question: ['symbol', '--name', 'boundToo'], contains: 'bound, not declared, at packages/lib/src/bound-a.js:2' },
+  { question: ['symbol', '--name', 'boundExport'], contains: 'bound, not declared, at packages/lib/src/bound-b.js:2' },
+  { question: ['symbol', '--name', 'boundModule', '--package', '@acme/lib'], contains: 'No file in `@acme/lib` declares `boundModule`' },
   { question: ['symbol', '--name', 'CabinetLedger'], contains: 'names `CabinetLedger`' },
   { question: ['uses', '--name', 'greet'], contains: 'apps/app/src/hello.ts:1' },
   { question: ['uses', '--name', 'greet', '--package', '@acme/lib'], contains: 'apps/app/src/hello.ts:1' },
@@ -62,6 +67,10 @@ it.each([
   { question: ['uses', '--name', '値'], contains: 'Used in packages/lib/src/private.ts' },
   { question: ['uses', '--name', '値', '--file', 'packages/lib/src/private.ts'], contains: 'so nothing outside that file can import it' },
   { question: ['uses', '--name', 'unknownExactName'], contains: 'No file in this workspace declares' },
+  { question: ['uses', '--name', 'boundOnly'], contains: '`boundOnly` is bound, not declared, in 2 files:' },
+  { question: ['uses', '--name', 'boundToo'], contains: 'packages/lib/src/bound-a.js — @acme/lib, which binds it:' },
+  { question: ['uses', '--name', 'boundModule'], contains: 'No file in this workspace declares `boundModule`' },
+  { question: ['uses', '--name', 'boundToo', '--file', 'packages/lib/src/bound-a.js'], contains: '`boundToo` [binding] is bound, not declared' },
   { question: ['uses', '--name', 'sessionToken'], contains: 'No line uses `sessionToken` through a value whose type is written as `SavedSession`' },
   { question: ['uses', '--name', 'AgentSession.sessionToken', '--from', 'packages/lib/src/session.ts'], contains: 'Nearest to packages/lib/src/session.ts first.' },
   { question: ['search', '--query', 'greet'], contains: 'greet' },
@@ -87,6 +96,8 @@ it.each([
   { question: ['grep', '--query', 'absentText', '--from', 'apps/app/src/hello.ts'], contains: 'Nothing in those files matches' },
   { question: ['grep', '--query', '[', '--from', 'apps/app/src/hello.ts'], contains: 'ripgrep refused the pattern' },
   { question: ['grep', '--query', 'greet', '--from', 'missing.ts'], contains: 'is not found' },
+  { question: ['grep', '--query', 'greet', '--from', 'packages/lib/src/missing.ts'], contains: 'is not found. 3 matching lines in 3 files reachable from `packages/lib/src/`', status: 2 },
+  { question: ['grep', '--query', 'crowdedLine', '--from', 'apps/app/src/hello.ts'], contains: 'reachable from `apps/app/src/hello.ts`. ', status: 0 },
   { question: ['discover', '--from', 'apps/app/src/hello.ts', '--declares', '^greet$'], contains: 'declares greet' },
   { question: ['discover', '--to', 'packages/lib/src/greet.ts', '--limit', '1', '--offset', '1'], contains: 'Rows 2–2' },
   { question: ['discover', '--to', 'packages/lib/src/greet.ts#greet'], contains: 'imports greet from @acme/lib' },
@@ -97,7 +108,7 @@ it.each([
   { question: ['discover', '--path', '^packages/lib/src/(?!greet\\.ts$).*'], contains: 'also.ts' },
   { question: ['discover', '--from', 'apps/app/src/hello.ts,packages/lib/src/also.ts', '--except-declares', '^greet$'], contains: 'taken out' },
   { question: ['discover', '--from', 'missing.ts'], contains: 'ran nothing' },
-])('answers $question through the package bin with Node absent from PATH', async ({ question, contains }) => {
+])('answers $question through the package bin with Node absent from PATH', async ({ question, contains, status }) => {
   const previous = process.cwd();
   const root = checkout({
     'packages/lib/src/index.ts': "export { greet } from './greet.js';\nexport const shared = 'lib';\n",
@@ -153,6 +164,12 @@ it.each([
     } : {}),
     'packages/lib/src/private.ts': 'export const shown = 3;\nfunction 値() { return shown; }\nexport const used = 値();\n',
     'packages/lib/src/private.test.ts': 'export const other = 4;\nfunction 値() { return other; }\nexport const tested = 値();\n',
+    ...(question[2]?.startsWith('bound') ? {
+      'packages/lib/src/bound-a.js': "const { boundOnly } = make();\nconst { boundToo } = primordials;\nconst boundModule = require('./bound-b');\nexports.use = () => [boundOnly, boundToo, boundModule];\n",
+      'packages/lib/src/bound-b.js': "const { boundOnly } = make();\nconst { boundExport } = require('@acme/bound');\nfunction boundToo() {}\nexports.use = () => [boundOnly, boundExport, boundToo];\n",
+      'packages/bound/package.json': JSON.stringify({ name: '@acme/bound', main: './src/index.ts' }),
+      'packages/bound/src/index.ts': 'export const boundExport = 1;\n',
+    } : {}),
     'packages/lib/src/session.ts': 'interface AgentSession { sessionToken: string }\ninterface SavedSession { sessionToken: number }\nexport function tokenOf(session: AgentSession) { return session.sessionToken; }\n',
     ...(question[2] === 'packages/lib/src/greet.ts,packages/lib/src/index.ts' ? {
       'apps/app/src/bridge.ts': "export { hello } from './hello.js';\n",
@@ -176,6 +193,7 @@ it.each([
     const expected = spawnSync(process.execPath, [nodeEntry, ...args], { cwd: root, env, encoding: 'utf8' });
     expect(expected.error).toBeUndefined();
     expect(expected.stdout + expected.stderr).toContain(contains);
+    if (status !== undefined) expect(expected.status).toBe(status);
     const actual = spawnSync(executable, args, { cwd: root, env: { ...env, PATH: empty }, encoding: 'utf8' });
     expect(actual.error).toBeUndefined();
     expect([actual.status, actual.stdout, actual.stderr]).toEqual([expected.status, expected.stdout, expected.stderr]);

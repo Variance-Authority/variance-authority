@@ -2,7 +2,7 @@ import type { FileSet, Spelling, Tool, ToolInvocation } from '@variance-authorit
 import { limitOf, notShown, spellingOf } from '@variance-authority/mcp/tools';
 import type { Help, Use } from '@variance-authority/package/help';
 import type { DeclaredName } from '@variance-authority/sense';
-import { unreadLine } from './declared.js';
+import { isBound, unreadLine } from './declared.js';
 import { FoundNothing } from './find.js';
 import { type Members, membersUnread, places, routes } from './members.js';
 import { passesOn } from './passed-on.js';
@@ -188,7 +188,8 @@ export const uses: Tool<Help> = {
     'name is listed with its declarations, after the imports, each with the lines that read, write or destructure ' +
     'it through a value whose type is written as its container and the members of the classes that write `implements` of it, ' +
     "and the declaration to ask its language's find-references and go-to-implementation about for the uses and implementations no line types. A top-level " +
-    'name a file declares and does not export is answered with its kind, where it is declared and who can reach it there. Stories ' +
+    'name a file declares and does not export is answered with its kind, where it is declared and who can reach it there, and ' +
+    'one a file only binds to a value defined elsewhere as a binding, never as another declaration. Stories ' +
     'and tests are listed apart. `from`, the file you are in, sorts sites by shared path; `limit` says how many sites of ' +
     'each kind are shown. A name only passed on with `export … from` is followed to the declaration it reaches. ' +
     'A name an entry publishes only inside `export * as ns` is said to be published as `ns.name`, and a read ' +
@@ -291,16 +292,18 @@ function answered(answer: Answer, input: Readonly<Record<string, unknown>>, show
   const keeping = keptLines(name, kept, answer.keptSites, answer.keptInFile, from, shown);
   const ordered = order(members.declared, from);
   if (found.length === 0 && byPath.length === 0 && exported.length === 0) {
+    // What was read is said with the absence, so the files it could not read are not said again.
+    if (answer.absent !== undefined) return [answer.absent, '', ...keeping].join('\n');
     if (kept.length > 0 && declared === 0) return [...keeping, ...unread].join('\n');
     // The kept declarations open the answer, so the others named under them are the members.
     const others = answer.file === undefined ? othersLines(name, [], [], ordered) : [];
-    if (kept.length > 0) return [keeping[0]!, ...others, ...keeping.slice(1), '', `\`${name}\` is a member too, declared in ${places(declared)}:`, ...memberLines(members, from, shown), ...unread].join('\n');
-    return [`\`${name}\` is no exported name; it is a member, declared in ${places(declared)}:`, ...memberLines(members, from, shown), ...unread].join('\n');
+    if (kept.some((one) => !isBound(one))) return [keeping[0]!, ...others, ...keeping.slice(1), '', `\`${name}\` is a member too, declared in ${places(declared)}:`, ...memberLines(members, from, shown), ...unread].join('\n');
+    return [`\`${name}\` is no exported name; it is a member, declared in ${places(declared)}:`, ...memberLines(members, from, shown), ...(kept.length === 0 ? [] : ['', ...keeping]), ...unread].join('\n');
   }
   // A file that keeps a name of its own is another thing than the export of that name.
   const imports = [
     // The others are named under the headline, so a reader who stops there knows its count is one declaration's.
-    imported(answer, from, ownLines(answer.inFile, name, shown), answer.file === undefined ? othersLines(name, answer.namesakes, kept, ordered) : [], shown),
+    imported(answer, from, ownLines(answer.inFile, name, shown), answer.file === undefined ? othersLines(name, answer.namesakes, kept.filter((one) => !isBound(one)), ordered) : [], shown),
     ...namesakeLines(name, answer.namesakes, from, shown),
     ...(kept.length === 0 ? [] : ['', ...keeping]),
     ...unread,
@@ -349,11 +352,11 @@ function mayRead({ certain, off, whole }: Counted, name: string): string {
 }
 
 /**
- * The lines of each file declaring the name that use it there, which no import
+ * The lines of each file declaring the name, or only binding it, that use it there, which no import
  * names, under that file: a line of one declaring file is another file's name.
  * The heading names the file and its package, so its rows are the lines alone.
  */
-function ownLines(inFile: readonly Use[], name: string, shown: Shown): readonly string[] {
+function ownLines(inFile: readonly Use[], name: string, shown: Shown, binding: ReadonlySet<string> = new Set()): readonly string[] {
   const byFile = new Map<string, Use[]>();
   for (const use of inFile) {
     const lines = byFile.get(use.at);
@@ -362,7 +365,7 @@ function ownLines(inFile: readonly Use[], name: string, shown: Shown): readonly 
   }
   return [...byFile].flatMap(([at, uses]) => {
     const home = uses[0]?.by;
-    return listed(uses, `Used in ${at}${home ? ` — ${home}` : ''}, which declares it:`, name, shown, home, at);
+    return listed(uses, `Used in ${at}${home ? ` — ${home}` : ''}, which ${binding.has(at) ? 'binds' : 'declares'} it:`, name, shown, home, at);
   });
 }
 
@@ -376,14 +379,18 @@ function declaredAs(answer: Answer): string {
 }
 
 /**
- * A name its files keep to themselves, the modules inside their reach that
+ * A name its files keep to themselves, then the files that only bind it, the modules inside their reach that
  * import it, as a Rust child module takes its parent's private item with
  * `use super::`, and the lines of the declaring files that use it there.
  */
 function keptLines(name: string, kept: readonly DeclaredName[], sites: readonly Site[], inFile: readonly Use[], from: string | undefined, shown: Shown): readonly string[] {
   if (kept.length === 0) return [];
   const taken = sites.length === 0 ? [] : ['', importedIn(sites, packageOf(kept[0]?.by), name), ...kinds(sites, from, name, shown, packageOf(kept[0]?.by))];
-  return [keptLine(name, kept, shown.spell), ...taken, ...ownLines(inFile, name, shown)];
+  const declaring = kept.filter((one) => !isBound(one));
+  const bound = kept.filter(isBound);
+  const binding = new Set(bound.map((one) => one.at).filter((at) => !declaring.some((one) => one.at === at)));
+  const said = [declaring, bound].filter((rows) => rows.length > 0).map((rows) => keptLine(name, rows, shown.spell));
+  return [...said, ...taken, ...ownLines(inFile, name, shown, binding)];
 }
 
 /**

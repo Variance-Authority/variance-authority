@@ -33,7 +33,9 @@ export const grep: Tool<unknown> = {
     'Run ripgrep over the files a start point reaches along the imports, and answer with the ' +
     'matching lines nearest first; past ' +
     `${SHOWN} of them, and no \`limit\` or \`offset\` said, with the nearest few, then the paths they are ` +
-    'all in, the line count of each, and what lists them. `from` searches the files that path imports, at any depth; ' +
+    'all in, the line count of each, and what lists them. One start point that is not found or holds no match, and no ' +
+    '`limit` or `offset` said, is answered from the nearest folder around it that has ' +
+    'one. `from` searches the files that path imports, at any depth; ' +
     '`to` the files that import it. The pattern is ripgrep\'s, unchanged: a ' +
     'regular expression. A start point is required: name the file or ' +
     'folder you are working in, or a top folder at the widest. Or name a recorded test with `test` ' +
@@ -115,10 +117,11 @@ export const grep: Tool<unknown> = {
 };
 
 /**
- * The files a `grep` answer rests on: every file of the area it searched, for
- * a line in any of them may start or stop matching. A file that began importing
- * into the area after the generation, or was written under a folder the start
- * point names, is what a look at them cannot see.
+ * The files a `grep` answer rests on: every file of the area it was asked
+ * about, for a line in any of them may start or stop matching. A file that began
+ * importing into the area after the generation, or was written under a folder
+ * the start point names, is what a look at them cannot see. A folder around it,
+ * answered from where that area holds no match, is not among them.
  */
 export function grepPrinted(_help: unknown, input: Readonly<Record<string, unknown>>, invocation?: ToolInvocation<unknown>): Iterable<string> {
   const test = testOf(input, invocation);

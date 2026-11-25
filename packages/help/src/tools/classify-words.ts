@@ -3,7 +3,8 @@
  * and how they are said: pure functions of the reading and the placements, so
  * a test holding them needs no repository and no index. A word names something
  * only whole: `check` beside `checkoutPath` names nothing. There is no ranking
- * and no model; the dictionary is the reading, and the index for identifiers.
+ * and no model; the dictionary is the reading, and the index for identifiers
+ * and paths.
  */
 
 // compass: variance-authority.report.agent-surface
@@ -33,7 +34,7 @@ export interface Named {
   readonly more?: number;
 }
 
-/** Where the identifier-shaped words that name nothing published are declared, and which files are named them: at most a few of each, in the order to show them. */
+/** Where the words to look up are declared, and which files they spell: at most a few of each, in the order to show them. */
 export type Locate = (words: readonly string[], filesOnly?: ReadonlySet<string>) => ReadonlyMap<string, readonly Named[]>;
 
 /** A word that names something, with everything it names: packages first, then entrypoints, then exports. */
@@ -47,7 +48,7 @@ export interface Classified {
   readonly entities: readonly Entity[];
   /** The words that name nothing, in the asker's order, each once. */
   readonly plain: readonly string[];
-  /** Identifier-shaped words whose source lookup was unavailable, never confirmed nonmatches. */
+  /** Words to look up whose source lookup was unavailable, never confirmed nonmatches. */
   readonly unknown?: readonly string[];
 }
 
@@ -79,12 +80,67 @@ export function identifier(word: string): boolean {
   return /.\p{Lu}/u.test(word) || word.includes('_') || /\p{L}\p{N}/u.test(word);
 }
 
+/** A stretch of the asker's text that no mark outside a name or a path breaks. */
+interface Run {
+  /** The whole of it, without the marks a sentence or markdown puts at its ends. */
+  readonly word: string;
+  /** Whether `word` is looked up as a file. */
+  readonly path: boolean;
+  /** The words it is read as where `word` names nothing. */
+  readonly parts: readonly string[];
+}
+
+/** Where one chunk of the asker's text ends: whitespace and quotes, which no path here holds. */
+const QUOTED = /[\s"'`\p{Pi}\p{Pf}]/u;
+
+/** What a path is spelled of; a pair of square brackets is in it, as `[id].tsx` has, unless it is the text of a link. */
+const RUN = /(?:[\p{L}\p{M}\p{N}_$@./+~%\\-]|\[{1,2}[^[\]\s/]+\]{1,2}(?![[(]))+/gu;
+
+/** Whether a chunk has braces or parentheses inside a path, as `src/{a,b}.ts` has: a part of it is not the path it spells. */
+const GROUPED = /\/[({]|[)}](?:[\p{L}\p{M}\p{N}_$@/+~%\\-]|\.[\p{L}\p{N}_])/u;
+
+/** `run` without what it ends with of `marks`; by hand, as a pattern anchored at the end alone reads a long run of marks once per mark. */
+function ended(run: string, marks: string): string {
+  let end = run.length;
+  while (end > 0 && marks.includes(run[end - 1]!)) end -= 1;
+  return run.slice(0, end);
+}
+
+/** `run` without the sentence's marks after it, the `~~` around it, or the square brackets around the whole of it. */
+function unmarked(run: string): string {
+  const kept = ended(run, './-');
+  const shown = kept.length > 4 && kept.startsWith('~~') && kept.endsWith('~~') ? kept.slice(2, -2) : kept;
+  const alone = /^\[([^[\]]+)\]$/u.exec(shown);
+  return ended(alone?.[1] ?? shown, './-');
+}
+
 /**
- * The asker's words: a scoped name, a path and an identifier stay whole, and
- * the punctuation a sentence puts around them is dropped.
+ * The runs of the asker's text. One that holds a dot or a slash past its start
+ * is a path: what it starts with is part of it, so `../lib/a.ts` is not read as
+ * `lib/a.ts`, and a glob or a group is none.
  */
-export function wordsOf(text: string): readonly string[] {
-  return (text.match(/@?[\p{L}\p{N}_$][\p{L}\p{N}_$@./-]*/gu) ?? []).map((word) => word.replace(/[./-]+$/u, ''));
+function runsOf(text: string): readonly Run[] {
+  return text.split(QUOTED).flatMap((chunk) => {
+    const grouped = GROUPED.test(chunk);
+    return [...chunk.matchAll(RUN)].flatMap(({ 0: run, index }): readonly Run[] => {
+      const parts = (run.match(/@?[\p{L}\p{N}_$][\p{L}\p{N}_$@./-]*/gu) ?? []).map((part) => ended(part, './-'));
+      if (parts.length === 0) return [];
+      const word = unmarked(run);
+      // One `*` before a run and none after it is a pattern; around it, or two, is emphasis.
+      const glob = chunk[index - 1] === '*' && chunk[index - 2] !== '*' && chunk[index + run.length] !== '*';
+      return [{ word, path: !grouped && !glob && /[./]/u.test(word.replace(/^[./]+/u, '')), parts }];
+    });
+  });
+}
+
+/** The words of `runs` that the source is asked about: every path whole, and every identifier. */
+function askedOf(runs: readonly Run[]): readonly string[] {
+  return runs.flatMap(({ word, path, parts }) => [...(path ? [word] : []), ...parts.filter(identifier)]);
+}
+
+/** Whether `text` holds a word that several places in the source can answer, which the import graph orders; a path has one. */
+export function asksOrder(text: string): boolean {
+  return askedOf(runsOf(text)).some((word) => !word.includes('/'));
 }
 
 /** Every spelling of the mapped packages and of what the reading publishes, keyed by how a word is compared with it. */
@@ -119,33 +175,36 @@ function dictionaryOf(help: Help, packages: Iterable<string>): { readonly folded
 /**
  * The words of `text` that are, whole, one of `packages` (scoped or not) or an
  * entrypoint `help` publishes, both without case, or an export it publishes as
- * spelled; or, shaped as an identifier and no package or entrypoint, a name
- * `locate` finds declared or a file it finds named — of an export, only the
- * files, as the export already says where it is declared; and the words that
- * are not.
+ * spelled; or a path `locate` finds a file at; or, an identifier that is no
+ * package or entrypoint, a name or a file `locate` finds — of an export, only
+ * the files, as the export already says where it is declared; and the words
+ * that are not. A path that names nothing is read word by word, so a name
+ * joined to another by a mark a path may hold is still found.
  */
 export function classifyWords(text: string, help: Help, packages: Iterable<string>, locate?: Locate): Classified {
   const { folded, exact } = dictionaryOf(help, packages);
-  const words = wordsOf(text);
-  const asked = locate === undefined ? [] : [...new Set(words.filter((word) => identifier(word) && !folded.has(word.toLowerCase())))];
+  const runs = runsOf(text);
+  const asked = locate === undefined ? [] : [...new Set(askedOf(runs).filter((word) => !identifier(word) || !folded.has(word.toLowerCase())))];
   const exported = new Set(asked.filter((word) => exact.has(word)));
   const found = asked.length === 0 || locate === undefined ? new Map<string, readonly Named[]>() : locate(asked, exported);
   const located = new Map([...found].map(([word, names]) => [word, exported.has(word) ? names.filter((named) => named.kind === 'file') : names] as const));
+  const namesOf = (word: string): readonly Named[] => [...(folded.get(word.toLowerCase()) ?? []), ...(exact.get(word) ?? []), ...(located.get(word) ?? [])];
+  const words = runs.flatMap(({ word, path, parts }) => (path && (namesOf(word).length > 0 || parts.every((part) => namesOf(part).length === 0)) ? [word] : parts));
   const entities: Entity[] = [];
   const plain = new Set<string>();
   const listed = new Set<string>();
   for (const word of words) {
-    // A package or an entrypoint is matched without case and an export only as
-    // spelled, so a word lists only what no earlier word did: `Sense` after
-    // `sense` still names an export `Sense`, and names nothing new otherwise.
-    // An export is its name in its specifier, so two names one entrypoint
-    // exports are two entities.
-    const names = [...(folded.get(word.toLowerCase()) ?? []), ...(exact.get(word) ?? []), ...(located.get(word) ?? [])];
+    const names = namesOf(word);
     if (names.length === 0) {
       plain.add(word);
       continue;
     }
-    const keyOf = (named: Named): string => (named.kind === 'export' || named.kind === 'declared' ? `${named.kind} ${named.specifier} ${word}` : `${named.kind} ${named.specifier}`);
+    // A package or an entrypoint is matched without case and an export only as
+    // spelled, so a word lists only what no earlier word did: `Sense` after
+    // `sense` still names an export `Sense`, and names nothing new otherwise.
+    // An export is its name in its specifier, so two names one entrypoint
+    // exports are two entities, and a file is the word's, which counts its own.
+    const keyOf = (named: Named): string => (named.kind === 'package' || named.kind === 'entrypoint' ? `${named.kind} ${named.specifier}` : `${named.kind} ${named.specifier} ${word}`);
     const fresh = names.filter((named) => !listed.has(keyOf(named)));
     for (const named of fresh) listed.add(keyOf(named));
     // Stable, so `locate`'s order holds within a kind.

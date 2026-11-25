@@ -37,9 +37,10 @@ export interface SourceWalk {
 /**
  * One scoped grep question: the pattern, the start points it walks from and to,
  * the page of rendered matches wanted, and the words a shell asks with. An
- * answer too wide for a page nobody said is its paths and their counts. The
- * native workspace answers it, so the CLI and the MCP tool share one walk and
- * one renderer.
+ * answer too wide for a page nobody said is its paths and their counts, and one
+ * of nothing, of one start point and no page said, is that of the
+ * nearest folder around the start point with a match. The native workspace answers it, so the CLI and the MCP tool
+ * share one walk and one renderer.
  */
 export interface ScopedGrep {
   readonly query: string;

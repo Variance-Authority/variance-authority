@@ -17,7 +17,8 @@ path and line. A file with one matching line is `path:line: text`; a file with
 several is its path, then each line indented as `line: text`. The area it
 searched follows as a trailing `note:` line. The imports are the
 ones `variance index` resolved, so the answer names its generation; it is asked
-again of the checkout as it is when a file of the area changed since. A file
+again of the checkout as it is when a file of the area it was asked about
+changed since. A file
 written since, under a folder it starts from or importing into its area, waits
 for the next `variance index`.
 
@@ -52,6 +53,26 @@ packages/mcp/src/ — 59 lines in 19 files, nearest 2 imports away
 note: In 1090 file(s) reachable from `packages/help/src/index.ts` along the imports, at any depth — 1 named by the path itself. 4 file(s) in it import something the scan could not resolve, so what lies behind those is not enumerated.
 `variance ask discover --from packages/help/src/index.ts --path '^packages/sense/native/' --text spell`: the 101 matching files under `packages/sense/native/`
 `--limit` 781: every line, nearest first
+```
+
+One start point that answers nothing is answered from the nearest folder around
+it that holds a match. The first line says the path is not found, or that the
+files it reaches hold no match, and then names the folder; the lines that match
+follow. It carries no `note:` line on the area, only one on the files whose
+imports the scan could not resolve. Past 20 lines the first 10 and the
+rows above answer it, and the last line is the whole question that lists every line,
+start point and all. The exit code stays 2 for a path that is not found, and is 0 where
+the files it reaches hold no match. The folder always holds the path and is
+never the root, and none is searched for a path with a `.` or `..` folder in it
+or a `*` other than a last `/*`. Where no folder around the path has a match, for
+several start points, or with `--limit` or `--offset`, the answer says only that
+nothing was found.
+
+```
+$ variance ask grep --query 'fn area_line' --from packages/sense/native/src/text_cut.rs
+No match in the 1 file reachable from `packages/sense/native/src/text_cut.rs`. 1 matching line in 1 file reachable from `packages/sense/native/src/`, nearest first:
+0 imports away:
+packages/sense/native/src/help_grep_answer.rs:319: pub(crate) fn area_line(scope: &Scope) -> String {
 ```
 
 With `--test`, 20 lines are listed and the rest counted. The answer opens
