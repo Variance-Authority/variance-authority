@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  blackBoxes,
   documentDigest,
   type RenderDocument,
   type RenderIdentity,
@@ -67,6 +68,26 @@ describe('settle', () => {
       verdict: 'unchanged',
       because: expect.stringContaining('byte-identical'),
     });
+  });
+
+  it('renders a subject holding a canvas even when the digest matches, and names the box', () => {
+    // A canvas keeps its bitmap outside the markup, so equal documents do not
+    // imply equal images: the digest cannot see the one thing that changed.
+    const drawn = documentFor('fixture:canvas', '<div data-va-path="0"><canvas data-va-path="0.0"></canvas></div>');
+    const found: Described = {
+      documentDigest: documentDigest(drawn),
+      comparable: true,
+      storedUnder: IDENTITY,
+      missingFonts: [],
+    };
+
+    const settlement = settle(documentDigest(drawn), found, IDENTITY, undefined, undefined, blackBoxes(drawn));
+    expect(settlement.kind).toBe('render');
+    expect(settlement.because).toContain('canvas');
+  });
+
+  it('still settles a document with no black box on a digest hit', () => {
+    expect(blackBoxes(document)).toEqual([]);
   });
 
   it('renders against a baseline another machine painted, and names the field that moved', () => {

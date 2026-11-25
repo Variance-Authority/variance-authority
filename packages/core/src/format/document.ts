@@ -453,3 +453,20 @@ export function picture(raster: Raster, subject: string): Pictured {
   }
   return raster;
 }
+
+/**
+ * The elements whose pixels live outside the markup: a `<canvas>` (2D and WebGL
+ * alike) and a `<video>` hold a bitmap the document digest cannot see, so two
+ * equal documents may paint different images. Names each kind present, in
+ * code-unit order; empty when the document is fully described by its markup.
+ *
+ * A subject with a black box is always photographed in place: neither a digest
+ * match nor the render cache may stand in for the image.
+ */
+export function blackBoxes(document: RenderDocument): readonly string[] {
+  const found = new Set<string>();
+  for (const match of document.html.matchAll(/<(canvas|video)[\s>/]/gi)) {
+    found.add((match[1] ?? '').toLowerCase());
+  }
+  return [...found].sort();
+}

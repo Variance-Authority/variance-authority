@@ -1,5 +1,5 @@
 import { locateSites } from '@variance-authority/core/attribute';
-import { documentDigest, timeOn } from '@variance-authority/core/format';
+import { blackBoxes, documentDigest, timeOn } from '@variance-authority/core/format';
 import type { Level } from '@variance-authority/core/judge';
 import {
   declaredIgnores,
@@ -147,7 +147,14 @@ export async function observeOne(
     const described = await deps.store.describe(key, identity);
     return {
       described,
-      settlement: settle(documentDigest(collected.document), described, identity, undefined, collected.snapshot),
+      settlement: settle(
+        documentDigest(collected.document),
+        described,
+        identity,
+        undefined,
+        collected.snapshot,
+        blackBoxes(collected.document),
+      ),
     };
   });
 

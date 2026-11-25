@@ -147,7 +147,23 @@ export function settle(
    * on a baseline that kept no snapshot, so rendering it would buy nothing.
    */
   snapshot?: SemanticSnapshot,
+  /**
+   * The black boxes the document holds (`blackBoxes`), when it holds any.
+   *
+   * A canvas or video keeps its bitmap outside the markup, so a digest match
+   * cannot say the image is the same; such a subject is photographed in place.
+   */
+  boxes: readonly string[] = [],
 ): Settlement {
+  if (boxes.length > 0) {
+    return {
+      kind: 'render',
+      because:
+        `the document holds ${boxes.map((box) => `a ${box}`).join(' and ')}, whose pixels ` +
+        'live outside the markup the digest covers, so this run photographs it in place',
+    };
+  }
+
   if (found === null) {
     return {
       kind: 'render',

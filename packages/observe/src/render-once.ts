@@ -1,5 +1,5 @@
 import { hashComponents } from '@variance-authority/core/attribute';
-import { documentDigest, timeOn } from '@variance-authority/core/format';
+import { blackBoxes, documentDigest, timeOn } from '@variance-authority/core/format';
 import type {
   AccessibilitySnapshot,
   ComponentHash,
@@ -51,7 +51,13 @@ export async function renderOnce(
   steps?: StepClock,
 ): Promise<{ raster: Raster; rendered: boolean }> {
   const identity = renderer.identityFor(document);
-  const hit = await timeOn(steps, 'cache.get', async () => store.renderCache.get(documentDigest(document), identity));
+  // A black box (canvas, video) keeps its bitmap outside the markup the digest
+  // covers, so a cache keyed by that digest could answer with a stale image:
+  // such a document is neither read from nor written to the cache.
+  const cacheable = blackBoxes(document).length === 0;
+  const hit = cacheable
+    ? await timeOn(steps, 'cache.get', async () => store.renderCache.get(documentDigest(document), identity))
+    : null;
 
   // A cache hit is an image of exactly this document, so the hashes computed
   // *here* describe it as well as the ones written with it did. What the cache
@@ -68,7 +74,7 @@ export async function renderOnce(
   // and, because `images.ts` builds the candidate sidecar out of this cache, what
   // would have let `accept` promote a baseline whose hashes belong to a document
   // it is not an image of.
-  await timeOn(steps, 'cache.put', async () => store.renderCache.put(painted));
+  if (cacheable) await timeOn(steps, 'cache.put', async () => store.renderCache.put(painted));
   return { raster: withEvidence(painted, components, accessibility), rendered: true };
 }
 
