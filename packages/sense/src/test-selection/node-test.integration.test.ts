@@ -62,7 +62,7 @@ describe('node:test, through @variance-authority/sense/node-test', () => {
     expect(stderr).toContain('variance-authority: selected 2 of 3');
   });
 
-  it('keeps `skip`, `only` and `todo` on what the module exports', async () => {
+  it('keeps `skip` and `only` on what the module exports', async () => {
     const { coverageFile, stderr } = await record();
 
     expect(stderr).not.toContain('is not a function');
