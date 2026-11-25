@@ -71,4 +71,9 @@ if (observer !== undefined) {
   module.exports.afterEach = nodeTest.afterEach;
   module.exports.mock = nodeTest.mock;
   module.exports.run = nodeTest.run;
+  module.exports.snapshot = (nodeTest as unknown as Record<string, unknown>).snapshot;
+  // Any other export the running Node adds is carried as it is, though only by `require`.
+  for (const [name, value] of Object.entries(nodeTest)) {
+    if (!(name in module.exports)) (module.exports as Record<string, unknown>)[name] = value;
+  }
 }
