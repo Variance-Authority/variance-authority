@@ -10,6 +10,7 @@
  * whole.
  */
 
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { ExecutionIndex } from '@variance-authority/sense/test-selection';
 
 /** How many rows of each kind the page holds. The recording keeps the rest. */
