@@ -58,7 +58,7 @@ const suite = declaring(nodeTest.describe as never, (name, body) => (...args) =>
 // Outside a recording the real module is handed on as it is. Inside one, each
 // export is assigned by name, which is how an `import { it }` finds it: Node
 // reads a CommonJS module's names from statements of this shape. `skip`, `todo`
-// and `only` are not assigned: they are already members of `test`, wrapped.
+// and `only` are the wrapped members of `test`, not the real ones.
 module.exports = observer === undefined ? nodeTest : test;
 if (observer !== undefined) {
   module.exports.test = test;
@@ -71,6 +71,11 @@ if (observer !== undefined) {
   module.exports.afterEach = nodeTest.afterEach;
   module.exports.mock = nodeTest.mock;
   module.exports.run = nodeTest.run;
+  module.exports.skip = (test as unknown as Record<string, unknown>).skip;
+  module.exports.only = (test as unknown as Record<string, unknown>).only;
+  module.exports.todo = (test as unknown as Record<string, unknown>).todo;
+  module.exports.expectFailure = (nodeTest as unknown as Record<string, unknown>).expectFailure;
+  module.exports.getTestContext = (nodeTest as unknown as Record<string, unknown>).getTestContext;
   module.exports.snapshot = (nodeTest as unknown as Record<string, unknown>).snapshot;
   // Any other export the running Node adds is carried as it is, though only by `require`.
   for (const [name, value] of Object.entries(nodeTest)) {

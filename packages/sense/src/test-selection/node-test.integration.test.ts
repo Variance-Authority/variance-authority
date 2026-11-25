@@ -72,7 +72,10 @@ describe('node:test, through @variance-authority/sense/node-test', () => {
   });
 
   it('records a file whose case failed as incomplete, so no selection leaves it out', async () => {
-    const { coverageFile } = await record({ FIXTURE_FAILING: '1' });
+    const { coverageFile, stderr } = await record({ FIXTURE_FAILING: '1' });
+
+    expect(stderr).toContain('not ok');
+    expect(stderr).toContain('failing.test.cjs');
 
     const { incomplete, whole } = await narrowByExecution(coverageFile, `--- a/${at('src/label.cjs')}\n+++ b/${at('src/label.cjs')}\n@@ -1,1 +1,1 @@\n-a\n+b`);
     expect(incomplete).toContain(at('test/failing.test.cjs'));

@@ -9,7 +9,7 @@
  */
 
 import { availableParallelism } from 'node:os';
-import { resolve } from 'node:path';
+import { relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { run } from 'node:test';
 import { projectPath } from './instrumented-modules.js';
@@ -50,7 +50,13 @@ export async function runNodeTest(options: RunNodeTestOptions): Promise<{ readon
   const worker = async (): Promise<void> => {
     for (let file = queue.shift(); file !== undefined; file = queue.shift()) {
       const stream = run({ files: [file], isolation: 'process', execArgv });
-      stream.on('test:fail', () => void failed.add(file!));
+      stream.on('test:fail', (event) => {
+        failed.add(file!);
+        // A failure's name and cause travel in the event, not in the child's output.
+        const error = event.details.error as { cause?: unknown; stack?: string; message?: string };
+        const cause = (error.cause ?? error) as { stack?: string; message?: string };
+        process.stderr.write(`not ok ${event.name} (${relative(process.cwd(), file!)})\n${cause.stack ?? cause.message ?? String(cause)}\n`);
+      });
       stream.on('test:stderr', (event) => process.stderr.write(event.message));
       stream.on('test:stdout', (event) => process.stdout.write(event.message));
       // Draining the stream is what makes `run()` go.
