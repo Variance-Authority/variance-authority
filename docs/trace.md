@@ -58,6 +58,11 @@ to a different address.
 
 ### Jaeger on your machine
 
+Jaeger is a free, open-source trace viewer (a CNCF project), run here as one
+Docker container, that draws an OpenTelemetry trace as a waterfall. It is only
+the quickest viewer to run locally: any OTLP tool, such as Tempo, Honeycomb or
+a Collector below, opens the same file.
+
 ```bash
 docker run -d --rm --name jaeger -p 16686:16686 -p 4318:4318 jaegertracing/all-in-one
 curl -X POST -H 'Content-Type: application/json' --data @trace.json http://localhost:4318/v1/traces
@@ -68,11 +73,14 @@ one trace. The receiver answers `200` when it took the document.
 
 ### Grafana Tempo
 
-Send the same document to the OTLP HTTP receiver of your Tempo distributor,
+Grafana Tempo is Grafana's open-source trace store, read through Grafana. Send
+the same document to the OTLP HTTP receiver of your Tempo distributor,
 `/v1/traces` on port 4318 unless you configured another. Grafana's Explore
 opens it by trace id.
 
 ### Honeycomb
+
+Honeycomb is a hosted observability service that takes OTLP directly.
 
 ```bash
 curl -X POST -H 'Content-Type: application/json' \
@@ -85,8 +93,36 @@ file. Use `api.eu1.honeycomb.io` for an account in the EU region.
 
 ### An OpenTelemetry Collector
 
-Any Collector with an `otlp` receiver on its HTTP protocol accepts the same
+The OpenTelemetry Collector is the project's vendor-neutral relay: it receives
+telemetry and forwards it to the backend you choose. Any Collector with an
+`otlp` receiver on its HTTP protocol accepts the same
 request, and its exporters forward the trace to whatever backend you run.
+
+## Read the trace
+
+In the Jaeger from the section above:
+
+1. Open `http://localhost:16686`.
+2. In **Service**, choose `variance`, then press **Find Traces**.
+3. Open the trace named `variance: run`.
+
+The trace opens as a timeline: a bar per span on one time axis, nested under
+its parent, with the span's duration printed beside the bar and a minimap
+above for zooming into one stretch.
+
+- **The run** is the top bar, from the earliest file's start to the end of the
+  last.
+- **A file** is a row named after its path. Its bar starts at the clock time
+  the runner started that file, so files that ran on parallel workers overlap
+  and a file that waited for a worker starts later.
+- **A phase** is a row under its file, `prepare`, `environment`, `setup`,
+  `collect` or `cases`, laid end to end from the file's start. A file whose
+  runner timed fewer phases has fewer rows.
+- **A case** is a row under `cases`, in recorded order and not at its real
+  start, as [Limits](#limits) says.
+
+Click a row to open its span: the duration, the start time as an offset from
+the run's start, and its tags, among them `code.filepath`, the file's path.
 
 ## In CI
 
