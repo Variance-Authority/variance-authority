@@ -354,14 +354,15 @@ describe('grep of a start point that answers nothing', () => {
   });
 
   it('stops at the nearest folder with a match', () => {
-    expect(said({ query: 'broad', from: 'wide/a/only/deep/nope.ts' })).toContain('100 matching lines in 10 files reachable from `wide/a/only/deep/`, nearest first:\n');
-    expect(said({ query: 'broad', from: 'wide/a/nope/nope/nope.ts' })).toContain('100 matching lines in 10 files reachable from `wide/a/`, nearest first:\n');
-    expect(said({ query: 'broad', from: 'wide/a/only/nope.ts' })).toContain('reachable from `wide/a/only/`, nearest first:\n');
+    expect(said({ query: 'broad', from: 'wide/a/only/deep/nope.ts' })).toContain('100 matching lines in 5 files reachable from `wide/a/only/deep/`, the first 10, nearest first:\n');
+    expect(said({ query: 'broad', from: 'wide/a/nope/nope/nope.ts' })).toContain('100 matching lines in 5 files reachable from `wide/a/`, the first 10, nearest first:\n');
+    expect(said({ query: 'broad', from: 'wide/a/only/nope.ts' })).toContain('reachable from `wide/a/only/`, the first 10, nearest first:\n');
   });
 
   it('collapses a folder of more lines than it shows, and asks on from that folder', () => {
     const text = said({ query: 'broad', from: 'wide/nope.ts' });
-    expect(text).toMatch(/^refused: `wide\/nope\.ts` is not found\. 210 matching lines in 51 files reachable from `wide\/`, by path, most lines first:\n/u);
+    expect(text).toMatch(/^refused: `wide\/nope\.ts` is not found\. 210 matching lines in 46 files reachable from `wide\/`, the first 10, nearest first:\n/u);
+    expect(text).toContain('\nAll 210, by path, most lines first:\nwide/b/ — 80 lines in 40 files\n');
     expect(text).not.toContain('note:');
     expect(text).toContain('`docs_discover` with `from` `["wide/"]`');
     expect(text.split('\n').at(-1)).toBe('`docs_grep` with `query` `broad` and `from` `["wide/"]` and `limit` `210`: every line, nearest first');
