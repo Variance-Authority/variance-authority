@@ -486,6 +486,11 @@
   },
   {
     "idiom": "timer",
+    "at": "packages/sense/src/test-selection/job-recording.ts",
+    "count": 2
+  },
+  {
+    "idiom": "timer",
     "at": "packages/sense/src/test-selection/journey-driver.ts",
     "count": 1
   },

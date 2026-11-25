@@ -9,7 +9,7 @@
  * that cannot be written is an error of its own, after the command has run.
  */
 
-import { execFileSync, spawn } from 'node:child_process';
+import { execFileSync, spawn, type ChildProcess, type StdioOptions } from 'node:child_process';
 import { closeSync, openSync, readSync, statSync } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { constants, tmpdir } from 'node:os';
@@ -119,11 +119,79 @@ function* linesOf(file: string): Generator<string> {
   }
 }
 
-/** The exit of `program`, as a shell states one: a signal is 128 and its number. Undefined when there is no such program. `env`, when given, is its whole environment. */
-export function started(program: string, args: readonly string[], cwd: string, env?: NodeJS.ProcessEnv): Promise<number | undefined> {
+/** How long a program stopped at its deadline has to end before it is killed. */
+const GRACE = 5_000;
+
+/** How many milliseconds a program may run, and what is told when it is stopped for running longer. */
+export interface Deadline {
+  readonly after: number;
+  readonly stopped: () => void;
+}
+
+/** Send `signal` to the child and everything it started: a test runner's workers outlive a signal to the runner alone. */
+function signalled(child: ChildProcess, signal: NodeJS.Signals, group: boolean): void {
+  if (!group || child.pid === undefined) {
+    child.kill(signal);
+    return;
+  }
+  try {
+    process.kill(-child.pid, signal);
+  } catch (error) {
+    // No such group, or one this process may not signal (macOS answers so when only exited members are left): nothing of the run's is left to stop.
+    const { code } = error as NodeJS.ErrnoException;
+    if (code !== 'ESRCH' && code !== 'EPERM') throw error;
+  }
+}
+
+/**
+ * The exit of `program`, as a shell states one: a signal is 128 and its number. Undefined when there is no such program. `env`, when given, is its whole environment.
+ * `stdio` is where its streams go: this process's own by default. Past its `deadline` the program and every process it started are asked to stop, `stopped` is told, and they are killed when they have not after a grace.
+ */
+export function started(program: string, args: readonly string[], cwd: string, env?: NodeJS.ProcessEnv, stdio: StdioOptions = 'inherit', deadline?: Deadline): Promise<number | undefined> {
   return new Promise((resolve, reject) => {
-    const child = spawn(program, args, { cwd, stdio: 'inherit', ...(env === undefined ? {} : { env }) });
-    child.on('error', (error: NodeJS.ErrnoException) => (error.code === 'ENOENT' ? resolve(undefined) : reject(error)));
-    child.on('close', (code, signal) => resolve(code ?? 128 + (signal === null ? 0 : constants.signals[signal])));
+    // A run with a deadline leads its own process group, so stopping it stops what it started too.
+    const group = deadline !== undefined && process.platform !== 'win32';
+    const child = spawn(program, args, { cwd, stdio, detached: group, ...(env === undefined ? {} : { env }) });
+    const timers: NodeJS.Timeout[] = [];
+    // A detached group does not hear the terminal's signals, so this process kills it before it ends on one, and if it exits first: nothing it started outlives it.
+    const forwarded = (signal: NodeJS.Signals): void => {
+      released();
+      leaving();
+      process.kill(process.pid, signal);
+    };
+    const leaving = (): void => signalled(child, 'SIGKILL', group);
+    const released = (): void => {
+      process.off('SIGINT', forwarded);
+      process.off('SIGTERM', forwarded);
+      process.off('exit', leaving);
+    };
+    if (group) {
+      process.on('SIGINT', forwarded);
+      process.on('SIGTERM', forwarded);
+      process.on('exit', leaving);
+    }
+    if (deadline !== undefined) {
+      // A deadline that names a run that never answered, not a wait for one to settle: the run's close is the signal, and these only stop it.
+      timers.push(setTimeout(() => {
+        deadline.stopped();
+        signalled(child, 'SIGTERM', group);
+        timers.push(setTimeout(() => signalled(child, 'SIGKILL', group), GRACE));
+      }, deadline.after));
+    }
+    const settled = (): void => {
+      timers.forEach(clearTimeout);
+      released();
+    };
+    child.on('error', (error: NodeJS.ErrnoException) => {
+      settled();
+      if (error.code === 'ENOENT') resolve(undefined);
+      else reject(error);
+    });
+    child.on('close', (code, signal) => {
+      settled();
+      // What the run started and left behind goes with it.
+      if (group) signalled(child, 'SIGKILL', group);
+      resolve(code ?? 128 + (signal === null ? 0 : constants.signals[signal]));
+    });
   });
 }

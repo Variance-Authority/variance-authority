@@ -133,13 +133,18 @@ export function primaryCacheRoot(here: string): string {
 
 /** {@link cacheRootFor} for a directory known to be a checkout's root. */
 function cacheRootOf(repository: string): string {
-  const config = configOf(repository);
-  const named = config === undefined ? undefined : cacheRootIn(config);
+  const named = configuredCacheRoot(repository);
   if (named !== undefined) return named;
   const isolated = process.env[CACHE_VARIABLE];
   if (isolated !== undefined && isAbsolute(isolated)) return resolve(isolated);
 
   return resolve(repository, 'node_modules', '.cache', 'variance-authority');
+}
+
+/** The cache root a checkout's configuration names, which wins over {@link CACHE_VARIABLE}; undefined when it names none. */
+export function configuredCacheRoot(repository: string): string | undefined {
+  const config = configOf(repository);
+  return config === undefined ? undefined : cacheRootIn(config);
 }
 
 function cacheRootIn({ file, value: config }: RootConfig): string | undefined {

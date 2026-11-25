@@ -41,6 +41,7 @@ export const COMMANDS = [
   'job',
   'cargo',
   'janus',
+  'proves',
   'share',
   'collect',
   'carry',
@@ -157,6 +158,7 @@ export const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> =
   job: ['--suite', '--complete-on'],
   cargo: ['--suite'],
   janus: ['--since', '--file'],
+  proves: ['--file', '--name'],
   share: ['--mainline', '--publish', '--suite', '--collected', '--from-queue', '--format', '--purge-older-than'],
   // `--config` by name: `carry` reads a project only when one is named, so it
   // is configless for the table below and still takes the flag.
@@ -191,6 +193,7 @@ export const USAGE = [
   'variance job     --suite <name> [--complete-on <exit>] -- <command>...',
   'variance cargo   [--suite <name>] [-- <cargo test argument>...]',
   'variance janus   --since <ref> --file <path>... -- <command>...',
+  'variance proves  --file <path> [--name <name>] -- <command>...',
   'variance share   [--config <path>] [--mainline <branch>] [--publish] [<report>...] | [--suite <name>] [--publish [--collected <path>] [--from-queue <artifact pattern>] | --format text|github] [<record>...] | --purge-older-than <days> [--mainline <branch>]',
   'variance collect [--config <path>] [--subjects <glob>] [--shard <k>/<n>] [--workers <n>] --out <part.json> | merge <part.json>... --out <suite.index>',
   'variance carry   restore [--transform jest [--shard <k>/<n>]] | save | take [<dir>] [--as-base] | keep [<dir>] | hand <dir> | receive <dir> | merge <commit> [--head <sha>] [--on-conflict stay|fail] [--expect <sha>] [--config <path>] [--format text|github]',
@@ -208,7 +211,7 @@ export const USAGE = [
  * the repository root, as `prune`, `job`, `cargo` and `carry` do. `carry` still names
  * `--config`, and reads a project only when one is named.
  */
-const CONFIGLESS: readonly string[] = ['watch', 'distill', 'covering', 'coverage', 'layers', 'restrictions', 'review', 'story', 'index', 'select', 'shards', 'reach', 'prune', 'job', 'cargo', 'janus', 'carry'];
+const CONFIGLESS: readonly string[] = ['watch', 'distill', 'covering', 'coverage', 'layers', 'restrictions', 'review', 'story', 'index', 'select', 'shards', 'reach', 'prune', 'job', 'cargo', 'janus', 'proves', 'carry'];
 
 export function flagsFor(command: (typeof COMMANDS)[number]): readonly string[] {
   return CONFIGLESS.includes(command)

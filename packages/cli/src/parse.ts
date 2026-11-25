@@ -19,6 +19,7 @@ import { parseRestrictionsArgs, type ParsedRestrictions } from './restrictions-a
 import { parseShareArgs, type ParsedShare } from './share-args.js';
 import { parseCarryArgs, type ParsedCarry } from './carry-args.js';
 import { parseJanusArgs, type ParsedJanus } from './janus-args.js';
+import { parseProvesArgs, type ParsedProves } from './proves-args.js';
 import { parseJobArgs, type ParsedJob } from './job-args.js';
 import { parseCargoArgs, type ParsedCargo } from './cargo-args.js';
 import { parseCollectArgs, type ParsedCollect } from './collect-args.js';
@@ -119,7 +120,7 @@ export type Parsed =
       readonly reports: readonly string[];
     }
   | ParsedAsk
-  | ParsedDistill | ParsedStory | ParsedCovering | ParsedCoverage | ParsedLayers | ParsedRestrictions | ParsedReview | ParsedIndex | ParsedSelect | ParsedShards | ParsedReach | ParsedShare | ParsedCarry | ParsedCollect | ParsedJob | ParsedCargo | ParsedJanus
+  | ParsedDistill | ParsedStory | ParsedCovering | ParsedCoverage | ParsedLayers | ParsedRestrictions | ParsedReview | ParsedIndex | ParsedSelect | ParsedShards | ParsedReach | ParsedShare | ParsedCarry | ParsedCollect | ParsedJob | ParsedCargo | ParsedJanus | ParsedProves
   | {
       readonly command: 'accept';
       readonly config: string;
@@ -300,6 +301,7 @@ export function parseArgs(argv: readonly string[]): Parsed {
     case 'job': return parseJobArgs(flags);
     case 'cargo': return parseCargoArgs(flags);
     case 'janus': return parseJanusArgs(flags);
+    case 'proves': return parseProvesArgs(flags);
 
     case 'adjudicate': {
       const claims = flags.values.get('--claims');
