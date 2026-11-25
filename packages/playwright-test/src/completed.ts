@@ -63,6 +63,10 @@ export const varianceCompletedFixtures: Fixtures<
 > = {
   varianceCompleted: [
     async ({ varianceRecorder }, use, testInfo) => {
+      // The runner's clock when this test began, read here because `TestInfo`
+      // publishes no start of its own: this is the first thing a test's setup
+      // reaches, before any `beforeEach` or fixture the test asked for.
+      const began = Date.now();
       // Open for every fixture the test asked for, which are set up after this
       // one and torn down before it: Eyes hands its journal over in its own
       // teardown, while the case is still the one running.
@@ -98,6 +102,7 @@ export const varianceCompletedFixtures: Fixtures<
         testOf(testInfo),
         testInfo.duration,
         testInfo.timeout,
+        began,
       );
     },
     { auto: true },

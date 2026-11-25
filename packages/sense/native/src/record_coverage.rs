@@ -16,6 +16,12 @@ use crate::record_layout::LAYOUT;
 /// How many phases a test file holds a word each of: `phaseNames` in `record-layout.json`.
 pub(crate) const PHASES: usize = 5;
 
+/// How many words a test file's start holds: an epoch millisecond, low word first.
+pub(crate) const START: usize = 2;
+
+/// A test file's start, `coverage.no_duration` in both words where its runner gave none.
+pub(crate) type Start = [u32; START];
+
 /// A test file's phases, `coverage.no_duration` for one its runner did not report.
 pub(crate) type Phases = [u32; PHASES];
 
@@ -31,6 +37,8 @@ pub(crate) struct Coverage {
     pub test_duration: Option<Vec<u32>>,
     /// `PHASES` words a test; `None` for a layout before `tests.phases`.
     pub test_phases: Option<Vec<u32>>,
+    /// `START` words a test; `None` for a layout before `tests.start`.
+    pub test_start: Option<Vec<u32>>,
     pub precondition_name: Vec<u32>,
     pub precondition_digest: Vec<u32>,
     pub module_path: Vec<u32>,
@@ -129,7 +137,7 @@ fn readable(version: u8) -> Result<(), String> {
     if layout.readable(version) {
         return Ok(());
     }
-    Err(format!("unsupported record version: {version}; this build reads versions {}, {}, {}, {} and {}", layout.untimed, layout.uncased, layout.unphased, layout.unkeyed, layout.format))
+    Err(format!("unsupported record version: {version}; this build reads versions {}, {}, {}, {}, {} and {}", layout.untimed, layout.uncased, layout.unphased, layout.unkeyed, layout.unstarted, layout.format))
 }
 
 /// The test files a record's coverage holds, read off its header alone: the
@@ -154,7 +162,8 @@ pub(crate) struct Head {
 fn coverage(mut decoded: Decoded, version: u8) -> Result<Coverage, String> {
     let decoded = &mut decoded;
     let timed = version != LAYOUT.coverage.untimed;
-    let keyed = version == LAYOUT.coverage.format;
+    let started = version == LAYOUT.coverage.format;
+    let keyed = started || version == LAYOUT.coverage.unstarted;
     let phased = keyed || version == LAYOUT.coverage.unkeyed;
     let one = |name: &str, values: Vec<u32>, empty: bool| -> Result<Option<u32>, String> {
         match values.as_slice() {
@@ -173,6 +182,7 @@ fn coverage(mut decoded: Decoded, version: u8) -> Result<Coverage, String> {
         test_preconditions: decoded.take_words("tests.preconditions")?,
         test_duration: if timed { Some(decoded.take_words(&LAYOUT.coverage.duration)?) } else { None },
         test_phases: if phased { Some(decoded.take_words(&LAYOUT.coverage.phases)?) } else { None },
+        test_start: if started { Some(decoded.take_words(&LAYOUT.coverage.start)?) } else { None },
         precondition_name: decoded.take_words("preconditions.name")?,
         precondition_digest: decoded.take_words("preconditions.digest")?,
         module_path: decoded.take_words("modules.path")?,
@@ -290,6 +300,15 @@ impl Coverage {
         held
     }
 
+    /// The start of test `test`; both words `coverage.no_duration` where none was given.
+    pub fn start(&self, test: usize) -> Start {
+        let mut held = [LAYOUT.coverage.no_duration; START];
+        if let Some(start) = &self.test_start {
+            held.copy_from_slice(&start[test * START..(test + 1) * START]);
+        }
+        held
+    }
+
     /// The git blob name id of module `module`'s text, `coverage.no_blob` where none was recorded.
     pub fn blob(&self, module: usize) -> u32 {
         self.module_blob.as_ref().map_or(LAYOUT.coverage.no_blob, |blob| blob[module])
@@ -326,6 +345,9 @@ impl Coverage {
         }
         if let Some(phases) = &self.test_phases {
             rows(&LAYOUT.coverage.phases, phases.len(), tests * PHASES)?;
+        }
+        if let Some(start) = &self.test_start {
+            rows(&LAYOUT.coverage.start, start.len(), tests * START)?;
         }
         bounds("tests.preconditions", &self.test_preconditions, preconditions)?;
         rows("preconditions.digest", self.precondition_digest.len(), preconditions)?;

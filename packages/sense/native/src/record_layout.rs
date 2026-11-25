@@ -37,6 +37,8 @@ pub struct Levels {
 #[serde(rename_all = "camelCase")]
 pub struct Coverage {
     pub format: u8,
+    /// The layout before `tests.start`: a record whose runner gave no start times.
+    pub unstarted: u8,
     /// The layout before `modules.blob`: a record that named no text by its git blob.
     pub unkeyed: u8,
     /// The layout before the case parts: a record that kept no cases.
@@ -58,6 +60,8 @@ pub struct Coverage {
     pub duration: String,
     /// The section every layout before the current one lacks.
     pub phases: String,
+    /// The section the layouts before the current one lack: two words a test, the epoch millisecond its file started.
+    pub start: String,
     /// The section every layout before the current one lacks: the git blob name of each module's text.
     pub blob: String,
     /// The phases `tests.phases` holds a word each of for every test, in order.
@@ -81,12 +85,12 @@ impl Coverage {
         }
     }
 
-    /// The layouts a reader opens: the current one, the one before the git
-    /// blob names, the one before phases, the one before the case parts, and
+    /// The layouts a reader opens: the current one, the one before start
+    /// times, the one before the git blob names, the one before phases, the one before the case parts, and
     /// the untimed one the JVM agent writes. `readableFormat` in
-    /// `format-layout.ts` opens the same five.
+    /// `format-layout.ts` opens the same six.
     pub fn readable(&self, version: u8) -> bool {
-        version == self.format || version == self.unkeyed || version == self.unphased || version == self.uncased || version == self.untimed
+        version == self.format || version == self.unstarted || version == self.unkeyed || version == self.unphased || version == self.uncased || version == self.untimed
     }
 }
 
@@ -138,10 +142,12 @@ mod tests {
 
     #[test]
     fn reads_the_layout_both_sides_read() {
-        assert_eq!(LAYOUT.coverage.sections.len(), 29);
+        assert_eq!(LAYOUT.coverage.sections.len(), 30);
         assert!(LAYOUT.coverage.sections.contains(&LAYOUT.coverage.blob));
         assert!(LAYOUT.coverage.readable(LAYOUT.coverage.unkeyed));
         assert!(LAYOUT.coverage.sections.contains(&LAYOUT.coverage.phases));
+        assert!(LAYOUT.coverage.sections.contains(&LAYOUT.coverage.start));
+        assert!(LAYOUT.coverage.readable(LAYOUT.coverage.unstarted));
         assert_eq!(LAYOUT.coverage.phase_names.len(), crate::record_coverage::PHASES);
         assert!(LAYOUT.coverage.sections.contains(&LAYOUT.coverage.duration));
         assert_eq!(LAYOUT.coverage.part("index"), "cases");

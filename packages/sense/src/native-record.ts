@@ -46,6 +46,7 @@ export interface NativeCoverageRows {
   readonly testComplete: Uint8Array;
   readonly testDuration: Uint32Array;
   readonly testPhases: Uint32Array;
+  readonly testStart: Uint32Array;
   readonly testPreconditions: Uint32Array;
   readonly preconditionName: string[];
   readonly preconditionDigest: string[];

@@ -19,7 +19,7 @@ use napi_derive::napi;
 use crate::crossing_sets::SetPool;
 use crate::journey_columns::{self, Column};
 use crate::order;
-use crate::record_coverage::{Phases, PHASES};
+use crate::record_coverage::{Phases, Start, PHASES, START};
 use crate::record_coverage_columns::{Columns, Region};
 use crate::record_coverage_crossers::{self, Crossers, RunCrossed};
 use crate::record_coverage_dictionary::{Dictionary, Spelled};
@@ -37,6 +37,8 @@ pub struct CoverageRows {
     pub test_duration: Uint32Array,
     /// `PHASES` words per test.
     pub test_phases: Uint32Array,
+    /// `START` words per test.
+    pub test_start: Uint32Array,
     /// Per test, where its preconditions start; one more entry than tests.
     pub test_preconditions: Uint32Array,
     pub precondition_name: Vec<String>,
@@ -192,8 +194,10 @@ fn columns(rows: &CoverageRows) -> Result<Vec<Column>, String> {
     for test in test_order {
         let mut phases: Phases = [0; PHASES];
         phases.copy_from_slice(&rows.test_phases[test * PHASES..(test + 1) * PHASES]);
+        let mut start: Start = [0; START];
+        start.copy_from_slice(&rows.test_start[test * START..(test + 1) * START]);
         let preconditions = inputs[test].iter().map(|(name, digest)| (ranked(*name), ranked(*digest)));
-        out.test(ranked(paths[test]), rows.test_complete[test], rows.test_duration[test], phases, preconditions);
+        out.test(ranked(paths[test]), rows.test_complete[test], rows.test_duration[test], phases, start, preconditions);
     }
     for module in written {
         let blob = if module.blob == LAYOUT.coverage.no_blob { module.blob } else { ranked(module.blob) };
@@ -211,6 +215,7 @@ fn shaped(rows: &CoverageRows, tests: usize, modules: usize, blocks: usize) -> R
         ("tests.complete", rows.test_complete.len(), tests),
         ("tests.duration", rows.test_duration.len(), tests),
         ("tests.phases", rows.test_phases.len(), tests * PHASES),
+        ("tests.start", rows.test_start.len(), tests * START),
         ("tests.preconditions", rows.test_preconditions.len(), tests + 1),
         ("preconditions.digest", rows.precondition_digest.len(), rows.precondition_name.len()),
         ("modules.source", rows.module_source.len(), modules),

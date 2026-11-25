@@ -15,6 +15,7 @@ import {
   PHASE_NAMES,
   durationWord,
   kindId,
+  startWords,
 } from './format-layout.js';
 import { native, nativeRefusal } from '../addon.js';
 import type { NativeCoverageRows } from '../native-record.js';
@@ -125,6 +126,7 @@ export function coverageRows(coverage: RunCoverage): NativeCoverageRows {
     testComplete: Uint8Array.from(tests, (test) => test.complete ? 1 : 0),
     testDuration: Uint32Array.from(tests, (test) => durationWord(test.duration)),
     testPhases: phaseWords(tests.map((test) => test.phases)),
+    testStart: Uint32Array.from(tests.flatMap((test) => startWords(test.start))),
     testPreconditions,
     preconditionName,
     preconditionDigest,
@@ -175,6 +177,14 @@ export function phasesAt(words: Uint32Array | undefined, test: number): { readon
   return reported ? { phases } : {};
 }
 
+/** The start test `test` holds in a `tests.start` column, as a field to spread: absent where none was given. */
+export function startAt(words: Uint32Array | undefined, test: number): { readonly start?: number } {
+  if (words === undefined) return {};
+  const low = words[test * 2] ?? NO_DURATION;
+  const high = words[test * 2 + 1] ?? NO_DURATION;
+  return high === NO_DURATION ? {} : { start: high * 2 ** 32 + low };
+}
+
 /** Decode the snapshot for callers that explicitly ask for the logical model. */
 export function decodeTestCoverage(bytes: Uint8Array): TestCoverage {
   const view = openTestCoverage(bytes);
@@ -203,6 +213,7 @@ export function decodeTestCoverage(bytes: Uint8Array): TestCoverage {
   const testPreconditions = view.testPreconditions.all();
   const testDuration = view.testDuration?.all();
   const testPhases = view.testPhases?.all();
+  const testStart = view.testStart?.all();
   const preconditionName = view.preconditionName.all();
   const preconditionDigest = view.preconditionDigest.all();
   const tests: CoverageTest[] = [];
@@ -221,6 +232,7 @@ export function decodeTestCoverage(bytes: Uint8Array): TestCoverage {
       preconditions,
       ...(duration === NO_DURATION ? {} : { duration }),
       ...phasesAt(testPhases, test),
+      ...startAt(testStart, test),
     });
   }
   const modulePath = view.modulePath.all();

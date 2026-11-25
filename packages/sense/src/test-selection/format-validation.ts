@@ -48,6 +48,7 @@ export function validateCoverageShape(rows: CoverageRows): void {
     rows['tests.preconditions'] !== tests + 1 ||
     (rows['tests.duration'] ?? tests) !== tests ||
     (rows['tests.phases'] ?? tests * PHASE_NAMES.length) !== tests * PHASE_NAMES.length ||
+    (rows['tests.start'] ?? tests * 2) !== tests * 2 ||
     rows['preconditions.name'] !== rows['preconditions.digest'] ||
     rows['modules.source'] !== modules ||
     (rows[BLOB] ?? modules) !== modules ||

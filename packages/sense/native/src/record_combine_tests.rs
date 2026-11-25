@@ -147,10 +147,22 @@ fn carries_each_test_files_phases_and_reads_the_layout_before_them_as_none_repor
 }
 
 #[test]
+fn carries_each_test_files_start_and_reads_the_layout_before_it_as_none_given() {
+    let none = LAYOUT.coverage.no_duration;
+    let mut unstarted = spec(vec![test("a.test.ts")], vec![module("src/a.ts", vec![block(0, &[0])])]);
+    unstarted.version = LAYOUT.coverage.unstarted;
+    let mut started = spec(vec![test("b.test.ts")], vec![module("src/a.ts", vec![block(0, &[0])])]);
+    started.tests[0].start = Some([7, 419]);
+    let folded = combined(&[&fixture::write(&unstarted), &fixture::write(&started)]).unwrap();
+    assert_eq!(fixture::starts(&folded.bytes), [("a.test.ts".to_owned(), [none; 2]), ("b.test.ts".to_owned(), [7, 419])]);
+    assert_eq!(journey_columns::decode_any(&folded.bytes).unwrap().0, LAYOUT.coverage.format);
+}
+
+#[test]
 fn refuses_a_version_or_a_section_this_build_does_not_read() {
     for version in [7, LAYOUT.coverage.format + 1] {
         let refused_version = refused(&[&journey_columns::encode(Vec::new(), version).unwrap()]);
-        assert!(refused_version.contains(&format!("unsupported record version: {version}; this build reads versions 8, 9, 10, 11 and 12")), "{refused_version}");
+        assert!(refused_version.contains(&format!("unsupported record version: {version}; this build reads versions 8, 9, 10, 11, 12 and 13")), "{refused_version}");
     }
     let mut held = spec(vec![test("a.test.ts")], Vec::new());
     held.parts.push(("index", Vec::new()));

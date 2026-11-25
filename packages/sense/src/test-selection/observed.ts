@@ -55,6 +55,12 @@ export interface ObservedSubject {
    * none, as `duration` is, and summed across sources as it is.
    */
   readonly phases?: FilePhases;
+  /**
+   * When the runner started this owner's tests, in milliseconds since the
+   * epoch, by the runner's own clock. A join keeps the earliest one its
+   * sources carry.
+   */
+  readonly start?: number;
 }
 
 /**
@@ -187,6 +193,7 @@ export function joinObservations(
     instrumentation: string;
     duration?: number;
     phases?: FilePhases;
+    start?: number;
   }
   const byOwner = new Map<string, Held>();
 
@@ -204,6 +211,7 @@ export function joinObservations(
       }
       if (subject.complete === false) held.complete = false;
       if (subject.duration !== undefined) held.duration = (held.duration ?? 0) + subject.duration;
+      if (subject.start !== undefined) held.start = Math.min(held.start ?? subject.start, subject.start);
       // Summed like the duration where two sources timed the owner; a source
       // that timed nothing — a head — leaves the other's phases standing.
       if (subject.phases !== undefined) {
@@ -227,6 +235,7 @@ export function joinObservations(
       complete: held.complete,
       ...(held.duration === undefined ? {} : { duration: held.duration }),
       ...(held.phases === undefined ? {} : { phases: held.phases }),
+      ...(held.start === undefined ? {} : { start: held.start }),
       journal: {
         instrumentation: held.instrumentation,
         modules: modulesEntered(held.modules),
