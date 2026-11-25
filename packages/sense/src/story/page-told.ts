@@ -84,7 +84,7 @@ globalThis[${JSON.stringify(TELLER_GLOBAL)}] = {
     for (let kept = taken.taped, said = taken.notes.length; room !== undefined && told.length > room && kept + said > 0; ) {
       const notes = taken.notes.filter(([at]) => at <= kept).slice(0, said);
       const words = notes.reduce((sum, [, , text]) => sum + text.length, 0);
-      if (kept > 0 && kept * 4 >= words) kept >>= 1;
+      if (kept > 0 && kept * 12 >= words) kept >>= 1;
       else said = notes.length >> 1;
       told = encode(cut(taken, kept, said), key);
     }

@@ -15,7 +15,7 @@
 import type { ModuleId } from '../instrument/index.js';
 import type storyTap = require('../instrument/story-tap.cjs');
 
-type Tape = ReturnType<ReturnType<typeof storyTap.createTap>['read']>;
+type Tape = ReturnType<ReturnType<typeof storyTap.createTap>['take']>;
 type Part = readonly [at: number, said: number, frame: number, document: number];
 type TestLine = readonly [at: number, line: number, said: number, hook?: 1];
 
@@ -38,15 +38,16 @@ function rowAt(bases: readonly number[], index: number): number {
   return low;
 }
 
-/** What a live head adds to one execution's story: whether its tape lost any of it, and the parts it was cut into. */
+/** What a live head adds to one execution's story: whether its tape lost any of it, the parts it was cut into, and when it settled. */
 interface StoryPage {
   readonly lost?: boolean;
   readonly parts?: readonly Part[];
+  readonly end?: number;
 }
 
 /**
  * The bytes of the story of the case keyed `key` on `tape`, as
- * `format.encodeStory` documents them, `owner` being the case the key names
+ * `format.decodeStory` documents them, `owner` being the case the key names
  * and `utf8` how this realm spells text. It refers to {@link MAGIC},
  * {@link INDEX}, {@link EVALUATING} and {@link rowAt}, which a page defines
  * beside its text.
@@ -58,15 +59,17 @@ function storyBytes(
   const { at, keys } = tape;
   const ends = (segment: number): number => (segment + 1 < at.length ? at[segment + 1]! : tape.taped);
   const own: number[] = [];
-  let interleaved = 0;
+  // The segments another case's work ran before, since this one's last.
+  const crossings = new Set<number>();
   let foreign = 0;
   for (let segment = 0; segment < keys.length; segment += 1) {
     if (keys[segment] === key) {
-      if (own.length > 0 && foreign > 0) interleaved += 1;
+      if (own.length > 0 && foreign > 0) crossings.add(segment);
       foreign = 0;
       own.push(segment);
     } else if (own.length > 0 && keys[segment] !== '') foreign += 1;
   }
+  const left = own.length > 0 && foreign > 0;
   let first = own[0] ?? keys.length;
   while (own.length > 0 && first > 0 && keys[first - 1] === '') first -= 1;
   // What ran outside any case right after this one, up to the next case, is
@@ -81,6 +84,7 @@ function storyBytes(
   const rows: [ModuleId, number][] = [];
   let total = 0;
   const entries: number[] = [];
+  const stamps: number[] = [];
   const take = (from: number, to: number): void => {
     for (let at = from; at < to; at += 1) {
       const entry = tape.tape[at]!;
@@ -94,6 +98,7 @@ function storyBytes(
         total += tape.rows.counts[low]!;
       }
       entries.push((base + index - bases[low]!) | (entry & EVALUATING));
+      if (tape.stamps !== undefined) stamps.push(tape.stamps[at]!);
     }
   };
   // Where each taken segment starts on the tape and in `entries`, so a note
@@ -104,10 +109,13 @@ function storyBytes(
     take(at[segment]!, ends(segment));
   }
   const before = entries.length;
+  const crossed: number[] = [];
   for (const segment of own) {
+    if (crossings.has(segment)) crossed.push(entries.length - before);
     placed.push([at[segment]!, ends(segment), entries.length, false]);
     take(at[segment]!, ends(segment));
   }
+  if (left) crossed.push(entries.length - before);
 
   const notes: [number, string][] = [];
   const beforeNotes: [number, string][] = [];
@@ -161,7 +169,7 @@ function storyBytes(
   const { file, name, project } = owner;
   const header = utf8(
     JSON.stringify({
-      file, name, ...(project === undefined ? {} : { project }), rows, before, untaped: tape.visits - tape.taped, interleaved, stopped,
+      file, name, ...(project === undefined ? {} : { project }), rows, before, untaped: tape.visits - tape.taped, interleaved: crossings.size, stopped,
       ...(notes.length === 0 ? {} : { notes }),
       ...(beforeNotes.length === 0 ? {} : { beforeNotes }),
       ...(tape.unnoted === 0 ? {} : { unnoted: tape.unnoted }),
@@ -169,16 +177,18 @@ function storyBytes(
       ...(beforeLines.length === 0 ? {} : { beforeLines }),
       ...(page.lost === undefined ? {} : { lost: page.lost }),
       ...(page.parts === undefined || page.parts.length === 0 ? {} : { parts: page.parts }),
+      ...(tape.stamps === undefined ? {} : { stamped: true, ...(page.end === undefined ? {} : { end: page.end }), ...(crossed.length === 0 ? {} : { crossed }) }),
     }),
   );
   const padded = (header.length + 3) & ~3;
-  const out = new Uint8Array(MAGIC.length + 4 + padded + entries.length * 4).fill(0x20);
+  const out = new Uint8Array(MAGIC.length + 4 + padded + entries.length * (tape.stamps === undefined ? 4 : 12)).fill(0x20);
   const view = new DataView(out.buffer);
   out.set(MAGIC, 0);
   view.setUint32(MAGIC.length, header.length, true);
   out.set(header, MAGIC.length + 4);
   const body = MAGIC.length + 4 + padded;
   for (let at = 0; at < entries.length; at += 1) view.setInt32(body + at * 4, entries[at]!, true);
+  for (let at = 0; at < stamps.length; at += 1) view.setFloat64(body + entries.length * 4 + at * 8, stamps[at]!, true);
   return out;
 }
 

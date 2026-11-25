@@ -64,6 +64,28 @@ describe('where a story says the case was', () => {
   });
 });
 
+describe('a story whose bytes are damaged', () => {
+  const stamped = { ...tape([]), stamps: Float64Array.from([5, 7]) };
+  const refused = 'variance-authority: this is not a story this build writes';
+
+  it('is refused where its header says it is longer than the bytes there are', () => {
+    const bytes = encodeStory(tape([]), KEY);
+    // Cut inside the header: as many bytes as the magic, the length and a little more.
+    expect(() => decodeStory(bytes.subarray(0, bytes.indexOf('{') + 8))).toThrow(refused);
+  });
+
+  it('is refused where it ends part way through a visit, with or without stamps', () => {
+    expect(decodeStory(encodeStory(stamped, KEY)).stamps).toEqual(Float64Array.from([5, 7]));
+    for (const told of [tape([]), stamped]) {
+      const bytes = encodeStory(told, KEY);
+      expect(() => decodeStory(bytes.subarray(0, -1))).toThrow(refused);
+    }
+    // Four bytes are a whole visit of an unstamped story, and a third of a stamped one's.
+    expect(decodeStory(encodeStory(tape([]), KEY).subarray(0, -4)).visits).toHaveLength(1);
+    expect(() => decodeStory(encodeStory(stamped, KEY).subarray(0, -4))).toThrow(refused);
+  });
+});
+
 describe('the case a reading is of', () => {
   it('is its file and name alone where no project ran it, and its project as well where one did', () => {
     expect(caseStem('a.test.ts', 'adds')).toBe(caseStem('a.test.ts', 'adds', undefined));

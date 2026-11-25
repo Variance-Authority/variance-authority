@@ -300,15 +300,16 @@ function installJourneys(options: JourneyCollectorOptions): JourneyCollector {
    * head said it opened for that journey the account closes; the driver waits
    * for every one of them before it joins anything. `running` says the request
    * is still open, reported only because another settled, so its story waits.
+   * `ended` says a scope `enter` opened settled, so the execution did.
    */
-  const report = (journey: string, over: Channel | undefined, settled = 0, running = false): void => {
+  const report = (journey: string, over: Channel | undefined, settled = 0, running = false, ended = false): void => {
     const bucket = buckets.get(journey);
     buckets.delete(journey);
     // Taken whether or not it is sent: the tape holds only what is open.
     const story =
       over === undefined || over.home !== watched || journey === UNATTRIBUTED ? taped?.forget(journey)
       : running ? undefined
-      : taped?.storyOf(journey);
+      : taped?.storyOf(journey, ended);
     const entered: ExecutedModule[] =
       bucket === undefined ? [] : probeLists.lists(engine.close(bucket), false);
     // What the process did outside any journey is every subject's, and so is
@@ -342,7 +343,7 @@ function installJourneys(options: JourneyCollectorOptions): JourneyCollector {
     if (modules !== undefined) send(over, { scope: 'process', modules });
   };
 
-  const release = (journey: string): void => {
+  const release = (journey: string, ended = true): void => {
     const open = (depth.get(journey) ?? 1) - 1;
     if (open > 0) {
       depth.set(journey, open);
@@ -352,7 +353,7 @@ function installJourneys(options: JourneyCollectorOptions): JourneyCollector {
     // The way home is kept past the scope, since a promise the handler started
     // and did not return still runs as this request; see `straggle`.
     const over = channels.get(journey);
-    report(journey, over, 1);
+    report(journey, over, 1, false, ended);
     // A request nobody drove and still open is the process's to this driver too, so far.
     if (watched !== undefined && over?.home !== watched) for (const [open, home] of channels) if (home.home === watched && buckets.has(open)) report(open, home, 0, true);
     report(UNATTRIBUTED, over);
@@ -383,7 +384,8 @@ function installJourneys(options: JourneyCollectorOptions): JourneyCollector {
     // Off the probe's own stack: this runs inside an instrumented call.
     const home = over;
     queueMicrotask(() => send(home, { scope: 'journey', opened: 1, modules: [] }));
-    setImmediate(() => release(journey));
+    // A turn of the loop, and not the end of what it ran in.
+    setImmediate(() => release(journey, false));
   }
 
   const flush = async (): Promise<void> => {

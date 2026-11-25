@@ -1,51 +1,8 @@
 /**
  * A story on disk: the regions one case visited, in the order it visited them.
  *
- * A journey is the set of places a case reached, and it is what every other
- * part of the recording is built from. A story is the tape
- * [`story-tap.cts`](../instrument/story-tap.cts) keeps beside it when somebody
- * runs with `VARIANCE_AUTHORITY_STORY=1`, cut to one case. Nothing selects on
- * it or folds it into a record: it is written for the person or agent reading
- * one case, and it is read back only by `variance story`, which draws one
- * reading or compares two sets of them.
- *
- * ## Layout
- *
- * ```
- * magic      VASTRY\0\1                     8 bytes
- * header     u32 length, then UTF-8 JSON    padded to 4
- * visits     i32 each                       before, then the case
- * ```
- *
- * The header says which file and case the story is, the rows it uses as
- * `[module, block count]`, how many of the visits came before the case, and
- * what the tape could not keep. A visit is a region's index in the story's own
- * row table — the realm's indices are the order modules happened to register
- * in, which means nothing outside the run — with the evaluating bit kept as the
- * sign bit, as the probe wrote it.
- *
- * ## Readings
- *
- * Every run of a case writes a reading of its own, named
- * `<case>.<written>-<pid>-<n>[.<label>].story`: the digest of the case's file,
- * name and project, when it was written, and the label the run gave
- * `VARIANCE_AUTHORITY_STORY` when it gave one other than `1`. A case keeps its last {@link READINGS}. One reading says
- * where the case went; two sets of them say which differences come back every
- * time and which move between runs, and a difference in the order of async work
- * is only an answer when it is the first kind.
- *
- * ## Notes
- *
- * What the code said while the case ran — a console line, an announcement, an
- * Arrange/Act/Assert marker — rides in the header as `[position, text]` over
- * the visits before the case and then its own; a test line, as a {@link TestLine}.
- *
- * ## What comes before a case
- *
- * The visits in no case's bucket immediately before the case began: the last
- * case's `afterEach` and this one's `beforeEach`, whichever the runner ran
- * outside the case's bracket. A reader labels them as before the case and never
- * as the case.
+ * Nothing selects on one or folds it into a record: it is read back only to be
+ * drawn or compared. {@link decodeStory} says what its bytes are.
  *
  * CommonJS so the collectors can require it from inside a runner's sandbox,
  * for the reason `journal-format.cts` is.
@@ -65,7 +22,7 @@ const builtins = (): { crypto: typeof crypto; fs: typeof fs; path: typeof path }
   crypto: require('node:crypto'), fs: require('node:fs'), path: require('node:path'),
 });
 
-type Tape = ReturnType<ReturnType<typeof storyTap.createTap>['read']>;
+type Tape = ReturnType<ReturnType<typeof storyTap.createTap>['take']>;
 
 const { MAGIC, EVALUATING, rowAt } = storyBytes;
 
@@ -77,7 +34,11 @@ interface Story {
   readonly name: string;
   /** `[module, block count]` for every module a visit names, in first-visit order. */
   readonly rows: readonly (readonly [ModuleId, number])[];
-  /** What ran outside any case just before this one began. */
+  /**
+   * What ran outside any case just before this one began: the last case's
+   * `afterEach` and this one's `beforeEach`, whichever the runner ran outside
+   * the case's bracket. A reader never labels them as the case.
+   */
   readonly before: Int32Array;
   /** What ran in the case, in order. */
   readonly visits: Int32Array;
@@ -119,6 +80,16 @@ interface Story {
    * process. Absent where the case ran in one realm.
    */
   readonly parts?: readonly Part[];
+  /** When each of {@link visits} was made, in milliseconds since the epoch; only a live head stamps them. */
+  readonly stamps?: Float64Array;
+  /** When the execution settled, as its stamps say; absent where the head could not see it settle: a page, a turn a trace alone names, a scope open as the head closed. */
+  readonly end?: number;
+  /**
+   * How many of {@link visits} came before each time the process ran other
+   * work in the middle of this execution's, ascending. Work that ran after the
+   * last visit is in it, which {@link interleaved} does not count.
+   */
+  readonly crossed?: readonly number[];
 }
 
 /** Where a case's story moves into another realm: after `at` visits and `said` notes, frame `frame`'s document `document`. */
@@ -132,7 +103,11 @@ type Part = readonly [at: number, said: number, frame: number, document: number]
  */
 type TestLine = readonly [at: number, line: number, said: number, hook?: 1];
 
-/** How many readings of one case a directory keeps; writing another removes the oldest. */
+/**
+ * How many readings of one case a directory keeps; writing another removes the
+ * oldest. Two sets of readings say which differences come back every time and
+ * which move between runs.
+ */
 const READINGS = 16;
 
 /** The one case a story is of, as the start of every reading's file name. */
@@ -142,7 +117,10 @@ function caseStem(file: string, name: string, project?: string): string {
   return crypto.createHash('sha256').update(named).digest('hex').slice(0, 32);
 }
 
-/** What a reading's file name says: its case, when it was written, and the label it was given. */
+/**
+ * What a reading's file name, `<stem>.<written>-<pid>-<n>[.<label>].story`,
+ * says: its case, when it was written, and the label it was given.
+ */
 interface ReadingName {
   readonly stem: string;
   /** Milliseconds since the epoch; absent on a story written before readings were kept. */
@@ -185,7 +163,13 @@ function encodeStory(tape: Tape, key: string, stopped?: boolean, page: Parameter
   return Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
 }
 
-/** A story's bytes read back, or an error naming what they are not. */
+/**
+ * A story's bytes read back, or an error naming what they are not: the magic,
+ * a `u32` length and that much JSON padded to 4, then an `i32` a visit, those
+ * before the case first, then an `f64` a visit where the header says `stamped`.
+ * A visit is an index in the story's own row table, as the realm's are the
+ * order its modules registered in, with the evaluating bit as its sign bit.
+ */
 function decodeStory(bytes: Uint8Array): Story {
   const buffer = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   const damaged = (): Error => new Error('variance-authority: this is not a story this build writes');
@@ -193,13 +177,16 @@ function decodeStory(bytes: Uint8Array): Story {
   for (let at = 0; at < MAGIC.length; at += 1) if (buffer[at] !== MAGIC[at]) throw damaged();
   const length = buffer.readUInt32LE(MAGIC.length);
   const body = MAGIC.length + 4 + ((length + 3) & ~3);
-  if (body > buffer.length || (buffer.length - body) % 4 !== 0) throw damaged();
-  const header = JSON.parse(buffer.toString('utf8', MAGIC.length + 4, MAGIC.length + 4 + length)) as Omit<
+  if (body > buffer.length) throw damaged();
+  const { stamped, ...header } = JSON.parse(buffer.toString('utf8', MAGIC.length + 4, MAGIC.length + 4 + length)) as Omit<
     Story,
-    'before' | 'visits' | 'notes' | 'beforeNotes' | 'unnoted' | 'lines' | 'beforeLines'
-  > & { before: number } & Partial<Pick<Story, 'notes' | 'beforeNotes' | 'unnoted' | 'lines' | 'beforeLines'>>;
-  const all = new Int32Array((buffer.length - body) / 4);
+    'before' | 'visits' | 'notes' | 'beforeNotes' | 'unnoted' | 'lines' | 'beforeLines' | 'stamps'
+  > & { before: number; stamped?: true } & Partial<Pick<Story, 'notes' | 'beforeNotes' | 'unnoted' | 'lines' | 'beforeLines'>>;
+  const width = stamped === true ? 12 : 4;
+  if ((buffer.length - body) % width !== 0) throw damaged();
+  const all = new Int32Array((buffer.length - body) / width);
   for (let at = 0; at < all.length; at += 1) all[at] = buffer.readInt32LE(body + at * 4);
+  const stamps = stamped === true ? Float64Array.from(all, (_, at) => buffer.readDoubleLE(body + all.length * 4 + at * 8)) : undefined;
   return {
     ...header,
     notes: header.notes ?? [],
@@ -209,6 +196,7 @@ function decodeStory(bytes: Uint8Array): Story {
     beforeLines: header.beforeLines ?? [],
     before: all.subarray(0, header.before),
     visits: all.subarray(header.before),
+    ...(stamps === undefined ? {} : { stamps: stamps.subarray(header.before) }),
   };
 }
 
