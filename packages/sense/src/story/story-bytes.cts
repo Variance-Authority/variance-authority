@@ -46,7 +46,7 @@ interface StoryPage {
 
 /**
  * The bytes of the story of the case keyed `key` on `tape`, as
- * `format.encodeStory` documents them, `owner` being the case the key names
+ * `format.decodeStory` documents them, `owner` being the case the key names
  * and `utf8` how this realm spells text. It refers to {@link MAGIC},
  * {@link INDEX}, {@link EVALUATING} and {@link rowAt}, which a page defines
  * beside its text.

@@ -1,51 +1,8 @@
 /**
  * A story on disk: the regions one case visited, in the order it visited them.
  *
- * A journey is the set of places a case reached, and it is what every other
- * part of the recording is built from. A story is the tape
- * [`story-tap.cts`](../instrument/story-tap.cts) keeps beside it when somebody
- * runs with `VARIANCE_AUTHORITY_STORY=1`, cut to one case. Nothing selects on
- * it or folds it into a record: it is written for the person or agent reading
- * one case, and it is read back only by `variance story`, which draws one
- * reading or compares two sets of them.
- *
- * ## Layout
- *
- * ```
- * magic      VASTRY\0\1                     8 bytes
- * header     u32 length, then UTF-8 JSON    padded to 4
- * visits     i32 each                       before, then the case
- * ```
- *
- * The header says which file and case the story is, the rows it uses as
- * `[module, block count]`, how many of the visits came before the case, and
- * what the tape could not keep. A visit is a region's index in the story's own
- * row table — the realm's indices are the order modules happened to register
- * in, which means nothing outside the run — with the evaluating bit kept as the
- * sign bit, as the probe wrote it.
- *
- * ## Readings
- *
- * Every run of a case writes a reading of its own, named
- * `<case>.<written>-<pid>-<n>[.<label>].story`: the digest of the case's file,
- * name and project, when it was written, and the label the run gave
- * `VARIANCE_AUTHORITY_STORY` when it gave one other than `1`. A case keeps its last {@link READINGS}. One reading says
- * where the case went; two sets of them say which differences come back every
- * time and which move between runs, and a difference in the order of async work
- * is only an answer when it is the first kind.
- *
- * ## Notes
- *
- * What the code said while the case ran — a console line, an announcement, an
- * Arrange/Act/Assert marker — rides in the header as `[position, text]` over
- * the visits before the case and then its own; a test line, as a {@link TestLine}.
- *
- * ## What comes before a case
- *
- * The visits in no case's bucket immediately before the case began: the last
- * case's `afterEach` and this one's `beforeEach`, whichever the runner ran
- * outside the case's bracket. A reader labels them as before the case and never
- * as the case.
+ * Nothing selects on one or folds it into a record: it is read back only to be
+ * drawn or compared. {@link decodeStory} says what its bytes are.
  *
  * CommonJS so the collectors can require it from inside a runner's sandbox,
  * for the reason `journal-format.cts` is.
@@ -77,7 +34,11 @@ interface Story {
   readonly name: string;
   /** `[module, block count]` for every module a visit names, in first-visit order. */
   readonly rows: readonly (readonly [ModuleId, number])[];
-  /** What ran outside any case just before this one began. */
+  /**
+   * What ran outside any case just before this one began: the last case's
+   * `afterEach` and this one's `beforeEach`, whichever the runner ran outside
+   * the case's bracket. A reader never labels them as the case.
+   */
   readonly before: Int32Array;
   /** What ran in the case, in order. */
   readonly visits: Int32Array;
@@ -132,7 +93,11 @@ type Part = readonly [at: number, said: number, frame: number, document: number]
  */
 type TestLine = readonly [at: number, line: number, said: number, hook?: 1];
 
-/** How many readings of one case a directory keeps; writing another removes the oldest. */
+/**
+ * How many readings of one case a directory keeps; writing another removes the
+ * oldest. Two sets of readings say which differences come back every time and
+ * which move between runs.
+ */
 const READINGS = 16;
 
 /** The one case a story is of, as the start of every reading's file name. */
@@ -142,7 +107,10 @@ function caseStem(file: string, name: string, project?: string): string {
   return crypto.createHash('sha256').update(named).digest('hex').slice(0, 32);
 }
 
-/** What a reading's file name says: its case, when it was written, and the label it was given. */
+/**
+ * What a reading's file name, `<stem>.<written>-<pid>-<n>[.<label>].story`,
+ * says: its case, when it was written, and the label it was given.
+ */
 interface ReadingName {
   readonly stem: string;
   /** Milliseconds since the epoch; absent on a story written before readings were kept. */
@@ -185,7 +153,13 @@ function encodeStory(tape: Tape, key: string, stopped?: boolean, page: Parameter
   return Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
 }
 
-/** A story's bytes read back, or an error naming what they are not. */
+/**
+ * A story's bytes read back, or an error naming what they are not: the magic,
+ * a `u32` length and that much JSON padded to 4, then an `i32` a visit, those
+ * before the case first.
+ * A visit is an index in the story's own row table, as the realm's are the
+ * order its modules registered in, with the evaluating bit as its sign bit.
+ */
 function decodeStory(bytes: Uint8Array): Story {
   const buffer = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   const damaged = (): Error => new Error('variance-authority: this is not a story this build writes');
