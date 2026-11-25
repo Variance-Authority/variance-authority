@@ -1039,6 +1039,17 @@ loaders by path, and you can name them yourself:
 configuration that names the first and not the second fails when the run ends,
 naming each file that never reached the second loader.
 
+## Record and select a `node:test` suite
+
+`@variance-authority/sense/node-test` is the runner above, written for
+`node:test`. `runNodeTest({ files })` runs the files with `node:test`'s own
+`run()`, one process per file, records each case under its `describe` path, and
+reads `VARIANCE_AUTHORITY_SINCE`: a file the record proves the diff did not
+reach is not started, and the run prints `selected N of M`. It takes the options
+`startRecording` takes. [Record and select tests under
+`node:test`](https://variance-authority.dev/docs/node-test) walks through it, and
+says why Bun's `bun test` is not recorded.
+
 ## Record a runner this package has no seam for
 
 The Vitest, Jest and Rstest seams are configuration, because each of those
