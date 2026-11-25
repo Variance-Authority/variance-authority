@@ -310,9 +310,9 @@ thing. It is a coordinate you already have, so it is matched literally:
 - **A start point that names nothing is refused**, and nothing is searched. No
   answer is ever given from outside it: falling back to the rest of the suite
   would answer a question you did not ask, out of the files you ruled out — and
-  would do it while printing a confident top hit. A `grep` of the workspace
-  refuses it too, and in the same line names the nearest folder around it with a
-  match, whose matches it lists.
+  would do it while printing a confident top hit. A `grep` of the workspace that
+  is given one start point alone refuses it too, and where a folder around that
+  path holds a match, its first line names the nearest and lists its matches.
 
 Several paths are several entry points, and they are taken together rather than
 intersected: two areas of an application have very nearly no files in common, so

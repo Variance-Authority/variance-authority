@@ -58,7 +58,8 @@ note: In 1090 file(s) reachable from `packages/help/src/index.ts` along the impo
 One start point that answers nothing is answered from the nearest folder around
 it that holds a match. The first line says the path is not found, or that the
 files it reaches hold no match, and then names the folder; the lines that match
-follow, those no imports away under no heading. Past 20 lines the first 10 and the
+follow. It carries no `note:` line on the area, only one on the files whose
+imports the scan could not resolve. Past 20 lines the first 10 and the
 rows above answer it, and the last line is the whole question that lists every line,
 start point and all. The exit code stays 2 for a path that is not found, and is 0 where
 the files it reaches hold no match. The folder always holds the path and is
@@ -69,8 +70,9 @@ nothing was found.
 
 ```
 $ variance ask grep --query 'fn area_line' --from packages/sense/native/src/text_cut.rs
-No match in the 1 file reachable from `packages/sense/native/src/text_cut.rs`. 1 matching line in 1 file reachable from `packages/sense/native/src/`:
-packages/sense/native/src/help_grep_answer.rs:350: pub(crate) fn area_line(scope: &Scope) -> String {
+No match in the 1 file reachable from `packages/sense/native/src/text_cut.rs`. 1 matching line in 1 file reachable from `packages/sense/native/src/`, nearest first:
+0 imports away:
+packages/sense/native/src/help_grep_answer.rs:319: pub(crate) fn area_line(scope: &Scope) -> String {
 ```
 
 With `--test`, 20 lines are listed and the rest counted. The answer opens

@@ -330,16 +330,16 @@ describe('grep of a start point that answers nothing', () => {
     ['a path of two slashes', { from: 'src//nope.ts' }, 'refused: `src//nope.ts` is not found.', 'reachable from'],
     ['a path against the imports', { to: 'src/nope.ts' }, 'refused: `src/nope.ts` is not found.', 'reaching'],
   ])('answers from the folder around %s, in one line and the rows', (_, start, opens, along) => {
-    expect(said({ query: 'needle', ...start }).split('\n')).toEqual([`${opens} 3 matching lines in 3 files ${along} \`src/\`, nearest first:`, ...NEEDLES]);
+    expect(said({ query: 'needle', ...start }).split('\n')).toEqual([`${opens} 3 matching lines in 3 files ${along} \`src/\`, nearest first:`, '0 imports away:', ...NEEDLES]);
   });
 
-  it('says how far a line outside the folder is, and nothing of the folder itself', () => {
+  it('says how far a line outside the folder is', () => {
     write('around/in/blank.ts', '');
     write('around/near.ts', "import '../beyond/far';\n");
     write('beyond/far.ts', 'const beyond = 1;\n');
     const records = [reads('around/in/blank.ts'), reads('around/near.ts', 'beyond/far.ts'), reads('beyond/far.ts')];
     expect(grep.run(undefined, { query: 'beyond =', from: 'around/in/blank.ts' }, { tree: treeOf(records, root) }).split('\n')).toEqual([
-      'No match in the 1 file reachable from `around/in/blank.ts`. 1 matching line in 1 file reachable from `around/`:',
+      'No match in the 1 file reachable from `around/in/blank.ts`. 1 matching line in 1 file reachable from `around/`, nearest first:',
       '1 import away:',
       'beyond/far.ts:1: const beyond = 1;',
     ]);
@@ -349,8 +349,8 @@ describe('grep of a start point that answers nothing', () => {
     write('around/hit.ts', 'const partial = 1;\n');
     const records = [reads('around/gone.ts'), reads('around/hit.ts')];
     const text = grep.run(undefined, { query: 'partial', from: 'around/gone.ts' }, { tree: treeOf(records, root) });
-    expect(text).toContain('reachable from `around/`:\naround/hit.ts:1: const partial = 1;\nnote: ripgrep reported 1 error reading them; the first: ');
-    expect(text.split('\n')).toHaveLength(3);
+    expect(text).toContain('reachable from `around/`, nearest first:\n0 imports away:\naround/hit.ts:1: const partial = 1;\nnote: ripgrep reported 1 error reading them; the first: ');
+    expect(text.split('\n')).toHaveLength(4);
   });
 
   it('stops at the nearest folder with a match', () => {

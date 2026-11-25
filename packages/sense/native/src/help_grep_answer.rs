@@ -139,7 +139,7 @@ pub(crate) struct Asked<'a> {
     pub said: Said,
 }
 
-/// The matching lines of an area, whose files stand nearest first. Files remembered as passed are no longer in it, and hold no line to write.
+/// The matching lines of an area, whose files stand nearest first.
 struct Found {
     scope: Scope,
     area: String,
@@ -158,16 +158,14 @@ pub(crate) fn answered(tree: &SourceTree, roots: &Roots, asked: Asked, surface: 
         _ => Vec::new(),
     };
     let asked = from.first().or(to.first()).cloned().unwrap_or_default();
-    let mut passed = Passed::default();
     let (first, opening) = match scope(tree, root, from, to) {
         Ok(area) => {
-            let mut found = passed.search(roots.graph, query, area)?;
+            let found = search(roots.graph, query, area)?;
             if folders.is_empty() || !found.hits.file.is_empty() {
                 return Ok(written(roots, query, found, &said, None, surface));
             }
             let count = found.files.len();
             let opening = format!("No match in the {count} {} {} `{asked}`. ", plural(count, "file", "files"), along(against));
-            passed.remember(&mut found);
             (Ok(written(roots, query, found, &said, None, surface)), opening)
         }
         Err(refused) => (Err(refused), format!("`{asked}` is not found. ")),
@@ -178,9 +176,8 @@ pub(crate) fn answered(tree: &SourceTree, roots: &Roots, asked: Asked, surface: 
         // A folder the tree holds no file under is passed over, and the one around it is looked in.
         let area = resolve(tree, root, from, to).ok()?;
         // Only a missing path meets a broken pattern here first, and it is refused as missing.
-        let mut found = passed.search(roots.graph, query, area).ok()?;
+        let found = search(roots.graph, query, area).ok()?;
         if found.hits.file.is_empty() {
-            passed.remember(&mut found);
             return None;
         }
         let start = Start { direction: if against { "to" } else { "from" }, path: folder };
@@ -217,39 +214,14 @@ fn around(term: &str, root: &str) -> Vec<String> {
     (1..named.len()).rev().map(|depth| format!("{}/", named[..depth].join("/"))).collect()
 }
 
-/// Files already searched without a match, and what could not be read of them. A folder reaches every file a place in it reaches, so none is searched again.
-#[derive(Default)]
-struct Passed {
-    files: HashSet<String>,
-    errors: Vec<String>,
-}
-
-impl Passed {
-    fn search(&mut self, graph: &Path, query: &str, mut area: Scope) -> Result<Found, String> {
-        area.files.sort_unstable_by(|(left, left_hops), (right, right_hops)| {
-            left_hops.cmp(right_hops).then_with(|| code_unit(left, right))
-        });
-        let line = area_line(&area);
-        let (files, hops): (Vec<String>, Vec<u32>) = std::mem::take(&mut area.files).into_iter().unzip();
-        let mut hits = if self.files.is_empty() {
-            match_lines(graph, query, &files)?
-        } else {
-            let (at, unread): (Vec<u32>, Vec<String>) = (0..).zip(&files)
-                .filter(|(_, file)| !self.files.contains(*file))
-                .map(|(at, file)| (at, file.clone()))
-                .unzip();
-            let mut hits = match_lines(graph, query, &unread)?;
-            hits.file.iter_mut().for_each(|file| *file = at[*file as usize]);
-            hits
-        };
-        self.errors.append(&mut hits.errors);
-        hits.errors.clone_from(&self.errors);
-        Ok(Found { scope: area, area: line, files, hops, hits })
-    }
-
-    fn remember(&mut self, found: &mut Found) {
-        self.files.extend(std::mem::take(&mut found.files));
-    }
+fn search(graph: &Path, query: &str, mut area: Scope) -> Result<Found, String> {
+    area.files.sort_unstable_by(|(left, left_hops), (right, right_hops)| {
+        left_hops.cmp(right_hops).then_with(|| code_unit(left, right))
+    });
+    let line = area_line(&area);
+    let (files, hops): (Vec<String>, Vec<u32>) = std::mem::take(&mut area.files).into_iter().unzip();
+    let hits = match_lines(graph, query, &files)?;
+    Ok(Found { scope: area, area: line, files, hops, hits })
 }
 
 fn written(roots: &Roots, query: &str, found: Found, said: &Said, around: Option<Around>, surface: Surface) -> String {
@@ -269,11 +241,9 @@ fn written(roots: &Roots, query: &str, found: Found, said: &Said, around: Option
     let heading = format!("{opening}{total} matching {} in {count} {}{place}", plural(total, "line", "lines"), plural(count, "file", "files"));
     let mut notes: Vec<String> = match around {
         None => vec![format!("note: {area}")],
-        Some(_) => unresolved_line(&scope).map(|line| format!("note: {line}")).into_iter().collect(),
+        Some(_) => unresolved_line(&scope, &format!("of the {} {} searched", files.len(), plural(files.len(), "file", "files"))).map(|line| format!("note: {line}")).into_iter().collect(),
     };
     notes.extend(error.map(|error| format!("note: {error}")));
-    // The folder is named in the heading, so its own files are not said to be no imports away.
-    let near = around.is_some().then_some(0);
     if total > SHOWN && said.limit.is_none() && said.offset.is_none() {
         let held = found.file.chunk_by(|left, right| left == right).map(|rows| {
             let at = rows[0] as usize;
@@ -284,15 +254,14 @@ fn written(roots: &Roots, query: &str, found: Found, said: &Said, around: Option
             Some(Around { start, .. }) => surface.question("grep", &[("query", Value::Text(query)), (start.direction, Value::List(&[start.path])), ("limit", Value::Text(&total.to_string()))]),
         };
         let mut lines = vec![format!("{heading}, the first {FIRST}, nearest first:")];
-        lines.extend(listed(&found, 0..FIRST, &files, &distances, near));
+        lines.extend(listed(&found, 0..FIRST, &files, &distances));
         lines.extend(collapsed(held.collect(), query, repeatable(roots, &scope, query), notes, &all, surface));
         return lines.join("\n");
     }
 
     let page = Page { offset: said.offset.unwrap_or(0), limit: said.limit.unwrap_or(SHOWN) };
     let offset_flag = surface.input("offset");
-    let order = if around.is_some() && total == 1 { "" } else { ", nearest first" };
-    let mut lines = vec![format!("{heading}{order}:")];
+    let mut lines = vec![format!("{heading}, nearest first:")];
     let start = page.offset.min(total);
     let end = start.saturating_add(page.limit).min(total);
     if page.offset >= total {
@@ -300,7 +269,7 @@ fn written(roots: &Roots, query: &str, found: Found, said: &Said, around: Option
     } else if page.offset != 0 {
         lines.push(format!("Rows {}–{end} of {total}.", start + 1));
     }
-    lines.extend(listed(&found, start..end, &files, &distances, near));
+    lines.extend(listed(&found, start..end, &files, &distances));
     lines.extend(notes);
     if end < total {
         let rest = total - end;
@@ -309,11 +278,11 @@ fn written(roots: &Roots, query: &str, found: Found, said: &Said, around: Option
     lines.join("\n")
 }
 
-/// The rows `shown` of what was found, which is in the order of `files`. No heading is written for rows `near` imports away.
-fn listed(found: &Grepped, shown: Range<usize>, files: &[String], distances: &[u32], near: Option<u32>) -> Vec<String> {
+/// The rows `shown` of what was found, which is in the order of `files`.
+fn listed(found: &Grepped, shown: Range<usize>, files: &[String], distances: &[u32]) -> Vec<String> {
     let mut lines = Vec::new();
     let mut row = shown.start;
-    let mut previous_hops = near;
+    let mut previous_hops = None;
     while row < shown.end {
         let file = found.file[row];
         let at = file as usize;
@@ -358,14 +327,14 @@ pub(crate) fn area_line(scope: &Scope) -> String {
         .collect::<Vec<_>>()
         .join(" or ");
     let mut line = format!("In {} file(s) {directions} along the imports, at any depth — {} named by the path itself.", scope.files.len(), scope.entries);
-    if let Some(unresolved) = unresolved_line(scope) {
+    if let Some(unresolved) = unresolved_line(scope, "file(s) in it") {
         line.push_str(&format!(" {unresolved}"));
     }
     line
 }
 
-fn unresolved_line(scope: &Scope) -> Option<String> {
-    (scope.unresolved != 0).then(|| format!("{} file(s) in it import something the scan could not resolve, so what lies behind those is not enumerated.", scope.unresolved))
+fn unresolved_line(scope: &Scope, area: &str) -> Option<String> {
+    (scope.unresolved != 0).then(|| format!("{} {area} import something the scan could not resolve, so what lies behind those is not enumerated.", scope.unresolved))
 }
 
 #[cfg(test)]

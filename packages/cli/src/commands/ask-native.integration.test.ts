@@ -87,8 +87,8 @@ it.each([
   { question: ['grep', '--query', 'absentText', '--from', 'apps/app/src/hello.ts'], contains: 'Nothing in those files matches' },
   { question: ['grep', '--query', '[', '--from', 'apps/app/src/hello.ts'], contains: 'ripgrep refused the pattern' },
   { question: ['grep', '--query', 'greet', '--from', 'missing.ts'], contains: 'is not found' },
-  { question: ['grep', '--query', 'greet', '--from', 'packages/lib/src/missing.ts'], contains: 'is not found. 3 matching lines in 3 files reachable from `packages/lib/src/`' },
-  { question: ['grep', '--query', 'crowdedLine', '--from', 'apps/app/src/hello.ts'], contains: 'reachable from `apps/app/src/hello.ts`. ' },
+  { question: ['grep', '--query', 'greet', '--from', 'packages/lib/src/missing.ts'], contains: 'is not found. 3 matching lines in 3 files reachable from `packages/lib/src/`', status: 2 },
+  { question: ['grep', '--query', 'crowdedLine', '--from', 'apps/app/src/hello.ts'], contains: 'reachable from `apps/app/src/hello.ts`. ', status: 0 },
   { question: ['discover', '--from', 'apps/app/src/hello.ts', '--declares', '^greet$'], contains: 'declares greet' },
   { question: ['discover', '--to', 'packages/lib/src/greet.ts', '--limit', '1', '--offset', '1'], contains: 'Rows 2–2' },
   { question: ['discover', '--to', 'packages/lib/src/greet.ts#greet'], contains: 'imports greet from @acme/lib' },
@@ -99,7 +99,7 @@ it.each([
   { question: ['discover', '--path', '^packages/lib/src/(?!greet\\.ts$).*'], contains: 'also.ts' },
   { question: ['discover', '--from', 'apps/app/src/hello.ts,packages/lib/src/also.ts', '--except-declares', '^greet$'], contains: 'taken out' },
   { question: ['discover', '--from', 'missing.ts'], contains: 'ran nothing' },
-])('answers $question through the package bin with Node absent from PATH', async ({ question, contains }) => {
+])('answers $question through the package bin with Node absent from PATH', async ({ question, contains, status }) => {
   const previous = process.cwd();
   const root = checkout({
     'packages/lib/src/index.ts': "export { greet } from './greet.js';\nexport const shared = 'lib';\n",
@@ -178,6 +178,7 @@ it.each([
     const expected = spawnSync(process.execPath, [nodeEntry, ...args], { cwd: root, env, encoding: 'utf8' });
     expect(expected.error).toBeUndefined();
     expect(expected.stdout + expected.stderr).toContain(contains);
+    if (status !== undefined) expect(expected.status).toBe(status);
     const actual = spawnSync(executable, args, { cwd: root, env: { ...env, PATH: empty }, encoding: 'utf8' });
     expect(actual.error).toBeUndefined();
     expect([actual.status, actual.stdout, actual.stderr]).toEqual([expected.status, expected.stdout, expected.stderr]);

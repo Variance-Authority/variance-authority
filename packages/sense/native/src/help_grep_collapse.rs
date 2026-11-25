@@ -34,8 +34,8 @@ struct Row<'a, 'b> {
 
 /// The rows over every line, then `notes`, then what answers less and `all`, which answers all of it.
 pub(crate) fn collapsed(mut held: Vec<Held>, query: &str, start: Option<Start>, notes: Vec<String>, all: &str, surface: Surface) -> Vec<String> {
-    let total: usize = held.iter().map(|file| file.lines).sum();
     held.sort_unstable_by(|left, right| left.path.cmp(right.path));
+    let total: usize = held.iter().map(|file| file.lines).sum();
     let near = held.iter().map(|file| file.hops).min();
     let apart = held.iter().any(|file| Some(file.hops) != near);
     let rows = rows_of(&held);
