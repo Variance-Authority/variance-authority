@@ -2,7 +2,7 @@
 //!
 //! The native half of `packages/mcp/src/tools/spelling.ts`: a shell is named by
 //! the words that ask from it, and a wire host names none. Both halves are held
-//! to `packages/mcp/src/tools/spelling-cases.json`.
+//! to `spelling-cases.json`.
 
 // compass: variance-authority.report.agent-surface
 

@@ -9,7 +9,7 @@ import type { Tool, ToolInvocation } from './tool.js';
  * here, from the invocation, and nowhere else: a shell host and a wire host
  * hand the same tool the same subject, and only `shell` tells them apart. An
  * answer the addon writes is spelled by its native half, `help_surface.rs`,
- * and `spelling-cases.json` holds the two to one spelling.
+ * and `packages/sense/native/src/spelling-cases.json` holds the two to one spelling.
  */
 
 // compass: variance-authority.report.agent-surface

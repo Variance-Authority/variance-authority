@@ -12,7 +12,7 @@ struct Case {
 
 #[test]
 fn a_question_is_spelled_as_the_wire_and_the_shell_take_it() {
-    let cases: Vec<Case> = serde_json::from_str(include_str!("../../../mcp/src/tools/spelling-cases.json")).expect("the cases read");
+    let cases: Vec<Case> = serde_json::from_str(include_str!("spelling-cases.json")).expect("the cases read");
     assert!(!cases.is_empty());
     for case in &cases {
         let lists: Vec<Vec<&str>> = case.input.values().map(|value| value.as_array().into_iter().flatten().filter_map(|one| one.as_str()).collect()).collect();

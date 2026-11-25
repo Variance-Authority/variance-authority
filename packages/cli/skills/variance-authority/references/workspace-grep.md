@@ -29,8 +29,9 @@ imports away its nearest file is. The rows count every matching line once: a
 folder with most of the lines and more parts than there are rows gets a row for
 each of its widest parts, and one row, `the rest of <folder>`, for the others.
 Below them it names the `--limit` that lists every line and, where one start
-point was given, the `variance ask discover` question that lists the files of
-the first row that is not a rest. Say `--limit` and it lists that many lines and
+point was given and `variance ask discover` reads it and the pattern as `grep`
+does, the `discover` question that lists the files of the first row that is not
+a rest. Say `--limit` and it lists that many lines and
 counts the rest; say `--offset` alone and it lists 20. Its last line then names
 the `--offset` of the next page.
 

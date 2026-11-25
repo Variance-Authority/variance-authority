@@ -1,3 +1,4 @@
+/// <depends path="../../../sense/native/src/spelling-cases.json" />
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { spellingOf } from './spelling.js';
@@ -10,7 +11,7 @@ interface Case {
   readonly wire: string;
 }
 
-const CASES = JSON.parse(readFileSync(new URL('./spelling-cases.json', import.meta.url), 'utf8')) as readonly Case[];
+const CASES = JSON.parse(readFileSync(new URL('../../../sense/native/src/spelling-cases.json', import.meta.url), 'utf8')) as readonly Case[];
 
 describe('a question', () => {
   it.each(CASES)('is spelled as the wire and the shell take it: $shell', ({ verb, input, shell, wire }) => {

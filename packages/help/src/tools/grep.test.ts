@@ -215,7 +215,7 @@ describe('grep over more lines than it shows', () => {
     expect(lines.slice(0, SAID.length)).toEqual(SAID);
     expect(lines.slice(SAID.length)).toEqual([
       'note: In 47 file(s) reachable from `wide/index.ts` along the imports, at any depth — 1 named by the path itself.',
-      '`docs_discover` with `from` `["wide/index.ts"]` and `path` `^wide/b/` and `text` `broad`: the 40 matching files under `wide/b/`',
+      `\`${discover.name}\` with \`from\` \`["wide/index.ts"]\` and \`path\` \`^wide/b/\` and \`text\` \`broad\`: the 40 matching files under \`wide/b/\``,
       '`limit` 210: every line, nearest first',
     ]);
   });
@@ -238,14 +238,14 @@ describe('grep over more lines than it shows', () => {
     for (const start of [{ from: ['wide/a/', 'wide/b/', 'wide/c/'] }, { from: 'wide/', to: 'wide/' }]) {
       const text = ask({ query: 'broad', ...start });
       expect(text).toContain(' matching lines in 46 files, the first 10, ');
-      expect(text).not.toContain('docs_discover');
+      expect(text).not.toContain(discover.name);
     }
   });
 
   it('names no question where the pattern is blank, which discover drops', () => {
     const text = ask({ query: '  ', from: 'edge/over.ts' });
     expect(text).toContain('21 matching lines in 1 file, the first 10, nearest first:');
-    expect(text).not.toContain('docs_discover');
+    expect(text).not.toContain(discover.name);
   });
 
   it('names no question where the start point holds a comma, which discover splits', () => {
@@ -253,7 +253,7 @@ describe('grep over more lines than it shows', () => {
     write(file, 'odd\n'.repeat(21));
     const text = grep.run(undefined, { query: 'odd', from: [file] }, { tree: treeOf([reads(file)], root) });
     expect(text).toContain('21 matching lines in 1 file, the first 10, nearest first:');
-    expect(text).not.toContain('docs_discover');
+    expect(text).not.toContain(discover.name);
   });
 
   it('names no question where a `#` follows a file of the tree, which discover reads as a name it exports', () => {
@@ -271,7 +271,7 @@ describe('grep over more lines than it shows', () => {
     const nested = treeOf([reads('app/src/start.ts', 'app/src/flood.ts'), reads('app/src/flood.ts')], root, join(root, 'app'));
     const text = grep.run(undefined, { query: '^flood', from: 'src/start.ts' }, { tree: nested });
     expect(text).toContain('21 matching lines in 1 file, the first 10, nearest first:');
-    expect(text).not.toContain('docs_discover');
+    expect(text).not.toContain(discover.name);
   });
 
   it('says one row of a file that holds every line', () => {

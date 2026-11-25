@@ -20,7 +20,7 @@ import { ripgrep, type Hit } from './ripgrep.js';
  * said how many lines to show and there are too many to.
  */
 
-/** Matching lines shown when `limit` is not said; past it a scoped answer is its first ten, its paths and their counts. */
+/** Matching lines shown when `limit` is not said; past it a scoped answer is the nearest few, its paths and their counts. */
 const SHOWN = 20;
 
 /**
@@ -32,7 +32,7 @@ export const grep: Tool<unknown> = {
   description:
     'Run ripgrep over the files a start point reaches along the imports, and answer with the ' +
     'matching lines nearest first; past ' +
-    `${SHOWN} of them, and no \`limit\` or \`offset\` said, with the first ten, then the paths they are ` +
+    `${SHOWN} of them, and no \`limit\` or \`offset\` said, with the nearest few, then the paths they are ` +
     'all in, the line count of each, and what lists them. `from` searches the files that path imports, at any depth; ' +
     '`to` the files that import it. The pattern is ripgrep\'s, unchanged: a ' +
     'regular expression. A start point is required: name the file or ' +
@@ -58,7 +58,7 @@ export const grep: Tool<unknown> = {
       },
       limit: {
         type: 'integer',
-        description: `Matching lines to show; the rest are counted. Not said, the answer shows ${SHOWN} lines, and with a start point an answer of more is its first ten and its paths.`,
+        description: `Matching lines to show; the rest are counted. Not said, the answer shows ${SHOWN} lines, and with a start point an answer of more is the nearest few and its paths.`,
       },
       offset: {
         type: 'integer',

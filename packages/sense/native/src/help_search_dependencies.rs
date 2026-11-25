@@ -68,7 +68,7 @@ pub(crate) fn lines(answer: &mut Vec<String>, query: &str, lowered: &str, scope:
 fn in_full(query: &str, scope: Option<&Scope>, total: usize) -> String {
     let limit = total.max(20).to_string();
     let mut inputs = vec![("query", Value::Text(query))];
-    for scope in scope {
+    if let Some(scope) = scope {
         inputs.extend(scope.from.iter().map(|path| ("from", Value::Text(path))));
         inputs.extend(scope.to.iter().map(|path| ("to", Value::Text(path))));
     }
