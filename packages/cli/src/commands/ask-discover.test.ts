@@ -168,7 +168,7 @@ describe('ask discover over a checkout', () => {
   it('dates its answer with the generation it read, as every other source answer is', async () => {
     const { code, out } = await run(['ask', 'discover', '--declares', '^selectBalance$']);
     expect(code).toBe(0);
-    expect(out).toMatch(/^Snapshot \d{4}-\d\d-\d\dT[\d:.]+Z, not compared with the checkout: run `variance index` if files changed since\.$/mu);
+    expect(out).toMatch(/^Snapshot \d{4}-\d\d-\d\dT[\d:.]+Z may miss later changes: run `variance index`\.$/mu);
   });
 
   // Last in the block: it publishes a generation the cases above do not read.

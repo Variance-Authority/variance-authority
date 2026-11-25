@@ -59,7 +59,7 @@ and does nothing else: it does not read the checkout, look at what changed, or
 write the index. So after you edit, run `variance index`, then ask. Until you
 do, a function written since is reported missing, and a name you moved is given
 at the line it held. Every answer's last line names when the index was made and
-says the checkout was not compared with it.
+says it may miss later changes.
 
 Your agent can now run any `variance ask` question, and one step is left:
 [point it at them](#point-an-agent-at-it). A client that reaches tools only
@@ -365,8 +365,8 @@ A question on `variance ask` answers from the generation `variance index` last
 published, whatever its age, and does nothing else: it reads no Git status,
 looks at no file the answer rests on, and writes no index. The one who edited a
 file knows it did, so the workflow is: edit, run `variance index`, then ask.
-Every answer names the time its generation was made and says the checkout was
-not compared with it; as JSON, `search` carries `compared: false` beside
+Every answer names the time its generation was made and says it may miss later
+changes; as JSON, `search` carries `compared: false` beside
 `generatedAt`. A function you wrote since, or a package you installed since, is
 reported missing until you run `variance index`. Of a file written after the
 generation's read, the answer gives what the generation recorded, a declaration
@@ -387,10 +387,9 @@ on and the entry that publishes it, with each row `uses` lists. An edit anywhere
 else waits for the hour. The look is a stat of each file. When the checkout
 cannot be read again, or the new read cannot be saved, or a file the answer
 rests on is saved during the read that answers it, the answer or the refusal
-names the generation time, says the checkout was not compared with it, and says
-why. Start the server with `--just-answer` when the caller owns freshness: it
-then answers from the last published generation and nothing else, as `variance
-ask` does.
+names the generation time, says it may miss later changes, and says why. Start
+the server with `--just-answer` when the caller owns freshness: it then answers
+from the last published generation and nothing else, as `variance ask` does.
 
 When an editor, watcher, or orchestrator produces a generation and already has
 the changed paths, write their scan-root-relative paths to a newline-delimited

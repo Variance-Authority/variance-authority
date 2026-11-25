@@ -16,7 +16,7 @@ import { containment, HELP, UNCOMPARED_HELP } from './tools.js';
  * Git what changed or to rebuild that value, and {@link readAgain} decides when
  * the generation held is replaced: expired, or one newer was published. Every answer says when that
  * generation was produced, so freshness is evidence rather than hidden work,
- * and a `justAnswer` answer says it was not compared with the checkout. A
+ * and a `justAnswer` answer says it may miss later changes. A
  * refusal from a reused generation, or an answer whose named files changed
  * since it, is asked again of one read now, as {@link caughtUp} decides for
  * this server and `variance serve`; `variance ask` and the binary answer from
@@ -108,8 +108,8 @@ export function serveWorkspace(root: string, options: WorkspaceOptions = {}): ()
         outlived(asked, subject, input, { root, ...(tree === undefined ? {} : { tree }) }, started),
     }),
     // A name nothing declares is the answer, said as `variance ask` says it: from
-    // the generation it was refused from, which says when it was made before the
-    // call and so not compared with the checkout. Keeping it fresh is `variance index`'s job.
+    // the generation it was refused from, which says so when it was made before the
+    // call and may miss later changes. Keeping it fresh is `variance index`'s job.
     answered: (thrown: unknown, subject: Help, again, started) => foundNothingAnswer(thrown, again, workspaceGeneration(subject), justAnswer || (again === undefined && madeBefore(workspaceGeneration(subject), started))),
     // No question here compares one call with the last, and a copy of the whole
     // reading, held beside the one a changed file asks for, is what ran a large

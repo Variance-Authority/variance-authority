@@ -67,8 +67,8 @@ export async function outlived(
  * What a source question does before an answer {@link outlived} found changed
  * is believed, on `variance serve` and this package's server, which hold a
  * generation across requests. A refusal, and a name not found, is not brought here: it answers
- * from the generation it was refused from, whose date line says when the checkout
- * was not compared with it, and keeping that generation fresh is `variance index`'s
+ * from the generation it was refused from, whose date line says when it may miss
+ * later changes, and keeping that generation fresh is `variance index`'s
  * job. `answeredAt` is the generation the answer came from. `again` reads a
  * generation made now and asks once more, and `still` looks once at what that
  * read gave, or with no subject at the generation `answeredAt` dates, when it
@@ -125,8 +125,8 @@ export interface CaughtUp<Answer> {
 
 /**
  * The line under an answer that found nothing: the date of the generation it
- * was read from (`at`), saying the checkout was not compared with it when
- * `unseen` says so, or `caught` says why it could not be.
+ * was read from (`at`), saying it may miss later changes when `unseen` says the
+ * checkout was not compared with it, or `caught` says why it could not be.
  */
 export function foundNothingFooter(caught: CaughtUp<unknown> | undefined, at: string | undefined, unseen: boolean): string | undefined {
   return at === undefined ? undefined : snapshotLine(at, caught?.unseen ?? unseen);
@@ -159,11 +159,11 @@ function messageOf(failure: unknown): string {
 
 /**
  * The line that dates a source answer. A generation read without comparing it
- * with the checkout says so, since a name missing from it may only be newer;
+ * with the checkout may miss what changed since, so its line says that;
  * `unseen` as a sentence is why a comparison that was asked for was not made.
  */
 export function snapshotLine(at: string, unseen: boolean | string): string {
   if (unseen === false) return `Snapshot ${at}.`;
   const why = unseen === true ? '' : ` (${unseen})`;
-  return `Snapshot ${at}, not compared with the checkout${why}: run \`variance index\` if files changed since.`;
+  return `Snapshot ${at} may miss later changes${why}: run \`variance index\`.`;
 }

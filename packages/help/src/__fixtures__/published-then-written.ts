@@ -9,8 +9,8 @@ import { readWorkspace } from '../read.js';
  * after: the name a reused generation refuses as not published.
  */
 
-/** The date line of an answer from a generation nothing compared with the checkout. */
-export const UNCOMPARED = /Snapshot \d{4}-\d\d-\d\dT[\d:.]+Z, not compared with the checkout: run `variance index` if files changed since\./u;
+/** The date line of an answer from a generation that may miss later changes. */
+export const UNCOMPARED = /Snapshot \d{4}-\d\d-\d\dT[\d:.]+Z may miss later changes: run `variance index`\./u;
 
 function write(root: string, files: Readonly<Record<string, string>>): void {
   for (const [path, text] of Object.entries(files)) {

@@ -88,7 +88,7 @@ describe('variance ask on a checkout with no index', () => {
     expect(answered.err).toBe('');
     expect(answered.code).toBe(EXIT_CLEAN);
     expect(answered.out).toContain('shim');
-    expect(answered.out).toContain('not compared with the checkout');
+    expect(answered.out).toContain('may miss later changes');
   });
 
   it('packages answers or refuses with a code', async () => {

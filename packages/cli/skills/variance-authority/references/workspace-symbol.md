@@ -33,7 +33,7 @@ A name nothing declares is answered on stdout, exit `0`: what was read and
 declares nothing, and where else the name may be written. Over MCP it is the
 same text, as a result rather than an error. It is answered from the generation
 the question read, which `variance index` publishes, and its last line says
-when that generation was made and that it was not compared with the checkout:
+when that generation was made and that it may miss later changes:
 
 ```
 `NotAThing` is not published by this workspace, and no published name contains it; ask `search` with a word from its documentation. No file in this workspace declares `NotAThing`, at its top level or as a member. No installed dependency publishes it either. A name written only as text, in a string or a comment, declares nothing: a text search such as `rg` finds it.

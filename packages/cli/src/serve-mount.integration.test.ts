@@ -106,7 +106,7 @@ describe('the server `variance serve` starts', () => {
       expect(result.isError).toBeUndefined();
       expect(result.content[0]!.text).toContain('`keptOf` is not');
       expect(result.content[0]!.text).not.toContain('src/kept.ts');
-      expect(result.content[0]!.text).toMatch(/^Snapshot \S+, not compared with the checkout: run `variance index` if files changed since\.$/mu);
+      expect(result.content[0]!.text).toMatch(/^Snapshot \S+ may miss later changes: run `variance index`\.$/mu);
     } finally {
       server.close();
       await rm(join(workspace, 'src/kept.ts'), { force: true });
@@ -197,7 +197,7 @@ describe('the server `variance serve` starts', () => {
       await writeFile(join(workspace, 'package.json'), '{ half-written');
       const text = (await server.request<Answer>('tools/call', { name: 'docs_symbol', arguments: { name: 'mounted' } })).content[0]!.text;
       expect(text.match(/^Snapshot /gmu)).toHaveLength(1);
-      expect(text).toMatch(/^Snapshot \S+, not compared with the checkout \(it could not be read again: /mu);
+      expect(text).toMatch(/^Snapshot \S+ may miss later changes \(it could not be read again: /mu);
     } finally {
       server.close();
       await writeFile(join(workspace, 'package.json'), manifest);

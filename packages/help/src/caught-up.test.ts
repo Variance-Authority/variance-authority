@@ -42,7 +42,7 @@ async function asked(root: string, justAnswer: boolean, tool: string, args: Read
 }
 
 /** The date line of a refusal whose checkout could not be compared with its generation, and why. */
-const UNREAD = /Snapshot \d{4}-\d\d-\d\dT[\d:.]+Z, not compared with the checkout \((.+)\): run `variance index` if files changed since\./u;
+const UNREAD = /Snapshot \d{4}-\d\d-\d\dT[\d:.]+Z may miss later changes \((.+)\): run `variance index`\./u;
 
 /** A package whose entry publishes `deepOf`, `named` and `describedOf` only through a barrel. */
 const BARRELS = {
@@ -382,7 +382,7 @@ describe('the help server about a name written after the published generation', 
     const answer = await served(await fixture.published(), false, 'writtenNowhere');
     expect(answer.isError).toBeUndefined();
     expect(answer.text).toMatch(/^`writtenNowhere` is not published by this workspace.*declares `writtenNowhere`/su);
-    expect(answer.text).toMatch(/\nSnapshot \d{4}-\d\d-\d\dT[\d:.]+Z, not compared with the checkout: run `variance index` if files changed since\.$/u);
+    expect(answer.text).toMatch(/\nSnapshot \d{4}-\d\d-\d\dT[\d:.]+Z may miss later changes: run `variance index`\.$/u);
   });
 
   it('says why under a refusal, when the file the name was in moved during the read that found it gone', async () => {
@@ -396,7 +396,7 @@ describe('the help server about a name written after the published generation', 
       },
     });
     expect(answer.text).toMatch(/^`taxOf` is not published/u);
-    expect(answer.text).toMatch(/not compared with the checkout \(a file it rests on changed while it was read\)/u);
+    expect(answer.text).toMatch(/may miss later changes \(a file it rests on changed while it was read\)/u);
     expect(answer.text.match(/Snapshot/gu)).toHaveLength(1);
   });
 
