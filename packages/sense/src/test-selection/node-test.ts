@@ -3,11 +3,12 @@
  *
  * {@link runNodeTest} is the whole wiring: it opens a recording, honours
  * `VARIANCE_AUTHORITY_SINCE` by leaving out the files a diff did not reach,
- * runs the rest with `node:test`'s own `run()` — one process per file — and
+ * runs the rest with `node:test`'s own `run()` — one process per file, each file's stream on its own — and
  * folds the journals each process wrote. A file that failed is recorded as
  * incomplete, so the next selection keeps it.
  */
 
+import { availableParallelism } from 'node:os';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { run } from 'node:test';
@@ -42,17 +43,21 @@ export async function runNodeTest(options: RunNodeTestOptions): Promise<{ readon
   if (selection !== undefined) for (const line of selectedLines(selection, all.map(name))) say(line);
   const recording = startRecording(recordingOptions);
 
+  // One `run()` per file: a case is declared from the wrapper, so Node names the wrapper as the file of a failing case, and only the stream that holds one file can say whose it was.
   const failed = new Set<string>();
-  const stream = run({
-    files: [...running],
-    isolation: 'process',
-    execArgv: ['--import', fileURLToPath(new URL('./node-test-child.js', import.meta.url))],
-  });
-  stream.on('test:fail', (event) => { if (event.file !== undefined) failed.add(resolve(event.file)); });
-  stream.on('test:stderr', (event) => process.stderr.write(event.message));
-  stream.on('test:stdout', (event) => process.stdout.write(event.message));
-  // Draining the stream is what makes `run()` go.
-  for await (const _event of stream) void _event;
+  const queue = [...running];
+  const execArgv = ['--import', fileURLToPath(new URL('./node-test-child.js', import.meta.url))];
+  const worker = async (): Promise<void> => {
+    for (let file = queue.shift(); file !== undefined; file = queue.shift()) {
+      const stream = run({ files: [file], isolation: 'process', execArgv });
+      stream.on('test:fail', () => void failed.add(file!));
+      stream.on('test:stderr', (event) => process.stderr.write(event.message));
+      stream.on('test:stdout', (event) => process.stdout.write(event.message));
+      // Draining the stream is what makes `run()` go.
+      for await (const _event of stream) void _event;
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(availableParallelism(), running.length) }, worker));
 
   await recording.finish(running.map((file) => ({ file, complete: !failed.has(file) })));
   return { passed: failed.size === 0 };
