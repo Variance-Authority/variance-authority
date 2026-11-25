@@ -6,12 +6,22 @@ the timing the [execution record](execution-record.md) already keeps, so it
 needs no instrumentation and no second run, and any OpenTelemetry trace viewer
 shows it as a waterfall. It is not Playwright's own trace viewer: that one
 replays a single test's browser actions, and this one shows where a whole
-run's time went.
+run's time went. It needs a Playwright run recorded with the Playwright
+integration; Jest and Vitest runs give an empty trace.
 
 ## What a trace shows, and what it does not
 
-A trace is one trace id, a `run` span over every file with a start, and under
-it:
+A trace is a tree of spans, shown here for a run of one file:
+
+```
+run
+└─ tests/cart.spec.ts          file
+   ├─ prepare                  phase
+   └─ cases                    phase
+      └─ the cart survives…    case
+```
+
+It has one trace id, a `run` span over every file with a start, and under it:
 
 - **a file span** per test file, from the moment the runner started the file
   to the end of its recorded cost;
@@ -29,8 +39,17 @@ Jest or Vitest run prints an empty trace and says so on stderr.
 
 ## Record a run
 
-Run your Playwright suite with the [Playwright integration](start-playwright.md)
-and the run writes [the execution record](execution-record.md#where-the-file-is-and-what-to-do-with-it)
+Install `@variance-authority/playwright-test` and `@variance-authority/cli`,
+which provides `variance` (the
+[install column](supported-frameworks.md#record-which-tests-ran-each-line) lists
+each package), wrap `defineConfig` with `withTestSelection` as the Playwright
+row of that table shows, then run:
+
+```bash
+npx playwright test
+```
+
+The run writes [the execution record](execution-record.md#where-the-file-is-and-what-to-do-with-it)
 that `variance trace` reads. In CI, pass `coverageFile` to put the record at a
 path you name and upload it as an artifact: the record carries the run's
 timing and its cases, so there is no second file.
