@@ -25,13 +25,13 @@ interface Engine {
 
 /**
  * How many visits, and notes of each kind, one execution's part keeps: told,
- * it fits the 1 MiB a watcher keeps of an execution.
+ * at twelve bytes a visit, it fits the 1 MiB a watcher keeps of an execution.
  */
-const PART_LIMIT = 1 << 16;
+const PART_LIMIT = 30 << 10;
 const PART_NOTES = 1024;
 // The bytes a part's notes and the rows of the modules it entered take in the
-// story's JSON, a note with its place and key, a row with its count: with the
-// visits, base64 keeps the telling under the watcher's 1 MiB whatever script a
+// story's JSON, a note with its place and key, a row with its count, and each
+// position another's work crossed it at, up to six characters: with the visits, base64 keeps the telling under the watcher's 1 MiB whatever script a
 // note is written in and however many modules the execution entered.
 const PART_TEXT_BYTES = 384 << 10;
 // Counted by hand: a jsdom suite's realm loads this module and has no `TextEncoder`.
@@ -51,6 +51,10 @@ const encodedLength = (text: string): number => 12 + utf8Length(JSON.stringify(t
 
 interface Part {
   tape: number[];
+  // When each visit on the tape was made, in milliseconds since the epoch.
+  stamps: number[];
+  // What the monotonic clock is short of the wall clock by, read once as the part opened.
+  opened: number;
   at: number[];
   keys: string[];
   visits: number;
@@ -72,6 +76,10 @@ interface Part {
 /** One execution's part, as {@link Parts.take} hands it over. */
 interface Taken {
   readonly tape: Int32Array;
+  /** When each visit was made, in milliseconds since the epoch. */
+  readonly stamps: Float64Array;
+  /** When it was taken, on the clock its stamps are on. */
+  readonly end: number;
   readonly visits: number;
   readonly at: readonly number[];
   readonly keys: readonly string[];
@@ -110,6 +118,9 @@ interface Rows {
  */
 function createParts(engine: Engine, limit: number, rows: Rows): Parts {
   const inner = engine.root;
+  // Captured before the app can fake either.
+  const clock = typeof performance === 'object' ? performance.now.bind(performance) : Date.now.bind(Date);
+  const wall = Date.now.bind(Date);
   const parts = new Map<string, Part>();
   // The part the realm writes to now, and the last one it wrote to that was not idle.
   let part: Part | undefined;
@@ -120,7 +131,7 @@ function createParts(engine: Engine, limit: number, rows: Rows): Parts {
     if (key === '') return undefined;
     let found = parts.get(key);
     if (found === undefined) {
-      found = { tape: [], at: [], keys: [], visits: 0, notes: [], unnoted: 0, spoken: 0, handed: 0, bytes: 0, modules: new Set(), left: false, opening: undefined, dropped: false };
+      found = { tape: [], stamps: [], opened: wall() - clock(), at: [], keys: [], visits: 0, notes: [], unnoted: 0, spoken: 0, handed: 0, bytes: 0, modules: new Set(), left: false, opening: undefined, dropped: false };
       parts.set(key, found);
     }
     return found;
@@ -146,6 +157,9 @@ function createParts(engine: Engine, limit: number, rows: Rows): Parts {
       part.visits += 1;
       part.dropped = true;
       if (part.tape.length >= limit) return;
+      // Resumed after another's work: the position it resumes at takes up to six bytes in the header.
+      const resumed = part.opening !== undefined && part.left && part.at.length > 0;
+      if (resumed && part.bytes + 6 > PART_TEXT_BYTES) return;
       const row = storyBytes.rowAt(rows.bases, entry & 0x7fffffff);
       if (!part.modules.has(row)) {
         // A row is its id, a count of at most ten digits, two brackets and two commas.
@@ -156,13 +170,14 @@ function createParts(engine: Engine, limit: number, rows: Rows): Parts {
       }
       // A segment opens with the first visit kept, so a part keeping none no longer grows with uptime.
       if (part.opening !== undefined) {
-        const resumed = part.left && part.at.length > 0;
+        if (resumed) part.bytes += 6;
         part.at.push(...Array<number>(resumed ? 2 : 1).fill(part.tape.length));
         part.keys.push(...(resumed ? ['\u0000elsewhere', part.opening] : [part.opening]));
         part.left = false;
         part.opening = undefined;
       }
       part.tape.push(entry);
+      part.stamps.push(part.opened + clock());
       part.dropped = false;
       open += 1;
     },
@@ -192,8 +207,13 @@ function createParts(engine: Engine, limit: number, rows: Rows): Parts {
       if (taken === last) last = undefined;
       if (taken === undefined) return undefined;
       open -= taken.tape.length;
-      const { tape, at, keys, visits, notes, unnoted } = taken;
-      return { tape: Int32Array.from(tape), visits, at, keys, notes, unnoted };
+      const { tape, stamps, opened, left, at, keys, visits, notes, unnoted } = taken;
+      // Left and never resumed: what came after its last visit crossed another's work.
+      if (left && at.length > 0) {
+        at.push(tape.length);
+        keys.push('\u0000elsewhere');
+      }
+      return { tape: Int32Array.from(tape), stamps: Float64Array.from(stamps), end: opened + clock(), visits, at, keys, notes, unnoted };
     },
     holding() {
       let notes = 0;

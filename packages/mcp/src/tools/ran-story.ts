@@ -1,4 +1,4 @@
-import { drawToldRoute, routeText, toldModules, unnotedText, unresolvedText, untapedText, type Region, type Route } from '@variance-authority/sense/story';
+import { drawToldRoute, routeText, toldModules, toldSpan, unnotedText, unresolvedText, untapedText, type Region, type Route, type Span } from '@variance-authority/sense/story';
 import type { HeadRan } from '@variance-authority/vantage';
 import { cappedRows } from './capped.js';
 import type { CutModules } from './tool.js';
@@ -20,11 +20,16 @@ export function toldIds(head: HeadRan): readonly string[] {
   return (head.stories ?? []).flatMap((story) => toldModules(Buffer.from(story, 'base64')));
 }
 
+/** When the stories its heads told of one execution began and ended, where a head stamped any. */
+export function spanOf(heads: readonly HeadRan[]): Span | undefined {
+  return toldSpan(heads.flatMap((head) => (head.stories ?? []).map((story) => Buffer.from(story, 'base64'))));
+}
+
 /** How many lines of one head's stories are printed before the rest are counted. */
 const TOLD = 80;
 
-/** The stories a head told of one execution, a step a line, each with what was handed under it. */
-export function toldRows(head: HeadRan, cut: CutModules | undefined): string[] {
+/** The stories a head told of one execution, a step a line, each with when in `span` it ran and what was handed under it. */
+export function toldRows(head: HeadRan, cut: CutModules | undefined, span: Span | undefined): string[] {
   const modules = cut?.get(head.instrumentation);
   const regionsOf = (id: string, count: number): readonly Region[] | undefined => {
     const read = modules?.get(id);
@@ -42,7 +47,7 @@ export function toldRows(head: HeadRan, cut: CutModules | undefined): string[] {
   };
   const rows = (head.stories ?? []).flatMap((story, told) => [
     ...(told === 0 ? [] : ['told again, once more of it had run:']),
-    ...routeRows(drawToldRoute(Buffer.from(story, 'base64'), regionsOf)),
+    ...routeRows(drawToldRoute(Buffer.from(story, 'base64'), regionsOf), span),
   ]);
   const more = head.stories === undefined ? '' : ' more';
   const untold = head.untold === undefined ? [] : [`    told ${head.untold}${more} ${head.untold === 1 ? 'time' : 'times'}, which the watcher did not keep`];
@@ -50,6 +55,6 @@ export function toldRows(head: HeadRan, cut: CutModules | undefined): string[] {
 }
 
 /** A told route as `variance story` draws every step of one, after what the tape lost of it. */
-function routeRows(route: Route): string[] {
-  return [...untapedText(route), ...unnotedText(route), ...unresolvedText(route), ...routeText(route).filter((row) => row !== '')];
+function routeRows(route: Route, span: Span | undefined): string[] {
+  return [...untapedText(route), ...unnotedText(route), ...unresolvedText(route), ...routeText(route, span).filter((row) => row !== '')];
 }

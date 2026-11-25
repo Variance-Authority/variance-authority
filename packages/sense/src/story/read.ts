@@ -51,6 +51,7 @@ import { cutText } from './cut.js';
 import { recordOfStories, storyDirectories } from './directory.js';
 import { foldSteps, type Step } from './fold.js';
 import stories from './format.cjs';
+import { addedTime, timeStops, type Timing } from './times.js';
 
 /** A declaration a route goes through. */
 export interface Place {
@@ -81,10 +82,12 @@ export interface Arm {
  * to from a callee without calling it again has entered it no times. `said` is
  * what the code said while the case was at the stop — a console line, an
  * announcement, what Eyes saw — in order; a folded stop says every pass's.
+ * `time` is when it ran, where the story was stamped; a folded stop's is its
+ * first pass's, with every pass's leg.
  */
 export type Stop =
-  | { readonly place: Place; readonly entered: number; readonly arms: readonly Arm[]; readonly said?: readonly string[] }
-  | { readonly loaded: readonly string[]; readonly said?: readonly string[] };
+  | { readonly place: Place; readonly entered: number; readonly arms: readonly Arm[]; readonly said?: readonly string[]; readonly time?: Timing }
+  | { readonly loaded: readonly string[]; readonly said?: readonly string[]; readonly time?: Timing };
 
 /** The arms of one declaration on the route that the case never went into. */
 export interface Untaken {
@@ -247,7 +250,7 @@ export function drawRoute(
   // Each declaration stopped at, by key, with the row its regions are in.
   const placed = new Map<string, { place: Place; row: number }>();
 
-  const stopsOf = (visits: Int32Array, notes: readonly (readonly [number, string])[], opening: string[]): Stop[] => {
+  const stopsOf = (visits: Int32Array, notes: readonly (readonly [number, string])[], opening: string[], firsts: number[] = []): Stop[] => {
     const stops: Stop[] = [];
     let last = '';
     // The stop being added to, and its arms by path; a stop once left is never reopened.
@@ -276,7 +279,10 @@ export function drawRoute(
         const loading = stops.at(-1);
         if (loading !== undefined && 'loaded' in loading && last === '\0loaded') {
           if (!loading.loaded.includes(file)) (loading.loaded as string[]).push(file);
-        } else stops.push({ loaded: [file] });
+        } else {
+          firsts.push(visited - 1);
+          stops.push({ loaded: [file] });
+        }
         open = undefined;
         last = '\0loaded';
         continue;
@@ -297,6 +303,7 @@ export function drawRoute(
       if (key !== last || open === undefined) {
         open = { place, entered: 0, arms: [] };
         paths = new Map();
+        firsts.push(visited - 1);
         stops.push(open);
       }
       last = key;
@@ -324,7 +331,9 @@ export function drawRoute(
   const pages = new Set((story.parts ?? []).flatMap(([, , , document]) => (document === 0 ? [] : [document]))).size;
   const documents = pages > 1 ? pages : undefined;
   const before = foldSteps(stopsOf(story.before, heard(story.beforeNotes, story.beforeLines), opening.before), keyOf, added);
-  const route = foldSteps(stopsOf(story.visits, heard(story.notes, story.lines, documents === undefined ? [] : story.parts), opening.route), keyOf, added);
+  const firsts: number[] = [];
+  const stops = stopsOf(story.visits, heard(story.notes, story.lines, documents === undefined ? [] : story.parts), opening.route, firsts);
+  const route = foldSteps(timeStops(stops, firsts, story), keyOf, added);
 
   const untaken: Untaken[] = [];
   for (const { place, row } of placed.values()) {
@@ -397,13 +406,13 @@ function heard(
 function added(kept: Stop, folded: Stop): Stop {
   const said = [...(kept.said ?? []), ...(folded.said ?? [])];
   const saying = said.length === 0 ? {} : { said };
-  if ('loaded' in kept || 'loaded' in folded) return { ...kept, ...saying };
+  if ('loaded' in kept || 'loaded' in folded) return { ...kept, ...saying, ...addedTime(kept.time, folded.time) };
   const arms = new Map(kept.arms.map((arm) => [arm.path, arm]));
   for (const arm of folded.arms) {
     const known = arms.get(arm.path);
     arms.set(arm.path, known === undefined ? arm : { ...known, times: known.times + arm.times });
   }
-  return { place: kept.place, entered: kept.entered + folded.entered, arms: [...arms.values()], ...saying };
+  return { place: kept.place, entered: kept.entered + folded.entered, arms: [...arms.values()], ...saying, ...addedTime(kept.time, folded.time) };
 }
 
 /**

@@ -22,7 +22,7 @@ const builtins = (): { crypto: typeof crypto; fs: typeof fs; path: typeof path }
   crypto: require('node:crypto'), fs: require('node:fs'), path: require('node:path'),
 });
 
-type Tape = ReturnType<ReturnType<typeof storyTap.createTap>['read']>;
+type Tape = ReturnType<ReturnType<typeof storyTap.createTap>['take']>;
 
 const { MAGIC, EVALUATING, rowAt } = storyBytes;
 
@@ -80,6 +80,12 @@ interface Story {
    * process. Absent where the case ran in one realm.
    */
   readonly parts?: readonly Part[];
+  /** When each of {@link visits} was made, in milliseconds since the epoch; only a live head stamps them. */
+  readonly stamps?: Float64Array;
+  /** When the execution settled, as its stamps say; absent where the head could not see it settle. */
+  readonly end?: number;
+  /** How many of {@link visits} came before each time another execution's work ran in the middle of this one's, ascending. */
+  readonly crossed?: readonly number[];
 }
 
 /** Where a case's story moves into another realm: after `at` visits and `said` notes, frame `frame`'s document `document`. */
@@ -153,10 +159,13 @@ function encodeStory(tape: Tape, key: string, stopped?: boolean, page: Parameter
   return Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
 }
 
+/** How many bytes a visit takes: its region, and its stamp where the header says it has one. */
+const visitBytes = (stamped: true | undefined): number => (stamped === true ? 12 : 4);
+
 /**
  * A story's bytes read back, or an error naming what they are not: the magic,
  * a `u32` length and that much JSON padded to 4, then an `i32` a visit, those
- * before the case first.
+ * before the case first, then an `f64` a visit where the header says `stamped`.
  * A visit is an index in the story's own row table, as the realm's are the
  * order its modules registered in, with the evaluating bit as its sign bit.
  */
@@ -167,13 +176,16 @@ function decodeStory(bytes: Uint8Array): Story {
   for (let at = 0; at < MAGIC.length; at += 1) if (buffer[at] !== MAGIC[at]) throw damaged();
   const length = buffer.readUInt32LE(MAGIC.length);
   const body = MAGIC.length + 4 + ((length + 3) & ~3);
-  if (body > buffer.length || (buffer.length - body) % 4 !== 0) throw damaged();
-  const header = JSON.parse(buffer.toString('utf8', MAGIC.length + 4, MAGIC.length + 4 + length)) as Omit<
+  if (body > buffer.length) throw damaged();
+  const { stamped, ...header } = JSON.parse(buffer.toString('utf8', MAGIC.length + 4, MAGIC.length + 4 + length)) as Omit<
     Story,
-    'before' | 'visits' | 'notes' | 'beforeNotes' | 'unnoted' | 'lines' | 'beforeLines'
-  > & { before: number } & Partial<Pick<Story, 'notes' | 'beforeNotes' | 'unnoted' | 'lines' | 'beforeLines'>>;
-  const all = new Int32Array((buffer.length - body) / 4);
+    'before' | 'visits' | 'notes' | 'beforeNotes' | 'unnoted' | 'lines' | 'beforeLines' | 'stamps'
+  > & { before: number; stamped?: true } & Partial<Pick<Story, 'notes' | 'beforeNotes' | 'unnoted' | 'lines' | 'beforeLines'>>;
+  const width = visitBytes(stamped);
+  if ((buffer.length - body) % width !== 0) throw damaged();
+  const all = new Int32Array((buffer.length - body) / width);
   for (let at = 0; at < all.length; at += 1) all[at] = buffer.readInt32LE(body + at * 4);
+  const stamps = stamped === true ? Float64Array.from(all, (_, at) => buffer.readDoubleLE(body + all.length * 4 + at * 8)) : undefined;
   return {
     ...header,
     notes: header.notes ?? [],
@@ -183,6 +195,7 @@ function decodeStory(bytes: Uint8Array): Story {
     beforeLines: header.beforeLines ?? [],
     before: all.subarray(0, header.before),
     visits: all.subarray(header.before),
+    ...(stamps === undefined ? {} : { stamps: stamps.subarray(header.before) }),
   };
 }
 
@@ -209,15 +222,17 @@ function storyHeader(file: string): {
     for (let at = 0; at < MAGIC.length; at += 1) if (lead[at] !== MAGIC[at]) throw damaged();
     const length = lead.readUInt32LE(MAGIC.length);
     const body = lead.length + ((length + 3) & ~3);
-    if (body > size || (size - body) % 4 !== 0) throw damaged();
+    if (body > size) throw damaged();
     const text = Buffer.alloc(length);
     if (fs.readSync(descriptor, text, 0, length, lead.length) !== length) throw damaged();
-    const header = JSON.parse(text.toString('utf8')) as { file: string; name: string; project?: string; before: number; stopped?: boolean; lost?: boolean };
+    const header = JSON.parse(text.toString('utf8')) as { file: string; name: string; project?: string; before: number; stopped?: boolean; lost?: boolean; stamped?: true };
+    const width = visitBytes(header.stamped);
+    if ((size - body) % width !== 0) throw damaged();
     return {
       file: header.file,
       name: header.name,
       ...(header.project === undefined ? {} : { project: header.project }),
-      visits: (size - body) / 4 - header.before,
+      visits: (size - body) / width - header.before,
       ...(header.stopped === undefined ? {} : { stopped: header.stopped }),
       ...(header.lost === undefined ? {} : { lost: header.lost }),
     };

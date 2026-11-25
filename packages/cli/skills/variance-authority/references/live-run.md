@@ -107,7 +107,15 @@ every execution is read for the name.
 `VARIANCE_AUTHORITY_STORY=1` as well. Each execution is then its steps in the
 order they ran, drawn as `variance story` draws every step: `N  name
 file:lines` with its branches under it, and `» handed name=value`, the
-arguments only: no local or module variable is shown. Concurrent requests are
+arguments only: no local or module variable is shown. The row under the
+execution says when it began and how long it took; a step ends in
+`+<start> ms, then <time> ms (<share>%)`: when it ran from that beginning, the
+time to the next recorded step, and its share of the whole. That time is elapsed
+time, with unrecorded code and waiting in it, never the function's own; read
+the largest shares first. `another execution's work in it` marks one that a
+concurrent request ran in the middle of. A loop drawn once adds up its passes.
+Heads are placed by their own machines' clocks. A page's last step, and the
+last kept step of a story that lost some, have a start only. Concurrent requests are
 taped apart. An execution told again lists what ran since under `told again`.
 What the tape lost is said above the steps; the watcher keeps 8 tellings of an
 execution, up to 1 MiB, and counts the rest as `told N more times`. A head

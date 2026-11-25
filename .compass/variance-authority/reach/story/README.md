@@ -15,7 +15,7 @@ drawn at the finest level that fits a page and read a part at a time.
 ## Inputs and outputs
 
 In: every probe hit in one realm, in the order it happened, while a run asks for
-stories; which case was open at each hit, and which test line, a hook's marked;
+stories, with the time of each on a live head's clock; which case was open at each hit, and which test line, a hook's marked;
 what each test line changed on the realm's document;
 under Playwright, the requests each test line sent and what came back on it;
 what a package's setup
@@ -54,7 +54,8 @@ without one. It is written beside the record, never into it, and nothing that
 selects or compares reads it. Which cases a story is taken for is the runner's
 business; asking for stories takes one for every case the run runs.
 
-It is a map, not a trace. The route is drawn at the grain of a declaration,
+It is a map, not a trace. The stamps of a live head's visits are distances
+between recorded steps, and nothing a comparison reads. The route is drawn at the grain of a declaration,
 because the question is which parts of the system a case goes through and in
 what order; the arms taken inside a declaration and how many times are carried
 on its step, the arms it never went into are carried once for the route, and
@@ -108,6 +109,8 @@ by guess.
   and where they sit beside each record
 - `packages/sense/src/story/read.ts` — a story named through the record beside
   it, drawn as a route
+- `packages/sense/src/story/times.ts` — when each step of a live head's route
+  ran, read off the stamps the head's clock gave
 - `packages/sense/src/story/fold.ts` — tandem repeats folded, so a loop is drawn
   once
 - `packages/cli/src/commands/story.ts` — `variance story`, the route as text or

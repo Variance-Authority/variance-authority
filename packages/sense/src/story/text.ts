@@ -10,15 +10,16 @@
 
 import type { Place, Route, Untaken } from './read.js';
 import type { Drawing, FileSteps, PackageVisits, Through } from './levels.js';
+import { timeText, type Span } from './times.js';
 import { armTree } from './tree.js';
 import { numbered, type FileVisits, type Gap, type Line } from './view.js';
 
-/** Every step of a route, numbered, with the arms it took and what was said there, blank line first. */
-export function routeText(route: Route): string[] {
+/** Every step of a route, numbered, with the arms it took, what was said there and, where it was stamped, when in `span` it ran, blank line first. */
+export function routeText(route: Route, span?: Span): string[] {
   const lines = numbered(route);
   const steps = lines.filter((line) => line.step !== undefined).length;
   const text: string[] = [];
-  linesText(lines, route.before.length > 0, String(steps).length, route.untaken, armStarts(lines, route.untaken), text);
+  linesText(lines, route.before.length > 0, String(steps).length, route.untaken, armStarts(lines, route.untaken), text, span);
   return text;
 }
 
@@ -94,6 +95,7 @@ function linesText(
   untaken: readonly Untaken[],
   starts: Starts,
   text: string[],
+  span?: Span,
 ): void {
   const names = shortNames(lines);
   const never = new Map(untaken.map(({ place: at, arms }) => [at.at, arms]));
@@ -123,10 +125,11 @@ function linesText(
       return;
     }
     const number = String(line.step).padStart(width);
+    const when = stop.time === undefined || span === undefined ? '' : `  ${timeText(stop.time, span)}`;
     if ('loaded' in stop) {
-      text.push(`  ${number}  ${indent}${loaded(stop.loaded.map((file) => names.get(file) ?? file))}`);
+      text.push(`  ${number}  ${indent}${loaded(stop.loaded.map((file) => names.get(file) ?? file))}${when}`);
     } else {
-      text.push(`  ${number}  ${indent}${placeText(stop.place, stop.entered, names)}`);
+      text.push(`  ${number}  ${indent}${placeText(stop.place, stop.entered, names)}${when}`);
       const key = stop.place.at;
       const tree = armTree(stop.arms, never.get(key) ?? [], starts.get(key) ?? new Map());
       for (const branch of tree) text.push(`  ${blank}  ${indent}  ${branch}`);

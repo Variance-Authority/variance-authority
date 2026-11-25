@@ -57,6 +57,29 @@ describe('a head started with VARIANCE_AUTHORITY_STORY=1', () => {
     });
   });
 
+  it('stamps every visit with when it ran, and the story with when its execution settled', async () => {
+    await inRoot(async (root) => {
+      process.env[STORY_VARIABLE] = '1';
+      const watcher = await driver();
+      const collector = collectJourneys({ head: 'api', enabled: true, watcher: watcher.origin });
+      const parts = await head(root);
+
+      const before = Date.now();
+      await collector.enter('theme=dark', () => parts.currency('de'));
+      await collector.close();
+      const after = Date.now();
+
+      const { story } = watcher.reports.find((report) => report.story !== undefined)!;
+      const { stamps, end, visits } = storyFormat.decodeStory(Buffer.from(story!, 'base64'));
+      const times = [...(stamps ?? []), end];
+      expect(times).toHaveLength(visits.length + 1);
+      expect(times).toEqual([...times].sort((left, right) => left! - right!));
+      // Absolute, so another head's are on the same line: a millisecond either side for the two clocks' rounding.
+      expect(times[0]!).toBeGreaterThanOrEqual(before - 1);
+      expect(end!).toBeLessThanOrEqual(after + 1);
+    });
+  });
+
   it('says nothing of what a module holds: a live run shows arguments only', async () => {
     await inRoot(async (root) => {
       process.env[STORY_VARIABLE] = '1';

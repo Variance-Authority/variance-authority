@@ -52,6 +52,14 @@ const passed = (...readings: Loaded[]) => ({ name: 'passed', readings });
 const threw = (...readings: Loaded[]) => ({ name: 'threw', readings });
 
 describe('two sides of a case', () => {
+  it('are the same case when they differ only in when each step ran', () => {
+    const at = (...stamps: number[]): Loaded => {
+      const read = reading([1, 2, 3, 4]);
+      return { ...read, story: { ...read.story, stamps: Float64Array.from(stamps), end: stamps.at(-1)! + 1 } };
+    };
+    expect(compareLoaded(ROOT, [passed(at(1, 2, 3, 4)), threw(at(1, 50, 900, 901))])).toMatchObject({ only: [], orders: [] });
+  });
+
   it('are told apart by an arm one side took on every reading and the other on none', () => {
     const comparison = compareLoaded(ROOT, [
       passed(reading([1, 2, 3, 4]), reading([1, 2, 3, 2, 4])),

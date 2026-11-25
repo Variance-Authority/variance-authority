@@ -379,7 +379,7 @@ The agent skill
 [installed with the CLI](agent-workspace-api.md)
 has each of them, and what to do about a region that was not named.
 
-### What each function was handed
+### What each function was handed, and when it ran
 
 Start a server with `VARIANCE_AUTHORITY_STORY=1` beside the two variables it
 reports with, and `--story` prints each of its executions as a
@@ -394,16 +394,38 @@ variance ask ran --at http://127.0.0.1:53393 --story
 ```
 1 execution(s) at http://127.0.0.1:53393.
 
-  b4128c59-ac7c-45d3-abdd-882e39f0e906
+  bb2472a1-b557-408e-af9f-b061d55aa510
+  began 2026-11-25T03:23:53.452Z, 0.7 ms in all; each step: when it ran, then the time to the next recorded step and its share
   head pricing
       in cases/journey-tracing-case/src: pricing.mjs
-      1  quote  pricing.mjs:6-13
-           if 7  then ×1
+      1  quote  pricing.mjs:6-13  +0.0 ms, then 0.7 ms (100%)
+           if 7  then ×1  else ✗
            » handed locale='de'
 ```
 
 A step reads as it does in `variance story`: the function, where it is, the
 branches it took under it, and what it was handed under those.
+
+The line under the execution says when it began and how long it took. Each step
+then has the time from that beginning to the step, the time to the next
+recorded step, and what share of the whole that is, so the largest share is
+where the request spent its time. A server's last step runs to the moment the
+request settled.
+
+- The time to the next step is elapsed time. It holds the work of any code the
+  build put no probe in, and the time the code waited, for a query or a
+  response. It is not the running time of the function named, which can call
+  the next step and continue after it.
+- A step drawn once for several passes of a loop has the times of all its
+  passes added up. Its start is the first pass's.
+- Where another request's work ran in the middle of that time, the step says
+  `another execution's work in it`.
+- Every server and page in an execution is placed from the same beginning, by
+  the clock of the machine it ran on. When more than one is listed, the
+  line says so: two machines whose clocks differ are placed apart by that much.
+- A page's last step, and the last step kept of a story that lost some, have no
+  next step, and so only their start.
+- A head that stamps no times is listed without them.
 
 A live story shows arguments only: no variable a function declares, and
 nothing a module holds at its top level. Two requests that run at once are

@@ -43,7 +43,10 @@ export function tapeJourneys(engine: ReturnType<typeof probeLog.createEngine>): 
   tap.nameIn(globalThis);
   return {
     root: tap.root,
-    storyOf: (journey) => format.encodeStory(tap.take(journey), journey).toString('base64'),
+    storyOf: (journey) => {
+      const taken = tap.take(journey);
+      return format.encodeStory(taken, journey, undefined, taken.end === undefined ? {} : { end: taken.end }).toString('base64');
+    },
     forget: (journey) => void tap.take(journey),
   };
 }

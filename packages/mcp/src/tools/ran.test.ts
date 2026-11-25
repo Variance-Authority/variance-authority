@@ -239,6 +239,99 @@ describe('variance_ran', () => {
       ]);
     });
 
+    /** When the stamped tellings begin, on their heads' own clocks. */
+    const T0 = Date.UTC(2026, 0, 1);
+    const BOTH: CutModules = new Map([[PROBES, new Map([
+      ...WHOLE.get(PROBES)!,
+      [STORE, { instrumented: true, blocks: [{ ordinal: 0, kind: 'function', name: 'save', path: 'entry', startLine: 4 }] }],
+    ])]]);
+    /** `toggle`, `save` it calls, and `toggle` again, at `stamps` after {@link T0}, as a live tap takes them. */
+    const stamped = (stamps: readonly number[], end?: number, tape: { at: number[]; keys: string[]; visits?: number } = { at: [0], keys: [JOURNEY] }): string => encodeStory(
+      {
+        tape: Int32Array.from([1, 3, 1]), taped: 3, visits: 3, lines: [], unnoted: 0, notes: [], ...tape,
+        stamps: Float64Array.from(stamps, (stamp) => T0 + stamp),
+        rows: { ids: [ACTIONS, STORE], counts: [3, 1], bases: [0, 3] },
+        held: new Map(),
+      },
+      JOURNEY, undefined, end === undefined ? {} : { end: T0 + end },
+    ).toString('base64');
+    const drawn = (heads: Readonly<Record<string, readonly string[]>>): string[] => ran.run(state({
+      executions: [{
+        id: JOURNEY, ordinal: 0, open: false,
+        heads: Object.entries(heads).map(([head, stories]) => ({ head, instrumentation: PROBES, modules: [], stories })),
+      }],
+      common: [],
+    }), { story: true }, { modules: BOTH }).split('\n');
+    const steps = (text: readonly string[]) => text.filter((row) => /^ +\d /u.test(row)).map((row) => row.trim());
+    const heading = (text: readonly string[]) => text[text.findIndex((row) => row.endsWith(JOURNEY)) + 1];
+
+    it('says when each step of a stamped telling ran, the time to the next and its share of the whole', () => {
+      const text = drawn({ web: [stamped([0, 10, 40], 50)] });
+      expect(heading(text)).toBe('  began 2026-01-01T00:00:00.000Z, 50.0 ms in all; each step: when it ran, then the time to the next recorded step and its share');
+      expect(steps(text)).toEqual([
+        '1  toggle  actions.ts:15  +0.0 ms, then 10.0 ms (20%)',
+        '2  save  store.ts:4  +10.0 ms, then 30.0 ms (60%)',
+        '3  toggle  actions.ts:15  +40.0 ms, then 10.0 ms (20%)',
+      ]);
+    });
+
+    it('places every head of an execution, and every later telling, from the one start', () => {
+      const text = drawn({ page: [stamped([0, 10, 40])], api: [stamped([12, 22, 30], 32), stamped([80, 90, 99], 100)] });
+      expect(heading(text)).toContain('100.0 ms in all');
+      expect(heading(text)).toContain("heads are placed by their own machines' clocks");
+      expect(steps(text).map((row) => row.slice(row.indexOf('+')))).toEqual([
+        '+0.0 ms, then 10.0 ms (10%)', '+10.0 ms, then 30.0 ms (30%)',
+        // A page is not told when its execution settled, so its last step has no next.
+        '+40.0 ms',
+        '+12.0 ms, then 10.0 ms (10%)', '+22.0 ms, then 8.0 ms (8%)', '+30.0 ms, then 2.0 ms (2%)',
+        '+80.0 ms, then 10.0 ms (10%)', '+90.0 ms, then 9.0 ms (9%)', '+99.0 ms, then 1.0 ms (1%)',
+      ]);
+    });
+
+    it("says which step's time another execution ran in the middle of", () => {
+      const text = drawn({ api: [stamped([0, 10, 40], 50, { at: [0, 2, 2], keys: [JOURNEY, '\0elsewhere', JOURNEY] })] });
+      expect(steps(text)).toEqual([
+        '1  toggle  actions.ts:15  +0.0 ms, then 10.0 ms (20%)',
+        "2  save  store.ts:4  +10.0 ms, then 30.0 ms (60%), another execution's work in it",
+        '3  toggle  actions.ts:15  +40.0 ms, then 10.0 ms (20%)',
+      ]);
+    });
+
+    it('gives the last kept step no time to the next when the tape kept none of what came after it', () => {
+      const text = drawn({ api: [stamped([0, 10, 40], 50, { at: [0], keys: [JOURNEY], visits: 9 })] });
+      expect(steps(text).at(-1)).toBe('3  toggle  actions.ts:15  +40.0 ms');
+    });
+
+    it('adds up the time of every pass of a step a loop drew once', () => {
+      const loop = encodeStory(
+        {
+          tape: Int32Array.from([1, 3, 1, 3]), taped: 4, visits: 4, at: [0], keys: [JOURNEY], lines: [], unnoted: 0, notes: [],
+          stamps: Float64Array.from([0, 1, 4, 10], (stamp) => T0 + stamp),
+          rows: { ids: [ACTIONS, STORE], counts: [3, 1], bases: [0, 3] },
+          held: new Map(),
+        },
+        JOURNEY, undefined, { end: T0 + 20 },
+      ).toString('base64');
+      expect(steps(drawn({ api: [loop] }))).toEqual([
+        '1    toggle  actions.ts:15 ×2  +0.0 ms, then 7.0 ms (35%)',
+        '2    save  store.ts:4 ×2  +1.0 ms, then 13.0 ms (65%)',
+      ]);
+    });
+
+    it('reads a time of a second or more in seconds', () => {
+      expect(steps(drawn({ api: [stamped([0, 10, 2510], 2510)] }))).toEqual([
+        '1  toggle  actions.ts:15  +0.0 ms, then 10.0 ms (0%)',
+        '2  save  store.ts:4  +10.0 ms, then 2.5 s (100%)',
+        '3  toggle  actions.ts:15  +2.5 s, then 0.0 ms (0%)',
+      ]);
+    });
+
+    it('prints no times for a telling that carries none', () => {
+      const text = drawn({ web: [told] });
+      expect(text.join('\n')).not.toContain(' ms');
+      expect(heading(text)).toBe('  head web');
+    });
+
     it('says what the tape lost of an execution, the steps past its end and the lines it was handed past its limit', () => {
       const lost = encodeStory(
         {

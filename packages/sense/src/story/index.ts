@@ -17,4 +17,5 @@ export { PAGE_STORY, type PageStory } from './page-story.js';
 export { numbered, through, window, type Gap, type Line } from './view.js';
 export { BUDGET, drawings, pick, type Drawing, type Through } from './levels.js';
 export { armStarts, drawingText, routeText, saidText, unnotedText, unresolvedText, untapedText, type Starts } from './text.js';
+export { spanText, toldSpan, type Span, type Timing } from './times.js';
 export { pageChanges, type PageChange, type PageSearch } from './changes.js';
