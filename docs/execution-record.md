@@ -491,6 +491,7 @@ parent has rows: child rows for parent `i` are `[off[i], off[i + 1])`.
 | tests | `tests.complete` | one byte, `1` when every case in the file ran and passed |
 | tests | `tests.duration` | the whole milliseconds the test runner reported for the file, `0xffffffff` when it reported none |
 | tests | `tests.phases` | five words a file, the whole milliseconds of its prepare, environment, setup, collect and cases phases, `0xffffffff` for a phase the runner did not time |
+| tests | `tests.start` | two words a file, the epoch milliseconds the runner started it at, low word then high, `0xffffffff` in both when it gave none |
 | tests | `tests.preconditions` | range into the precondition rows |
 | preconditions | `preconditions.name`, `preconditions.digest` | a path the test's answer depends on, and the digest it had |
 | modules | `modules.path`, `modules.source` | the module path, sorted by code unit, and the digest of its source |
@@ -543,6 +544,19 @@ is the render through `afterEach`, or to the phase it ended on when it errored,
 was aborted or was read before `afterEach` finished. Phases are summed across
 projects and readings as durations are. A record written before phases were kept
 opens with every file unphased.
+
+**Start.** `tests.start` is when the runner started the file, in milliseconds
+since the epoch on the runner's own clock, the earliest of its attempts. Only
+Playwright records one today: its fixture reads the clock when it is set up, before
+the test's own hooks. A file whose runner gave none stores the sentinel and a reader
+answers it as absent, never as zero. When a join folds two records that carry the same file, the
+earlier start stands. A record written before starts were kept opens with every
+file unstarted. `variance trace --format otlp` prints a recorded run as
+OpenTelemetry spans — the run, each file with a start, the phases it timed one
+after another from that start, and its cases inside the `cases` phase, the
+latter two marked as placed, not measured — so any
+trace viewer draws it on a real time axis. A file with no start has no span.
+[Trace](trace.md) walks the journey from recording to viewer.
 
 **A file's cost.** What running a file cost is the larger of its duration and
 its phases summed. Each counts part of the same run: Jest's runtime spans the

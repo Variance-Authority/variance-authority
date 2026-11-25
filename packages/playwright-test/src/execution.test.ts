@@ -10,9 +10,9 @@ import {
 import { caseIndexOf, coveringTests, decodeExecutionIndex, readTestCoverage } from '@variance-authority/sense/test-selection';
 import { describe, expect, it, vi } from 'vitest';
 import { varianceCompletedFixtures } from './completed.js';
-import { createExecutionRecorder, type ExecutionRecorder } from './execution.js';
+import { createExecutionRecorder } from './execution.js';
 import { testOf } from './test-coordinate.js';
-import { INSTRUMENTATION, inRoot, instrumented, pageReporting } from './execution.fixture.js';
+import { ended, INSTRUMENTATION, inRoot, instrumented, pageReporting } from './execution.fixture.js';
 
 // These drive the fixture with a `TestInfo` cut to what recording reads, which
 // carries none of the worker internals a hook's describe is read from; that
@@ -21,41 +21,6 @@ vi.mock('./preconditions.js', async (original) => ({
   ...(await original<typeof import('./preconditions.js')>()),
   enterDescribes: async () => {},
 }));
-
-/**
- * End one test the way the runner ends it, through the fixture that is supposed
- * to be there for every spec.
- *
- * The bundle is asked for the fixture rather than the module, because what is
- * under test is the wiring: a suite gets whatever `varianceFixtures` carries,
- * and a marking function no fixture reaches marks nothing.
- */
-async function ended(
-  recorder: ExecutionRecorder,
-  root: string,
-  owner: string,
-  status: TestInfo['status'],
-  duration?: number,
-  timeout?: number,
-): Promise<void> {
-  const declared = varianceCompletedFixtures.varianceCompleted as unknown as readonly [
-    (
-      args: { varianceRecorder: ExecutionRecorder | undefined },
-      use: () => Promise<void>,
-      testInfo: TestInfo,
-    ) => Promise<void>,
-    { auto?: boolean },
-  ];
-  await declared[0]({ varianceRecorder: recorder }, async () => {}, {
-    file: resolve(root, owner),
-    status,
-    project: { name: 'chromium' },
-    titlePath: [owner, 'the one test'],
-    testId: `${owner}-1`,
-    ...(duration === undefined ? {} : { duration }),
-    ...(timeout === undefined ? {} : { timeout }),
-  } as unknown as TestInfo);
-}
 
 describe('a Playwright worker records what its specs executed', () => {
   it('joins every observation in one spec file to that file', async () => {

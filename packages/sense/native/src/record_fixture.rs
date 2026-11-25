@@ -16,6 +16,8 @@ pub struct Test {
     pub duration: Option<u32>,
     /// Its phases, written only in the current layout; `None` for a runner that reported none.
     pub phases: Option<record_coverage::Phases>,
+    /// Its start, written only in the current layout; `None` for a runner that gave none.
+    pub start: Option<record_coverage::Start>,
     pub preconditions: Vec<(&'static str, &'static str)>,
 }
 
@@ -51,7 +53,7 @@ pub struct Spec {
 }
 
 pub fn test(file: &'static str) -> Test {
-    Test { file, complete: true, duration: Some(file.len() as u32), phases: None, preconditions: Vec::new() }
+    Test { file, complete: true, duration: Some(file.len() as u32), phases: None, start: None, preconditions: Vec::new() }
 }
 
 pub fn block(ordinal: u32, called: &[u32]) -> Block {
@@ -139,9 +141,13 @@ pub fn write(spec: &Spec) -> Vec<u8> {
     if spec.version != LAYOUT.coverage.untimed {
         columns.push(words(&LAYOUT.coverage.duration, spec.tests.iter().map(|test| test.duration.unwrap_or(LAYOUT.coverage.no_duration)).collect()));
     }
-    if spec.version == LAYOUT.coverage.format || spec.version == LAYOUT.coverage.unkeyed {
+    if spec.version == LAYOUT.coverage.format || spec.version == LAYOUT.coverage.unstarted || spec.version == LAYOUT.coverage.unkeyed {
         let none = [LAYOUT.coverage.no_duration; record_coverage::PHASES];
         columns.push(words(&LAYOUT.coverage.phases, spec.tests.iter().flat_map(|test| test.phases.unwrap_or(none)).collect()));
+    }
+    if spec.version == LAYOUT.coverage.format {
+        let none = [LAYOUT.coverage.no_duration; record_coverage::START];
+        columns.push(words(&LAYOUT.coverage.start, spec.tests.iter().flat_map(|test| test.start.unwrap_or(none)).collect()));
     }
     columns.extend([
         words("preconditions.name", names),
@@ -149,7 +155,7 @@ pub fn write(spec: &Spec) -> Vec<u8> {
         words("modules.path", module_path),
         words("modules.source", module_source),
     ]);
-    if spec.version == LAYOUT.coverage.format {
+    if spec.version == LAYOUT.coverage.format || spec.version == LAYOUT.coverage.unstarted {
         columns.push(words(&LAYOUT.coverage.blob, vec![LAYOUT.coverage.no_blob; spec.modules.len()]));
     }
     columns.extend([
@@ -187,6 +193,14 @@ pub fn phases(bytes: &[u8]) -> Vec<(String, record_coverage::Phases)> {
     let coverage = record_coverage::read(bytes).unwrap().coverage.unwrap();
     let strings = coverage.strings().unwrap();
     (0..coverage.tests()).map(|at| (strings[coverage.test_path[at] as usize].to_owned(), coverage.phases(at))).collect()
+}
+
+/// Each test's file and start, in the order the record holds them.
+pub fn starts(bytes: &[u8]) -> Vec<(String, record_coverage::Start)> {
+    let record = record_coverage::read(bytes).unwrap();
+    let coverage = record.coverage.unwrap();
+    let strings = coverage.strings().unwrap();
+    (0..coverage.tests()).map(|at| (strings[coverage.test_path[at] as usize].to_owned(), coverage.start(at))).collect()
 }
 
 /// A record's coverage as plain values: `(file, complete, duration)` a test, and `(file, instrumented, regions)` a module.

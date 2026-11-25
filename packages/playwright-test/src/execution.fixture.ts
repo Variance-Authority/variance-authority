@@ -1,8 +1,10 @@
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
-import type { Page } from '@playwright/test';
+import type { Page, TestInfo } from '@playwright/test';
 import { moduleId, type ExecutionJournal } from '@variance-authority/sense/journal';
+import { varianceCompletedFixtures } from './completed.js';
+import type { ExecutionRecorder } from './execution.js';
 
 // What the execution recorder's tests drive it with: a page that hands over
 // journals, and a checkout holding one real module.
@@ -34,4 +36,39 @@ export async function instrumented(
 ): Promise<{ cacheRoot: string; id: string; ordinals: number[] }> {
   await writeFile(resolve(root, 'price.js'), SOURCE, 'utf8');
   return { cacheRoot: resolve(root, 'cache'), id: moduleId('price.js', SOURCE), ordinals: [0, 1] };
+}
+
+/**
+ * End one test the way the runner ends it, through the fixture that is supposed
+ * to be there for every spec.
+ *
+ * The bundle is asked for the fixture rather than the module, because what is
+ * under test is the wiring: a suite gets whatever `varianceFixtures` carries,
+ * and a marking function no fixture reaches marks nothing.
+ */
+export async function ended(
+  recorder: ExecutionRecorder,
+  root: string,
+  owner: string,
+  status: TestInfo['status'],
+  duration?: number,
+  timeout?: number,
+): Promise<void> {
+  const declared = varianceCompletedFixtures.varianceCompleted as unknown as readonly [
+    (
+      args: { varianceRecorder: ExecutionRecorder | undefined },
+      use: () => Promise<void>,
+      testInfo: TestInfo,
+    ) => Promise<void>,
+    { auto?: boolean },
+  ];
+  await declared[0]({ varianceRecorder: recorder }, async () => {}, {
+    file: resolve(root, owner),
+    status,
+    project: { name: 'chromium' },
+    titlePath: [owner, 'the one test'],
+    testId: `${owner}-1`,
+    ...(duration === undefined ? {} : { duration }),
+    ...(timeout === undefined ? {} : { timeout }),
+  } as unknown as TestInfo);
 }

@@ -8,7 +8,7 @@ import { landRun } from './commit-runs.js';
 import { coverageModule } from './coverage-rows.js';
 import { decodeTestCoverage, encodeTestCoverage } from './format.js';
 import { layCoverage } from './format-layer.js';
-import { BLOB, FORMAT, NO_BLOB, PHASES, UNKEYED_FORMAT, sections, type Header, type Stored } from './format-layout.js';
+import { BLOB, FORMAT, NO_BLOB, PHASES, START, UNKEYED_FORMAT, UNSTARTED_FORMAT, sections, type Header, type Stored } from './format-layout.js';
 import { openTestCoverage } from './format-view.js';
 import type { CoverageModule, TestCoverage } from './index.js';
 
@@ -147,7 +147,7 @@ describe('the git name of the text a module row was cut from', () => {
   });
 
   it('opens a snapshot written before the key was recorded, as one with no key anywhere', () => {
-    const unkeyed = relaid(encodeTestCoverage(coverage([module('src/a.ts', 'git:aa')])), UNKEYED_FORMAT, [BLOB]);
+    const unkeyed = relaid(encodeTestCoverage(coverage([module('src/a.ts', 'git:aa')])), UNKEYED_FORMAT, [BLOB, START]);
 
     expect(openTestCoverage(unkeyed).moduleBlob).toBeUndefined();
     expect(decodeTestCoverage(unkeyed).modules.map((each) => each.sourceBlob)).toEqual([undefined]);
@@ -171,7 +171,7 @@ describe('the git name of the text a module row was cut from', () => {
   });
 
   it('layers a run over an unkeyed snapshot into the current layout, keyed only where the run keyed it', () => {
-    const unkeyed = relaid(encodeTestCoverage(coverage([module('src/a.ts'), module('src/b.ts')])), UNKEYED_FORMAT, [BLOB]);
+    const unkeyed = relaid(encodeTestCoverage(coverage([module('src/a.ts'), module('src/b.ts')])), UNKEYED_FORMAT, [BLOB, START]);
 
     const layered = layCoverage(unkeyed, coverage([module('src/b.ts', 'git:b2')]));
 
@@ -182,7 +182,8 @@ describe('the git name of the text a module row was cut from', () => {
   });
 
   it('lets the unphased layout keep lacking both', () => {
-    expect(UNKEYED_FORMAT).toBe(FORMAT - 1);
+    expect(UNKEYED_FORMAT).toBe(UNSTARTED_FORMAT - 1);
+    expect(UNSTARTED_FORMAT).toBe(FORMAT - 1);
     expect(PHASES).not.toBe(BLOB);
   });
 });

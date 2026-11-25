@@ -12,6 +12,7 @@ import { parseSelectArgs, type ParsedSelect } from './select-args.js';
 import { parseShardsArgs, type ParsedShards } from './shards-args.js';
 import { parseIndexArgs, type ParsedIndex } from './index-args.js';
 import { parseReachArgs, type ParsedReach } from './reach-args.js';
+import { parseTraceArgs, type ParsedTrace } from './trace-args.js';
 import { parseReviewArgs, type ParsedReview } from './review-args.js';
 import { parseCoverageArgs, type ParsedCoverage } from './coverage-args.js';
 import { parseLayersArgs, type ParsedLayers } from './layers-args.js';
@@ -119,7 +120,7 @@ export type Parsed =
       readonly reports: readonly string[];
     }
   | ParsedAsk
-  | ParsedDistill | ParsedStory | ParsedCovering | ParsedCoverage | ParsedLayers | ParsedRestrictions | ParsedReview | ParsedIndex | ParsedSelect | ParsedShards | ParsedReach | ParsedShare | ParsedCarry | ParsedCollect | ParsedJob | ParsedCargo | ParsedJanus
+  | ParsedDistill | ParsedStory | ParsedCovering | ParsedCoverage | ParsedLayers | ParsedRestrictions | ParsedReview | ParsedIndex | ParsedSelect | ParsedShards | ParsedReach | ParsedTrace | ParsedShare | ParsedCarry | ParsedCollect | ParsedJob | ParsedCargo | ParsedJanus
   | {
       readonly command: 'accept';
       readonly config: string;
@@ -294,6 +295,7 @@ export function parseArgs(argv: readonly string[]): Parsed {
     case 'select': return parseSelectArgs(flags);
     case 'shards': return parseShardsArgs(flags);
     case 'reach': return parseReachArgs(flags);
+    case 'trace': return parseTraceArgs(flags);
     case 'share': return parseShareArgs(flags, config);
     case 'collect': return parseCollectArgs(flags, config);
     case 'carry': return parseCarryArgs(flags);

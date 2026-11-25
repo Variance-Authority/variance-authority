@@ -13,7 +13,8 @@
   },
   "coverage": {
     "model": 3,
-    "format": 12,
+    "format": 13,
+    "unstarted": 12,
     "unkeyed": 11,
     "unphased": 10,
     "uncased": 9,
@@ -32,6 +33,7 @@
       "tests.preconditions",
       "tests.duration",
       "tests.phases",
+      "tests.start",
       "preconditions.name",
       "preconditions.digest",
       "modules.path",
@@ -55,6 +57,7 @@
     ],
     "duration": "tests.duration",
     "phases": "tests.phases",
+    "start": "tests.start",
     "blob": "modules.blob",
     "phaseNames": [
       "prepare",

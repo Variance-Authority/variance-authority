@@ -129,6 +129,7 @@ export {
   type TimedTestCase,
   type TimedTestFile,
 } from './recorded-durations.js';
+export { recordedTrace, type RecordedTrace, type TracedCase, type TracedFile, type TracedPhase } from './recorded-trace.js';
 export { recordedAttempts, type RecordedAttempts, type RetriedCase } from './recorded-attempts.js';
 export { recordedChecks, type RecordedChecks } from './recorded-checks.js';
 export type { ChecksScope } from './test-selection/checks-record.js';

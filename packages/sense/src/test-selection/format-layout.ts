@@ -32,6 +32,9 @@ export const MODEL = LAYOUT.coverage.model;
  */
 export const FORMAT = LAYOUT.coverage.format;
 
+/** The layout before `tests.start`, read as one whose runner gave no start time. */
+export const UNSTARTED_FORMAT = LAYOUT.coverage.unstarted;
+
 /** The layout before `modules.blob`, read as one that named no text by its git blob. */
 export const UNKEYED_FORMAT = LAYOUT.coverage.unkeyed;
 
@@ -46,7 +49,7 @@ export const UNTIMED_FORMAT = LAYOUT.coverage.untimed;
 
 /** The layouts a reader opens. */
 export function readableFormat(version: unknown): version is number {
-  return version === FORMAT || version === UNKEYED_FORMAT || version === UNPHASED_FORMAT || version === UNCASED_FORMAT || version === UNTIMED_FORMAT;
+  return version === FORMAT || version === UNSTARTED_FORMAT || version === UNKEYED_FORMAT || version === UNPHASED_FORMAT || version === UNCASED_FORMAT || version === UNTIMED_FORMAT;
 }
 
 const ALIGNMENT = LAYOUT.alignment;
@@ -69,6 +72,12 @@ export function durationWord(duration: number | undefined): number {
   return whole >= NO_DURATION ? NO_DURATION : whole;
 }
 
+/** Two words for an epoch millisecond start; a value no clock could have meant is absent. */
+export function startWords(start: number | undefined): readonly [number, number] {
+  if (start === undefined || !Number.isSafeInteger(start) || start < 0) return [NO_DURATION, NO_DURATION];
+  return [start % 2 ** 32, Math.floor(start / 2 ** 32)];
+}
+
 /**
  * Stored as runs above this, and as it is below it.
  *
@@ -80,7 +89,7 @@ const PACK_ABOVE = LAYOUT.packAbove;
 
 /** Every section the file holds, in the order it holds them. */
 export const NAMES: readonly string[] = LAYOUT.coverage.sections.filter((name) =>
-  name !== LAYOUT.coverage.duration && name !== LAYOUT.coverage.phases && name !== LAYOUT.coverage.blob);
+  name !== LAYOUT.coverage.duration && name !== LAYOUT.coverage.phases && name !== LAYOUT.coverage.start && name !== LAYOUT.coverage.blob);
 
 /** The section the layouts after `UNTIMED_FORMAT` added: one word a test, see {@link NO_DURATION}. */
 export const DURATION = LAYOUT.coverage.duration;
@@ -90,6 +99,13 @@ export const DURATION = LAYOUT.coverage.duration;
  * words a test, each a duration as `tests.duration` holds one.
  */
 export const PHASES = LAYOUT.coverage.phases;
+
+/**
+ * The section the layouts after `UNSTARTED_FORMAT` added: two words a test, the
+ * epoch millisecond the runner started its file, low word first, or
+ * {@link NO_DURATION} in both where it gave none.
+ */
+export const START = LAYOUT.coverage.start;
 
 /**
  * The section the layouts after `UNKEYED_FORMAT` added: one word a module, the

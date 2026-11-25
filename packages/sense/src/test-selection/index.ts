@@ -340,6 +340,13 @@ export interface CoverageTest {
    * Absent when it reported none of them.
    */
   readonly phases?: FilePhases;
+  /**
+   * When the runner started the file, in milliseconds since the epoch: the
+   * earliest start of its attempts, which is where a timeline places it.
+   * Absent when the runner gave none; a snapshot stores it to the whole
+   * millisecond.
+   */
+  readonly start?: number;
 }
 
 /**

@@ -10,6 +10,7 @@ import {
   FORMAT,
   NO_DURATION,
   PHASES,
+  START,
   UNCASED_FORMAT,
   UNPHASED_FORMAT,
   UNTIMED_FORMAT,
@@ -90,7 +91,7 @@ describe('what the runner said a test file cost', () => {
   });
 
   it('opens a snapshot written before durations were recorded, as one whose runner timed nothing', async () => {
-    const untimed = relaid(encodeTestCoverage(coverage([5, 6, 7])), UNTIMED_FORMAT, [DURATION, PHASES]);
+    const untimed = relaid(encodeTestCoverage(coverage([5, 6, 7])), UNTIMED_FORMAT, [DURATION, PHASES, START]);
 
     expect(openTestCoverage(untimed).testDuration).toBeUndefined();
     const decoded = decodeTestCoverage(untimed);
@@ -108,7 +109,7 @@ describe('what the runner said a test file cost', () => {
   });
 
   it('layers a run over that older snapshot into the current layout, timing only what the run timed', () => {
-    const untimed = relaid(encodeTestCoverage(coverage([])), UNTIMED_FORMAT, [DURATION, PHASES]);
+    const untimed = relaid(encodeTestCoverage(coverage([])), UNTIMED_FORMAT, [DURATION, PHASES, START]);
     const whole = coverage([]);
     const run: TestCoverage = {
       ...whole,
@@ -130,7 +131,7 @@ describe('what the runner said a test file cost', () => {
   });
 
   it('layers a run over a snapshot written before the record held cases, carrying its tests', () => {
-    const uncased = relaid(encodeTestCoverage(coverage([5, 6, 7])), UNCASED_FORMAT, [PHASES]);
+    const uncased = relaid(encodeTestCoverage(coverage([5, 6, 7])), UNCASED_FORMAT, [PHASES, START]);
     const whole = coverage([]);
     const run: TestCoverage = { ...whole, tests: [whole.tests[1]!], modules: [] };
 
@@ -143,7 +144,7 @@ describe('what the runner said a test file cost', () => {
 
   it('lays over exactly the layouts the reader opens: the addon and this package agree', () => {
     const laysOver = (version: number): boolean => {
-      const held = relaid(encodeTestCoverage(coverage([1, 2, 3])), version, version === FORMAT ? [] : version === UNTIMED_FORMAT ? [DURATION, PHASES] : [PHASES]);
+      const held = relaid(encodeTestCoverage(coverage([1, 2, 3])), version, version === FORMAT ? [] : version === UNTIMED_FORMAT ? [DURATION, PHASES, START] : [PHASES, START]);
       try {
         layCoverage(held, coverage([]));
         return true;

@@ -18,6 +18,7 @@ export interface RecordLayout {
     /** The `version` a decoded `TestCoverage` carries, which the record's own format number does not. */
     readonly model: 3;
     readonly format: number;
+    readonly unstarted: number;
     readonly unkeyed: number;
     readonly unphased: number;
     readonly uncased: number;
@@ -34,6 +35,8 @@ export interface RecordLayout {
     readonly duration: string;
     /** The section the unphased layout lacks: one word a phase, {@link phaseNames} a test. */
     readonly phases: string;
+    /** The section the unstarted layout lacks: two words a test, the epoch millisecond its file started, low word first. */
+    readonly start: string;
     /** The section the unkeyed layout lacks: one word a module, the git blob name of its text. */
     readonly blob: string;
     /** The phases a runner spends on a test file, its cases last, in the order `phases` holds them. */
