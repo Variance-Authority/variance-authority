@@ -555,6 +555,7 @@ file unstarted. `variance trace --format otlp` prints a recorded run as
 OpenTelemetry spans — the run, each file with a start, the phases it timed one
 after another from that start, and its cases inside the `cases` phase — so any
 trace viewer draws it on a real time axis. A file with no start has no span.
+[Trace](trace.md) walks the journey from recording to viewer.
 
 **A file's cost.** What running a file cost is the larger of its duration and
 its phases summed. Each counts part of the same run: Jest's runtime spans the

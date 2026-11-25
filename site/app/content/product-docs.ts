@@ -86,6 +86,7 @@ import sourceIndex from "../../../docs/source-index.md?raw";
 import supportedFrameworks from "../../../docs/supported-frameworks.md?raw";
 import sourceStructures from "../../../docs/source-structures.md?raw";
 import executionRecord from "../../../docs/execution-record.md?raw";
+import trace from "../../../docs/trace.md?raw";
 import source from "../../../docs/source.md?raw";
 import stabilization from "../../../docs/stabilization.md?raw";
 import start from "../../../docs/start.md?raw";
@@ -205,6 +206,7 @@ const documents = [
   ["supported-frameworks", supportedFrameworks, "docs/supported-frameworks.md"],
   ["source-structures", sourceStructures, "docs/source-structures.md"],
   ["execution-record", executionRecord, "docs/execution-record.md"],
+  ["trace", trace, "docs/trace.md"],
   ["observability", observability, "docs/observability.md"],
   ["journeys", journeys, "docs/journeys.md"],
   ["jvm", jvm, "docs/jvm.md"],
