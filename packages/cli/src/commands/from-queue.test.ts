@@ -1,6 +1,9 @@
-import { mkdir, readdir, writeFile } from 'node:fs/promises';
+import { execFile } from 'node:child_process';
+import { mkdir, mkdtemp, readdir, realpath, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { promisify } from 'node:util';
+import { afterEach, describe, expect, it } from 'vitest';
 import { recordsFromQueue } from './from-queue.js';
 
 const SHA = 'a'.repeat(40);
@@ -23,6 +26,8 @@ function gh(runs: readonly object[], calls: Call[] = []) {
 }
 
 const green = { id: 7, path: '.github/workflows/check.yml', status: 'completed', conclusion: 'success' };
+/** What the pull request's run answers for a commit this checkout does not hold, so no merge of a head. */
+const NO_MERGE = "aaaaaaaaaaaa is not a merge, so no pull request's run tested its change";
 
 describe('recordsFromQueue', () => {
   it("downloads the shards of this workflow's green merge-queue run at the commit", async () => {
@@ -50,7 +55,7 @@ describe('recordsFromQueue', () => {
     const calls: Call[] = [];
     const got = await recordsFromQueue({ root: '.', pattern: 'p', commit: SHA, env: ENV }, gh([run], calls));
 
-    expect(got).toEqual({ none: `no green merge-queue run of .github/workflows/check.yml tested ${SHA}` });
+    expect(got).toEqual({ none: `no green merge-queue run of .github/workflows/check.yml tested ${SHA}; ${NO_MERGE}` });
     expect(calls).toHaveLength(1);
   });
 
@@ -66,7 +71,7 @@ describe('recordsFromQueue', () => {
       throw Object.assign(new Error('failed'), { stderr: 'no valid artifacts found to download' });
     });
 
-    expect(got).toEqual({ none: 'run 7 kept no artifact named p: `gh run download 7` failed: no valid artifacts found to download' });
+    expect(got).toEqual({ none: `run 7 kept no artifact named p: \`gh run download 7\` failed: no valid artifacts found to download; ${NO_MERGE}` });
   });
 
   it('fails naming gh when it cannot list the runs, since a push with no answer must be seen', async () => {
@@ -77,3 +82,77 @@ describe('recordsFromQueue', () => {
     await expect(missing).rejects.toThrow('--from-queue downloads the artifact with the GitHub CLI, `gh`, and `gh` is not on the PATH.');
   });
 });
+
+describe("recordsFromQueue, when the merge queue kept no run, reading the pull request's", () => {
+  let home: string | undefined;
+  afterEach(async () => {
+    if (home !== undefined) await rm(home, { recursive: true, force: true });
+  });
+
+  /** A checkout whose `main` landed a head merged into `first`, its tree changed after the merge when `drifted`. */
+  async function landed(drifted = false): Promise<{ root: string; commit: string; head: string }> {
+    home = await realpath(await mkdtemp(join(tmpdir(), 'variance-from-head-')));
+    const git = async (...args: string[]) => (await promisify(execFile)('git', args, { cwd: home })).stdout.trim();
+    await git('init', '--quiet', '-b', 'main');
+    await git('config', 'user.name', 'fixture');
+    await git('config', 'user.email', 'fixture@example.com');
+    await writeFile(join(home, 'a.ts'), 'export const a = 1;\n');
+    await git('add', '-A');
+    await git('commit', '--quiet', '-m', 'first');
+    await git('checkout', '--quiet', '-b', 'feat');
+    await writeFile(join(home, 'b.ts'), 'export const b = 1;\n');
+    await git('add', '-A');
+    await git('commit', '--quiet', '-m', 'head');
+    await git('checkout', '--quiet', 'main');
+    await git('merge', '--quiet', '--no-ff', '-m', 'land', 'feat');
+    if (drifted) {
+      await writeFile(join(home, 'c.ts'), 'export const c = 1;\n');
+      await git('add', '-A');
+      await git('commit', '--quiet', '--amend', '-m', 'land');
+    }
+    return { root: home, commit: await git('rev-parse', 'HEAD'), head: await git('rev-parse', 'HEAD^2') };
+  }
+
+  /** A `gh` whose merge queue kept no run, whose pull request runs at the head are `runs`, and whose download fails. */
+  function pullRequestRuns(runs: readonly object[], calls: Call[] = []) {
+    return async (args: readonly string[]) => {
+      calls.push({ args });
+      if (args[0] === 'api') return { stdout: JSON.stringify({ workflow_runs: args[1]!.includes('event=pull_request') ? runs : [] }) };
+      throw Object.assign(new Error('failed'), { stderr: 'no valid artifacts found to download' });
+    };
+  }
+
+  const queueless = (commit: string) => `no green merge-queue run of .github/workflows/check.yml tested ${commit}`;
+
+  it('refuses when no green pull request run tested the head, and downloads nothing', async () => {
+    const { root, commit, head } = await landed();
+    const calls: Call[] = [];
+
+    const got = await recordsFromQueue({ root, pattern: 'p', commit, env: ENV }, pullRequestRuns([{ ...green, conclusion: 'failure' }], calls));
+
+    expect(got).toEqual({ none: `${queueless(commit)}; no green pull_request run of .github/workflows/check.yml tested its head ${head.slice(0, 12)}` });
+    expect(calls.map(({ args }) => args[0])).toEqual(['api', 'api']);
+  });
+
+  it("refuses when the head merged with the landed merge's first parent is not the tree that landed, and downloads nothing", async () => {
+    const { root, commit, head } = await landed(true);
+    const calls: Call[] = [];
+
+    const got = await recordsFromQueue({ root, pattern: 'p', commit, env: ENV }, pullRequestRuns([green], calls));
+
+    expect(got).toEqual({ none: `${queueless(commit)}; ${head.slice(0, 12)} merged with ${(await parentOf(root, commit)).slice(0, 12)} is not the tree ${commit.slice(0, 12)} landed, so run 7 tested another change` });
+    expect(calls.map(({ args }) => args[0])).toEqual(['api', 'api']);
+  });
+
+  it('refuses when the pull request run kept no shard by the pattern', async () => {
+    const { root, commit } = await landed();
+
+    const got = await recordsFromQueue({ root, pattern: 'p', commit, env: ENV }, pullRequestRuns([green]));
+
+    expect(got).toEqual({ none: `${queueless(commit)}; run 7 kept no artifact named p: \`gh run download 7\` failed: no valid artifacts found to download` });
+  });
+});
+
+async function parentOf(root: string, commit: string): Promise<string> {
+  return (await promisify(execFile)('git', ['rev-parse', `${commit}^1`], { cwd: root })).stdout.trim();
+}

@@ -77,7 +77,7 @@ export async function suitesShare(
   root: string,
   options: SuitesShareOptions,
   here: Here = {},
-  queue: (request: QueueRequest) => Promise<{ readonly dir: string } | { readonly none: string }> = recordsFromQueue,
+  queue: (request: QueueRequest) => Promise<{ readonly dir: string; readonly from?: string } | { readonly none: string }> = recordsFromQueue,
 ): Promise<SuiteShare> {
   if (options.fromQueue === undefined) return sharedSuites(root, options, here);
   const commit = await headOf(root);
@@ -87,7 +87,8 @@ export async function suitesShare(
   // The queue's record only comes ahead of the whole run's, so finding none leaves the mainline to that run.
   if ('none' in found) return { lines: [`nothing published from the merge queue: ${found.none}; the whole run at this commit publishes its record.`], exit: EXIT_CLEAN };
   try {
-    return await sharedSuites(root, { ...options, records: [found.dir] }, here, true);
+    const done = await sharedSuites(root, { ...options, records: [found.dir] }, here, true);
+    return found.from === undefined ? done : { ...done, lines: [found.from, ...done.lines] };
   } finally {
     await rm(found.dir, { recursive: true, force: true });
   }

@@ -54,19 +54,11 @@ export async function mergeHead(parsed: ParsedCarry, root: string, streams: Stre
     );
   }
   const started = (await git(['rev-parse', 'HEAD'])).stdout.trim();
-  const date = `@${Math.max(await committedAt(git, commit), await committedAt(git, head))} +0000`;
+  const spelled = await spelling(git, commit, head);
 
   await git(['checkout', '-q', '--detach', commit]);
   try {
-    // The environment, not `-c user.*`: a variable the job set would win over the config.
-    await git(['-c', 'commit.gpgsign=false', 'merge', '-q', '--no-ff', '--no-edit', '-m', `Merge ${head} with the record's commit ${commit}`, head], {
-      GIT_AUTHOR_NAME: IDENTITY.name,
-      GIT_AUTHOR_EMAIL: IDENTITY.email,
-      GIT_AUTHOR_DATE: date,
-      GIT_COMMITTER_NAME: IDENTITY.name,
-      GIT_COMMITTER_EMAIL: IDENTITY.email,
-      GIT_COMMITTER_DATE: date,
-    });
+    await git(['-c', 'commit.gpgsign=false', 'merge', '-q', '--no-ff', '--no-edit', '-m', spelled.message, head], spelled.env);
   } catch (error) {
     const conflicted = (await git(['diff', '--name-only', '--diff-filter=U'])).stdout.trim().split('\n').filter(Boolean);
     await restore(git, started);
@@ -108,6 +100,32 @@ async function commitOf(git: Git, name: string): Promise<string> {
   }
 }
 
+/**
+ * The commit `mergeHead` made of `head` and the record's `commit` in a run
+ * whose merge was `tree`, made again here without a checkout: every clone
+ * makes the same one, so a commit no ref holds is named again by its parts.
+ */
+export async function remadeMerge(root: string, commit: string, head: string, tree: string): Promise<string> {
+  const git = gitIn(root, {});
+  const spelled = await spelling(git, commit, head);
+  return (await git(['-c', 'commit.gpgsign=false', 'commit-tree', tree, '-p', commit, '-p', head, '-m', spelled.message], spelled.env)).stdout.trim();
+}
+
+/** The message, the identity and the date of the merge of `head` with `commit`: the later of their commit times. */
+async function spelling(git: Git, commit: string, head: string): Promise<{ readonly message: string; readonly env: Readonly<Record<string, string>> }> {
+  const date = `@${Math.max(await committedAt(git, commit), await committedAt(git, head))} +0000`;
+  // The environment, not `-c user.*`: a variable the job set would win over the config.
+  const env = {
+    GIT_AUTHOR_NAME: IDENTITY.name,
+    GIT_AUTHOR_EMAIL: IDENTITY.email,
+    GIT_AUTHOR_DATE: date,
+    GIT_COMMITTER_NAME: IDENTITY.name,
+    GIT_COMMITTER_EMAIL: IDENTITY.email,
+    GIT_COMMITTER_DATE: date,
+  };
+  return { message: `Merge ${head} with the record's commit ${commit}`, env };
+}
+
 async function committedAt(git: Git, commit: string): Promise<number> {
   return Number((await git(['log', '-1', '--format=%ct', commit])).stdout.trim());
 }
@@ -118,6 +136,7 @@ async function restore(git: Git, started: string): Promise<void> {
   await git(['checkout', '-q', '--detach', started]);
 }
 
-function short(sha: string): string {
+/** The first twelve characters of `sha`, as a line names a commit. */
+export function short(sha: string): string {
   return sha.slice(0, 12);
 }

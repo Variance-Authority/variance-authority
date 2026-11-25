@@ -18,6 +18,7 @@ import {
 import { parseArgs } from '../parse.js';
 import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
 import { DISCOUNTS, PUSH, casesIndex, gitPublished, totalCoverage, totalModule } from './mainline-fixture.js';
+import { recordsFromQueue } from './from-queue.js';
 import { suitesShare } from './share-suites.js';
 
 /**
@@ -81,6 +82,47 @@ async function collectedEach(): Promise<string> {
   await mkdir(dir, { recursive: true });
   for (const suite of ['integration', 'unit']) await writeFile(join(dir, `${suite}.txt`), 'test/other.test.ts\ntest/total.test.ts\n');
   return dir;
+}
+
+/** The workflow a push to `main` runs, as GitHub Actions names it to `--from-queue`. */
+const ACTIONS = { ...PUSH, GITHUB_REPOSITORY: 'owner/repo', GITHUB_WORKFLOW_REF: 'owner/repo/.github/workflows/check.yml@refs/heads/main' };
+
+/**
+ * `main` past the published `first` by a pull request's head merged into it,
+ * pushed, and the commit the pull request's run tested: that head merged with
+ * `first`, the record's commit, as `carry merge` makes it, which no ref holds.
+ */
+async function landedMerge(): Promise<{ ci: string; origin: string; landed: string; tested: string }> {
+  const suites = { unit: { kind: 'unit', carry: 'share' }, integration: { kind: 'unit', carry: 'share' }, site: { kind: 'unit' } };
+  const { ci, origin, first } = await gitPublished(home, { instrumentation: instrumentationId(), suites });
+  await git(ci, 'checkout', '--quiet', '-b', 'feat');
+  await writeFile(join(ci, 'src/later.ts'), 'export const later = 1;\n');
+  await git(ci, 'add', '-A');
+  await git(ci, 'commit', '--quiet', '-m', 'head');
+  const head = await git(ci, 'rev-parse', 'HEAD');
+  await git(ci, 'checkout', '--quiet', 'main');
+  await git(ci, 'merge', '--quiet', '--no-ff', '-m', 'land', 'feat');
+  await git(ci, 'push', '--quiet', 'origin', 'main');
+  vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'publish-cache'));
+  const date = `@${Math.max(Number(await git(ci, 'log', '-1', '--format=%ct', first)), Number(await git(ci, 'log', '-1', '--format=%ct', head)))} +0000`;
+  const as = { GIT_AUTHOR_NAME: 'variance-authority', GIT_AUTHOR_EMAIL: 'variance-authority@users.noreply.github.com', GIT_AUTHOR_DATE: date };
+  const by = { GIT_COMMITTER_NAME: as.GIT_AUTHOR_NAME, GIT_COMMITTER_EMAIL: as.GIT_AUTHOR_EMAIL, GIT_COMMITTER_DATE: date };
+  const tree = await git(ci, 'merge-tree', '--write-tree', first, head);
+  const made = await run('git', ['commit-tree', tree, '-p', first, '-p', head, '-m', `Merge ${head} with the record's commit ${first}`], { cwd: ci, env: { ...process.env, ...as, ...by } });
+  return { ci, origin, landed: await git(ci, 'rev-parse', 'HEAD'), tested: made.stdout.trim() };
+}
+
+/** A `gh` whose merge queue kept no run, and whose pull request run at the head kept the shards under `ran`; it notes each call in `asked`. */
+function pullRequestRun(asked: string[]) {
+  return async (args: readonly string[]) => {
+    asked.push(args.join(' '));
+    if (args[0] === 'api') {
+      const runs = args[1]!.includes('event=pull_request') ? [{ id: 11, path: '.github/workflows/check.yml', status: 'completed', conclusion: 'success' }] : [];
+      return { stdout: JSON.stringify({ workflow_runs: runs }) };
+    }
+    await cp(join(home, 'ran'), args[args.indexOf('--dir') + 1]!, { recursive: true });
+    return { stdout: '' };
+  };
 }
 
 describe('`variance share --publish <records>`', () => {
@@ -239,6 +281,44 @@ describe('`variance share --publish <records>`', () => {
     expect(done.lines.join('\n')).toMatch(/wrote suite-v1\/unit to mainline main in /u);
     expect(done.exit).toBe(EXIT_CLEAN);
     expect(await git(home, 'ls-remote', origin, 'refs/variance/mainline/main')).not.toBe(before);
+  });
+
+  it("publishes the pull request's run of the landed change when the merge queue kept none, its records restated at the commit that landed", async () => {
+    const { ci, origin, landed, tested } = await landedMerge();
+    await handedOn('variance-shard-unit-1', 'unit', 'test/total.test.ts', tested);
+    const before = await git(home, 'ls-remote', origin, 'refs/variance/mainline/main');
+    const asked: string[] = [];
+
+    const done = await suitesShare(
+      ci,
+      { suite: 'unit', publish: true, records: [], fromQueue: 'variance-shard-*', collected: join(await collectedEach(), 'unit.txt') },
+      { env: ACTIONS },
+      (request) => recordsFromQueue(request, pullRequestRun(asked)),
+    );
+
+    expect(done.lines.join('\n')).toMatch(/wrote suite-v1\/unit to mainline main in /u);
+    expect(done.exit).toBe(EXIT_CLEAN);
+    expect(asked).toContain(`api repos/owner/repo/actions/runs?head_sha=${await git(ci, 'rev-parse', 'HEAD^2')}&event=pull_request&per_page=100`);
+    expect(await git(home, 'ls-remote', origin, 'refs/variance/mainline/main')).not.toBe(before);
+    expect((await readTestCoverage(testCoverageFile(ci, { suite: 'unit' }))).commit).toBe(landed);
+  });
+
+  it("publishes nothing from a pull request's run whose records name another commit than the merge it would have made", async () => {
+    const { ci, origin, landed } = await landedMerge();
+    const head = await git(ci, 'rev-parse', 'HEAD^2');
+    await handedOn('variance-shard-unit-1', 'unit', 'test/total.test.ts', head);
+    const before = await git(home, 'ls-remote', origin, 'refs/variance/mainline/main');
+
+    const done = await suitesShare(
+      ci,
+      { suite: 'unit', publish: true, records: [], fromQueue: 'variance-shard-*' },
+      { env: ACTIONS },
+      (request) => recordsFromQueue(request, pullRequestRun([])),
+    );
+
+    expect(done.exit).toBe(EXIT_CLEAN);
+    expect(done.lines.join('\n')).toMatch(new RegExp(`^nothing published from the merge queue: no green merge-queue run of \\S+ tested ${landed}; run 11 did not test ${head.slice(0, 12)} merged with \\w{12}: \\S+coverage\\.bin was made at ${head}, not at \\w{12}; the whole run`, 'u'));
+    expect(await git(home, 'ls-remote', origin, 'refs/variance/mainline/main')).toBe(before);
   });
 
   it('says why it published nothing when the merge queue kept no run of the commit, and leaves the publish to the whole run', async () => {
