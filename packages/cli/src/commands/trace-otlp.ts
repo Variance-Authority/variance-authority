@@ -15,7 +15,7 @@
 
 // compass: variance-authority.reach
 
-import { createHash } from 'node:crypto';
+import { digestString } from '@variance-authority/core/format';
 import type { RecordedTrace, TracedFile } from '@variance-authority/sense';
 
 /** One span as OTLP/JSON spells it. */
@@ -46,7 +46,7 @@ function nanos(ms: number): string {
 }
 
 function hex(of: string, length: number): string {
-  return createHash('sha256').update(of).digest('hex').slice(0, length);
+  return digestString(of).slice('v1:'.length).slice(0, length);
 }
 
 /** The spans of `trace`: none where no file holds a start to place. */
