@@ -239,6 +239,167 @@ describe('variance_ran', () => {
       ]);
     });
 
+    /** When the stamped tellings begin, on their heads' own clocks. */
+    const T0 = Date.UTC(2026, 0, 1);
+    const BOTH: CutModules = new Map([[PROBES, new Map([
+      ...WHOLE.get(PROBES)!,
+      [STORE, { instrumented: true, blocks: [{ ordinal: 0, kind: 'function', name: 'save', path: 'entry', startLine: 4 }] }],
+    ])]]);
+    /** `toggle`, `save` it calls, and `toggle` again, at `stamps` after {@link T0}, as a live tap takes them. */
+    const stamped = (stamps: readonly number[], end?: number, tape: { at: number[]; keys: string[]; visits?: number } = { at: [0], keys: [JOURNEY] }): string => encodeStory(
+      {
+        tape: Int32Array.from([1, 3, 1]), taped: 3, visits: 3, lines: [], unnoted: 0, notes: [], ...tape,
+        stamps: Float64Array.from(stamps, (stamp) => T0 + stamp),
+        rows: { ids: [ACTIONS, STORE], counts: [3, 1], bases: [0, 3] },
+        held: new Map(),
+      },
+      JOURNEY, undefined, end === undefined ? {} : { end: T0 + end },
+    ).toString('base64');
+    const drawn = (heads: Readonly<Record<string, readonly string[]>>, untold?: number): string[] => ran.run(state({
+      executions: [{
+        id: JOURNEY, ordinal: 0, open: false,
+        heads: Object.entries(heads).map(([head, stories]) => ({ head, instrumentation: PROBES, modules: [], stories, ...(untold === undefined ? {} : { untold }) })),
+      }],
+      common: [],
+    }), { story: true }, { modules: BOTH }).split('\n');
+    const steps = (text: readonly string[]) => text.filter((row) => /^ +\d /u.test(row)).map((row) => row.trim());
+    const heading = (text: readonly string[]) => text[text.findIndex((row) => row.endsWith(JOURNEY)) + 1];
+
+    it('says when each step of a stamped telling ran, the time to the next and its share of the whole', () => {
+      const text = drawn({ web: [stamped([0, 10, 40], 50)] });
+      expect(heading(text)).toBe('  began 2026-01-01T00:00:00.000Z, 50.0 ms in all; each step: when it ran, then the time to the next recorded step and its share');
+      expect(steps(text)).toEqual([
+        '1  toggle  actions.ts:15  +0.0 ms, then 10.0 ms (20%)',
+        '2  save  store.ts:4  +10.0 ms, then 30.0 ms (60%)',
+        '3  toggle  actions.ts:15  +40.0 ms, then 10.0 ms (20%)',
+      ]);
+    });
+
+    it('places every head of an execution, and every later telling, from the one start', () => {
+      const text = drawn({ page: [stamped([0, 10, 40])], api: [stamped([12, 22, 30], 32), stamped([80, 90, 99], 100)] });
+      // A page never says it ended, so nothing here says the execution did.
+      expect(heading(text)).toContain('100.0 ms as far as it was recorded;');
+      expect(heading(text)).toContain("heads are placed by their own machines' clocks");
+      expect(steps(text).map((row) => row.slice(row.indexOf('+')))).toEqual([
+        '+0.0 ms, then 10.0 ms (10%)', '+10.0 ms, then 30.0 ms (30%)',
+        // A page is not told when its execution settled, so its last step has no next.
+        '+40.0 ms',
+        '+12.0 ms, then 10.0 ms (10%)', '+22.0 ms, then 8.0 ms (8%)', '+30.0 ms, then 2.0 ms (2%)',
+        '+80.0 ms, then 10.0 ms (10%)', '+90.0 ms, then 9.0 ms (9%)', '+99.0 ms, then 1.0 ms (1%)',
+      ]);
+    });
+
+    it.each(['\0elsewhere', '\0unattributed'])("says which step's time the process ran other work in the middle of, as %j", (other) => {
+      const text = drawn({ api: [stamped([0, 10, 40], 50, { at: [0, 2, 2], keys: [JOURNEY, other, JOURNEY] })] });
+      expect(steps(text)).toEqual([
+        '1  toggle  actions.ts:15  +0.0 ms, then 10.0 ms (20%)',
+        '2  save  store.ts:4  +10.0 ms, then 30.0 ms (60%), other work of the process in it',
+        '3  toggle  actions.ts:15  +40.0 ms, then 10.0 ms (20%)',
+      ]);
+    });
+
+    it('says how long after the steps above a telling of more of it began, which is no step\'s time', () => {
+      const text = drawn({ api: [stamped([0, 10, 40], 50), stamped([150, 160, 190], 200)] });
+      expect(text.map((row) => row.trim()).filter((row) => row.startsWith('told again'))).toEqual([
+        'told again, once more of it had run, 100.0 ms (50%) after the above ended:',
+      ]);
+      expect(steps(text).at(2)).toBe('3  toggle  actions.ts:15  +40.0 ms, then 10.0 ms (5%)');
+    });
+
+    it('measures a telling of more of it from the last step recorded where the head did not see the one before end', () => {
+      const text = drawn({ page: [stamped([0, 10, 40]), stamped([500, 510, 520])] });
+      expect(heading(text)).toContain('520.0 ms as far as it was recorded;');
+      expect(text.map((row) => row.trim()).filter((row) => row.startsWith('told again'))).toEqual([
+        'told again, once more of it had run, 460.0 ms (88%) after the last recorded of the above:',
+      ]);
+    });
+
+    it('says a telling the watcher did not keep may have run between two it kept, and that the length is not the whole', () => {
+      const text = drawn({ api: [stamped([0, 10, 40], 50), stamped([150, 160, 190], 200)] }, 1);
+      expect(heading(text)).toContain('200.0 ms as far as it was recorded;');
+      expect(text.map((row) => row.trim()).filter((row) => row.startsWith('told'))).toEqual([
+        'told again, once more of it had run, 100.0 ms (50%) after the above ended, where a telling not kept may have run:',
+        'told 1 more time, which the watcher did not keep',
+      ]);
+    });
+
+    it('gives no time between two tellings that overlap, as two processes of one head name tell', () => {
+      const text = drawn({ api: [stamped([0, 10, 40], 200), stamped([20, 30, 60], 70)] });
+      expect(text.map((row) => row.trim())).toContain('told again, once more of it had run:');
+    });
+
+    it('gives no time between a telling that carries times and one that does not', () => {
+      for (const tellings of [[told, stamped([0, 10, 40], 50)], [stamped([0, 10, 40], 50), told]]) {
+        const text = drawn({ api: tellings });
+        expect(text.map((row) => row.trim())).toContain('told again, once more of it had run:');
+        expect(heading(text)).toContain('50.0 ms as far as it was recorded;');
+      }
+    });
+
+    it('says how far it was recorded where the latest of it is a step and no end', () => {
+      expect(heading(drawn({ page: [stamped([0, 10, 40], undefined, { at: [0], keys: [JOURNEY], visits: 9 })] }))).toContain('40.0 ms as far as it was recorded;');
+      expect(heading(drawn({ page: [stamped([0, 10, 140])], api: [stamped([12, 22, 30], 32)] }))).toContain('140.0 ms as far as it was recorded;');
+    });
+
+    it('says the length is not the whole where a head it lists told no end, though another told one', () => {
+      const whole = stamped([0, 10, 40], 50);
+      for (const other of [[], [told], [stamped([5, 10, 20])]]) expect(heading(drawn({ api: [whole], web: other }))).toContain('50.0 ms as far as it was recorded;');
+      expect(heading(drawn({ api: [whole, stamped([60, 70, 80])] }))).toContain('80.0 ms as far as it was recorded;');
+      expect(heading(drawn({ api: [whole], web: [stamped([5, 10, 20], 30)] }))).toContain('50.0 ms in all;');
+    });
+
+    it('gives no share of an execution that took no time', () => {
+      expect(steps(drawn({ api: [stamped([0, 0, 0], 0)] })).at(0)).toBe('1  toggle  actions.ts:15  +0.0 ms, then 0.0 ms');
+    });
+
+    it('gives the last kept step no time to the next when the tape kept none of what came after it', () => {
+      const text = drawn({ api: [stamped([0, 10, 40], 50, { at: [0], keys: [JOURNEY], visits: 9 })] });
+      expect(steps(text).at(-1)).toBe('3  toggle  actions.ts:15  +40.0 ms');
+    });
+
+    it('adds up the time of every pass of a step a loop drew once', () => {
+      const loop = encodeStory(
+        {
+          tape: Int32Array.from([1, 3, 1, 3]), taped: 4, visits: 4, at: [0], keys: [JOURNEY], lines: [], unnoted: 0, notes: [],
+          stamps: Float64Array.from([0, 1, 4, 10], (stamp) => T0 + stamp),
+          rows: { ids: [ACTIONS, STORE], counts: [3, 1], bases: [0, 3] },
+          held: new Map(),
+        },
+        JOURNEY, undefined, { end: T0 + 20 },
+      ).toString('base64');
+      expect(steps(drawn({ api: [loop] }))).toEqual([
+        '1    toggle  actions.ts:15 ×2  +0.0 ms, then 7.0 ms (35%)',
+        '2    save  store.ts:4 ×2  +1.0 ms, then 13.0 ms (65%)',
+      ]);
+    });
+
+    it('gives a step no time to the next where one of its passes has none', () => {
+      const loop = encodeStory(
+        {
+          tape: Int32Array.from([1, 3, 1, 3]), taped: 4, visits: 4, at: [0], keys: [JOURNEY], lines: [], unnoted: 0, notes: [],
+          stamps: Float64Array.from([0, 1, 4, 10], (stamp) => T0 + stamp),
+          rows: { ids: [ACTIONS, STORE], counts: [3, 1], bases: [0, 3] },
+          held: new Map(),
+        },
+        JOURNEY, undefined, {},
+      ).toString('base64');
+      expect(steps(drawn({ page: [loop] })).at(-1)).toBe('2    save  store.ts:4 ×2  +1.0 ms');
+    });
+
+    it('reads a time of a second or more in milliseconds, as it reads the rest', () => {
+      expect(steps(drawn({ api: [stamped([0, 10, 2510], 2510)] }))).toEqual([
+        '1  toggle  actions.ts:15  +0.0 ms, then 10.0 ms (0%)',
+        '2  save  store.ts:4  +10.0 ms, then 2500.0 ms (100%)',
+        '3  toggle  actions.ts:15  +2510.0 ms, then 0.0 ms (0%)',
+      ]);
+    });
+
+    it('prints no times for a telling that carries none', () => {
+      const text = drawn({ web: [told] });
+      expect(text.join('\n')).not.toContain(' ms');
+      expect(heading(text)).toBe('  head web');
+    });
+
     it('says what the tape lost of an execution, the steps past its end and the lines it was handed past its limit', () => {
       const lost = encodeStory(
         {

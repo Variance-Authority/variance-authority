@@ -498,8 +498,9 @@ large.
 - **Not to find which tests run a line.** That question does not need the order.
   `variance covering` answers it from the journeys every run already keeps.
 - **Not a performance test or a benchmark.** A loop that runs many thousands of
-  times runs many times slower while it is recorded, and a story has counts,
-  not times. Use a profiler for time.
+  times runs many times slower while it is recorded, and a test's story has
+  counts, not times. Use a profiler for time. The story of a request to a running
+  application [does have times](vantage.md#what-each-function-was-handed-and-when-it-ran).
 - **Not when a stack trace already names the line.** Open that line.
 
 ## Record one

@@ -107,8 +107,21 @@ every execution is read for the name.
 `VARIANCE_AUTHORITY_STORY=1` as well. Each execution is then its steps in the
 order they ran, drawn as `variance story` draws every step: `N  name
 file:lines` with its branches under it, and `» handed name=value`, the
-arguments only: no local or module variable is shown. Concurrent requests are
-taped apart. An execution told again lists what ran since under `told again`.
+arguments only: no local or module variable is shown. The row under the
+execution says when it began and how long it took, `in all`, or `as far as it
+was recorded` where the end of any head listed was not seen; a step ends in
+`+<start> ms, then <time> ms (<share>%)`: when it ran from that beginning, the
+time to the next recorded step, and its share of the whole. That time is elapsed
+time, with unrecorded code and waiting in it, never the function's own; read
+the largest shares first. `other work of the process in it` marks one that another
+request, or work outside every request, ran in the middle of. A loop drawn once adds up its passes,
+and has no time where one has none. Heads are placed by their own machines'
+clocks and run at once, so their shares can pass 100% together. The last step of a page, of a turn under a `trace` alone, and the
+last kept step of a story that lost some, have a start only. Concurrent requests are
+taped apart. An execution told again lists what ran since under `told again`, with how long
+after the list above ended it began (where that end was not seen, after the last recorded of it),
+and whether a telling the watcher did not keep may have run between: under a `trace` and no `enter`, a head tells one each
+turn it ran, so most of a wait is there and in no step.
 What the tape lost is said above the steps; the watcher keeps 8 tellings of an
 execution, up to 1 MiB, and counts the rest as `told N more times`. A head
 without the variable tells no story, and the answer says so and lists regions.

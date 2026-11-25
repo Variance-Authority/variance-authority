@@ -31,5 +31,5 @@ it('tells a story from a head a bundler packed, with no file of the package besi
 
   const tape = tapeJourneys(probeLog.createEngine(true, (await import('../../dist/instrument/probe-set.cjs')).default.probeSet));
 
-  expect(storyFormat.decodeStory(Buffer.from(tape.storyOf('j-1'), 'base64')).notes).toEqual([]);
+  expect(storyFormat.decodeStory(Buffer.from(tape.storyOf('j-1', true), 'base64')).notes).toEqual([]);
 });

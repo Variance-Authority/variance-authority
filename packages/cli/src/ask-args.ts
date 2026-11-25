@@ -138,7 +138,7 @@ export interface ParsedAsk extends Crossing {
   readonly changedFile?: string;
   /** `--taint-file <path>`: addition-only declarative module edges. */
   readonly taintFile?: string;
-  /** `--story`: what each execution's functions were handed, for `ran`. */
+  /** `--story`: when each execution's functions ran and what they were handed, for `ran`. */
   readonly story?: boolean;
   readonly limit?: number;
   /** `--offset <n>`: rows to skip, for a question that pages. */

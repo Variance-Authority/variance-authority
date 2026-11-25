@@ -25,9 +25,10 @@ export interface JourneyTape {
   /**
    * The story of `journey` since it was last told, base64 as the wire carries
    * it, and the tape lets it go. A journey told again, by a promise its request
-   * left running, is told only what it ran since.
+   * left running, is told only what it ran since. `settled` says the scope it ran
+   * in was seen to settle, so the story says when.
    */
-  storyOf(journey: string): string;
+  storyOf(journey: string, settled: boolean): string;
   /** Let go of what `journey` ran since it was last told, for an account nobody reads a story of. */
   forget(journey: string): void;
 }
@@ -43,7 +44,10 @@ export function tapeJourneys(engine: ReturnType<typeof probeLog.createEngine>): 
   tap.nameIn(globalThis);
   return {
     root: tap.root,
-    storyOf: (journey) => format.encodeStory(tap.take(journey), journey).toString('base64'),
+    storyOf: (journey, settled) => {
+      const taken = tap.take(journey);
+      return format.encodeStory(taken, journey, undefined, settled && taken.end !== undefined ? { end: taken.end } : {}).toString('base64');
+    },
     forget: (journey) => void tap.take(journey),
   };
 }

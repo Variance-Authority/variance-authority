@@ -151,7 +151,7 @@ interface Tap {
    * taken, as a tape of its own, and let go of. A test's tap answers an empty
    * tape; its cases are read by {@link Tap.read}.
    */
-  take(key: string): Tape;
+  take(key: string): Tape & { readonly stamps?: Float64Array; readonly end?: number };
   /** How many visits and notes the tap holds now, of every bucket not yet taken. */
   holding(): { visits: number; notes: number };
 }
@@ -477,7 +477,7 @@ function createTap(engine: Engine, limit: number, live = false): Tap {
       turns = [];
       cutAt = [];
     },
-    take(key: string): Tape {
+    take(key: string): ReturnType<Tap['take']> {
       const taken = parts?.take(key) ?? { tape: empty, visits: 0, at: [], keys: [], notes: [], unnoted: 0 };
       return { ...taken, taped: taken.tape.length, lines: [], held: new Map(), rows: { ids: rowIds, counts: rowCounts, bases: rowBases } };
     },

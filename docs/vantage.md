@@ -8,7 +8,9 @@ teardown has thrown all of it away.
 No suite, and an application you click through by hand? The same watcher lists
 the code each of your clicks ran, in the page and in the server: go to [watch an application you use by
 hand](#watch-an-application-you-use-by-hand), which needs nothing else on this
-page.
+page. When one request is slow, it also says [when each step of it
+ran](#what-each-function-was-handed-and-when-it-ran), and so which step the
+time went to.
 
 The rest of this page covers what a Playwright suite reports while it is still
 running. Read it when a test hangs, when you want to
@@ -168,8 +170,11 @@ the functions and branches it ran. For a server alone an execution is one
 request. For a page that reports as well, it is one load or one click, and
 [the click's listing](#one-click-the-page-and-the-server) holds the page and
 the server together. Use the application, then run `variance ask ran` from
-the repository it was built from. This is the answer after two requests to a
-pricing service:
+the repository it was built from. For when each step of an execution ran, start
+the server as below, then go to [what each function was handed, and when it
+ran](#what-each-function-was-handed-and-when-it-ran): it needs nothing from the
+sections about the page. This is the answer after two requests to a pricing
+service:
 
 ```bash
 variance ask ran --at http://127.0.0.1:53393
@@ -379,31 +384,99 @@ The agent skill
 [installed with the CLI](agent-workspace-api.md)
 has each of them, and what to do about a region that was not named.
 
-### What each function was handed
+### What each function was handed, and when it ran
 
-Start a server with `VARIANCE_AUTHORITY_STORY=1` beside the two variables it
-reports with, and `--story` prints each of its executions as a
-[story](test-stories.md): the functions it entered in the order it entered
-them, the branches each took, and the arguments each was handed, spelled as
+Set the server up as in [watch an application you use by
+hand](#watch-an-application-you-use-by-hand): a watcher, probes in its build and
+its handler inside `enter`, or a `trace` in its place. Nothing the page does is needed. Then start it with a
+third variable, `VARIANCE_AUTHORITY_STORY=1`:
+
+```bash
+VARIANCE_AUTHORITY_JOURNEYS=1 VARIANCE_AUTHORITY_VANTAGE=http://127.0.0.1:53393 VARIANCE_AUTHORITY_STORY=1 node dist/server.js
+```
+
+`--story` now prints each of its executions as a [story](test-stories.md): the
+functions it entered in the order it entered them, the branches each took, and
+the arguments each was handed, spelled as
 [a test story spells them](test-stories.md#what-each-function-was-handed).
 
 ```bash
 variance ask ran --at http://127.0.0.1:53393 --story
 ```
 
+This is one request to a checkout service that reads a basket, prices it and
+charges for it:
+
 ```
 1 execution(s) at http://127.0.0.1:53393.
 
-  b4128c59-ac7c-45d3-abdd-882e39f0e906
-  head pricing
-      in cases/journey-tracing-case/src: pricing.mjs
-      1  quote  pricing.mjs:6-13
-           if 7  then ×1
-           » handed locale='de'
+  4676c665-28f5-49cf-b1df-fdc68f546bf3
+  began 2026-11-25T03:33:30.968Z, 197.2 ms in all; each step: when it ran, then the time to the next recorded step and its share
+  head shop
+      in src: checkout.mjs
+      1  checkout  checkout.mjs:3-8  +0.0 ms, then 0.1 ms (0%)
+           » handed order='a-17'
+      2  loadBasket  checkout.mjs:10-13  +0.1 ms, then 14.0 ms (7%)
+           await 11 ×1
+           » handed order='a-17'
+      3  checkout  checkout.mjs:3-8  +14.0 ms, then 0.0 ms (0%)
+           await 4 ×1
+      4  priceOf  checkout.mjs:15-18  +14.0 ms, then 0.1 ms (0%)
+           if 16  then ✗  else ×1
+           » handed lines=ref1 Array(2)
+      5  charge  checkout.mjs:20-23  +14.1 ms, then 182.1 ms (92%)
+           await 21 ×1
+           » handed total=75
+      6  checkout  checkout.mjs:3-8  +196.2 ms, then 0.0 ms (0%)
+           await 6 ×1
+      7  confirm  checkout.mjs:25-27  +196.2 ms, then 0.9 ms (0%)
+           » handed receipt=ref2 Object
 ```
 
-A step reads as it does in `variance story`: the function, where it is, the
-branches it took under it, and what it was handed under those.
+Step 5 holds 92% of the request: the 182.1 ms from entering `charge` to the next
+recorded step. `await 21 ×1` under it says that the code after the `await` on
+line 21 ran within this step, so the step holds the wait. Where that code ran
+after another function had returned, it is a step of its own: steps 3 and 6 are
+`checkout` after its first and its last `await`.
+
+Each step is the function, where it is, the branches it took under it, and what
+it was handed under those, as [a test story](test-stories.md) prints it.
+
+The line under the execution says when it began and how long it took, `in all`.
+Where the end of any server or page listed was not seen, the line says the
+length `as far as it was recorded`. The end is not seen of a request still
+open, of a page, of a server that used a `trace` and no `enter` or that stamps
+no times, or where the watcher left some of it out. Each step then has the time
+from that beginning to the step, the time to the next recorded step, and what
+share of that length it is. A server's last step runs to the moment the request
+settled, where it ran inside `enter`.
+
+- The time to the next step is elapsed time. It holds the work of any code the
+  build put no probe in, and the time the code waited, for a query or a
+  response. It is not the running time of the function named, which can call
+  the next step and continue after it.
+- The probes and the recording take time of their own, and a request that enters
+  many functions pays it at each. The times and the shares are of the server
+  with both in it.
+- A step drawn once for several passes of a loop has the times of all its
+  passes added up, and none where one of them has no next step. Its start is the
+  first pass's.
+- Where the server ran other work in the middle of that time, another request's
+  or none's, such as a timer's, the step says `other work of the process in it`.
+- Every server and page in an execution is placed from the same beginning, by
+  the clock of the machine it ran on. When more than one is listed, the
+  line says so: two machines whose clocks differ are placed apart by that much.
+  They work at the same time, so their shares can add up to more than 100%.
+- A request told again has another list under `told again`, which says how long
+  after the list above ended it begins. Where that end was not seen, it is
+  after the last recorded of the list. Two processes of one head name can
+  tell lists that overlap, which have no time between them. That time is no
+  step's, and where the watcher left lists out, one may have run in it. A server
+  with a `trace` and no `enter` tells a request each turn of the event loop in
+  which it ran, so there most of a wait is between two lists.
+- The last step of a page, or of a turn under a `trace` alone, and the last step
+  kept of a story that lost some, have no next step, and so only their start.
+- A server that stamps no times is listed without them.
 
 A live story shows arguments only: no variable a function declares, and
 nothing a module holds at its top level. Two requests that run at once are
