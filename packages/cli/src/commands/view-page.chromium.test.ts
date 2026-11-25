@@ -23,7 +23,10 @@ const BROWSER_AVAILABLE = ((): boolean => {
 })();
 
 if (!BROWSER_AVAILABLE) {
-  console.warn('\npackages/cli view page in a browser: skipped.\n  no browser — npx playwright install chromium\n');
+  console.warn(
+    '\npackages/cli view page in a browser: skipped.' +
+      '\n  no browser — npx playwright install chromium\n',
+  );
 }
 
 const DATA: ViewData = {
@@ -47,6 +50,8 @@ const DATA: ViewData = {
   },
 };
 
+// One page for the whole file, opened once and driven through its address: the
+// owner's pool leases pages per painted subject, and this test paints nothing.
 let root: string;
 let browser: Browser | undefined;
 let page: Page | undefined;
