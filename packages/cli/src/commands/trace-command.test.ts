@@ -69,6 +69,13 @@ describe('the OTLP trace of a recording', () => {
     expect(['run', 'e2e/a.spec.ts', 'e2e/b.spec.ts'].map(marked)).toEqual([false, false, false]);
   });
 
+  it('gives a re-recording at the same commit a trace id of its own', () => {
+    const at = (start: number) =>
+      otlpOf(trace([{ file: 'e2e/a.spec.ts', start, cost: 10, phases: [], cases: [] }])).resourceSpans[0].scopeSpans[0].spans[0].traceId;
+
+    expect(at(T0)).not.toBe(at(T0 + 60_000));
+  });
+
   it('keeps two cases of one name two spans', () => {
     const twice = otlpOf(
       trace([

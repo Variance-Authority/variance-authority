@@ -58,7 +58,8 @@ function hex(of: string, length: number): string {
 
 /** The spans of `trace`: none where no file holds a start to place. */
 export function otlpOf(trace: Extract<RecordedTrace, { files: readonly TracedFile[] }>, suite?: string): OtlpTrace {
-  const traceId = hex(`${trace.recording}\0${trace.commit ?? ''}`, 32);
+  const begun = Math.min(...trace.files.flatMap((file) => (file.start === undefined ? [] : [file.start])));
+  const traceId = hex(`${trace.recording}\0${trace.commit ?? ''}\0${begun}`, 32);
   const spans: OtlpSpan[] = [];
   const add = (
     id: string,
