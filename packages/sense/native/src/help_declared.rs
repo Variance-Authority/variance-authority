@@ -205,8 +205,10 @@ pub(crate) struct PrivateWords {
 
 /// Which files hold a searchable private name, and the requested stems their
 /// distinct top-level private names hold. Read only the published parses.
-pub(crate) fn private_words(layers: &[Layer], stems: &[String]) -> Vec<PrivateWords> {
-    crossings(layers, None)
+pub(crate) fn private_words(layers: &[Layer], live: &[(&str, crate::chain_lookup::At)], stems: &[String]) -> Vec<PrivateWords> {
+    let mut crossings = scope::joined(layers, live.iter().copied());
+    crossings.sort_unstable_by(|a, b| crate::order::code_unit(a.file, b.file));
+    crossings
         .par_iter()
         .filter_map(|crossing| {
             let (layer, row) = crossing.parse?;

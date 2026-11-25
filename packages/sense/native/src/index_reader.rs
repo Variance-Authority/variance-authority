@@ -95,7 +95,7 @@ impl<'a> Chain<'a> {
 
     fn records(&self) -> &[At] {
         self.records.get_or_init(|| {
-            let winners = chain_lookup::in_key_order(chain_lookup::fold(&self.layers), |left, right| code_unit(left, right));
+            let winners = chain_lookup::in_key_order(chain_lookup::live_records(&self.layers), |left, right| code_unit(left, right));
             winners.into_iter().map(|(_, at)| at).collect()
         })
     }

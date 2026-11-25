@@ -27,7 +27,7 @@ use std::collections::{HashMap, HashSet};
 use napi_derive::napi;
 use rayon::prelude::*;
 
-use crate::chain_lookup::{fold, At};
+use crate::chain_lookup::{live_records, At};
 use crate::compact::Layer;
 use crate::git::Oid;
 use crate::index_chain::{read_chain, Chain};
@@ -201,9 +201,9 @@ pub(crate) fn orientation_over(chain: &Chain, layers: &[Layer], owners: &Owners,
         }
     }
 
-    let folded = fold(layers);
-    let indexed: Vec<bool> = files.iter().map(|file| folded.contains_key(file.as_str())).collect();
-    let folded: Vec<(&str, At)> = folded.into_iter().collect();
+    let folded = live_records(layers);
+    let live: rustc_hash::FxHashSet<&str> = folded.iter().map(|&(file, _)| file).collect();
+    let indexed: Vec<bool> = files.iter().map(|file| live.contains(file.as_str())).collect();
 
     let read: Vec<Record> = folded.par_iter().map(|&(file, at)| record(layers, owners, listed, file, at)).collect();
     let stale = read.iter().filter(|record| record.stale).count() as u32;

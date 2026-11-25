@@ -26,7 +26,7 @@ use oxc_ast_visit::{walk, Visit};
 use oxc_span::GetSpan;
 use serde::Serialize;
 
-use crate::chain_lookup::{fold, record};
+use crate::chain_lookup::{live_records, record};
 use crate::compact::Layer;
 use crate::harvest::{Harvest, TextSpan};
 use crate::help_usage::{importers_from, kind_of};
@@ -122,7 +122,7 @@ pub(crate) fn member_sites(root: &str, layers: &[Layer], name: &str) -> Vec<Memb
         }
     }
     if declaring.is_empty() { return Vec::new(); }
-    let mut crossings: Vec<Crossing> = fold(layers)
+    let mut crossings: Vec<Crossing> = live_records(layers)
         .into_iter()
         .filter(|&(_, (layer, row))| {
             let (stored, records) = (&layers[layer].stored, &layers[layer].records);
@@ -161,9 +161,9 @@ pub(crate) fn member_sites(root: &str, layers: &[Layer], name: &str) -> Vec<Memb
 /// The distinct extensions of the files on the chain, dot included, in code
 /// units. A file with no extension adds none.
 pub(crate) fn indexed_extensions(layers: &[Layer]) -> Vec<String> {
-    let mut held: Vec<String> = fold(layers)
-        .into_keys()
-        .filter_map(|file| {
+    let mut held: Vec<String> = live_records(layers)
+        .into_iter()
+        .filter_map(|(file, _)| {
             let name = &file[file.rfind('/').map_or(0, |at| at + 1)..];
             name.rfind('.').filter(|&at| at > 0).map(|at| name[at..].to_owned())
         })

@@ -81,6 +81,17 @@ fn a_declaration_a_newer_layer_replaced_deleted_or_unparsed_is_not_found_and_wha
 }
 
 #[test]
+fn a_record_put_again_in_a_newer_layer_finds_its_parse_in_an_older_one() {
+    let (old, older_parses) = chain(&[("src/move.ts", "git:o", PLAIN), ("src/other.ts", "git:n", MOUNT)]);
+    let (moved, _) = chain(&[("src/move.ts", "git:n", MOUNT)]);
+    let layers = [&old, &older_parses, &moved].map(|bytes| Layer::open(bytes).unwrap());
+    let found = declared("/nonexistent-root", &layers, "start", Matching::Exact, None);
+    let sites: Vec<_> = found.names.iter().map(|name| name.at.as_str()).collect();
+    assert_eq!(sites, ["src/move.ts", "src/other.ts"]);
+    assert!(found.unread.is_empty());
+}
+
+#[test]
 fn a_file_described_by_its_name_alone_still_counts_the_words_of_its_module_doc() {
     let source = "/** Starts the app. */\n\nexport const x = 1;\n";
     let (records, parses) = chain(&[("src/mount.ts", "git:a", source)]);
@@ -109,7 +120,7 @@ fn private_words_include_unasked_names_once_and_exclude_exported_locals() {
     let source = "function restartWorker() {}\ninterface unrelatedName {}\nconst unrelatedName = 1;\nfunction publishedLocal() {}\nexport { publishedLocal as renamed };\n";
     let (records, parses) = chain(&[("src/private.ts", "git:a", source), ("src/public.ts", "git:b", "export function restartWorker() {}")]);
     let layers = [Layer::open(&records).unwrap(), Layer::open(&parses).unwrap()];
-    let found = super::private_words(&layers, &["restart".to_owned(), crate::dependency_lexicon::purposes::code_stems("unrelated").into_iter().next().unwrap(), "publish".to_owned()]);
+    let found = super::private_words(&layers, &crate::chain_lookup::live_records(&layers), &["restart".to_owned(), crate::dependency_lexicon::purposes::code_stems("unrelated").into_iter().next().unwrap(), "publish".to_owned()]);
     let rows: Vec<(&str, bool)> = found.iter().map(|row| (row.at.as_str(), row.declares)).collect();
     assert_eq!(rows, vec![("src/private.ts", true), ("src/public.ts", false)]);
     assert_eq!(found[0].named, vec![0, 1]);
@@ -164,7 +175,7 @@ fn private_file_eligibility_requires_a_searchable_top_level_name() {
         ("src/nested.ts", "git:e", "function x() { function searchableNested() {} }"),
     ]);
     let layers = [Layer::open(&records).unwrap(), Layer::open(&parses).unwrap()];
-    let found = super::private_words(&layers, &[]);
+    let found = super::private_words(&layers, &crate::chain_lookup::live_records(&layers), &[]);
     let eligible: std::collections::BTreeSet<&str> = found.iter().filter(|row| row.declares).map(|row| row.at.as_str()).collect();
     assert_eq!(eligible, ["src/astral.ts"].into_iter().collect());
 }
