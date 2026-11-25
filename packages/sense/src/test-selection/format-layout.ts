@@ -56,6 +56,7 @@ export function readableFormat(version: unknown): version is number {
 }
 
 const ALIGNMENT = LAYOUT.alignment;
+/** The owner word of a region no other region holds. */
 export const NO_OWNER = LAYOUT.coverage.noOwner;
 
 /**

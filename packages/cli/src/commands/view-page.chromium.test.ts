@@ -24,7 +24,9 @@ const BROWSER_AVAILABLE = ((): boolean => {
 })();
 
 if (!BROWSER_AVAILABLE) {
-  console.warn('\npackages/cli view page in a browser: skipped.' + '\n  no browser — npx playwright install chromium\n');
+  console.warn(
+    '\npackages/cli view page in a browser: skipped.' + '\n  no browser — npx playwright install chromium\n',
+  );
 }
 
 const TESTS = [

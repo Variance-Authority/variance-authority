@@ -218,6 +218,7 @@ function named(column: Uint32Array, strings: number): Uint32Array {
   return column;
 }
 
+/** A record's bytes with its header read and its sections found by name, nothing yet decoded. */
 export interface OpenedSections {
   readonly file: Bytes;
   readonly bytes: Uint8Array;
@@ -226,6 +227,7 @@ export interface OpenedSections {
   readonly found: ReadonlyMap<string, Section>;
 }
 
+/** Opens a record's header and finds its sections; refused when a section runs past the bytes. */
 export function sectionsOf(bytes: Uint8Array): OpenedSections {
   if (bytes.length < 4) throw invalid();
   const headerLength = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength).readUInt32LE(0);
@@ -257,6 +259,7 @@ function whole(opened: OpenedSections, name: string): Uint8Array {
   return opened.file.read(opened.base + section.offset, opened.base + section.offset + section.length);
 }
 
+/** Section `name` as little-endian words, packed or not; refused when the record lacks it. */
 export function columnWords(opened: OpenedSections, name: string): Uint32Array {
   const section = opened.found.get(name);
   if (section === undefined) throw invalid();
@@ -266,12 +269,14 @@ export function columnWords(opened: OpenedSections, name: string): Uint32Array {
   return new Uint32Array(bytes.buffer, bytes.byteOffset, section.length / 4);
 }
 
+/** Section `name` as bytes, packed or not; refused when the record lacks it. */
 export function columnBytes(opened: OpenedSections, name: string): Uint8Array {
   const section = opened.found.get(name);
   if (section === undefined) throw invalid();
   return section.rows === undefined ? whole(opened, name) : openBytes(stored(opened, name), section.rows).all();
 }
 
+/** Section `name` as one blob that `offsets` cuts, packed or not; refused when the record lacks it. */
 export function columnBlob(opened: OpenedSections, name: string, offsets: Uint32Array): Uint8Array {
   const section = opened.found.get(name);
   if (section === undefined) throw invalid();

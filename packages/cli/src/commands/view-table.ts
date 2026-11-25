@@ -132,11 +132,7 @@ export function tableOf(table: Table): HTMLElement {
     });
     header.append(name);
   });
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  filter.addEventListener('input', () => {
-    clearTimeout(timer);
-    timer = setTimeout(refresh, 120);
-  });
+  filter.addEventListener('input', refresh);
   scroll.addEventListener('scroll', () => requestAnimationFrame(draw));
   // The table is measured once it is on the page, and again whenever it is shown.
   new ResizeObserver(draw).observe(scroll);
