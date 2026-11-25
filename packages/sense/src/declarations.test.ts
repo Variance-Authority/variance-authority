@@ -52,6 +52,14 @@ describe('indexDeclarations', () => {
     });
   });
 
+  it('indexes a name set to a whole required module as a `const`, and none a require is destructured into', () => {
+    const source = "const Button = require('./button');\nconst { Card } = require('./card');\nconst Made = make();\n";
+    expect(indexDeclarations('src/kit.js', source)).toEqual({
+      Button: [{ file: 'src/kit.js', line: 1, via: 'const' }],
+      Made: [{ file: 'src/kit.js', line: 3, via: 'const' }],
+    });
+  });
+
   it('indexes nothing from a file the parser cannot read', () => {
     const source = '// @flow\ntype Props = {| label: string |};\nexport function Button(props: Props) { return null; }\n';
     expect(indexDeclarations('src/Button.js', source)).toEqual({});

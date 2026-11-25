@@ -113,8 +113,8 @@ export function narrowing(files: readonly string[], file: string | undefined, sp
   return file !== undefined || new Set(files).size < 2 ? [] : ['', `\`${spell.input('file')}\`, the file one of them is declared in, answers for that declaration alone.`];
 }
 
-/** The answer for a `file` that declares no thing by the name: the files that do. */
-export function notDeclaredIn(name: string, file: string, files: readonly string[]): string {
-  const sorted = [...new Set(files)].sort();
-  return `\`${name}\` is not declared in ${file}; it is declared in ${conjoined(sorted)}.`;
+/** The answer for a `file` that declares no thing by the name: the files that do, or the ones that bind it when none does. */
+export function notDeclaredIn(name: string, file: string, files: readonly string[], bound: readonly string[]): string {
+  const sorted = [...new Set(files.length > 0 ? files : bound)].sort();
+  return `\`${name}\` is not declared in ${file}; it is ${files.length > 0 ? 'declared' : 'bound'} in ${conjoined(sorted)}.`;
 }

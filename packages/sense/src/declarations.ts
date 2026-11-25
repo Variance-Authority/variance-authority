@@ -16,8 +16,8 @@
 import type { SourceIndex, SourceRef } from '@variance-authority/core/attribute';
 import { readModule } from './read.js';
 
-/** How a declaring statement's kind is shown on a {@link SourceRef}. */
-const VIA: Readonly<Record<string, SourceRef['via']>> = { function: 'function', class: 'class', const: 'const', let: 'const' };
+/** How a declaring statement's kind is shown on a {@link SourceRef}; `declares` holds no destructured name, so a `binding` here is a whole required module. */
+const VIA: Readonly<Record<string, SourceRef['via']>> = { function: 'function', class: 'class', const: 'const', let: 'const', binding: 'const' };
 
 /**
  * The components `file` declares, from its text, each at the first statement

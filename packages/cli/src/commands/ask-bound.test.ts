@@ -139,6 +139,8 @@ describe('variance ask about a name a file binds and does not declare', () => {
     expect(mixed).not.toContain(`${AT}/z.js`);
     expect(mixed).not.toContain('No file in this workspace declares');
     expect(await asked('uses', '--name', 'heldValue', '--file', `${AT}/c.js`)).toContain(`\`heldValue\` [binding] is bound, not declared, at ${AT}/c.js:2`);
+    const elsewhere = await run(['ask', 'uses', '--name', 'wholeModule', '--file', `${AT}/e.mjs`]);
+    expect(elsewhere.out + elsewhere.err).toContain(`\`wholeModule\` is not declared in ${AT}/e.mjs; it is bound in ${AT}/b.js.`);
   });
 
   it('gives `intersection` the files that declare the name, and those that bind it as uses', async () => {

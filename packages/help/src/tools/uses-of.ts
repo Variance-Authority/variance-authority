@@ -432,7 +432,8 @@ export function usesOf(help: Help, input: Readonly<Record<string, unknown>>, roo
     if (kept.length > 0 || members.declared.length > 0) {
       return { ...shared, absent, home: undefined as string | undefined, sites: [] as readonly Site[], unread: undefined, within: undefined, inFile: [] as readonly Use[], undeclared, origin: undefined, originNamed: undefined as string | undefined, inside: [] as readonly string[] };
     }
-    if (file !== undefined && files.length > 0) throw new FoundNothing(notDeclaredIn(name, file, files));
+    const bound = all.kept.filter(isBound).map((one) => one.at);
+    if (file !== undefined && files.length + bound.length > 0) throw new FoundNothing(notDeclaredIn(name, file, files, bound));
     // The answer `symbol` gives: what was read and declares nothing, and where else the name may be.
     throw new FoundNothing(absence());
   }
