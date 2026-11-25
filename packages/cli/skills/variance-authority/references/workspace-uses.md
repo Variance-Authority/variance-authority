@@ -53,7 +53,11 @@ on the same way, and every import that comes through it is marked `(type only)`.
 A name an entry publishes under another name than its declaration is read from
 that entry. An import of a renamed re-export ends `(as <name>)`. A Rust path
 written in a type or an expression, such as `crate::order::code_unit(…)`, is
-listed as a `use` is. A package that passes a module on as `export * as ns`,
+listed as a `use` is. A name read off a module loaded with `require` and a
+constant specifier is listed on the line that reads it: destructured, renamed
+or not, read in place, `require('./m').name`, or read off the variable the
+module is held in, `const m = require('./m')` and then `m.name`, at the top
+level or in a function. A package that passes a module on as `export * as ns`,
 or as `export { ns }` after `import * as ns`, passes each of its names as a
 member of `ns`: `import { ns } from 'pkg'` and
 then `ns.name`, or `const { name } = ns`, is listed on the line that reads it,

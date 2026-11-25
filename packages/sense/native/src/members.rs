@@ -1,25 +1,26 @@
 //! The names a module reads off another module it holds as an object.
 //!
-//! A namespace import, TypeScript's `import m = require('m')` and an
-//! `import()` hold the module whole, and the names the file uses are member
-//! reads further down — `ns.x`,
-//! `(await import('m')).x`, `m.x` after `const m = await import('m')` or
-//! `import m = require('m')`, `const { x } = await import('m')`, the element of
+//! A namespace import, TypeScript's `import m = require('m')`, an `import()` and
+//! a `require` hold the module whole, and the names the file uses are member
+//! reads further down — `ns.x`, `(await import('m')).x`, `m.x` after
+//! `const m = await import('m')` or `import m = require('m')`,
+//! `const { x } = await import('m')`, the element of
 //! `const [{ x }] = await Promise.all([import('m')])` in the same position, and
-//! the callback of `import('m').then(…)`. A cast changes no value, and a rest
+//! the callback of `import('m').then(…)`. What a `require` returns is the
+//! module, read as an awaited `import()` is. A cast changes no value, and a rest
 //! holds the module too; a read off the promise `import()` returns is the
 //! promise's, not the module's. Each of those is recorded against the
 //! request it reads through, by that request's index in the parse. An
 //! `import m = require()` holds from where it is written on, as the `const`
 //! TypeScript compiles it to does. A default import holds the module's
 //! `default`, which under interop is a CommonJS module's `module.exports`. A
-//! type-only import of any of these holds the same, for its types. An `import()` type reads the name its qualifier
-//! starts with, `import('m').x.y` reads `x`; with none, as in `typeof
-//! import('m')`, it names the module's type and reads nothing, and what that
-//! type is written on holds the module: a cast, an annotated variable or
-//! parameter, or one typed by a top-level alias of it. A qualified name off a
-//! holder in a type, `typeof ns.x` or `ns.T`, reads its first name, as `ns.x`
-//! does in a value.
+//! type-only import of any of these holds the same, for its types. An `import()`
+//! type reads the name its qualifier starts with, `import('m').x.y` reads `x`;
+//! with none, as in `typeof import('m')`, it names the module's type and reads
+//! nothing, and what that type is written on holds the module: a cast, an
+//! annotated variable or parameter, or one typed by a top-level alias of it. A
+//! qualified name off a holder in a type, `typeof ns.x` or `ns.T`, reads its
+//! first name, as `ns.x` does in a value.
 //!
 //! A named import holds the value it takes, and a name read off a holder is a
 //! value inside the module too: `ns.x` after `import { ns } from 'm'`,
@@ -38,9 +39,9 @@
 //! module's `default` is a value of the module, so it moving is a use of
 //! `default` and no more; a name read off it is read through `default`.
 //!
-//! The same walk reads the [`Loads`]: an `import()` is a request only the tree
-//! can read, and a member read through it needs that request's index, so the
-//! module's tree is walked once for both.
+//! The same walk reads the [`Loads`]: an `import()` or a `require` is a request
+//! only the tree can read, and a member read through it needs that request's
+//! index, so the module's tree is walked once for both.
 
 use std::collections::{BTreeSet, HashMap, HashSet};
 
@@ -104,7 +105,7 @@ pub struct BindingMember {
 ///
 /// `requests` are the ones the module record states; a member read through an
 /// `import()` is indexed as if `loads.dynamic` were appended to them, and one
-/// read through an `import m = require()` as if `loads.required` followed those,
+/// read through a `require` as if `loads.required` followed those,
 /// and one read through an `import()` type as if `loads.typed` followed those.
 /// Last come the bindings a pattern destructures off a holder, by name and
 /// line: the module's values under a local name, as an import binds them.
@@ -196,8 +197,8 @@ struct Walker<'l, 's> {
 
 impl Walker<'_, '_> {
     /// What an expression evaluates to, looking through parentheses,
-    /// TypeScript's casts and `await`: an awaited `import()`, a holder, the
-    /// `default` of either, or else what a cast says it is.
+    /// TypeScript's casts and `await`: an awaited `import()`, a `require`, a
+    /// holder, the `default` of either, or else what a cast says it is.
     fn held(&mut self, expression: &Expression) -> Option<Held> {
         match expression.get_inner_expression() {
             Expression::AwaitExpression(it) => self.promised(&it.argument).map(Held::whole).or_else(|| self.held(&it.argument)),
@@ -212,6 +213,7 @@ impl Walker<'_, '_> {
                 Expression::StringLiteral(name) if name.value != "default" => self.held(&it.object).and_then(|held| self.member_of(held, name.value.as_str()?)),
                 _ => None,
             },
+            Expression::CallExpression(it) => self.loads.call(it, self.mock_factory.as_deref()).map(|index| Held::whole(Via::Required(index))),
             _ => None,
         }
         .or_else(|| self.cast(expression))

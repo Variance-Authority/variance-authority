@@ -421,3 +421,7 @@ mod binding_members_tests;
 #[cfg(test)]
 #[path = "read_passed_tests.rs"]
 mod passed_tests;
+
+#[cfg(test)]
+#[path = "read_required_tests.rs"]
+mod required_tests;

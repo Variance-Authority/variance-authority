@@ -98,13 +98,13 @@ describe('variance ask uses over a module object', () => {
     expect(await uses('scoped')).not.toMatch(/preconditions\.cts:10 /);
   });
 
-  it('reads a type query and a call off a value cast to `typeof import()`', async () => {
+  it('reads a type query and a call off a required module cast to `typeof import()`', async () => {
     checkout(OBJECTS);
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
 
     const scoped = await uses('scoped');
-    expect(scoped).toMatch(/^packages\/kit\/src\/typed\.test\.ts:3 \(type only\) \(import\(\) on line 2\)$/m);
-    expect(scoped).toMatch(/^packages\/kit\/src\/typed\.test\.ts:4 \(type only\) \(import\(\) on line 2\)$/m);
+    expect(scoped).toMatch(/^packages\/kit\/src\/typed\.test\.ts:3 \(namespace, line 2\)$/m);
+    expect(scoped).toMatch(/^packages\/kit\/src\/typed\.test\.ts:4 \(namespace, line 2\)$/m);
   });
 
   it('reads a call off a cast to `typeof import()` written in place, with no variable', async () => {
