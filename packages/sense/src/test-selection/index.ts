@@ -218,7 +218,6 @@ export { type ObservedAttempt, type RecordedAttempt } from './attempts-record.js
 export { RecordWithoutCoverage } from './format-validation.js';
 export { commitRunsAfter, commitRunsFile, heldCommitRuns, landRun, namedCommits, readCommitRuns, writeCommitRuns, type CommitRuns, type RecordedTests, type StandingEntry } from './commit-runs.js';
 export { commitRunsIn } from './commit-runs-text.js';
-export { readRunRows, runRowsFile, type RunRow } from './run-rows.js';
 export { readJobWrites, type JobWrites } from './job-record.js';
 export { recordJob, type JobRun } from './job-recording.js';
 export { recordCargo, type CargoRun } from './cargo-recording.js';

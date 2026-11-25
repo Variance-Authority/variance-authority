@@ -61,7 +61,6 @@ import {
 import { commitOf } from './commit.js';
 import { noteAnEmptyRecord } from './finished-files.js';
 import { laidProbes, landRun } from './commit-runs.js';
-import { appendRunRow, runRowOf } from './run-rows.js';
 import { markCheckout } from './cache-layers.js';
 import { repositoryRoot } from './repository-root.js';
 import { busyIndex, withIndexLock } from './index-lock.js';
@@ -441,7 +440,6 @@ export async function recordExecution(
     await prepareRecord(lock, root, laidProbes(current), { cacheRoot: options.cacheRoot });
     await landRun(coverageFile, current, root, options.cacheRoot, cases, options.checks === undefined ? undefined : landedChecks(options.checks, commit));
     markCheckout(repositoryRoot(root), options.cacheRoot);
-    await appendRunRow(coverageFile, runRowOf(new Date(), options.suite, subjects, observed.length));
   });
   if (!merged.held) {
     return {

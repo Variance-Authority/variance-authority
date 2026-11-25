@@ -53,7 +53,6 @@ const DATA: ViewData = {
     placed: 1,
     unplaced: 0,
   },
-  cadence: { rows: [] },
   reach: {
     tests: [{ file: 'src/slow.test.ts', reached: ['src/world.ts'], total: 1 }],
     files: [{ file: 'src/world.ts', tests: ['src/slow.test.ts'], total: 1 }],

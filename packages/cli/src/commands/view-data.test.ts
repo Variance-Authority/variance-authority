@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { encodeExecutionIndex, encodeTestCoverage, runRowsFile, testCoverageFile, withCaseSections } from '@variance-authority/sense/test-selection';
+import { encodeExecutionIndex, encodeTestCoverage, testCoverageFile, withCaseSections } from '@variance-authority/sense/test-selection';
 import type { FanIn, FanInFile } from '@variance-authority/sense/test-selection';
 import { encodeRecordedAttempts } from '../../../sense/src/test-selection/attempts-record.js';
 import { TOP, viewData } from './view-data.js';
@@ -79,20 +79,6 @@ describe('the rows a view page holds', () => {
     const { reach } = viewData(root, undefined, { missed: 'no suite is declared' });
 
     expect(reach).toEqual({ tests: [], files: [], note: expect.stringContaining('no suite is declared') });
-  });
-
-  it('holds one cadence row for each run summary row beside the recording', () => {
-    record([{ file: 'a.test.ts', duration: 9 }]);
-    const rows = [{ at: '2026-11-24T10:00:00.000Z', suite: 'unit', duration: 900, cases: 12 }, { at: '2026-11-25T10:00:00.000Z', duration: 1100 }];
-    writeFileSync(runRowsFile(testCoverageFile(root)), JSON.stringify({ rows }));
-
-    expect(viewData(root).cadence).toEqual({ rows });
-  });
-
-  it('holds no cadence row, and says nothing is wrong, where no run left one', () => {
-    record([{ file: 'a.test.ts', duration: 9 }]);
-
-    expect(viewData(root).cadence).toEqual({ rows: [] });
   });
 
   it('holds an attempt\'s nearest frame where the record has one, and none where it has not', () => {

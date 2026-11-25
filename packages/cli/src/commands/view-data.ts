@@ -12,8 +12,7 @@
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import { recordedAttempts, recordedDurations, recordedTrace } from '@variance-authority/sense';
 import type { RecordedAttempts, RecordedDurations, RecordedTrace, RetriedCase, TracedFile } from '@variance-authority/sense';
-import { readRunRows } from '@variance-authority/sense/test-selection';
-import type { FanIn, RunRow } from '@variance-authority/sense/test-selection';
+import type { FanIn } from '@variance-authority/sense/test-selection';
 import type { SourcesData } from './view-source.js';
 
 /** How many rows of each kind the page holds. The recording keeps the rest. */
@@ -60,11 +59,6 @@ export interface TimelineData {
   readonly note?: string;
 }
 
-/** What the Cadence view holds: one summary row for each run recorded, oldest first, over the weeks the record keeps. */
-export interface CadenceData {
-  readonly rows: readonly RunRow[];
-}
-
 /** The recording a page was cut from. */
 export interface ViewData {
   readonly suite?: string;
@@ -72,7 +66,6 @@ export interface ViewData {
   readonly recording?: string;
   readonly tests: TestsData;
   readonly timeline: TimelineData;
-  readonly cadence: CadenceData;
   readonly reach: ReachData;
   /** The text and range states of the files the Coverage tab can draw; `viewData` holds none, `viewSources` reads them. */
   readonly sources: SourcesData;
@@ -177,7 +170,6 @@ export function viewData(root: string, suite?: string, fanIn?: FanIn | { readonl
     ...(timed === undefined ? {} : { recording: timed.recording }),
     tests,
     timeline,
-    cadence: { rows: timed === undefined ? [] : readRunRows(timed.recording) },
     reach,
     sources: { files: [], left: 0 },
   };
