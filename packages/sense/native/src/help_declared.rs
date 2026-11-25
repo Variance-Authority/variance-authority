@@ -29,6 +29,7 @@ use crate::dependency_lexicon::purposes::{asked_run, code_stems, near, phrase_ru
 
 use crate::compact::Layer;
 use crate::help_declared_candidates::{candidates, sure, Said};
+use crate::harvest::BINDING;
 use crate::help_usage::kind_of;
 use crate::name_table::Item;
 use crate::orient_map_read::beside;
@@ -255,7 +256,7 @@ pub(crate) fn declaration_locations(layers: &[Layer], query: &str) -> Vec<Declar
             Row::Nested(row) => (text.text(parses.nested_name.at(row)), parses.nested_line.at(row), text.text(parses.nested_kind.at(row))),
             Row::Member(_) => return None,
         };
-        (name == query && kind != "binding").then(|| DeclarationLocation { name: name.to_owned(), at: at.to_owned(), line })
+        (name == query && kind != BINDING).then(|| DeclarationLocation { name: name.to_owned(), at: at.to_owned(), line })
     }).collect()
 }
 
@@ -319,11 +320,13 @@ fn matched<'a>(layers: &'a [Layer<'a>], query: &str, matching: Matching, files: 
                 said.may_hold(run.iter().map(|(_, stem)| stem.as_str()))
                     && said.written().is_some_and(|written| writes_run(run, written).is_some())
             };
-            let mut named: Vec<&str> = Vec::new();
+            let mut named: Vec<(&str, bool)> = Vec::new();
             let mut hits = Vec::new();
             for symbol in parses.symbols.range(row).filter(|&symbol| picked.symbol(symbol)) {
                 let name = text.text(parses.symbol_name.at(symbol));
-                if !admits(own.contains(&name)) || named.contains(&name) { continue }
+                let bound = text.text(parses.symbol_kind.at(symbol)) == BINDING;
+                let held = named.iter().position(|&(held, _)| held == name);
+                if !admits(own.contains(&name)) || held.is_some_and(|at| bound || !named[at].1) { continue }
                 let doc_text = parses.doc_of_symbol(text, symbol);
                 let doc = names[Item::Symbol as usize].doc(symbol);
                 let described = match &matching {
@@ -342,7 +345,9 @@ fn matched<'a>(layers: &'a [Layer<'a>], query: &str, matching: Matching, files: 
                     }
                     _ => continue,
                 };
-                named.push(name);
+                // A binding does not stand for a declaration of its name.
+                if let Some(at) = held { named.remove(at); hits.remove(at); }
+                named.push((name, bound));
                 hits.push((layer, crossing.file, Row::Symbol(symbol), described));
             }
             if exact {
@@ -385,9 +390,8 @@ fn matched<'a>(layers: &'a [Layer<'a>], query: &str, matching: Matching, files: 
 /// declares, and asked `Containing`, every member, whose name `matching` admits for `query`, or whose doc does when it
 /// is `Containing` or `Described`, in `files` when they are named, less the
 /// ones its file exports, under that name or another, which the export list
-/// already answers. A name
-/// declared twice in one file, as an interface and a const, is one entry: the
-/// first.
+/// already answers. A name twice in one file, as an interface and a const, is
+/// one entry: the first declaration, or a binding where the file declares none.
 pub(crate) fn declared(root: &str, layers: &[Layer], query: &str, matching: Matching, files: Option<&[String]>) -> Declared {
     let (hits, files, unread) = matched(layers, query, matching, files, |exported| !exported);
     if hits.is_empty() && files.is_empty() { return Declared { names: Vec::new(), unread, files: Vec::new() } }

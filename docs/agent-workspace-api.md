@@ -546,7 +546,11 @@ are all `pub` is not declared on its own: the file exports the outermost of
 them, and you ask for that module by name. `docs_symbol` gives its kind, the
 file and line that declare it, its signature, what is written above it, and who
 can reach it under the file's language, after any export of the same name in
-another file. A name
+another file. A name a file does not export and only binds, by destructuring
+it out of a value or with `const x = require('m')`, is not declared there:
+`docs_symbol` lists the file after every declaration as one that binds it, and
+when nothing else answers the name, says first that no file declares it. `docs_uses` lists it as a use, not as
+another declaration. A name
 in a JavaScript or TypeScript module, a Swift `private` or `fileprivate` one
 and a Kotlin `private` one are that file's alone: no other file can import
 them. Another Python module can still import the name by spelling it. A Rust

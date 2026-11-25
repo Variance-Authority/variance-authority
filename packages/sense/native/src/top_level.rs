@@ -7,10 +7,12 @@
 //! which names they keep.
 
 use oxc_ast::ast::{
-    Declaration, ExportDefaultDeclarationKind, Expression, Program, Statement,
+    Argument, Declaration, ExportDefaultDeclarationKind, Expression, Program, Statement,
     VariableDeclaration, VariableDeclarationKind, VariableDeclarator,
 };
 use oxc_span::{GetSpan, Span};
+
+use crate::loads::{constant, requires};
 
 /// One name a top-level statement binds.
 #[derive(Clone, Copy)]
@@ -34,6 +36,8 @@ pub(crate) struct TopLevel<'a> {
     pub(crate) default: bool,
     /// Taken out of a destructuring pattern rather than bound whole.
     pub(crate) destructured: bool,
+    /// Bound whole to a `require` of a constant specifier.
+    pub(crate) required: bool,
 }
 
 /// Every name `program`'s own statements bind, in source order.
@@ -57,6 +61,7 @@ pub(crate) fn top_level<'a>(program: &Program<'a>, mut visit: impl FnMut(TopLeve
                         exported: true,
                         default: false,
                         destructured: false,
+                        required: false,
                     });
                 }
             }
@@ -76,6 +81,7 @@ fn declaration<'a>(declared: &Declaration<'a>, statement: Span, exported: bool, 
             exported,
             default: false,
             destructured: false,
+            required: false,
         });
     };
     match declared {
@@ -117,6 +123,11 @@ fn bindings<'a>(variables: &VariableDeclaration<'a>, statement: Span, exported: 
     for declarator in &variables.declarations {
         let signature = Span::new(variables.span.start, declarator_end(declarator));
         let destructured = declarator.id.get_binding_identifier().is_none();
+        let required = matches!(
+            declarator.init.as_ref().map(Expression::get_inner_expression),
+            Some(Expression::CallExpression(call)) if requires(&call.callee)
+                && call.arguments.first().and_then(Argument::as_expression).and_then(constant).is_some()
+        );
         for id in declarator.id.get_binding_identifiers() {
             visit(TopLevel {
                 name: id.name.as_str(),
@@ -127,6 +138,7 @@ fn bindings<'a>(variables: &VariableDeclaration<'a>, statement: Span, exported: 
                 exported,
                 default: false,
                 destructured,
+                required,
             });
         }
     }
@@ -143,6 +155,7 @@ fn default_export<'a>(declared: &ExportDefaultDeclarationKind<'a>, statement: Sp
             exported: true,
             default: true,
             destructured: false,
+            required: false,
         };
         let named = name.map(|id| TopLevel { name: id.name.as_str(), default: false, ..given });
         visit(given);

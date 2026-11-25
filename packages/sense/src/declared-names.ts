@@ -12,8 +12,8 @@ import { sourceIndexPath } from './source-index.js';
 
 /**
  * The kind of a top-level name a file binds to a value it does not define
- * there, as `const { spawn } = require('./child')` does (`BINDING` in
- * `native/src/harvest.rs`).
+ * there, as `const { spawn } = require('./child')` and `const child = require('./child')`
+ * do (`BINDING` in `native/src/harvest.rs`).
  */
 export const BINDING = 'binding';
 

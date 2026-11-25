@@ -16,21 +16,30 @@
 import type { SourceIndex, SourceRef } from '@variance-authority/core/attribute';
 import { readModule } from './read.js';
 
-/** How a declaring statement's kind is shown on a {@link SourceRef}. */
-const VIA: Readonly<Record<string, SourceRef['via']>> = { function: 'function', class: 'class', const: 'const', let: 'const' };
+/**
+ * How a declaring statement's kind is shown on a {@link SourceRef}. A `binding`
+ * among the declared names is a whole required module, or a destructured name
+ * the file also declares.
+ */
+const VIA: Readonly<Record<string, SourceRef['via']>> = { function: 'function', class: 'class', const: 'const', let: 'const', binding: 'const' };
 
 /**
  * The components `file` declares, from its text, each at the first statement
- * that declares it. `file` is the name the index carries, and its extension
- * decides how the text is parsed.
+ * that declares it, or at the first that only binds it when none does. `file`
+ * is the name the index carries, and its extension decides how the text is
+ * parsed.
  */
 export function indexDeclarations(file: string, contents: string): SourceIndex {
   const read = readModule(file, contents);
   const declared = new Set(read.declares);
   const found: Record<string, SourceRef[]> = {};
+  const bound = new Set<string>();
   for (const symbol of read.symbols ?? []) {
     const via = VIA[symbol.kind];
-    if (via === undefined || !declared.has(symbol.name) || found[symbol.name] !== undefined) continue;
+    if (via === undefined || !declared.has(symbol.name)) continue;
+    if (found[symbol.name] !== undefined && (symbol.kind === 'binding' || !bound.has(symbol.name))) continue;
+    if (symbol.kind === 'binding') bound.add(symbol.name);
+    else bound.delete(symbol.name);
     found[symbol.name] = [{ file, line: symbol.line, via }];
   }
   return found;

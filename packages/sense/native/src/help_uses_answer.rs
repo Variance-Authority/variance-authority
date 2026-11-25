@@ -14,7 +14,7 @@ use crate::help_in_file::InFile;
 use crate::help_members::{member_declarations, MemberSite};
 use crate::help_name_scope::{owner_of, PackageScope};
 use crate::help_origin::declaration_exported;
-use crate::help_symbol_answer::{declaration_kind_order, member_name, member_stop, nowhere, unread_line};
+use crate::help_symbol_answer::{declaration_kind_order, is_bound, kept_as, member_name, member_stop, nowhere, unread_line};
 use crate::help_symbol_published::{joined_sites, published_imports, PublicationScope};
 use crate::help_symbol_rows::{Entry, Export, PathSite, Rows, Site};
 use crate::help_usage::{importers, kind_of, Asked};
@@ -57,10 +57,13 @@ pub(crate) fn uses(root: &str, index: &Path, store: &mut File, name: &str, wante
             return member_uses(name, member, &members, from, file, limit, layers, &kept.unread);
         }
         if container.is_some() { return None }
-        if !kept.names.is_empty() {
+        if kept.names.iter().any(|held| !is_bound(held)) {
             return private_uses(root, layers, name, from, file, limit, &kept.names, &kept.unread);
         }
-        return Some(nowhere(name, &rows.published_names()?, layers, &kept.unread, None, wanted, package.export_hint(&rows, name, &exports)?.as_deref()));
+        let absent = nowhere(name, &rows.published_names()?, layers, &kept.unread, None, wanted, package.export_hint(&rows, name, &exports)?.as_deref());
+        if kept.names.is_empty() { return Some(absent) }
+        // What was read is said with the absence, so the files it could not read are not said again.
+        return Some(format!("{absent}\n\n{}", private_uses(root, layers, name, from, file, limit, &kept.names, &[])?));
     }
     if !members.is_empty() || !kept.names.is_empty() || !kept.unread.is_empty() { return None }
     if entries.is_empty() {
@@ -99,7 +102,7 @@ pub(crate) fn uses(root: &str, index: &Path, store: &mut File, name: &str, wante
             lines.push(format!("Imported in {}{}.{}", places(count.certain), count.split(owner), count.may_read(name)));
             list_kinds(&mut lines, name, Some(owner), sites, from, limit);
         }
-        list_own(&mut lines, entries[0].at, &read.in_file, limit);
+        list_own(&mut lines, entries[0].at, "declares", &read.in_file, limit);
     }
     if many {
         lines.push(NARROW.into());
@@ -165,15 +168,11 @@ fn private_uses(root: &str, layers: &[Layer], name: &str, from: Option<&str>, fi
     let mut selected: Vec<_> = declarations.iter().filter(|held| file.is_none_or(|file| held.at == file)).collect();
     selected.sort_by_key(|held| declaration_kind_order(held));
     let first = selected.first()?;
-    let files: BTreeSet<_> = selected.iter().map(|held| held.at.as_str()).collect();
-    let mut lines = Vec::new();
-    if selected.len() == 1 {
-        lines.push(format!("`{name}` [{}] is declared, not exported, at {}:{}{}{}.", first.kind, first.at, first.line, spelled(first, name), private_reach(first)));
-    } else {
-        let count = if files.len() == selected.len() { format!("{} files", files.len()) } else { places(selected.len()) };
-        lines.push(format!("`{name}` is declared, not exported, in {count}:"));
-        lines.extend(selected.iter().map(|held| format!("  {}:{}{} [{}]{}", held.at, held.line, spelled(held, name), held.kind, private_reach(held))));
-    }
+    let files = files_of(&selected);
+    let (bound, declaring): (Vec<_>, Vec<_>) = selected.iter().copied().partition(|held| is_bound(held));
+    let mut lines = kept_lines(name, &declaring);
+    lines.extend(kept_lines(name, &bound));
+    let declaring = files_of(&declaring);
     let asked = files.iter().map(|&file| Asked { file: file.to_owned(), name: name.to_owned() }).collect();
     let read = importers(root, layers, &[asked]);
     let group = read.groups.first()?;
@@ -188,12 +187,31 @@ fn private_uses(root: &str, layers: &[Layer], name: &str, from: Option<&str>, fi
     let mut at = None;
     for site in &read.in_file {
         if at == Some(site.at.as_str()) { continue }
-        list_own(&mut lines, &site.at, &read.in_file, limit);
+        list_own(&mut lines, &site.at, if declaring.contains(site.at.as_str()) { "declares" } else { "binds" }, &read.in_file, limit);
         at = Some(&site.at);
     }
     lines.extend(unread_line(unread));
-    if file.is_none() && files.len() > 1 { lines.push(NARROW.into()); }
+    if file.is_none() && declaring.len() > 1 { lines.push(NARROW.into()); }
     Some(lines.join("\n"))
+}
+
+fn files_of<'d>(rows: &[&'d DeclaredName]) -> BTreeSet<&'d str> {
+    rows.iter().map(|held| held.at.as_str()).collect()
+}
+
+/// What each row is, where it is written and who can reach it there; every row is declared, or every one is bound.
+fn kept_lines(name: &str, rows: &[&DeclaredName]) -> Vec<String> {
+    match rows {
+        [] => Vec::new(),
+        [only] => vec![format!("`{name}` [{}] is {}, at {}:{}{}{}.", only.kind, kept_as(only), only.at, only.line, spelled(only, name), private_reach(only))],
+        [first, ..] => {
+            let files = files_of(rows).len();
+            let count = if files == rows.len() { format!("{files} files") } else { places(rows.len()) };
+            let mut lines = vec![format!("`{name}` is {}, in {count}:", kept_as(first))];
+            lines.extend(rows.iter().map(|held| format!("  {}:{}{} [{}]{}", held.at, held.line, spelled(held, name), held.kind, private_reach(held))));
+            lines
+        }
+    }
 }
 
 fn spelled(held: &DeclaredName, name: &str) -> String {
@@ -244,7 +262,7 @@ fn primary_sites(lines: &mut Vec<String>, name: &str, owner: &str, at: &str, sit
         lines.push(from.map_or_else(|| "Path order; `--from` sorts nearest first.".into(), |from| format!("Nearest to {from} first.")));
         list_kinds(lines, name, Some(owner), sites, from, limit);
     }
-    list_own(lines, at, own, limit);
+    list_own(lines, at, "declares", own, limit);
     if imported { lines.push(format!("\nA{}.", &UNCOUNTED[1..])); }
 }
 
@@ -359,14 +377,14 @@ fn list_kinds(lines: &mut Vec<String>, name: &str, home: Option<&str>, mut sites
     }
 }
 
-fn list_own(lines: &mut Vec<String>, at: &str, uses: &[InFile], limit: usize) {
+fn list_own(lines: &mut Vec<String>, at: &str, does: &str, uses: &[InFile], limit: usize) {
     let start = uses.partition_point(|site| code_unit(&site.at, at).is_lt());
     let group = &uses[start..];
     let end = group.partition_point(|site| site.at == at);
     if end == 0 { return }
     let by = &group[0].by;
     let who = if by.is_empty() { String::new() } else { format!(" — {by}") };
-    list(lines, &format!("Used in {at}{who}, which declares it:"), group[..end].iter().map(|site| format!("  {}", site.line)), limit);
+    list(lines, &format!("Used in {at}{who}, which {does} it:"), group[..end].iter().map(|site| format!("  {}", site.line)), limit);
 }
 
 fn list(lines: &mut Vec<String>, heading: &str, rows: impl ExactSizeIterator<Item = String>, limit: usize) {

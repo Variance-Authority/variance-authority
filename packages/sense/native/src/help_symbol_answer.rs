@@ -7,6 +7,7 @@ use std::fs::File;
 use std::path::Path;
 
 use crate::compact::Layer;
+use crate::harvest::BINDING;
 use crate::help_aliases::aliases;
 use crate::help_declared::{declared, DeclaredName, Matching};
 use crate::help_members::{indexed_extensions, member_sites};
@@ -72,16 +73,14 @@ fn exact_symbol(root: &str, index: &Path, layers: &[Layer], rows: &Rows, name: &
     let workspace_door = !blocks.is_empty();
     let mut reading = declared(root, layers, name, Matching::Exact, None);
     reading.names.retain(|held| package.declared(&held.by));
-    let only_members = blocks.is_empty() && reading.names.is_empty();
-    let limit = said_limit.unwrap_or(5);
     reading.names.sort_by_key(declaration_kind_order);
-    blocks.extend(reading.names.iter().take(limit).map(block));
-    if reading.names.len() > limit {
-        let more = reading.names.len() - limit;
-        let noun = if more == 1 { "declaration" } else { "declarations" };
-        blocks.push(format!("{more} more {noun} of `{name}` not shown; a higher `--limit` shows them."));
-    }
-    if !reading.names.is_empty() { blocks.extend(unread_line(&reading.unread)); }
+    // A file that only binds the name declares nothing: it follows every declaration.
+    let (bound, kept): (Vec<_>, Vec<_>) = reading.names.into_iter().partition(is_bound);
+    let only_members = blocks.is_empty() && kept.is_empty();
+    let limit = said_limit.unwrap_or(5);
+    let bindings = listed(&bound, name, limit, "binding");
+    blocks.extend(listed(&kept, name, limit, "declaration"));
+    if !kept.is_empty() { blocks.extend(unread_line(&reading.unread)); }
     if !members.is_empty() {
         blocks.extend(members.iter().take(limit).map(|site| {
             let container = match site.on.as_str() {
@@ -112,10 +111,32 @@ fn exact_symbol(root: &str, index: &Path, layers: &[Layer], rows: &Rows, name: &
             } else {
                 "Whether an installed dependency publishes it is not known: the dependency lexicon is not published, and the `variance index` command publishes it.".to_owned()
             };
-            return Some(nowhere(name, &rows.published_names()?, layers, &reading.unread, Some(&dependencies), wanted, package.export_hint(rows, name, &exports)?.as_deref()));
+            blocks.push(nowhere(name, &rows.published_names()?, layers, &reading.unread, Some(&dependencies), wanted, package.export_hint(rows, name, &exports)?.as_deref()));
         }
     }
+    blocks.extend(bindings);
     Some(blocks.join("\n\n"))
+}
+
+/// Whether a row only binds the name to a value defined elsewhere, which declares nothing.
+pub(crate) fn is_bound(held: &DeclaredName) -> bool {
+    held.kind == BINDING
+}
+
+/// What a file does with a name it does not export, as every answer about the name says it.
+pub(crate) fn kept_as(held: &DeclaredName) -> &'static str {
+    if is_bound(held) { "bound, not declared" } else { "declared, not exported" }
+}
+
+/// The blocks of the first `limit` rows, and the count of the `noun`s past them.
+fn listed(rows: &[DeclaredName], name: &str, limit: usize, noun: &str) -> Vec<String> {
+    let mut blocks: Vec<_> = rows.iter().take(limit).map(block).collect();
+    if rows.len() > limit {
+        let more = rows.len() - limit;
+        let plural = if more == 1 { "" } else { "s" };
+        blocks.push(format!("{more} more {noun}{plural} of `{name}` not shown; a higher `--limit` shows them."));
+    }
+    blocks
 }
 
 pub(crate) fn declaration_kind_order(name: &DeclaredName) -> u8 {
@@ -239,7 +260,7 @@ fn by_path(layers: &[crate::compact::Layer], rows: &Rows, name: &str, exports: &
 
 fn block(held: &DeclaredName) -> String {
     let by = if held.by.is_empty() { String::new() } else { format!(" by {}", held.by) };
-    let mut lines = vec![format!("{} [{}]", held.name, held.kind), format!("declared, not exported, at {}:{}{by}", held.at, held.line)];
+    let mut lines = vec![format!("{} [{}]", held.name, held.kind), format!("{}, at {}:{}{by}", kept_as(held), held.at, held.line)];
     lines.extend(held.signature.iter().chain(&held.doc).cloned());
     let reach = if let Some(line) = held.holder_line {
         let who = held.holder.as_ref().map_or_else(|| format!("the function written at {}:{line}", held.at), |name| format!("`{name}`"));

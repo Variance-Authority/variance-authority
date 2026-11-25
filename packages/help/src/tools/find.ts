@@ -2,7 +2,7 @@ import type { Documented, Entry, Help, Opening } from '@variance-authority/packa
 import { everyEntry } from '@variance-authority/package/help';
 import { SLOT } from './declaration-key.js';
 import { exportedNamed, pathsWritten } from './rows.js';
-import { declarations, declaredAt, isNested, unreadLine } from './declared.js';
+import { declarations, declaredAt, isBound, isNested, unreadLine } from './declared.js';
 import { CHECKER, checkerOf, type Members, membersStop } from './members.js';
 import { notShownPast, type Spelling } from '@variance-authority/mcp/tools';
 import { search } from './search.js';
@@ -219,7 +219,7 @@ export function nowhere(
     ? []
     : [
         ...exportsNamed(help, root, head, wanted).filter((held) => held.bound !== undefined),
-        ...declaredAt(help, root, head, wanted).filter((one) => !isNested(one)),
+        ...declaredAt(help, root, head, wanted).filter((one) => !isNested(one) && !isBound(one)),
       ];
   // What was read and found nothing comes first, as only what was read; what was not read, last.
   const none = `No file in ${where}${unread.length === 0 ? '' : ' that the source index read'} declares \`${name}\``;
