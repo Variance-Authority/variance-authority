@@ -198,7 +198,7 @@ describe('variance ask about a name a file binds and does not declare', () => {
       '    48  exported function start',
       '    49  class Loader',
       '        50  load() {}',
-      '    46 names it binds and does not declare not shown.',
+      '    Not listed: 46 names it binds and does not declare.',
       '',
     ].join('\n'));
   });

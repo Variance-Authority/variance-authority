@@ -26,11 +26,14 @@ export function formatDeclarations(files: readonly FileDeclarations[] | undefine
 function outline(file: FileDeclarations): readonly string[] {
   // Absent is not empty: a file whose declarations were not read may declare anything.
   if (!file.read) return [`  ${file.file}  the index holds no parse of its declarations`];
-  if (file.declarations.length === 0 && file.more === 0) return [`  ${file.file}  declares nothing at the top level`, ...left(file)];
+  // The names counted as bound are not known to be exported, so a file that only binds says when that is unknown.
+  const unmarked = file.exportsKept ? [] : ['the index kept no exports of it, so none is marked exported'];
+  if (file.declarations.length === 0 && file.more === 0) {
+    const notes = file.bound > 0 ? unmarked : [];
+    return [`  ${file.file}  declares nothing at the top level${notes.map((note) => `  (${note})`).join('')}`, ...left(file)];
+  }
   const notes = [
-    ...(file.declarations.some((declaration) => declaration.exported === undefined || declaration.exported === null)
-      ? ['the index kept no exports of it, so none is marked exported']
-      : []),
+    ...unmarked,
     ...[membersNotReadIn(file.file)].filter((note) => note !== undefined),
   ];
   const lines = file.declarations.flatMap((declaration) => [declaration.line, ...declaration.members.map((member) => member.line)]);
@@ -50,7 +53,7 @@ function left(file: FileDeclarations): readonly string[] {
   ];
   return [
     ...(cut.length > 0 ? [`    ${cut.join(' and ')} not shown.`] : []),
-    ...(file.bound > 0 ? [`    ${plural(file.bound, 'name')} it binds and does not declare not shown.`] : []),
+    ...(file.bound > 0 ? [`    Not listed: ${plural(file.bound, 'name')} it binds and does not declare.`] : []),
   ];
 }
 

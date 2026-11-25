@@ -60,6 +60,9 @@ pub struct FileDeclarations {
     /// The top-level names the file binds, does not declare and is not known to
     /// export: none is listed and none spends the budget.
     pub bound: u32,
+    /// False when the parse kept no exports, or it was not read: whether a name
+    /// is exported is unknown, the names counted as bound included.
+    pub exports_kept: bool,
 }
 
 /// The top level of each of `files` the chain holds, in the order asked, each
@@ -86,11 +89,12 @@ pub fn file_declarations_of(index: &OpenedIndex, files: Vec<String>, budget: u32
 }
 
 fn outline(layers: &[Layer], crossing: &Crossing, budget: usize) -> FileDeclarations {
-    let unread = FileDeclarations { file: crossing.file.to_owned(), read: false, declarations: Vec::new(), more: 0, more_members: 0, bound: 0 };
+    let unread = FileDeclarations { file: crossing.file.to_owned(), read: false, declarations: Vec::new(), more: 0, more_members: 0, bound: 0, exports_kept: false };
     let Some((layer, row)) = crossing.parse else { return unread };
     let (stored, parses) = (&layers[layer].stored, &layers[layer].parses);
     if parses.harvested[row] != 1 { return unread }
-    let exported = (parses.exports_present[row] == 1).then(|| exported_locals(&layers[layer], row));
+    let exports_kept = parses.exports_present[row] == 1;
+    let exported = exports_kept.then(|| exported_locals(&layers[layer], row));
     let mut declarations: Vec<FileDeclaration> = parses
         .symbols
         .range(row)
@@ -122,7 +126,9 @@ fn outline(layers: &[Layer], crossing: &Crossing, budget: usize) -> FileDeclarat
         .collect();
     let bindings: Vec<FileDeclaration> = declarations.extract_if(.., |declaration| only_bound(declaration)).collect();
     let declared: HashSet<&str> = declarations.iter().map(|declaration| declaration.name.as_str()).collect();
-    let bound = bindings.iter().filter(|binding| !declared.contains(binding.name.as_str())).count() as u32;
+    // Names, not rows: a file may bind one name twice.
+    let bound: HashSet<&str> = bindings.iter().map(|binding| binding.name.as_str()).filter(|name| !declared.contains(name)).collect();
+    let bound = bound.len() as u32;
     let more = declarations.len().saturating_sub(budget) as u32;
     declarations.truncate(budget);
     // The budget is spent by the line shown, as `symbol`'s rule shows one row
@@ -146,7 +152,7 @@ fn outline(layers: &[Layer], crossing: &Crossing, budget: usize) -> FileDeclarat
             _ => {}
         }
     }
-    FileDeclarations { file: crossing.file.to_owned(), read: true, declarations, more, more_members, bound }
+    FileDeclarations { file: crossing.file.to_owned(), read: true, declarations, more, more_members, bound, exports_kept }
 }
 
 /// Whether the row only binds its name, and no export of the file is known to bind it.

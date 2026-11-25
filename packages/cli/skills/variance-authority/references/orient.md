@@ -56,8 +56,9 @@ own definitions. What you decide from it:
   another language says so. A file shows at most 40 declaration and member
   rows, and one line counts the declarations and member lines it left out; ask
   `symbol --name <name>` for one of those. A name the file only binds, such as
-  `const { A } = require('./a')`, takes no row unless an export binds it: one
-  line counts them. `the index holds no parse of its
+  `const { A } = require('./a')`, takes no row unless an export is known to bind it:
+  a `Not listed:` line counts them. `the index kept no exports of it` means an
+  export may bind any of the file's names. `the index holds no parse of its
   declarations` means the file may declare anything, not that it declares
   nothing.
 - **External dependency declarations** show the first three entries per

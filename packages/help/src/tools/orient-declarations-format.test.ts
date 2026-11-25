@@ -12,9 +12,9 @@ describe('the declarations part of an orientation', () => {
   it('says a file whose declarations were not read apart from one that declares nothing, and marks none exported when no exports were kept', () => {
     expect(
       formatDeclarations([
-        { file: 'src/data.json', read: false, declarations: [], more: 0, moreMembers: 0, bound: 0 },
-        { file: 'src/empty.ts', read: true, declarations: [], more: 0, moreMembers: 0, bound: 0 },
-        { file: 'src/script.js', read: true, declarations: [{ name: 'run', kind: 'function', line: 3, members: [] }], more: 0, moreMembers: 0, bound: 0 },
+        { file: 'src/data.json', read: false, declarations: [], more: 0, moreMembers: 0, bound: 0, exportsKept: true },
+        { file: 'src/empty.ts', read: true, declarations: [], more: 0, moreMembers: 0, bound: 0, exportsKept: true },
+        { file: 'src/script.js', read: true, declarations: [{ name: 'run', kind: 'function', line: 3, members: [] }], more: 0, moreMembers: 0, bound: 0, exportsKept: false },
       ]),
     ).toEqual([
       '',
@@ -30,7 +30,7 @@ describe('the declarations part of an orientation', () => {
     const members = [{ name: 'add', line: 12, text: '  add(line: string): void {' }];
     expect(
       formatDeclarations([
-        { file: 'src/basket.ts', read: true, declarations: [{ name: 'Basket', kind: 'class', line: 9, exported: true, members }], more: 2, moreMembers: 4, bound: 0 },
+        { file: 'src/basket.ts', read: true, declarations: [{ name: 'Basket', kind: 'class', line: 9, exported: true, members }], more: 2, moreMembers: 4, bound: 0, exportsKept: true },
       ]),
     ).toEqual([
       '',
@@ -46,22 +46,25 @@ describe('the declarations part of an orientation', () => {
     const run = { name: 'run', kind: 'function', line: 41, exported: true, members: [] };
     expect(
       formatDeclarations([
-        { file: 'src/child.js', read: true, declarations: [run], more: 0, moreMembers: 0, bound: 39 },
-        { file: 'src/one.js', read: true, declarations: [run], more: 2, moreMembers: 0, bound: 1 },
-        { file: 'src/binds.js', read: true, declarations: [], more: 0, moreMembers: 0, bound: 2 },
+        { file: 'src/child.js', read: true, declarations: [run], more: 0, moreMembers: 0, bound: 39, exportsKept: true },
+        { file: 'src/one.js', read: true, declarations: [run], more: 2, moreMembers: 0, bound: 1, exportsKept: true },
+        { file: 'src/binds.js', read: true, declarations: [], more: 0, moreMembers: 0, bound: 2, exportsKept: true },
+        { file: 'src/unknown.js', read: true, declarations: [], more: 0, moreMembers: 0, bound: 2, exportsKept: false },
       ]),
     ).toEqual([
       '',
       'Declared at the top level, from the source index:',
       '  src/child.js',
       '    41  exported function run',
-      '    39 names it binds and does not declare not shown.',
+      '    Not listed: 39 names it binds and does not declare.',
       '  src/one.js',
       '    41  exported function run',
       '    2 more top-level declarations not shown.',
-      '    1 name it binds and does not declare not shown.',
+      '    Not listed: 1 name it binds and does not declare.',
       '  src/binds.js  declares nothing at the top level',
-      '    2 names it binds and does not declare not shown.',
+      '    Not listed: 2 names it binds and does not declare.',
+      '  src/unknown.js  declares nothing at the top level  (the index kept no exports of it, so none is marked exported)',
+      '    Not listed: 2 names it binds and does not declare.',
     ]);
   });
 
@@ -76,6 +79,7 @@ describe('the declarations part of an orientation', () => {
           more: 0,
           moreMembers: 0,
           bound: 0,
+          exportsKept: true,
         },
       ]),
     ).toEqual(['', 'Declared at the top level, from the source index:', '  src/streams.ts', '    3  type Streams', `       3  ${line}`]);
@@ -84,7 +88,7 @@ describe('the declarations part of an orientation', () => {
   it('says a file in a language whose members the index does not read lists none of them', () => {
     expect(
       formatDeclarations([
-        { file: 'src/Basket.java', read: true, declarations: [{ name: 'Basket', kind: 'class', line: 4, exported: true, members: [] }], more: 0, moreMembers: 0, bound: 0 },
+        { file: 'src/Basket.java', read: true, declarations: [{ name: 'Basket', kind: 'class', line: 4, exported: true, members: [] }], more: 0, moreMembers: 0, bound: 0, exportsKept: true },
       ]),
     ).toEqual([
       '',
