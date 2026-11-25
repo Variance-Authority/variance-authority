@@ -328,6 +328,14 @@ describe('variance_ran', () => {
       expect(text.map((row) => row.trim())).toContain('told again, once more of it had run:');
     });
 
+    it('gives no time between a telling that carries times and one that does not', () => {
+      for (const tellings of [[told, stamped([0, 10, 40], 50)], [stamped([0, 10, 40], 50), told]]) {
+        const text = drawn({ api: tellings });
+        expect(text.map((row) => row.trim())).toContain('told again, once more of it had run:');
+        expect(heading(text)).toContain('50.0 ms as far as it was recorded;');
+      }
+    });
+
     it('says how far it was recorded where the latest of it is a step and no end', () => {
       expect(heading(drawn({ page: [stamped([0, 10, 40], undefined, { at: [0], keys: [JOURNEY], visits: 9 })] }))).toContain('40.0 ms as far as it was recorded;');
       expect(heading(drawn({ page: [stamped([0, 10, 140])], api: [stamped([12, 22, 30], 32)] }))).toContain('140.0 ms as far as it was recorded;');

@@ -82,6 +82,16 @@ describe('a route', () => {
     expect(drawn(route.route)).toBe('loaded[src/cart.ts,src/format.ts] removeItem');
   });
 
+  it('adds up the times of the passes of a loop that loaded a module each time round', () => {
+    const E = EVALUATING;
+    const told = { ...story([0 | E, 1, 0 | E, 1]), stamps: Float64Array.from([0, 1, 4, 10]), end: 12 };
+    const route = drawRoute(ROOT, told, ['src/cart.ts', 'src/format.ts'], [CART, undefined]);
+    expect(route.route).toMatchObject([{ times: 2, repeat: [
+      { token: { loaded: ['src/cart.ts'], time: { at: 0, leg: 7 } } },
+      { token: { place: { name: 'removeItem' }, time: { at: 1, leg: 5 } } },
+    ] }]);
+  });
+
   it('draws a module the recording holds no regions for as its file, and says so', () => {
     const route = drawRoute(ROOT, story([1, 6, 1]), ['src/cart.ts', 'src/format.ts'], [CART, undefined]);
     expect(drawn(route.route)).toBe('removeItem src/format.ts:top removeItem');
