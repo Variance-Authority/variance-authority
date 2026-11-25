@@ -39,7 +39,7 @@ and counts the files recorded and the files placed on the clock. Below it sit
 three tabs, **Tests**, **Timeline** and **Coverage**, with Tests open: the
 slowest test files and the slowest cases as sortable tables, each row a link,
 above a filter box, then every retried case with each attempt. The Timeline is
-a chart with one lane per test file; Coverage is the coverage report's tables.
+a chart with one lane per test file; Coverage is how much of the source the run executed.
 
 ## What each tab shows
 
