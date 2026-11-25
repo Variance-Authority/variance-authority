@@ -14,37 +14,37 @@ import type { FanInFile, OwnedFile } from '@variance-authority/sense/test-select
 import { kindRows } from './coverage-fan-in-text.js';
 import { banded, coverageParts, files, grouped, leading, paired, ratio, short, sourceWhere, unparsed } from './coverage-summary.js';
 import { census, chip, section, text } from './report-html-elements.js';
-import { MARK } from './report-html-style.js';
-import { shell, type View } from './view-shell.js';
+import { MARK, PAGE } from './report-html-style.js';
 import type { CoverageSource, Unloaded } from './coverage-source.js';
 import type { Coverage } from './coverage.js';
 
-/**
- * The answer as one self-contained page: the shell opened on its Coverage view,
- * with any other views the caller holds data for beside it.
- */
-export function coverageHtml(answer: Coverage, others: readonly View[] = []): string {
+/** The answer as one self-contained page. */
+export function coverageHtml(answer: Coverage): string {
   const title = answer.at === undefined ? 'coverage' : `coverage at ${short(answer.at)}`;
-  return shell({
-    title: `variance ${title}`,
-    header: masthead(answer, 'header'),
-    views: [...others, coverageView(answer)],
-    first: 'coverage',
-    style: STYLE,
-  });
+  return [
+    '<!doctype html>',
+    '<html lang="en"><head><meta charset="utf-8">',
+    '<meta name="viewport" content="width=device-width,initial-scale=1">',
+    `<title>${text(`variance ${title}`)}</title>`,
+    `<style>${PAGE}${STYLE}</style>`,
+    '</head><body>',
+    masthead(answer),
+    '<main>',
+    suites(answer),
+    kinds(answer),
+    flatFiles(answer),
+    unloaded(answer),
+    '</main>',
+    `<script>${SCRIPT}</script>`,
+    '</body></html>',
+  ].join('\n');
 }
 
-/** The answer's own sections as the shell's Coverage view; its masthead leads it, as a block and not the page's. */
-export function coverageView(answer: Coverage, lead = false): View {
-  const body = [lead ? masthead(answer, 'div') : '', suites(answer), kinds(answer), flatFiles(answer), unloaded(answer)].join('');
-  return { id: 'coverage', label: 'Coverage', body };
-}
-
-function masthead(answer: Coverage, tag: 'header' | 'div'): string {
+function masthead(answer: Coverage): string {
   const { count } = answer;
   const lead = leading(count);
   const chips: string[] = [];
-  if (answer.at !== undefined && tag === 'header') chips.push(chip('commit', short(answer.at), answer.at));
+  if (answer.at !== undefined) chips.push(chip('commit', short(answer.at), answer.at));
   const recorded = answer.suites.filter((suite) => suite.from !== undefined).length;
   chips.push(chip('suites', `${recorded} of ${answer.suites.length} recorded`));
   const bases = [...new Set(answer.suites.flatMap((suite) => suite.base === undefined ? [] : [suite.base.commit]))];
@@ -54,12 +54,13 @@ function masthead(answer: Coverage, tag: 'header' | 'div'): string {
     if (answer.source.from !== undefined) chips.push(chip('from', answer.source.from, sourceWhere(answer.source)));
   }
   return (
-    (tag === 'header' ? `<header><div class="brand">${MARK}<span>variance</span></div>` : '<div class="lead">') +
+    '<header>' +
+    `<div class="brand">${MARK}<span>variance</span></div>` +
     `<h1 data-row="lead">${text(ratio(lead, count.regions))}<span>regions run</span>` +
     `<span class="more">${text(`${grouped(lead)} of ${grouped(count.regions)} regions in ${files(count.files)} the suites loaded${banded(answer)}`)}</span></h1>` +
     `<div class="chips">${chips.join('')}</div>` +
     regionBar([...ran(count), ['load', count.load, 'ran only at load'], ['none', count.none, 'nothing ran']]) +
-    `</${tag}>`
+    '</header>'
   );
 }
 
@@ -154,6 +155,7 @@ function kinds(answer: Coverage): string {
 function flatFiles(answer: Coverage): string {
   const entered = new Map((answer.fanIn?.files ?? []).map((file) => [file.file, file]));
   const owned = answer.ownership ?? [];
+  const search = '<input id="filter" type="search" placeholder="filter files" aria-label="filter files" autocomplete="off">';
   const listed = owned.length === 0 ? (answer.fanIn?.files ?? []) : [];
   const drawn: string[] = [];
   if (answer.entries !== undefined) {
@@ -169,11 +171,11 @@ function flatFiles(answer: Coverage): string {
     // A file in no listed package belongs to the root; it is listed after every package.
     for (const [owner, list] of byOwner) blocks.push(pack(owner, `<span class="num nil">${files(list.length)}</span>`, list, entered));
     const hint = answer.ownership === undefined ? 'each over its own files' : 'each over its own files; open one for its files and the tests that cover them';
-    drawn.push(section('Packages', hint, blocks.join('')));
+    drawn.push(section('Packages', hint, (owned.length === 0 ? '' : search) + blocks.join('')));
   }
   if (listed.length > 0) {
     const rows = listed.map((file) => fileRow(file.file, file.regions, file.run, undefined, file));
-    drawn.push(section('Files', `${files(listed.length)} a suite loaded`, fileTable(rows, false)));
+    drawn.push(section('Files', `${files(listed.length)} a suite loaded`, search + fileTable(rows, false)));
   }
   return drawn.join('');
 }
@@ -223,7 +225,7 @@ function fileRow(file: string, regions: number, run: number, owned: OwnedFile | 
     `<td>${fan?.by === undefined ? '' : Object.entries(fan.by).flatMap(([kind, n]) => (n === undefined ? [] : [`<span class="mark band">${text(`${kind} ${grouped(n)}`)}</span>`])).join('')}</td>`,
     `<td class="num">${fan?.duration === undefined ? '<span class="nil">—</span>' : text(ratio(fan.duration, 1))}</td>`,
   );
-  return `<tr data-row="${text(`file:${file}`)}" data-key="${text(file)}">${cells.join('')}</tr>`;
+  return `<tr data-row="${text(`file:${file}`)}">${cells.join('')}</tr>`;
 }
 
 /* --- what no suite loads ---------------------------------------------------- */
@@ -265,6 +267,8 @@ function kindMark(kind: string | undefined): string {
 
 /** What only this page draws: the frame, the census parts, the meters and the packages. */
 const STYLE = `
+main{max-width:72rem;margin:0 auto;padding:1.5rem 1.25rem 4rem}
+header{padding-inline:max(1.25rem,calc((100% - 72rem) / 2 + 1.25rem))}
 h1 span:first-of-type{font-weight:400;color:var(--quiet);font-size:13px}
 .seg.run,.key.run i{background:var(--green)}
 .seg.older,.key.older i{background:var(--green);opacity:.45}
@@ -276,6 +280,9 @@ h1 span:first-of-type{font-weight:400;color:var(--quiet);font-size:13px}
 .meter{display:inline-block;width:3rem;height:4px;margin-right:.5rem;vertical-align:middle;
 border-radius:2px;background:var(--charcoal);overflow:hidden}
 .meter i{display:block;height:100%;background:var(--green)}
+#filter{width:100%;max-width:24rem;margin:0 0 .75rem;background:var(--panel);border:1px solid var(--hairline);
+border-radius:5px;color:var(--ivory);font:12px/1.6 var(--mono);padding:.35rem .5rem}
+#filter::placeholder{color:var(--warm)}
 .package{border-bottom:1px solid var(--hairline)}
 .package summary,.package.flat{display:flex;gap:1.25rem;align-items:baseline;padding:.45rem .25rem}
 .package summary{list-style:none;cursor:pointer}
@@ -288,5 +295,14 @@ border-radius:2px;background:var(--charcoal);overflow:hidden}
 .package table{margin:0 0 1rem}
 `;
 
-/** What the Coverage view alone draws, for a shell that holds it among others. */
-export const COVERAGE_STYLE = `${STYLE}\n.lead{margin-bottom:2rem}\n`;
+/** Filtering by path opens each package that holds a match, and shuts the rest again. */
+const SCRIPT = `
+const filter=document.getElementById('filter');
+if(filter)filter.addEventListener('input',()=>{
+const q=filter.value.trim().toLowerCase();
+for(const row of document.querySelectorAll('tr[data-row^="file:"]'))row.classList.toggle('hidden',q!==''&&!row.dataset.row.toLowerCase().includes(q));
+for(const box of document.querySelectorAll('details.package')){
+const any=box.querySelector('tr[data-row^="file:"]:not(.hidden)')!==null;
+box.open=q!==''&&any;box.classList.toggle('hidden',q!==''&&!any);}
+});
+`;

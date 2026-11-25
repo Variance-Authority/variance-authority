@@ -1,11 +1,12 @@
-# View: a recorded test run as one page you open from disk
+# View: the execution record as one page you open from disk
 
-`variance view` turns the [execution record](execution-record.md), the file a recorded test
-run leaves, into one HTML file and prints its path. The page shows which test files and cases were slowest and which were retried, where each
-file sat on the run's clock, and how much of the source the run reached. It is
-a single self-contained file, with no server, network or account behind it, so
-you can open it from disk, attach it to a CI run as an artifact, or link it
-from a pull request.
+`variance view` turns the [execution record](execution-record.md), the file a
+recorded test run leaves, into one HTML file and prints its path. The page holds
+the whole record and reads it in your browser: every test file, case, source
+file and region the run recorded, with nothing cut. It is a single
+self-contained file, with no server, network or account behind it, so you can
+open it from disk, attach it to a CI run as an artifact, or link it from a pull
+request.
 
 ## Open it
 
@@ -14,60 +15,52 @@ variance view
 ```
 
 The command reads the record, writes `variance-view.html` in the variance cache
-directory, and prints the path. `--suite <name>` reads the record of one declared suite when the repository has
-more than one. Opening the file is yours: the command starts no browser. With no record yet,
-[make one first](#if-you-have-no-record-yet).
+directory, and prints the path. `--suite <name>` reads the record of one
+declared suite when the repository has more than one; without it, the first
+declared suite that has a record is read. Opening the file is yours: the command
+starts no browser. With no record yet, [make one first](#if-you-have-no-record-yet).
 
 ## What you see first
 
-The header names the suite, the commit and the record the page was read from,
-and counts the files recorded and the files placed on the clock. Below it sit
-the tabs **Tests**, **Timeline** and **Coverage**, with Tests open, and a
-filter box above the tables of the open tab. Tests holds the slowest test files
-and the slowest cases as sortable tables, each row a link, then every case whose
-attempts ended differently, then every retried case no attempt of which passed, with each attempt. The Timeline is a chart with one lane per test file;
-Coverage is how much of the source the run executed. When the run cannot be
-counted and no test file is known to have called into a source file, there is
-no Coverage tab, and the header says coverage was not counted.
+The **Overview** opens first: the suite, the commit, how the run was recorded,
+and how many test files, cases, source files and regions the record holds. A row
+of tabs sits above it, one for each part of the record that is present, and
+**Record** last. A tab holds one or more tables. Each table has a filter box
+that keeps the rows with a cell containing what you type, and each column header
+sorts it, the first click largest first.
 
 ## What each tab shows
 
-- **Tests** lists the slowest test files and the slowest cases, and every case
-  whose attempts ended differently or never passed, with each attempt, its time and its failure message, and the nearest source frame of the failure as `path:line`
-  where the record holds one. Click a
-  column header to sort, and type in the filter box to narrow the rows.
-- **Timeline** draws each test file as a bar from the moment the runner started
-  it, with the phases the runner timed in colour: `prepare`, `environment`,
-  `setup`, `collect` and `cases`. It is the picture [`variance trace`](trace.md)
-  prints as spans for a trace viewer, drawn on the page. A file without a start
-  is counted in a note and not drawn, because placing it would be an invention.
-  When Playwright recorded which worker lane ran a file, the bars are grouped
-  under a heading per lane, with files that have no lane last under "No worker
-  recorded"; a record without lanes is drawn as one list.
-  Only Playwright records a start today; Tests and Coverage read what any of
-  Vitest, Jest, Rstest and Playwright records.
-- **Coverage** shows how much of your source code the run executed, split by
-  suite, kind of test and package, and below that each source file with the test
-  files that called into it. When the run cannot be counted that way, the page says so
-  in a chip and still opens; the list of which test files called into which source
-  file needs only the record. Click a source file and its text opens with each
-  recorded range marked by its state (walked, alone, loaded, hole or unwalked),
-  taken from the same answer as `variance covering --file <f> --text -`. A file
-  the record lacks, or one whose ranges carry no state, says so instead. The page
-  holds the text of at most 30 source files, the most entered first, and none
-  over 100 kB; the others are counted on the page and not drawn.
+- **Test files**: every test file with its time, when it started and on which
+  worker where the runner gave them, how many cases and regions it reached, and
+  whether its recording finished.
+- **Cases**: every case the runner reported, with its time, its limit, how it
+  ended and how many regions it entered. Present when the record has a case
+  index.
+- **Timeline**: each test file by worker, placed on the run's clock. A file
+  whose runner gave no start is counted and not placed. Only Playwright records
+  a start today.
+- **Modules**: every source file, with its regions, those no test entered, and
+  how many test files reached it.
+- **Regions**: every function, branch and module body, with its lines and how
+  many test files entered it.
+- **Preconditions**: what each test file was recorded under.
+- **Before the last run**: the cases and regions the record kept from the run
+  before, where it kept them.
+- A tab for each other part the record carries, such as retried attempts, shown
+  as it is stored.
+- **Record**: every section of the file with its size; open one to see its
+  rows.
 
-Click a test file anywhere and its pane opens, with these headings:
-**Attempts** for its cases that ended differently, **Phases and place** on the timeline, and
-**Source files reached**, each a link to that file in Coverage. A source file in
-Coverage links back to the test files that called into it, when the record has
-that. A test file the page holds no pane for is named there without a link.
+Every name in a table is a link. A test file opens what it holds: its cases, the
+regions it entered and its preconditions. A source file opens its regions and
+the test files that entered it; a region opens the test files that entered it.
 
 ## If you have no record yet
 
 The record lives in your [cache](cache.md) and holds, per test file, its time
-and which source files its tests ran. To make one, install `@variance-authority/sense` and
-`@variance-authority/cli` (Playwright also takes
+and which source files its tests ran. To make one, install
+`@variance-authority/sense` and `@variance-authority/cli` (Playwright also takes
 `@variance-authority/playwright-test`), wrap your runner's configuration with
 [the seam supported frameworks names for it](supported-frameworks.md#record-which-tests-ran-each-line),
 and run the suite as you already do:
@@ -86,19 +79,17 @@ name in CI.
 
 ## Limits
 
-- Every list is cut to its first hundred rows by the command, so the page stays
-  a size a browser opens at once; the filter searches those rows only.
-- The Timeline draws no case: a file's bar shows its phases, and a count of its
-  cases is in the bar's tooltip, as [the trace](trace.md#what-a-trace-shows-and-what-it-does-not)
-  places cases only in recorded order.
-- A record made before Playwright carried starts has no Timeline.
-- A suite you name that has no record says so on the Tests tab and on the Timeline, and nothing is read from it.
-- A pane exists only for the test files the page holds a row for.
+- The page is as large as the record, compressed: a record of a few thousand
+  test files makes a page of a few megabytes.
+- The page decompresses the record itself, with `DecompressionStream`, which
+  every current Chrome, Edge, Firefox and Safari has.
+- With no record on disk, the command writes no page and names where it looked.
 
 ## Reference: addresses
 
-Read this to share a link to one test, or to open the page at a filtered view.
+Read this to share a link to one row.
 
-The address is the page's position: `#tests`, `#timeline` or `#coverage`;
-`#<tab>/<needle>` opens a tab with the needle in its filter and its row marked;
-`#test/<file>` opens one test file's pane, which has no tab of its own.
+The address is the page's position: `#<tab>` opens a tab, such as `#files` or
+`#modules`, and `#<kind>/<name>` opens one row: `#test/<file>`, `#module/<file>`,
+`#case/<id>` or `#section/<name>`, the name percent-encoded. An address that
+names nothing the record holds says so.

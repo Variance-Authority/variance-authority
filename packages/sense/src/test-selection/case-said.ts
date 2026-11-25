@@ -1,10 +1,9 @@
 /**
  * What a case said it arranged and what the code read while it ran, as
- * TypeScript holds it after capture: a string the addon's `case_said.rs` wrote
- * and alone reads. Joining, laying the `tests.said`, `tests.read` and
- * `tests.misused` sections,
- * reading them back and resolving a row are its calls; here is only how a
- * resolved row is printed.
+ * TypeScript holds it after capture: a string in the spelling of the addon's
+ * `case_said.rs`. Joining, laying the `tests.said`, `tests.read` and
+ * `tests.misused` sections and resolving a row are its calls; `case-said-read.ts`
+ * reads the sections back, and here is how a resolved row is printed.
  */
 import { native, nativeRefusal } from '../addon.js';
 import preconditions from './case-preconditions.cjs';
@@ -165,28 +164,6 @@ export function saidLaid(
     bytes: laid.bytes,
     offsets: laid.offsets,
   };
-}
-
-/**
- * What each case heard, off the `tests.said`, `tests.read` and `tests.misused`
- * sections, any absent, and their pool; undefined for a case never listened to.
- */
-export function saidRead(
-  sections: { readonly said?: Uint8Array; readonly read?: Uint8Array; readonly misused?: Uint8Array },
-  pool: { readonly bytes: Uint8Array; readonly offsets: Uint32Array },
-  testCount: number,
-): readonly (Said | undefined)[] {
-  const buffer = (bytes: Uint8Array) => Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  const section = (bytes: Uint8Array | undefined) => (bytes === undefined ? null : buffer(bytes));
-  return addon('saidRead')(
-    section(sections.said),
-    section(sections.read),
-    section(sections.misused),
-    buffer(pool.bytes),
-    pool.offsets,
-    testCount,
-  )
-    .map((one) => one ?? undefined);
 }
 
 /**

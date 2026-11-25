@@ -1,18 +1,18 @@
 // compass: variance-authority.reach.crossings
-import { existsSync } from 'node:fs';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { execFileSync } from 'node:child_process';
+import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { chromium, type Browser, type Page } from '@playwright/test';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { ViewData } from './view-data.js';
-import type { Coverage } from './coverage.js';
-import { viewPage } from './view-page.js';
+import { encodeTestCoverage, testCoverageFile } from '@variance-authority/sense/test-selection';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { viewOutput } from './view-command.js';
 
 /**
- * The page `variance view` writes, opened from a file in a browser: the tabs
- * route by address, the filter narrows a view's rows, a header sorts, and the
- * page asks the network for nothing.
+ * The page `variance view` writes, opened from its file in a browser: it
+ * decodes the record it carries, the tabs route by address, the filter narrows
+ * a table, a header sorts it, a row opens what it names, and the page asks the
+ * network for nothing.
  */
 
 const BROWSER_AVAILABLE = ((): boolean => {
@@ -24,151 +24,105 @@ const BROWSER_AVAILABLE = ((): boolean => {
 })();
 
 if (!BROWSER_AVAILABLE) {
-  console.warn(
-    '\npackages/cli view page in a browser: skipped.' +
-      '\n  no browser — npx playwright install chromium\n',
-  );
+  console.warn('\npackages/cli view page in a browser: skipped.' + '\n  no browser — npx playwright install chromium\n');
 }
 
-const DATA: ViewData = {
-  suite: 'unit',
-  commit: '0b5b312c9d',
-  recording: 'cache/unit/record',
-  tests: {
-    slowestFiles: [
-      { file: 'src/fast.test.ts', duration: 90 },
-      { file: 'src/slow.test.ts', duration: 4200 },
-      { file: 'src/mid.test.ts', duration: 700 },
-    ],
-    slowestCases: [],
-    retried: [],
-    differing: 0,
-    unpassed: [],
-    unpassing: 0,
-    notes: [],
-  },
-  timeline: {
-    files: [{ file: 'src/slow.test.ts', start: 1000, cost: 4200, phases: [{ name: 'cases', ms: 4000 }], cases: [] }],
-    recorded: 1,
-    placed: 1,
-    unplaced: 0,
-  },
-  reach: {
-    tests: [{ file: 'src/slow.test.ts', reached: ['src/world.ts'], total: 1 }],
-    files: [{ file: 'src/world.ts', tests: ['src/slow.test.ts'], total: 1 }],
-  },
-  sources: { files: [], left: 0 },
-};
+const TESTS = [
+  { file: 'src/fast.test.ts', duration: 90 },
+  { file: 'src/slow.test.ts', duration: 4200 },
+  { file: 'src/mid.test.ts', duration: 700 },
+];
 
-// One page for the whole file, opened once and driven through its address: the
-// owner's pool leases pages per painted subject, and this test paints nothing.
-let root: string;
-/** Counted coverage with two packages, so the filter has something to open and hide. */
-const COUNTED = {
-  at: '0b5b312c',
-  count: { regions: 100, files: 3, run: 60, load: 10, none: 30, unjoined: 0, suites: [{ name: 'unit', kind: 'unit', run: 60, load: 10, regions: 100 }] },
-  suites: [{ suite: 'unit', kind: 'unit', from: 'unit.bin', recorded: '0b5b312c' }],
-  source: { seeds: 'entrypoints', files: 3, ran: 60, regions: 100, unloaded: { files: 0, lines: 0, bytes: 0, regions: 0, uncut: 0, directories: [], list: [] } },
-  entries: [
-    { from: 'packages/cli', own: { files: 2, ran: 40, regions: 60 }, uses: { files: 2, ran: 40, regions: 60 } },
-    { from: 'packages/core', own: { files: 1, ran: 20, regions: 40 }, uses: { files: 1, ran: 20, regions: 40 } },
+const COVERAGE = {
+  version: 3,
+  instrumentation: 'fixture',
+  tests: TESTS.map(({ file, duration }) => ({ file, duration, complete: true, preconditions: [] })),
+  modules: [
+    {
+      file: 'src/world.ts',
+      sourceDigest: 'd',
+      instrumented: true,
+      blocks: [{ ordinal: 0, kind: 'module' as const, digest: 'b', name: '', path: '', startLine: 1, endLine: 1, source: true, testFiles: ['src/slow.test.ts'] }],
+    },
   ],
-  ownership: [
-    { file: 'packages/cli/src/a.ts', owner: 'packages/cli', regions: 40, run: 30, own: 30, others: 0, by: {}, kinds: { unit: 30 } },
-    { file: 'packages/cli/src/b.ts', owner: 'packages/cli', regions: 20, run: 10, own: 10, others: 0, by: {}, kinds: { unit: 10 } },
-    { file: 'packages/core/src/c.ts', owner: 'packages/core', regions: 40, run: 20, own: 20, others: 0, by: {}, kinds: { unit: 20 } },
-  ],
-} as unknown as Coverage;
+};
 
 let browser: Browser | undefined;
 let page: Page | undefined;
 const requests: string[] = [];
 
+/** The first cell of each row drawn in the page's first table. */
+const firstCells = (): Promise<string[]> => page!.locator('section.part').first().locator('.body .row .cell:first-child').allTextContents();
+const go = async (hash: string): Promise<void> => {
+  await page!.evaluate((to) => (location.hash = to), hash);
+};
+
 beforeAll(async () => {
-  root = await mkdtemp(join(tmpdir(), 'variance-view-browser-'));
-  await writeFile(join(root, 'view.html'), viewPage(DATA));
-  await writeFile(join(root, 'counted.html'), viewPage(DATA, COUNTED));
-  if (BROWSER_AVAILABLE) {
-    browser = await chromium.launch({ headless: true });
-    page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
-    page.on('request', (request) => requests.push(request.url()));
-    await page.goto(`file://${join(root, 'view.html')}`);
-  }
-});
+  if (!BROWSER_AVAILABLE) return;
+  vi.stubEnv('VARIANCE_AUTHORITY_CACHE', mkdtempSync(join(tmpdir(), 'va-view-page-cache-')));
+  const root = mkdtempSync(join(tmpdir(), 'va-view-page-'));
+  execFileSync('git', ['init', '--quiet', root]);
+  const at = testCoverageFile(root, {});
+  mkdirSync(dirname(at), { recursive: true });
+  writeFileSync(at, Buffer.from(encodeTestCoverage(COVERAGE)));
+  const path = viewOutput({ command: 'view' }, root).out.trim();
+  browser = await chromium.launch();
+  page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+  page.on('request', (request) => requests.push(request.url()));
+  await page.goto(`file://${path}`);
+  await page.locator('body[data-opened="yes"]').waitFor();
+}, 60_000);
 
 afterAll(async () => {
+  vi.unstubAllEnvs();
   await browser?.close();
-  await rm(root, { recursive: true, force: true });
 });
 
-const visible = (name: string): Promise<boolean> => page!.locator(`[data-view="${name}"].view`).isVisible();
-
-describe.skipIf(!BROWSER_AVAILABLE)('variance view page in a browser', () => {
-  it('opens on Tests, and an address shows another view', async () => {
-    expect(await visible('tests')).toBe(true);
-    expect(await visible('timeline')).toBe(false);
-    await page!.evaluate(() => (location.hash = '#timeline'));
-    expect(await visible('timeline')).toBe(true);
-    expect(await visible('tests')).toBe(false);
+describe.runIf(BROWSER_AVAILABLE)('the view page in a browser', () => {
+  it('opens on the overview, counting what the record holds', async () => {
+    expect(await page!.locator('nav.tabs a[aria-current="page"]').textContent()).toBe('Overview');
+    const facts = await page!.locator('dl.facts').textContent();
+    expect(facts).toContain('test files3');
+    expect(facts).toContain('modules1');
   });
 
-  it('fills the filter from the address and marks the row it names', async () => {
-    await page!.evaluate(() => (location.hash = '#tests/src/mid.test.ts'));
-    expect(await page!.locator('.view[data-view="tests"] tr[data-key]:not(.hidden)').count()).toBe(1);
-    expect(await page!.locator('.view[data-view="tests"] tr.hit').count()).toBe(1);
+  it('routes a tab by its address', async () => {
+    await go('#files');
+    await page!.locator('nav.tabs a[href="#files"][aria-current="page"]').waitFor();
+    // In the record's order, which is by path.
+    expect(await firstCells()).toEqual(['src/fast.test.ts', 'src/mid.test.ts', 'src/slow.test.ts']);
   });
 
-  it('narrows rows as the filter is typed', async () => {
-    await page!.evaluate(() => (location.hash = '#tests'));
-    await page!.locator('.view[data-view="tests"] .vfilter').fill('slow');
-    expect(await page!.locator('.view[data-view="tests"] tr[data-key]:not(.hidden)').count()).toBe(1);
+  it('narrows the rows as the filter is typed', async () => {
+    await go('#files');
+    await page!.locator('input.vfilter').fill('slow');
+    await page!.locator('section.part h2 .count', { hasText: '1 of 3' }).waitFor();
+    expect(await firstCells()).toEqual(['src/slow.test.ts']);
+    await page!.locator('input.vfilter').fill('');
+    await page!.locator('section.part h2 .count', { hasText: /^3$/u }).waitFor();
   });
 
-  it('sorts a column by its number, ascending then descending', async () => {
-    await page!.evaluate(() => (location.hash = '#tests'));
-    await page!.locator('.view[data-view="tests"] .vfilter').fill('');
-    const th = page!.locator('.view[data-view="tests"] th[data-sort]').nth(1);
-    const first = (): Promise<string> => page!.locator('.view[data-view="tests"] tbody tr').first().getAttribute('data-key').then((key) => key ?? '');
-    await th.click();
-    expect(await first()).toBe('src/fast.test.ts');
-    await th.click();
-    expect(await first()).toBe('src/slow.test.ts');
+  it('sorts a number column slowest first, then fastest first', async () => {
+    await go('#files');
+    const took = page!.locator('.row.head button.col', { hasText: /^took$/u });
+    await took.click();
+    expect(await firstCells()).toEqual(['src/slow.test.ts', 'src/mid.test.ts', 'src/fast.test.ts']);
+    await took.click();
+    expect(await firstCells()).toEqual(['src/fast.test.ts', 'src/mid.test.ts', 'src/slow.test.ts']);
   });
 
-  it('opens a test file\'s pane from its row, follows a reached file to its Coverage row, and comes back', async () => {
-    await page!.evaluate(() => (location.hash = '#tests'));
-    await page!.locator('.view[data-view="tests"] a[href="#test/src%2Fslow.test.ts"]').first().click();
-    await page!.locator('.view[data-view="test"]').waitFor();
-    expect(await page!.locator('.view[data-view="test"] article.pane:not(.hidden)').count()).toBe(1);
-    await page!.locator('.view[data-view="test"] a[href="#coverage/src%2Fworld.ts"]').click();
-    await page!.locator('.view[data-view="coverage"]').waitFor();
-    expect(await page!.locator('.view[data-view="coverage"] tr.hit').count()).toBe(1);
-    await page!.locator('.view[data-view="coverage"] tr.hit a[href="#test/src%2Fslow.test.ts"]').click();
-    await page!.locator('.view[data-view="test"]').waitFor();
-    expect(await page!.locator('.view[data-view="test"] article.pane:not(.hidden)').count()).toBe(1);
+  it('opens a test file from its row, and follows what it entered to the module', async () => {
+    await go('#files');
+    await page!.locator('a.go', { hasText: 'src/slow.test.ts' }).click();
+    await page!.locator('h1.title', { hasText: 'src/slow.test.ts' }).waitFor();
+    expect(page!.url()).toMatch(/#test\/src%2Fslow\.test\.ts$/u);
+    await page!.locator('a.go', { hasText: 'src/world.ts' }).first().click();
+    await page!.locator('h1.title', { hasText: 'src/world.ts' }).waitFor();
   });
 
-  it('shows no pane for an address that names no file', async () => {
-    await page!.evaluate(() => (location.hash = '#test/src/nothing.ts'));
-    expect(await page!.locator('.view[data-view="test"] article.pane:not(.hidden)').count()).toBe(0);
-  });
-
-  it('opens the package that holds a match and hides the rest, as the filter is typed in Coverage', async () => {
-    const counted = await browser!.newPage({ viewport: { width: 1280, height: 800 } });
-    try {
-      await counted.goto(`file://${join(root, 'counted.html')}#coverage`);
-      const packages = counted.locator('.view[data-view="coverage"] details.package');
-      expect(await packages.count()).toBe(2);
-      await counted.locator('.view[data-view="coverage"] .vfilter').fill('core/src/c');
-      expect(await counted.locator('.view[data-view="coverage"] details.package:not(.hidden)').count()).toBe(1);
-      expect(await counted.locator('.view[data-view="coverage"] details.package[open]').count()).toBe(1);
-      expect(await counted.locator('.view[data-view="coverage"] tr[data-key]:not(.hidden)').count()).toBe(1);
-      await counted.locator('.view[data-view="coverage"] .vfilter').fill('');
-      expect(await counted.locator('.view[data-view="coverage"] details.package:not(.hidden)').count()).toBe(2);
-      expect(await counted.locator('.view[data-view="coverage"] details.package[open]').count()).toBe(0);
-    } finally {
-      await counted.close();
-    }
+  it('says so for an address that names nothing in the record', async () => {
+    await go('#test/src%2Fnothing.ts');
+    await page!.locator('main p.empty', { hasText: 'The record holds nothing at test/' }).waitFor();
   });
 
   it('asked the network for nothing but its own file', () => {

@@ -148,10 +148,6 @@
     "count": 1
   },
   {
-    "at": "packages/sense/native/src/case_said_napi.rs said_read",
-    "count": 1
-  },
-  {
     "at": "packages/sense/native/src/change_tree.rs change_tree",
     "count": 1
   },

@@ -1,7 +1,8 @@
 import { openBlob, openBytes, openWords, resident, type Bytes } from './columns.js';
 import { durationWord, NO_DURATION, NO_OWNER, validSections, type Header, type Section } from './format-layout.js';
 import { openCrossingSets, type CrossingSetsView } from './crossing-sets-read.js';
-import { saidRead, type Said } from './case-said.js';
+import type { Said } from './case-said.js';
+import { saidRead } from './case-said-read.js';
 import { checkedRows, invalid, LINES_COLUMN, LINES_OFFSETS, type RowsTable } from './case-lines.js';
 import { TIMES_COLUMN, TIMES_OFFSETS } from './case-times.js';
 import type { ExecutionTest } from './reverse.js';
@@ -127,7 +128,7 @@ export const OVERWRITTEN_SECTION = 'blocks.overwrittenSet';
 
 const HEARD_SECTIONS = { said: SAID_SECTION, read: READ_SECTION, misused: MISUSED_SECTION } as const;
 
-/** What each case heard, read by the addon off the sections and the index's crossing-set pool. */
+/** What each case heard, read off the sections and the index's crossing-set pool. */
 function saidOf(opened: OpenedSections, testCount: number): readonly (Said | undefined)[] {
   const offsets = columnWords(opened, 'sets.off');
   const sections = Object.fromEntries(

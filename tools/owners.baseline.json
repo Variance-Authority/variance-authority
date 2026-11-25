@@ -787,7 +787,7 @@
   {
     "idiom": "fresh-page",
     "at": "packages/cli/src/commands/view-page.chromium.test.ts",
-    "count": 5
+    "count": 3
   },
   {
     "idiom": "timer",

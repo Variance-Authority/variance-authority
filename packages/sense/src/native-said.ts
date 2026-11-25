@@ -27,6 +27,4 @@ export interface NativeSaid {
   saidResolved?(said: string): string;
   /** The `tests.said`, `tests.read` and `tests.misused` sections for what each case heard, its sets interned into the crossing-set pool. */
   saidLaid?(said: (string | null)[], bytes: Buffer, offsets: Uint32Array, testCount: number): NativeSaidLaid;
-  /** What each case heard, off its sections, any absent, and their pool; `null` for a case never listened to. */
-  saidRead?(said: Buffer | null, read: Buffer | null, misused: Buffer | null, bytes: Buffer, offsets: Uint32Array, testCount: number): (string | null)[];
 }
