@@ -1,0 +1,108 @@
+// compass: variance-authority.reach.crossings
+import { existsSync } from 'node:fs';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { chromium, type Browser, type Page } from '@playwright/test';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import type { ViewData } from './view-data.js';
+import { viewPage } from './view-page.js';
+
+/**
+ * The page `variance view` writes, opened from a file in a browser: the tabs
+ * route by address, the filter narrows a view's rows, a header sorts, and the
+ * page asks the network for nothing.
+ */
+
+const BROWSER_AVAILABLE = ((): boolean => {
+  try {
+    return existsSync(chromium.executablePath());
+  } catch {
+    return false;
+  }
+})();
+
+if (!BROWSER_AVAILABLE) {
+  console.warn('\npackages/cli view page in a browser: skipped.\n  no browser — npx playwright install chromium\n');
+}
+
+const DATA: ViewData = {
+  suite: 'unit',
+  commit: '0b5b312c9d',
+  recording: 'cache/unit/record',
+  tests: {
+    slowestFiles: [
+      { file: 'src/fast.test.ts', duration: 90 },
+      { file: 'src/slow.test.ts', duration: 4200 },
+      { file: 'src/mid.test.ts', duration: 700 },
+    ],
+    slowestCases: [],
+    retried: [],
+    differing: 0,
+    notes: [],
+  },
+  timeline: {
+    files: [{ file: 'src/slow.test.ts', start: 1000, cost: 4200, phases: [{ name: 'cases', ms: 4000 }], cases: [] }],
+    unplaced: 0,
+  },
+};
+
+let root: string;
+let browser: Browser | undefined;
+let page: Page | undefined;
+const requests: string[] = [];
+
+beforeAll(async () => {
+  root = await mkdtemp(join(tmpdir(), 'variance-view-browser-'));
+  await writeFile(join(root, 'view.html'), viewPage(DATA));
+  if (BROWSER_AVAILABLE) {
+    browser = await chromium.launch({ headless: true });
+    page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+    page.on('request', (request) => requests.push(request.url()));
+    await page.goto(`file://${join(root, 'view.html')}`);
+  }
+});
+
+afterAll(async () => {
+  await browser?.close();
+  await rm(root, { recursive: true, force: true });
+});
+
+const visible = (name: string): Promise<boolean> => page!.locator(`[data-view="${name}"].view`).isVisible();
+
+describe.skipIf(!BROWSER_AVAILABLE)('variance view page in a browser', () => {
+  it('opens on Tests, and an address shows another view', async () => {
+    expect(await visible('tests')).toBe(true);
+    expect(await visible('timeline')).toBe(false);
+    await page!.evaluate(() => (location.hash = '#timeline'));
+    expect(await visible('timeline')).toBe(true);
+    expect(await visible('tests')).toBe(false);
+  });
+
+  it('fills the filter from the address and marks the row it names', async () => {
+    await page!.evaluate(() => (location.hash = '#tests/src/mid.test.ts'));
+    expect(await page!.locator('.view[data-view="tests"] tr[data-key]:not(.hidden)').count()).toBe(1);
+    expect(await page!.locator('.view[data-view="tests"] tr.hit').count()).toBe(1);
+  });
+
+  it('narrows rows as the filter is typed', async () => {
+    await page!.evaluate(() => (location.hash = '#tests'));
+    await page!.locator('.view[data-view="tests"] .vfilter').fill('slow');
+    expect(await page!.locator('.view[data-view="tests"] tr[data-key]:not(.hidden)').count()).toBe(1);
+  });
+
+  it('sorts a column by its number, ascending then descending', async () => {
+    await page!.evaluate(() => (location.hash = '#tests'));
+    await page!.locator('.view[data-view="tests"] .vfilter').fill('');
+    const th = page!.locator('.view[data-view="tests"] th[data-sort]').nth(1);
+    const first = (): Promise<string> => page!.locator('.view[data-view="tests"] tbody tr').first().getAttribute('data-key').then((key) => key ?? '');
+    await th.click();
+    expect(await first()).toBe('src/fast.test.ts');
+    await th.click();
+    expect(await first()).toBe('src/slow.test.ts');
+  });
+
+  it('asked the network for nothing but its own file', () => {
+    expect(requests.filter((url) => !url.startsWith('file://'))).toEqual([]);
+  });
+});
