@@ -129,7 +129,7 @@ manager runs a local binary:
 Ask before you grep: `variance ask uses --name <name>` lists who imports a
 name, `ask symbol --name <name>` prints what it is and where it is declared, and
 `ask search --query <words>` finds a name by what it does. `ask classify --query
-"<the task's text>"` lists the files and names a task's words spell, with what
+'<the task text>'` lists the files and names a task's words spell, with what
 those files declare. They answer from the code its index parses; YAML, JSON,
 Markdown and shell are `rg`'s, run beside them, and an empty answer says nothing
 about a file they did not search. The `variance-authority` skill lists what the

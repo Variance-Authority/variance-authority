@@ -79,25 +79,61 @@ export function identifier(word: string): boolean {
   return /.\p{Lu}/u.test(word) || word.includes('_') || /\p{L}\p{N}/u.test(word);
 }
 
-/**
- * Whether a word is looked up in the source: an identifier, or a word spelled
- * as a file, which holds a slash or a dot.
- */
+/** Whether a word is spelled as a file: it holds a slash or a dot. */
+function spelledAsFile(word: string): boolean {
+  return /[./]/u.test(word);
+}
+
+/** Whether a word is looked up in the source: one spelled as a file, or an identifier. */
 export function lookedUp(word: string): boolean {
-  return /[./]/u.test(word) || identifier(word);
+  return spelledAsFile(word) || identifier(word);
+}
+
+/** Where one run of the asker's text ends: whitespace, quotes, brackets but the square ones a path may hold, and marks no path here holds. */
+const BETWEEN = /[\s"'`,;:|=<>#?!–—…、。，：；！？\p{Pi}\p{Pf}]|(?![[\]])[\p{Ps}\p{Pe}]/u;
+
+/** `run` without what it ends with of `marks`; by hand, as a pattern anchored at the end alone reads a long run of marks once per mark. */
+function ended(run: string, marks: string): string {
+  let end = run.length;
+  while (end > 0 && marks.includes(run[end - 1]!)) end -= 1;
+  return run.slice(0, end);
+}
+
+/** `run` without the `*` around the whole of it, which is emphasis; one on a single side is part of a pattern, and stays. */
+function unstarred(run: string): string {
+  let around = 0;
+  while (around < run.length - 1 - around && run[around] === '*' && run[run.length - 1 - around] === '*') around += 1;
+  return run.slice(around, run.length - around);
+}
+
+/** `run` without a square bracket that opens or closes past its edges, or the pair around the whole of it; `[id].tsx` keeps its own. */
+function unbracketed(run: string): string {
+  let depth = 0;
+  // The end of the pair the first character opens, and how many closed what nothing opened.
+  let closed = -1;
+  let stray = 0;
+  for (let at = 0; at < run.length; at += 1) {
+    if (run[at] === '[') depth += 1;
+    else if (run[at] === ']') {
+      if (depth === 0) stray += 1;
+      else if ((depth -= 1) === 0 && closed === -1) closed = at;
+    }
+  }
+  if (run.startsWith('[') && (depth > 0 || closed === run.length - 1)) return run.slice(1, depth > 0 ? run.length : -1);
+  return stray > 0 && run.endsWith(']') ? run.slice(0, -1) : run;
 }
 
 /**
- * The asker's words: a scoped name, a path and an identifier stay whole, and
- * the punctuation a sentence puts around them is dropped. What a path starts
- * with is part of it, so `../lib/a.ts` is not read as `lib/a.ts`.
+ * The asker's words: a path stays whole, so no part of one is read as a name of
+ * its own, and so do a scoped name and an identifier; the punctuation a
+ * sentence puts around them is dropped. What a path starts with is part of it,
+ * so `../lib/a.ts` is not read as `lib/a.ts`.
  */
 export function wordsOf(text: string): readonly string[] {
-  const spelled = text.match(/(?:@|(?:\.{0,2}\/)+|(?<!\.)\.)?[\p{L}\p{N}_$][\p{L}\p{N}_$@./-]*/gu) ?? [];
-  return spelled.map((word) => {
-    const ended = word.replace(/[./-]+$/u, '');
-    const bare = ended.replace(/^[./]+/u, '');
-    return /[./]/u.test(bare) ? ended : bare;
+  return text.split(BETWEEN).flatMap((run) => {
+    const path = ended(unbracketed(unstarred(ended(run, './-'))), './-');
+    if (/[./]/u.test(path.replace(/^[./]+/u, ''))) return /[\p{L}\p{N}_$]/u.test(path) ? [path] : [];
+    return (run.match(/@?[\p{L}\p{N}_$][\p{L}\p{N}_$@-]*/gu) ?? []).map((word) => ended(word, '-'));
   });
 }
 
@@ -133,15 +169,15 @@ function dictionaryOf(help: Help, packages: Iterable<string>): { readonly folded
 /**
  * The words of `text` that are, whole, one of `packages` (scoped or not) or an
  * entrypoint `help` publishes, both without case, or an export it publishes as
- * spelled; or, `lookedUp` and no package or entrypoint, a name `locate` finds
- * declared or a file it finds spelled so — of an export, only the
- * files, as the export already says where it is declared; and the words that
- * are not.
+ * spelled; or a file `locate` finds spelled so; or, an identifier that is no
+ * package or entrypoint, a name or a file `locate` finds — of an export, only
+ * the files, as the export already says where it is declared; and the words
+ * that are not.
  */
 export function classifyWords(text: string, help: Help, packages: Iterable<string>, locate?: Locate): Classified {
   const { folded, exact } = dictionaryOf(help, packages);
   const words = wordsOf(text);
-  const asked = locate === undefined ? [] : [...new Set(words.filter((word) => lookedUp(word) && !folded.has(word.toLowerCase())))];
+  const asked = locate === undefined ? [] : [...new Set(words.filter((word) => spelledAsFile(word) || (identifier(word) && !folded.has(word.toLowerCase()))))];
   const exported = new Set(asked.filter((word) => exact.has(word)));
   const found = asked.length === 0 || locate === undefined ? new Map<string, readonly Named[]>() : locate(asked, exported);
   const located = new Map([...found].map(([word, names]) => [word, exported.has(word) ? names.filter((named) => named.kind === 'file') : names] as const));
@@ -153,13 +189,13 @@ export function classifyWords(text: string, help: Help, packages: Iterable<strin
     // spelled, so a word lists only what no earlier word did: `Sense` after
     // `sense` still names an export `Sense`, and names nothing new otherwise.
     // An export is its name in its specifier, so two names one entrypoint
-    // exports are two entities.
+    // exports are two entities, and a file is the word's, which counts its own.
     const names = [...(folded.get(word.toLowerCase()) ?? []), ...(exact.get(word) ?? []), ...(located.get(word) ?? [])];
     if (names.length === 0) {
       plain.add(word);
       continue;
     }
-    const keyOf = (named: Named): string => (named.kind === 'export' || named.kind === 'declared' ? `${named.kind} ${named.specifier} ${word}` : `${named.kind} ${named.specifier}`);
+    const keyOf = (named: Named): string => (named.kind === 'package' || named.kind === 'entrypoint' ? `${named.kind} ${named.specifier}` : `${named.kind} ${named.specifier} ${word}`);
     const fresh = names.filter((named) => !listed.has(keyOf(named)));
     for (const named of fresh) listed.add(keyOf(named));
     // Stable, so `locate`'s order holds within a kind.

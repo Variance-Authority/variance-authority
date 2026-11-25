@@ -42,9 +42,10 @@ interface Found {
 }
 
 /**
- * Exact declarations and indexed filenames, ordered by reach, source kind,
- * importer count, path and line. Only the shown rows and remaining counts are
- * rendered; an unavailable snapshot is reported through `unread`.
+ * Exact declarations and indexed filenames, ordered by reach, the path that is
+ * the word itself, source kind, importer count, path and line. Only the shown
+ * rows and remaining counts are rendered; an unavailable snapshot is reported
+ * through `unread`.
  */
 function locating(
   root: string,
@@ -67,14 +68,15 @@ function locating(
     const counts = invocation?.tree === undefined || paths.length === 0 ? [] : invocation.tree.importers(paths);
     const importers = new Map(paths.map((path, at) => [path, counts[at] ?? 0]));
     const outside = (found: Found): number => Number(inReach !== undefined && !inReach(found.at));
-    const order = (one: Found, other: Found): number =>
+    const order = (word: string) => (one: Found, other: Found): number =>
       outside(one) - outside(other) ||
+      Number(other.at === word) - Number(one.at === word) ||
       Number(one.test) - Number(other.test) ||
       (importers.get(other.at) ?? 0) - (importers.get(one.at) ?? 0) ||
       codeUnitOrder(one.at, other.at) ||
       (one.line ?? 0) - (other.line ?? 0);
-    const shown = (found: readonly Found[], kind: 'declared' | 'file', count = found.length): readonly Named[] => {
-      const sorted = [...found].sort(order);
+    const shown = (word: string, found: readonly Found[], kind: 'declared' | 'file', count = found.length): readonly Named[] => {
+      const sorted = [...found].sort(order(word));
       return sorted.slice(0, LOCATED_CAP).map((one, at, kept) => ({
         kind,
         specifier: one.line === undefined ? one.at : `${one.at}:${one.line}`,
@@ -87,7 +89,7 @@ function locating(
     return new Map(words.map((word) => {
       const file = named.get(word);
       const asFiles = (file?.files ?? []).map((at) => ({ at, test: kindOf(at) !== 'source' }));
-      return [word, [...shown(declared.get(word) ?? [], 'declared'), ...shown(asFiles, 'file', file?.count)]] as const;
+      return [word, [...shown(word, declared.get(word) ?? [], 'declared'), ...shown(word, asFiles, 'file', file?.count)]] as const;
     }));
   };
 }

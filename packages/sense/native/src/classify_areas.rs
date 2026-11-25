@@ -149,13 +149,9 @@ pub struct ClassifiedNames {
     pub refused: Option<String>,
 }
 
-/// Whether `word` spells `path`: a word with a slash is the path itself, one
-/// with a dot and no slash its file's name, and any other its file's name
-/// before the first dot. A leading `./` is the workspace's own folder.
+/// Whether `word`, which holds no slash, spells `path`: one with a dot is its
+/// file's name, and any other its file's name before the first dot.
 fn spells(word: &str, path: &str) -> bool {
-    if word.contains('/') {
-        return word.strip_prefix("./").unwrap_or(word) == path;
-    }
     if word.contains('.') {
         return path.rsplit('/').next() == Some(word);
     }
@@ -178,11 +174,18 @@ pub fn classify_names(words: Vec<String>, cap: u32, index: String, within: Strin
         let mut declared = Vec::new();
         let mut seen = HashSet::new();
         for word in words.iter().filter(|word| seen.insert(word.as_str())) {
-            if !word.is_empty() && !word.chars().any(|c| matches!(c, '*' | '?' | '[' | ']' | '\\' | ':')) {
-                let files: Vec<&str> = paths.iter().copied().filter(|path| spells(word, path)).collect();
-                if !files.is_empty() {
-                    named.push(NamedFiles { name: word.clone(), count: files.len() as u32, files: files.into_iter().take(cap as usize).map(str::to_owned).collect() });
-                }
+            let files: Vec<&str> = if word.contains('/') {
+                // A path is the file at it; a leading `./` is the workspace's own folder.
+                let path = word.strip_prefix("./").unwrap_or(word);
+                folded.contains_key(format!("{prefix}{path}").as_str()).then_some(path).into_iter().collect()
+            } else {
+                let mut files: Vec<&str> = paths.iter().copied().filter(|path| spells(word, path)).collect();
+                // The file at the root is the word itself, so the cap never drops it.
+                files.sort_by_key(|path| path != word);
+                files
+            };
+            if !files.is_empty() {
+                named.push(NamedFiles { name: word.clone(), count: files.len() as u32, files: files.into_iter().take(cap as usize).map(str::to_owned).collect() });
             }
             if word.contains(['.', '/']) {
                 continue;

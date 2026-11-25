@@ -19,8 +19,13 @@ and `child_process` is the file of that name under `lib/`. A word spelled as a
 file is looked up among the indexed files alone: a path is the file at it from
 the workspace's root, and a word with a dot and no slash is every file of that
 name, so `lib/internal/modules/run_main.js` and `run_main.js` both name that
-file. A path that is no indexed file names none: the end of one does not
-(`modules/run_main.js`), and neither does one from outside the root. Ordinary source comes before
+file, and a path may start with `./`. A path stays whole, brackets such as
+`app/[id]/page.tsx` included, so no part of one is looked up on its own. A path
+that is no indexed file names none: not the end of one (`modules/run_main.js`),
+one from outside the root, an absolute one, or one through a folder in
+parentheses (`app/(shop)/page.tsx`), which the parentheses split. A path that is
+also a package's or an entrypoint's name is listed as both; with `./` in front
+it is the path alone. A file at the root of that name comes first. Ordinary source comes before
 tests and stories, then the file more files import; three of each are shown and
 the rest counted. Each is placed in the package on the code map nearest at or
 above it, or `in no package`, so a checkout with no manifest still gets them. A

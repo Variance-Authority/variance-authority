@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Help } from '@variance-authority/package/help';
 import * as sense from '@variance-authority/sense';
 import { classify } from './classify.js';
-import { classifyWords, wordsOf } from './classify-words.js';
+import { classifyWords, unshownFiles, wordsOf, type Named } from './classify-words.js';
 
 /** The words of a request that are written as a file: a path, or a file's name with its extension. */
 
@@ -13,23 +13,46 @@ const HELP = {
 afterEach(() => vi.restoreAllMocks());
 
 describe('the files a request spells', () => {
-  it('looks up a path and a name with its extension, and neither an entrypoint nor a plain word', () => {
+  const file = (at: string, more?: number): Named => ({ kind: 'file', specifier: at, file: at, package: '', published: false, ...(more === undefined ? {} : { more }) });
+
+  it('looks up a path and a name with its extension, a package or an entrypoint too, and no plain word', () => {
     const asked: string[][] = [];
     const read = classifyWords('fix lib/a/loader.ts, run_main.ts and sense/test-selection in loader', HELP, ['@acme/sense'], (words) => {
       asked.push([...words]);
-      return new Map([
-        ['lib/a/loader.ts', [{ kind: 'file', specifier: 'lib/a/loader.ts', file: 'lib/a/loader.ts', package: '', published: false }]],
-      ]);
+      return new Map([['lib/a/loader.ts', [file('lib/a/loader.ts')]], ['sense/test-selection', [file('sense/test-selection')]]]);
     });
 
-    expect(asked).toEqual([['lib/a/loader.ts', 'run_main.ts']]);
-    expect(read.entities.map((entity) => [entity.word, entity.names[0]?.kind])).toEqual([['lib/a/loader.ts', 'file'], ['sense/test-selection', 'entrypoint']]);
+    expect(asked).toEqual([['lib/a/loader.ts', 'run_main.ts', 'sense/test-selection']]);
+    expect(read.entities.map((entity) => [entity.word, entity.names.map((named) => named.kind)])).toEqual([['lib/a/loader.ts', ['file']], ['sense/test-selection', ['entrypoint', 'file']]]);
     expect(read.plain).toEqual(['fix', 'run_main.ts', 'and', 'in', 'loader']);
   });
 
-  it('keeps what a path starts with, so the end of a path is never read as a name of its own', () => {
-    expect(wordsOf('./a.ts ../lib/a.ts app/[id]/page.tsx **bold.ts** .eslintrc.js')).toEqual(['./a.ts', '../lib/a.ts', 'app', 'id', '/page.tsx', 'bold.ts', '.eslintrc.js']);
-    expect(wordsOf('/checkoutPath ./checkoutPath. (ModuleLoader)')).toEqual(['checkoutPath', 'checkoutPath', 'ModuleLoader']);
+  it('lists what a file name names, with its count, after a path that names one of them', () => {
+    const read = classifyWords('a/index.ts and index.ts', HELP, [], () => new Map([['a/index.ts', [file('a/index.ts')]], ['index.ts', [file('a/index.ts', 4)]]]));
+
+    expect(read.entities.map((entity) => [entity.word, entity.names.map((named) => [named.specifier, named.more])])).toEqual([['a/index.ts', [['a/index.ts', undefined]]], ['index.ts', [['a/index.ts', 4]]]]);
+    expect(unshownFiles(read)).toEqual([{ word: 'index.ts', more: 4 }]);
+  });
+
+  it('keeps a path whole, so a part of one is never read as a name of its own', () => {
+    const paths = ['./a.ts', '../lib/a.ts', '.eslintrc.js', 'src/routes/+page.ts', 'lib\\page.ts', 'app/[id]/page.tsx', 'app/[id]-page.tsx', '[id].tsx', 'String+Extensions.swift', '*loader.ts', 'lib/**', '@acme/sense', 'lib/~a%b.ts'];
+
+    expect(wordsOf(paths.join(' '))).toEqual(paths);
+  });
+
+  it('drops the punctuation a sentence puts around a word', () => {
+    expect(wordsOf('/checkoutPath ./checkoutPath. (ModuleLoader) foo+bar @types half-done-')).toEqual(['checkoutPath', 'checkoutPath', 'ModuleLoader', 'foo', 'bar', '@types', 'half-done']);
+    expect(wordsOf('**a.ts**. *b.ts*, `c.ts`: “d.ts” e.ts… f.ts—g.ts 看、h.ts。')).toEqual(['a.ts', 'b.ts', 'c.ts', 'd.ts', 'e.ts', 'f.ts', 'g.ts', '看', 'h.ts']);
+    expect(wordsOf('[lib/a.ts](x) [lib/b.ts lib/c.ts] [app/[id]/page.tsx]. [x]')).toEqual(['lib/a.ts', 'x', 'lib/b.ts', 'lib/c.ts', 'app/[id]/page.tsx', 'x']);
+    expect(wordsOf('lib/a.ts:12 lib/b.ts#L10 --file=lib/c.ts - ../.. **')).toEqual(['lib/a.ts', '12', 'lib/b.ts', 'L10', 'file', 'lib/c.ts']);
+  });
+
+  it.each(['/', './', '-', '*', '[', '+'])('reads a long run of %s in linear time', (mark) => {
+    const started = performance.now();
+    wordsOf(`a${mark.repeat(200_000)}b`);
+    wordsOf(`${mark.repeat(200_000)}b`);
+
+    expect(performance.now() - started).toBeLessThan(1_000);
   });
 
   it('says a spelled file was not looked up when no snapshot answers, rather than that it names nothing', () => {

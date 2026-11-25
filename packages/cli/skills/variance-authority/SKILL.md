@@ -20,7 +20,7 @@ main questions; pick the one that fits what you hold, each is one command:
 | You hold | Ask | Example |
 |---|---|---|
 | A task naming a product label and a version or state value | [the files containing both](references/code-orientation.md#combine-text-clues) | `variance ask intersection 'grep --query "Acme Chat" --from src/' 'grep --query "v7" --from src/'` |
-| Any other task text, with the paths and code names in it | [what its words name, what each file they name declares, and the areas the rest point to](references/workspace-classify.md) | `variance ask classify --query "retry in src/billing/invoice.ts and PaymentRetry"` |
+| Any other task text, with the paths and code names in it | [what its words name, what each file they name declares, and the areas the rest point to](references/workspace-classify.md) | `variance ask classify --query 'retry in src/billing/invoice.ts and PaymentRetry'` |
 | Nothing yet | [the map: packages, areas, layers](references/orient.md#orient) | `variance ask orient` |
 | A file | [its place on that map, and what it declares on which lines](references/orient.md#orient) | `variance ask orient --files src/billing/invoice.ts` |
 | What a thing does | [the names that do it](references/workspace-search.md) | `variance ask search --query "retry payment" --from src/billing/` |

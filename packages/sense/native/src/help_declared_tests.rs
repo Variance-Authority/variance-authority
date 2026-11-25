@@ -100,6 +100,7 @@ fn classifier_names_come_only_from_the_published_workspace() {
         ("app/lib/worker_name.ts", "git:a", "export function WorkerName() {}\nfunction privateName() { function nestedName() {} }\nfunction localName() {}\nexport { localName as aliasName };\n"),
         ("app/test/worker_name.test.ts", "git:b", "function WorkerName() {}"),
         ("outside/worker_name.ts", "git:c", "function WorkerName() {}"),
+        ("worker_name.ts", "git:d", "function RootName() {}"),
     ]);
     let directory = std::env::temp_dir().join(format!("sense-classify-names-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&directory);
@@ -125,7 +126,7 @@ fn classifier_names_come_only_from_the_published_workspace() {
     let files: Vec<(&str, &str, u32)> = found.named.iter().map(|one| (one.name.as_str(), one.files[0].as_str(), one.count)).collect();
     assert_eq!(files, vec![("lib/worker_name.ts", "lib/worker_name.ts", 1), ("./test/worker_name.test.ts", "test/worker_name.test.ts", 1), ("worker_name.test.ts", "test/worker_name.test.ts", 1), ("worker_name.ts", "lib/worker_name.ts", 1)]);
     let shared = crate::classify_areas::classify_names(vec!["worker_name.ts".to_owned()], 1, directory.join("index.bin").to_str().unwrap().to_owned(), String::new()).unwrap();
-    assert_eq!((shared.named[0].files.len(), shared.named[0].count), (1, 2));
+    assert_eq!((shared.named[0].files.as_slice(), shared.named[0].count), (["worker_name.ts".to_owned()].as_slice(), 3));
     std::fs::remove_dir_all(directory).unwrap();
 }
 
