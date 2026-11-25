@@ -7,7 +7,7 @@ use std::fs::File;
 use std::path::Path;
 
 use crate::compact::Layer;
-use crate::harvest::BINDING;
+use crate::harvest::is_bound;
 use crate::help_aliases::aliases;
 use crate::help_declared::{declared, DeclaredName, Matching};
 use crate::help_members::{indexed_extensions, member_sites};
@@ -75,7 +75,7 @@ fn exact_symbol(root: &str, index: &Path, layers: &[Layer], rows: &Rows, name: &
     reading.names.retain(|held| package.declared(&held.by));
     reading.names.sort_by_key(declaration_kind_order);
     // A file that only binds the name declares nothing: it follows every declaration.
-    let (bound, kept): (Vec<_>, Vec<_>) = reading.names.into_iter().partition(is_bound);
+    let (bound, kept): (Vec<_>, Vec<_>) = reading.names.into_iter().partition(|held| is_bound(&held.kind));
     let only_members = blocks.is_empty() && kept.is_empty();
     let limit = said_limit.unwrap_or(5);
     let bindings = listed(&bound, name, limit, "binding");
@@ -118,14 +118,9 @@ fn exact_symbol(root: &str, index: &Path, layers: &[Layer], rows: &Rows, name: &
     Some(blocks.join("\n\n"))
 }
 
-/// Whether a row only binds the name to a value defined elsewhere, which declares nothing.
-pub(crate) fn is_bound(held: &DeclaredName) -> bool {
-    held.kind == BINDING
-}
-
 /// What a file does with a name it does not export, as every answer about the name says it.
 pub(crate) fn kept_as(held: &DeclaredName) -> &'static str {
-    if is_bound(held) { "bound, not declared" } else { "declared, not exported" }
+    if is_bound(&held.kind) { "bound, not declared" } else { "declared, not exported" }
 }
 
 /// The blocks of the first `limit` rows, and the count of the `noun`s past them.

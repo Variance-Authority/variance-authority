@@ -23,7 +23,7 @@ use napi_derive::napi;
 
 use crate::chain_lookup::record;
 use crate::compact::Layer;
-use crate::harvest::BINDING;
+use crate::harvest::is_bound;
 use crate::help_declared::exported_locals;
 use crate::help_publish::{opened_chain, OpenedIndex};
 use crate::help_members::{members_of_row, ContainerMember};
@@ -157,7 +157,7 @@ fn outline(layers: &[Layer], crossing: &Crossing, budget: usize) -> FileDeclarat
 
 /// Whether the row only binds its name, and no export of the file is known to bind it.
 fn only_bound(declaration: &FileDeclaration) -> bool {
-    declaration.kind == BINDING && declaration.exported != Some(true)
+    is_bound(&declaration.kind) && declaration.exported != Some(true)
 }
 
 /// Where each of `declarations` stands once the names only bound are left out.
