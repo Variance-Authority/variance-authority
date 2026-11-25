@@ -84,10 +84,10 @@ export async function mergeHead(parsed: ParsedCarry, root: string, streams: Stre
   return printMoved(parsed.format, ['merged=true', `checkout=${checkout}`], [`carry merge: ${short(head)} merged with ${short(commit)}, the record's commit, at ${short(checkout)}`], streams);
 }
 
-type Git = (args: readonly string[], extra?: Readonly<Record<string, string>>) => Promise<{ stdout: string; stderr: string }>;
+export type Git = (args: readonly string[], extra?: Readonly<Record<string, string>>) => Promise<{ stdout: string; stderr: string }>;
 
 /** Git in `root`, under the caller's environment and any variables `extra` names. */
-function gitIn(root: string, env: NodeJS.ProcessEnv): Git {
+export function gitIn(root: string, env: NodeJS.ProcessEnv): Git {
   return (args, extra = {}) => run('git', [...args], { cwd: root, env: { ...process.env, ...env, ...extra } });
 }
 

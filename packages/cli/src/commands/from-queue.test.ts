@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { mkdir, mkdtemp, readdir, realpath, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, realpath, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
@@ -150,6 +150,23 @@ describe("recordsFromQueue, when the merge queue kept no run, reading the pull r
     const got = await recordsFromQueue({ root, pattern: 'p', commit, env: ENV }, pullRequestRuns([green]));
 
     expect(got).toEqual({ none: `${queueless(commit)}; run 7 kept no artifact named p: \`gh run download 7\` failed: no valid artifacts found to download` });
+  });
+
+  it('refuses, and removes what it downloaded, when the pull request run kept artifacts that hold no record', async () => {
+    const { root, commit, head } = await landed();
+    let into: string | undefined;
+    const emptyArtifact = async (args: readonly string[]) => {
+      if (args[0] === 'api') return { stdout: JSON.stringify({ workflow_runs: args[1]!.includes('event=pull_request') ? [green] : [] }) };
+      into = args[args.indexOf('--dir') + 1]!;
+      await mkdir(join(into, 'variance-shard-unit-1'), { recursive: true });
+      await writeFile(join(into, 'variance-shard-unit-1', 'notes.txt'), 'no record here\n');
+      return { stdout: '' };
+    };
+
+    const got = await recordsFromQueue({ root, pattern: 'p', commit, env: ENV }, emptyArtifact);
+
+    expect(got).toEqual({ none: `${queueless(commit)}; run 7 did not test ${head.slice(0, 12)} merged with ${(await parentOf(root, commit)).slice(0, 12)}: its artifacts hold no record` });
+    await expect(stat(into!)).rejects.toThrow('ENOENT');
   });
 });
 

@@ -14,17 +14,13 @@
  * tree to read.
  */
 
-import { execFile } from 'node:child_process';
 import { mkdtemp, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { promisify } from 'node:util';
 import { OperatorError } from '../exit.js';
 import type { Env } from '../share-lines.js';
-import { remadeMerge, short } from './carry-merge.js';
+import { gitIn, remadeMerge, short } from './carry-merge.js';
 import { gh, ghFailed, type Gh } from './gh.js';
-
-const run = promisify(execFile);
 
 export interface QueueRequest {
   readonly root: string;
@@ -80,7 +76,8 @@ export async function recordsFromQueue(
  * made again here: the hash proves the run merged with that parent alone.
  */
 async function recordsFromHead(asked: Asked, exec: Gh): Promise<{ readonly dir: string; readonly from: string } | { readonly none: string }> {
-  const git = (...args: string[]) => run('git', args, { cwd: asked.root }).then(({ stdout }) => stdout.trim());
+  const inRoot = gitIn(asked.root, {});
+  const git = (...args: string[]) => inRoot(args).then(({ stdout }) => stdout.trim());
   const parent = (n: number) => git('rev-parse', '--verify', '--quiet', `${asked.commit}^${n}`).catch(() => undefined);
   const [first, head] = await Promise.all([parent(1), parent(2)]);
   if (first === undefined || head === undefined) return { none: `${short(asked.commit)} is not a merge, so no pull request's run tested its change` };
@@ -95,17 +92,28 @@ async function recordsFromHead(asked: Asked, exec: Gh): Promise<{ readonly dir: 
 
   const got = await downloaded(asked, id, exec);
   if ('none' in got) return got;
+  try {
+    const refused = await restated(got.dir, tested, asked.commit);
+    if (refused === undefined) return { dir: got.dir, from: `read from pull request run ${id}, which tested ${short(head)} merged with ${short(first)}, the tree ${short(asked.commit)} landed` };
+    await rm(got.dir, { recursive: true, force: true });
+    return { none: `run ${id} did not test ${short(head)} merged with ${short(first)}: ${refused}` };
+  } catch (error) {
+    await rm(got.dir, { recursive: true, force: true });
+    throw error;
+  }
+}
+
+/** Every record in `dir` restated from `tested` at `landed`, or why one cannot be: none is there, or one was made elsewhere. */
+async function restated(dir: string, tested: string, landed: string): Promise<string | undefined> {
   const { cachedSuite, restateRecord } = await import('@variance-authority/sense/test-selection');
   // bound: the files of the artifacts one run uploaded, downloaded into this directory alone.
-  const files = (await readdir(got.dir, { recursive: true })).map((path) => join(got.dir, path)).filter((path) => cachedSuite(path) !== undefined);
+  const files = (await readdir(dir, { recursive: true })).map((path) => join(dir, path)).filter((path) => cachedSuite(path) !== undefined);
+  if (files.length === 0) return "its artifacts hold no record";
   for (const file of files) {
-    const done = await restateRecord(file, tested, asked.commit);
-    if ('madeAt' in done) {
-      await rm(got.dir, { recursive: true, force: true });
-      return { none: `run ${id} did not test ${short(head)} merged with ${short(first)}: ${file.slice(got.dir.length + 1)} was made at ${done.madeAt ?? 'no commit'}, not at ${short(tested)}` };
-    }
+    const done = await restateRecord(file, tested, landed);
+    if ('madeAt' in done) return `${file.slice(dir.length + 1)} was made at ${done.madeAt ?? 'no commit'}, not at ${short(tested)}`;
   }
-  return { dir: got.dir, from: `read from pull request run ${id}, which tested ${short(head)} merged with ${short(first)}, the tree ${short(asked.commit)} landed` };
+  return undefined;
 }
 
 /** The latest green run of the workflow at `commit` under `event`, or none. */
