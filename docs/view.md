@@ -16,7 +16,7 @@ variance view
 The command reads the record, writes `variance-view.html` in the variance cache
 directory, and prints the path. `--out <file>` writes elsewhere, and
 `--suite <name>` reads the record of one declared suite when the repository has
-more than one. Opening the file is yours: the command starts no browser. With no record yet, it says so;
+more than one. Opening the file is yours: the command starts no browser. With no record yet,
 [make one first](#if-you-have-no-record-yet).
 
 ## What you see first
