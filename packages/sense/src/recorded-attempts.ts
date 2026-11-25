@@ -47,6 +47,10 @@ export type RecordedAttempts = { readonly suite?: string; readonly recording: st
       readonly differed: readonly RetriedCase[];
       /** Every case whose attempts ended differently. */
       readonly differing: number;
+      /** The retried cases no attempt of which passed, in the same order and cut: a case that failed every time ended the same way, so `differed` leaves it out. */
+      readonly unpassed: readonly RetriedCase[];
+      /** Every retried case no attempt of which passed. */
+      readonly unpassing: number;
       /** Every case the runner reported more than one attempt of, however they ended. */
       readonly retried: number;
       /** Every case the record holds: a case it lacks, or one its runner could not name apart, has no attempts to count. */
@@ -76,7 +80,8 @@ export function recordedAttempts(root: string, limit: number): readonly Recorded
       const tests = decodeExecutionTests(readFileSync(recording));
       const retried = retriedCases(rows, new Map(tests.map((test) => [test.id, test])));
       const differed = retried.filter(({ attempts }) => endedDifferently(attempts));
-      return { ...read, ...taken, differed: differed.slice(0, limit), differing: differed.length, retried: retried.length, cases: tests.length };
+      const unpassed = retried.filter(({ attempts }) => attempts.every((one) => one.ended !== 'passed'));
+      return { ...read, ...taken, differed: differed.slice(0, limit), differing: differed.length, unpassed: unpassed.slice(0, limit), unpassing: unpassed.length, retried: retried.length, cases: tests.length };
     } catch (error) {
       return { ...read, unread: error instanceof Error ? error.message : String(error) };
     }

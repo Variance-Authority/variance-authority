@@ -25,7 +25,7 @@ and counts the files recorded and the files placed on the clock. Below it sit
 the tabs **Tests**, **Timeline** and **Coverage**, with Tests open, and a
 filter box above the tables of the open tab. Tests holds the slowest test files
 and the slowest cases as sortable tables, each row a link, then every case whose
-attempts ended differently, with each attempt. The Timeline is a chart with one lane per test file;
+attempts ended differently, then every retried case no attempt of which passed, with each attempt. The Timeline is a chart with one lane per test file;
 Coverage is how much of the source the run executed. When the run cannot be
 counted and no test file is known to have called into a source file, there is
 no Coverage tab, and the header says coverage was not counted.
@@ -33,7 +33,7 @@ no Coverage tab, and the header says coverage was not counted.
 ## What each tab shows
 
 - **Tests** lists the slowest test files and the slowest cases, and every case
-  whose attempts ended differently, with each attempt, its time and its failure message. Click a
+  whose attempts ended differently or never passed, with each attempt, its time and its failure message. Click a
   column header to sort, and type in the filter box to narrow the rows.
 - **Timeline** draws each test file as a bar from the moment the runner started
   it, with the phases the runner timed in colour: `prepare`, `environment`,

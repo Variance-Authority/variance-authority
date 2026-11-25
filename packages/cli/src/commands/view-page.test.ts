@@ -23,6 +23,8 @@ const DATA: ViewData = {
       },
     ],
     differing: 1,
+    unpassed: [{ file: 'src/broken.test.ts', name: 'always <breaks>', attempts: [{ attempt: 1, ended: 'failed', duration: 50, message: 'boom' }, { attempt: 2, ended: 'timedOut', duration: 60 }] }],
+    unpassing: 1,
     notes: [],
   },
   timeline: {
@@ -54,6 +56,14 @@ describe('variance view page', () => {
     expect(html).toContain('1 failed');
     expect(html).toContain('2 passed');
     expect(html).toContain('expected 1 to be 2');
+  });
+
+  it('lists a case that never passed under its own heading, with every attempt', () => {
+    const html = viewPage(DATA);
+    expect(html).toContain('Cases that did not pass');
+    expect(html).toContain('always &lt;breaks&gt;');
+    expect(html).toContain('2 timedOut');
+    expect(viewPage({ ...DATA, tests: { ...DATA.tests, unpassed: [], unpassing: 0 } })).not.toContain('Cases that did not pass');
   });
 
   it('counts the files the cut left out in the header, not the rows it kept', () => {

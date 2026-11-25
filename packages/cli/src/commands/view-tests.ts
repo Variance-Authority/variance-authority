@@ -54,8 +54,13 @@ function cases(data: TestsData): string {
 }
 
 function attempts(data: TestsData): string {
-  if (data.retried.length === 0) return '';
-  const rows = data.retried.map(({ file, name, attempts: tries }) => {
+  return trail('Cases that ended differently', `${data.differing} retried cases whose attempts did not all end the same way`, data.retried)
+    + trail('Cases that did not pass', `${data.unpassing} retried cases no attempt of which passed`, data.unpassed);
+}
+
+function trail(title: string, hint: string, cases: TestsData['retried']): string {
+  if (cases.length === 0) return '';
+  const rows = cases.map(({ file, name, attempts: tries }) => {
     const marks = tries
       .map((one) => `<span class="mark ${one.ended === 'passed' ? 'ok' : 'warn'}" title="${text(`attempt ${one.attempt}: ${one.duration === undefined ? "no time" : ms(one.duration)}`)}">${text(`${one.attempt} ${one.ended}`)}</span>`)
       .join('');
@@ -63,8 +68,7 @@ function attempts(data: TestsData): string {
     const message = said.length === 0 ? '' : `<div class="msg">${text(said.at(-1)!.slice(0, MESSAGE))}</div>`;
     return `<tr data-key="${text(`${file} ${name}`)}"><td>${text(name)}${message}</td><td>${fileLink(file)}</td><td>${marks}</td><td class="num" data-v="${tries.length}">${tries.length}</td></tr>`;
   });
-  const hint = `${data.differing} retried cases whose attempts did not all end the same way`;
-  return section('Cases that ended differently', hint, table([['case', false], ['file', false], ['attempts', false], ['n', true]], rows), undefined, undefined, 'part');
+  return section(title, hint, table([['case', false], ['file', false], ['attempts', false], ['n', true]], rows), undefined, undefined, 'part');
 }
 
 /** The Tests view, with the reason beside every half the recording could not fill. */

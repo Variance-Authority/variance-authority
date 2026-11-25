@@ -38,6 +38,10 @@ export interface TestsData {
   readonly retried: readonly RetriedCase[];
   /** Every case the recording holds an attempt trail for that ended differently. */
   readonly differing: number;
+  /** The retried cases no attempt of which passed, cut to `TOP`. */
+  readonly unpassed: readonly RetriedCase[];
+  /** Every retried case no attempt of which passed. */
+  readonly unpassing: number;
   /** Why a half is empty, in words: a record that holds nothing there says so rather than reading as none. */
   readonly notes: readonly string[];
 }
@@ -89,17 +93,17 @@ function durationsOf(read: RecordedDurations | undefined, notes: string[]): Pick
   return { slowestFiles: read.slowest, slowestCases: 'unread' in cases ? [] : cases.slowest };
 }
 
-function retriedOf(read: RecordedAttempts | undefined, notes: string[]): { readonly retried: readonly RetriedCase[]; readonly differing: number } {
-  if (read === undefined) return { retried: [], differing: 0 };
+function retriedOf(read: RecordedAttempts | undefined, notes: string[]): { readonly retried: readonly RetriedCase[]; readonly differing: number; readonly unpassed: readonly RetriedCase[]; readonly unpassing: number } {
+  if (read === undefined) return { retried: [], differing: 0, unpassed: [], unpassing: 0 };
   if ('unread' in read) {
     notes.push(`attempts: ${read.unread}`);
-    return { retried: [], differing: 0 };
+    return { retried: [], differing: 0, unpassed: [], unpassing: 0 };
   }
   if ('unkept' in read) {
     notes.push('attempts: the recording kept none, so a retried case cannot be told from one that ran once');
-    return { retried: [], differing: 0 };
+    return { retried: [], differing: 0, unpassed: [], unpassing: 0 };
   }
-  return { retried: read.differed, differing: read.differing };
+  return { retried: read.differed, differing: read.differing, unpassed: read.unpassed, unpassing: read.unpassing };
 }
 
 /** The suite asked for, or the first one that holds a recording. */

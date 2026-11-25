@@ -76,6 +76,15 @@ describe('the recorded cases whose attempts ended differently', () => {
         ],
       }],
       differing: 1,
+      unpassed: [{
+        file: 'test/a.test.ts',
+        name: 'never pays',
+        attempts: [
+          { attempt: 1, ended: 'failed', duration: 12, message: 'expected 1 to be 2', frame: 'test/a.test.ts:7' },
+          { attempt: 2, ended: 'failed', duration: 12, message: 'expected 1 to be 2', frame: 'test/a.test.ts:7' },
+        ],
+      }],
+      unpassing: 1,
       retried: 2,
       cases: 3,
     }]);

@@ -43,6 +43,8 @@ const DATA: ViewData = {
     slowestCases: [],
     retried: [],
     differing: 0,
+    unpassed: [],
+    unpassing: 0,
     notes: [],
   },
   timeline: {
