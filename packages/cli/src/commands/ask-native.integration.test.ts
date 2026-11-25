@@ -164,8 +164,9 @@ it.each([
     'packages/lib/src/private.test.ts': 'export const other = 4;\nfunction 値() { return other; }\nexport const tested = 値();\n',
     ...(question[2]?.startsWith('bound') ? {
       'packages/lib/src/bound-a.js': "const { boundOnly } = make();\nconst { boundToo } = primordials;\nconst boundModule = require('./bound-b');\nexports.use = () => [boundOnly, boundToo, boundModule];\n",
-      'packages/lib/src/bound-b.js': "const { boundOnly } = make();\nconst { boundExport } = require('./bound-c');\nfunction boundToo() {}\nexports.use = () => [boundOnly, boundExport, boundToo];\n",
-      'packages/lib/src/bound-c.ts': 'export const boundExport = 1;\n',
+      'packages/lib/src/bound-b.js': "const { boundOnly } = make();\nconst { boundExport } = require('@acme/bound');\nfunction boundToo() {}\nexports.use = () => [boundOnly, boundExport, boundToo];\n",
+      'packages/bound/package.json': JSON.stringify({ name: '@acme/bound', main: './src/index.ts' }),
+      'packages/bound/src/index.ts': 'export const boundExport = 1;\n',
     } : {}),
     'packages/lib/src/session.ts': 'interface AgentSession { sessionToken: string }\ninterface SavedSession { sessionToken: number }\nexport function tokenOf(session: AgentSession) { return session.sessionToken; }\n',
     ...(question[2] === 'packages/lib/src/greet.ts,packages/lib/src/index.ts' ? {
