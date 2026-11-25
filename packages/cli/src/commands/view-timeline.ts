@@ -36,6 +36,24 @@ function lane(file: TimelineData['files'][number], t0: number, span: number): st
   );
 }
 
+/**
+ * One group of rows per worker lane, in lane order, the files a worker ran
+ * ordered by start as the data holds them. A file the runner gave no lane is
+ * not lent one: it gathers under a last group of its own.
+ */
+function workers(files: TimelineData['files'], t0: number, span: number): string {
+  const byLane = new Map<number | undefined, TimelineData['files'][number][]>();
+  for (const file of files) byLane.set(file.lane, [...(byLane.get(file.lane) ?? []), file]);
+  const order = [...byLane.keys()].sort((a, b) => (a === undefined ? 1 : b === undefined ? -1 : a - b));
+  return order
+    .map((key) => {
+      const heading = key === undefined ? 'No worker recorded' : `Worker ${key}`;
+      const rows = byLane.get(key)!.map((file) => lane(file, t0, span)).join('');
+      return `<div class="worker" data-worker="${key ?? 'none'}"><h4 class="wh">${heading}</h4>${rows}</div>`;
+    })
+    .join('');
+}
+
 /** The Timeline view, or the reason there is nothing to place. */
 export function timelineView(data: TimelineData): View {
   if (data.files.length === 0) return { id: 'timeline', label: 'Timeline', body: `<p class="note">${text(data.note ?? 'nothing recorded to place')}</p>` };
@@ -45,7 +63,8 @@ export function timelineView(data: TimelineData): View {
   const keys = PHASE_CLASS.map((name) => `<span class="key"><i class="ph ${name}"></i>${name}</span>`).join('');
   const unplaced = data.unplaced === 0 ? '' : `<p class="note">${text(`${data.unplaced} recorded files carry no start or no cost, so the clock cannot place them.`)}</p>`;
   const axis = `<div class="axis"><span>0</span><span>${text(ms(span / 2))}</span><span>${text(ms(span))}</span></div>`;
-  const body = `<div class="keys">${keys}</div>${unplaced}${axis}${data.files.map((file) => lane(file, t0, span)).join('')}`;
+  const rows = data.files.some((file) => file.lane !== undefined) ? workers(data.files, t0, span) : data.files.map((file) => lane(file, t0, span)).join('');
+  const body = `<div class="keys">${keys}</div>${unplaced}${axis}${rows}`;
   return {
     id: 'timeline',
     label: 'Timeline',
@@ -67,6 +86,8 @@ i.ph.setup{background:#b7923a}
 i.ph.collect{background:#5f8aa6}
 i.ph.cases{background:var(--green)}
 .key i.ph{display:block;width:8px;height:8px;border-radius:1px}
+.worker{margin-top:.6rem}
+.wh{margin:0 0 .15rem;font-family:var(--mono);font-size:11px;font-weight:600;color:var(--warm)}
 .axis{display:flex;justify-content:space-between;margin-left:22.75rem;margin-right:5.75rem;font-family:var(--mono);font-size:10px;color:var(--warm);padding:.25rem 0}
 @media (max-width:700px){.lane{grid-template-columns:1fr 4rem}.lane .track{grid-column:1/-1}.axis{margin:0}}
 `;

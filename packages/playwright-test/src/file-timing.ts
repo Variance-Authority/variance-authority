@@ -14,15 +14,18 @@ export function timedSubjects(
   subjects: readonly ObservedSubject[],
   spent: ReadonlyMap<string, number>,
   began: ReadonlyMap<string, number>,
+  laned: ReadonlyMap<string, number>,
 ): readonly ObservedSubject[] {
   return subjects.map((subject) => {
     const duration = spent.get(subject.owner);
     const start = began.get(subject.owner);
+    const lane = laned.get(subject.owner);
     if (subject.duration !== undefined || (duration === undefined && start === undefined)) return subject;
     return {
       ...subject,
       ...(duration === undefined ? {} : { duration }),
       ...(start === undefined || subject.start !== undefined ? {} : { start }),
+      ...(lane === undefined || subject.start !== undefined ? {} : { lane }),
     };
   });
 }

@@ -27,10 +27,12 @@ import {
   BLOB,
   DURATION,
   FORMAT,
+  LANE,
   NO_BLOB,
   PHASES,
   START,
   UNKEYED_FORMAT,
+  UNLANED_FORMAT,
   UNSTARTED_FORMAT,
   UNTIMED_FORMAT,
   BLOCK_KINDS,
@@ -85,6 +87,12 @@ export interface TestCoverageView {
    * Absent from a snapshot written in a layout before start times were recorded.
    */
   readonly testStart: WordColumn | undefined;
+  /**
+   * The worker lane each test file ran on, one word a test, `NO_DURATION`
+   * where the runner gave none. Absent from a snapshot written in a layout
+   * before lanes were recorded.
+   */
+  readonly testLane: WordColumn | undefined;
   readonly preconditionName: WordColumn;
   readonly preconditionDigest: WordColumn;
   readonly modulePath: WordColumn;
@@ -177,7 +185,8 @@ export function openTestCoverage(input: Uint8Array | Bytes): TestCoverageView {
   const header = JSON.parse(head.toString('utf8', 4, 4 + headerLength).replace(/\0+$/, '')) as Header;
   if (!readableFormat(header.version)) throw new Error(`unsupported test coverage version: ${header.version}`);
   const timed = header.version !== UNTIMED_FORMAT;
-  const started = header.version === FORMAT;
+  const laned = header.version === FORMAT;
+  const started = laned || header.version === UNLANED_FORMAT;
   const keyed = started || header.version === UNSTARTED_FORMAT;
   const phased = keyed || header.version === UNKEYED_FORMAT;
   const base = 4 + headerLength;
@@ -198,7 +207,7 @@ export function openTestCoverage(input: Uint8Array | Bytes): TestCoverageView {
   };
 
   const rows: Record<string, number> = {};
-  for (const name of [...NAMES, ...(timed ? [DURATION] : []), ...(phased ? [PHASES] : []), ...(started ? [START] : []), ...(keyed ? [BLOB] : [])]) {
+  for (const name of [...NAMES, ...(timed ? [DURATION] : []), ...(phased ? [PHASES] : []), ...(started ? [START] : []), ...(laned ? [LANE] : []), ...(keyed ? [BLOB] : [])]) {
     const section = at(name);
     if (section.rows !== undefined) rows[name] = section.rows;
     else {
@@ -348,6 +357,7 @@ export function openTestCoverage(input: Uint8Array | Bytes): TestCoverageView {
     testDuration: timed ? words(DURATION) : undefined,
     testPhases: phased ? words(PHASES) : undefined,
     testStart: started ? words(START) : undefined,
+    testLane: laned ? words(LANE) : undefined,
     preconditionName: words('preconditions.name', (values) => ids(values, strings)),
     preconditionDigest: words('preconditions.digest', (values) => ids(values, strings)),
     modulePath: words('modules.path', (values) => ids(values, strings)),

@@ -38,7 +38,7 @@ use crate::journey_columns::Column;
 use crate::crossing_sets::{self, SetPool};
 use crate::order;
 use crate::record_start::Agreed;
-use crate::record_coverage::{Coverage, Phases, Start, Text};
+use crate::record_coverage::{Coverage, Lane, Phases, Start, Text};
 use crate::record_layout::LAYOUT;
 use crate::record_coverage_columns::{Columns, Region};
 use crate::record_coverage_dictionary::{Dictionary, Spelled};
@@ -80,6 +80,7 @@ struct Test {
     duration: u32,
     phases: Phases,
     start: Start,
+    lane: Lane,
     preconditions: (u32, u32),
 }
 
@@ -234,6 +235,7 @@ impl<'c> Fold<'c> {
                 duration: coverage.duration(test),
                 phases: coverage.phases(test),
                 start: coverage.start(test),
+                lane: coverage.lane(test),
                 preconditions: (from, self.precondition_name.len() as u32),
             });
         }
@@ -418,7 +420,7 @@ impl<'c> Fold<'c> {
             final_id[*test as usize] = at as u32;
             let test = &tests[*test as usize];
             let inputs = test.preconditions.0 as usize..test.preconditions.1 as usize;
-            out.test(ranked(test.path), test.complete, test.duration, test.phases, test.start, inputs.map(|input| (ranked(precondition_name[input]), ranked(precondition_digest[input]))));
+            out.test(ranked(test.path), test.complete, test.duration, test.phases, test.start, test.lane, inputs.map(|input| (ranked(precondition_name[input]), ranked(precondition_digest[input]))));
         }
 
         // Modules, by path, rows of one path in the order they were added; each

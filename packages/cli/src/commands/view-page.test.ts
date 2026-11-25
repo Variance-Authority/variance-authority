@@ -91,6 +91,27 @@ describe('variance view page', () => {
     expect(html).toContain('class="ph setup" style="width:10.00%"');
   });
 
+  it('groups the bars into one row group per worker lane, in lane order, where the recording holds lanes', () => {
+    const laned = (file: string, start: number, lane?: number) => ({ file, start, cost: 100, phases: [], cases: [], ...(lane === undefined ? {} : { lane }) });
+    const html = viewPage({
+      ...DATA,
+      timeline: {
+        ...DATA.timeline,
+        files: [laned('e2e/a.spec.ts', 0, 1), laned('e2e/b.spec.ts', 50, 0), laned('e2e/c.spec.ts', 200, 1), laned('e2e/d.spec.ts', 300)],
+      },
+    });
+    expect([...html.matchAll(/<h4 class="wh">([^<]*)<\/h4>/g)].map((head) => head[1])).toEqual(['Worker 0', 'Worker 1', 'No worker recorded']);
+    const second = html.slice(html.indexOf('data-worker="1"'), html.indexOf('data-worker="none"'));
+    expect([...second.matchAll(/data-key="([^"]*)"/g)].map((key) => key[1])).toEqual(['e2e/a.spec.ts', 'e2e/c.spec.ts']);
+  });
+
+  it('draws the bars as one list, with no group, where the recording holds no lane', () => {
+    const html = viewPage(DATA);
+    expect(html).not.toContain('class="worker"');
+    expect(html).not.toContain('data-worker');
+    expect(html).toContain('data-key="src/slow.test.ts"');
+  });
+
   it('links a test file in the entered list only where the page holds its pane', () => {
     const html = viewPage({ ...DATA, reach: { ...DATA.reach, files: [{ file: 'src/price.ts', tests: ['src/flaky.test.ts', 'src/unlisted.test.ts'], total: 2 }] } });
     expect(html).toContain('href="#test/src%2Fflaky.test.ts"');

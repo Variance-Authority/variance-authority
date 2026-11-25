@@ -17,7 +17,7 @@ import { keepsCases } from './test-selection/case-record.js';
 import { askCoverageFile } from './test-selection/coverage-file.js';
 import { decodeExecutionTests } from './test-selection/execution-format.js';
 import { NO_DURATION, PHASE_NAMES } from './test-selection/format-layout.js';
-import { startAt } from './test-selection/format.js';
+import { laneAt, startAt } from './test-selection/format.js';
 import { nearestRecord } from './test-selection/record-location.js';
 import { costs, takenAt } from './recorded-durations.js';
 
@@ -38,6 +38,8 @@ export interface TracedFile {
   readonly file: string;
   /** Milliseconds since the epoch the runner started the file at, its earliest attempt. */
   readonly start?: number;
+  /** The worker lane the runner ran the file on, counted from 0; absent where it gave none. */
+  readonly lane?: number;
   /** What running the file cost, as `fileCost` reads it. */
   readonly cost?: number;
   /** The phases the runner timed, in the order they run. */
@@ -77,6 +79,7 @@ export function recordedTrace(root: string, suite?: string): RecordedTrace {
       const costOf = costs(view);
       const phases = view.testPhases?.all();
       const starts = view.testStart?.all();
+      const lanes = view.testLane?.all();
       const width = PHASE_NAMES.length;
       const files = Array.from(paths, (path, test): TracedFile => {
         const file = view.string(path);
@@ -85,6 +88,7 @@ export function recordedTrace(root: string, suite?: string): RecordedTrace {
         return {
           file,
           ...startAt(starts, test),
+          ...laneAt(lanes, test),
           ...(cost === undefined ? {} : { cost }),
           phases: PHASE_NAMES.flatMap((name, at) => (words === undefined || words[at] === NO_DURATION ? [] : [{ name, ms: words[at]! }])),
           cases: casesOf.get(file) ?? [],

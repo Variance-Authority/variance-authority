@@ -61,6 +61,12 @@ export interface ObservedSubject {
    * sources carry.
    */
   readonly start?: number;
+  /**
+   * The worker lane that ran this owner's tests, counted from 0: the lane of
+   * its earliest attempt. A join keeps the lane of the source with the earliest
+   * start, and the first lane given where none carries a start.
+   */
+  readonly lane?: number;
 }
 
 /**
@@ -194,6 +200,7 @@ export function joinObservations(
     duration?: number;
     phases?: FilePhases;
     start?: number;
+    lane?: number;
   }
   const byOwner = new Map<string, Held>();
 
@@ -211,7 +218,11 @@ export function joinObservations(
       }
       if (subject.complete === false) held.complete = false;
       if (subject.duration !== undefined) held.duration = (held.duration ?? 0) + subject.duration;
-      if (subject.start !== undefined) held.start = Math.min(held.start ?? subject.start, subject.start);
+      if (subject.start !== undefined && (held.start === undefined || subject.start < held.start)) {
+        held.start = subject.start;
+        // The lane travels with the start it was read beside.
+        if (subject.lane !== undefined) held.lane = subject.lane;
+      } else if (subject.lane !== undefined && held.lane === undefined) held.lane = subject.lane;
       // Summed like the duration where two sources timed the owner; a source
       // that timed nothing — a head — leaves the other's phases standing.
       if (subject.phases !== undefined) {
@@ -236,6 +247,7 @@ export function joinObservations(
       ...(held.duration === undefined ? {} : { duration: held.duration }),
       ...(held.phases === undefined ? {} : { phases: held.phases }),
       ...(held.start === undefined ? {} : { start: held.start }),
+      ...(held.lane === undefined ? {} : { lane: held.lane }),
       journal: {
         instrumentation: held.instrumentation,
         modules: modulesEntered(held.modules),

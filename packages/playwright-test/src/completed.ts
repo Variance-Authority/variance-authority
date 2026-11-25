@@ -105,6 +105,7 @@ export const varianceCompletedFixtures: Fixtures<
         testInfo.duration,
         testInfo.timeout,
         began,
+        testInfo.parallelIndex,
       );
     },
     { auto: true },

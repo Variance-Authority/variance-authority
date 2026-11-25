@@ -32,6 +32,9 @@ export const MODEL = LAYOUT.coverage.model;
  */
 export const FORMAT = LAYOUT.coverage.format;
 
+/** The layout before `tests.lane`, read as one whose runner gave no worker lane. */
+export const UNLANED_FORMAT = LAYOUT.coverage.unlaned;
+
 /** The layout before `tests.start`, read as one whose runner gave no start time. */
 export const UNSTARTED_FORMAT = LAYOUT.coverage.unstarted;
 
@@ -49,7 +52,7 @@ export const UNTIMED_FORMAT = LAYOUT.coverage.untimed;
 
 /** The layouts a reader opens. */
 export function readableFormat(version: unknown): version is number {
-  return version === FORMAT || version === UNSTARTED_FORMAT || version === UNKEYED_FORMAT || version === UNPHASED_FORMAT || version === UNCASED_FORMAT || version === UNTIMED_FORMAT;
+  return version === FORMAT || version === UNLANED_FORMAT || version === UNSTARTED_FORMAT || version === UNKEYED_FORMAT || version === UNPHASED_FORMAT || version === UNCASED_FORMAT || version === UNTIMED_FORMAT;
 }
 
 const ALIGNMENT = LAYOUT.alignment;
@@ -89,7 +92,7 @@ const PACK_ABOVE = LAYOUT.packAbove;
 
 /** Every section the file holds, in the order it holds them. */
 export const NAMES: readonly string[] = LAYOUT.coverage.sections.filter((name) =>
-  name !== LAYOUT.coverage.duration && name !== LAYOUT.coverage.phases && name !== LAYOUT.coverage.start && name !== LAYOUT.coverage.blob);
+  name !== LAYOUT.coverage.duration && name !== LAYOUT.coverage.phases && name !== LAYOUT.coverage.start && name !== LAYOUT.coverage.lane && name !== LAYOUT.coverage.blob);
 
 /** The section the layouts after `UNTIMED_FORMAT` added: one word a test, see {@link NO_DURATION}. */
 export const DURATION = LAYOUT.coverage.duration;
@@ -106,6 +109,18 @@ export const PHASES = LAYOUT.coverage.phases;
  * {@link NO_DURATION} in both where it gave none.
  */
 export const START = LAYOUT.coverage.start;
+
+/**
+ * The section the layouts after `UNLANED_FORMAT` added: one word a test, the
+ * worker lane the runner ran its file on (`testInfo.parallelIndex`), or
+ * {@link NO_DURATION} where it gave none.
+ */
+export const LANE = LAYOUT.coverage.lane;
+
+/** The word `tests.lane` holds for a lane; a value no runner could have meant is absent. */
+export function laneWord(lane: number | undefined): number {
+  return lane === undefined || !Number.isSafeInteger(lane) || lane < 0 || lane >= NO_DURATION ? NO_DURATION : lane;
+}
 
 /**
  * The section the layouts after `UNKEYED_FORMAT` added: one word a module, the

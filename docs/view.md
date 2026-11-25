@@ -40,6 +40,9 @@ no Coverage tab, and the header says coverage was not counted.
   `setup`, `collect` and `cases`. It is the picture [`variance trace`](trace.md)
   prints as spans for a trace viewer, drawn on the page. A file without a start
   is counted in a note and not drawn, because placing it would be an invention.
+  When Playwright recorded which worker lane ran a file, the bars are grouped
+  under a heading per lane, with files that have no lane last under "No worker
+  recorded"; a record without lanes is drawn as one list.
   Only Playwright records a start today; Tests and Coverage read what any of
   Vitest, Jest, Rstest and Playwright records.
 - **Coverage** shows how much of your source code the run executed, split by

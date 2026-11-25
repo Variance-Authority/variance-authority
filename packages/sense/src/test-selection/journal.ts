@@ -391,6 +391,7 @@ export async function recordExecution(
         ...(subject.duration === undefined ? {} : { duration: subject.duration }),
         ...(subject.phases === undefined ? {} : { phases: subject.phases }),
         ...(subject.start === undefined ? {} : { start: subject.start }),
+        ...(subject.lane === undefined ? {} : { lane: subject.lane }),
       };
     })
     .sort((left, right) => codeUnitOrder(left.file, right.file));

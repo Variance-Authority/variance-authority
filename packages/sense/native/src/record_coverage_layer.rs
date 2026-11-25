@@ -377,7 +377,7 @@ fn written(previous: &Coverage, current: &Coverage, fresh: Option<&Coverage>, re
         match row {
             Row::Current(test) => {
                 let inputs = settled(current, cs, test).into_iter().map(|(name, digest)| (now[name as usize], now[digest as usize]));
-                out.test(path, u8::from(current.test_complete[test] == 1), current.duration(test), current.phases(test), current.start(test), inputs);
+                out.test(path, u8::from(current.test_complete[test] == 1), current.duration(test), current.phases(test), current.start(test), current.lane(test), inputs);
             }
             Row::Previous(test) => {
                 let inputs: Vec<(u32, u32)> = if ascending(previous, test) {
@@ -386,7 +386,7 @@ fn written(previous: &Coverage, current: &Coverage, fresh: Option<&Coverage>, re
                     settled(previous, ps, test)
                 };
                 let complete = previous.test_complete[test] == 1 && !stale[test];
-                out.test(path, u8::from(complete), previous.duration(test), previous.phases(test), previous.start(test), inputs.into_iter().map(|(name, digest)| (before[name as usize], before[digest as usize])));
+                out.test(path, u8::from(complete), previous.duration(test), previous.phases(test), previous.start(test), previous.lane(test), inputs.into_iter().map(|(name, digest)| (before[name as usize], before[digest as usize])));
             }
         }
     }

@@ -347,6 +347,11 @@ export interface CoverageTest {
    * millisecond.
    */
   readonly start?: number;
+  /**
+   * The worker lane the runner ran the file on, counted from 0: the lane of
+   * the attempt `start` names. Absent when the runner gave none.
+   */
+  readonly lane?: number;
 }
 
 /**
