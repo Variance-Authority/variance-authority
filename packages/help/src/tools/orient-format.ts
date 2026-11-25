@@ -18,8 +18,9 @@
 
 // compass: variance-authority.report.agent-surface
 
+import { shellWord } from '@variance-authority/mcp/tools';
 import type { CasesEntered, ExternalOrientation, FileDeclarations, JourneysAround, OrientFlows, PackagesAround, RecordedCases } from '@variance-authority/sense';
-import { narrower, plural, shell } from './format.js';
+import { narrower, plural } from './format.js';
 import { formatDeclarations } from './orient-declarations-format.js';
 import { formatJourneys } from './orient-journeys-format.js';
 
@@ -244,20 +245,20 @@ export function followUps(reading: OrientReading): readonly string[] {
   for (const one of asked) {
     const taken = namedIn(one.taken);
     if (taken === undefined) continue;
-    const flag = ` --package ${shell(one.package)}`;
-    commands.push(`variance ask uses --name ${shell(taken.name)}${flag}`, `variance ask symbol --name ${shell(taken.name)}${flag}`);
+    const flag = ` --package ${shellWord(one.package)}`;
+    commands.push(`variance ask uses --name ${shellWord(taken.name)}${flag}`, `variance ask symbol --name ${shellWord(taken.name)}${flag}`);
     break;
   }
   const takes = asked[0] === undefined ? undefined : namedIn(asked[0].takes);
   if (takes?.package !== undefined) {
-    const command = `variance ask symbol --name ${shell(takes.name)} --package ${shell(takes.package)}`;
+    const command = `variance ask symbol --name ${shellWord(takes.name)} --package ${shellWord(takes.package)}`;
     if (!commands.includes(command)) commands.push(command);
   }
   const ran = reading.recorded
     .flatMap((suite) => ('files' in suite ? suite.files.map((file) => ({ file, suite: suite.suite })) : []))
     .find((entry) => (entry.file.cases ?? 0) > 0 || entry.file.loaded === true);
   if (ran !== undefined) {
-    commands.push(`variance covering --file ${shell(ran.file.file)}${ran.suite === undefined ? '' : ` --suite ${shell(ran.suite)}`}`);
+    commands.push(`variance covering --file ${shellWord(ran.file.file)}${ran.suite === undefined ? '' : ` --suite ${shellWord(ran.suite)}`}`);
   }
   return commands;
 }

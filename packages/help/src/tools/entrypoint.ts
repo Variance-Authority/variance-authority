@@ -1,5 +1,5 @@
 import type { Tool } from '@variance-authority/mcp/tools';
-import { stringArg } from '@variance-authority/mcp/tools';
+import { shellWord, stringArg } from '@variance-authority/mcp/tools';
 import type { Deep, Documented, Help } from '@variance-authority/package/help';
 import {
   type ByName,
@@ -17,7 +17,7 @@ import {
   unfollowedOf,
 } from './by-path.js';
 import { doorOf, specifierOf } from './find.js';
-import { line, mostUsed, narrower, openingRow, plural, shell } from './format.js';
+import { line, mostUsed, narrower, openingRow, plural } from './format.js';
 
 /**
  * `docs_entrypoint` — what one import specifier opens, most-used first.
@@ -147,7 +147,7 @@ function filesAsks(files: readonly FileTaken[], owner?: string): readonly string
   const top = files[0]!;
   const specifier = top.specifiers[0]!;
   return [
-    ...(specifier === owner ? [] : [`variance ask entrypoint --package ${shell(specifier)}`]),
+    ...(specifier === owner ? [] : [`variance ask entrypoint --package ${shellWord(specifier)}`]),
     ...(top.name === undefined ? [] : [usesOf(top.name, specifier)]),
   ];
 }
@@ -196,7 +196,7 @@ function subpathsOnly(help: Help, published: Documented): string {
   const opened = published.openings.map((held) => [published, held] as const);
   const door = mostUsed(opened) ?? opened[0]!;
   const lines = [`${published.name} opens no main entry. It opens:`, ...opened.map((pair) => `  ${openingRow(...pair)}`)];
-  const asks = [`variance ask entrypoint --package ${shell(specifierOf(...door))}`];
+  const asks = [`variance ask entrypoint --package ${shellWord(specifierOf(...door))}`];
   const past = beyond(help, published.name);
   if (past === undefined) return [...lines, ...narrower(asks)].join('\n');
   return sites(help, { lines: [...lines, '', ...past.lines], asks: [...asks, ...past.asks] });
@@ -238,7 +238,7 @@ function unenteredAnswer(help: Help, asked: string, owner: string): Sites | unde
  * from another file.
  */
 function usesOf(name: string, specifier: string): string {
-  return `variance ask uses --name ${shell(name)} --package ${shell(specifier)}`;
+  return `variance ask uses --name ${shellWord(name)} --package ${shellWord(specifier)}`;
 }
 
 /**

@@ -88,11 +88,6 @@ export function section(lines: string[], ...block: readonly string[]): void {
 /** `count` and the noun, singular at one. */
 export const plural = (count: number, one: string, many = `${one}s`): string => `${count} ${count === 1 ? one : many}`;
 
-/** An argument a shell passes through unchanged, quoted only when it would not be. */
-export function shell(value: string): string {
-  return /^[\w@./:=+-]+$/u.test(value) ? value : `'${value.replace(/'/gu, `'\\''`)}'`;
-}
-
 /** The default number of names on the one line that stands for a list the repository's own answer outranks. */
 const NAMED = 5;
 

@@ -4,22 +4,15 @@
 
 use crate::dependency_lexicon::query::Matches;
 use crate::help_grep_answer::Scope;
-use crate::help_search_answer::{section, shell};
+use crate::help_search_answer::section;
+use crate::help_surface::{CLI, Value, typed};
 
 pub(crate) fn lines(answer: &mut Vec<String>, query: &str, lowered: &str, scope: Option<&Scope>, limit: Option<usize>, matches: Option<&Matches>, own: bool) {
     let Some(matches) = matches else {
         answer.extend([String::new(), "Dependency lexicon not published; run `variance index` to prepare it.".into()]);
         return;
     };
-    let all = |total: usize| {
-        let mut ask = format!("variance ask search --query {}", shell(query));
-        if let Some(scope) = scope {
-            for (flag, from) in [("--from", &scope.from), ("--to", &scope.to)] {
-                for from in from { ask.push_str(&format!(" {flag} {}", shell(from))); }
-            }
-        }
-        format!("`{ask} --limit {}` lists all matching names.", total.max(20usize))
-    };
+    let all = |total: usize| in_full(query, scope, total);
     let total = matches.total as usize;
     if total == 0 && !own {
         let searched = if matches.scope.packages == 0 {
@@ -69,6 +62,18 @@ pub(crate) fn lines(answer: &mut Vec<String>, query: &str, lowered: &str, scope:
             format!("{} {why} — {says} [holds: {}]", one.specifier, one.words.join(", "))
         }));
     }
+}
+
+/// The question that lists `total` names in full, from every start point the search had: a path to a flag, as `search` reads them.
+fn in_full(query: &str, scope: Option<&Scope>, total: usize) -> String {
+    let limit = total.max(20).to_string();
+    let mut inputs = vec![("query", Value::Text(query))];
+    if let Some(scope) = scope {
+        inputs.extend(scope.from.iter().map(|path| ("from", Value::Text(path))));
+        inputs.extend(scope.to.iter().map(|path| ("to", Value::Text(path))));
+    }
+    inputs.push(("limit", Value::Text(&limit)));
+    format!("`{}` lists all matching names.", typed(CLI, "search", &inputs))
 }
 
 fn compact(answer: &mut Vec<String>, heading: String, total: usize, limit: Option<usize>, rows: impl Iterator<Item = String>, again: impl Fn(usize) -> String) {

@@ -23,6 +23,7 @@ use crate::help_search_loose::{self, Loose};
 use crate::help_search_matches::{exactness, matching, opening, postings};
 use crate::help_search_near::{self, IndexedRow, Kind, Row};
 use crate::help_search_rows::{compare_exported, compare_published, count_published, exported_page, export_hit, published_hit, published_line, ExportHit};
+use crate::help_surface::{CLI, Value, typed};
 use crate::help_symbol_answer::{declaration_kind_order, unread_line};
 use crate::help_symbol_rows::Rows;
 use crate::index_chain::OpenedChain;
@@ -85,7 +86,7 @@ pub(crate) fn search(root: &str, index: &Path, file: &mut File, query: &str, lim
         for hit in &published {
             let name = rows.string("names.name", hit.name)?;
             answer.push(published_line(hit, name, &words));
-            next.get_or_insert_with(|| format!("variance ask symbol --name {} --package {}", shell(name), shell(hit.specifier)));
+            next.get_or_insert_with(|| symbol(name, hit.specifier));
         }
         cut(&mut answer, published_total, published.len());
     }
@@ -118,7 +119,7 @@ pub(crate) fn search(root: &str, index: &Path, file: &mut File, query: &str, lim
         keep(&mut exported, cap, |a, b| a.2.field.cmp(&b.2.field).then(b.1.cmp(&a.1)).then(a.0.cmp(&b.0)));
         for (line, at) in exported_page(root, layers, &rows, exported, admits, &words)? {
             answer.push(line);
-            next.get_or_insert_with(|| format!("variance ask orient --files {}", shell(&at)));
+            next.get_or_insert_with(|| orient(&at));
         }
         cut(&mut answer, exported_total, exported_total.min(cap));
     }
@@ -153,7 +154,7 @@ pub(crate) fn search(root: &str, index: &Path, file: &mut File, query: &str, lim
         let count = top.len();
         section(&mut answer, format!("{count} more {} declared {place} without being exported:", if count == 1 { "name is" } else { "names are" }),
             count, top.into_iter().take(cap).map(|(_, held)| {
-                next.get_or_insert_with(|| format!("variance ask orient --files {}", shell(&held.at)));
+                next.get_or_insert_with(|| orient(&held.at));
                 format!("{} [{}] — {} · {}:{}{}", held.name, held.kind, owner(held), held.at, held.line, summary(held.doc.as_deref(), &words))
             }));
     }
@@ -163,11 +164,11 @@ pub(crate) fn search(root: &str, index: &Path, file: &mut File, query: &str, lim
         let count = held.len();
         section(&mut answer, format!("{count} {} held by a container or a function {place}:", if count == 1 { "name is" } else { "names are" }),
             count, held.into_iter().take(cap).map(|(_, held)| {
-                next.get_or_insert_with(|| format!("variance ask orient --files {}", shell(&held.at)));
+                next.get_or_insert_with(|| orient(&held.at));
                 held_line(held)
             }));
     }
-    let next_case = cases.shown.first().map(|(at, _)| format!("variance ask orient --files {}", shell(at)));
+    let next_case = cases.shown.first().map(|(at, _)| orient(at));
     if cases.total != 0 {
         let head = plural(cases.total, "recorded test case holds", "recorded test cases hold");
         section(&mut answer, format!("{head} every word, as the last run wrote it:"), cases.total,
@@ -183,7 +184,7 @@ pub(crate) fn search(root: &str, index: &Path, file: &mut File, query: &str, lim
         let count = imports.len();
         if next.is_none() {
             let at = &nearby.iter().find(|alias| imports[0].starts_with(&format!("{}:{} ", alias.at, alias.line)))?.at;
-            next = Some(format!("variance ask orient --files {}", shell(at)));
+            next = Some(orient(at));
         }
         section(&mut answer, format!("{count} {} it as a local name:", if count == 1 { "import binds" } else { "imports bind" }), count, imports.into_iter().take(cap));
     }
@@ -207,6 +208,16 @@ pub(crate) fn search(root: &str, index: &Path, file: &mut File, query: &str, lim
     help_search_dependencies::lines(&mut answer, query, &lowered, scope, limit, dependencies.as_ref(), own);
     if let Some(next) = next.or(next_case) { answer.extend([String::new(), format!("Next: `{next}`")]); }
     Some(answer.join("\n"))
+}
+
+/// The question that reads `name` of `package` next.
+fn symbol(name: &str, package: &str) -> String {
+    typed(CLI, "symbol", &[("name", Value::Text(name)), ("package", Value::Text(package))])
+}
+
+/// The question that reads the file at `at` next.
+fn orient(at: &str) -> String {
+    typed(CLI, "orient", &[("files", Value::List(&[at]))])
 }
 
 fn keep<T>(rows: &mut Vec<T>, cap: usize, before: impl Fn(&T, &T) -> Ordering) {
@@ -274,14 +285,6 @@ fn cut(lines: &mut Vec<String>, count: usize, shown: usize) {
     if count > shown { lines.extend([String::new(), format!("{} more not shown; a higher `--limit` shows them.", count - shown)]); }
 }
 
-pub(crate) fn shell(value: &str) -> String {
-    if value.bytes().all(|byte| byte.is_ascii_alphanumeric() || b"_@./:=+-".contains(&byte)) {
-        value.to_owned()
-    } else {
-        format!("'{}'", value.replace('\'', "'\\''"))
-    }
-}
-
 pub(crate) fn summary(doc: Option<&str>, words: &BTreeMap<String, String>) -> String {
     doc.map(|doc| format!(" — {}", sentence(doc, words))).unwrap_or_default()
 }
@@ -325,7 +328,7 @@ fn described_line(root: &str, layers: &[Layer], rows: &Rows, area: Option<&HashM
             let mut hit = published_hit(rows, row, 0, area)?;
             count_published(root, layers, rows, std::slice::from_mut(&mut hit))?;
             let name = rows.string("names.name", hit.name)?;
-            let next = format!("variance ask symbol --name {} --package {}", shell(name), shell(hit.specifier));
+            let next = symbol(name, hit.specifier);
             Some((published_line(&hit, name, words), next))
         }
         Row::Indexed(IndexedRow { kind: Kind::Exported, row }) => {
@@ -335,16 +338,16 @@ fn described_line(root: &str, layers: &[Layer], rows: &Rows, area: Option<&HashM
                 .filter(|&row| rows.string("exp.at", row).is_some_and(admits)).count();
             let pick = vec![(name, count, export_hit(rows, row, 3)?)];
             let (line, at) = exported_page(root, layers, rows, pick, admits, words)?.pop()?;
-            Some((line, format!("variance ask orient --files {}", shell(&at))))
+            Some((line, orient(&at)))
         }
         Row::Private(held) => {
             let line = format!("{} [{}] — {} · {}:{}{}", held.name, held.kind, owner(&held), held.at, held.line, summary(held.doc.as_deref(), words));
-            Some((line, format!("variance ask orient --files {}", shell(&held.at))))
+            Some((line, orient(&held.at)))
         }
         Row::File(held) => {
             let owner = if held.by.is_empty() { "the repository" } else { &held.by };
             let line = format!("{} [file] — {owner}{}", held.at, summary(held.doc.as_deref(), words));
-            Some((line, format!("variance ask orient --files {}", shell(&held.at))))
+            Some((line, orient(&held.at)))
         }
     }
 }
@@ -357,7 +360,7 @@ fn loose_page(root: &str, layers: &[Layer], rows: &Rows, area: Option<&HashMap<&
     let mut answer = Vec::new();
     for hit in published {
         let name = rows.string("names.name", hit.name)?;
-        let next = format!("variance ask symbol --name {} --package {}", shell(name), shell(hit.specifier));
+        let next = symbol(name, hit.specifier);
         answer.push((published_line(&hit, name, words), next));
     }
     let admits = |at: &str| area.is_none_or(|area| area.contains_key(at));
@@ -371,7 +374,7 @@ fn loose_page(root: &str, layers: &[Layer], rows: &Rows, area: Option<&HashMap<&
     }
     keep(&mut exported, cap.saturating_sub(answer.len()), |a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
     for (line, at) in exported_page(root, layers, rows, exported, admits, words)? {
-        answer.push((line, format!("variance ask orient --files {}", shell(&at))));
+        answer.push((line, orient(&at)));
     }
     for held in loose.private.into_iter().take(cap.saturating_sub(answer.len())) {
         answer.push(described_line(root, layers, rows, area, Row::Private(held), words)?);

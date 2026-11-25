@@ -7,7 +7,8 @@ use std::fs::File;
 use std::ops::Range;
 
 use crate::help_name_scope::owner_of;
-use crate::help_search_answer::{plural, shell};
+use crate::help_search_answer::plural;
+use crate::help_surface::shell;
 use crate::help_symbol_rows::Rows;
 use crate::order::code_unit;
 

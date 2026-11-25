@@ -7,7 +7,9 @@ import type { Tool, ToolInvocation } from './tool.js';
  * a shell as verbs with flags. A hint is only worth its words when the reader
  * can type it, so every input, tool or question an answer names is spelled
  * here, from the invocation, and nowhere else: a shell host and a wire host
- * hand the same tool the same subject, and only `shell` tells them apart.
+ * hand the same tool the same subject, and only `shell` tells them apart. An
+ * answer the addon writes is spelled by its native half, `help_surface.rs`,
+ * and `packages/sense/native/src/spelling-cases.json` holds the two to one spelling.
  */
 
 // compass: variance-authority.report.agent-surface
@@ -39,9 +41,9 @@ export function flagOf(property: string): string {
 }
 
 /** A value as one shell word, a list joined by commas: quoted only when a word would not survive. */
-function wordOf(value: unknown): string {
+export function shellWord(value: unknown): string {
   const text = Array.isArray(value) ? value.join(',') : String(value);
-  return text !== '' && !text.startsWith('#') && /^[\w./:@^,+=%#-]+$/.test(text) ? text : `'${text.replace(/'/g, `'\\''`)}'`;
+  return text !== '' && !/^[#=]/.test(text) && /^[\w./:@,+=%#-]+$/.test(text) ? text : `'${text.replace(/'/g, `'\\''`)}'`;
 }
 
 /** The inputs, tools and questions of one surface, written as its reader types them. */
@@ -67,9 +69,15 @@ export interface Spelling {
 /** A value as the wire takes it: a string as written, anything else as its JSON. */
 const wired = (value: unknown): string => (typeof value === 'string' ? value : JSON.stringify(value));
 
+/** A flag and its value, joined where a flag parser would read the value as the next flag. */
+const flagged = (property: string, value: unknown): string => {
+  const word = shellWord(value);
+  return `${flagOf(property)}${/^'?-/.test(word) ? '=' : ' '}${word}`;
+};
+
 const asShell = (verb: string, input: Readonly<Record<string, unknown>>): string =>
   [verb, ...Object.entries(input).flatMap(([property, value]) =>
-    value === false ? [] : [value === true ? flagOf(property) : `${flagOf(property)} ${wordOf(value)}`],
+    value === false ? [] : [value === true ? flagOf(property) : flagged(property, value)],
   )].join(' ');
 
 /** The wire's spelling: every name as the schemas publish it. */

@@ -1,9 +1,9 @@
 import type { Tool } from '@variance-authority/mcp/tools';
-import { NO_ARGS } from '@variance-authority/mcp/tools';
+import { NO_ARGS, shellWord } from '@variance-authority/mcp/tools';
 import type { Documented, Help } from '@variance-authority/package/help';
 import { REACHING, UNFOLLOWED, counted, countsByPath, unfollowedEntry } from './by-path.js';
 import { NOTHING_PUBLISHED, specifierOf } from './find.js';
-import { mostUsed, narrower, openingRow, plural, section, shell } from './format.js';
+import { mostUsed, narrower, openingRow, plural, section } from './format.js';
 
 /**
  * `docs_packages` — what each package in this workspace is imported for, counted.
@@ -95,7 +95,7 @@ export const packages: Tool<Help> = {
       ...(door === undefined ? [] : [specifierOf(...door)]),
       ...[counts.unentered[0]?.[0], counts.deep[0]?.[0], mostReached(unfollowed, counts.deep)].filter((owner) => owner !== undefined),
     ];
-    const asks = [...new Set(doors)].map((asked) => `variance ask entrypoint --package ${shell(asked)}`);
+    const asks = [...new Set(doors)].map((asked) => `variance ask entrypoint --package ${shellWord(asked)}`);
     return [...lines, ...narrower(asks)].join('\n');
   },
 };

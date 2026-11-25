@@ -140,7 +140,7 @@ export { limitOf, nextPage, notShown, notShownPast, pageAt, pageOf, paged, type 
 // How rare a word is in a population, the one integer every word ranking multiplies by a field weight.
 export { heldWeight, rarity, saturation } from './tools/rarity.js';
 // How an answer names an input, a tool or a question, on the surface it was asked on.
-export { flagOf, spellingOf, verbOf, type Spelling } from './tools/spelling.js';
+export { flagOf, shellWord, spellingOf, verbOf, type Spelling } from './tools/spelling.js';
 export { conjoined } from './tools/locate-print.js';
 export { diffState };
 

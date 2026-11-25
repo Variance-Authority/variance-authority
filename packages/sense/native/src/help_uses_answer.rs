@@ -7,6 +7,7 @@ use std::fs::File;
 use std::path::Path;
 
 use crate::compact::Layer;
+use crate::help_surface::{CLI, Value, typed};
 use crate::help_aliases::aliases;
 use crate::help_declared::{declared, DeclaredName, Matching};
 use crate::help_in_file::InFile;
@@ -211,13 +212,9 @@ fn private_reach(held: &DeclaredName) -> String {
         Some("module") => ", so only its module and the modules inside it can name it".into(),
         Some("underscore" | "all") => {
             let file = &held.at;
-            let path = if file.bytes().all(|byte| byte.is_ascii_alphanumeric() || b"_@./:=+-".contains(&byte)) {
-                file.clone()
-            } else {
-                format!("'{}'", file.replace('\'', "'\\''"))
-            };
-            let name = held.name.replace('\'', "'\\''");
-            format!("; another module can still import it by name, which `variance ask grep --query '\\b{name}\\b' --to {path}` finds")
+            let query = format!(r"\b{}\b", held.name);
+            let ask = typed(CLI, "grep", &[("query", Value::Text(&query)), ("to", Value::Text(file))]);
+            format!("; another module can still import it by name, which `{ask}` finds")
         }
         _ => "; who can reach it is not recorded".into(),
     }

@@ -8,11 +8,12 @@
 
 // compass: variance-authority.report.agent-surface
 
+import { shellWord } from '@variance-authority/mcp/tools';
 import { everyEntry, kindOf, type Help } from '@variance-authority/package/help';
 import { STALE_MAP, unscoped } from './code-map-format.js';
 import { specifierOf } from './find.js';
 import type { FileDeclarations, RankedArea } from '@variance-authority/sense';
-import { narrower, plural, shell } from './format.js';
+import { narrower, plural } from './format.js';
 
 /**
  * What one word names: a package, one of its entrypoints, a name it exports, a
@@ -238,24 +239,24 @@ export function formatClassified(
   // placed by `orient` on its area, if one took it.
   const scoped = (said.from?.length ?? 0) > 0 || (said.to?.length ?? 0) > 0;
   const asks = entities.flatMap(({ word, names }) => !scoped && names.some(namesSource) ? [] : names.flatMap((named) => {
-    if (named.kind === 'export' || named.kind === 'declared') return [`variance ask symbol --name ${shell(word)}`];
+    if (named.kind === 'export' || named.kind === 'declared') return [`variance ask symbol --name ${shellWord(word)}`];
     // A file is itself the place: its package's area would only widen it.
     if (named.kind === 'file') return [];
-    if (named.published) return [`variance ask entrypoint --package ${shell(named.specifier)}`];
+    if (named.published) return [`variance ask entrypoint --package ${shellWord(named.specifier)}`];
     const area = packages.get(named.package)?.area;
-    return area === undefined ? [] : [`variance ask orient --area ${shell(area.id)}`];
+    return area === undefined ? [] : [`variance ask orient --area ${shellWord(area.id)}`];
   }));
   // `search` takes the words of one name, so the best area is asked for the
   // two that weigh most there. Directory membership cannot replace a supplied
   // import scope: the area may hold files it never reached. Cross both facts.
   const best = areas.find((area) => area.declares) ?? areas[0];
   if (best !== undefined) {
-    const flags = Object.entries(said).flatMap(([which, paths]) => (paths ?? []).map((path) => ` --${which} ${shell(path)}`));
-    const from = flags.length > 0 || best.path === '.' || !best.declares ? flags.join('') : ` --from ${shell(best.path)}`;
-    const search = `search --query ${shell(best.words.slice(0, 2).join(' '))}${from}`;
+    const flags = Object.entries(said).flatMap(([which, paths]) => (paths ?? []).map((path) => ` --${which} ${shellWord(path)}`));
+    const from = flags.length > 0 || best.path === '.' || !best.declares ? flags.join('') : ` --from ${shellWord(best.path)}`;
+    const search = `search --query ${shellWord(best.words.slice(0, 2).join(' '))}${from}`;
     if (scoped && best.path !== '.' && best.declares) {
       const directory = `^${best.path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/`;
-      asks.push(`variance ask intersection ${shell(search)} ${shell(`discover --path ${shell(directory)}`)}`);
+      asks.push(`variance ask intersection ${shellWord(search)} ${shellWord(`discover --path ${shellWord(directory)}`)}`);
     } else asks.push(`variance ask ${search}`);
   }
   lines.push(...narrower([...new Set(asks)]));

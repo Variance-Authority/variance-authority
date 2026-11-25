@@ -14,6 +14,9 @@ const { bin } = JSON.parse(readFileSync(manifest, 'utf8')) as { bin: { variance:
 const executable = fileURLToPath(new URL(bin.variance, manifest));
 const nodeEntry = fileURLToPath(new URL('../../dist/bin.js', import.meta.url));
 
+/** More packages than an answer names on one line. */
+const FLAG_KITS = Array.from({ length: 10 }, (_, at) => `flag-kit-${at}`);
+
 it.each([
   { question: ['packages'], contains: 'packages that declare no entry are imported by path' },
   { question: ['entrypoint', '--package', '@acme/lib'], contains: '@acme/lib — 2 names' },
@@ -76,9 +79,11 @@ it.each([
   { question: ['search', '--query', 'greet', '--from', 'apps/app/src/hello.ts'], contains: 'files by distance: 0: 1' },
   { question: ['search', '--query', 'taxOf', '--to', 'packages/kit/src/money/tax.ts'], contains: 'reaching `packages/kit/src/money/tax.ts`' },
   { question: ['search', '--query', 'greet', '--from', 'missing.ts'], contains: 'No search was run' },
+  { question: ['search', '--query=-only'], contains: "`variance ask search --query=-only --limit 20` lists all matching names." },
   { question: ['grep', '--query', 'greet', '--from', 'apps/app/src/hello.ts'], contains: 'greet' },
   { question: ['grep', '--query', 'greet', '--to', 'packages/lib/src/greet.ts'], contains: 'greet' },
   { question: ['grep', '--query', 'greet', '--from', 'packages/lib/src/greet.ts', '--to', 'packages/lib/src/greet.ts', '--limit', '1', '--offset', '1'], contains: 'Rows 2' },
+  { question: ['grep', '--query', 'crowdedLine', '--from', 'apps/app/src/crowded/'], contains: "`variance ask discover --from apps/app/src/crowded/ --path '^apps/app/src/crowded/one\\.ts$' --text crowdedLine`: the 1 matching file" },
   { question: ['grep', '--query', 'absentText', '--from', 'apps/app/src/hello.ts'], contains: 'Nothing in those files matches' },
   { question: ['grep', '--query', '[', '--from', 'apps/app/src/hello.ts'], contains: 'ripgrep refused the pattern' },
   { question: ['grep', '--query', 'greet', '--from', 'missing.ts'], contains: 'is not found' },
@@ -106,6 +111,10 @@ it.each([
       'packages/unfollowed/src/file.ts': "export const held = 'exists';\n",
       'apps/app/src/unfollowed.ts': "import { held } from '@acme/unfollowed';\nexport const value = held;\n",
     } : {}),
+    ...(question[2] === 'crowdedLine' ? {
+      'apps/app/src/crowded/one.ts': '// crowdedLine\n'.repeat(150),
+      'apps/app/src/crowded/two.ts': '// crowdedLine\n'.repeat(60),
+    } : {}),
     ...(question[2] === 'dualExport' ? {
       'packages/dual/package.json': JSON.stringify({ name: '@acme/dual', exports: { '.': './src/index.ts', './tools': './src/index.ts' } }),
       'packages/dual/src/index.ts': "export const dualExport = 'dual';\n",
@@ -127,6 +136,14 @@ it.each([
       'node_modules/search-kit/package.json': JSON.stringify({ name: 'search-kit', version: '1.0.0', types: 'index.d.ts' }),
       'node_modules/search-kit/index.d.ts': 'export declare const externalOnly: true;\nexport declare const kitExternal: true;\n',
       'packages/kit/src/external.ts': 'export const kitExternal = true;\n',
+    } : {}),
+    ...(question[1] === '--query=-only' ? {
+      'package.json': JSON.stringify({ private: true, workspaces: ['packages/*', 'apps/*'], dependencies: Object.fromEntries(FLAG_KITS.map((name) => [name, '1.0.0'])) }),
+      ...Object.fromEntries(FLAG_KITS.flatMap((name) => [
+        [`node_modules/${name}/package.json`, JSON.stringify({ name, version: '1.0.0', types: 'index.d.ts', description: 'handles only flags.' })],
+        [`node_modules/${name}/index.d.ts`, 'export declare const onlyFlags: true;\n'],
+      ])),
+      'packages/kit/src/flags.ts': 'export const onlyFlags = true;\n',
     } : {}),
     ...(question[2] === 'CabinetLedger' ? {
       'package.json': JSON.stringify({ private: true, workspaces: ['packages/*', 'apps/*'], dependencies: { 'readme-kit': '1.0.0' } }),
@@ -162,6 +179,29 @@ it.each([
     const actual = spawnSync(executable, args, { cwd: root, env: { ...env, PATH: empty }, encoding: 'utf8' });
     expect(actual.error).toBeUndefined();
     expect([actual.status, actual.stdout, actual.stderr]).toEqual([expected.status, expected.stdout, expected.stderr]);
+  } finally {
+    process.chdir(previous);
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+it('asks a search from several start points again with one flag for each', async () => {
+  const previous = process.cwd();
+  const root = checkout({
+    'apps/app/package.json': JSON.stringify({ name: '@acme/app', dependencies: Object.fromEntries(FLAG_KITS.map((name) => [name, '1.0.0'])) }),
+    ...Object.fromEntries(FLAG_KITS.flatMap((name) => [
+      [`node_modules/${name}/package.json`, JSON.stringify({ name, version: '1.0.0', types: 'index.d.ts' })],
+      [`node_modules/${name}/index.d.ts`, 'export declare const onlyFlags: true;\n'],
+    ])),
+    'apps/app/src/flags.ts': 'export const onlyFlags = true;\n',
+  });
+  try {
+    expect((await run(['index', '--wait'])).code).toBe(0);
+    const ask = (words: readonly string[]): string => spawnSync(executable, words, { cwd: root, env: { ...process.env, npm_config_user_agent: '' }, encoding: 'utf8' }).stdout;
+    const points = ['--from', 'apps/app/src/flags.ts', '--from', 'apps/app/src/hello.ts'];
+    const again = /`variance (ask search [^`]*)` lists all matching names/u.exec(ask(['ask', 'search', '--query', 'onlyFlags', ...points]))?.[1];
+    expect(again).toBe(`ask search --query onlyFlags ${points.join(' ')} --limit 20`);
+    expect(ask(again?.split(' ') ?? [])).toContain('flag-kit-9');
   } finally {
     process.chdir(previous);
     rmSync(root, { recursive: true, force: true });
