@@ -8,13 +8,14 @@ use std::path::Path;
 
 use crate::compact::Layer;
 use crate::help_surface::{CLI, Value, typed};
+use crate::harvest::is_bound;
 use crate::help_aliases::aliases;
 use crate::help_declared::{declared, DeclaredName, Matching};
 use crate::help_in_file::InFile;
 use crate::help_members::{member_declarations, MemberSite};
 use crate::help_name_scope::{owner_of, PackageScope};
 use crate::help_origin::declaration_exported;
-use crate::help_symbol_answer::{declaration_kind_order, is_bound, kept_as, member_name, member_stop, nowhere, unread_line};
+use crate::help_symbol_answer::{declaration_kind_order, kept_as, member_name, member_stop, nowhere, unread_line};
 use crate::help_symbol_published::{joined_sites, published_imports, PublicationScope};
 use crate::help_symbol_rows::{Entry, Export, PathSite, Rows, Site};
 use crate::help_usage::{importers, kind_of, Asked};
@@ -57,7 +58,7 @@ pub(crate) fn uses(root: &str, index: &Path, store: &mut File, name: &str, wante
             return member_uses(name, member, &members, from, file, limit, layers, &kept.unread);
         }
         if container.is_some() { return None }
-        if kept.names.iter().any(|held| !is_bound(held)) {
+        if kept.names.iter().any(|held| !is_bound(&held.kind)) {
             return private_uses(root, layers, name, from, file, limit, &kept.names, &kept.unread);
         }
         let absent = nowhere(name, &rows.published_names()?, layers, &kept.unread, None, wanted, package.export_hint(&rows, name, &exports)?.as_deref());
@@ -169,7 +170,7 @@ fn private_uses(root: &str, layers: &[Layer], name: &str, from: Option<&str>, fi
     selected.sort_by_key(|held| declaration_kind_order(held));
     let first = selected.first()?;
     let files = files_of(&selected);
-    let (bound, declaring): (Vec<_>, Vec<_>) = selected.iter().copied().partition(|held| is_bound(held));
+    let (bound, declaring): (Vec<_>, Vec<_>) = selected.iter().copied().partition(|held| is_bound(&held.kind));
     let mut lines = kept_lines(name, &declaring);
     lines.extend(kept_lines(name, &bound));
     let declaring = files_of(&declaring);

@@ -92,6 +92,11 @@ pub const KINDS: [(&str, &[&str]); 24] = [
 /// there: one destructured out of a value, or a whole module a constant `require` loads.
 pub const BINDING: &str = "binding";
 
+/// Whether a name of this kind only binds a value defined elsewhere, which declares nothing.
+pub(crate) fn is_bound(kind: &str) -> bool {
+    kind == BINDING
+}
+
 /// The word of [`KINDS`] spelled `word`.
 pub fn kind_named(word: &str) -> Option<&'static str> {
     KINDS.iter().map(|(kind, _)| *kind).find(|kind| *kind == word)
