@@ -8,16 +8,15 @@
  * reported it.
  */
 
+import { durationText } from '@variance-authority/core/shard';
 import { section, text } from './report-html-elements.js';
 import type { TestsData } from './view-data.js';
 import type { View } from './view-shell.js';
 
 const MESSAGE = 300;
 
-/** Milliseconds as the page prints them: whole below a second, one decimal above. */
-export function ms(value: number): string {
-  return value < 1000 ? `${Math.round(value)} ms` : `${(value / 1000).toFixed(value < 10_000 ? 2 : 1)} s`;
-}
+/** Milliseconds as the shard lines print them. */
+export const ms = durationText;
 
 function table(head: readonly (readonly [name: string, numeric: boolean])[], rows: readonly string[]): string {
   const ths = head.map(([name, numeric]) => `<th data-sort${numeric ? ' class="num"' : ''}>${text(name)}</th>`).join('');
@@ -25,8 +24,8 @@ function table(head: readonly (readonly [name: string, numeric: boolean])[], row
 }
 
 /** A test file as a link to its row in another view: the Timeline by default. */
-export function fileLink(file: string, view: 'timeline' | 'tests' = 'timeline'): string {
-  const where = view === 'timeline' ? 'it on the timeline' : 'its tests';
+export function fileLink(file: string, view: 'timeline' | 'tests' | 'test' = 'test'): string {
+  const where = view === 'timeline' ? 'it on the timeline' : view === 'test' ? 'its attempts, phases and the files it entered' : 'its tests';
   return `<a class="go file" href="#${view}/${encodeURIComponent(file)}" title="show ${where}">${text(file)}</a>`;
 }
 

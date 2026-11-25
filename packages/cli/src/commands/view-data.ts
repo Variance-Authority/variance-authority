@@ -10,10 +10,12 @@
  */
 
 import { recordedAttempts, recordedDurations, recordedTrace } from '@variance-authority/sense';
+import { OperatorError } from '../exit.js';
+import { readExecutionIndex, recordedExecutionFile } from './execution-input.js';
+import { noReach, reachOf, TOP, type ReachData } from './view-reach.js';
 import type { RecordedAttempts, RecordedDurations, RecordedTrace, RetriedCase, TracedFile } from '@variance-authority/sense';
 
-/** How many rows of each kind the page holds. The recording keeps the rest. */
-export const TOP = 100;
+export { TOP };
 
 /** What the Tests view holds. */
 export interface TestsData {
@@ -41,6 +43,7 @@ export interface ViewData {
   readonly recording?: string;
   readonly tests: TestsData;
   readonly timeline: TimelineData;
+  readonly reach: ReachData;
 }
 
 /** The slowest `TOP` files with a start, ordered by start so the page reads left to right. */
@@ -86,14 +89,31 @@ function pick<T extends { readonly suite?: string }>(rows: readonly T[], suite: 
   return rows.find(readable) ?? rows[0];
 }
 
+/** The relation for the test files the page shows, or the reason the record holds none. */
+async function reachFor(root: string, suite: string | undefined, shown: ReadonlySet<string>): Promise<ReachData> {
+  try {
+    return reachOf(await readExecutionIndex(await recordedExecutionFile(root, suite)), shown);
+  } catch (error) {
+    if (error instanceof OperatorError) return noReach(error.message);
+    throw error;
+  }
+}
+
 /** The recording at `root` as the rows the page shows. */
-export function viewData(root: string, suite?: string): ViewData {
+export async function viewData(root: string, suite?: string): Promise<ViewData> {
   const notes: string[] = [];
   const timed = pick(recordedDurations(root, TOP), suite, (row) => !('unread' in row));
   const attempts = pick(recordedAttempts(root, TOP), suite, (row) => !('unread' in row));
   const traced = recordedTrace(root, suite ?? timed?.suite);
   const tests: TestsData = { ...durationsOf(timed, notes), ...retriedOf(attempts, notes), notes };
   const timeline: TimelineData = 'unread' in traced ? { files: [], unplaced: 0, note: traced.unread } : placed(traced);
+  const shown = new Set([
+    ...tests.slowestFiles.map((row) => row.file),
+    ...tests.slowestCases.map((row) => row.file),
+    ...tests.retried.map((row) => row.file),
+    ...timeline.files.map((row) => row.file),
+  ]);
+  const reach = await reachFor(root, suite ?? timed?.suite, shown);
   const commit = timed !== undefined && !('unread' in timed) ? timed.commit : undefined;
   return {
     ...(timed?.suite === undefined ? {} : { suite: timed.suite }),
@@ -101,5 +121,6 @@ export function viewData(root: string, suite?: string): ViewData {
     ...(timed === undefined ? {} : { recording: timed.recording }),
     tests,
     timeline,
+    reach,
   };
 }

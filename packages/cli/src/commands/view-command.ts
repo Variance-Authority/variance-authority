@@ -6,8 +6,6 @@
  * person's: the command prints where it is.
  */
 
-// compass: variance-authority.reach
-
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { cacheRootFor } from '@variance-authority/sense/test-selection';
@@ -19,7 +17,7 @@ import { viewPage } from './view-page.js';
 
 /** The page's path on stdout, and what could not be counted on stderr. */
 export async function viewOutput(parsed: ParsedView, cwd: string): Promise<{ readonly out: string; readonly err: string }> {
-  const data = viewData(cwd, parsed.suite);
+  const data = await viewData(cwd, parsed.suite);
   let counted: Coverage | { readonly missed: string };
   let err = '';
   try {

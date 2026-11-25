@@ -20,6 +20,10 @@ export interface View {
   readonly id: string;
   readonly label: string;
   readonly body: string;
+  /** False for a view reached only by a link: no tab. */
+  readonly tab?: false;
+  /** True when the address names one row exactly and the rest stay hidden. */
+  readonly pick?: true;
 }
 
 /** One page: the masthead, the views, the one shown first, and what only these views draw. */
@@ -35,11 +39,11 @@ export interface Shell {
 /** The views as one self-contained page, opened on `first`. */
 export function shell(page: Shell): string {
   const first = page.views.some((view) => view.id === page.first) ? page.first : (page.views[0]?.id ?? '');
-  const tabs = page.views.map((view) => `<a href="#${text(view.id)}" data-tab="${text(view.id)}">${text(view.label)}</a>`).join('');
+  const tabs = page.views.filter((view) => view.tab !== false).map((view) => `<a href="#${text(view.id)}" data-tab="${text(view.id)}">${text(view.label)}</a>`).join('');
   const views = page.views
     .map(
       (view) =>
-        `<section class="view" id="view-${text(view.id)}" data-view="${text(view.id)}">` +
+        `<section class="view" id="view-${text(view.id)}" data-view="${text(view.id)}"${view.pick ? ' data-pick' : ''}>` +
         `<input class="vfilter" type="search" placeholder="filter ${text(view.label.toLowerCase())}" aria-label="filter ${text(view.label.toLowerCase())}" autocomplete="off">` +
         `${view.body}</section>`,
     )
@@ -92,13 +96,15 @@ const views=[...document.querySelectorAll('.view')].map((v)=>v.dataset.view);
 function rows(view){return [...view.querySelectorAll('[data-key]')];}
 function narrow(view,q){
 const needle=q.toLowerCase();
-for(const row of rows(view))row.classList.toggle('hidden',needle!==''&&!row.dataset.key.toLowerCase().includes(needle));
+const pick=view.hasAttribute('data-pick');
+for(const row of rows(view))row.classList.toggle('hidden',pick?row.dataset.key.toLowerCase()!==needle:needle!==''&&!row.dataset.key.toLowerCase().includes(needle));
 for(const sec of view.querySelectorAll('section.part')){
 const any=sec.querySelector('[data-key]:not(.hidden)')!==null||sec.querySelector('[data-key]')===null;
 sec.classList.toggle('hidden',needle!==''&&!any);}
 }
 function mark(view,q){
 for(const row of rows(view))row.classList.toggle('hit',q!==''&&row.dataset.key===q);
+for(let up=view.querySelector('.hit');up;up=up.parentElement)if(up.tagName==='DETAILS')up.open=true;
 const first=view.querySelector('.hit');if(first&&first.scrollIntoView)first.scrollIntoView({block:'center'});
 }
 function route(){

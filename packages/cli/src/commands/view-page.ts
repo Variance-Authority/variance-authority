@@ -12,6 +12,8 @@ import { chip, text } from './report-html-elements.js';
 import { MARK } from './report-html-style.js';
 import type { Coverage } from './coverage.js';
 import type { ViewData } from './view-data.js';
+import { detailView } from './view-detail.js';
+import { enteredSection } from './view-entered.js';
 import { shell, type View } from './view-shell.js';
 import { TESTS_STYLE, testsView } from './view-tests.js';
 import { TIMELINE_STYLE, timelineView } from './view-timeline.js';
@@ -33,8 +35,12 @@ function masthead(data: ViewData, coverage: Coverage | { readonly missed: string
 
 /** The recording as one self-contained page, opened on its Tests. */
 export function viewPage(data: ViewData, coverage?: Coverage | { readonly missed: string }): string {
-  const views: View[] = [testsView(data.tests), timelineView(data.timeline)];
-  if (coverage !== undefined && !('missed' in coverage)) views.push(coverageView(coverage, true));
+  const views: View[] = [testsView(data.tests), timelineView(data.timeline), detailView(data)];
+  const entered = enteredSection(data.reach);
+  if (coverage !== undefined && !('missed' in coverage)) {
+    const counted = coverageView(coverage, true);
+    views.push({ ...counted, body: counted.body + entered });
+  } else if (data.reach.files.length > 0) views.push({ id: 'coverage', label: 'Coverage', body: entered });
   return shell({
     title: 'variance view',
     header: masthead(data, coverage),

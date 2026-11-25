@@ -32,6 +32,16 @@ const DATA: ViewData = {
     ],
     unplaced: 3,
   },
+  reach: {
+    tests: [
+      { file: 'src/slow.test.ts', reached: ['src/world.ts', 'src/price.ts'], total: 2 },
+      { file: 'src/flaky.test.ts', reached: ['src/price.ts'], total: 1 },
+    ],
+    files: [
+      { file: 'src/price.ts', tests: ['src/flaky.test.ts', 'src/slow.test.ts'], total: 2 },
+      { file: 'src/world.ts', tests: ['src/slow.test.ts'], total: 1 },
+    ],
+  },
 };
 
 describe('variance view page', () => {
@@ -58,8 +68,8 @@ describe('variance view page', () => {
     expect(html).toContain('3 recorded files carry no start offset');
   });
 
-  it('has one tab per view, Tests first, and no coverage tab when none was counted', () => {
-    const html = viewPage(DATA);
+  it('has one tab per view, Tests first, and no coverage tab when neither coverage nor a relation exists', () => {
+    const html = viewPage({ ...DATA, reach: { tests: [], files: [] } });
     expect(html).toContain('data-tab="tests"');
     expect(html).toContain('data-tab="timeline"');
     expect(html).not.toContain('data-tab="coverage"');
@@ -70,6 +80,63 @@ describe('variance view page', () => {
     const html = viewPage(DATA);
     expect(html).not.toMatch(/<script[^>]*\ssrc=/);
     expect(html).not.toMatch(/https?:\/\//);
+  });
+});
+
+describe('variance view drill-down', () => {
+  const pane = (html: string, file: string): string => {
+    const at = html.indexOf(`<article class="pane" data-key="${file}"`);
+    expect(at).toBeGreaterThan(-1);
+    return html.slice(at, html.indexOf('</article>', at));
+  };
+
+  it('opens a test file on a pane that is no tab, and links every test row to it', () => {
+    const html = viewPage(DATA);
+    expect(html).toContain('data-view="test"');
+    expect(html).not.toContain('data-tab="test"');
+    expect(html).toContain('href="#test/src%2Fslow.test.ts"');
+    expect(html).toContain('href="#test/src%2Fflaky.test.ts"');
+  });
+
+  it('shows a retried case\'s every attempt: outcome, duration, message and nearest frame', () => {
+    const flaky = pane(viewPage({ ...DATA, tests: { ...DATA.tests, retried: [{ ...DATA.tests.retried[0]!, attempts: [{ attempt: 1, ended: 'failed', duration: 120, message: 'expected 1 to be 2', frame: 'src/flaky.test.ts:14' }, { attempt: 2, ended: 'passed', duration: 110 }] }] } }), 'src/flaky.test.ts');
+    expect(flaky).toContain('sometimes &lt;fails&gt;');
+    expect(flaky).toContain('failed');
+    expect(flaky).toContain('120 ms');
+    expect(flaky).toContain('expected 1 to be 2');
+    expect(flaky).toContain('src/flaky.test.ts:14');
+    expect(flaky).toContain('passed');
+  });
+
+  it('says a file holds no retried case where it holds none, rather than leaving the half empty', () => {
+    expect(pane(viewPage(DATA), 'src/slow.test.ts')).toContain('no retried case');
+  });
+
+  it('gives a file its phases and its place on the timeline, or says it has none', () => {
+    const slow = pane(viewPage(DATA), 'src/slow.test.ts');
+    expect(slow).toContain('setup');
+    expect(slow).toContain('200 ms');
+    expect(slow).toContain('href="#timeline/src%2Fslow.test.ts"');
+    expect(pane(viewPage(DATA), 'src/flaky.test.ts')).toContain('carries no start');
+  });
+
+  it('lists the source files a test file entered, each a link to Coverage', () => {
+    const slow = pane(viewPage(DATA), 'src/slow.test.ts');
+    expect(slow).toContain('href="#coverage/src%2Fworld.ts"');
+    expect(slow).toContain('href="#coverage/src%2Fprice.ts"');
+  });
+
+  it('says how many it left out when the files it entered were cut', () => {
+    const cut = { ...DATA, reach: { ...DATA.reach, tests: [{ file: 'src/slow.test.ts', reached: ['src/world.ts'], total: 40 }], files: [] } };
+    expect(pane(viewPage(cut), 'src/slow.test.ts')).toContain('39 more');
+  });
+
+  it('draws a Coverage tab from the relation alone, where each file lists the tests that entered it and links back', () => {
+    const html = viewPage(DATA);
+    expect(html).toContain('data-tab="coverage"');
+    const row = html.slice(html.indexOf('<tr data-key="src/price.ts"'));
+    expect(row.slice(0, row.indexOf('</tr>'))).toContain('href="#test/src%2Fflaky.test.ts"');
+    expect(row.slice(0, row.indexOf('</tr>'))).toContain('href="#test/src%2Fslow.test.ts"');
   });
 });
 

@@ -30,7 +30,7 @@ function lane(file: TimelineData['files'][number], t0: number, span: number): st
         .join('');
   const tip = `${file.file}\n${ms(cost)} from +${ms(start - t0)}${file.cases.length === 0 ? '' : `\n${file.cases.length} cases`}`;
   return (
-    `<div class="lane" data-key="${text(file.file)}"><div class="who">${fileLink(file.file, 'tests')}</div>` +
+    `<div class="lane" data-key="${text(file.file)}"><div class="who">${fileLink(file.file, 'test')}</div>` +
     `<div class="track"><b class="bar2" style="left:${left.toFixed(3)}%;width:${width.toFixed(3)}%" title="${text(tip)}">${inside}</b></div>` +
     `<span class="px">${text(ms(cost))}</span></div>`
   );

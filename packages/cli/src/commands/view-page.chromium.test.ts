@@ -48,6 +48,10 @@ const DATA: ViewData = {
     files: [{ file: 'src/slow.test.ts', start: 1000, cost: 4200, phases: [{ name: 'cases', ms: 4000 }], cases: [] }],
     unplaced: 0,
   },
+  reach: {
+    tests: [{ file: 'src/slow.test.ts', reached: ['src/world.ts'], total: 1 }],
+    files: [{ file: 'src/world.ts', tests: ['src/slow.test.ts'], total: 1 }],
+  },
 };
 
 // One page for the whole file, opened once and driven through its address: the
@@ -105,6 +109,24 @@ describe.skipIf(!BROWSER_AVAILABLE)('variance view page in a browser', () => {
     expect(await first()).toBe('src/fast.test.ts');
     await th.click();
     expect(await first()).toBe('src/slow.test.ts');
+  });
+
+  it('opens a test file\'s pane from its row, follows a reached file to its Coverage row, and comes back', async () => {
+    await page!.evaluate(() => (location.hash = '#tests'));
+    await page!.locator('.view[data-view="tests"] a[href="#test/src%2Fslow.test.ts"]').first().click();
+    await page!.locator('.view[data-view="test"]').waitFor();
+    expect(await page!.locator('.view[data-view="test"] article.pane:not(.hidden)').count()).toBe(1);
+    await page!.locator('.view[data-view="test"] a[href="#coverage/src%2Fworld.ts"]').click();
+    await page!.locator('.view[data-view="coverage"]').waitFor();
+    expect(await page!.locator('.view[data-view="coverage"] tr.hit').count()).toBe(1);
+    await page!.locator('.view[data-view="coverage"] tr.hit a[href="#test/src%2Fslow.test.ts"]').click();
+    await page!.locator('.view[data-view="test"]').waitFor();
+    expect(await page!.locator('.view[data-view="test"] article.pane:not(.hidden)').count()).toBe(1);
+  });
+
+  it('shows no pane for an address that names no file', async () => {
+    await page!.evaluate(() => (location.hash = '#test/src/nothing.ts'));
+    expect(await page!.locator('.view[data-view="test"] article.pane:not(.hidden)').count()).toBe(0);
   });
 
   it('asked the network for nothing but its own file', () => {
