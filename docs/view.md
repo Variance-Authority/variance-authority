@@ -61,7 +61,12 @@ no Coverage tab, and the header says coverage was not counted.
   suite, kind of test and package, and below that each source file with the test
   files that called into it. When the run cannot be counted that way, the page says so
   in a chip and still opens; the list of which test files called into which source
-  file needs only the record.
+  file needs only the record. Click a source file and its text opens with each
+  recorded range marked by its state (walked, alone, loaded, hole or unwalked),
+  taken from the same answer as `variance covering --file <f> --text -`. A file
+  the record lacks, or one whose ranges carry no state, says so instead. The page
+  holds the text of at most 30 source files, the most entered first, and none
+  over 100 kB; the others are counted on the page and not drawn.
 
 Click a test file anywhere and its pane opens, with these headings:
 **Attempts** for its cases that ended differently, **Phases and place** on the timeline, and

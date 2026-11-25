@@ -14,6 +14,7 @@ import type { ParsedView } from '../view-args.js';
 import { coverage, type Coverage } from './coverage.js';
 import { textOver } from './coverage-over-text.js';
 import { viewData, viewSuite } from './view-data.js';
+import { viewSources } from './view-source.js';
 import { viewPage } from './view-page.js';
 
 /** The page's path on stdout, and what could not be counted on stderr. */
@@ -31,7 +32,8 @@ export async function viewOutput(parsed: ParsedView, cwd: string): Promise<{ rea
     counted = { missed: error.message };
     err = `view: coverage was not counted: ${error.message}\n`;
   }
-  const data = viewData(cwd, suite, 'missed' in counted ? counted : counted.fanIn);
+  const read = viewData(cwd, suite, 'missed' in counted ? counted : counted.fanIn);
+  const data = { ...read, sources: await viewSources(cwd, read.reach.files.map((row) => row.file), parsed.suite) };
   const path = resolve(cwd, `${cacheRootFor(cwd)}/variance-view.html`);
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, viewPage(data, counted));

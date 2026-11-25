@@ -16,6 +16,7 @@ import type { ViewData } from './view-data.js';
 import { detailView } from './view-detail.js';
 import { enteredSection } from './view-entered.js';
 import { shell, type View } from './view-shell.js';
+import { SOURCE_STYLE, sourceView } from './view-source-page.js';
 import { TESTS_STYLE, testsView } from './view-tests.js';
 import { TIMELINE_STYLE, timelineView } from './view-timeline.js';
 
@@ -35,8 +36,8 @@ function masthead(data: ViewData, coverage: Coverage | { readonly missed: string
 
 /** The recording as one self-contained page, opened on its Tests. */
 export function viewPage(data: ViewData, coverage?: Coverage | { readonly missed: string }): string {
-  const views: View[] = [testsView(data.tests), timelineView(data.timeline), cadenceView(data.cadence), detailView(data)];
-  const entered = enteredSection(data.reach);
+  const views: View[] = [testsView(data.tests), timelineView(data.timeline), cadenceView(data.cadence), detailView(data), sourceView(data.sources)];
+  const entered = enteredSection(data.reach, new Set(data.sources.files.map((row) => row.file)));
   if (coverage !== undefined && !('missed' in coverage)) {
     const counted = coverageView(coverage, true);
     views.push({ ...counted, body: counted.body + entered });
@@ -46,6 +47,6 @@ export function viewPage(data: ViewData, coverage?: Coverage | { readonly missed
     header: masthead(data, coverage),
     views,
     first: 'tests',
-    style: `${COVERAGE_STYLE}${TESTS_STYLE}${TIMELINE_STYLE}${CADENCE_STYLE}`,
+    style: `${COVERAGE_STYLE}${TESTS_STYLE}${TIMELINE_STYLE}${CADENCE_STYLE}${SOURCE_STYLE}`,
   });
 }

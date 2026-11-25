@@ -14,6 +14,7 @@ import { recordedAttempts, recordedDurations, recordedTrace } from '@variance-au
 import type { RecordedAttempts, RecordedDurations, RecordedTrace, RetriedCase, TracedFile } from '@variance-authority/sense';
 import { readRunRows } from '@variance-authority/sense/test-selection';
 import type { FanIn, RunRow } from '@variance-authority/sense/test-selection';
+import type { SourcesData } from './view-source.js';
 
 /** How many rows of each kind the page holds. The recording keeps the rest. */
 export const TOP = 100;
@@ -73,6 +74,8 @@ export interface ViewData {
   readonly timeline: TimelineData;
   readonly cadence: CadenceData;
   readonly reach: ReachData;
+  /** The text and range states of the files the Coverage tab can draw; `viewData` holds none, `viewSources` reads them. */
+  readonly sources: SourcesData;
 }
 
 /** The slowest `TOP` files with a start, ordered by start so the page reads left to right. */
@@ -176,5 +179,6 @@ export function viewData(root: string, suite?: string, fanIn?: FanIn | { readonl
     timeline,
     cadence: { rows: timed === undefined ? [] : readRunRows(timed.recording) },
     reach,
+    sources: { files: [], left: 0 },
   };
 }

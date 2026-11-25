@@ -53,6 +53,17 @@ const DATA: ViewData = {
       { file: 'src/world.ts', tests: ['src/slow.test.ts'], total: 1 },
     ],
   },
+  sources: {
+    files: [
+      {
+        file: 'src/price.ts',
+        text: 'export function price(a: number) {\n  if (a < 0) throw new Error("<neg>");\n  return a;\n}\n',
+        marks: [{ startLine: 1, endLine: 1, state: 'walked' }, { startLine: 2, endLine: 2, state: 'unwalked' }, { startLine: 3, endLine: 4, state: 'alone' }],
+      },
+      { file: 'src/world.ts', marks: [], note: 'the record does not hold src/world.ts' },
+    ],
+    left: 0,
+  },
 };
 
 describe('variance view page', () => {
@@ -204,6 +215,46 @@ describe('variance view drill-down', () => {
     const row = html.slice(html.indexOf('<tr data-key="src/price.ts"'));
     expect(row.slice(0, row.indexOf('</tr>'))).toContain('href="#test/src%2Fflaky.test.ts"');
     expect(row.slice(0, row.indexOf('</tr>'))).toContain('href="#test/src%2Fslow.test.ts"');
+  });
+});
+
+describe('variance view source', () => {
+  const source = (html: string, file: string): string => {
+    const at = html.indexOf(`<article class="pane" data-key="${file}"`, html.indexOf('data-view="source"'));
+    expect(at).toBeGreaterThan(-1);
+    return html.slice(at, html.indexOf('</article>', at));
+  };
+
+  it('draws a picked file\'s text with each line painted in the state of the range over it', () => {
+    const price = source(viewPage(DATA), 'src/price.ts');
+    expect(price).toContain('<span class="ln walked" data-state="walked">');
+    expect(price).toContain('<span class="ln unwalked" data-state="unwalked">');
+    expect(price.match(/data-state="alone"/g)).toHaveLength(2);
+    expect(price).toContain('throw new Error(&quot;&lt;neg&gt;&quot;)');
+  });
+
+  it('links a source file in the entered list to its pane, where the page holds one', () => {
+    const html = viewPage(DATA);
+    expect(html).not.toContain('data-tab="source"');
+    expect(html).toContain('href="#source/src%2Fprice.ts"');
+  });
+
+  it('says a file the record lacks has no text to draw, in place of an error', () => {
+    const world = source(viewPage(DATA), 'src/world.ts');
+    expect(world).toContain('the record does not hold src/world.ts');
+    expect(world).not.toContain('class="ln');
+  });
+
+  it('draws the text unpainted, with the note, where no range of it has a state', () => {
+    const html = viewPage({ ...DATA, sources: { files: [{ file: 'src/price.ts', text: 'a\nb\n', marks: [], note: 'no range of it has a state' }], left: 0 } });
+    const price = source(html, 'src/price.ts');
+    expect(price).toContain('no range of it has a state');
+    expect(price).not.toContain('data-state=');
+    expect(price).toContain('<span class="ln">');
+  });
+
+  it('says how many files it holds no text of, where the cut left some out', () => {
+    expect(viewPage({ ...DATA, sources: { ...DATA.sources, left: 7 } })).toContain('7 more source files');
   });
 });
 

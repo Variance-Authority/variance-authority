@@ -58,6 +58,7 @@ const DATA: ViewData = {
     tests: [{ file: 'src/slow.test.ts', reached: ['src/world.ts'], total: 1 }],
     files: [{ file: 'src/world.ts', tests: ['src/slow.test.ts'], total: 1 }],
   },
+  sources: { files: [], left: 0 },
 };
 
 // One page for the whole file, opened once and driven through its address: the
