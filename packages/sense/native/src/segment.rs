@@ -26,7 +26,7 @@ pub(crate) const ALIGNMENT: usize = 8;
 pub(crate) const FORMAT: &str = "variance-authority-source-index";
 /// `SOURCE_INDEX_VERSION` in `source-index-format.ts`: a layer the reader
 /// refuses is a layer thrown away, which `native-read.test.ts` catches.
-pub(crate) const VERSION: u8 = 50;
+pub(crate) const VERSION: u8 = 51;
 
 /// One section's bytes, held in the parts they were written in: a column
 /// written in runs side by side is not copied into one buffer only to be

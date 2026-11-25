@@ -86,6 +86,11 @@ declaration:
 `levy` is imported in 2 places, all inside @acme/kit, and no entry publishes it; it is exported at packages/kit/src/money/rates.ts:1, which passes on `taxOf`, declared at packages/kit/src/money/tax.ts:1.
 ```
 
+A file that only binds the name, by destructuring it out of a value or with
+`const x = require('m')`, and does not export it declares no other thing: the
+answer lists it as `bound, not declared, at <path>:<line>`, then the lines of
+that file that use it, and when no file declares the name it says so first.
+
 Each file that declares a name declares another thing, so `uses` answers for
 every one of them, each kept apart: the published declaration's imports, a line
 naming each file that exports the name without publishing it followed by that

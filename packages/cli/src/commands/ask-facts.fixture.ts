@@ -117,7 +117,7 @@ export async function uses(name: string): Promise<UsesAnswer> {
     } else if (/^Tests(?:, from other packages|, inside \S+)?:$/u.test(line)) section = 'tests';
     else if (/^Source(?:, from other packages|, inside \S+)?:$/u.test(line)) section = 'source';
     else if (line === 'Member declarations:') section = 'member-declarations';
-    else if ((m = /^Used in (\S+)(?: — \S+)?, which declares it:$/u.exec(line))) {
+    else if ((m = /^Used in (\S+)(?: — \S+)?, which (?:declares|binds) it:$/u.exec(line))) {
       section = 'own-file';
       ownFile = m[1]!;
     } else if (section === 'own-file' && /^ {2}\d+(?: |$)/u.test(line)) {

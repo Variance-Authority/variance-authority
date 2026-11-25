@@ -8,7 +8,7 @@
 
 import { conjoined, type Spelling } from '@variance-authority/mcp/tools';
 import type { DeclaredName } from '@variance-authority/sense';
-import { reachSentences } from './declared.js';
+import { keptAs, reachSentences } from './declared.js';
 import { specifierOf } from './find.js';
 import { type Members, places } from './members.js';
 import { SLOT } from './declaration-key.js';
@@ -28,8 +28,8 @@ export function bracketed(held: readonly (string | undefined)[]): string {
 }
 
 /**
- * A name its files keep to themselves: what each declaration is, where it is
- * declared, and who can reach it from there. The kind is said every time,
+ * A name its files keep to themselves, or only bind: what each row of `kept` is, where
+ * it is written, and who can reach it from there. The kind is said every time,
  * since a name is not a thing: a Rust `mod walk;` and the `fn walk` inside it
  * are two declarations that share a spelling, and the export of one is no
  * answer about the other.
@@ -41,11 +41,11 @@ export function keptLine(name: string, kept: readonly DeclaredName[], spell: Spe
   const kind = (one: DeclaredName): string => bracketed([one.kind]);
   if (kept.length === 1) {
     const one = kept[0]!;
-    return `\`${name}\`${kind(one)} is declared, not exported, at ${one.at}:${one.line}${named(one)}${reachSentences(one, spell).clause}.`;
+    return `\`${name}\`${kind(one)} is ${keptAs(one)}, at ${one.at}:${one.line}${named(one)}${reachSentences(one, spell).clause}.`;
   }
   const files = new Set(kept.map((one) => one.at)).size;
   return [
-    `\`${name}\` is declared, not exported, in ${files === kept.length ? `${files} files` : places(kept.length)}:`,
+    `\`${name}\` is ${keptAs(kept[0]!)}, in ${files === kept.length ? `${files} files` : places(kept.length)}:`,
     ...kept.map((one) => `  ${one.at}:${one.line}${named(one)}${kind(one)}${reachSentences(one, spell).clause}`),
   ].join('\n');
 }

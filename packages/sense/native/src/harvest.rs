@@ -89,7 +89,7 @@ pub const KINDS: [(&str, &[&str]); 24] = [
 ];
 
 /// The kind of a top-level name a file binds to a value it did not define
-/// there: one destructured out of a value.
+/// there: one destructured out of a value, or a whole module a constant `require` loads.
 pub const BINDING: &str = "binding";
 
 /// The word of [`KINDS`] spelled `word`.
@@ -232,8 +232,8 @@ impl Harvest {
                     return;
                 }
                 let doc = harvest.doc(bound.statement.start);
-                // A name destructured out of a value is bound, not defined, here.
-                let kind = if bound.destructured { BINDING } else { bound.kind };
+                // A name destructured out of a value, or a module required whole, is bound, not defined, here.
+                let kind = if bound.destructured || bound.required { BINDING } else { bound.kind };
                 harvest.push(bound.name.to_owned(), kind, lines.at(bound.statement.start), doc, bound.signature);
             });
             harvest.nested = crate::nested::nested(program)

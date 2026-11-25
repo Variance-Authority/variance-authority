@@ -53,10 +53,10 @@ describe('variance ask uses over a member', () => {
 
     const { code, out } = await run(['ask', 'uses', '--name', 'resolveThings']);
     expect(code).toBe(EXIT_CLEAN);
-    // `references.ts` binds the name at its top level, by destructuring, and
-    // that declaration is answered before the member's.
-    expect(out).toContain('`resolveThings` [binding] is declared, not exported, at packages/lib/src/references.ts:3, so nothing outside that file can import it.');
-    expect(out).toContain('`resolveThings` is a member too, declared in 1 place:');
+    // `references.ts` binds the name at its top level, by destructuring, which
+    // declares nothing and is answered after the member.
+    expect(out).toMatch(/^`resolveThings` is no exported name; it is a member, declared in 1 place:/);
+    expect(out).toContain('`resolveThings` [binding] is bound, not declared, at packages/lib/src/references.ts:3, so nothing outside that file can import it.');
     expect(out).toMatch(/^packages\/lib\/src\/native\.ts:2 — Scanner$/m);
     expect(out).toContain(`${STOP}\n${ROUTE}`);
     expect(out).not.toContain('docs_grep');
@@ -64,11 +64,11 @@ describe('variance ask uses over a member', () => {
   });
 
   it('names the member under the headline of a declaration its file keeps, before any use', async () => {
-    checkout(SCANNER);
+    checkout({ ...SCANNER, 'packages/kit/src/own.ts': 'function resolveThings() {\n  return [];\n}\nexport const kept = resolveThings();\n' });
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
 
     const [headline, ...rest] = (await run(['ask', 'uses', '--name', 'resolveThings'])).out.split('\n');
-    expect(headline).toMatch(/^`resolveThings` \[binding\] is declared, not exported, at packages\/lib\/src\/references\.ts:3/);
+    expect(headline).toMatch(/^`resolveThings` \[function\] is declared, not exported, at packages\/kit\/src\/own\.ts:1/);
     expect(rest.slice(0, 2)).toEqual(['It is declared once more, as another thing, answered below:', '  packages/lib/src/native.ts:2, a member of `Scanner`']);
   });
 
@@ -117,13 +117,13 @@ describe('variance ask uses over a member', () => {
 
     const { code, out } = await run(['ask', 'uses', '--name', 'resolveThings']);
     expect(code).toBe(EXIT_CLEAN);
-    expect(out).toContain('`resolveThings` is a member too, declared in 3 places:');
+    expect(out).toMatch(/^`resolveThings` is no exported name; it is a member, declared in 3 places:/);
     const listed = out.split('\n').filter((line) => (/ — /.test(line) || /^\S+:\d+$/.test(line)) && /\.ts:\d+/.test(line));
     // `references.ts` destructures its own `resolveThings` and reads it a line
-    // later, which is a use in the declaring file, listed under its own heading
-    // before the members.
-    expect(out).toContain('\nUsed in packages/lib/src/references.ts — @acme/lib, which declares it:\n\n  4\n');
-    expect(out.indexOf('Used in packages/lib/src/references.ts')).toBeLessThan(out.indexOf('packages/kit/src/held.ts:2 — Held'));
+    // later, which is a use in the file that binds it, listed under its own
+    // heading after the members.
+    expect(out).toContain('\nUsed in packages/lib/src/references.ts — @acme/lib, which binds it:\n\n  4\n');
+    expect(out.indexOf('Used in packages/lib/src/references.ts')).toBeGreaterThan(out.indexOf('packages/kit/src/held.ts:2 — Held'));
     expect(listed).toEqual([
       'packages/kit/src/held.ts:2 — Held',
       'packages/lib/src/native.ts:5 — Scanner',

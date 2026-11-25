@@ -29,6 +29,7 @@ use crate::dependency_lexicon::purposes::{asked_run, code_stems, near, phrase_ru
 
 use crate::compact::Layer;
 use crate::help_declared_candidates::{candidates, sure, Said};
+use crate::harvest::BINDING;
 use crate::help_usage::kind_of;
 use crate::name_table::Item;
 use crate::orient_map_read::beside;
@@ -255,7 +256,7 @@ pub(crate) fn declaration_locations(layers: &[Layer], query: &str) -> Vec<Declar
             Row::Nested(row) => (text.text(parses.nested_name.at(row)), parses.nested_line.at(row), text.text(parses.nested_kind.at(row))),
             Row::Member(_) => return None,
         };
-        (name == query && kind != "binding").then(|| DeclarationLocation { name: name.to_owned(), at: at.to_owned(), line })
+        (name == query && kind != BINDING).then(|| DeclarationLocation { name: name.to_owned(), at: at.to_owned(), line })
     }).collect()
 }
 

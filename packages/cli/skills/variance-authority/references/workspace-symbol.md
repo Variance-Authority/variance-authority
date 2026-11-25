@@ -70,9 +70,13 @@ that passes it on exports without declaring, is said after it. A name a file
 declares and does not export, at its top level or inside a function, is answered
 from the source index, as below, after any export of the same name in another
 file; one inside a function is answered with the function that holds it. A
-top-level name destructured out of a value, such as one taken off a module it
-loads, is answered with kind `[binding]`: its value comes from the expression
-it is destructured out of, not from that line. A name an import binds with `as` is answered with that import and
+top-level name a file destructures out of a value, whatever the value is, or
+sets to a whole module with `const x = require('m')`, is kind `[binding]`:
+unless the file exports it, the file binds the name and does not declare it.
+Each such file follows every declaration as `bound, not declared, at
+<path>:<line>`, and is not counted as one. When no file declares the name, the
+answer says so and then lists the files that bind it. It does not say where the
+value comes from. A name an import binds with `as` is answered with that import and
 the original it names. A member of an interface, a type literal or a class is answered with its
 container and the file and line that declare it, one block per declaration,
 after every other declaration of the name. `Tree.has` asks for the member `has`
