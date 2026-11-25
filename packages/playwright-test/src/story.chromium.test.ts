@@ -247,7 +247,7 @@ describe.runIf(BROWSER_AVAILABLE)('a Playwright case run in a page', () => {
       // A line's second cut is not told again.
       .filter((note, index, all) => !note.startsWith('test line ') || lines(all.slice(0, index)).at(-1) !== note)
       .map((note) => note.replace(/^held a frame \(\d+ ms\)$/, 'held a frame (N ms)').replace(/^layout moved 0\.\d\d$/, 'layout moved 0.NN'));
-    expect(told).toEqual([
+    expect(told.slice(0, -2)).toEqual([
       'test line opens',
       'holds open=ref1 function open, choose=ref2 function choose, pay=ref3 function pay',
       'first paint',
@@ -258,9 +258,9 @@ describe.runIf(BROWSER_AVAILABLE)('a Playwright case run in a page', () => {
       'held a frame (N ms)',
       'test line pushes',
       'dom + div',
-      'page +1 −0 nodes, 0 attributes, 0 text',
-      'layout moved 0.NN',
     ]);
+    // The cut after the click says the count, and the browser delivers the report before it or after.
+    expect(told.slice(-2).sort()).toEqual(['layout moved 0.NN', 'page +1 −0 nodes, 0 attributes, 0 text']);
   }, 120_000);
 
   it('records what a replaced document entered at the statement that replaced it', async () => {
