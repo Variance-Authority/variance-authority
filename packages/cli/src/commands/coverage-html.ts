@@ -27,7 +27,7 @@ export function coverageHtml(answer: Coverage): string {
     '<html lang="en"><head><meta charset="utf-8">',
     '<meta name="viewport" content="width=device-width,initial-scale=1">',
     `<title>${text(`variance ${title}`)}</title>`,
-    `<style>${PAGE}${STYLE}${CHANGE_STYLE}</style>`,
+    `<style>${PAGE}${STYLE}${CHANGE_STYLE}${NARROW}</style>`,
     '</head><body>',
     masthead(answer),
     '<main>',
@@ -260,7 +260,21 @@ function notLoaded(none: Unloaded): string {
 
 function table(head: readonly string[], rows: readonly string[], numbers: readonly number[]): string {
   const ths = head.map((name, at) => `<th${numbers.includes(at) ? ' class="num"' : ''}>${text(name)}</th>`).join('');
-  return `<table><thead><tr>${ths}</tr></thead><tbody>${rows.join('')}</tbody></table>`;
+  return `<table><thead><tr>${ths}</tr></thead><tbody>${rows.map((row) => labelled(row, head, numbers)).join('')}</tbody></table>`;
+}
+
+/**
+ * Each count cell named by its column, for a phone that stacks the cells and
+ * hides the header. A cell spanning columns takes the first one's name.
+ */
+function labelled(row: string, head: readonly string[], numbers: readonly number[]): string {
+  let at = 0;
+  return row.replace(/<td(?<attributes>[^>]*)>/gu, (cell, attributes: string) => {
+    const column = at;
+    at += Number(/colspan="(?<span>\d+)"/u.exec(attributes)?.groups?.span ?? 1);
+    const name = head[column];
+    return numbers.includes(column) && name !== undefined ? `<td data-label="${text(name)}"${attributes}>` : cell;
+  });
 }
 
 /** A ratio drawn as a short bar; nothing when there is nothing to divide. */
@@ -306,6 +320,10 @@ text-transform:uppercase;color:var(--warm);margin:2.25rem 0 .5rem}
 details.fold>summary::-webkit-details-marker{display:none}
 details.fold>summary::before{content:'▸';margin-right:.5rem}
 details.fold[open]>summary::before{content:'▾'}
+`;
+
+/** The phone's layout, last so it overrides every section's own rules. */
+const NARROW = `
 @media (max-width:700px){
 header{position:static}
 main{padding:1rem 1rem 3rem}
@@ -314,6 +332,7 @@ thead{display:none}
 tr{padding:.45rem 0;border-bottom:1px solid var(--hairline)}
 td{border:0;padding:.1rem 0;text-align:left}
 td:empty{display:none}
+td[data-label]::before{content:attr(data-label) ' ';color:var(--quiet)}
 .package summary,.package.flat{flex-wrap:wrap;gap:.25rem .75rem}
 .package summary code,.package.flat code{flex-basis:100%}
 .file,code{overflow-wrap:anywhere}

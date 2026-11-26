@@ -91,6 +91,25 @@ describe.skipIf(!BROWSER_AVAILABLE)('the coverage page at 390 × 844', () => {
     expect(await page!.evaluate(() => document.querySelector('header')!.getBoundingClientRect().bottom)).toBeLessThanOrEqual(0);
   });
 
+  it('stacks a suite of the change in two columns, its counts allowed to wrap', async () => {
+    const [columns, wrap] = await page!.evaluate(() => {
+      const row = document.querySelector('.suites .suite')!;
+      return [getComputedStyle(row).gridTemplateColumns.split(' ').length, getComputedStyle(row.querySelector('.moves')!).whiteSpace];
+    });
+    expect(columns).toBe(2);
+    expect(wrap).toBe('normal');
+  });
+
+  it('names the column of every stacked count', async () => {
+    const unlabelled = await page!.evaluate(() =>
+      [...document.querySelectorAll('td.num')]
+        .filter((cell) => cell.getClientRects().length > 0 && cell.textContent!.trim() !== '')
+        .filter((cell) => !/^"[a-z]/u.test(getComputedStyle(cell, '::before').content))
+        .map((cell) => cell.closest('tr')?.getAttribute('data-row') ?? '?'),
+    );
+    expect(unlabelled).toEqual([]);
+  });
+
   it('draws no visible text under 12 px', async () => {
     const small = await page!.evaluate(() => {
       const found: string[] = [];
