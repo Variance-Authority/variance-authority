@@ -132,8 +132,9 @@ describe('a record that kept no cases', () => {
     expect(keepsCases(join(dir ?? tmpdir(), 'absent.bin'))).toBe(false);
   });
 
-  it('says so when it is cut short of the length its header opens with', () => {
-    expect(keepsCases(at(Buffer.from([1, 0])))).toBe(false);
+  it('is not told from a file whose header does not read, whose cases are unknown, not none', () => {
+    expect(keepsCases(at(Buffer.from([1, 0])))).toBeUndefined();
+    expect(keepsCases(at(Buffer.from('not a record')))).toBeUndefined();
     expect(keepsEyes(at(Buffer.alloc(0)))).toBe(false);
   });
 

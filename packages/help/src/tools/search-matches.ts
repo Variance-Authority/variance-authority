@@ -234,6 +234,8 @@ export type RecordedTests = Matches<TestMatch> & {
 export interface CasesUnread {
   readonly suite?: string;
   readonly why: string;
+  /** Set where its cases are unknown, a record or the root config there and not read; a suite that kept none has none. */
+  readonly unreadable?: true;
 }
 
 /** The answer, and the resolved area the text renders its header from. */

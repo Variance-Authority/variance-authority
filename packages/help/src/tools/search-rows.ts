@@ -1,7 +1,7 @@
 import { declaredLine } from './declared.js';
 import { byPublishedPath, plural } from './format.js';
 import type { PublishedMatch } from './published-match.js';
-import type { DeclaredMatch, DescribedMatch, ExportedMatch, FileMatch, RecordedTests, TestMatch } from './search-matches.js';
+import type { CasesUnread, DeclaredMatch, DescribedMatch, ExportedMatch, FileMatch, RecordedTests, TestMatch } from './search-matches.js';
 
 /*
  * The rows of a `docs_search` answer, one line to each match, and the note on
@@ -55,23 +55,30 @@ function fileLine(match: FileMatch): string {
 export const testLine = (match: TestMatch): string => `${match.name} [test] — ${match.at}`;
 
 /**
- * What was left unread of the recorded cases, one line to each reason, and only
+ * What was left unread of the recorded cases, under the text answer, and only
  * when the repository answered with no row: a row found answers the question,
  * and a suite left unread can change the conclusion only of an answer that
- * found none. An unnamed suite keeps its own line, so its reason is never
- * said of the named ones.
+ * found none.
  */
 export function casesUnder(tests: RecordedTests | undefined, ownFound: boolean): readonly string[] {
   if (tests === undefined || ownFound) return [];
+  const left = unreadCaseLines(tests.unread);
+  return left.length === 0 ? [] : ['', ...left];
+}
+
+/**
+ * One line to each reason `unread` gives. An unnamed suite keeps its own line,
+ * so its reason is never said of the named ones.
+ */
+export function unreadCaseLines(unread: readonly CasesUnread[]): string[] {
   const suitesBy = new Map<string, { readonly why: string; readonly suites: string[] }>();
-  for (const { suite, why } of tests.unread) {
+  for (const { suite, why } of unread) {
     const key = JSON.stringify([suite === undefined, why]);
     const line = suitesBy.get(key) ?? { why, suites: [] };
     if (suite !== undefined) line.suites.push(`\`${suite}\``);
     suitesBy.set(key, line);
   }
-  const left = [...suitesBy.values()].map(({ why, suites }) => `No recorded case${suites.length === 0 ? '' : ` of ${suites.join(', ')}`} was read: ${why}.`);
-  return left.length === 0 ? [] : ['', ...left];
+  return [...suitesBy.values()].map(({ why, suites }) => `No recorded case${suites.length === 0 ? '' : ` of ${suites.join(', ')}`} was read: ${why}.`);
 }
 
 export const matchLine = (match: PublishedMatch | ExportedMatch | DeclaredMatch): string =>

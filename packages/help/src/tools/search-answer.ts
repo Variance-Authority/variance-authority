@@ -16,6 +16,7 @@ import { docRows, exported, exportedOrder, first, type DeclarationLookups } from
 import { counting, type ImportingOf, type InArea, type PublishedMatch } from './published-match.js';
 import type { DescribedMatch, Matches, SearchAnswer, SearchArea, Searched, SearchQuestion, MatchingFiles } from './search-matches.js';
 import { docsSaying } from './phrase.js';
+import { unreadCaseLines } from './search-rows.js';
 import { recordedTests, suiteCaseNames } from './search-tests.js';
 
 /** Published matches shown before the answer says it stopped, when the question says no `limit`. */
@@ -256,6 +257,8 @@ function matchingFiles(files: ReadonlyMap<string, { lines: Set<number>; kinds: S
     ...unreadLine(found.answer.declared?.unread),
     ...(members === undefined ? [] : [members]),
     ...(found.area === undefined || found.area.unresolved.length === 0 ? [] : [areaLine(found.area)]),
+    // A suite that kept no cases has none to find; one whose cases are unknown may hold a matching file.
+    ...unreadCaseLines(found.answer.tests?.unread.filter((suite) => suite.unreadable === true) ?? []),
   ];
   return {
     files: new Map([...files].map(([at, { lines }]) => [at, [...lines].sort((left, right) => left - right)])),
@@ -322,7 +325,7 @@ function searchedBy(
     for (const one of inside ?? []) file(one.at, one.line);
     for (const one of aliases ?? []) file(one.at, one.line);
   });
-  covered({ answer: { query, ...(declared === undefined ? {} : { declared }), membersUnread }, area });
+  covered({ answer: { query, ...(declared === undefined ? {} : { declared }), membersUnread, ...(tests === undefined ? {} : { tests }) }, area });
 
   const answer = (importingOf?: ImportingOf, declaredAt?: DeclarationLookups): SearchAnswer => ({
     query,

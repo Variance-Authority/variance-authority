@@ -204,9 +204,14 @@ export function recordedCases(bytes: Uint8Array): Uint8Array {
   return bytes.subarray(base + cases.offset, base + cases.offset + cases.length);
 }
 
-/** Whether the record at `coverageFile` carries a case index, read off its header alone. */
-export function keepsCases(coverageFile: string): boolean {
-  return sectionsAt(coverageFile)?.some((section) => section.name === PARTS.index) === true;
+/**
+ * Whether the record at `coverageFile` carries a case index, read off its
+ * header alone: false where no record is there, and `undefined` where a file is
+ * there whose header does not read, as what it keeps is unknown rather than
+ * none. A reader refuses that file on its own terms.
+ */
+export function keepsCases(coverageFile: string): boolean | undefined {
+  return sectionsAt(coverageFile)?.some((section) => section.name === PARTS.index);
 }
 
 /**
@@ -234,13 +239,13 @@ export function recordOfCases(cases: CaseSections): Buffer {
   return sections(parts, FORMAT);
 }
 
-/** The sections the header of the record at `coverageFile` lists; `undefined` when there is none to read. */
+/** The sections the header of the record at `coverageFile` lists: none where no record is there, and `undefined` where its header does not read. */
 function sectionsAt(coverageFile: string): readonly Section[] | undefined {
   let fd: number;
   try {
     fd = openSync(coverageFile, 'r');
   } catch (error) {
-    if (isMissing(error)) return undefined;
+    if (isMissing(error)) return [];
     throw error;
   }
   try {
