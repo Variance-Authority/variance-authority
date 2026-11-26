@@ -50,3 +50,23 @@ describe('the sets discover crosses', () => {
     });
   });
 });
+
+describe('a pattern flag of discover given twice', () => {
+  const read = (argv: string[]) => () => readFlags(argv, 'ask', flagsFor('ask'), synopsisFor('ask'));
+
+  it('is refused with the one pattern that matches either, ready to run', () => {
+    expect(read(['discover', '--path', '^packages/cli/', '--path', '^packages/help/', '--text', 'helpFor'])).toThrow(
+      "`--path` was given more than once. It takes one regular expression; to match either, give `--path '(?:^packages/cli/)|(?:^packages/help/)'`",
+    );
+  });
+
+  it('joins a value given with `=` and quotes a quote the value holds', () => {
+    expect(read(['discover', "--text=it's", '--text', 'done'])).toThrow(
+      "`--text` was given more than once. It takes one regular expression; to match either, give `--text '(?:it'\\''s)|(?:done)'`",
+    );
+  });
+
+  it('names no pattern for a flag that takes none', () => {
+    expect(read(['discover', '--from', 'a.ts', '--from', 'b.ts'])).toThrow(/^`--from` was given more than once$/u);
+  });
+});

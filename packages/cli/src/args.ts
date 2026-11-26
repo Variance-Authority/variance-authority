@@ -1,5 +1,6 @@
 import { OperatorError } from './exit.js';
 import { didYouMean } from '@variance-authority/core/nearest';
+import { quoted } from './direct-call.js';
 
 /**
  * The flag lexer: hyphens, `=`, `--`, and nothing about what any command means.
@@ -56,6 +57,15 @@ export const REPEATABLE: Readonly<Record<string, ReadonlySet<string>>> = {
   story: new Set(['--name']),
   layers: new Set(['--package']),
   janus: new Set(['--file']),
+};
+
+/**
+ * Flags whose value is one regular expression, so a repeat is refused with the
+ * alternation of both values. Still refused: discover crosses its sets, so two
+ * `--text` may mean both, and the alternation is offered as matching either.
+ */
+const PATTERN: Readonly<Record<string, ReadonlySet<string>>> = {
+  ask: new Set(['--declares', '--except-declares', '--except-path', '--path', '--text']),
 };
 
 /**
@@ -199,7 +209,12 @@ export function readFlags(
       // Repeated flags are refused rather than last-wins: two contradicting
       // `--subjects` on one line means the operator believes one of them is in
       // force, and picking either silently makes half of those beliefs wrong.
-      throw new OperatorError(`\`${name}\` was given more than once`);
+      const again = equals === -1 ? argv[index] : argument.slice(equals + 1);
+      const first = values.get(name);
+      const joined = PATTERN[command]?.has(name) === true && first !== undefined && again !== undefined
+        ? `. It takes one regular expression; to match either, give \`${name} ${quoted(`(?:${first})|(?:${again})`)}\``
+        : '';
+      throw new OperatorError(`\`${name}\` was given more than once${joined}`);
     }
     present.add(name);
 
