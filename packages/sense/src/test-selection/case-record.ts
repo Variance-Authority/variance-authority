@@ -206,9 +206,10 @@ export function recordedCases(bytes: Uint8Array): Uint8Array {
 
 /**
  * Whether the record at `coverageFile` carries a case index, read off its
- * header alone: false where no record is there, and `undefined` where a file is
- * there whose header does not read, as what it keeps is unknown rather than
- * none. A reader refuses that file on its own terms.
+ * header alone: false where no record is there or its header lists no case
+ * index, and `undefined` where a file is there whose header does not read, as
+ * what it keeps is unknown rather than none. A reader refuses that file on its
+ * own terms.
  */
 export function keepsCases(coverageFile: string): boolean | undefined {
   return sectionsAt(coverageFile)?.some((section) => section.name === PARTS.index);
