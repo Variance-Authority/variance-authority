@@ -33,6 +33,7 @@ main questions; pick the one that fits what you hold, each is one command:
 | Two questions | [the files both answer](references/workspace-intersection.md) | `variance ask intersection 'symbol --name PaymentRetry' 'discover --from src/checkout/'` |
 | A file or directory and text to find only there | [the matching lines](references/workspace-discover.md) | `variance ask discover --path '^src/billing/' --text retryCount` |
 | A string or a pattern | [the source lines that hold it](references/workspace-grep.md) | `variance ask grep --query 'retryCount' --from src/billing/` |
+| A CLI command or CI invocation | [its package script, binary and registration](references/workspace-entrypoint.md#trace-an-executable-command) | `rg -n --fixed-strings 'billing:sync' package.json .github/` |
 | Text nothing in the source imports: YAML, JSON, Markdown, shell, workflows, logs | not `variance`: `rg` or `git grep` | `rg 'retryCount' .github/` |
 
 ## Fill a gap with a run of what it names
