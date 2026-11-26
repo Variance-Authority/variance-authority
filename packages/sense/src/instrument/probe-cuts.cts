@@ -78,22 +78,33 @@ type Realm = {
   };
 };
 
+/**
+ * The nodes `changes` added to a page, as a count: each node once, where it
+ * was inserted, so a subtree attached whole counts its root. A story's page
+ * watch counts by it too, and a page tape puts its source on the page, so it
+ * names nothing outside itself.
+ */
+function addedNodes(changes: Changes): number {
+  let added = 0;
+  for (const change of changes) added += change.addedNodes.length;
+  return added;
+}
+
 // TODO: a Playwright page lives outside the test's realm, and its cut
 // (`documents.ts` in playwright-test) times no statement, so a page case
-// records neither its statements' times nor the nodes each added (#1869).
+// records neither its statements' times nor the nodes each added (#1876).
 /**
- * How many nodes the realm's page has had added, as a running count, each once
- * where it was inserted, as a story's page watch counts them; undefined where
- * the realm has no page. A node filled after it was attached counts its
- * children where they were inserted, so a read costs the changes since the
- * last one, never a walk of what they hold.
+ * How many nodes the realm's page has had added, as a running count, by
+ * {@link addedNodes}; undefined where the realm has no page. A node filled
+ * after it was attached counts its children where they were inserted, so a
+ * read costs the changes since the last one, never a walk of what they hold.
  */
 function pageCount(realm: Realm | undefined): (() => number) | undefined {
   const { document, MutationObserver: Watch } = realm ?? {};
   if (document === undefined || typeof Watch !== 'function') return undefined;
   let added = 0;
   const count = (changes: Changes): void => {
-    for (const change of changes) added += change.addedNodes.length;
+    added += addedNodes(changes);
   };
   const watch = new Watch(count);
   watch.observe(document, { childList: true, subtree: true });
@@ -250,4 +261,4 @@ function createCuts(realm?: object) {
   };
 }
 
-export = { createCuts };
+export = { addedNodes, createCuts };
