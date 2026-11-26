@@ -1,3 +1,4 @@
+import caseOwner from './case-owner.cjs';
 import { caseBytes, invalid, rowsColumn, type RowsTable } from './case-lines.js';
 import type { Stored } from './format-layout.js';
 import { LAYOUT } from './record-layout.js';
@@ -28,12 +29,12 @@ export interface CaseTime {
   readonly rss?: number;
   /** The machine's free memory, in whole MiB. */
   readonly free?: number;
-  /** The nodes the statement added to the page, each with every node under it. */
+  /** The nodes the statement added to the page, each once where it was inserted. */
   readonly added?: number;
 }
 
 /** What surrounded a statement, in the order its row keeps them. */
-export const FIGURES = ['load', 'rss', 'free', 'added'] as const;
+export const FIGURES = caseOwner.FIGURES;
 
 /** A figure as its row keeps it: a whole number, the load in hundredths. */
 const stored = (figure: (typeof FIGURES)[number], value: number): number => (figure === 'load' ? Math.round(value * 100) : value);

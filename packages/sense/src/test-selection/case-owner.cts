@@ -192,4 +192,4 @@ function journeyOf(packed: string): string {
   return packed.split('\u0000')[JOURNEY] ?? '';
 }
 
-export = { packCase, settledCase, timesCase, unpackCase, packJourney, journeyOf, packHeard, heardField };
+export = { FIGURES, packCase, settledCase, timesCase, unpackCase, packJourney, journeyOf, packHeard, heardField };
