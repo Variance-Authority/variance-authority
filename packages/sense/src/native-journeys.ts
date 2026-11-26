@@ -234,14 +234,6 @@ export interface NativeJourneyEnd {
   readonly line: number;
 }
 
-/** A declared suite's recording that keeps its cases, and the commit it ran at, or why it names none. */
-export interface NativeRecorded {
-  readonly suite?: string;
-  readonly recording: string;
-  readonly commit?: string;
-  readonly unread?: string;
-}
-
 /** A region that separates the connecting journeys from the near misses. */
 export interface NativeJourneyFork {
   readonly block: NativeJourneyBlock;

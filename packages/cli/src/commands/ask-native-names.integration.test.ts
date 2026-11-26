@@ -22,7 +22,7 @@ const recorded = JSON.parse(readFileSync(new URL('./ask-native-names.expected.js
 
 /** What differs between runs: the checkout's path, this repository's, the cache's and the snapshot's time. */
 function steady(root: string, text: string): string {
-  return text.replaceAll(root, '<root>').replaceAll(repository, '<repo>').replace(/\S*\/test-selection\/[0-9a-f]+\//gu, '<cache>/').replace(/Snapshot \d{4}-\d\d-\d\dT[\d:.]+Z/gu, 'Snapshot <time>');
+  return text.replaceAll(root, '<root>').replaceAll(repository, '<repo>').replace(/[^\s']*\/test-selection\/[0-9a-f]+\//gu, '<cache>/').replace(/Snapshot \d{4}-\d\d-\d\dT[\d:.]+Z/gu, 'Snapshot <time>');
 }
 
 it.each(([
@@ -150,6 +150,27 @@ it.each(([
       spawnSync(executable, args, { cwd: root, env: { ...env, PATH: empty }, encoding: 'utf8' }),
     ].map((answer) => [answer.status, steady(root, answer.stdout), steady(root, answer.stderr)]);
     expect(answers).toEqual([recorded[question.join(' ')], recorded[question.join(' ')]]);
+  } finally {
+    process.chdir(previous);
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+it('refuses a name question with GIT_DIR set, saying why, rather than handing it to Node', async () => {
+  const previous = process.cwd();
+  const root = checkout(nativeFiles(['symbol', '--name', 'greet']));
+  try {
+    expect((await run(['index', '--wait'])).code).toBe(0);
+    const empty = join(root, 'empty-path');
+    mkdirSync(empty);
+    const answers = (['symbol', 'uses'] as const).map((question) => {
+      const answer = spawnSync(executable, ['ask', question, '--name', 'greet'], {
+        cwd: root, env: { ...process.env, PATH: empty, GIT_DIR: join(root, '.git'), npm_config_user_agent: '' }, encoding: 'utf8',
+      });
+      return [answer.status, answer.stdout, steady(root, answer.stderr)];
+    });
+    const why = 'variance: the source index of this checkout cannot be found: GIT_DIR or GIT_WORK_TREE is set, so the checkout git reads may not be the one the working directory is in; unset them to ask from here.\n\nSee the skill at <repo>/packages/cli/skills/variance-authority/SKILL.md\n';
+    expect(answers).toEqual([[2, '', why], [2, '', why]]);
   } finally {
     process.chdir(previous);
     rmSync(root, { recursive: true, force: true });

@@ -7,7 +7,6 @@
 
 import { entry, onIndex } from './help-reading.js';
 import { asOneQuestion, type OpenedIndex } from './help-question.js';
-import type { NativeRecorded } from './native-journeys.js';
 import { sourceIndexPath } from './source-index.js';
 
 /** One name as `symbol` or `uses` is asked about it. */
@@ -19,14 +18,12 @@ export interface NameAsked {
   readonly from?: readonly string[];
   /** The file whose declaration `uses` answers for alone. */
   readonly file?: string;
-  /** The rows of each list to show; `symbol` cuts at its own when unsaid, `uses` needs it said. */
+  /** The rows of each list to show; unsaid, each list is cut at its own default. */
   readonly limit?: number;
   /** The words a question starts with in a shell; a wire host has none. */
   readonly shell?: string;
   /** `<file>:<line>`, the line `symbol` orders the declarations by. */
   readonly line?: string;
-  /** The recordings `line` is read in, as `recordedSuites` finds them. */
-  readonly recorded?: readonly NativeRecorded[];
 }
 
 /** One file an answer read, at the lines it read there. */

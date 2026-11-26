@@ -37,7 +37,7 @@ pub(crate) fn can_keep(held: &DeclaredName) -> bool {
 
 /// Places nearest `from` first: the most shared leading segments, then by file in code units, then by line.
 pub(crate) fn nearest(from: Option<&str>, at: &str, line: u32, other_at: &str, other_line: u32) -> std::cmp::Ordering {
-    let shared = |at: &str| from.map_or(0, |from| from.split('/').zip(at.split('/')).take_while(|(a, b)| a == b).count());
+    let shared = |at: &str| from.map_or(0, |from| crate::help_symbol_answer::shared_segments(from, at));
     shared(other_at).cmp(&shared(at)).then_with(|| code_unit(at, other_at)).then(line.cmp(&other_line))
 }
 

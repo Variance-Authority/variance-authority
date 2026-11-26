@@ -14,33 +14,8 @@
 
 // compass: variance-authority.report.agent-surface
 
-import type { Help, Named, Taken, Use } from '@variance-authority/package/help';
+import type { Taken, Use } from '@variance-authority/package/help';
 import { importersOf } from '@variance-authority/sense';
-import { answering as answersTo, says } from './declaration-key.js';
-import { pathsWritten } from './rows.js';
-
-/**
- * Every export of `name` from ordinary source, in `within` when one is named,
- * and every default export its declaration is named `name` by.
- */
-export function exportsNamed(help: Help, root: string | undefined, name: string, within: string | undefined): readonly Named[] {
-  const answering = answersTo(help, root, name).filter((held) => held.kind === 'source');
-  // A file that exports the binding by the name is answered by that export, not by its other names.
-  const spelled = answering.filter((held) => says(held.name, name));
-  const keyed = answering.filter((held) => !says(held.name, name) && !spelled.some((other) => other.at === held.at));
-  return [...spelled, ...keyed].filter((held) => within === undefined || held.by === within || fileOf(help, held, within));
-}
-
-/**
- * Whether `within`, a specifier past `held`'s package name, names `held`'s file:
- * whether an import of exactly `within` resolved to it. Which file a specifier
- * names is the resolver's answer for an importer, so a specifier nothing
- * imports names no file.
- */
-function fileOf(help: Help, held: Named, within: string): boolean {
-  if (!within.startsWith(`${held.by}/`)) return false;
-  return pathsWritten(help, within).some(([deep]) => deep.to === held.at);
-}
 
 /** One use the source index resolved, with the specifier its file wrote. */
 export type IndexedUse = Taken & {

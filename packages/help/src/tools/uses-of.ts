@@ -199,10 +199,10 @@ const resolvedTo = (site: PathSite, to: ReadonlySet<string>): boolean => site.he
 const asSite = (site: PathSite): Site => ({ ...site.taken, how: how(site) });
 
 /**
- * The sites of the published declaration of `name` in `at`, the ones `uses`
- * lists when asked for that name and that file, and why the source index did
- * not read the imports within its package, when it did not, with the files
- * that publish it. The row's door, `name` imported from `specifier`, picks the
+ * The sites of the published declaration of `name` in `at`, the ones the
+ * count beside its search row counts, and why the source index did not read
+ * the imports within its package, when it did not, with the files that
+ * publish it. The row's door, `name` imported from `specifier`, picks the
  * declaration: two bindings of one file published under one name by two entries
  * are two rows.
  */
@@ -217,8 +217,8 @@ export function publishedSitesOf(help: Help, root: string | undefined, name: str
 }
 
 /**
- * The sites of one published declaration, the one assembly `uses` and the
- * count beside a search row both read: the imports by path of the name its
+ * The sites of one published declaration, as the count beside a search row
+ * reads them: the imports by path of the name its
  * file declares it by that resolved to its file, then what {@link sitesOfOne}
  * reads out of that file under every name it exports it by. `paths` are the
  * imports by path of `name`.

@@ -3,17 +3,16 @@
 // compass: variance-authority.report.agent-surface
 
 use std::ffi::OsString;
-use std::io::{self, ErrorKind};
+use std::io;
 use std::path::{Path, PathBuf};
 
-use serde_json::Value;
 
 use crate::help_grep_answer::{self, Roots, Said};
 use crate::help_package_answer;
 use crate::help_search_answer::search;
 use crate::help_store::{graph_digest, read_head};
-use crate::help_surface::{CLI, Surface, Value as Input};
-use crate::help_unread::{not_answered, uses_not_answered};
+use crate::help_surface::{CLI, Surface};
+use crate::help_unread::{node_said, symbol_not_answered, uses_not_answered, SymbolAsked};
 use crate::help_symbol_answer::{self, exact_symbols};
 use crate::help_symbol_line;
 use crate::help_uses_answer::{self, uses};
@@ -72,13 +71,20 @@ pub fn answer(args: &[OsString], mut waiting: impl FnMut(&str)) -> Option<(i32, 
         ["ask", "search", rest @ ..] => Question::Search(QueryRequest::from_args(rest)?),
         _ => return None,
     };
-    let index = source_index(&root)?;
+    // A name question says why it is not answered here and is never handed on: the Node entry answers it with this same reading.
+    let name = matches!(question, Question::Symbol(_) | Question::Uses(_));
+    let layers = match cache::Layers::found(&root) {
+        Ok(layers) => layers,
+        Err(why) => return name.then(|| (2, format!("variance: the source index of this checkout cannot be found: {why}.\n"))),
+    };
+    let index = layers.top.join("source-index.bin");
     follow_ups::settled(&index, waiting)?;
-    let (mut file, published) = match publication(&root, &index) {
+    let Some(root_text) = root.to_str() else {
+        return name.then(|| (2, format!("variance: the checkout path {} is not UTF-8\n", root.display())));
+    };
+    let (mut file, published) = match publication(root_text, &index) {
         Ok(publication) => publication,
-        // A name question says why it has no snapshot to read, as the Node dispatcher says it; every other question is still the dispatcher's to recover.
-        Err(Some(unopened)) if matches!(question, Question::Symbol(_) | Question::Uses(_)) => return Some((2, unopened)),
-        Err(_) => return None,
+        Err(why) => return name.then_some((2, why)),
     };
     let text = match question {
         Question::Packages => Ok(help_package_answer::packages(&mut file)?),
@@ -98,14 +104,15 @@ pub fn answer(args: &[OsString], mut waiting: impl FnMut(&str)) -> Option<(i32, 
         Question::Symbol(request) => 'symbol: {
             let chain = match name_chain(&index) { Ok(chain) => chain, Err(why) => return Some((2, why)) };
             let asking = help_symbol_answer::Asking {
-                root: root.to_str()?, lexicon: index.parent()?, layers: chain.layers(), wanted: request.package, from: &request.from, limit: request.limit, surface: Surface(Some(CLI)),
+                root: root_text, lexicon: &layers.top, layers: chain.layers(), wanted: request.package, from: &request.from, limit: request.limit, surface: Surface(Some(CLI)),
             };
-            let question = Surface(Some(CLI)).question("symbol", &[("name", Input::List(&request.names))]);
-            let answers = match exact_symbols(&asking, &mut file, &request.names) { Ok(answers) => answers, Err(why) => break 'symbol Err(not_answered(&question, &why)) };
+            let asked = SymbolAsked { names: &request.names, package: request.package, from: &request.from, line: request.line, limit: request.limit };
+            let refused = |why: String| symbol_not_answered(Surface(Some(CLI)), &asked, &why);
+            let answers = match exact_symbols(&asking, &mut file, &request.names) { Ok(answers) => answers, Err(why) => break 'symbol Err(refused(why)) };
             match request.line {
                 Some(line) => {
-                    let recorded = index::journeys::recorded(&root, &cache::Layers::at(&root)?, root_config(&root)?.as_ref())?;
-                    help_symbol_line::at_line(root.to_str()?, &request.names, line, &answers, &recorded)
+                    let recorded = match crate::recordings::recorded(&root) { Ok(recorded) => recorded, Err(why) => break 'symbol Err(refused(why)) };
+                    help_symbol_line::at_line(root_text, &request.names, line, &answers, &recorded)
                 }
                 None => Ok(answers.into_iter().map(|answer| answer.text).collect::<Vec<_>>().join("\n\n")),
             }
@@ -113,7 +120,7 @@ pub fn answer(args: &[OsString], mut waiting: impl FnMut(&str)) -> Option<(i32, 
         Question::Uses(request) => {
             let chain = match name_chain(&index) { Ok(chain) => chain, Err(why) => return Some((2, why)) };
             let asking = help_uses_answer::Asking {
-                root: root.to_str()?, layers: chain.layers(), name: request.name, wanted: request.package,
+                root: root_text, layers: chain.layers(), name: request.name, wanted: request.package,
                 from: request.from, file: request.file, limit: request.limit, surface: Surface(Some(CLI)), listed: Default::default(),
             };
             uses(&asking, &mut file).map(|answer| answer.unwrap_or_else(|nothing| nothing)).map_err(|why| uses_not_answered(&asking, &why))
@@ -282,16 +289,20 @@ struct Publication {
     generated_at: String,
 }
 
-/// The published head of the help store beside `index`; `Err` carrying why
-/// when the store does not open, said as Node says it, and `Err(None)` when it
-/// opens but is not this checkout's readable publication.
-fn publication(root: &Path, index: &Path) -> Result<(std::fs::File, Publication), Option<String>> {
-    let index = index.to_str().ok_or(None)?;
+/// The published head of the help store beside `index`, or why it is not this
+/// checkout's readable publication, said as a name question prints it.
+fn publication(root: &str, index: &Path) -> Result<(std::fs::File, Publication), String> {
+    let index = index.to_str().ok_or_else(|| format!("variance: the source index path {} is not UTF-8\n", index.display()))?;
     let at = format!("{index}.help.bin");
-    let mut file = std::fs::File::open(&at).map_err(|error| Some(unopened(&at, &error)))?;
-    let [Some(owner), Some(graph_root), Some(digest), Some(generated_at), Some(_), Some(_), ..] = read_head(&mut file).map_err(|_| None)? else { return Err(None) };
-    if Some(owner.as_str()) != root.to_str() || digest.len() != 64 || !digest.bytes().all(|byte| byte.is_ascii_hexdigit()) {
-        return Err(None);
+    let mut file = std::fs::File::open(&at).map_err(|error| unopened(&at, &error))?;
+    let unread = |why: &str| format!("The workspace snapshot at {at} does not read: {why}. Run `variance index` to publish it again.\n");
+    let head = read_head(&mut file).map_err(|why| unread(&why))?;
+    let [Some(owner), Some(graph_root), Some(digest), Some(generated_at), Some(_), Some(_), ..] = head else { return Err(unread("its head is cut short")) };
+    if owner != root {
+        return Err(format!("The workspace snapshot at {at} was published for another checkout, {owner}. Run `variance index` here to publish this one's.\n"));
+    }
+    if digest.len() != 64 || !digest.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return Err(unread("its source tree digest is not one"));
     }
     Ok((file, Publication { graph_root: PathBuf::from(graph_root), graph_digest: digest, generated_at }))
 }
@@ -299,16 +310,6 @@ fn publication(root: &Path, index: &Path) -> Result<(std::fs::File, Publication)
 /// Why the help store at `at` did not open.
 fn unopened(at: &str, error: &io::Error) -> String {
     format!("no readable workspace snapshot at {at}: {}. Run `variance index` to publish one.\n", node_said(at, error))
-}
-
-/// Why `at` did not open, in the words Node's file system errors use: what the
-/// Node entry says of the same file.
-pub(crate) fn node_said(at: &str, error: &io::Error) -> String {
-    match error.kind() {
-        ErrorKind::NotFound => format!("ENOENT: no such file or directory, open '{at}'"),
-        ErrorKind::PermissionDenied => format!("EACCES: permission denied, open '{at}'"),
-        _ => format!("{error}, open '{at}'"),
-    }
 }
 
 fn published_tree(root: &Path, index: &Path, head: &Publication) -> Option<SourceTree> {
@@ -340,7 +341,7 @@ pub(crate) fn runtime_tree(root: &Path) -> Option<crate::source_query::RuntimeTr
 
     let root = physical(root);
     let index = source_index(&root)?;
-    let (_, published) = publication(&root, &index).ok()?;
+    let (_, published) = publication(root.to_str()?, &index).ok()?;
     if root != published.graph_root { return None }
     let chain = OpenedChain::read(index.to_str()?).ok()??;
     let tree = published_tree(&root, &index, &published)?;
@@ -350,77 +351,4 @@ pub(crate) fn runtime_tree(root: &Path) -> Option<crate::source_query::RuntimeTr
     Some(crate::source_query::RuntimeTree::new(tree, &cuts))
 }
 
-fn primary_checkout(root: &Path) -> PathBuf {
-    let named = std::fs::read_to_string(root.join(".git")).ok().and_then(|pointer| {
-        pointer.lines().find_map(|line| line.strip_prefix("gitdir:")).map(|path| root.join(path.trim()))
-    });
-    if let Some(git_dir) = named {
-        if let Some(worktrees) = git_dir.parent().filter(|path| path.ends_with(".git/worktrees")) {
-            if let Some(primary) = worktrees.parent().and_then(Path::parent) {
-                return physical(primary);
-            }
-        }
-    }
-    root.to_owned()
-}
-
-pub(crate) fn root_config(checkout: &Path) -> Option<Option<Value>> {
-    match std::fs::read(checkout.join("variance.config.json")) {
-        Ok(bytes) => serde_json::from_slice(&bytes).ok().map(Some),
-        Err(error) if error.kind() == ErrorKind::NotFound => Some(None),
-        Err(_) => None,
-    }
-}
-
-fn cache_root(checkout: &Path) -> Option<PathBuf> {
-    if let Some(named) = root_config(checkout)?.as_ref().and_then(|config| config.get("cacheRoot")) {
-        return named.as_str().filter(|name| !name.is_empty()).map(|name| crate::conditions::normalize(&checkout.join(name)));
-    }
-    Some(std::env::var_os("VARIANCE_AUTHORITY_CACHE").map(PathBuf::from).filter(|path| path.is_absolute())
-        .map(|path| crate::conditions::normalize(&path)).unwrap_or_else(|| checkout.join("node_modules/.cache/variance-authority")))
-}
-
-fn physical(path: &Path) -> PathBuf {
-    let canonical = path.canonicalize().or_else(|_| {
-        let parent = path.parent().ok_or_else(|| io::Error::from(ErrorKind::NotFound))?;
-        let name = path.file_name().ok_or_else(|| io::Error::from(ErrorKind::NotFound))?;
-        Ok::<_, io::Error>(physical(parent).join(name))
-    });
-    let canonical = canonical.unwrap_or_else(|_| path.to_owned());
-    if cfg!(windows) {
-        if let Some(text) = canonical.to_str() {
-            if let Some(unc) = text.strip_prefix(r"\\?\UNC\") {
-                return PathBuf::from(format!(r"\\{unc}"));
-            }
-            if let Some(drive) = text.strip_prefix(r"\\?\") {
-                return PathBuf::from(drive);
-            }
-        }
-    }
-    canonical
-}
-
-fn checkout_key(checkout: &Path, cache: &Path) -> Option<String> {
-    let spelling = seen_from(checkout, cache);
-    let digest = crate::digest::of_string(spelling.to_str()?);
-    Some(digest.split_once(':')?.1.to_owned())
-}
-
-fn seen_from(checkout: &Path, cache: &Path) -> PathBuf {
-    let cache = physical(cache);
-    let mut from = cache.components().peekable();
-    let mut to = checkout.components().peekable();
-    let mut common = false;
-    while from.peek().is_some() && from.peek() == to.peek() {
-        common = true;
-        from.next();
-        to.next();
-    }
-    if common {
-        let mut relative: PathBuf = from.map(|_| "..").collect();
-        relative.extend(to);
-        relative
-    } else {
-        checkout.to_owned()
-    }
-}
+pub(crate) use crate::checkout_layers::{physical, root_config, seen_from};

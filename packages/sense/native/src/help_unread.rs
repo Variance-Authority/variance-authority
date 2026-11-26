@@ -3,6 +3,8 @@
 
 // compass: variance-authority.report.agent-surface
 
+use std::io::{self, ErrorKind};
+
 /// The reason a read the help store or the source index should hold came back empty.
 pub(crate) const STORE: &str = "the help store or the source index holds a row this reading cannot read";
 
@@ -32,4 +34,39 @@ pub(crate) fn uses_not_answered(asking: &crate::help_uses_answer::Asking<'_>, wh
         .filter_map(|(property, value)| value.map(|value| (property, Value::Text(value))))
         .collect();
     not_answered(&asking.surface.question("uses", &inputs), why)
+}
+
+/// What a `symbol` question was asked with, to say it whole when it is not answered.
+pub(crate) struct SymbolAsked<'a> {
+    pub(crate) names: &'a [&'a str],
+    pub(crate) package: Option<&'a str>,
+    pub(crate) from: &'a [String],
+    pub(crate) line: Option<&'a str>,
+    pub(crate) limit: Option<usize>,
+}
+
+/// Why the `symbol` question `asked` was not answered, the question said with
+/// every input it was asked with.
+pub(crate) fn symbol_not_answered(surface: crate::help_surface::Surface<'_>, asked: &SymbolAsked<'_>, why: &str) -> String {
+    use crate::help_surface::Value;
+    let from: Vec<&str> = asked.from.iter().map(String::as_str).collect();
+    let limit = asked.limit.map(|limit| limit.to_string());
+    let mut inputs = vec![("name", Value::List(asked.names))];
+    inputs.extend(asked.package.map(|package| ("package", Value::Text(package))));
+    if !from.is_empty() {
+        inputs.push(("from", Value::List(&from)));
+    }
+    inputs.extend(asked.line.map(|line| ("line", Value::Text(line))));
+    inputs.extend(limit.as_deref().map(|limit| ("limit", Value::Text(limit))));
+    not_answered(&surface.question("symbol", &inputs), why)
+}
+
+/// Why `at` did not open, in the words Node's file system errors use: what the
+/// Node entry says of the same file.
+pub(crate) fn node_said(at: &str, error: &io::Error) -> String {
+    match error.kind() {
+        ErrorKind::NotFound => format!("ENOENT: no such file or directory, open '{at}'"),
+        ErrorKind::PermissionDenied => format!("EACCES: permission denied, open '{at}'"),
+        _ => format!("{error}, open '{at}'"),
+    }
 }

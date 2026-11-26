@@ -19,16 +19,19 @@ const UNFOLLOWED: &str = "this reading could not follow to a source file, such a
 
 /// One block per export that declares the name, each with the imports the
 /// source index resolved to it; a file that passes another one's export on is
-/// left out, unless every one does. `None` where the walk to a declaration
-/// ends at a default.
-pub(crate) fn exported_only(keys: &Keys<'_>, layers: &[Layer], name: &str, exported: &[(&Unpublished<'_>, &Group)], surface: Surface<'_>) -> Option<String> {
+/// left out, unless every one does. `strayed`: imports by path that reach no
+/// declaration are listed apart, so one no import is credited to may still be
+/// imported. `None` where the walk to a declaration ends at a default.
+pub(crate) fn exported_only(keys: &Keys<'_>, layers: &[Layer], name: &str, exported: &[(&Unpublished<'_>, &Group)], strayed: bool, surface: Surface<'_>) -> Option<String> {
     let rows = keys.rows();
     let declaring = declaring(exported);
     let unfollowed = rows.unfollowed()?;
     let blocks = declaring.into_iter().map(|&(held, group)| {
         let Opening { at, on, line, mut lines, .. } = exported_rows(keys, layers, &unfollowed, name, &held.export, held.line, held.type_only)?;
         let count = group.uses.len();
-        lines.push(if count == 0 {
+        lines.push(if count == 0 && strayed {
+            format!("No import read here is credited with it; {UNCOUNTED}.")
+        } else if count == 0 {
             format!("Nothing in this workspace imports it; {UNCOUNTED}.")
         } else {
             format!("Imported in {count} {}; `{}` lists them, nearest to a file you name first.", if count == 1 { "place" } else { "places" }, surface.tool("uses"))
@@ -76,7 +79,8 @@ pub(crate) fn exported_rows(keys: &Keys<'_>, layers: &[Layer], unfollowed: &Hash
     let bound = declaration_exported(layers, export.at, export.name);
     let origin = bound.as_ref().filter(|bound| bound.at != export.at);
     let typed = if type_only { " (type only)" } else { "" };
-    let exported = format!("at {}:{line} by {}{typed}", export.at, export.by);
+    let by = if export.by.is_empty() { String::new() } else { format!(" by {}", export.by) };
+    let exported = format!("at {}:{line}{by}{typed}", export.at);
     let (at, on, line) = origin.map_or_else(|| (export.at.to_owned(), export.name.to_owned(), line), |origin| (origin.at.clone(), origin.name.clone(), origin.line));
     let mut lines = vec![
         bound.as_ref().map_or_else(|| name.to_owned(), |bound| format!("{name} [{}]", bound.kind)),

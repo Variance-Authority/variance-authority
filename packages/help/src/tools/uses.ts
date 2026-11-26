@@ -1,7 +1,6 @@
 import type { FileSet, Tool, ToolInvocation } from '@variance-authority/mcp/tools';
-import { limitOf, spellingOf } from '@variance-authority/mcp/tools';
 import type { Help } from '@variance-authority/package/help';
-import { fileSetOf, foundAnswer, nativeAnswer } from './native-answer.js';
+import { fileSetOf, foundAnswer, nativeAnswer, saidLimit } from './native-answer.js';
 
 /**
  * `docs_uses` — how this repository actually writes a name.
@@ -59,8 +58,9 @@ import { fileSetOf, foundAnswer, nativeAnswer } from './native-answer.js';
  * is answered from there alone. Asked for one specifier of a package, an
  * import through another specifier of it is left to that one.
  *
- * An index that is missing or does not read leaves the imports by package path
- * standing, and the answer says the rest were not read and why.
+ * An index that is missing or does not read is refused, with why and the
+ * command that publishes one: an answer counted without it would say less
+ * than it knows.
  *
  * ## A use in the declaring file is a site
  *
@@ -140,12 +140,6 @@ export const uses: Tool<Help> = {
  */
 function usesFiles(help: Help, input: Readonly<Record<string, unknown>>, invocation?: ToolInvocation<Help>): FileSet {
   return fileSetOf(foundAnswer('uses', help, invocation, input, saidLimit(input, invocation)));
-}
-
-/** The `limit` the question says, refused before any name is read; unsaid, each list keeps its own default. */
-function saidLimit(input: Readonly<Record<string, unknown>>, invocation: ToolInvocation<Help> | undefined): number | undefined {
-  const limit = limitOf(input, SHOWN, spellingOf(invocation));
-  return input['limit'] === undefined ? undefined : limit;
 }
 
 /**

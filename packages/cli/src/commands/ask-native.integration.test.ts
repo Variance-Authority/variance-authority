@@ -60,7 +60,7 @@ it.each([
   { question: ['discover', '--path', '^packages/lib/src/(?!greet\\.ts$).*'], contains: 'also.ts' },
   { question: ['discover', '--from', 'apps/app/src/hello.ts,packages/lib/src/also.ts', '--except-declares', '^greet$'], contains: 'taken out' },
   { question: ['discover', '--from', 'missing.ts'], contains: 'ran nothing' },
-] as readonly { question: readonly string[]; contains: string; absent?: string; status?: number }[])('answers $question through the package bin with Node absent from PATH', async ({ question, contains, absent, status }) => {
+] as readonly { question: readonly string[]; contains: string; status?: number }[])('answers $question through the package bin with Node absent from PATH', async ({ question, contains, status }) => {
   const previous = process.cwd();
   const root = checkout(nativeFiles(question));
   try {
@@ -79,7 +79,6 @@ it.each([
     const expected = spawnSync(process.execPath, [nodeEntry, ...args], { cwd: root, env, encoding: 'utf8' });
     expect(expected.error).toBeUndefined();
     expect(expected.stdout + expected.stderr).toContain(contains);
-    if (absent !== undefined) expect(expected.stdout + expected.stderr).not.toContain(absent);
     if (status !== undefined) expect(expected.status).toBe(status);
     const actual = spawnSync(executable, args, { cwd: root, env: { ...env, PATH: empty }, encoding: 'utf8' });
     expect(actual.error).toBeUndefined();

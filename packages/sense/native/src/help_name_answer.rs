@@ -11,10 +11,10 @@ use napi::bindgen_prelude::Uint8Array;
 use napi_derive::napi;
 
 use crate::help_publish::{opened_chain, OpenedIndex};
-use crate::help_surface::{Surface, Value};
-use crate::help_unread::{not_answered, uses_not_answered, Said, STORE};
+use crate::help_surface::Surface;
+use crate::help_unread::{symbol_not_answered, uses_not_answered, Said, SymbolAsked, STORE};
 use crate::help_symbol_answer::{self, exact_symbols, Declared, SymbolAnswer};
-use crate::help_symbol_line::{at_line, Recorded};
+use crate::help_symbol_line::at_line;
 use crate::help_uses_answer::{self, uses, Listed};
 
 /// One name as `symbol` or `uses` is asked about it.
@@ -29,14 +29,12 @@ pub struct NameAsked {
     pub from: Option<Vec<String>>,
     /// The file whose declaration `uses` answers for alone.
     pub file: Option<String>,
-    /// The rows of each list to show; `symbol` cuts at its own when unsaid.
+    /// The rows of each list to show; unsaid, each list is cut at its own default.
     pub limit: Option<u32>,
     /// The words a question starts with in a shell; a wire host has none.
     pub shell: Option<String>,
     /// `<file>:<line>`, the line `symbol` orders the declarations by.
     pub line: Option<String>,
-    /// The recordings the declarations are ordered by, as the host finds them.
-    pub recorded: Option<Vec<Recorded>>,
 }
 
 /// An answer, whether it is that nothing declares the name, and the files of
@@ -119,10 +117,16 @@ pub fn answer_symbol(root: String, index: &OpenedIndex, store: Uint8Array, asked
         };
         exact_symbols(&asking, &mut Cursor::new(&store[..]), &[&asked.name])?.pop().said(STORE)
     })? else { return Ok(None) };
-    let mut answer = answer.map_err(|why| refused(surface, &asked.name, &why))?;
+    let names = [asked.name.as_str()];
+    let said = SymbolAsked {
+        names: &names, package: asked.package.as_deref(), from: asked.from.as_deref().unwrap_or_default(),
+        line: asked.line.as_deref(), limit: asked.limit.map(|limit| limit as usize),
+    };
+    let refused = |why: String| napi::Error::from_reason(symbol_not_answered(surface, &said, &why));
+    let mut answer = answer.map_err(refused)?;
     if let Some(line) = &asked.line {
-        let recorded = asked.recorded.as_deref().unwrap_or_default();
-        answer.text = at_line(&root, &[&asked.name], line, std::slice::from_ref(&answer), recorded).map_err(napi::Error::from_reason)?;
+        let recorded = crate::recordings::recorded(Path::new(&root)).map_err(refused)?;
+        answer.text = at_line(&root, &names, line, std::slice::from_ref(&answer), &recorded).map_err(napi::Error::from_reason)?;
     }
     Ok(Some(NameAnswer::symbol(answer)))
 }
@@ -150,9 +154,4 @@ pub fn answer_uses(root: String, index: &OpenedIndex, store: Uint8Array, asked: 
         Ok::<_, String>(NameAnswer::uses(answer, asking.listed.into_inner()))
     })? else { return Ok(None) };
     answer.map(Some).map_err(napi::Error::from_reason)
-}
-
-/// The refusal of a `symbol` question about `name` whose answer did not read, saying why.
-fn refused(surface: Surface<'_>, name: &str, why: &str) -> napi::Error {
-    napi::Error::from_reason(not_answered(&surface.question("symbol", &[("name", Value::Text(name))]), why))
 }

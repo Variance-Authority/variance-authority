@@ -81,9 +81,9 @@ export interface ImportingOne {
 export type ImportingOf = (name: string, at: string, specifier: string) => ImportingOne;
 
 /**
- * The count `uses` gives for a published declaration when asked for its name
- * and its file, read for each declaration the first time it is asked for: a
- * question reads it for the rows it shows, not for every name it holds.
+ * The count a search row shows beside a published declaration, read for each
+ * declaration the first time a row asks for it: a question reads it for the
+ * rows it shows, not for every name it holds.
  */
 export function importingOf(help: Help, root: string | undefined): ImportingOf {
   const read = new Map<string, ImportingOne>();

@@ -10,10 +10,10 @@ use crate::harvest::is_bound;
 use crate::help_aliases::aliases;
 use crate::help_declared::{declared, DeclaredName, Matching};
 use crate::help_in_file::InFile;
-use crate::help_key::{can_keep, Keys, SLOT};
+use crate::help_key::{can_keep, nearest, Keys, SLOT};
 use crate::help_members::{member_declarations, MemberSite};
 use crate::help_name_scope::{owner_of, PackageScope};
-use crate::help_symbol_answer::{container_absence, DECLARED_CAP, member_name, member_stop, nowhere, shared_segments, unread_line};
+use crate::help_symbol_answer::{container_absence, DECLARED_CAP, member_name, member_stop, nowhere, unread_line};
 use crate::help_declared_in::{joined, publishing, rows_of, Readings};
 use crate::help_symbol_published::published_declarations;
 use crate::help_surface::Surface;
@@ -251,8 +251,8 @@ fn primary_sites(lines: &mut Vec<String>, asking: &Asking<'_>, owner: &str, file
         lines.push(order_line(asking));
         // An export no package owns has no inside to set apart: every site lists with its owner.
         list_kinds(lines, asking, (!owner.is_empty()).then_some(owner), sites);
-        stray_sites(lines, asking, strays.dead, "a path that reaches no one declaration read here");
-        stray_sites(lines, asking, strays.unresolved, "a path the source index resolved to no file");
+        stray_sites(lines, asking, strays.dead, DEAD);
+        stray_sites(lines, asking, strays.unresolved, UNRESOLVED);
     }
     for at in files { list_own(lines, asking, at, "declares", own); }
     if imported { lines.push(format!("\nA{}.", &UNCOUNTED[1..])); }
@@ -267,6 +267,17 @@ pub(super) struct Strays<'a> {
     pub unresolved: Vec<Site<'a>>,
 }
 
+/// How a dead import by path reaches no declaration: its file exports none of the name read here.
+pub(crate) const DEAD: &str = "a path that reaches no one declaration read here";
+/// How an unresolved import by path reaches no declaration: where it leads is not known.
+pub(crate) const UNRESOLVED: &str = "a path the source index resolved to no file";
+
+/// The sentence over `count` imports of `name` by path, `how` they reach no declaration, that `symbol` and `uses` list apart.
+pub(crate) fn stray_heading(name: &str, count: usize, how: &str) -> String {
+    let import = if count == 1 { "imports" } else { "import" };
+    format!("{count} more {import} `{name}` by {how}, so none is credited with them:")
+}
+
 /// One kind of import by path that reaches no declaration of the name read
 /// here, `how` it reaches none, listed apart, each with its package, since none
 /// is credited with them.
@@ -276,8 +287,7 @@ fn stray_sites(lines: &mut Vec<String>, asking: &Asking<'_>, mut sites: Vec<Site
     let limit = asking.shown();
     asking.listed.borrow_mut().sites.extend(sites.iter().map(|site| (site.at.to_owned(), site.line)));
     sites.sort_by(|a, b| nearest(from, a.at, a.line, b.at, b.line));
-    let import = if sites.len() == 1 { "imports" } else { "import" };
-    let heading = format!("{} more {import} `{name}` by {how}, so none is credited with them:", sites.len());
+    let heading = stray_heading(name, sites.len(), how);
     list(lines, asking, &heading, sites.iter().map(|site| site_line(site, name, false, limit)));
 }
 
@@ -377,11 +387,6 @@ impl Counts {
     }
 }
 
-fn nearest(from: Option<&str>, at: &str, line: u32, other_at: &str, other_line: u32) -> std::cmp::Ordering {
-    let shared = |at: &str| from.map_or(0, |from| shared_segments(from, at));
-    shared(other_at).cmp(&shared(at)).then_with(|| code_unit(at, other_at)).then(line.cmp(&other_line))
-}
-
 fn list_kinds(lines: &mut Vec<String>, asking: &Asking<'_>, home: Option<&str>, mut sites: Vec<Site<'_>>) {
     let &Asking { name, from, .. } = asking;
     let limit = asking.shown();
@@ -429,7 +434,7 @@ fn more_line(asking: &Asking<'_>, more: usize) -> String {
 
 fn site_line(site: &Site<'_>, name: &str, inside: bool, limit: usize) -> String {
     let mut text = format!("{}:{}", site.at, site.line);
-    if !inside { text.push_str(&format!(" — {}", site.by)); }
+    if !inside && !site.by.is_empty() { text.push_str(&format!(" — {}", site.by)); }
     if let Some((kind, specifier)) = site.path { text.push_str(&kind.how(specifier)); }
     if let Some(local) = site.local.filter(|local| *local != name) {
         text.push_str(&format!(" (as {local})"));

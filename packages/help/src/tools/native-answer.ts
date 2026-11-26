@@ -1,8 +1,8 @@
 // compass: variance-authority.report.agent-surface
 
-import { startPointArg, stringArg, type FileSet, type ToolInvocation } from '@variance-authority/mcp/tools';
+import { limitOf, spellingOf, startPointArg, stringArg, type FileSet, type ToolInvocation } from '@variance-authority/mcp/tools';
 import type { Help } from '@variance-authority/package/help';
-import { answerSymbol, answerUses, recordedSuites, type NameAnswer, type NameAsked } from '@variance-authority/sense';
+import { answerSymbol, answerUses, type NameAnswer, type NameAsked } from '@variance-authority/sense';
 import { storeBytesOf } from '../snapshot.js';
 import { askedOnce } from './asked-once.js';
 import { FoundNothing } from './find.js';
@@ -32,7 +32,7 @@ export function nativeAnswer(
     ...said(input, 'file'),
     ...(limit === undefined ? {} : { limit }),
     ...(invocation?.shell === undefined ? {} : { shell: invocation.shell }),
-    ...(line === undefined ? {} : { line, recorded: recordedSuites(root) }),
+    ...(line === undefined ? {} : { line }),
   };
   // A line is ordered by the recording, which no generation names, so only an answer without one is kept.
   const answer = line === undefined ? answeredOnce(help, question, root, JSON.stringify(asked)) : answeredNow(question, root, store, asked);
@@ -51,6 +51,14 @@ function answeredNow(question: 'symbol' | 'uses', root: string, store: Uint8Arra
  */
 const answeredOnce = askedOnce((help: Help, question: string, root: string, asked: string) =>
   answeredNow(question as 'symbol' | 'uses', root, storeBytesOf(help)!, JSON.parse(asked) as NameAsked));
+
+/**
+ * The `limit` the question says, refused before any name is read, so a bad one
+ * is said once; unsaid, the addon gives each list its own default.
+ */
+export function saidLimit(input: Readonly<Record<string, unknown>>, invocation: ToolInvocation<Help> | undefined): number | undefined {
+  return input['limit'] === undefined ? undefined : limitOf(input, 1, spellingOf(invocation));
+}
 
 /** The files `answer` names, each at its lines, and those it could not read. */
 export function fileSetOf(answer: NameAnswer): FileSet {

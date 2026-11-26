@@ -104,6 +104,24 @@ describe('the look at an answer whose files are unchanged', () => {
     expect(asked.importers).toBe(answer);
   });
 
+  it.each([
+    [symbol, { name: 'taxOf' }],
+    [uses, { name: 'taxOf' }],
+  ])('asks the addon once for `$name` and its look, in either order', async (tool, input) => {
+    const root = await fixture.published();
+    const answered = await readWorkspace(root);
+    asked.native = 0;
+    tool.run(answered, input, { root });
+    await outlived(tool.name, answered, input, { root }, later(workspaceGeneration(answered)));
+    expect(asked.native).toBe(1);
+
+    const looked = await readWorkspace(root);
+    asked.native = 0;
+    await outlived(tool.name, looked, input, { root }, later(workspaceGeneration(looked)));
+    tool.run(looked, input, { root });
+    expect(asked.native).toBe(1);
+  });
+
   it('walks nothing more for a `docs_search` asked again, however many times it looks', async () => {
     const root = await fixture.published({
       'packages/kit/package.json': JSON.stringify({ name: '@acme/kit', exports: './src/index.ts' }),
@@ -127,6 +145,15 @@ describe('the look at an answer whose files are unchanged', () => {
 
     search.run(await readWorkspace(root), { query: 'taxOf' }, { root });
     expect(asked.reads).toBeGreaterThan(0);
+  });
+
+  it('asks the addon again for `docs_symbol` in another generation of the same checkout', async () => {
+    const root = await fixture.published();
+    symbol.run(await readWorkspace(root), { name: 'taxOf' }, { root });
+    asked.native = 0;
+
+    symbol.run(await readWorkspace(root), { name: 'taxOf' }, { root });
+    expect(asked.native).toBe(1);
   });
 });
 

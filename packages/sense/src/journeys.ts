@@ -18,7 +18,7 @@ import { existsSync } from 'node:fs';
 import { relative, resolve } from 'node:path';
 import { checkoutListing, checkoutPath, existedAt, type CheckoutListing } from './checkout-path.js';
 import { native, nativeRefusal } from './addon.js';
-import type { NativeForksBetween, NativeJourneyEnd, NativeJourneyMap, NativeJourneyMapFile, NativePathsThrough, NativeJourneysAmong, NativeJourneysAnswer, NativeJourneysAsk, NativeRecorded, NativeJourneysCommit, NativeJourneysPrepared, NativeLinesThen, NativeTestComposition, NativeTestRan } from './native-journeys.js';
+import type { NativeForksBetween, NativeJourneyEnd, NativeJourneyMap, NativeJourneyMapFile, NativePathsThrough, NativeJourneysAmong, NativeJourneysAnswer, NativeJourneysAsk, NativeJourneysCommit, NativeJourneysPrepared, NativeLinesThen, NativeTestComposition, NativeTestRan } from './native-journeys.js';
 import type { SourceUpdate } from './published.js';
 import { sourceIndexPath } from './source-index.js';
 import { declaredTsconfig } from './typescript.js';
@@ -46,15 +46,11 @@ export function journeysPath(index: string, suite?: string): string {
 
 /** One suite's recording, found the way every reader of one finds it: the nearest snapshot, when it carries its cases. */
 function recordings(root: string): readonly { readonly suite?: string; readonly recording?: string; readonly looked: string }[] {
-  return suitesOf(root).map((suite) => {
+  const suites = declaredSuites(root)?.map((suite) => suite.name) ?? [undefined];
+  return suites.map((suite) => {
     const looked = nearestTestCoverage(root, { suite });
     return { ...(suite === undefined ? {} : { suite }), ...(keepsCases(looked) ? { recording: looked } : {}), looked };
   });
-}
-
-/** Each declared suite's name, or one unnamed suite when none is declared. */
-function suitesOf(root: string): readonly (string | undefined)[] {
-  return declaredSuites(root)?.map((suite) => suite.name) ?? [undefined];
 }
 
 /**
@@ -374,27 +370,6 @@ export function testsRan(root: string, file: string, name?: string): readonly Su
  */
 export function linesThen(root: string, commit: string, file: string, lines: readonly number[]): NativeLinesThen {
   return entry('linesThen')(root, commit, file, [...lines]);
-}
-
-/**
- * Every declared suite's recording that keeps its cases, with the commit it ran
- * at, or why it names none or does not open: what `symbol --line` orders a
- * name's declarations by, found where every reader of a recording finds it.
- * The executable finds the same rows in Rust, in the same words; the
- * `symbol --line` integration test holds the two equal.
- */
-export function recordedSuites(root: string): readonly NativeRecorded[] {
-  return suitesOf(root).flatMap((suite) => {
-    const recording = nearestTestCoverage(root, { suite });
-    let at: NativeJourneysCommit;
-    try {
-      if (!keepsCases(recording)) return [];
-      at = commitOf(recording);
-    } catch (error) {
-      at = { unread: unreadable(root, recording, error) };
-    }
-    return [{ ...(suite === undefined ? {} : { suite }), recording, ...(at.commit == null ? {} : { commit: at.commit }), ...(at.unread == null ? {} : { unread: at.unread }) }];
-  });
 }
 
 /**

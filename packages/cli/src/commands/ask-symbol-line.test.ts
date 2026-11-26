@@ -1,9 +1,10 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import '../bin.fixture.js';
+import { testCoverageFile } from '@variance-authority/sense/test-selection';
 import { main } from '../bin.js';
 import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
 import { recorded } from './ask-symbol-line.fixture.js';
@@ -124,6 +125,18 @@ describe('variance ask symbol --line', () => {
 
     expect([answered.code, answered.err]).toEqual([EXIT_CLEAN, '']);
     expect(answered.out.split('\n')[0]).toBe(`No recording under ${root} holds a suite, so nothing tells the declarations of \`useSessionId\` apart:`);
+  });
+
+  it('says the recording does not open, and names the declarations as it would without the line', async () => {
+    const root = await recorded();
+    chmodSync(testCoverageFile(root), 0);
+
+    const answered = await run(['ask', 'symbol', '--name', 'useSessionId', '--line', 'src/page.ts:3']);
+
+    const at = testCoverageFile(root);
+    expect([answered.code, answered.err]).toEqual([EXIT_CLEAN, '']);
+    expect(answered.out.split('\n')[0]).toBe(`The recording cannot place src/page.ts:3: the recording at ${at} does not read (EACCES: permission denied, open '${at}'), so nothing tells the declarations of \`useSessionId\` apart:`);
+    expect(answered.out).toContain('src/session.ts:1');
   });
 
   it('refuses a line spelled without its number', async () => {

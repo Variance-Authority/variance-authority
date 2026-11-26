@@ -21,6 +21,7 @@ use crate::help_declared_in::{heads, joined, publishing, rows_of, Readings};
 use crate::help_path_landing::landing;
 use crate::help_unread::{Said, STORE};
 use crate::help_symbol_exported::{declaring, exported_only, imports_of};
+use crate::help_uses_answer::{stray_heading, DEAD, UNRESOLVED};
 use crate::help_symbol_rows::{Export, PathKind, PathSite, Rows};
 use crate::help_unpublished::exports_named;
 use crate::help_usage::requested;
@@ -157,16 +158,17 @@ fn exact_symbol(asking: &Asking<'_>, rows: &Rows, name: &str, binds: Vec<Alias>,
         let (said, passing) = published_symbols(&keys, root, layers, name, &published, &paths, package, surface).said(STORE)?;
         blocks.extend(said);
         through = passing;
-        if !paired.is_empty() { blocks.push(exported_only(&keys, layers, name, &paired, surface).said(STORE)?); }
+        if !paired.is_empty() { blocks.push(exported_only(&keys, layers, name, &paired, false, surface).said(STORE)?); }
     } else if !paths.is_empty() {
-        let (by_path, imported) = by_path(layers, rows, name, &in_package, paths).said(STORE)?;
-        blocks.extend(by_path);
-        let rest: Vec<_> = paired.iter().copied().filter(|(held, _)| !imported.contains(held.export.at)).collect();
-        if !rest.is_empty() { blocks.push(exported_only(&keys, layers, name, &rest, surface).said(STORE)?); }
+        let ByPath { blocks: landed, covered, strays } = by_path(layers, rows, name, &in_package, paths).said(STORE)?;
+        blocks.extend(landed);
+        let rest: Vec<_> = paired.iter().copied().filter(|(held, _)| !covered.contains(held.export.at)).collect();
+        if !rest.is_empty() { blocks.push(exported_only(&keys, layers, name, &rest, !strays.is_empty(), surface).said(STORE)?); }
+        blocks.extend(strays);
     }
     let workspace_door = !blocks.is_empty();
     if !workspace_door && !paired.is_empty() {
-        blocks.push(exported_only(&keys, layers, name, &paired, surface).said(STORE)?);
+        blocks.push(exported_only(&keys, layers, name, &paired, false, surface).said(STORE)?);
     }
     // A file that only binds the name declares nothing: it follows every declaration.
     let (bound, kept): (Vec<_>, Vec<_>) = reading.names.into_iter().partition(|held| is_bound(&held.kind));
@@ -355,8 +357,17 @@ pub(crate) fn member_stop(layers: &[Layer], member: &str, where_: &str) -> Optio
     Some(format!("Members are read from JavaScript and TypeScript files only, and this workspace's {languages} files were not read for them: if `{member}` is a member {where_}, ask their language server's workspace symbols for it, then its find-references on the declaration."))
 }
 
-/// One block per file the imports by path name, and every file they name or reach an export of `name` in.
-fn by_path<'a>(layers: &[crate::compact::Layer], rows: &Rows, name: &str, exports: &[Export<'a>], sites: Vec<PathSite<'a>>) -> Option<(Vec<String>, HashSet<&'a str>)> {
+/// What the imports by path answer: one block per file they name or reach an
+/// export of `name` in, the files covered, and, when the workspace exports the
+/// name, the imports that reach none of its declarations, listed apart.
+struct ByPath<'a> {
+    blocks: Vec<String>,
+    covered: HashSet<&'a str>,
+    strays: Vec<String>,
+}
+
+/// The imports by path of `name`, as `ByPath` holds them.
+fn by_path<'a>(layers: &[crate::compact::Layer], rows: &Rows, name: &str, exports: &[Export<'a>], sites: Vec<PathSite<'a>>) -> Option<ByPath<'a>> {
     let mut groups: Vec<(&str, Vec<PathSite<'_>>)> = Vec::new();
     let mut positions = HashMap::new();
     for site in sites {
@@ -371,11 +382,18 @@ fn by_path<'a>(layers: &[crate::compact::Layer], rows: &Rows, name: &str, export
     let named: Vec<_> = exports.iter().filter(|export| export.name == name).collect();
     let mut covered = HashSet::new();
     let mut blocks = Vec::new();
+    let (mut dead, mut unresolved) = (Vec::new(), Vec::new());
     for (file, group) in groups {
         let first = &group[0];
         let specifier = first.specifier;
         let (owner, _) = requested(specifier);
         let export = landing(layers, name, first, &named);
+        // An import that reaches none of the name's declarations is no declaration's, so it gets no block of its own.
+        if export.is_none() && !named.is_empty() {
+            let into = if first.to.is_some() { &mut dead } else { &mut unresolved };
+            into.extend(group.iter().map(path_line));
+            continue;
+        }
         if let Some(held) = export { covered.insert(held.at); }
         let bound = export.and_then(|held| declaration_exported(layers, held.at, held.name));
         let mut lines = vec![bound.as_ref().map_or_else(|| name.to_owned(), |held| format!("{name} [{}]", held.kind))];
@@ -395,16 +413,22 @@ fn by_path<'a>(layers: &[crate::compact::Layer], rows: &Rows, name: &str, export
         if let Some(held) = bound { lines.extend(held.signature.into_iter().chain(held.doc)); }
         let noun = if group.len() == 1 { "place" } else { "places" };
         lines.push(format!("\nImported by path in {} {noun}:", group.len()));
-        for site in group {
-            let how = site.kind.how(site.specifier);
-            let local = site.local.map_or_else(String::new, |local| format!(" (as {local})"));
-            let typed = if site.site.type_only { " (type only)" } else { "" };
-            lines.push(format!("  {}:{} — {}{how}{local}{typed}", site.site.at, site.site.line, site.site.by));
-        }
+        lines.extend(group.iter().map(path_line));
         covered.insert(file);
         blocks.push(lines.join("\n"));
     }
-    Some((blocks, covered))
+    let strays = [(dead, DEAD), (unresolved, UNRESOLVED)].into_iter().filter(|(sites, _)| !sites.is_empty())
+        .map(|(sites, how)| format!("{}\n{}", stray_heading(name, sites.len(), how), sites.join("\n"))).collect();
+    Some(ByPath { blocks, covered, strays })
+}
+
+/// One import by path, with its package and how it names the file.
+fn path_line(site: &PathSite<'_>) -> String {
+    let how = site.kind.how(site.specifier);
+    let local = site.local.map_or_else(String::new, |local| format!(" (as {local})"));
+    let typed = if site.site.type_only { " (type only)" } else { "" };
+    let by = if site.site.by.is_empty() { String::new() } else { format!(" — {}", site.site.by) };
+    format!("  {}:{}{by}{how}{local}{typed}", site.site.at, site.site.line)
 }
 
 fn block(held: &DeclaredName) -> String {

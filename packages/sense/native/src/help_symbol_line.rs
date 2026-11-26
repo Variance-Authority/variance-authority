@@ -16,8 +16,6 @@
 use std::cmp::Ordering;
 use std::path::{Component, Path, PathBuf};
 
-use napi_derive::napi;
-
 use crate::help_symbol_answer::SymbolAnswer;
 use crate::journey_masks::JourneyMasks;
 use crate::journey_resonance::{resonate, Declaration, Resonance, Resonant};
@@ -25,10 +23,9 @@ use crate::journeys_read::lines_then;
 use crate::order::code_unit;
 
 /// One declared suite's recording that keeps its cases, and the commit it ran
-/// at: absent when it names none, `unread` when it does not read. The host finds
-/// them, as every reader of a recording there finds it.
-#[napi(object)]
-pub struct Recorded {
+/// at: absent when it names none, `unread` when it does not read, as
+/// [`crate::recordings::recorded`] finds them.
+pub(crate) struct Recorded {
     pub suite: Option<String>,
     pub recording: String,
     pub commit: Option<String>,
@@ -148,7 +145,7 @@ fn suite(root: &str, commit: &str, recording: &str, file: &str, line: u32, candi
     // A head moves with the line it opens on.
     let placed: Vec<(usize, Declaration)> = candidates.iter().enumerate().filter_map(|(at, one)| {
         let now = then[at]?;
-        Some((at, Declaration { file: one.file.clone(), line: now, spelled: one.spelled.clone(), through: one.through.map(|through| through - one.line + now) }))
+        Some((at, Declaration { file: one.file.clone(), line: now, spelled: one.spelled.clone(), through: one.through.and_then(|through| through.checked_sub(one.line)?.checked_add(now)) }))
     }).collect();
     let ends: Vec<Declaration> = placed.iter().map(|(_, end)| Declaration { file: end.file.clone(), line: end.line, through: end.through, spelled: end.spelled.clone() }).collect();
     let mut answer = JourneyMasks::open(recording).and_then(|mut masks| resonate(&mut masks, file, line, &ends))

@@ -2,37 +2,11 @@
 
 // compass: variance-authority.reach.source-index
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
-pub(crate) struct Layers {
-    pub(crate) top: PathBuf,
-    pub(crate) base: PathBuf,
-    pub(super) cache: PathBuf,
-    primary: PathBuf,
-    primary_cache: PathBuf,
-}
+pub(crate) use crate::checkout_layers::Layers;
 
 impl Layers {
-    pub(crate) fn at(root: &Path) -> Option<Self> {
-        if std::env::var_os("GIT_DIR").is_some() || std::env::var_os("GIT_WORK_TREE").is_some() {
-            return None;
-        }
-        let primary = super::primary_checkout(root);
-        let checkout = root.ancestors().find(|at| at.join(".git").exists()).unwrap_or(root);
-        let cache = super::cache_root(checkout)?;
-        let layer = |cache: &Path| -> Option<PathBuf> {
-            Some(cache.join("test-selection").join(super::checkout_key(&primary, cache)?))
-        };
-        let primary_cache = if primary == root { cache.clone() } else { super::cache_root(&primary)? };
-        let base = layer(&primary_cache)?;
-        let top = if primary == root {
-            base.clone()
-        } else {
-            layer(&cache)?.join(".work").join(super::checkout_key(root, &cache)?)
-        };
-        Some(Self { top, base, cache, primary, primary_cache })
-    }
-
     pub(super) fn mark(&self, root: &Path) {
         let Some(checkout) = super::seen_from(root, &self.cache).to_str().map(str::to_owned) else { return };
         let Some(primary) = super::seen_from(&self.primary, &self.cache).to_str().map(str::to_owned) else { return };

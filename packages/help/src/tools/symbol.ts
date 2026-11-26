@@ -1,9 +1,9 @@
 import type { FileSet, Tool, ToolInvocation } from '@variance-authority/mcp/tools';
-import { limitOf, START_POINT_SCHEMA, spellingOf } from '@variance-authority/mcp/tools';
+import { START_POINT_SCHEMA } from '@variance-authority/mcp/tools';
 import type { Help } from '@variance-authority/package/help';
 import { DECLARED_CAP } from './declared.js';
 import { FoundNothing } from './find.js';
-import { fileSetOf, foundAnswer } from './native-answer.js';
+import { fileSetOf, foundAnswer, saidLimit } from './native-answer.js';
 import { eachAnswer, eachDeclared, joinedFiles } from './symbol-names.js';
 
 /** Installed declarations shown when the question says no `limit`. */
@@ -76,12 +76,6 @@ export const symbol: Tool<Help> = {
     }));
   },
 };
-
-/** The `limit` the question says, refused before any name is read, so a bad one is said once; unsaid, each list keeps its own default. */
-function saidLimit(input: Readonly<Record<string, unknown>>, invocation: ToolInvocation<Help> | undefined): number | undefined {
-  const limit = limitOf(input, DECLARED_CAP, spellingOf(invocation));
-  return input['limit'] === undefined ? undefined : limit;
-}
 
 /** {@link symbol}'s answer about one name, thrown as {@link FoundNothing} when nothing declares it. */
 function answered(help: Help, input: Readonly<Record<string, unknown>>, invocation: ToolInvocation<Help> | undefined, limit: number | undefined) {

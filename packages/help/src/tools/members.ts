@@ -77,14 +77,14 @@ export const TYPED =
   "a JSX attribute, a utility type or an inline type literal is not: which type a value has is a type checker's answer, and none runs here.";
 
 /** Whose go-to-definition or go-to-implementation answers past what the bodies read here declare, by `checkerOf`'s answer. */
-export const CHECKER = {
+const CHECKER = {
   typescript: "TypeScript's language service's",
   other: "its language server's",
   mixed: "each declaration's own language server's",
 } as const;
 
 /** Whose type checker answers for declarations in these files: TypeScript's for JavaScript and TypeScript alone, `other` for one other language, `mixed` for several. */
-export function checkerOf(files: readonly string[]): 'typescript' | 'other' | 'mixed' {
+function checkerOf(files: readonly string[]): 'typescript' | 'other' | 'mixed' {
   const languages = new Set(files.map(languageOf));
   return languages.size > 1 ? 'mixed' : languages.size === 0 || languages.has('module') ? 'typescript' : 'other';
 }

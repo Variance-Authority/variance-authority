@@ -42,7 +42,7 @@
   "symbol --name absentIndex": [
     2,
     "",
-    "no readable workspace snapshot at <cache>/source-index.bin.help.bin: ENOENT: no such file or directory, open <cache>/source-index.bin.help.bin'. Run `variance index` to publish one.\n\nSee the skill at <repo>/packages/cli/skills/variance-authority/SKILL.md\n"
+    "no readable workspace snapshot at <cache>/source-index.bin.help.bin: ENOENT: no such file or directory, open '<cache>/source-index.bin.help.bin'. Run `variance index` to publish one.\n\nSee the skill at <repo>/packages/cli/skills/variance-authority/SKILL.md\n"
   ],
   "symbol --name addTax --package @acme/lib/src/internal/math": [
     0,
@@ -141,12 +141,12 @@
   ],
   "symbol --name loose": [
     0,
-    "loose [const]\nexported, without being published, at tools/loose.ts:1 by \nconst loose\nImported in 1 place; `variance ask uses` lists them, nearest to a file you name first.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    "loose [const]\nexported, without being published, at tools/loose.ts:1\nconst loose\nImported in 1 place; `variance ask uses` lists them, nearest to a file you name first.\nSnapshot <time> may miss later changes: run `variance index`.\n",
     ""
   ],
   "symbol --name lost": [
     0,
-    "lost\nimport { lost } from '@acme/kit/src/orphan';\nnot published: @acme/kit declares no entry, so every import of it names a file.\n\nImported by path in 1 place:\n  apps/app/src/elsewhere.ts:1 — @acme/app, by path from @acme/kit/src/orphan\n\nlost [const]\nimport { lost } from '@acme/kit/src/lost';\ndeclared at packages/kit/src/lost.ts:1\nnot published: @acme/kit declares no entry, so every import of it names a file.\nconst lost\n\nImported by path in 1 place:\n  apps/app/src/found.ts:1 — @acme/app, by path from @acme/kit/src/lost\n\nlost\nimport { lost } from '@acme/kit/src/gone';\nnot published: @acme/kit declares no entry, so every import of it names a file.\n\nImported by path in 1 place:\n  apps/app/src/stray.ts:1 — @acme/app, by path from @acme/kit/src/gone\n\nlost [const]\nimport { lost } from '@acme/kit/src/barrel';\ndeclared at packages/kit/src/lost.ts:1\nnot published: @acme/kit declares no entry, so every import of it names a file.\nconst lost\n\nImported by path in 1 place:\n  apps/app/src/through.ts:1 — @acme/app, by path from @acme/kit/src/barrel\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    "lost [const]\nimport { lost } from '@acme/kit/src/lost';\ndeclared at packages/kit/src/lost.ts:1\nnot published: @acme/kit declares no entry, so every import of it names a file.\nconst lost\n\nImported by path in 1 place:\n  apps/app/src/found.ts:1 — @acme/app, by path from @acme/kit/src/lost\n\nlost [const]\nimport { lost } from '@acme/kit/src/barrel';\ndeclared at packages/kit/src/lost.ts:1\nnot published: @acme/kit declares no entry, so every import of it names a file.\nconst lost\n\nImported by path in 1 place:\n  apps/app/src/through.ts:1 — @acme/app, by path from @acme/kit/src/barrel\n\n1 more imports `lost` by a path that reaches no one declaration read here, so none is credited with them:\n  apps/app/src/elsewhere.ts:1 — @acme/app, by path from @acme/kit/src/orphan\n\n1 more imports `lost` by a path the source index resolved to no file, so none is credited with them:\n  apps/app/src/stray.ts:1 — @acme/app, by path from @acme/kit/src/gone\nSnapshot <time> may miss later changes: run `variance index`.\n",
     ""
   ],
   "symbol --name mockOnly": [
@@ -292,7 +292,7 @@
   "uses --name absentIndex": [
     2,
     "",
-    "no readable workspace snapshot at <cache>/source-index.bin.help.bin: ENOENT: no such file or directory, open <cache>/source-index.bin.help.bin'. Run `variance index` to publish one.\n\nSee the skill at <repo>/packages/cli/skills/variance-authority/SKILL.md\n"
+    "no readable workspace snapshot at <cache>/source-index.bin.help.bin: ENOENT: no such file or directory, open '<cache>/source-index.bin.help.bin'. Run `variance index` to publish one.\n\nSee the skill at <repo>/packages/cli/skills/variance-authority/SKILL.md\n"
   ],
   "uses --name addTax --package @acme/lib/src/internal/math": [
     0,
@@ -376,7 +376,7 @@
   ],
   "uses --name loose": [
     0,
-    "`loose` [const] is imported in 1 place, and no entry publishes it; it is exported at tools/loose.ts:1.\nPath order; `--from` sorts nearest first.\n\nSource:\n\ntools/use-loose.ts:1 — ; used on line 2\n\nA namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    "`loose` [const] is imported in 1 place, and no entry publishes it; it is exported at tools/loose.ts:1.\nPath order; `--from` sorts nearest first.\n\nSource:\n\ntools/use-loose.ts:1; used on line 2\n\nA namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted.\nSnapshot <time> may miss later changes: run `variance index`.\n",
     ""
   ],
   "uses --name lost": [
@@ -521,7 +521,7 @@
   ],
   "symbol --name Schedule": [
     0,
-    "Schedule\nimport { Schedule } from '@acme/reporting-server';\nnot published: @acme/reporting-server declares no entry, so every import of it names a file.\n\nImported by path in 1 place:\n  apps/app/src/schedule.ts:1 — @acme/app, by path from @acme/reporting-server\n\nSchedule [enum]\nexported, without being published, at packages/reporting/server/constants.ts:1 by @acme/reporting-server\nenum Schedule\nNothing in this workspace imports it; a namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    "Schedule [enum]\nexported, without being published, at packages/reporting/server/constants.ts:1 by @acme/reporting-server\nenum Schedule\nNo import read here is credited with it; a namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted.\n\n1 more imports `Schedule` by a path the source index resolved to no file, so none is credited with them:\n  apps/app/src/schedule.ts:1 — @acme/app, by path from @acme/reporting-server\nSnapshot <time> may miss later changes: run `variance index`.\n",
     ""
   ],
   "uses --name Schedule": [
@@ -531,7 +531,7 @@
   ],
   "symbol --name Cadence": [
     0,
-    "Cadence\nimport { Cadence } from '@acme/reporting-server';\nnot published: @acme/reporting-server declares no entry, so every import of it names a file.\n\nImported by path in 1 place:\n  apps/app/src/cadence.ts:1 — @acme/app, by path from @acme/reporting-server\n\nCadence [const]\nexported, without being published, at packages/reporting/server/cadence.ts:1 by @acme/reporting-server\nconst Cadence\nImported in 1 place; `variance ask uses` lists them, nearest to a file you name first.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    "Cadence [const]\nexported, without being published, at packages/reporting/server/cadence.ts:1 by @acme/reporting-server\nconst Cadence\nImported in 1 place; `variance ask uses` lists them, nearest to a file you name first.\n\n1 more imports `Cadence` by a path the source index resolved to no file, so none is credited with them:\n  apps/app/src/cadence.ts:1 — @acme/app, by path from @acme/reporting-server\nSnapshot <time> may miss later changes: run `variance index`.\n",
     ""
   ],
   "uses --name unbound --file packages/kit/src/relay.ts": [

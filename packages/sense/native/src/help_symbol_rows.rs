@@ -18,14 +18,14 @@ const NAME_COLUMNS: [(&str, u8); 15] = [
     ("deep.namesOff", 4), ("use.name", 4),
 ];
 
-const ENTRY_COLUMNS: [(&str, u8); 25] = [
+const ENTRY_COLUMNS: [(&str, u8); 26] = [
     ("pub.spec", 4), ("pub.at", 4),
     ("pub.kind", 4), ("pub.line", 4), ("pub.signature", 4), ("pub.doc", 4),
     ("pub.mentionAt", 4), ("pub.mentionLine", 4), ("pub.mentionText", 4),
     ("pub.usedByOff", 4), ("pub.usedByList", 4), ("pub.uses", 4),
     ("pub.sitesOff", 4), ("pub.tdOff", 4), ("open.wholeOff", 4), ("open.entryOff", 4),
     ("use.at", 4), ("use.by", 4), ("use.line", 4), ("use.local", 4), ("use.flags", 1), ("use.throughLine", 4),
-    ("pkg.name", 4), ("pkg.openOff", 4), ("open.subpath", 4),
+    ("pkg.name", 4), ("pkg.openOff", 4), ("open.subpath", 4), ("open.source", 4),
 ];
 
 const PATH_COLUMNS: [(&str, u8); 9] = [
