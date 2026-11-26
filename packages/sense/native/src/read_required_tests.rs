@@ -80,6 +80,12 @@ fn a_require_nothing_is_read_off_records_no_name() {
 }
 
 #[test]
+fn a_mock_factory_s_require_of_its_own_target_reads_nothing_and_of_another_is_read() {
+    assert!(members_of("a.test.cjs", "jest.mock('./api', () => require('./api'));\n").is_empty());
+    assert_eq!(members_of("a.test.cjs", "jest.mock('./api', () => require('./panel').a);\n"), [read("./panel", "a", 1)]);
+}
+
+#[test]
 fn what_is_read_off_a_require_makes_no_other_request_and_binds_nothing_in_it() {
     let source = "const { a } = require('./m');\nconst m = require('./n');\nm.b();\nrequire('./o').c();\nrequire(name).d();\n";
     let read = read_module("a.cjs", source, &Allocator::default(), false);
