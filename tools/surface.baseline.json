@@ -1142,6 +1142,7 @@
         "doorOf": "function",
         "entriesNamed": "function",
         "entrypoint": "const",
+        "firstSentence": "function",
         "formatContainment": "function",
         "formatOrientation": "function",
         "gaps": "const",
