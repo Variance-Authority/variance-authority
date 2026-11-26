@@ -60,15 +60,6 @@ export const REPEATABLE: Readonly<Record<string, ReadonlySet<string>>> = {
 };
 
 /**
- * Flags whose value is one regular expression, so a repeat is refused with the
- * alternation of both values. Still refused: discover crosses its sets, so two
- * `--text` may mean both, and the alternation is offered as matching either.
- */
-const PATTERN: Readonly<Record<string, ReadonlySet<string>>> = {
-  ask: new Set(['--declares', '--except-declares', '--except-path', '--path', '--text']),
-};
-
-/**
  * Flags that stand alone, and the one list that says so.
  *
  * A flag missing from here is not refused — it is quietly treated as
@@ -159,6 +150,11 @@ export function readFlags(
    * throws. The caller decides, because only it knows what ignoring costs.
    */
   unknownFlags: 'refuse' | 'keep' = 'refuse',
+  /**
+   * Flags whose value is one regular expression. A repeat of one is still
+   * refused, and the refusal gives the alternation of the two values.
+   */
+  patterns: ReadonlySet<string> = new Set(),
 ): Flags {
   const values = new Map<string, string>();
   const present = new Set<string>();
@@ -205,17 +201,11 @@ export function readFlags(
       );
     }
     const repeatable = REPEATABLE[command]?.has(name) === true;
-    if (present.has(name) && !repeatable) {
-      // Repeated flags are refused rather than last-wins: two contradicting
-      // `--subjects` on one line means the operator believes one of them is in
-      // force, and picking either silently makes half of those beliefs wrong.
-      const again = equals === -1 ? argv[index] : argument.slice(equals + 1);
-      const first = values.get(name);
-      const joined = PATTERN[command]?.has(name) === true && first !== undefined && again !== undefined
-        ? `. It takes one regular expression; to match either, give \`${name} ${quoted(`(?:${first})|(?:${again})`)}\``
-        : '';
-      throw new OperatorError(`\`${name}\` was given more than once${joined}`);
-    }
+    // Repeated flags are refused rather than last-wins: two contradicting
+    // `--subjects` on one line means the operator believes one of them is in
+    // force, and picking either silently makes half of those beliefs wrong.
+    const twice = present.has(name) && !repeatable;
+    if (twice && BOOLEAN.has(name)) throw new OperatorError(givenTwice(name));
     present.add(name);
 
     if (BOOLEAN.has(name)) {
@@ -232,11 +222,24 @@ export function readFlags(
       throw new OperatorError(`\`${name}\` needs a value; nothing followed it.`);
     }
     if (inline === undefined) index += 1;
+    if (twice) throw new OperatorError(givenTwice(name, patterns.has(name) ? [values.get(name) ?? '', value] : []));
     values.set(name, value);
     if (repeatable) repeated.set(name, [...repeated.get(name) ?? [], value]);
   }
 
   return { values, present, positionals, repeated, unknown };
+}
+
+/**
+ * The refusal of a repeated flag, with the one pattern that matches either value
+ * when both are patterns. It says *either*: a second pattern may have meant both,
+ * which no one pattern asks, and an empty one would match everything.
+ */
+function givenTwice(name: string, patterns: readonly string[] = []): string {
+  const refusal = `\`${name}\` was given more than once`;
+  if (patterns.length === 0 || patterns.includes('')) return refusal;
+  const joined = patterns.map((pattern) => `(?:${pattern})`).join('|');
+  return `${refusal}. It takes one regular expression; to match either, give \`${name} ${quoted(joined)}\``;
 }
 
 export function noPositionals(positionals: readonly string[], command: string): void {

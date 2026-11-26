@@ -2,6 +2,7 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { readFlags } from './args.js';
 import { parseAskArgs } from './ask-args.js';
+import { parseArgs } from './parse.js';
 import { flagsFor, synopsisFor } from './usage.js';
 
 describe('source refresh input', () => {
@@ -52,7 +53,7 @@ describe('the sets discover crosses', () => {
 });
 
 describe('a pattern flag of discover given twice', () => {
-  const read = (argv: string[]) => () => readFlags(argv, 'ask', flagsFor('ask'), synopsisFor('ask'));
+  const read = (argv: string[]) => () => parseArgs(['ask', ...argv]);
 
   it('is refused with the one pattern that matches either, ready to run', () => {
     expect(read(['discover', '--path', '^packages/cli/', '--path', '^packages/help/', '--text', 'helpFor'])).toThrow(
@@ -64,6 +65,11 @@ describe('a pattern flag of discover given twice', () => {
     expect(read(['discover', "--text=it's", '--text', 'done'])).toThrow(
       "`--text` was given more than once. It takes one regular expression; to match either, give `--text '(?:it'\\''s)|(?:done)'`",
     );
+  });
+
+  it('offers no pattern built from a flag that followed it, or from an empty value', () => {
+    expect(read(['discover', '--path', 'a', '--path', '--text', 'b'])).toThrow('`--path` needs a value; nothing followed it.');
+    expect(read(['discover', '--path=a', '--path='])).toThrow(/^`--path` was given more than once$/u);
   });
 
   it('names no pattern for a flag that takes none', () => {
