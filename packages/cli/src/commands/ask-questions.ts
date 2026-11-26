@@ -4,23 +4,10 @@ import { VANTAGE_VARIABLE } from '@variance-authority/vantage';
 import { takes, wrap, type Asked } from './asking.js';
 
 /**
- * The questions, each with what it takes and what it answers.
- *
- * The tool descriptions, unedited. They are the same paragraphs an MCP client
- * puts in front of a model at `tools/list`, and a shorter gloss written here for
- * a human would be a second opinion about when to reach for each one.
- *
- * Split by subject rather than listed flat, because the parts are not
- * alternatives a reader chooses between on taste: one needs a file that already
- * exists, one needs a process that has to have been started first, one needs
- * only a checkout, and one needs a build to have published its times — and a
- * reader who does not know which part they are in asks the right question of
- * the wrong thing.
- *
- * Each half is printed straight off the set it mirrors rather than off
- * {@link QUESTIONS}, so a section is in the order that set chose — `self` leads
- * the live half because a reader who has just found a watcher should ask what it
- * is holding before asking anything of it.
+ * The questions, split by what each needs: a run's report, a live watcher, a
+ * checkout, the share's times or the review deployment. A section keeps the
+ * order its set chose, and each entry is its MCP tool's description, unedited:
+ * a gloss written here would be a second opinion about when to ask it.
  */
 export function questions(): string {
   return [

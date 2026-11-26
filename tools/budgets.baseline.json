@@ -420,9 +420,6 @@
   "packages/cli/src/commands/alone.ts docblock": [
     22
   ],
-  "packages/cli/src/commands/ask-questions.ts docblock": [
-    14
-  ],
   "packages/cli/src/commands/ask.ts block": [
     6
   ],
