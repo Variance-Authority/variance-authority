@@ -180,7 +180,11 @@ statements on the real clock and keeps every one: each line and how long it
 took in microseconds, with a loop's runs summed and hooks left out. `variance
 ask slowest-tests` prints the slowest under each case it lists, when it held a
 millisecond or more, with its share of the case, so a slow test points at the
-line to read first.
+line to read first. Beside each statement the recording keeps what surrounded
+it as it ended: the machine's load and free memory, the test process's resident
+memory, and the nodes it added to a jsdom or happy-dom page. Those figures say
+whether the product, the test or the machine was under pressure on that run.
+Each is one reading, and nothing selects, caches or judges a test by it.
 
 Use those lines to connect the regions in [coverage
 composition](own-fewer-tests.md#connect-the-regions-to-test-statements) to the

@@ -7,7 +7,7 @@
 
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { recordedCommit } from '@variance-authority/sense/test-selection';
+import { aroundText, recordedCommit } from '@variance-authority/sense/test-selection';
 import { recordedStatements, STORY_VARIABLE, type Declaration, type RecordedExplanation, type Statement, type StoryEntry } from '@variance-authority/sense/story';
 import { packageName, packageOf } from '../package-home.js';
 import { ranOf } from './covering-ran.js';
@@ -115,6 +115,8 @@ export function formatExplained(explained: Explained, format: 'text' | 'json'): 
       const time = statement.time === undefined ? '' : `  ${timeText(statement.time).padStart(8)}`;
       const share = statement.share === undefined ? '' : `  ${`${statement.share}%`.padStart(4)}`;
       text.push('', `  line ${String(statement.line).padEnd(width)}${time}${share}${statement.text === undefined ? '' : `  ${statement.text}`}`);
+      const around = aroundText(statement);
+      if (around !== undefined) text.push(`    ${around}`);
     }
     regions(statement.declarations, '    ');
   }

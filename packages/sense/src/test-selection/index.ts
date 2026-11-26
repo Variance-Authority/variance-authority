@@ -76,7 +76,7 @@ export {
   type NativeCombinedShard as CombinedShard,
 } from '../native-record.js';
 export { finalizeJestJourneys, pendingJourneyDirectory, stitchJourneyArtifacts, type JourneyArtifactResult } from './jest-journey-artifact.js';
-export { shareOf } from './case-times.js';
+export { aroundText, shareOf } from './case-times.js';
 export { encodeAsSetExecutionIndex, journeyGaps, openSetColumns, type JourneyGaps } from './execution-set-format.js';
 export { type SetColumns, type StringTable, type TestColumns } from './execution-set-columns.js';
 export type { BlockKind, ExecutionNarrowing, ExecutionNarrowingOptions, ImporterReason, SelectionCause, SelectionReason };

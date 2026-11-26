@@ -73,6 +73,14 @@ was the case's own or a hook's.** Nothing else in ADR-0056 decision 1 moves.
 6. **A case also carries the time of every statement line it cut at**, in
    microseconds, in the order it first reached them. The slowest is read off
    them, not stored.
+7. **Beside each time, what surrounded the statement as it ended** (#1869):
+   the 1-minute load average, the process's RSS and the machine's free memory,
+   read where the statement ran, and the nodes it added to the realm's page,
+   counted by a `MutationObserver` the cut installs on the realm's `document`.
+   A figure the realm cannot read is absent, as Windows's load average is. Each
+   is one draw of a figure that moves on its own, for a reader: selection, a
+   cache key and a flake verdict read none of it. A remote page times no
+   statement, so the Playwright cut records none.
 
 Not admitted: a rank within a statement, counts, repeats, spans, stacks,
 depth, and anything written on a page. ADR-0076 let a story claim only order
