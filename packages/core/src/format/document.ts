@@ -453,3 +453,39 @@ export function picture(raster: Raster, subject: string): Pictured {
   }
   return raster;
 }
+
+/**
+ * The elements whose pixels live outside the markup: a `<canvas>` (2D and WebGL
+ * alike) and a `<video>` hold a bitmap the document digest cannot see, so two
+ * equal documents may paint different images. Names each kind present, in
+ * code-unit order; empty when the document is fully described by its markup.
+ *
+ * Read from the serialized markup, so a `<canvas` spelled inside script text or
+ * a comment also counts, and one a script creates later does not.
+ */
+function blackBoxes(document: RenderDocument): readonly string[] {
+  const found = new Set<string>();
+  for (const match of document.html.matchAll(/<(canvas|video)[\s>/]/gi)) {
+    found.add((match[1] ?? '').toLowerCase());
+  }
+  return [...found].sort();
+}
+
+/**
+ * Why a document that holds a black box cannot be captured by replaying it, or
+ * `undefined` when it can.
+ *
+ * A renderer paints the document, and the document holds the markup of a canvas
+ * or video, never its bitmap: two different drawings both replay blank and read
+ * `unchanged`. The page itself holds the pixels, so such a subject is captured
+ * in place.
+ */
+export function blackBoxRefusal(document: RenderDocument): string | undefined {
+  const boxes = blackBoxes(document);
+  if (boxes.length === 0) return undefined;
+  return (
+    `\`${document.subject.id}\` holds ${boxes.map((box) => `a ${box}`).join(' and ')}, whose pixels live ` +
+    'outside the document a deferred capture replays, so it would be compared as blank. ' +
+    "Capture it in place: set `materialization: { kind: 'in-place', browser }` for this project."
+  );
+}

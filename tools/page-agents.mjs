@@ -36,8 +36,14 @@ import { fileURLToPath } from 'node:url';
 // through the probe runtime and folded by every runner — the probe protocol in two packages that do not depend on sense.
 export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
-/** Each entry is `[package, entry within dist, output within dist]`. */
+/**
+ * Each entry is `[package, entry within dist, output within dist]`, and where a
+ * page has no Node, the file within dist that stands for the Node modules its
+ * code imports and never calls there.
+ */
+/** @type {readonly (readonly [string, string, string, string?])[]} */
 export const AGENTS = [
+  ['packages/cli', 'commands/view-entry.js', 'commands/view.bundle.js', 'commands/view-no-node.js'],
   ['packages/eyes', 'page-agent-entry.js', 'page-agent.bundle.js'],
   ['packages/presentation', 'browser-agent-entry.js', 'browser-agent.bundle.js'],
   ['packages/playwright-test', 'page-agent-entry.js', 'page-agent.bundle.js'],
@@ -49,10 +55,10 @@ export const AGENTS = [
  * What esbuild is told for one agent: the build that writes the bundle and the
  * one that only lists its inputs are the same build.
  *
- * @param {readonly [string, string, string]} agent one of {@link AGENTS}
+ * @param {readonly [string, string, string, string?]} agent one of {@link AGENTS}
  * @returns {import('esbuild').BuildOptions}
  */
-function optionsOf([pkg, entry, out]) {
+function optionsOf([pkg, entry, out, noNode]) {
   const from = join(ROOT, pkg, 'dist', entry);
 
   // A missing entry means `tsc` did not emit, which is a build ordering problem
@@ -69,8 +75,19 @@ function optionsOf([pkg, entry, out]) {
     bundle: true,
     format: 'iife',
     target: 'es2022',
-    define: { 'process.env.NODE_ENV': '"production"' },
+    define: { 'process.env.NODE_ENV': '"production"', ...(noNode === undefined ? {} : { 'import.meta.url': '"page"' }) },
+    ...(noNode === undefined ? {} : withoutNode(join(ROOT, pkg, 'dist', noNode))),
   };
+}
+
+/**
+ * The options of a page whose code imports Node modules it never calls.
+ *
+ * @param {string} stand the file that stands for them
+ * @returns {import('esbuild').BuildOptions}
+ */
+function withoutNode(stand) {
+  return { minify: true, alias: { 'node:module': stand, 'node:zlib': stand } };
 }
 
 /**
@@ -97,7 +114,7 @@ function sourcesOf(file) {
  * Asked of esbuild with the options the build uses, writing nothing, so the
  * answer is the bundle's and no list of it is kept anywhere to go stale.
  *
- * @param {readonly [string, string, string]} agent one of {@link AGENTS}
+ * @param {readonly [string, string, string, string?]} agent one of {@link AGENTS}
  * @returns {Promise<{ entry: string, inputs: string[] }>}
  */
 export async function inputsOf(agent) {

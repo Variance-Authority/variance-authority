@@ -11,7 +11,7 @@ use rustc_hash::FxHashMap;
 
 use crate::journey_columns::Column;
 use crate::crossing_sets::SetPool;
-use crate::record_coverage::{Phases, Start, PHASES, START};
+use crate::record_coverage::{Lane, Phases, Start, PHASES, START};
 use crate::record_layout::LAYOUT;
 
 /// One region row as it is written.
@@ -36,6 +36,7 @@ pub(crate) struct Columns {
     test_duration: Vec<u32>,
     test_phases: Vec<u32>,
     test_start: Vec<u32>,
+    test_lane: Vec<u32>,
     precondition_name: Vec<u32>,
     precondition_digest: Vec<u32>,
     module_path: Vec<u32>,
@@ -66,6 +67,7 @@ impl Columns {
             test_duration: Vec::with_capacity(tests),
             test_phases: Vec::with_capacity(tests * PHASES),
             test_start: Vec::with_capacity(tests * START),
+            test_lane: Vec::with_capacity(tests),
             precondition_name: Vec::with_capacity(inputs),
             precondition_digest: Vec::with_capacity(inputs),
             module_path: Vec::with_capacity(modules),
@@ -88,12 +90,13 @@ impl Columns {
     }
 
     /// The next test, its preconditions as `(name, digest)` ids in the order written.
-    pub fn test(&mut self, path: u32, complete: u8, duration: u32, phases: Phases, start: Start, preconditions: impl IntoIterator<Item = (u32, u32)>) {
+    pub fn test(&mut self, path: u32, complete: u8, duration: u32, phases: Phases, start: Start, lane: Lane, preconditions: impl IntoIterator<Item = (u32, u32)>) {
         self.test_path.push(path);
         self.test_complete.push(complete);
         self.test_duration.push(duration);
         self.test_phases.extend_from_slice(&phases);
         self.test_start.extend_from_slice(&start);
+        self.test_lane.push(lane);
         self.test_preconditions.push(self.precondition_name.len() as u32);
         for (name, digest) in preconditions {
             self.precondition_name.push(name);
@@ -200,6 +203,7 @@ impl Columns {
             Column::Words(name(&LAYOUT.coverage.duration)?, self.test_duration),
             Column::Words(name(&LAYOUT.coverage.phases)?, self.test_phases),
             Column::Words(name(&LAYOUT.coverage.start)?, self.test_start),
+            Column::Words(name(&LAYOUT.coverage.lane)?, self.test_lane),
             Column::Words(name("preconditions.name")?, self.precondition_name),
             Column::Words(name("preconditions.digest")?, self.precondition_digest),
             Column::Words(name("modules.path")?, self.module_path),

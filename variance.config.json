@@ -12,6 +12,7 @@
       "kind": "e2e",
       "carry": "share",
       "before": [
+        "packages/cli/src/commands/view-entry.ts",
         "packages/eyes/src/page-agent-entry.ts",
         "packages/playwright-test/src/page-agent-entry.ts",
         "packages/presentation/src/browser-agent-entry.ts",

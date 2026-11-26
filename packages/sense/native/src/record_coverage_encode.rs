@@ -39,6 +39,8 @@ pub struct CoverageRows {
     pub test_phases: Uint32Array,
     /// `START` words per test.
     pub test_start: Uint32Array,
+    /// One word per test.
+    pub test_lane: Uint32Array,
     /// Per test, where its preconditions start; one more entry than tests.
     pub test_preconditions: Uint32Array,
     pub precondition_name: Vec<String>,
@@ -197,7 +199,7 @@ fn columns(rows: &CoverageRows) -> Result<Vec<Column>, String> {
         let mut start: Start = [0; START];
         start.copy_from_slice(&rows.test_start[test * START..(test + 1) * START]);
         let preconditions = inputs[test].iter().map(|(name, digest)| (ranked(*name), ranked(*digest)));
-        out.test(ranked(paths[test]), rows.test_complete[test], rows.test_duration[test], phases, start, preconditions);
+        out.test(ranked(paths[test]), rows.test_complete[test], rows.test_duration[test], phases, start, rows.test_lane[test], preconditions);
     }
     for module in written {
         let blob = if module.blob == LAYOUT.coverage.no_blob { module.blob } else { ranked(module.blob) };
@@ -216,6 +218,7 @@ fn shaped(rows: &CoverageRows, tests: usize, modules: usize, blocks: usize) -> R
         ("tests.duration", rows.test_duration.len(), tests),
         ("tests.phases", rows.test_phases.len(), tests * PHASES),
         ("tests.start", rows.test_start.len(), tests * START),
+        ("tests.lane", rows.test_lane.len(), tests),
         ("tests.preconditions", rows.test_preconditions.len(), tests + 1),
         ("preconditions.digest", rows.precondition_digest.len(), rows.precondition_name.len()),
         ("modules.source", rows.module_source.len(), modules),

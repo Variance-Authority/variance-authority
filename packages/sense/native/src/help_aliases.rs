@@ -12,7 +12,7 @@ use std::collections::HashSet;
 
 use napi_derive::napi;
 
-use crate::chain_lookup::fold;
+use crate::chain_lookup::live_records;
 use crate::compact::Layer;
 use crate::help_usage::kind_of;
 use crate::orient_map_read::beside;
@@ -61,7 +61,7 @@ pub(crate) fn aliases(root: &str, layers: &[Layer], local: &str) -> Vec<Alias> {
         }
     }
     if binding.is_empty() { return Vec::new(); }
-    let mut crossings: Vec<Crossing> = fold(layers)
+    let mut crossings: Vec<Crossing> = live_records(layers)
         .into_iter()
         .filter(|&(_, (layer, row))| {
             let (stored, records) = (&layers[layer].stored, &layers[layer].records);

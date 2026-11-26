@@ -1,5 +1,5 @@
 import { locateSites } from '@variance-authority/core/attribute';
-import { documentDigest, timeOn } from '@variance-authority/core/format';
+import { blackBoxRefusal, documentDigest, timeOn } from '@variance-authority/core/format';
 import type { Level } from '@variance-authority/core/judge';
 import {
   declaredIgnores,
@@ -125,6 +125,9 @@ export async function observeOne(
       }),
     };
   }
+
+  const blackBox = blackBoxRefusal(collected.document);
+  if (blackBox !== undefined) throw new Error(blackBox);
 
   const key: BaselineKey = keyFor(planned);
 

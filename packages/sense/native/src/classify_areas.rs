@@ -14,7 +14,7 @@ use napi_derive::napi;
 
 use crate::dependency_lexicon::describing::code_words;
 use crate::help_declared::private_words;
-use crate::chain_lookup::fold;
+use crate::chain_lookup::{fold, live_records};
 use crate::help_publish::{open_index, opened_chain};
 use crate::help_store::{FORMAT, NONE, VERSION};
 use crate::source_query::{reached_by, SourceWalk};
@@ -109,12 +109,12 @@ pub fn classify_areas(
     }
     let mut words = stages::timed("classify/store-words", || store_words(&stored, &stems, &terms)).map_err(napi::Error::from_reason)?;
     let areas = stages::timed("classify/index", || opened_chain(&opened, |layers| {
-        let folded = stages::timed("classify/inventory", || fold(layers));
-        let paths: Vec<&str> = folded.keys().filter_map(|path| {
+        let live = stages::timed("classify/inventory", || live_records(layers));
+        let paths: Vec<&str> = live.iter().map(|(path, _)| path).filter_map(|path| {
             let file = path.strip_prefix(&under)?;
             (!scoped || reach.contains_key(*path)).then_some(file)
         }).collect();
-        for row in stages::timed("classify/private-words", || private_words(layers, &folded, &stems)) {
+        for row in stages::timed("classify/private-words", || private_words(layers, &live, &stems)) {
             let Some(file) = row.at.strip_prefix(&under) else { continue };
             if row.declares {
                 words.files.insert(file.to_owned());

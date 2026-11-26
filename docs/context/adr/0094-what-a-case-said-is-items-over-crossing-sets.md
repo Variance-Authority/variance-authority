@@ -114,10 +114,16 @@ written by the realm. Only Rust reads it.
 - **TypeScript holds what a case said as an opaque string.** Between capture
   and the record it is the frame field's spelling, `[[name, value, site,
   level], …]`, unresolved; TypeScript passes it to Rust and never parses it. The
-  N-API surface is five calls: `saidJoined` (parse, name sites, union),
-  `saidSite` (one site named from the checkout), `saidResolved` (a row),
-  `saidLaid` and `saidRead` (the section). A reader gets resolved rows from
-  `saidResolved` and prints them.
+  N-API surface is four calls: `saidJoined` (parse, name sites, union),
+  `saidSite` (one site named from the checkout), `saidResolved` (a row) and
+  `saidLaid` (the section). A reader gets resolved rows from `saidResolved` and
+  prints them.
+- **Amended 2026-11-26: the section is read back in JavaScript.**
+  `case-said-read.ts` is the one TypeScript reader of the three sections, and
+  `saidRead` left the N-API surface, because the page `variance view` writes
+  decodes a whole record in the browser, where the addon does not load. It
+  spells the items the same way, so the string stays opaque to every other
+  caller; `case_said::read` stays Rust's own reader.
 - **One spelling writes it.** Only the set spelling of the case index carries
   `tests.said`, because the section's sets live in the crossing-set pool; the
   row spelling refuses a case index that holds what a case said rather than drop

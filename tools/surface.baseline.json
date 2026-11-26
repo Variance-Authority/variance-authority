@@ -305,6 +305,7 @@
         "accessibilitySnapshot": "function",
         "assetUrl": "function",
         "atWidth": "function",
+        "blackBoxRefusal": "function",
         "canonicalNumber": "function",
         "canonicalize": "function",
         "conflicts": "function",
@@ -2783,6 +2784,10 @@
           "types": "./dist/test-selection/journey.d.ts",
           "default": "./dist/test-selection/journey.js"
         },
+        "./record": {
+          "types": "./dist/test-selection/record-read.d.ts",
+          "default": "./dist/test-selection/record-read.js"
+        },
         "./page": {
           "types": "./dist/test-selection/page.d.ts",
           "default": "./dist/test-selection/page.js"
@@ -3634,6 +3639,7 @@
         "ranOver": "function",
         "ranWhileLoading": "function",
         "rankDistillCauses": "function",
+        "rawRecord": "function",
         "reachOf": "function",
         "readBlobsAt": "function",
         "readByInstall": "function",
@@ -3672,6 +3678,7 @@
         "repinOwnLayer": "function",
         "repositoryLayers": "function",
         "repositoryRoot": "function",
+        "restateRecord": "function",
         "rootConfig": "function",
         "rootConfigOf": "function",
         "routesFromView": "function",
@@ -3830,6 +3837,41 @@
         "sentry": "const",
         "stitchJourneys": "function",
         "unsettledScopes": "function"
+      },
+      "./record": {
+        "BLOCK_KINDS": "const",
+        "CaseLines": "interface",
+        "CaseTime": "interface",
+        "Header": "interface",
+        "NO_BLOB": "const",
+        "NO_DURATION": "const",
+        "NO_OWNER": "const",
+        "OpenedSections": "interface",
+        "PHASE_NAMES": "const",
+        "ReadRegion": "type",
+        "RecordWithoutCoverage": "class",
+        "Section": "interface",
+        "SetColumns": "interface",
+        "SetExecutionModule": "interface",
+        "StoredReading": "interface",
+        "TestColumns": "interface",
+        "TestCoverageView": "interface",
+        "columnBlob": "function",
+        "columnBytes": "function",
+        "columnWords": "function",
+        "decodeCase": "function",
+        "decodeReadings": "function",
+        "framedHeader": "function",
+        "lineAt": "function",
+        "lineOf": "function",
+        "linesOf": "function",
+        "members": "function",
+        "openSetColumns": "function",
+        "openTestCoverage": "function",
+        "sectionsOf": "function",
+        "shareOf": "function",
+        "stringTable": "function",
+        "testAt": "function"
       },
       "./page": {
         "reportPage": "function"

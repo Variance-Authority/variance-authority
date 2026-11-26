@@ -24,7 +24,6 @@ use napi_derive::napi;
 use rayon::prelude::*;
 use regex::{Regex, RegexBuilder};
 
-use crate::chain_lookup::fold;
 use crate::compact::Layer;
 use crate::path::extension;
 use crate::package_graph::Crossing;
@@ -92,8 +91,7 @@ pub(crate) fn names_filter(layers: &[Layer], imports: &[ImportAsked], declares: 
         .collect();
     let patterns: Vec<(usize, &Regex)> = compiled.iter().enumerate().filter_map(|(at, one)| one.as_ref().ok().map(|regex| (at, regex))).collect();
     let readable: HashSet<&str> = readable.iter().map(String::as_str).collect();
-    let folded = fold(layers);
-    let crossings = crate::help_declared::crossings(layers, &folded, None);
+    let crossings = crate::help_declared::crossings(layers, None);
     let found: Vec<FileFound> = crossings
         .par_iter()
         .filter_map(|crossing| {
