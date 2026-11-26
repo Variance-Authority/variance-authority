@@ -1449,12 +1449,16 @@ exits `2` with the reason. The review action's
 [`badge` input](https://github.com/Variance-Authority/action#publishing-a-badge)
 publishes this file on every push to your default branch.
 
-`--format html` writes the same answer as one page to open in a browser. It
-shows each suite's regions run, run only at load and loaded, with what changed
-them since the base. It shows what each kind of test runs alone and what
-several share. With `--packages` it lists every package with its files, and
-with `--fan-in` the test files that cover each file, by kind. Last, it lists
-every directory no suite loads. The page draws what the flags count and counts
+`--format html` writes the same answer as one page to open in a browser, on a
+desktop or a phone. It opens on what changed since the base: the ratio before
+and after, each suite's regions that started and stopped running, the test
+files whose reach moved and the source files whose regions moved, and a line
+for what no suite loads. Then it shows each suite's regions run, run only at
+load and loaded. With `--packages` it lists every package with its files, the
+packages with the most regions not run first, and with `--fan-in` the test
+files that cover each file, by kind. Folded under them is what each kind of
+test runs alone and what several share, and last, every directory no suite
+loads. The page draws what the flags count and counts
 nothing more, and it refuses `--session`, which it does not draw. It fetches
 nothing, so it opens from an artifact as it is. With
 `coverage-page: 'true'`, the review

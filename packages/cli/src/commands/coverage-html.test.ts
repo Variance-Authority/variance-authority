@@ -17,6 +17,8 @@ function source(regions: number, ran: number): CoverageSource {
   return { seeds: 'entrypoints', files: 0, unloaded, ran, regions } as unknown as CoverageSource;
 }
 
+const CHANGE_NONE: SuiteChange = { ...CHANGE, gained: 0 };
+
 const DIRECTORIES = ['tools/', 'scripts/', 'cases/a/', 'cases/b/', 'cases/c/', 'examples/'].map((directory, at) => ({
   directory, files: 1, lines: 100, regions: 60 - at * 10,
 }));
@@ -262,5 +264,69 @@ describe('--format html', () => {
 
   it('is named among the formats a wrong one is refused with', () => {
     expect(() => parse('--format', 'pdf')).toThrow('--format must be text, markdown, json, badge or html, not `pdf`');
+  });
+});
+
+describe('the coverage page of a change', () => {
+  const region = (file: string, name: string, startLine: number) => ({ file, kind: 'function', name, startLine, endLine: startLine + 4 });
+  const moved: SuiteChange = {
+    ...CHANGE,
+    gained: 30, lost: 8, written: { regions: 4, run: 3 }, departed: { regions: 6, run: 2, files: ['packages/cli/src/old.ts'], ran: ['packages/cli/src/old.ts'] },
+    testFiles: [
+      { file: 'test/small.test.ts', entered: [region('packages/cli/src/a.ts', 'one', 1)], left: [] },
+      {
+        file: 'test/wide.test.ts',
+        entered: [region('packages/cli/src/a.ts', 'one', 1), region('packages/cli/src/a.ts', 'two', 9), region('packages/core/src/c.ts', 'three', 1)],
+        left: [region('packages/core/src/c.ts', 'four', 20)],
+      },
+    ],
+  };
+  const answer: Coverage = {
+    ...ANSWER,
+    base: { ...ANSWER.count, regions: 1000, run: 650, suites: [{ name: 'unit', kind: 'unit', run: 560, load: 40, regions: 880 }] },
+    suites: [{ ...ANSWER.suites[0]!, base: { from: 'base.bin', commit: 'cc25d6a6', change: moved } }, ANSWER.suites[1]!, ANSWER.suites[2]!],
+  };
+  const html = formatCoverage(answer, 'html');
+
+  it('opens on the change: the whole ratio at the base and now', () => {
+    expect(html.indexOf('id="This-change"')).toBeGreaterThan(-1);
+    expect(html.indexOf('id="This-change"')).toBeLessThan(html.indexOf('id="Suites"'));
+    expect(row(html, 'change:whole')).toContain('65.0% → 70.0%');
+  });
+
+  it('gives each suite its ratio at the base and now, and the regions that started and stopped running', () => {
+    const unit = row(html, 'change:unit');
+    expect(unit).toContain('56.0% → 60.0%');
+    expect(unit).toContain('+33 started');
+    expect(unit).toContain('−10 stopped');
+    expect(raw(html, 'change:unit')).toContain('class="diverge"');
+    expect(row(html, 'change:integration')).toContain('no base: integration is not given to the share');
+    const still = formatCoverage({ ...answer, suites: [{ ...answer.suites[0]!, base: { from: 'base.bin', commit: 'cc25d6a6', change: CHANGE_NONE } }] }, 'html');
+    expect(row(still, 'change:unit')).toContain('no region started or stopped running');
+    expect(raw(still, 'change:unit')).not.toContain('class="diverge"');
+  });
+
+  it('names the test files whose reach moved, most first, and the source files whose regions moved', () => {
+    expect(row(html, 'moved:unit:test/wide.test.ts')).toContain('+3');
+    expect(row(html, 'moved:unit:test/wide.test.ts')).toContain('−1');
+    expect(html.indexOf('data-row="moved:unit:test/wide.test.ts"')).toBeLessThan(html.indexOf('data-row="moved:unit:test/small.test.ts"'));
+    expect(row(html, 'touched:packages/cli/src/a.ts')).toContain('+2');
+    expect(row(html, 'touched:packages/core/src/c.ts')).toContain('+1');
+    expect(row(html, 'touched:packages/core/src/c.ts')).toContain('−1');
+  });
+
+  it('says there is no change to draw when no suite has a base', () => {
+    const bare = formatCoverage({ ...ANSWER, suites: [ANSWER.suites[1]!, ANSWER.suites[2]!] }, 'html');
+    expect(row(bare, 'change:none')).toContain('no suite has a base to compare with');
+  });
+
+  it('names what no suite loads before the packages, folds the kinds, and orders packages by regions not run', () => {
+    expect(row(html, 'alert:unloaded')).toContain('210 regions');
+    expect(html.indexOf('data-row="alert:unloaded"')).toBeLessThan(html.indexOf('id="Packages"'));
+    expect(html).toMatch(/<details class="fold"[^>]*><summary>[^<]*Kinds/u);
+    // cli leaves 90 regions unrun, core 20.
+    expect(html.indexOf('data-row="package:packages/cli"')).toBeLessThan(html.indexOf('data-row="package:packages/core"'));
+    const reversed = formatCoverage({ ...answer, entries: [...answer.entries!].reverse() }, 'html');
+    expect(reversed.indexOf('data-row="package:packages/cli"')).toBeLessThan(reversed.indexOf('data-row="package:packages/core"'));
   });
 });

@@ -26,7 +26,16 @@ export function coverageParts(change: SuiteChange): readonly string[] {
 
 /** What the signed parts of `change` add to: the change in regions run they account for. */
 export function coverageSum(change: SuiteChange): number {
-  return change.gained - change.lost - change.hidden - change.unmeasured + change.written.run - change.deleted.run + change.arrived.run - change.departed.run;
+  const { started, stopped } = startedStopped(change);
+  return started - stopped;
+}
+
+/** The regions `change` started running and stopped running: its positive parts, and its negative ones. */
+export function startedStopped(change: SuiteChange): { readonly started: number; readonly stopped: number } {
+  return {
+    started: change.gained + change.written.run + change.arrived.run,
+    stopped: change.lost + change.hidden + change.unmeasured + change.deleted.run + change.departed.run,
+  };
 }
 
 /** `+2`, `−3`, `0`. */
