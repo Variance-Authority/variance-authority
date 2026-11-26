@@ -312,7 +312,7 @@ export function motionText(
     if (unwritten.length > 0) return ['', ...unwritten];
     // The runs at this commit were asked, and every file they ran either wrote
     // nothing to compare or has no case at all: there is no motion to report.
-    return motion.unwritten === undefined ? ['', `Nothing to compare: ${base.from} holds none of these cases.`] : [];
+    return motion.unwritten === undefined ? ['', `Nothing to compare: ${base.kind === 'before' ? 'the run before it' : base.from} holds none of these cases.`] : [];
   }
   const lines = [''];
   if (base.leftOut !== undefined && base.leftOut.length > 0) {

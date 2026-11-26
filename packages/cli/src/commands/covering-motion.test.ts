@@ -182,7 +182,7 @@ describe('what the last run moved', () => {
     const answer = await covering(parse(['--file', 'src/total.ts', '--cases', 'last', '--execution', execution]));
 
     expect(answer.motion?.moved).toBeUndefined();
-    expect(formatCovering(answer, 'text', Date.now())).toContain('Nothing to compare:');
+    expect(formatCovering(answer, 'text', Date.now())).toContain('Nothing to compare: the run before it holds none of these cases.');
   });
 
   it('refuses cases it retired that name no commit, and says when that happens', async () => {
