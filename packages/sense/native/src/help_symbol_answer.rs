@@ -396,7 +396,8 @@ fn by_path<'a>(layers: &[crate::compact::Layer], rows: &Rows, name: &str, export
         }
         if let Some(held) = export { covered.insert(held.at); }
         let bound = export.and_then(|held| declaration_exported(layers, held.at, held.name));
-        let declaring = bound.as_ref().map_or_else(|| export.map_or(file, |held| held.at).to_owned(), |held| held.at.clone());
+        // The question under a cut list names `--file` only for a declaration this answer reached; without one it asks by name alone.
+        let declaring = bound.as_ref().map(|held| held.at.clone());
         let mut lines = vec![bound.as_ref().map_or_else(|| name.to_owned(), |held| format!("{name} [{}]", held.kind))];
         // The slot names nothing an import can bind by.
         if name != SLOT { lines.push(format!("import {{ {name} }} from '{specifier}';")) }
@@ -416,7 +417,9 @@ fn by_path<'a>(layers: &[crate::compact::Layer], rows: &Rows, name: &str, export
         lines.push(format!("\nImported by path in {} {noun}:", group.len()));
         lines.extend(group.iter().take(limit).map(path_line));
         if group.len() > limit {
-            lines.push(more_imports(name, group.len() - limit, &surface.question("uses", &[("name", Value::Text(name)), ("file", Value::Text(&declaring))])));
+            let mut asked = vec![("name", Value::Text(name))];
+            if let Some(at) = &declaring { asked.push(("file", Value::Text(at))) }
+            lines.push(more_imports(name, group.len() - limit, &surface.question("uses", &asked)));
         }
         covered.insert(file);
         blocks.push(lines.join("\n"));

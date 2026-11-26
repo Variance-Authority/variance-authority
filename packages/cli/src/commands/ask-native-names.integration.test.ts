@@ -116,6 +116,7 @@ it.each(([
   ['symbol', '--name', 'lost'],
   ['symbol', '--name', 'crowdedPath', '--limit', '2'],
   ['uses', '--name', 'crowdedPath', '--file', 'packages/kit/src/crowd.ts'],
+  ['symbol', '--name', 'ghost', '--limit', '2'],
   ['symbol', '--name', 'Schedule'],
   ['symbol', '--name', 'Cadence'],
   ['symbol', '--name', 'keptOf'],
