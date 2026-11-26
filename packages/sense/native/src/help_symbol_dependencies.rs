@@ -9,7 +9,7 @@ use crate::help_readme::mention_at;
 use crate::help_surface::Surface;
 
 pub(super) fn blocks(root: &str, directory: &Path, name: &str, package: Option<&str>, limit: usize, surface: Surface<'_>) -> Option<Option<Vec<String>>> {
-    let Some(matches) = exact_dependencies(directory, name, package, u32::try_from(limit).unwrap_or(u32::MAX))? else {
+    let Some(matches) = exact_dependencies(directory, name, None, package, u32::try_from(limit).unwrap_or(u32::MAX))? else {
         return Some(None);
     };
     let mut blocks: Vec<_> = matches.shown.iter().map(installed).collect::<Option<_>>()?;
@@ -20,6 +20,13 @@ pub(super) fn blocks(root: &str, directory: &Path, name: &str, package: Option<&
     }
     blocks.extend(silent(Path::new(root), name, &matches.silent, package.is_some())?);
     Some(Some(blocks))
+}
+
+/// The installed declarations of `name` usable at `at` that `specifier` opens, one block each; `None` inside when there are none.
+pub(crate) fn imported_from(directory: &Path, name: &str, at: &str, specifier: &str, package: Option<&str>) -> Option<Option<String>> {
+    let Some(matches) = exact_dependencies(directory, name, Some(vec![at.to_owned()]), package, 100)? else { return Some(None) };
+    let blocks: Vec<_> = matches.shown.iter().filter(|entry| entry.specifier == specifier).map(installed).collect::<Option<_>>()?;
+    Some((!blocks.is_empty()).then(|| blocks.join("\n\n")))
 }
 
 fn installed(entry: &Match) -> Option<String> {

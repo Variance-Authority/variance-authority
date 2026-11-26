@@ -112,6 +112,13 @@ pub(crate) struct Site<'a> {
     pub path: Option<(PathKind, &'a str)>,
 }
 
+impl Export<'_> {
+    /// The row of the export list this export is on.
+    pub(crate) fn row(&self) -> usize {
+        self.row
+    }
+}
+
 impl Rows {
     pub(crate) fn paths_written(&self, specifier: &str) -> Option<BTreeSet<&str>> {
         let mut paths = BTreeSet::new();
@@ -151,12 +158,6 @@ impl Rows {
         Some(())
     }
 
-    pub(crate) fn read_export_lines(&mut self, file: &mut (impl Read + Seek)) -> Option<()> {
-        let [lines] = read_sections(file, FORMAT, VERSION, [("exp.line", 4)]).ok()?;
-        self.0.insert("exp.line", lines);
-        Some(())
-    }
-
     /// What an answer about an unpublished export says of it: its line, kind and type-only flag, its declaration's kind, whether its package's entry was followed, and the doors of the entries that publish it inside a namespace.
     pub(crate) fn read_exported(&mut self, file: &mut (impl Read + Seek)) -> Option<()> {
         let columns = read_sections(file, FORMAT, VERSION, EXPORTED_COLUMNS).ok()?;
@@ -185,6 +186,11 @@ impl Rows {
         let columns = read_sections(file, FORMAT, VERSION, SEARCH_COLUMNS).ok()?;
         self.0.extend(SEARCH_COLUMNS.into_iter().map(|(name, _)| name).zip(columns));
         Some(())
+    }
+
+    /// Whether the column `key` was read.
+    pub(crate) fn holds(&self, key: &str) -> bool {
+        self.0.contains_key(key)
     }
 
     pub(crate) fn bytes(&self, key: &str) -> &[u8] {
@@ -255,6 +261,35 @@ impl Rows {
         self.candidates(name, "names.pubOff", "names.pub", "pub.declared")
     }
 
+    /// The rows publishing a declaration of `declaring`, each a file and the name it exports it under.
+    pub(crate) fn published_declaring(&self, declaring: &HashSet<(&str, &str)>) -> Option<BTreeSet<usize>> {
+        let mut found = BTreeSet::new();
+        for row in 0..self.column("pub.declared").len() {
+            if declaring.contains(&(self.string("pub.at", row)?, self.string("pub.declared", row)?)) { found.insert(row); }
+        }
+        Some(found)
+    }
+
+    /// Whether an entry publishes a declaration its file exports under one of `names`.
+    pub(crate) fn publishes_declared(&self, names: &HashSet<&str>) -> Option<bool> {
+        for row in 0..self.column("pub.declared").len() {
+            if names.contains(self.string("pub.declared", row)?) { return Some(true) }
+        }
+        Some(false)
+    }
+
+    /// Every name a file exporting `name` exports the same binding under.
+    pub(crate) fn exported_beside(&self, name: &str) -> Option<HashSet<&str>> {
+        let mut beside = HashSet::new();
+        for held in self.exports(name)? {
+            let Some(bound) = held.bound else { continue };
+            for other in self.exports_in(held.at)? {
+                if other.bound == Some(bound) { beside.insert(other.name); }
+            }
+        }
+        Some(beside)
+    }
+
     pub(crate) fn published_names(&self) -> Option<Vec<&str>> {
         let column = self.column("pub.name");
         let mut seen = BTreeSet::new();
@@ -263,15 +298,45 @@ impl Rows {
     }
 
     pub(crate) fn exports(&self, name: &str) -> Option<Vec<Export<'_>>> {
-        self.candidates(name, "names.expOff", "names.exp", "exp.bound")?.into_iter().map(|row| {
-            Some(Export {
-                name: self.string("names.name", self.number("exp.name", row)? as usize)?,
-                at: self.string("exp.at", row)?,
-                by: self.string("exp.by", row)?,
-                bound: self.optional("exp.bound", row)?,
-                row,
-            })
-        }).collect()
+        self.candidates(name, "names.expOff", "names.exp", "exp.bound")?.into_iter().map(|row| self.export(row)).collect()
+    }
+
+    /// The export on row `row` of the export list.
+    pub(crate) fn export(&self, row: usize) -> Option<Export<'_>> {
+        Some(Export {
+            name: self.string("names.name", self.number("exp.name", row)? as usize)?,
+            at: self.string("exp.at", row)?,
+            by: self.string("exp.by", row)?,
+            bound: self.optional("exp.bound", row)?,
+            row,
+        })
+    }
+
+    /// The rows exporting `name` under that name, in row order.
+    pub(crate) fn exports_spelled(&self, name: &str) -> Option<BTreeSet<usize>> {
+        self.spelled(name, "names.expOff", "names.exp")
+    }
+
+    /// The rows publishing `name` under that name, in row order.
+    pub(crate) fn published_spelled(&self, name: &str) -> Option<BTreeSet<usize>> {
+        self.spelled(name, "names.pubOff", "names.pub")
+    }
+
+    fn spelled(&self, name: &str, offsets: &str, rows: &str) -> Option<BTreeSet<usize>> {
+        let mut found = BTreeSet::new();
+        if let Some(id) = self.name_row(name)? {
+            for row in self.range(offsets, id)? { found.insert(self.number(rows, row)? as usize); }
+        }
+        Some(found)
+    }
+
+    /// The rows of every export `at` writes, in row order.
+    pub(crate) fn exports_in(&self, at: &str) -> Option<Vec<Export<'_>>> {
+        let mut found = Vec::new();
+        for row in 0..self.column("exp.at").len() {
+            if self.string("exp.at", row)? == at { found.push(self.export(row)?) }
+        }
+        Some(found)
     }
 
     pub(crate) fn path_uses(&self, name: &str) -> Option<Vec<usize>> {

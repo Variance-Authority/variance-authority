@@ -9,7 +9,8 @@ use std::collections::HashSet;
 use crate::compact::Layer;
 use crate::help_origin::{declaration_exported, export_line};
 use crate::help_symbol_published::{member_rows, renamed_line};
-use crate::help_symbol_rows::Rows;
+use crate::help_key::{Keys, SLOT};
+use crate::help_symbol_rows::Export;
 use crate::help_unpublished::{Unpublished, UNCOUNTED};
 use crate::help_usage::{importers, Asked};
 use crate::text_cut::blank;
@@ -20,7 +21,8 @@ const UNFOLLOWED: &str = "this reading could not follow to a source file, such a
 /// source index resolved to it; a file that passes another one's export on is
 /// left out, unless every one does. `None` where the walk to a declaration
 /// ends at a default.
-pub(crate) fn exported_only(root: &str, layers: &[Layer], rows: &Rows, name: &str, exported: &[&Unpublished<'_>], surface: Surface<'_>) -> Option<String> {
+pub(crate) fn exported_only(keys: &Keys<'_>, root: &str, layers: &[Layer], name: &str, exported: &[&Unpublished<'_>], surface: Surface<'_>) -> Option<String> {
+    let rows = keys.rows();
     let asked: Vec<_> = exported.iter().map(|held| vec![Asked { file: held.export.at.to_owned(), name: held.export.name.to_owned() }]).collect();
     let read = importers(root, layers, &asked);
     if read.groups.len() != exported.len() { return None }
@@ -29,7 +31,7 @@ pub(crate) fn exported_only(root: &str, layers: &[Layer], rows: &Rows, name: &st
     if declaring.is_empty() { declaring = exported.iter().zip(&read.groups).collect() }
     let unfollowed = rows.unfollowed()?;
     let blocks = declaring.into_iter().map(|(held, group)| {
-        let (at, on, line, mut lines) = exported_rows(layers, &unfollowed, name, held)?;
+        let Opening { at, on, line, mut lines, .. } = exported_rows(keys, layers, &unfollowed, name, &held.export, held.line, held.type_only)?;
         let count = group.uses.len();
         lines.push(if count == 0 {
             format!("Nothing in this workspace imports it; {UNCOUNTED}.")
@@ -43,18 +45,27 @@ pub(crate) fn exported_only(root: &str, layers: &[Layer], rows: &Rows, name: &st
     Some(blocks.join("\n\n"))
 }
 
-/// The rows that open one export's answer, and the declaration whose members
-/// follow them: the name and its kind, where it is exported, the declaration
-/// it passes on from another file, and that declaration's text, or the
+/// The rows that open one export's answer, and the declaration whose members follow them.
+pub(crate) struct Opening {
+    /// The file, the name and the line of the declaration: the export's own, or the one it passes on.
+    pub at: String,
+    pub on: String,
+    pub line: u32,
+    /// Whether the declaration is another file's, said on the third row.
+    pub passes: bool,
+    pub lines: Vec<String>,
+}
+
+/// The rows that open one export's answer: the name and its kind, where it is
+/// exported, the declaration it passes on from another file, said by the name
+/// its key gives an anonymous default, and that declaration's text, or the
 /// export's own line when the walk reaches none.
-fn exported_rows(layers: &[Layer], unfollowed: &HashSet<&str>, name: &str, held: &Unpublished<'_>) -> Option<(String, String, u32, Vec<String>)> {
-    let export = &held.export;
+pub(crate) fn exported_rows(keys: &Keys<'_>, layers: &[Layer], unfollowed: &HashSet<&str>, name: &str, export: &Export<'_>, line: u32, type_only: bool) -> Option<Opening> {
     let bound = declaration_exported(layers, export.at, export.name);
     let origin = bound.as_ref().filter(|bound| bound.at != export.at);
-    if origin.is_some_and(|origin| origin.name == "default") { return None }
-    let (at, on, line) = origin.map_or_else(|| (export.at.to_owned(), export.name.to_owned(), held.line), |origin| (origin.at.clone(), origin.name.clone(), origin.line));
-    let typed = if held.type_only { " (type only)" } else { "" };
-    let exported = format!("at {}:{} by {}{typed}", export.at, held.line, export.by);
+    let typed = if type_only { " (type only)" } else { "" };
+    let exported = format!("at {}:{line} by {}{typed}", export.at, export.by);
+    let (at, on, line) = origin.map_or_else(|| (export.at.to_owned(), export.name.to_owned(), line), |origin| (origin.at.clone(), origin.name.clone(), origin.line));
     let mut lines = vec![
         bound.as_ref().map_or_else(|| name.to_owned(), |bound| format!("{name} [{}]", bound.kind)),
         if unfollowed.contains(export.by) {
@@ -63,10 +74,13 @@ fn exported_rows(layers: &[Layer], unfollowed: &HashSet<&str>, name: &str, held:
             format!("exported, without being published, {exported}")
         },
     ];
-    if let Some(origin) = origin { lines.push(format!("It passes on `{}`, declared at {}:{}:", origin.name, origin.at, origin.line)); }
+    if let Some(origin) = origin {
+        let named = if origin.name == SLOT { keys.origin_key(origin)?.named } else { origin.name.clone() };
+        lines.push(format!("It passes on `{named}`, declared at {}:{}:", origin.at, origin.line));
+    }
     match &bound {
         Some(bound) => lines.extend(bound.signature.iter().chain(&bound.doc).cloned()),
         None => lines.extend(export_line(layers, &at, line).map(|text| text.trim_matches(blank).to_owned())),
     }
-    Some((at, on, line, lines))
+    Some(Opening { at, on, line, passes: origin.is_some(), lines })
 }

@@ -8,13 +8,15 @@ use std::path::Path;
 
 use crate::compact::Layer;
 use crate::harvest::is_bound;
-use crate::help_aliases::aliases;
+use crate::help_aliases::{aliases, Alias};
+use crate::help_key::{can_keep, Keys, SLOT};
+use crate::help_local_names::local_names;
 use crate::help_declared::{declared, DeclaredName, Matching};
 use crate::help_members::{indexed_extensions, member_sites};
 use crate::help_name_scope::{owner_of, PackageScope};
 use crate::help_origin::declaration_exported;
 use crate::help_surface::Surface;
-use crate::help_symbol_published::published_symbols;
+use crate::help_symbol_published::{published_declarations, published_symbols};
 use crate::help_symbol_exported::exported_only;
 use crate::help_symbol_rows::{Export, PathKind, PathSite, Rows};
 use crate::help_unpublished::exports_named;
@@ -43,43 +45,60 @@ pub(crate) fn exact_symbols(asking: &Asking<'_>, store: &mut (impl Read + Seek),
     let wanted = asking.wanted;
     let mut rows = Rows::read(store)?;
     let mut entries = false;
-    let mut unpublished = false;
     let mut paths = false;
+    let mut renamed = Vec::with_capacity(names.len());
     for &name in names {
-        if name == "default" { return None }
-        let published = !rows.published(name)?.is_empty();
-        entries |= published;
-        unpublished |= !published;
+        let published = rows.published(name)?;
+        let binds = aliases(asking.root, asking.layers, name);
+        // An import that renames an export is answered by that export: its entry, or its file's export.
+        entries |= !published.is_empty() || !binds.is_empty() || rows.publishes_declared(&rows.exported_beside(name)?)?;
         paths |= !rows.path_uses(name)?.is_empty();
+        // A declaration published under another name is imported by path by the name it is declared by.
+        for row in published {
+            let declared = rows.string("pub.declared", row)?;
+            paths |= declared != name && !rows.path_uses(declared)?.is_empty();
+        }
+        renamed.push(binds);
     }
     if entries { rows.read_entries(store)?; }
-    // `--package` can leave a published name nothing published, which is answered from its exports.
-    if unpublished || wanted.is_some() { rows.read_exported(store)?; }
+    // Which declaration an export is, and the name it is keyed by, is read off the export list.
+    rows.read_exported(store)?;
     if paths {
         rows.read_paths(store)?;
     } else if wanted.is_some_and(|wanted| owner_of(wanted) != wanted) {
         rows.read_path_targets(store)?;
     }
-    if paths && !unpublished && wanted.is_none() { rows.read_export_lines(store)?; }
     let package = PackageScope::read(&rows, wanted)?;
-    names.iter().map(|name| exact_symbol(asking, &rows, name, &package)).collect()
+    names.iter().zip(renamed).map(|(name, binds)| exact_symbol(asking, &rows, name, binds, &package)).collect()
 }
 
 /// One name's answer: `Err` when it is that nothing declares the name, said
 /// with the files that only bind it.
-fn exact_symbol(asking: &Asking<'_>, rows: &Rows, name: &str, package: &PackageScope<'_>) -> Option<Result<String, String>> {
+fn exact_symbol(asking: &Asking<'_>, rows: &Rows, name: &str, binds: Vec<Alias>, package: &PackageScope<'_>) -> Option<Result<String, String>> {
     let &Asking { root, lexicon, layers, limit: said_limit, surface, .. } = asking;
-    let mut published = rows.published(name)?.into_iter().map(|row| rows.entry(row)).collect::<Option<Vec<_>>>()?;
-    published.retain(|entry| package.entry(entry));
+    let keys = Keys::new(root, layers, rows);
+    let published = published_declarations(&keys, name, package)?;
     let mut paths = rows.path_uses(name)?.into_iter().map(|row| rows.path_site(row)).collect::<Option<Vec<_>>>()?;
     paths.retain(|site| package.path(site.specifier));
-    if package.wanted().is_none() && !published.is_empty() && !paths.is_empty() { return None }
+    // Asked for the slot, a file imported by path answers only when its default is one nothing names.
+    if name == SLOT && published.is_empty() {
+        let mut answering = Vec::with_capacity(paths.len());
+        for site in paths { if site.to.map_or(Some(true), |to| keys.answers(to, SLOT, SLOT))? { answering.push(site) } }
+        paths = answering;
+    }
     let exports = rows.exports(name)?;
     let in_package = exports.iter().filter(|export| package.export(export)).cloned().collect::<Vec<_>>();
-    let exported = if published.is_empty() { exports_named(rows, layers, name, &exports, &in_package)? } else { Vec::new() };
-    if !aliases(root, layers, name).is_empty() {
-        return None;
-    }
+    // Another binding exported by the name is another thing, said beside the published one; a door to it is that one.
+    let mut exported = exports_named(&keys, name, package)?;
+    exported.retain(|held| !published.iter().any(|one| one.at == held.key.at && one.declared == held.key.named));
+    // A local name of a declaration answered above says it by its line, not again whole.
+    let local = local_names(&keys, layers, lexicon, name, binds, package)?;
+    let above: HashSet<String> = published.iter().map(|one| format!("{}\0{}", one.at, one.declared))
+        .chain(exported.iter().map(|held| format!("{}\0{}", held.key.at, held.key.named))).collect();
+    let aliased: Vec<_> = local.into_iter().map(|one| match one.brief {
+        Some((text, key)) if above.contains(&key) => text,
+        _ => one.text,
+    }).collect();
     let (container, member) = member_name(name);
     let members: Vec<_> = member_sites(root, layers, member).into_iter()
         .filter(|site| package.member(&site.by) && container.is_none_or(|on| site.on == on)).collect();
@@ -87,27 +106,29 @@ fn exact_symbol(asking: &Asking<'_>, rows: &Rows, name: &str, package: &PackageS
     let mut blocks = Vec::new();
     let mut found = true;
     if !published.is_empty() {
-        blocks.extend(published_symbols(root, layers, name, published, &exports, &paths, package, surface)?);
+        blocks.extend(published_symbols(&keys, root, layers, name, published, &paths, package, surface)?);
+        if !exported.is_empty() { blocks.push(exported_only(&keys, root, layers, name, &exported.iter().collect::<Vec<_>>(), surface)?); }
     } else if !paths.is_empty() {
         let (by_path, imported) = by_path(layers, rows, name, &in_package, paths)?;
         blocks.extend(by_path);
         let rest: Vec<_> = exported.iter().filter(|held| !imported.contains(held.export.at)).collect();
-        if !rest.is_empty() { blocks.push(exported_only(root, layers, rows, name, &rest, surface)?); }
+        if !rest.is_empty() { blocks.push(exported_only(&keys, root, layers, name, &rest, surface)?); }
     }
     let workspace_door = !blocks.is_empty();
     if !workspace_door && !exported.is_empty() {
-        blocks.push(exported_only(root, layers, rows, name, &exported.iter().collect::<Vec<_>>(), surface)?);
+        blocks.push(exported_only(&keys, root, layers, name, &exported.iter().collect::<Vec<_>>(), surface)?);
     }
     let mut reading = declared(root, layers, name, Matching::Exact, None);
-    reading.names.retain(|held| package.declared(&held.by));
+    reading.names.retain(|held| package.declared(&held.by) && can_keep(held));
     reading.names.sort_by_key(declaration_kind_order);
     // A file that only binds the name declares nothing: it follows every declaration.
     let (bound, kept): (Vec<_>, Vec<_>) = reading.names.into_iter().partition(|held| is_bound(&held.kind));
-    let only_members = blocks.is_empty() && kept.is_empty();
+    let only_members = blocks.is_empty() && kept.is_empty() && aliased.is_empty();
     let limit = said_limit.unwrap_or(5);
     let bindings = listed(&bound, name, limit, "binding", surface);
     blocks.extend(listed(&kept, name, limit, "declaration", surface));
     if !kept.is_empty() { blocks.extend(unread_line(&reading.unread)); }
+    blocks.extend(aliased);
     if !members.is_empty() {
         blocks.extend(members.iter().take(limit).map(|site| {
             let container = match site.on.as_str() {
@@ -258,7 +279,9 @@ fn by_path<'a>(layers: &[crate::compact::Layer], rows: &Rows, name: &str, export
         let export = matching.next().filter(|_| first.to.is_some() || matching.next().is_none());
         if let Some(held) = export { covered.insert(held.at); }
         let bound = export.and_then(|held| declaration_exported(layers, held.at, held.name));
-        let mut lines = vec![bound.as_ref().map_or_else(|| name.to_owned(), |held| format!("{name} [{}]", held.kind)), format!("import {{ {name} }} from '{specifier}';")];
+        let mut lines = vec![bound.as_ref().map_or_else(|| name.to_owned(), |held| format!("{name} [{}]", held.kind))];
+        // The slot names nothing an import can bind by.
+        if name != SLOT { lines.push(format!("import {{ {name} }} from '{specifier}';")) }
         if let Some(held) = &bound {
             lines.push(format!("declared at {}:{}", held.at, held.line));
         } else if let Some(held) = export {

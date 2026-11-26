@@ -10,6 +10,7 @@ use crate::harvest::is_bound;
 use crate::help_aliases::aliases;
 use crate::help_declared::{declared, DeclaredName, Matching};
 use crate::help_in_file::InFile;
+use crate::help_key::{can_keep, Keys};
 use crate::help_members::{member_declarations, MemberSite};
 use crate::help_name_scope::{owner_of, PackageScope};
 use crate::help_symbol_answer::{member_name, nowhere};
@@ -55,8 +56,6 @@ fn narrow(surface: Surface<'_>) -> String {
 /// and `None` to hand the question to the full reading.
 pub(crate) fn uses(asking: &Asking<'_>, store: &mut (impl Read + Seek)) -> Option<Result<String, String>> {
     let &Asking { root, layers, name, wanted, from, file, limit: _, surface: _ } = asking;
-    // `default` names a slot, not a declaration, which only the full reading follows.
-    if name == "default" { return None }
     let mut rows = Rows::read(store)?;
     let published = rows.published(name)?;
     let path_rows = rows.path_uses(name)?;
@@ -74,13 +73,15 @@ pub(crate) fn uses(asking: &Asking<'_>, store: &mut (impl Read + Seek)) -> Optio
     let mut paths = path_rows.into_iter().map(|row| rows.path_site(row)).collect::<Option<Vec<_>>>()?;
     paths.retain(|path| package.path(path.specifier));
     let exports = rows.exports(name)?;
-    let in_package = exports.iter().filter(|export| package.export(export)).cloned().collect::<Vec<_>>();
     let mut kept = declared(root, layers, name, Matching::Exact, None);
-    kept.names.retain(|held| package.declared(&held.by));
+    kept.names.retain(|held| package.declared(&held.by) && can_keep(held));
     let (container, member) = member_name(name);
     let mut members = member_declarations(root, layers, member);
     members.retain(|site| package.member(&site.by) && container.is_none_or(|on| site.on == on));
-    let exported = if entries.is_empty() { exports_named(&rows, layers, name, &exports, &in_package)? } else { Vec::new() };
+    let keys = Keys::new(root, layers, &rows);
+    let exported = if entries.is_empty() { exports_named(&keys, name, &package)? } else { Vec::new() };
+    // An export keyed otherwise than by its own spelling counts its imports under every name of its key, which this reading does not carry.
+    if exported.iter().any(|held| !held.plain(name)) { return None }
     let kept_here: Vec<&DeclaredName> = kept.names.iter().filter(|held| file.is_none_or(|file| held.at == file)).collect();
     // A name nothing declares anywhere is answered as one before the files that bind it, whichever file was asked.
     let nothing = entries.is_empty() && paths.is_empty() && exported.is_empty() && members.is_empty();
@@ -206,7 +207,7 @@ fn places(count: usize) -> String {
     format!("{count} {}", if count == 1 { "place" } else { "places" })
 }
 
-pub(super) struct Counts {
+pub(crate) struct Counts {
     pub(super) certain: usize,
     inside: usize,
     pub(super) off: usize,

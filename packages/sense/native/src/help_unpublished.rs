@@ -3,9 +3,9 @@
 
 // compass: variance-authority.report.agent-surface
 
-use crate::compact::Layer;
-use crate::help_origin::declaration_exported;
-use crate::help_symbol_rows::{Export, Rows};
+use crate::help_key::{says, Key, Keys};
+use crate::help_name_scope::PackageScope;
+use crate::help_symbol_rows::Export;
 
 /// What an import count leaves out: a use that names the export without importing it.
 pub(crate) const UNCOUNTED: &str = "a namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted";
@@ -19,52 +19,40 @@ pub(crate) struct Unpublished<'a> {
     pub declaration: Option<&'a str>,
     /// The file declaring what it exports: its own, or the one it passes on.
     pub declared_at: String,
+    /// The declaration it exports, as `Keys` keys it.
+    pub key: Key,
 }
 
-/// Every export of `name` among `candidates` from ordinary source, in row
-/// order, each keyed by the file declaring it; `all` is every export row the
-/// name or its binding names. `None` where an export answers to `name` by a
-/// key this reading does not follow: a default the name binds, a binding its
-/// file exports under another name too, or one passed on under another name.
-pub(crate) fn exports_named<'a>(rows: &'a Rows, layers: &[Layer], name: &str, all: &[Export<'a>], candidates: &[Export<'a>]) -> Option<Vec<Unpublished<'a>>> {
-    if name == "default" { return None }
-    let mut source = Vec::new();
-    for export in candidates {
-        if rows.export_kind(export)? == "source" { source.push(export) }
+impl Unpublished<'_> {
+    /// Whether the export is written under `name` and keys a declaration of that name exported under it alone: the one shape `uses` carries.
+    pub(crate) fn plain(&self, name: &str) -> bool {
+        says(self.export.name, name) && self.key.named == name && self.key.spellings.iter().all(|one| one == name)
     }
-    let spelled: Vec<_> = source.iter().copied().filter(|export| export.name == name).collect();
-    // A file exporting the binding only as `default` answers to it by the binding's name.
-    for keyed in source.iter().filter(|export| export.name != name && export.bound == Some(name) && !spelled.iter().any(|held| held.at == export.at)) {
-        if spellings(all, keyed.at, name).all(|spelled| spelled == "default") { return None }
+}
+
+/// Every export from ordinary source that answers to `name` and `package`
+/// keeps: those written under it first, then, of the files that write none,
+/// the exports keyed by it, each in export-list order.
+pub(crate) fn exports_named<'a>(keys: &Keys<'a>, name: &str, package: &PackageScope<'_>) -> Option<Vec<Unpublished<'a>>> {
+    let rows = keys.rows();
+    let mut answering = Vec::new();
+    for held in keys.answering(name)? {
+        if rows.export_kind(&held)? == "source" { answering.push(held) }
     }
-    spelled.into_iter().map(|export| {
-        let declared_at = match export.bound {
-            Some(bound) => {
-                let others = if bound == name { all.to_vec() } else { rows.exports(bound)? };
-                if spellings(&others, export.at, bound).any(|spelled| spelled != name) { return None }
-                export.at.to_owned()
-            }
-            None => match declaration_exported(layers, export.at, name) {
-                Some(origin) if origin.at != export.at => {
-                    if origin.name != name || spellings(all, &origin.at, name).any(|spelled| spelled != name) { return None }
-                    origin.at
-                }
-                _ => export.at.to_owned(),
-            },
-        };
+    // A file that exports the binding by the name is answered by that export, not by its other names.
+    let (spelled, keyed): (Vec<_>, Vec<_>) = answering.into_iter().partition(|held| says(held.name, name));
+    let keyed: Vec<_> = keyed.into_iter().filter(|held| !spelled.iter().any(|other| other.at == held.at)).collect();
+    spelled.into_iter().chain(keyed).filter(|held| package.export(held)).map(|export| {
+        let key = keys.key_of(export.at, export.name)?;
         Some(Unpublished {
-            export: export.clone(),
-            line: rows.export_line(export)?,
-            type_only: rows.export_type(export)?,
-            declaration: rows.export_declaration(export)?,
-            declared_at,
+            line: rows.export_line(&export)?,
+            type_only: rows.export_type(&export)?,
+            declaration: rows.export_declaration(&export)?,
+            declared_at: key.at.clone(),
+            key,
+            export,
         })
     }).collect()
-}
-
-/// The names `at` exports the binding `bound` under.
-fn spellings<'e>(exports: &'e [Export<'_>], at: &'e str, bound: &'e str) -> impl Iterator<Item = &'e str> + 'e {
-    exports.iter().filter(move |export| export.at == at && export.bound == Some(bound)).map(|export| export.name)
 }
 
 /// `at:line` of the first export, and how many more there are past it.
