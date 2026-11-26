@@ -15,12 +15,17 @@ export type SuiteCases<Answer> = {
   readonly suite?: string;
   /** The record read. */
   readonly recording: string;
-} & (Answer | { readonly unread: string });
+} & (Answer | {
+  readonly unread: string;
+  /** Set where a record is there and could not be read, so its cases are unknown; one that kept none has none. */
+  readonly unreadable?: true;
+});
 
 /**
  * `read` over the nearest record of each suite the root config declares, or the
  * one record of a repository that declares none. A record that kept no cases,
- * and one that could not be read, each answer with why.
+ * and one that could not be read, each answer with why; `read` is handed a file
+ * whose header does not read, and refuses it on its own terms.
  */
 export function eachSuiteCases<Answer extends object>(root: string, read: (recording: string) => Answer): readonly SuiteCases<Answer>[] {
   const suites = declaredSuites(root)?.map((declared) => declared.name) ?? [undefined];
@@ -28,10 +33,10 @@ export function eachSuiteCases<Answer extends object>(root: string, read: (recor
     const named = suite === undefined ? {} : { suite };
     const recording = nearestTestCoverage(root, { suite });
     try {
-      if (!keepsCases(recording)) return { ...named, recording, unread: 'no run kept its cases there' };
+      if (keepsCases(recording) === false) return { ...named, recording, unread: 'no run kept its cases there' };
       return { ...named, recording, ...read(recording) };
     } catch (error) {
-      return { ...named, recording, unread: error instanceof Error ? error.message : String(error) };
+      return { ...named, recording, unread: error instanceof Error ? error.message : String(error), unreadable: true };
     }
   });
 }

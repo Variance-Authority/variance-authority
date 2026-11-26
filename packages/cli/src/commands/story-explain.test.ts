@@ -145,7 +145,7 @@ describe('a case explained from the record', () => {
     statements: [
       { line: 0, regions: [setup], declarations: [{ region: setup, arms: 0 }] },
       { line: 6, time: 400, share: 4, text: 'await click(button);', regions: [handle, { ...page, name: 'handle', path: 'if#0/then' }], declarations: [{ region: handle, arms: 1 }] },
-      { line: 4, time: 8000, share: 80, text: 'render(page);', regions: [], declarations: [] },
+      { line: 4, time: 8000, share: 80, load: 3.5, rss: 412, free: 1024, added: 31, text: 'render(page);', regions: [], declarations: [] },
     ],
     hooks: [{ line: 2, regions: [reset], declarations: [{ region: reset, arms: 0 }] }],
     unlined: [late],
@@ -163,7 +163,9 @@ describe('a case explained from the record', () => {
     expect(text.indexOf('before the first statement')).toBeLessThan(text.indexOf('line 6'));
     expect(text.indexOf('line 6')).toBeLessThan(text.indexOf('line 4'));
     expect(text).toMatch(/line 6 +400 µs +4% +await click\(button\);/);
-    expect(text).toMatch(/line 4 +8\.0 ms +80% +render\(page\);/);
+    expect(text).toMatch(/line 4 +8\.0 ms +80% +render\(page\);\n {4}as it ended: load 3\.5, RSS 412 MiB, 1024 MiB free, 31 nodes added\n/);
+    // A statement that read nothing around it says nothing of it.
+    expect(text).toMatch(/line 6 +400 µs +4% +await click\(button\);\n {4}@acme\/page\n/);
     expect(text).toMatch(/@acme\/page\n +handle  src\/page\.ts:3-5, and 1 branch or loop in it\n/);
     expect(text).toContain('in hooks, apart from the statements');
     expect(text).toContain('no line recorded: 1 region');

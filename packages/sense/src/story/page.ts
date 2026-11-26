@@ -17,6 +17,7 @@
 
 import { navigationNote } from '@variance-authority/core/format';
 import storyFrames from '../instrument/story-frames.cjs';
+import probeCuts from '../instrument/probe-cuts.cjs';
 import storyListen from '../instrument/story-listen.cjs';
 import storyParts from '../instrument/story-parts.cjs';
 import storyTap from '../instrument/story-tap.cjs';
@@ -43,6 +44,7 @@ export function storyPageSource(limit = storyTap.TAPE_LIMIT, part?: string): str
 const NOTE_LIMIT = ${storyTap.NOTE_LIMIT};
 const NOTE_LENGTH = ${storyTap.NOTE_LENGTH};
 ${part === undefined ? '' : LIVE}const createTap = (${storyTap.createTap.toString()});
+const addedNodes = (${probeCuts.addedNodes.toString()});
 const watchPage = (${storyListen.watchPage.toString()});
 const watchFrames = (${storyFrames.watchFrames.toString()});
 const NOTE = Symbol.for('variance-authority.story.note');

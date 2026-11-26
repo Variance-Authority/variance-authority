@@ -425,3 +425,7 @@ mod passed_tests;
 #[cfg(test)]
 #[path = "read_required_tests.rs"]
 mod required_tests;
+
+#[cfg(test)]
+#[path = "read_written_tests.rs"]
+mod written_tests;

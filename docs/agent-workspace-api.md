@@ -630,7 +630,15 @@ imports. A module your code hands to a function the same file declares, as
 `count(lib)` with `function count(held)`, is followed into that function, and
 what it reads off the parameter is what the line reads, not a type-only read,
 whatever the parameter's type says. A parameter the function writes to is not
-followed. A module that goes on
+followed. A variable the file writes again holds, where a name is read off it,
+each module a write that may reach that line put there: after
+`let m = await import('./a')` and `if (offline) m = await import('./b')`,
+`m.foo()` reads `foo` off both, and after `m = stub()` it reads off neither. A
+write inside a loop, a `switch`, a label or a `try` only adds its module, since
+a jump or a throw may leave from above a later write. A write inside a function
+may run at any time, so its module stays held from that write on, and a read
+inside a function or a type query reads each module the variable was given
+above it. A module that goes on
 whole anywhere else — to a call the file does not declare, a property or a
 return — may read any name it exports, because what the receiver reads is out
 of the file's sight. It is listed as a site that may

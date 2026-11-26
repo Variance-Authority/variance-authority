@@ -51,7 +51,7 @@ import { sharedReportRoot, suiteIndexRoot } from './resources.js';
 export const COMMITS_BEHIND = 200;
 
 /** Why a CLI cache entry is removed. {@link CACHE_PRUNE_REASONS} says it in words. */
-export type CachePruneReason = 'behind' | 'off-line' | 'unheld' | 'old-report' | 'unwritten';
+export type CachePruneReason = 'behind' | 'off-line' | 'unheld' | 'old-report' | 'old-summary' | 'unwritten';
 
 /** Each reason, as one entry and as several. */
 export const CACHE_PRUNE_REASONS: Readonly<Record<CachePruneReason, readonly [string, string]>> = {
@@ -59,6 +59,7 @@ export const CACHE_PRUNE_REASONS: Readonly<Record<CachePruneReason, readonly [st
   'off-line': ['commit HEAD does not contain, older than 14 days', 'commits HEAD does not contain, older than 14 days'],
   unheld: ['commit this clone does not hold, older than 30 days', 'commits this clone does not hold, older than 30 days'],
   'old-report': ['shared report older than 14 days', 'shared reports older than 14 days'],
+  'old-summary': ['History summary not opened for 14 days', 'History summaries not opened for 14 days'],
   unwritten: ['directory nothing writes any more', 'directories nothing writes any more'],
 };
 
@@ -133,13 +134,23 @@ export async function planCachePrune(
     if (written !== undefined && owners.now - written > STORY_AGE_MS) await drop(path, 'old-report');
   }
 
+  // A History summary, `history/<digest>.json`: `view` marks one as opened each
+  // time it reads it, so one not opened for 14 days, its default window, serves
+  // no window still being read.
+  const summaries = join(root, 'history');
+  for (const name of await namesIn(summaries)) {
+    const path = join(summaries, name);
+    const opened = await mtimeOf(path);
+    if (opened !== undefined && owners.now - opened > STORY_AGE_MS) await drop(path, 'old-summary');
+  }
+
   const scans = join(root, 'scans');
   if (existsSync(scans)) await drop(scans, 'unwritten');
 
   let held: number | undefined;
   if (options.measure === true) {
     held = 0;
-    for (const path of [suites, read, reports, scans]) held += await bytesUnder(path);
+    for (const path of [suites, read, reports, summaries, scans]) held += await bytesUnder(path);
   }
   return { root, remove, kept, ...(held !== undefined ? { held } : {}) };
 }

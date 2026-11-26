@@ -1,4 +1,5 @@
 import { createRequire } from 'node:module';
+import { JSDOM } from 'jsdom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import caseOwner from './case-owner.cjs';
 import journals from './journal-format.cjs';
@@ -8,6 +9,10 @@ const collectors = createRequire(import.meta.url)(
   '../../dist/test-selection/collectors.cjs',
 ) as typeof import('./collectors.cjs');
 /** The engine as that worker loads it, which is how a test reaches the realm's own. */
+/** The cut's statement timer as that worker loads it. */
+const probeCuts = createRequire(import.meta.url)(
+  '../../dist/instrument/probe-cuts.cjs',
+) as typeof import('../instrument/probe-cuts.cjs');
 const probeLog = createRequire(import.meta.url)(
   '../../dist/instrument/probe-log.cjs',
 ) as typeof import('../instrument/probe-log.cjs');
@@ -25,8 +30,8 @@ function spin(ms: number): void {
 }
 
 /** One cut file's recording: its case scope, its cut, and each case's statement times once the file ends. */
-function recording() {
-  const holder: Record<PropertyKey, unknown> = {};
+function recording(realm: Record<PropertyKey, unknown> = {}) {
+  const holder = realm;
   const collector = collectors.scoped(holder, true);
   const scope = holder[CASE_SCOPE] as Scope;
   const cut: Cut = (line) => (holder.__VA__ as { c(line: number): void }).c(line);
@@ -40,8 +45,8 @@ function recording() {
 }
 
 /** Runs each body as a case of one cut file, and reads each case's statement times from its frame. */
-function timed(bodies: Record<string, (cut: Cut) => void>, hook?: (cut: Cut) => void) {
-  const { scope, cut, read, key } = recording();
+function timed(bodies: Record<string, (cut: Cut) => void>, hook?: (cut: Cut) => void, realm?: Record<PropertyKey, unknown>) {
+  const { scope, cut, read, key } = recording(realm);
   for (const [name, body] of Object.entries(bodies)) {
     scope.begin();
     hook?.(cut);
@@ -242,5 +247,72 @@ describe('how a case times its statements', () => {
 
     const { waits } = file.read();
     expect(at(waits, 7)).toBeGreaterThanOrEqual(60 * MS);
+  });
+
+  it('records beside each statement the load, RSS and free memory as it ended, and no page where the realm has none', () => {
+    const times = timed({ reads: (cut) => { cut(3); spin(5); cut(4); } });
+
+    expect(linesOf(times.reads)).toEqual([3, 4]);
+    for (const statement of times.reads!) {
+      // Windows reports no load average, which is absent there and never 0.
+      if (process.platform === 'win32') expect(statement.load).toBeUndefined();
+      else expect(statement.load).toBeGreaterThanOrEqual(0);
+      expect(statement.rss).toBeGreaterThan(0);
+      expect(Number.isInteger(statement.rss)).toBe(true);
+      expect(statement.free).toBeGreaterThanOrEqual(0);
+      expect(statement).not.toHaveProperty('added');
+    }
+  });
+
+  it('counts each node a statement added to the realm\'s page once, as a render attaches a container and then fills it', () => {
+    const { window } = new JSDOM('<main></main>');
+    const { document } = window;
+    const main = document.querySelector('main')!;
+    const times = timed({
+      renders: (cut) => {
+        cut(3);
+        const container = document.createElement('ul');
+        main.append(container);
+        for (let item = 0; item < 30; item += 1) container.append(document.createElement('li'));
+        cut(4);
+        // Built apart and attached whole: one node added, whatever it holds.
+        const built = document.createElement('ol');
+        for (let item = 0; item < 5; item += 1) built.append(document.createElement('li'));
+        main.append(built);
+        cut(5);
+        cut(6);
+        for (let turn = 0; turn < 2; turn += 1) {
+          cut(7);
+          main.append(document.createElement('p'));
+        }
+      },
+    }, undefined, { document, MutationObserver: window.MutationObserver });
+
+    expect(times.renders?.map(({ line, added }) => [line, added])).toEqual([[3, 31], [4, 1], [5, 0], [6, 0], [7, 2]]);
+  });
+
+  it('counts a node two concurrent cases were running beside for the statement that ended first, never for both', () => {
+    const { window } = new JSDOM('<main></main>');
+    const { document } = window;
+    const cuts = probeCuts.createCuts({ document, MutationObserver: window.MutationObserver });
+    const first = { cuts: [] as number[] };
+    const second = { cuts: [] as number[] };
+    cuts.time(first);
+    cuts.time(second);
+    cuts.cut(first, 3, 0);
+    cuts.cut(second, 3, 0);
+    document.querySelector('main')!.append(document.createElement('p'));
+    cuts.cut(first, 4, 0);
+    cuts.cut(second, 4, 0);
+
+    expect([cuts.times(first)?.[0]?.added, cuts.times(second)?.[0]?.added]).toEqual([1, 0]);
+  });
+
+  it('charges the time spent reading what surrounded a statement to neither it nor the next', () => {
+    // A page whose changes take 20 ms to read, so the reading would outweigh both statements.
+    class Slow { observe(): void {} takeRecords(): [] { spin(20); return []; } }
+    const times = timed({ quick: (cut) => { cut(3); cut(4); } }, undefined, { document: {}, MutationObserver: Slow });
+
+    expect(times.quick?.map(({ line, time }) => [line, time < 10_000])).toEqual([[3, true], [4, true]]);
   });
 });

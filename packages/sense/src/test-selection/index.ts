@@ -76,7 +76,7 @@ export {
   type NativeCombinedShard as CombinedShard,
 } from '../native-record.js';
 export { finalizeJestJourneys, pendingJourneyDirectory, stitchJourneyArtifacts, type JourneyArtifactResult } from './jest-journey-artifact.js';
-export { shareOf } from './case-times.js';
+export { aroundText, shareOf } from './case-times.js';
 export { encodeAsSetExecutionIndex, journeyGaps, openSetColumns, type JourneyGaps } from './execution-set-format.js';
 export { type SetColumns, type StringTable, type TestColumns } from './execution-set-columns.js';
 export type { BlockKind, ExecutionNarrowing, ExecutionNarrowingOptions, ImporterReason, SelectionCause, SelectionReason };
@@ -202,6 +202,7 @@ export { landedCoverage, recordedRun, type RecordedRun } from './fold-landing.js
 export { BLOCK_KINDS, NO_BLOB, NO_DURATION, PHASE_NAMES } from './format-layout.js';
 export type { FilePhases } from './reported-time.js';
 export { timeBeforeCases } from './file-cost.js';
+export { pool } from './pool.js';
 export { findModules, sharedPreconditions, testsGovernedBy } from './lookup.js';
 // The runs that wrote the case index and the snapshot, and what they were laid over.
 // The lock every writer of a record takes, for a caller that lands one.

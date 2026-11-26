@@ -3,10 +3,9 @@
 // compass: variance-authority.report.agent-surface
 
 use std::ffi::OsString;
-use std::io::{self, ErrorKind};
+use std::io;
 use std::path::{Path, PathBuf};
 
-use serde_json::Value;
 
 use crate::help_grep_answer::{self, Roots, Said};
 use crate::help_page::Page;
@@ -14,17 +13,20 @@ use crate::help_package_answer;
 use crate::help_search_answer::search;
 use crate::help_store::{graph_digest, read_head};
 use crate::help_surface::{CLI, Surface};
-use crate::help_symbol_answer::exact_symbols;
-use crate::help_uses_answer::uses;
+use crate::help_unread::{node_said, symbol_not_answered, uses_not_answered, SymbolAsked};
+use crate::help_symbol_answer::{self, exact_symbols};
+use crate::help_symbol_line;
+use crate::help_uses_answer::{self, uses};
+use crate::index_chain::OpenedChain;
 use crate::source_query::SourceTree;
 use crate::text_cut::blank;
 
 #[path = "cli_cache.rs"]
-mod cache;
+pub(crate) mod cache;
 #[path = "cli_source.rs"]
 mod source;
 #[path = "cli_index.rs"]
-mod index;
+pub(crate) mod index;
 #[path = "cli_manifests.rs"]
 mod manifests;
 #[path = "cli_follow_ups.rs"]
@@ -70,9 +72,21 @@ pub fn answer(args: &[OsString], mut waiting: impl FnMut(&str)) -> Option<(i32, 
         ["ask", "search", rest @ ..] => Question::Search(QueryRequest::from_args(rest)?),
         _ => return None,
     };
-    let index = source_index(&root)?;
+    // A name question says why it is not answered here and is never handed on: the Node entry answers it with this same reading.
+    let name = matches!(question, Question::Symbol(_) | Question::Uses(_));
+    let layers = match cache::Layers::found(&root) {
+        Ok(layers) => layers,
+        Err(why) => return name.then(|| (2, format!("variance: the source index of this checkout cannot be found: {why}.\n"))),
+    };
+    let index = layers.top.join("source-index.bin");
     follow_ups::settled(&index, waiting)?;
-    let (mut file, published) = publication(&root, &index)?;
+    let Some(root_text) = root.to_str() else {
+        return name.then(|| (2, format!("variance: the checkout path {} is not UTF-8\n", root.display())));
+    };
+    let (mut file, published) = match publication(root_text, &index) {
+        Ok(publication) => publication,
+        Err(why) => return name.then_some((2, why)),
+    };
     let text = match question {
         Question::Packages(page) => Ok(help_package_answer::packages(&mut file, &page)?),
         Question::Entrypoint(package, subpath) => help_package_answer::names(&mut file, package, subpath)?,
@@ -88,8 +102,30 @@ pub fn answer(args: &[OsString], mut waiting: impl FnMut(&str)) -> Option<(i32, 
             let asked = help_grep_answer::Asked { query: request.query, from: request.from, to: request.to, said };
             help_grep_answer::answered(&tree, &roots, asked, Surface(Some(CLI)))
         }
-        Question::Symbol(request) => Ok(exact_symbols(root.to_str()?, &index, &mut file, &request.names, request.package, request.limit)?),
-        Question::Uses(request) => Ok(uses(root.to_str()?, &index, &mut file, request.name, request.package, request.from, request.file, request.limit)?),
+        Question::Symbol(request) => 'symbol: {
+            let chain = match name_chain(&index) { Ok(chain) => chain, Err(why) => return Some((2, why)) };
+            let asking = help_symbol_answer::Asking {
+                root: root_text, lexicon: &layers.top, layers: chain.layers(), wanted: request.package, from: &request.from, limit: request.limit, surface: Surface(Some(CLI)),
+            };
+            let asked = SymbolAsked { names: &request.names, package: request.package, from: &request.from, line: request.line, limit: request.limit };
+            let refused = |why: String| symbol_not_answered(Surface(Some(CLI)), &asked, &why);
+            let answers = match exact_symbols(&asking, &mut file, &request.names) { Ok(answers) => answers, Err(why) => break 'symbol Err(refused(why)) };
+            match request.line {
+                Some(line) => {
+                    let recorded = match crate::recordings::recorded(&root) { Ok(recorded) => recorded, Err(why) => break 'symbol Err(refused(why)) };
+                    help_symbol_line::at_line(root_text, &request.names, line, &answers, &recorded)
+                }
+                None => Ok(answers.into_iter().map(|answer| answer.text).collect::<Vec<_>>().join("\n\n")),
+            }
+        }
+        Question::Uses(request) => {
+            let chain = match name_chain(&index) { Ok(chain) => chain, Err(why) => return Some((2, why)) };
+            let asking = help_uses_answer::Asking {
+                root: root_text, layers: chain.layers(), name: request.name, wanted: request.package,
+                from: request.from, file: request.file, limit: request.limit, surface: Surface(Some(CLI)), listed: Default::default(),
+            };
+            uses(&asking, &mut file).map(|answer| answer.unwrap_or_else(|nothing| nothing)).map_err(|why| uses_not_answered(&asking, &why))
+        }
         Question::Search(request) => {
             if request.offset.is_some() { return None }
             let scope = if request.from.is_empty() && request.to.is_empty() { None } else {
@@ -159,7 +195,7 @@ struct UsesRequest<'a> {
     package: Option<&'a str>,
     from: Option<&'a str>,
     file: Option<&'a str>,
-    limit: usize,
+    limit: Option<usize>,
 }
 
 impl<'a> UsesRequest<'a> {
@@ -181,21 +217,25 @@ impl<'a> UsesRequest<'a> {
             }
         }
         let name = name?;
-        (!name.is_empty() && name != "default").then_some(Self { name, package: package.filter(|value| !value.is_empty()), from: from.filter(|value| !value.is_empty()), file: file.filter(|value| !value.is_empty()), limit: limit.unwrap_or(12) })
+        (!name.is_empty()).then_some(Self { name, package: package.filter(|value| !value.is_empty()), from: from.filter(|value| !value.is_empty()), file: file.filter(|value| !value.is_empty()), limit })
     }
 }
 
 struct SymbolRequest<'a> {
     names: Vec<&'a str>,
     package: Option<&'a str>,
+    from: Vec<String>,
     limit: Option<usize>,
+    line: Option<&'a str>,
 }
 
 impl<'a> SymbolRequest<'a> {
     fn from_args(args: &[&'a str]) -> Option<Self> {
         let mut name = None;
         let mut package = None;
+        let mut from = Vec::new();
         let mut limit = None;
+        let mut line = None;
         let mut args = args.iter().copied();
         while let Some(flag) = args.next() {
             let (flag, value) = match flag.split_once('=') {
@@ -205,7 +245,9 @@ impl<'a> SymbolRequest<'a> {
             match flag {
                 "--name" if name.is_none() => name = Some(value),
                 "--package" if package.is_none() => package = Some(value),
+                "--from" => push_point(&mut from, value),
                 "--limit" if limit.is_none() => limit = Some(value.parse().ok().filter(|value| *value > 0)?),
+                "--line" if line.is_none() => line = Some(value),
                 _ => return None,
             }
         }
@@ -215,7 +257,7 @@ impl<'a> SymbolRequest<'a> {
             .filter(|name| !name.is_empty() && seen.insert(*name))
             .collect();
         (!names.is_empty() && names.iter().all(|name| !name.starts_with("--")))
-            .then_some(Self { names, package: package.filter(|value| !value.is_empty()), limit })
+            .then_some(Self { names, package: package.filter(|value| !value.is_empty()), from, limit, line })
     }
 }
 
@@ -266,14 +308,27 @@ struct Publication {
     generated_at: String,
 }
 
-fn publication(root: &Path, index: &Path) -> Option<(std::fs::File, Publication)> {
-    let index = index.to_str()?;
-    let mut file = std::fs::File::open(format!("{index}.help.bin")).ok()?;
-    let [Some(owner), Some(graph_root), Some(digest), Some(generated_at), Some(_), Some(_), ..] = read_head(&mut file).ok()? else { return None };
-    if owner != root.to_str()? || digest.len() != 64 || !digest.bytes().all(|byte| byte.is_ascii_hexdigit()) {
-        return None;
+/// The published head of the help store beside `index`, or why it is not this
+/// checkout's readable publication, said as a name question prints it.
+fn publication(root: &str, index: &Path) -> Result<(std::fs::File, Publication), String> {
+    let index = index.to_str().ok_or_else(|| format!("variance: the source index path {} is not UTF-8\n", index.display()))?;
+    let at = format!("{index}.help.bin");
+    let mut file = std::fs::File::open(&at).map_err(|error| unopened(&at, &error))?;
+    let unread = |why: &str| format!("The workspace snapshot at {at} does not read: {why}. Run `variance index` to publish it again.\n");
+    let head = read_head(&mut file).map_err(|why| unread(&why))?;
+    let [Some(owner), Some(graph_root), Some(digest), Some(generated_at), Some(_), Some(_), ..] = head else { return Err(unread("its head is cut short")) };
+    if owner != root {
+        return Err(format!("The workspace snapshot at {at} was published for another checkout, {owner}. Run `variance index` here to publish this one's.\n"));
     }
-    Some((file, Publication { graph_root: PathBuf::from(graph_root), graph_digest: digest, generated_at }))
+    if digest.len() != 64 || !digest.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return Err(unread("its source tree digest is not one"));
+    }
+    Ok((file, Publication { graph_root: PathBuf::from(graph_root), graph_digest: digest, generated_at }))
+}
+
+/// Why the help store at `at` did not open.
+fn unopened(at: &str, error: &io::Error) -> String {
+    format!("no readable workspace snapshot at {at}: {}. Run `variance index` to publish one.\n", node_said(at, error))
 }
 
 fn published_tree(root: &Path, index: &Path, head: &Publication) -> Option<SourceTree> {
@@ -289,12 +344,23 @@ pub(crate) fn source_index(root: &Path) -> Option<PathBuf> {
     Some(cache::Layers::at(root)?.top.join("source-index.bin"))
 }
 
+/// The chain a name question reads, or what it prints when there is none: no
+/// index published, said apart from an index that does not read.
+fn name_chain(index: &Path) -> Result<OpenedChain, String> {
+    let at = index.to_str().ok_or_else(|| format!("variance: the source index path {} is not UTF-8\n", index.display()))?;
+    match OpenedChain::read(at) {
+        Ok(Some(chain)) => Ok(chain),
+        Ok(None) => Err("No source index is published for this checkout; run `variance index`.\n".to_owned()),
+        Err(why) => Err(format!("The source index at {at} does not read: {why}\n")),
+    }
+}
+
 pub(crate) fn runtime_tree(root: &Path) -> Option<crate::source_query::RuntimeTree> {
     use crate::index_chain::OpenedChain;
 
     let root = physical(root);
     let index = source_index(&root)?;
-    let (_, published) = publication(&root, &index)?;
+    let (_, published) = publication(root.to_str()?, &index).ok()?;
     if root != published.graph_root { return None }
     let chain = OpenedChain::read(index.to_str()?).ok()??;
     let tree = published_tree(&root, &index, &published)?;
@@ -304,77 +370,4 @@ pub(crate) fn runtime_tree(root: &Path) -> Option<crate::source_query::RuntimeTr
     Some(crate::source_query::RuntimeTree::new(tree, &cuts))
 }
 
-fn primary_checkout(root: &Path) -> PathBuf {
-    let named = std::fs::read_to_string(root.join(".git")).ok().and_then(|pointer| {
-        pointer.lines().find_map(|line| line.strip_prefix("gitdir:")).map(|path| root.join(path.trim()))
-    });
-    if let Some(git_dir) = named {
-        if let Some(worktrees) = git_dir.parent().filter(|path| path.ends_with(".git/worktrees")) {
-            if let Some(primary) = worktrees.parent().and_then(Path::parent) {
-                return physical(primary);
-            }
-        }
-    }
-    root.to_owned()
-}
-
-fn root_config(checkout: &Path) -> Option<Option<Value>> {
-    match std::fs::read(checkout.join("variance.config.json")) {
-        Ok(bytes) => serde_json::from_slice(&bytes).ok().map(Some),
-        Err(error) if error.kind() == ErrorKind::NotFound => Some(None),
-        Err(_) => None,
-    }
-}
-
-fn cache_root(checkout: &Path) -> Option<PathBuf> {
-    if let Some(named) = root_config(checkout)?.as_ref().and_then(|config| config.get("cacheRoot")) {
-        return named.as_str().filter(|name| !name.is_empty()).map(|name| crate::conditions::normalize(&checkout.join(name)));
-    }
-    Some(std::env::var_os("VARIANCE_AUTHORITY_CACHE").map(PathBuf::from).filter(|path| path.is_absolute())
-        .map(|path| crate::conditions::normalize(&path)).unwrap_or_else(|| checkout.join("node_modules/.cache/variance-authority")))
-}
-
-fn physical(path: &Path) -> PathBuf {
-    let canonical = path.canonicalize().or_else(|_| {
-        let parent = path.parent().ok_or_else(|| io::Error::from(ErrorKind::NotFound))?;
-        let name = path.file_name().ok_or_else(|| io::Error::from(ErrorKind::NotFound))?;
-        Ok::<_, io::Error>(physical(parent).join(name))
-    });
-    let canonical = canonical.unwrap_or_else(|_| path.to_owned());
-    if cfg!(windows) {
-        if let Some(text) = canonical.to_str() {
-            if let Some(unc) = text.strip_prefix(r"\\?\UNC\") {
-                return PathBuf::from(format!(r"\\{unc}"));
-            }
-            if let Some(drive) = text.strip_prefix(r"\\?\") {
-                return PathBuf::from(drive);
-            }
-        }
-    }
-    canonical
-}
-
-fn checkout_key(checkout: &Path, cache: &Path) -> Option<String> {
-    let spelling = seen_from(checkout, cache);
-    let digest = crate::digest::of_string(spelling.to_str()?);
-    Some(digest.split_once(':')?.1.to_owned())
-}
-
-fn seen_from(checkout: &Path, cache: &Path) -> PathBuf {
-    let cache = physical(cache);
-    let mut from = cache.components().peekable();
-    let mut to = checkout.components().peekable();
-    let mut common = false;
-    while from.peek().is_some() && from.peek() == to.peek() {
-        common = true;
-        from.next();
-        to.next();
-    }
-    if common {
-        let mut relative: PathBuf = from.map(|_| "..").collect();
-        relative.extend(to);
-        relative
-    } else {
-        checkout.to_owned()
-    }
-}
+pub(crate) use crate::checkout_layers::{physical, root_config, seen_from};

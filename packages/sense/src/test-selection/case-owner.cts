@@ -91,9 +91,24 @@ const LIMIT = 7;
  */
 const TIMES = 8;
 
+/**
+ * What surrounded each of those statements as it ended, as four words per
+ * statement in the order of {@link TIMES}: the load average in hundredths, the
+ * RSS and the free memory in whole MiB, and the nodes it added to the page,
+ * each `-` where the realm could not read it. Absent where no figure was read.
+ */
+const AROUND = 9;
+
+/** The figures of {@link AROUND}, in its order. */
+const FIGURES = ['load', 'rss', 'free', 'added'] as const;
+
 interface Time {
   readonly line: number;
   readonly time: number;
+  readonly load?: number;
+  readonly rss?: number;
+  readonly free?: number;
+  readonly added?: number;
 }
 
 function withField(packed: string, at: number, value: string): string {
@@ -118,15 +133,28 @@ function settledCase(packed: string, stopped: boolean): string {
   return withField(packed, SETTLED, stopped ? STOPPED : FINISHED);
 }
 
+/** `times` as the case's fields: the load average of each in hundredths, as the collector reads it. */
 function timesCase(packed: string, times: readonly Time[]): string {
-  return withField(packed, TIMES, times.map(({ line, time }) => `${line} ${time}`).join(' '));
+  const timed = withField(packed, TIMES, times.map(({ line, time }) => `${line} ${time}`).join(' '));
+  if (!times.some((time) => FIGURES.some((figure) => time[figure] !== undefined))) return timed;
+  return withField(timed, AROUND, times.flatMap((time) => FIGURES.map((figure) => time[figure] ?? '-')).join(' '));
 }
 
-function timesOf(field: string | undefined): Time[] | undefined {
+/** The times of the fields, each load average as the reading itself rather than its hundredths. */
+function timesOf(field: string | undefined, around: string | undefined): Time[] | undefined {
   if (field === undefined || field === '') return undefined;
   const words = field.split(' ').map(Number);
+  const figures = around === undefined || around === '' ? [] : around.split(' ');
   const times: Time[] = [];
-  for (let at = 0; at + 1 < words.length; at += 2) times.push({ line: words[at]!, time: words[at + 1]! });
+  for (let at = 0; at + 1 < words.length; at += 2) {
+    const read = figures.slice(at * 2, at * 2 + FIGURES.length);
+    const held = FIGURES.flatMap((figure, of) => {
+      const word = read[of];
+      if (word === undefined || word === '-') return [];
+      return [[figure, figure === 'load' ? Number(word) / 100 : Number(word)] as const];
+    });
+    times.push({ line: words[at]!, time: words[at + 1]!, ...Object.fromEntries(held) });
+  }
   return times;
 }
 
@@ -134,7 +162,7 @@ function unpackCase(packed: string): { file: string; name: string; id: string; p
   const parts = packed.split('\u0000');
   const project = parts[PROJECT];
   const limit = parts[LIMIT];
-  const times = timesOf(parts[TIMES]);
+  const times = timesOf(parts[TIMES], parts[AROUND]);
   const coordinate = {
     file: parts[0] ?? packed,
     name: parts[1] ?? AMBIENT,
@@ -164,4 +192,4 @@ function journeyOf(packed: string): string {
   return packed.split('\u0000')[JOURNEY] ?? '';
 }
 
-export = { packCase, settledCase, timesCase, unpackCase, packJourney, journeyOf, packHeard, heardField };
+export = { FIGURES, packCase, settledCase, timesCase, unpackCase, packJourney, journeyOf, packHeard, heardField };

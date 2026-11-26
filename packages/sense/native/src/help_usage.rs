@@ -24,7 +24,7 @@ pub(crate) use importers_walk::importers_from;
 
 #[path = "help_usage_importers.rs"]
 mod importers_answer;
-pub(crate) use importers_answer::{importers, Asked, Importers, Namespace};
+pub(crate) use importers_answer::{importers, Asked, Group, Importers, Namespace};
 
 #[cfg(test)]
 thread_local! {

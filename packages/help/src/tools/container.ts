@@ -12,30 +12,8 @@
 
 // compass: variance-authority.report.agent-surface
 
-import { membersOn, type ContainerMember } from '@variance-authority/sense';
-import { byFile, type Located } from './format.js';
-
-/**
- * `Members:` and one row per line that declares a member of the container
- * `on` in `at`, the file relative to `root`, said once above them as
- * {@link byFile} groups rows, each as the index recorded the
- * line, and by its name when the index kept no text of it; a line the
- * declaration at `line` already shows is not shown again.
- * Nothing when the name declares no members or no index is published; why,
- * when the index does not read.
- */
-export function memberRows(root: string | undefined, at: string, on: string, line: number): readonly string[] {
-  if (root === undefined) return [];
-  let found: ReturnType<typeof membersOn>;
-  try {
-    found = membersOn(root, at, on);
-  } catch (error) {
-    return ['', `Members were not read: ${error instanceof Error ? error.message : String(error)}; run \`variance index\`.`];
-  }
-  if (found === undefined || found.length === 0) return [];
-  const rows = memberLines(at, found, [line]);
-  return rows.length === 0 ? [] : ['', 'Members:', ...byFile(rows)];
-}
+import type { ContainerMember } from '@variance-authority/sense';
+import type { Located } from './format.js';
 
 /**
  * One row per line of `file` that declares one of `members`, in their order,

@@ -97,7 +97,7 @@ export function keyOf(help: Help, root: string | undefined, held: Pick<Named, 'a
 }
 
 /** The key of `origin`, a declaration the source index walked to: its declaring file's export of the same binding. */
-export function originKey(help: Help, root: string | undefined, origin: ExportedDeclaration): Key {
+function originKey(help: Help, root: string | undefined, origin: ExportedDeclaration): Key {
   const keys = keysOf(help, root);
   const own = [...fileKeys(help, keys, origin.at).binds].some(([, binds]) => binds === origin.name);
   return own ? ownKey(help, root, keys, origin.at, origin.name) : { at: origin.at, named: origin.name, spellings: [origin.name] };
@@ -188,7 +188,7 @@ function whenRead<T>(read: () => T): T | undefined {
 }
 
 /** The declaration `held` passes on from another file, as the source index walks to it; none when its own file declares it or the index does not read. */
-export function originOf(help: Help, root: string | undefined, held: Pick<Named, 'at' | 'name'>): ExportedDeclaration | undefined {
+function originOf(help: Help, root: string | undefined, held: Pick<Named, 'at' | 'name'>): ExportedDeclaration | undefined {
   if (root === undefined || fileKeys(help, keysOf(help, root), held.at).binds.has(held.name)) return undefined;
   const origins = keysOf(help, root).origins;
   const at = `${held.at}\0${held.name}`;

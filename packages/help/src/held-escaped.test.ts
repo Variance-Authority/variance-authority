@@ -1,8 +1,8 @@
 import { execFileSync } from 'node:child_process';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { Help } from '@variance-authority/package/help';
 import { readWorkspace } from './read.js';
 import { symbol } from './tools/symbol.js';
@@ -58,23 +58,26 @@ let temporary: string;
 let help: Help;
 
 beforeAll(async () => {
-  temporary = await mkdtemp(join(tmpdir(), 'help-held-escaped-'));
+  // The source index is kept in a cache of its own, keyed by the path the checkout is at.
+  temporary = await realpath(await mkdtemp(join(tmpdir(), 'help-held-escaped-')));
+  vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(temporary, '.cache'));
   for (const [path, text] of Object.entries(FILES)) {
     await mkdir(dirname(join(temporary, path)), { recursive: true });
     await writeFile(join(temporary, path), text);
   }
   execFileSync('git', ['init', '--quiet'], { cwd: temporary });
   execFileSync('git', ['add', '.'], { cwd: temporary });
-  help = await readWorkspace(temporary, { index: join(temporary, 'source-index.bin') });
+  help = await readWorkspace(temporary);
 });
 
 afterAll(async () => {
+  vi.unstubAllEnvs();
   await rm(temporary, { recursive: true, force: true });
 });
 
 describe('a module held whole that the reading cannot follow', () => {
   it('names a name read off its default as a read through `default` that may read it', () => {
-    expect(uses.run(help, { name: 'narrow' })).toContain('packages/beta/src/index.ts:2 — beta (import() on line 2, through `default`: may read it)');
+    expect(uses.run(help, { name: 'narrow' }, { root: temporary })).toContain('packages/beta/src/index.ts:2 — beta (import() on line 2, through `default`: may read it)');
   });
 
   it('keeps a module passed on whole out of every count, once for its module', () => {
@@ -92,28 +95,28 @@ describe('a module held whole that the reading cannot follow', () => {
   });
 
   it('says the catalogue entry of a name it may read is unknown, not unused', () => {
-    expect(symbol.run(help, { name: 'widen' })).toContain(
+    expect(symbol.run(help, { name: 'widen' }, { root: temporary })).toContain(
       'no other package imports it by name through its published path; it may be read in 1 place: 1 passing the module on whole, so whether it is used is unknown',
     );
-    expect(symbol.run(help, { name: 'narrow' })).toContain(
+    expect(symbol.run(help, { name: 'narrow' }, { root: temporary })).toContain(
       "no other package imports it by name through its published path; it may be read in 2 places: 1 off the module's `default`, 1 passing the module on whole, so whether it is used is unknown",
     );
   });
 
   it('counts no place that may read a name as a place that imports it, and leaves their count to the header', () => {
-    expect(symbol.run(help, { name: 'widen' })).toContain(
+    expect(symbol.run(help, { name: 'widen' }, { root: temporary })).toContain(
       '`docs_uses` names no place that imports this, and lists the ones that may read it.',
     );
-    expect(symbol.run(help, { name: 'narrow' })).toContain(
+    expect(symbol.run(help, { name: 'narrow' }, { root: temporary })).toContain(
       '`docs_uses` names no place that imports this, and lists the ones that may read it.',
     );
   });
 
   it('lists a module passed on whole as a site that may read the name', () => {
-    const widen = uses.run(help, { name: 'widen' });
+    const widen = uses.run(help, { name: 'widen' }, { root: temporary });
     expect(widen).toContain('is imported by name nowhere. 1 place passes the module on whole, where this reading does not follow it, and may read `widen`.');
     expect(widen).toContain('packages/gamma/src/index.ts:7 — gamma (import() on line 2, passed on whole: may read it)');
-    const narrow = uses.run(help, { name: 'narrow' });
+    const narrow = uses.run(help, { name: 'narrow' }, { root: temporary });
     expect(narrow).toContain(
       "is imported by name nowhere. 1 place reads it off the module's `default`, which holds `narrow` only when the module is CommonJS. 1 more passes the module on whole, where this reading does not follow it, and may read `narrow`.",
     );

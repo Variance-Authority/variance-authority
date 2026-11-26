@@ -12,7 +12,13 @@
  *
  * Only a test runner's collector cuts, so this file is not sent as text and
  * the engine's source does not grow by it. CommonJS as `probe-log.cts` is.
+ *
+ * As a timed statement ends, the cut also reads what surrounded it: the
+ * machine's load and free memory, the process's RSS, and the nodes it added to
+ * the realm's page. Each is one draw of a random figure, read by no selection.
  */
+
+import os = require('node:os');
 
 /**
  * A bucket as the engine keeps it: its cuts, in an array every read replaces.
@@ -27,12 +33,100 @@ type Cut = { cuts: number[] | null };
  */
 interface Timer {
   readonly times: Map<number, number>;
+  /** The machine as each line's last run ended. */
+  readonly machine: Map<number, Machine>;
+  /** The nodes each line's runs added to the page, summed; empty where the realm has no page. */
+  readonly added: Map<number, number>;
   line: number;
   at: number;
   on: boolean;
 }
 
-function createCuts() {
+/**
+ * What surrounded a statement as it ended, each absent where the realm cannot
+ * read it, spelled out again where `times` hands it out: the 1-minute load
+ * average in hundredths, the process's RSS and the machine's free memory in
+ * whole MiB, and the nodes it added to the page.
+ */
+interface Around {
+  readonly load?: number;
+  readonly rss?: number;
+  readonly free?: number;
+  readonly added?: number;
+}
+
+/** The figures of {@link Around} the machine answers, not the page. */
+type Machine = Omit<Around, 'added'>;
+
+const MIB = 1024 * 1024;
+
+/**
+ * How long a reading of the machine stands for the statements that end after
+ * it, in milliseconds. Each reading is three system calls, about 1.2 µs, where
+ * a cut is about 40 ns; none of its figures moves within a millisecond by more
+ * than a draw does, and the load average moves every few seconds.
+ */
+const READING_MS = 1;
+
+/** The part of a realm's DOM a node count reads. */
+type Changes = readonly { readonly addedNodes: ArrayLike<unknown> }[];
+type Realm = {
+  readonly document?: object;
+  readonly MutationObserver?: new (seen: (changes: Changes) => void) => {
+    observe(target: object, options: object): void;
+    takeRecords(): Changes;
+  };
+};
+
+/**
+ * The nodes `changes` added to a page, as a count: each node once, where it
+ * was inserted, so a subtree attached whole counts its root. A story's page
+ * watch counts by it too, and a page tape puts its source on the page, so it
+ * names nothing outside itself.
+ */
+function addedNodes(changes: Changes): number {
+  let added = 0;
+  for (const change of changes) added += change.addedNodes.length;
+  return added;
+}
+
+// TODO: a Playwright page lives outside the test's realm, and its cut
+// (`documents.ts` in playwright-test) times no statement, so a page case
+// records neither its statements' times nor the nodes each added (#1876).
+/**
+ * How many nodes the realm's page has had added, as a running count, by
+ * {@link addedNodes}; undefined where the realm has no page. A node filled
+ * after it was attached counts its children where they were inserted, so a
+ * read costs the changes since the last one, never a walk of what they hold.
+ */
+function pageCount(realm: Realm | undefined): (() => number) | undefined {
+  const { document, MutationObserver: Watch } = realm ?? {};
+  if (document === undefined || typeof Watch !== 'function') return undefined;
+  let added = 0;
+  const count = (changes: Changes): void => {
+    added += addedNodes(changes);
+  };
+  const watch = new Watch(count);
+  watch.observe(document, { childList: true, subtree: true });
+  return () => {
+    count(watch.takeRecords());
+    return added;
+  };
+}
+
+/** The machine's figures as a reading, each absent where this platform reports none. */
+function machine(): Machine {
+  const rss = typeof process === 'object' ? process.memoryUsage?.rss : undefined;
+  return {
+    // Windows reports a load average of 0 for ever, which is no reading.
+    ...(os.platform() === 'win32' ? {} : { load: Math.round(os.loadavg()[0]! * 100) }),
+    ...(typeof rss === 'function' ? { rss: Math.round(rss() / MIB) } : {}),
+    free: Math.round(os.freemem() / MIB),
+  };
+}
+
+/** @param realm Where the test runs, whose page the cuts count nodes on; none, or one without a page, counts none. */
+function createCuts(realm?: object) {
   // The line each region was first reached under, by realm index, for the
   // last read that carried cuts.
   let lineAt = new Int32Array(0);
@@ -41,12 +135,39 @@ function createCuts() {
   const clock = typeof performance === 'object' ? performance.now.bind(performance) : Date.now.bind(Date);
   // By bucket, not by its cuts: a read replaces the array, and the time stands.
   const timers = new WeakMap<Cut, Timer>();
-  /** Adds the time since the last cut to the statement that was running, and starts `line`. */
+  // Made at the first case, when a runner's environment has put its page in place.
+  let page: (() => number) | undefined | null = null;
+  // The machine as last read, and when.
+  let reading: Machine = {};
+  let readAt = -Infinity;
+  // The page's count as the last statement to end took it: a node goes to the
+  // statement that ends next, in whichever case, and to no other.
+  let counted = 0;
+  /**
+   * Adds the time since the last cut to the statement that was running, with
+   * what surrounded it as it ended, and starts `line` once that is read, so
+   * the reading is charged to neither.
+   */
   const lap = (timer: Timer, line: number): void => {
     const now = clock();
-    if (timer.line !== 0) timer.times.set(timer.line, (timer.times.get(timer.line) ?? 0) + now - timer.at);
+    let read = false;
+    if (timer.line !== 0) {
+      timer.times.set(timer.line, (timer.times.get(timer.line) ?? 0) + now - timer.at);
+      if (now - readAt >= READING_MS) {
+        reading = machine();
+        readAt = now;
+        read = true;
+      }
+      timer.machine.set(timer.line, reading);
+    }
+    if (page) {
+      const added = page();
+      if (timer.line !== 0) timer.added.set(timer.line, (timer.added.get(timer.line) ?? 0) + added - counted);
+      counted = added;
+      read = true;
+    }
     timer.line = line;
-    timer.at = now;
+    timer.at = read ? clock() : now;
   };
   /** Closes the statement in flight, if one is: between two there is no clock to read. */
   const stop = (timer: Timer): void => {
@@ -104,8 +225,9 @@ function createCuts() {
      */
     time(bucket: Cut): void {
       if (bucket.cuts === null) return;
+      if (page === null) page = pageCount(realm as Realm | undefined);
       const timer = timers.get(bucket);
-      if (timer === undefined) timers.set(bucket, { times: new Map(), line: 0, at: 0, on: true });
+      if (timer === undefined) timers.set(bucket, { times: new Map(), machine: new Map(), added: new Map(), line: 0, at: 0, on: true });
       else { stop(timer); timer.on = true; }
     },
     /**
@@ -119,19 +241,24 @@ function createCuts() {
     /**
      * Every statement timed since {@link time}, called as the case ends, which
      * closes its last statement: each line in the order the case first reached
-     * it, a loop's runs summed, in whole microseconds on the real clock. No line
-     * is left out, however short. Undefined where nothing was timed: absent,
-     * never zero.
+     * it, a loop's runs summed, in whole microseconds on the real clock, beside
+     * what surrounded it. No line is left out, however short. Undefined where
+     * nothing was timed: absent, never zero.
      */
-    times(bucket: Cut): ReadonlyArray<{ readonly line: number; readonly time: number }> | undefined {
+    times(bucket: Cut): ReadonlyArray<{
+      readonly line: number; readonly time: number; readonly load?: number; readonly rss?: number; readonly free?: number; readonly added?: number;
+    }> | undefined {
       const timer = timers.get(bucket);
       if (timer === undefined) return undefined;
       timers.delete(bucket);
       stop(timer);
       if (timer.times.size === 0) return undefined;
-      return [...timer.times].map(([line, spent]) => ({ line, time: Math.round(spent * 1000) }));
+      return [...timer.times].map(([line, spent]) => {
+        const added = timer.added.get(line);
+        return { line, time: Math.round(spent * 1000), ...timer.machine.get(line), ...(added === undefined ? {} : { added }) };
+      });
     },
   };
 }
 
-export = { createCuts };
+export = { addedNodes, createCuts };

@@ -121,6 +121,7 @@ export {
 export { recordedCaseNames, type RecordedCaseName, type RecordedCaseNames } from './recorded-case-names.js';
 export {
   fileCases,
+  fileTimes,
   recordedDurations,
   recordedPaths,
   recordedTimes,
@@ -130,7 +131,7 @@ export {
   type TimedTestFile,
 } from './recorded-durations.js';
 export { recordedTrace, type RecordedTrace, type TracedCase, type TracedFile, type TracedPhase } from './recorded-trace.js';
-export { recordedAttempts, type RecordedAttempts, type RetriedCase } from './recorded-attempts.js';
+export { recordedAttempts, retriedIn, type RecordedAttempts, type RetriedCase } from './recorded-attempts.js';
 export { recordedChecks, type RecordedChecks } from './recorded-checks.js';
 export type { ChecksScope } from './test-selection/checks-record.js';
 export { type DurationScope, type ScopeCounts } from './recorded-scope.js';
@@ -192,18 +193,15 @@ export {
   linesThen,
   pathsThrough,
   prepareJourneys,
-  resonance,
   testCompositions,
   testsRan,
   type SuiteJourneyMap,
   type JourneysAround,
   type PreparedJourneys,
-  type SuiteResonance,
   type SuiteTestComposition,
   type SuiteTestRan,
 } from './journeys.js';
 export {
-  type NativeDeclaration as Declaration,
   type NativeForksBetween as ForksBetween,
   type NativeJourneyBlock as JourneyBlock,
   type NativeJourneyCase as JourneyCase,
@@ -231,8 +229,6 @@ export {
   type NativeJourneysPrepared as JourneysPrepared,
   type NativeJourneysRegion as JourneysRegion,
   type NativeLinesThen as LinesThen,
-  type NativeResonance as Resonance,
-  type NativeResonant as Resonant,
   type NativeRanModule as RanModule,
   type NativeRanRegion as RanRegion,
   type NativeTestComposition as TestComposition,
@@ -289,6 +285,7 @@ export {
   type StorePackage,
   type StoreUse,
 } from './help-reading.js';
+export { answerSymbol, answerUses, type NameAnswer, type NameAsked } from './native-names.js';
 export {
   openSourceTree,
   sourceTreeOf,

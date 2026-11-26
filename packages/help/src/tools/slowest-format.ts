@@ -16,7 +16,7 @@ import type {
   ScopeCounts,
   TimedTestCase,
 } from '@variance-authority/sense';
-import { ago, shareOf } from '@variance-authority/sense/test-selection';
+import { ago, aroundText, shareOf } from '@variance-authority/sense/test-selection';
 
 /** A duration as a reader compares them: milliseconds under a second, seconds to a tenth above. */
 export function spent(milliseconds: number): string {
@@ -144,7 +144,8 @@ function statementLine({ file, duration, times }: Row, indent: number): string[]
   if (slowest === undefined || slowest.time < MICROS) return [];
   const took = Math.round(slowest.time / MICROS);
   const share = shareOf(slowest.time, duration) ?? WHOLE;
-  return [`${' '.repeat(indent)}slowest statement ${file}:${slowest.line}, ${spent(took)}, ${share}% of the case`];
+  const around = aroundText(slowest);
+  return [`${' '.repeat(indent)}slowest statement ${file}:${slowest.line}, ${spent(took)}, ${share}% of the case${around === undefined ? '' : `; ${around}`}`];
 }
 
 function section(

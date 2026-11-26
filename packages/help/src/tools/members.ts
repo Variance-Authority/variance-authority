@@ -25,10 +25,8 @@
 
 // compass: variance-authority.report.agent-surface
 
-import type { Help, Use } from '@variance-authority/package/help';
+import type { Use } from '@variance-authority/package/help';
 import { LANGUAGES, type LanguageId, languageOf, memberDeclarationsOf, readsMembers } from '@variance-authority/sense';
-import { askedOnce } from './asked-once.js';
-import { ownerOf } from './by-path.js';
 import type { Spelling } from '@variance-authority/mcp/tools';
 
 /** The declarations of a member by one name. */
@@ -57,11 +55,6 @@ export interface Members {
 /** Whether a container is told by what it is, having no name to write. */
 export const isUnnamedContainer = (by: string): boolean => /^a (?:type literal|class)$/u.test(by);
 
-/** The container a member is declared on, as a sentence names it. */
-export function containerOf(by: string): string {
-  return isUnnamedContainer(by) ? by : `\`${by}\``;
-}
-
 /** Identifiers joined by dots: the only names that write a container's member. */
 const MEMBER_PATH = /^[\p{ID_Start}$_][\p{ID_Continue}$\u200C\u200D]*(?:\.[\p{ID_Start}$_][\p{ID_Continue}$\u200C\u200D]*)+$/u;
 
@@ -78,48 +71,20 @@ export function memberName(name: string): { readonly member: string; readonly on
   return { member: name.slice(dot + 1), on: name.slice(0, dot) };
 }
 
-/**
- * The declarations of member `name` the source index of the checkout at
- * `root` records, in the package `wanted` names when it names one; none, and
- * why, when no checkout is named or the index does not read. A name written
- * `Container.member` keeps the declarations on the container by that name.
- */
-export const membersOf = askedOnce((_help: Help, root: string | undefined, name: string, wanted: string | undefined): Members => {
-  const asked = memberName(name);
-  const { member, on } = asked;
-  if (root === undefined) return { ...asked, declared: [], used: [], unread: 'this host named no checkout to read the source index of' };
-  let found: ReturnType<typeof memberDeclarationsOf>;
-  try {
-    found = memberDeclarationsOf(root, member);
-  } catch (error) {
-    return { ...asked, declared: [], used: [], unread: `${error instanceof Error ? error.message : String(error)}; run \`variance index\`` };
-  }
-  if (found === undefined) return { ...asked, declared: [], used: [], unread: 'no source index is published; run `variance index`' };
-  const owner = wanted === undefined ? undefined : ownerOf(wanted);
-  const sites = found.sites.filter((site) => (owner === undefined || site.by === owner) && (on === undefined || site.on === on));
-  const declared = sites.map((site): Use => ({ at: site.at, line: site.line, by: site.on, kind: site.kind, type: false }));
-  const used = sites.flatMap((site, at) =>
-    site.uses === undefined
-      ? []
-      : [{ declared: declared[at]!, uses: site.uses.map((use) => ({ at: use.at, line: use.line, by: use.by, kind: use.kind, type: false, how: use.how })) }],
-  );
-  return { ...asked, declared, used, elsewhere: unreadMemberLanguages(found.extensions) };
-});
-
 /** Which uses the answer lists, and which it leaves to a type checker, said once under the uses. */
 export const TYPED =
   "A use is listed here only where its line writes the value's type. A use through an inferred value, a generic, a subtype by `extends`, " +
   "a JSX attribute, a utility type or an inline type literal is not: which type a value has is a type checker's answer, and none runs here.";
 
 /** Whose go-to-definition or go-to-implementation answers past what the bodies read here declare, by `checkerOf`'s answer. */
-export const CHECKER = {
+const CHECKER = {
   typescript: "TypeScript's language service's",
   other: "its language server's",
   mixed: "each declaration's own language server's",
 } as const;
 
 /** Whose type checker answers for declarations in these files: TypeScript's for JavaScript and TypeScript alone, `other` for one other language, `mixed` for several. */
-export function checkerOf(files: readonly string[]): 'typescript' | 'other' | 'mixed' {
+function checkerOf(files: readonly string[]): 'typescript' | 'other' | 'mixed' {
   const languages = new Set(files.map(languageOf));
   return languages.size > 1 ? 'mixed' : languages.size === 0 || languages.has('module') ? 'typescript' : 'other';
 }

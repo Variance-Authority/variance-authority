@@ -18,7 +18,7 @@ import { existsSync } from 'node:fs';
 import { relative, resolve } from 'node:path';
 import { checkoutListing, checkoutPath, existedAt, type CheckoutListing } from './checkout-path.js';
 import { native, nativeRefusal } from './addon.js';
-import type { NativeDeclaration, NativeForksBetween, NativeJourneyEnd, NativeJourneyMap, NativeJourneyMapFile, NativePathsThrough, NativeJourneysAmong, NativeResonance, NativeJourneysAnswer, NativeJourneysAsk, NativeJourneysCommit, NativeJourneysPrepared, NativeLinesThen, NativeTestComposition, NativeTestRan } from './native-journeys.js';
+import type { NativeForksBetween, NativeJourneyEnd, NativeJourneyMap, NativeJourneyMapFile, NativePathsThrough, NativeJourneysAmong, NativeJourneysAnswer, NativeJourneysAsk, NativeJourneysCommit, NativeJourneysPrepared, NativeLinesThen, NativeTestComposition, NativeTestRan } from './native-journeys.js';
 import type { SourceUpdate } from './published.js';
 import { sourceIndexPath } from './source-index.js';
 import { declaredTsconfig } from './typescript.js';
@@ -28,7 +28,7 @@ import { askCoverageFile } from './test-selection/coverage-file.js';
 import { defaultInclude, insideRoot } from './test-selection/instrumented-modules.js';
 import { declaredSuites } from './test-selection/suites.js';
 
-function entry<Name extends 'prepareJourneys' | 'journeysKept' | 'journeysFor' | 'journeysAmong' | 'pathsThrough' | 'forksBetween' | 'journeyMap' | 'testComposition' | 'testRan' | 'linesThen' | 'resonance'>(name: Name) {
+function entry<Name extends 'prepareJourneys' | 'journeysKept' | 'journeysFor' | 'journeysAmong' | 'pathsThrough' | 'forksBetween' | 'journeyMap' | 'testComposition' | 'testRan' | 'linesThen'>(name: Name) {
   const scanner = native();
   const call = scanner?.[name];
   if (scanner === undefined || call === undefined) {
@@ -370,59 +370,6 @@ export function testsRan(root: string, file: string, name?: string): readonly Su
  */
 export function linesThen(root: string, commit: string, file: string, lines: readonly number[]): NativeLinesThen {
   return entry('linesThen')(root, commit, file, [...lines]);
-}
-
-/** How one suite's recording tells the declarations of a name apart at a line, or why it cannot. */
-export interface SuiteResonance {
-  readonly suite?: string;
-  readonly resonance: NativeResonance;
-  /** The declarations written since the recording ran, which it cannot have entered. */
-  readonly since: readonly NativeJourneyEnd[];
-}
-
-/**
- * How each of `candidates`, the declarations of one name, resonates with the
- * line `at`, asked of every declared suite that has a recording: the cases that
- * entered each against the cases that ran the line. Each line is read where it
- * stood at the commit the recording ran at, one `linesThen` per file; a
- * candidate written since is set apart, and a line written since is refused.
- * A recording that names no commit, or a file whose lines cannot be placed at
- * it, is refused rather than scored where the lines stand now: a line read in
- * the wrong place scores another function's tests.
- */
-export function resonance(root: string, at: NativeJourneyEnd, candidates: readonly NativeDeclaration[]): readonly SuiteResonance[] {
-  const asked = checkoutPath(root, at.file);
-  return recordings(root).flatMap(({ suite, recording }) => {
-    if (recording === undefined) return [];
-    const named = suite === undefined ? {} : { suite };
-    const refuse = (notRecorded: string): SuiteResonance => ({ ...named, resonance: { notRecorded, cases: 0, resonant: [] }, since: [] });
-    if ('outside' in asked) return [refuse(asked.outside)];
-    const { commit, unread } = commitOf(recording);
-    if (commit == null) return [refuse(unread ?? 'the recording names no commit')];
-    const asking = [{ file: asked.path, line: at.line }, ...candidates];
-    const lines: (number | null)[] = asking.map(({ line }) => line);
-    for (const file of new Set(asking.map(({ file }) => file))) {
-      const ats = asking.flatMap((end, at) => (end.file === file ? [at] : []));
-      const placed = linesThen(root, commit, file, ats.map((at) => asking[at]!.line));
-      if (placed.unplaced != null) return [refuse(placed.unplaced)];
-      ats.forEach((at, nth) => { lines[at] = placed.lines[nth] ?? null; });
-    }
-    const [line, ...then] = lines;
-    if (line == null) return [refuse('the line was written since the recording ran')];
-    // A head moves with the line it opens on.
-    const placed = candidates.flatMap((candidate, at) => {
-      if (then[at] == null) return [];
-      const end = { file: candidate.file, line: then[at]!, spelled: [...candidate.spelled] };
-      return [{ at, end: candidate.through === undefined ? end : { ...end, through: candidate.through - candidate.line + then[at]! } }];
-    });
-    const answer = entry('resonance')(recording, asked.path, line, placed.map(({ end }) => end));
-    const resonant = answer.resonant.map((row) => {
-      const { at } = placed[row.candidate]!;
-      return { ...row, candidate: at, line: candidates[at]!.line };
-    });
-    const since = candidates.flatMap(({ file, line }, at) => (then[at] == null ? [{ file, line }] : []));
-    return [{ ...named, resonance: { ...answer, resonant }, since }];
-  });
 }
 
 /**

@@ -54,6 +54,12 @@ export function suiteEntry(suite: string): string {
   return `suite-v1/${suite}`;
 }
 
+/** The suite a `suite-v1` entry was published for; undefined for any other entry. */
+export function suiteOfEntry(name: string): string | undefined {
+  const prefix = suiteEntry('');
+  return name.startsWith(prefix) ? name.slice(prefix.length) : undefined;
+}
+
 /**
  * The entry a mainline's source index is published under: one slot per format
  * `version`, so a reader asks for the format it reads. Its bytes are the

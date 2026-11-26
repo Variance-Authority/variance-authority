@@ -1,14 +1,15 @@
-//! What a binding the walk follows holds, the request it reads through, and
-//! what a name read off it holds.
+//! What an expression or a binding the walk follows holds, the request it
+//! reads through, and what a name read off it holds.
 
 // compass: variance-authority.reach.source-index
 
 use std::collections::{HashMap, HashSet};
 
-use oxc_ast::ast::{Argument, ArrayExpression, CallExpression, Expression, JSXMemberExpressionObject, ModuleExportName, Program, Statement, TSTypeName};
+use oxc_ast::ast::{Argument, ArrayExpression, ArrayExpressionElement, AssignmentOperator, AssignmentTarget, CallExpression, Expression, JSXMemberExpressionObject, ModuleExportName, Program, Statement, TSTypeName};
 use oxc_semantic::Scoping;
 use oxc_syntax::symbol::SymbolId;
 
+use super::bind::takes;
 use super::Walker;
 
 /// The request a holder reads through: its index in the parse, its index in
@@ -126,6 +127,105 @@ pub(super) fn passed_on(program: &Program, scoping: &Scoping, holders: &HashMap<
 }
 
 impl Walker<'_, '_> {
+    /// What an expression may evaluate to, looking through parentheses,
+    /// TypeScript's casts and `await`: an awaited `import()`, a `require`, a
+    /// holder, the `default` of either, or else what a cast says it is. A
+    /// holder the file writes again may hold several, and one may hold none.
+    /// An assignment to a name or a pattern evaluates to what it assigns, and
+    /// `??=`, `||=` and `&&=` on a name to that or to what the name held. One
+    /// onto a property is not followed: it puts the module on whole there.
+    pub(super) fn held(&mut self, expression: &Expression) -> Vec<Held> {
+        let held = match expression.get_inner_expression() {
+            Expression::AssignmentExpression(it) if it.operator == AssignmentOperator::Assign && takes(&it.left) => self.held(&it.right),
+            Expression::AssignmentExpression(it) if it.operator.is_logical() => match &it.left {
+                AssignmentTarget::AssignmentTargetIdentifier(target) => {
+                    let mut held = self.holder(target);
+                    held.extend(self.held(&it.right));
+                    held.sort_unstable();
+                    held.dedup();
+                    held
+                }
+                _ => Vec::new(),
+            },
+            Expression::AwaitExpression(it) => match self.promised(&it.argument) {
+                Some(via) => vec![Held::whole(via)],
+                None => self.held(&it.argument),
+            },
+            Expression::Identifier(it) => {
+                let held = self.holder(it);
+                if !held.is_empty() {
+                    self.followed.insert(it.span.start);
+                }
+                held
+            }
+            Expression::StaticMemberExpression(it) if it.property.name == "default" => self.held(&it.object).into_iter().map(Held::default).collect(),
+            Expression::StaticMemberExpression(it) => self.held(&it.object).into_iter().filter_map(|held| self.member_of(held, &it.property.name)).collect(),
+            Expression::ComputedMemberExpression(it) => match &it.expression {
+                Expression::StringLiteral(name) if name.value != "default" => {
+                    let held = self.held(&it.object);
+                    match name.value.as_str() {
+                        Some(name) => held.into_iter().filter_map(|held| self.member_of(held, name)).collect(),
+                        None => Vec::new(),
+                    }
+                }
+                _ => Vec::new(),
+            },
+            Expression::CallExpression(it) => self.required(it).into_iter().collect(),
+            _ => Vec::new(),
+        };
+        if held.is_empty() { self.cast(expression).into_iter().collect() } else { held }
+    }
+
+    /// The request an `import()` promises. The promise is not the module: a read
+    /// off it, `.then` among them, is the promise's own.
+    pub(super) fn promised(&mut self, expression: &Expression) -> Option<Via> {
+        match handed_on(expression) {
+            Expression::ImportExpression(it) => {
+                self.followed.insert(it.span.start);
+                self.loads.import(it).map(|index| Via::Indexed(self.stated + index))
+            }
+            _ => None,
+        }
+    }
+
+    /// What an awaited `Promise.all([...])` resolves to, element by element:
+    /// the request each `import()` in the array holds, and none for any other
+    /// element, a hole, or everything from a spread on, whose positions are unknown.
+    pub(super) fn held_all(&mut self, expression: &Expression) -> Option<Vec<Option<Via>>> {
+        match expression.get_inner_expression() {
+            Expression::AwaitExpression(it) => self.promised_all(&it.argument),
+            _ => None,
+        }
+    }
+
+    pub(super) fn promised_all(&mut self, expression: &Expression) -> Option<Vec<Option<Via>>> {
+        let array = all_of(expression)?;
+        let mut held = Vec::new();
+        for element in &array.elements {
+            match element {
+                ArrayExpressionElement::SpreadElement(_) => break,
+                ArrayExpressionElement::Elision(_) => held.push(None),
+                _ => held.push(element.as_expression().and_then(|it| self.promised(it))),
+            }
+        }
+        Some(held)
+    }
+
+    /// An expression whose value is thrown away: an `import()` there, awaited
+    /// or not, is run for its side effects, and reads no name.
+    pub(super) fn discarded(&mut self, expression: &Expression) {
+        let expression = match expression.get_inner_expression() {
+            Expression::AwaitExpression(it) => it.argument.get_inner_expression(),
+            Expression::UnaryExpression(it) if it.operator.is_void() => it.argument.get_inner_expression(),
+            other => other,
+        };
+        if let Some(array) = all_of(expression) {
+            for element in array.elements.iter().filter_map(ArrayExpressionElement::as_expression) {
+                self.promise_read(element);
+            }
+        }
+        self.promise_read(expression);
+    }
     /// What a `require` returns, read where the walk follows it: the module it loads.
     pub(super) fn required(&mut self, it: &CallExpression) -> Option<Held> {
         let index = self.loads.call(it, self.mock_factory.as_deref())?;
@@ -160,33 +260,30 @@ impl Walker<'_, '_> {
     }
 
     /// What the object of a JSX member expression holds, `lib.ns` in `<lib.ns.X />`.
-    pub(super) fn jsx_held(&mut self, object: &JSXMemberExpressionObject) -> Option<Held> {
+    pub(super) fn jsx_held(&mut self, object: &JSXMemberExpressionObject) -> Vec<Held> {
         match object {
             JSXMemberExpressionObject::IdentifierReference(it) => {
-                let held = self.holder(it)?;
-                self.followed.insert(it.span.start);
-                Some(held)
+                let held = self.holder(it);
+                if !held.is_empty() {
+                    self.followed.insert(it.span.start);
+                }
+                held
             }
-            JSXMemberExpressionObject::MemberExpression(it) => {
-                let held = self.jsx_held(&it.object)?;
-                self.member_of(held, &it.property.name)
-            }
-            JSXMemberExpressionObject::ThisExpression(_) => None,
+            JSXMemberExpressionObject::MemberExpression(it) => self.jsx_held(&it.object).into_iter().filter_map(|held| self.member_of(held, &it.property.name)).collect(),
+            JSXMemberExpressionObject::ThisExpression(_) => Vec::new(),
         }
     }
 
     /// What the left of a qualified name holds, `lib.ns` in `lib.ns.T`.
-    pub(super) fn qualified_held(&mut self, name: &TSTypeName) -> Option<Held> {
+    pub(super) fn qualified_held(&mut self, name: &TSTypeName) -> Vec<Held> {
         match name {
+            // A type names the binding's declared type, which no write narrows.
             TSTypeName::IdentifierReference(it) => {
                 self.followed.insert(it.span.start);
-                self.holder(it)
+                self.symbol_of(it).map_or_else(Vec::new, |symbol| self.holding(symbol, None))
             }
-            TSTypeName::QualifiedName(it) => {
-                let held = self.qualified_held(&it.left)?;
-                self.member_of(held, &it.right.name)
-            }
-            _ => None,
+            TSTypeName::QualifiedName(it) => self.qualified_held(&it.left).into_iter().filter_map(|held| self.member_of(held, &it.right.name)).collect(),
+            _ => Vec::new(),
         }
     }
 }

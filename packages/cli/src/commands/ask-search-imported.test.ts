@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { sourceIndexPath } from '@variance-authority/sense';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { EXIT_CLEAN } from '../exit.js';
+import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
 import { checkout, run } from './ask-packages.fixture.js';
 
 /**
@@ -146,12 +146,14 @@ describe('variance ask search counts the places that import a published name as 
     expect(greetRows(search.out)).toEqual(['@acme/lib · greet [function] imported nowhere — UNDOCUMENTED']);
   });
 
-  it('counts what uses counts when the source index does not read, and says what is left out', async () => {
+  it('counts the imports by published path alone when the source index does not read, which uses refuses, and says what is left out', async () => {
     const root = checkout(FIVE_WITHIN);
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
     writeFileSync(sourceIndexPath(root), 'not a source index');
 
-    expect(await usesCount('greet')).toBe(1);
+    const uses = await run(['ask', 'uses', '--name', 'greet']);
+    expect(uses.code).toBe(EXIT_OPERATOR);
+    expect(uses.err).toMatch(/^the source index at .* did not read: .+$/m);
     const { code, out } = await run(['ask', 'search', '--query', 'greet']);
     expect(code).toBe(EXIT_CLEAN);
     expect(greetRows(out)).toEqual(['@acme/lib · greet [function] imported in 1 place in 1 package — UNDOCUMENTED']);

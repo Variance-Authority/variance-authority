@@ -287,6 +287,25 @@ describe('the statement times of a cut case', () => {
     }
   });
 
+  it('keeps beside each statement what surrounded it, each figure absent where it was not read and kept where it held still', () => {
+    const around: ExecutionIndex = {
+      tests: [
+        { id: 'a.test.ts > one', file: 'a.test.ts', name: 'one', times: [
+          { line: 4, time: 210_000, load: 16.25, rss: 300, free: 0, added: 30_000 },
+          { line: 9, time: 3, load: 16.25, rss: 300, free: 0, added: 0 },
+          { line: 5, time: 400_000, load: 4.5, rss: 120, free: 2048, added: 7 },
+        ] },
+        { id: 'a.test.ts > two', file: 'a.test.ts', name: 'two', times: [{ line: 3, time: 10, rss: 90, free: 12 }] },
+        { id: 'a.test.ts > three', file: 'a.test.ts', name: 'three', times: [{ line: 3, time: 10 }] },
+      ],
+      modules: [],
+    };
+
+    for (const bytes of [encodeExecutionIndex(around), encodeAsSetExecutionIndex(around)]) {
+      expect(decodeExecutionIndex(bytes).tests).toEqual(around.tests);
+    }
+  });
+
   it('adds no section to an index none of whose cases was timed, which is how an older record reads', () => {
     const untimed: ExecutionIndex = { tests: paced.tests.map(({ times: _, ...test }) => test), modules: [] };
 

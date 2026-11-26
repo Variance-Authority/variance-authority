@@ -228,7 +228,13 @@ A listed case whose slowest statement held a millisecond or more carries one
 more line:
 `slowest statement <file>:<line>, <time>, <share>% of the case`. The time is
 that statement's on the real clock, summed over a loop's runs, and never a
-hook's. Read that line of the test before the rest of the case. Vitest, Jest
+hook's. Read that line of the test before the rest of the case. After it,
+`; as it ended: load 16.25, RSS 300 MiB, 0 MiB free, 31 nodes added` says what
+surrounded the statement as it ended: the machine's 1-minute load average, the
+test process's resident memory, the machine's free memory and the nodes it added
+to a jsdom or happy-dom page, each named only where it was read. Each is one
+reading of a figure that moves on its own: it says whether the machine or the
+page was under pressure on that run, not that the test is slow or flaky. Vitest, Jest
 and Rstest time a case's statements unless `cadence: false`; a case without times lists on one
 line, and says nothing about where its time went.
 

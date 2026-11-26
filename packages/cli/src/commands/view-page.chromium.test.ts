@@ -67,7 +67,7 @@ beforeAll(async () => {
   const at = testCoverageFile(root, {});
   mkdirSync(dirname(at), { recursive: true });
   writeFileSync(at, Buffer.from(encodeTestCoverage(COVERAGE)));
-  const path = viewOutput({ command: 'view' }, root).out.trim();
+  const path = (await viewOutput({ command: 'view' }, root)).out.trim();
   browser = await chromium.launch();
   page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
   page.on('request', (request) => requests.push(request.url()));
@@ -120,6 +120,12 @@ describe.runIf(BROWSER_AVAILABLE)('the view page in a browser', () => {
     expect(page!.url()).toMatch(/#test\/src%2Fslow\.test\.ts$/u);
     await page!.locator('a.go', { hasText: 'src/world.ts' }).first().click();
     await page!.locator('h1.title', { hasText: 'src/world.ts' }).waitFor();
+  });
+
+  it('opens the History tab, and says why it draws no series where no share is configured', async () => {
+    await go('#history');
+    await page!.locator('nav.tabs a[href="#history"][aria-current="page"]').waitFor();
+    expect(await page!.locator('dl.facts').textContent()).toContain('no share is configured, so no mainline record is kept');
   });
 
   it('says so for an address that names nothing in the record', async () => {

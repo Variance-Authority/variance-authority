@@ -1,6 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Help } from '@variance-authority/package/help';
 import { BY_PATH, QUIET, SUBPATHS_ONLY, busier, importOf, stored } from '../__fixtures__/imported-by-path.js';
+import { publishing } from '../__fixtures__/published-then-written.js';
+import { readWorkspace } from '../read.js';
 import { HELP_TOOLS } from '../tools.js';
 import { entrypoint } from './entrypoint.js';
 import { packages } from './packages.js';
@@ -204,10 +206,15 @@ function followUps(text: string): readonly (readonly [string, Record<string, str
   });
 }
 
-/** Every command the answer with no argument names, and every one their answers name, each asked once, of `help` as a store holds it. */
-function everyFollowUp(written: Help): readonly (readonly [string, string])[] {
-  const help = stored(written);
-  const answered: (readonly [string, string])[] = [];
+/**
+ * Every command the answer with no argument names, and every one their answers
+ * name, each asked once, of `help` as a store holds it. `symbol` and `uses` read
+ * the source index of a checkout, so they are answered only where `root` names
+ * one; a store alone holds the question and no answer.
+ */
+function everyFollowUp(written: Help, root?: string): readonly (readonly [string, string | undefined])[] {
+  const help = root === undefined ? stored(written) : written;
+  const answered: (readonly [string, string | undefined])[] = [];
   const asked = new Set<string>();
   let pending = followUps(packages.run(help, {}));
   while (pending.length > 0) {
@@ -218,7 +225,11 @@ function everyFollowUp(written: Help): readonly (readonly [string, string])[] {
       asked.add(question);
       const tool = HELP_TOOLS.find((candidate) => candidate.name === name);
       if (tool === undefined) throw new Error(`${question}: no such tool`);
-      const answer = tool.run(help, input);
+      if (root === undefined && (name === 'docs_symbol' || name === 'docs_uses')) {
+        answered.push([question, undefined]);
+        continue;
+      }
+      const answer = tool.run(help, input, root === undefined ? undefined : { root });
       answered.push([question, answer]);
       next.push(...followUps(answer));
     }
@@ -228,6 +239,10 @@ function everyFollowUp(written: Help): readonly (readonly [string, string])[] {
 }
 
 describe('the narrower questions', () => {
+  const fixture = publishing();
+  beforeEach(fixture.before);
+  afterEach(fixture.after);
+
   it('are each a question the tools answer', () => {
     const answered = everyFollowUp(BY_PATH);
 
@@ -252,19 +267,25 @@ describe('the narrower questions', () => {
     expect(answered.map(([question]) => question)).toContain('docs_entrypoint {"package":"@acme/srv/server"}');
     const routes = answered.find(([question]) => question === 'docs_entrypoint {"package":"@acme/srv/src/routes"}');
     expect(routes?.[1]).toContain('  route — imported by 2 files');
-    const uses = answered.find(([question]) => question === 'docs_uses {"name":"route","package":"@acme/srv/src/routes"}');
-    expect(uses?.[1]).toMatch(/^apps\/app\/src\/admin\.ts:1 — @acme\/app, deep import of @acme\/srv\/src\/routes$/m);
+    expect(answered.map(([question]) => question)).toContain('docs_uses {"name":"route","package":"@acme/srv/src/routes"}');
   });
 
-  it('name an import past an entry so that `uses` finds it, when the entry publishes the same name from another file', () => {
+  it('name an import past an entry so that `uses` finds it, when the entry publishes the same name from another file', async () => {
     // `greet` is published from packages/lib/src/greet.ts. The import past the
     // entry takes a `greet` from another file, and `uses` asked by the package
     // joins only the published one's sites.
-    const shadowed: Help = { ...BY_PATH, deep: [importOf('@acme/lib/src/legacy', '@acme/app', 'apps/app/src/old.ts', ['greet'])], byPath: [] };
+    const root = await fixture.published({
+      'packages/lib/package.json': JSON.stringify({ name: '@acme/lib', exports: './src/index.ts' }),
+      'packages/lib/src/index.ts': "export { greet } from './greet.js';\n",
+      'packages/lib/src/greet.ts': 'export function greet(): string {\n  return "hi";\n}\n',
+      'packages/lib/src/legacy.ts': 'export function greet(): string {\n  return "old";\n}\n',
+      'packages/app/package.json': JSON.stringify({ name: '@acme/app', dependencies: { '@acme/lib': '*' } }),
+      'packages/app/src/old.ts': "import { greet } from '@acme/lib/src/legacy';\nexport const said = greet();\n",
+    });
 
-    const uses = everyFollowUp(shadowed).filter(([question]) => question.startsWith('docs_uses '));
+    const uses = everyFollowUp(await readWorkspace(root), root).filter(([question]) => question.startsWith('docs_uses '));
 
     expect(uses.length).toBeGreaterThan(0);
-    for (const [question, answer] of uses) expect(answer, question).toContain('apps/app/src/old.ts:1');
+    for (const [question, answer] of uses) expect(answer, question).toContain('packages/app/src/old.ts:1');
   });
 });
