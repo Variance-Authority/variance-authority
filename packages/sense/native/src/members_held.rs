@@ -5,7 +5,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use oxc_ast::ast::{Argument, ArrayExpression, Expression, JSXMemberExpressionObject, ModuleExportName, Program, Statement, TSTypeName};
+use oxc_ast::ast::{Argument, ArrayExpression, CallExpression, Expression, JSXMemberExpressionObject, ModuleExportName, Program, Statement, TSTypeName};
 use oxc_semantic::Scoping;
 use oxc_syntax::symbol::SymbolId;
 
@@ -126,6 +126,31 @@ pub(super) fn passed_on(program: &Program, scoping: &Scoping, holders: &HashMap<
 }
 
 impl Walker<'_, '_> {
+    /// What a `require` returns, read where the walk follows it: the module it loads.
+    pub(super) fn required(&mut self, it: &CallExpression) -> Option<Held> {
+        let index = self.loads.call(it, self.mock_factory.as_deref())?;
+        self.followed.insert(it.span.start);
+        Some(Held::whole(Via::Required(index)))
+    }
+
+    /// An `import()` whose promise is read, or a `require` whose value is thrown
+    /// away: neither passes the module on, so what it loads goes nowhere.
+    pub(super) fn promise_read(&mut self, expression: &Expression) {
+        match handed_on(expression) {
+            Expression::ImportExpression(it) => _ = self.followed.insert(it.span.start),
+            Expression::CallExpression(it) => _ = self.required(it),
+            _ => {}
+        }
+    }
+
+    /// A `require` whose value goes where the walk does not follow it: the
+    /// module goes on whole there, as an `import()`'s does.
+    pub(super) fn required_whole(&mut self, it: &CallExpression) {
+        if let Some(index) = self.loads.call(it, self.mock_factory.as_deref()).filter(|_| !self.followed.contains(&it.span.start)) {
+            self.add(Held::whole(Via::Required(index)), WHOLE, it.span.start);
+        }
+    }
+
     /// The value `name` read off what `held` holds: an export of the module,
     /// a member of the module's `default`, or a member of a value inside it.
     /// A read off a value's `default` is the type's to say.

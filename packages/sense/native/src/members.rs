@@ -190,8 +190,8 @@ struct Walker<'l, 's> {
     loads: Loads<'l>,
     mock_factory: Option<String>,
     found: BTreeSet<(Held, String, u32)>,
-    /// Where an `import()` or a holder is read in a way the walk follows, by
-    /// the offset it starts at: anywhere else, the module escapes whole.
+    /// Where an `import()`, a `require` or a holder is read in a way the walk
+    /// follows, by the offset it starts at: anywhere else, the module escapes whole.
     followed: HashSet<u32>,
 }
 
@@ -213,7 +213,7 @@ impl Walker<'_, '_> {
                 Expression::StringLiteral(name) if name.value != "default" => self.held(&it.object).and_then(|held| self.member_of(held, name.value.as_str()?)),
                 _ => None,
             },
-            Expression::CallExpression(it) => self.loads.call(it, self.mock_factory.as_deref()).map(|index| Held::whole(Via::Required(index))),
+            Expression::CallExpression(it) => self.required(it),
             _ => None,
         }
         .or_else(|| self.cast(expression))
@@ -284,13 +284,6 @@ impl Walker<'_, '_> {
             }
         }
         self.promise_read(expression);
-    }
-
-    /// An `import()` whose promise is read, not passed on: what it loads goes nowhere.
-    fn promise_read(&mut self, expression: &Expression) {
-        if let Expression::ImportExpression(it) = handed_on(expression) {
-            self.followed.insert(it.span.start);
-        }
     }
 
     /// A name read off what is held. Off the `default`, the value going on
@@ -458,7 +451,7 @@ impl<'a> Visit<'a> for Walker<'_, '_> {
     // module, and `Promise.all([import('m')]).then(([m]) => …)` pairs as `await`
     // does. A callback that is not written there takes the module whole.
     fn visit_call_expression(&mut self, it: &CallExpression<'a>) {
-        self.loads.call(it, self.mock_factory.as_deref());
+        self.required_whole(it);
         if let Some(target) = crate::mocks::factory_target(it) {
             self.visit_expression(&it.callee);
             for (index, argument) in it.arguments.iter().enumerate() {

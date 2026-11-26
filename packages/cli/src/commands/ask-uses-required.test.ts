@@ -82,3 +82,23 @@ describe('a name taken out of a require', () => {
     ]);
   });
 });
+
+const HANDED = {
+  'packages/kit/src/checks.cjs': 'function checkA() {}\n\nmodule.exports = { checkA };\n',
+  'packages/kit/src/handed.cjs': "hand(require('./checks.cjs'));\n",
+  'packages/kit/src/barrel.cjs': "module.exports = require('./checks.cjs');\n",
+  'packages/kit/src/polyfill.cjs': "require('./checks.cjs');\n",
+};
+
+describe('a module a require hands on whole in place', () => {
+  it('is listed by `uses` as passing the module on whole, and one whose value is thrown away is not', async () => {
+    checkout(HANDED);
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const out = await answer('uses', '--name', 'checkA');
+    expect(out).toContain('2 places pass the module on whole');
+    expect(out).toMatch(/^packages\/kit\/src\/barrel\.cjs:1 \(.*passed on whole: may read it\)$/m);
+    expect(out).toMatch(/^packages\/kit\/src\/handed\.cjs:1 \(.*passed on whole: may read it\)$/m);
+    expect(out).not.toContain('polyfill.cjs');
+  });
+});

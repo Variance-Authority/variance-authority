@@ -54,10 +54,15 @@ A name an entry publishes under another name than its declaration is read from
 that entry. An import of a renamed re-export ends `(as <name>)`. A Rust path
 written in a type or an expression, such as `crate::order::code_unit(…)`, is
 listed as a `use` is. A name read off a module loaded with `require` and a
-constant specifier is listed on the line that reads it: destructured, renamed
-or not, read in place, `require('./m').name`, or read off the variable the
-module is held in, `const m = require('./m')` and then `m.name`, at the top
-level or in a function. A package that passes a module on as `export * as ns`,
+constant specifier is listed on the line that reads it, as off an awaited
+`import()`: destructured, renamed or not, read in place, `require('./m').name`,
+or read off the variable the module is held in, `const m = require('./m')` and
+then `m.name`, at the top level or in a function. A `require` whose module goes
+on whole, held, `m()` or `hand(m)`, or in place, `hand(require('./m'))` or
+`module.exports = require('./m')`, is listed as passing the module on whole.
+Not read, and not named where the answer says what is not counted: a `require`
+of a computed specifier, and another object's, such as `loader.require('./m')`.
+A package that passes a module on as `export * as ns`,
 or as `export { ns }` after `import * as ns`, passes each of its names as a
 member of `ns`: `import { ns } from 'pkg'` and
 then `ns.name`, or `const { name } = ns`, is listed on the line that reads it,

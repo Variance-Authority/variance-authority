@@ -76,7 +76,7 @@ fn a_require_that_loads_nothing_this_can_name_records_no_name() {
 
 #[test]
 fn a_require_nothing_is_read_off_records_no_name() {
-    assert!(members("require('./m');\n").is_empty());
+    assert!(members("require('./m');\nif (polyfill) require('./n');\nvoid require('./o');\n").is_empty());
 }
 
 #[test]
@@ -87,4 +87,48 @@ fn what_is_read_off_a_require_makes_no_other_request_and_binds_nothing_in_it() {
     assert_eq!(requests, [("./m".to_owned(), 1), ("./n".to_owned(), 2), ("./o".to_owned(), 4)]);
     assert!(read.requests.iter().all(|request| request.bindings.is_empty()));
     assert_eq!(read.unknown.as_deref(), Some("1 `require()` call(s) with a specifier this cannot read"));
+}
+
+#[test]
+fn the_names_read_off_a_require_go_with_the_request_its_spelling_makes() {
+    for (file, source, line) in [
+        ("a.cjs", "function require(id) { return id; }\nconst { a } = require('./m');\n", 2),
+        ("a.cjs", "define(function (require) {\n  const { a } = require('./m');\n});\n", 2),
+        ("a.cjs", "const load = (require) => require('./m').a;\n", 1),
+        ("a.cjs", "function late(module) {\n  const m = module.require('./m');\n  return m.a;\n}\n", 3),
+        ("a.ts", "declare const require: (id: string) => any;\nconst { a } = require('./m');\n", 2),
+    ] {
+        let module = read_module(file, source, &Allocator::default(), false);
+        assert_eq!(module.requests.iter().map(|request| request.value.as_str()).collect::<Vec<_>>(), ["./m"], "{source}");
+        assert_eq!(members_of(file, source), [read("./m", "a", line)], "{source}");
+    }
+}
+
+#[test]
+fn a_require_is_the_module_it_loads_whatever_a_cast_or_an_annotation_says() {
+    for source in [
+        "const k = require('./built') as typeof import('./m');\nk.a;\n",
+        "const k: typeof import('./m') = require('./built');\nk.a;\n",
+        "const built = require('./built');\n(built as typeof import('./m')).a;\n",
+        "const run = (k: typeof import('./m')) =>\n  k.a;\nconst built = require('./built');\nrun(built);\n",
+    ] {
+        assert_eq!(members_of("a.ts", source), [read("./built", "a", 2)], "{source}");
+    }
+}
+
+#[test]
+fn a_required_module_that_goes_on_whole_is_read_whole_as_an_import_is() {
+    for source in [
+        "const m = require('./m');\nm();\n",
+        "const m = require('./m');\nhand(m);\n",
+        "\nhand(require('./m'));\n",
+        "\nrequire('./m')();\n",
+        "\nmodule.exports = require('./m');\n",
+        "const run = (m) => m.a;\nrun(require('./m'));\n",
+    ] {
+        assert_eq!(members(source), [read("./m", "*", 2)], "{source}");
+    }
+    for source in ["const m = await import('./m');\nm();\n", "\nhand(import('./m'));\n"] {
+        assert_eq!(members_of("a.mjs", source), [read("./m", "*", 2)], "{source}");
+    }
 }
