@@ -4,11 +4,11 @@ import { formatRetried, retriedTests } from './retried-tests.js';
 
 const NOW = Date.parse('2026-10-04T12:00:00Z');
 const READ = { recording: '/cache/coverage.bin', origin: 'own', commit: 'f'.repeat(40), landed: '2026-10-01T12:00:00.000Z' } as const;
-const RECORD = "Read this checkout's record at ffffffffffff, landed 3 days ago, /cache/coverage.bin.";
+const RECORD = "Read this checkout's record at ffffffffffff, landed 3 days ago.";
 const printed = (suites: readonly RecordedAttempts[]): string => formatRetried(suites, NOW);
 
 describe('the recorded cases whose attempts ended differently, as printed', () => {
-  it('lists the case with each attempt as its runner said it ended, its limit, and the record it was read from', () => {
+  it('lists the case with each attempt as its runner said it ended, its limit, and whose record it was read from', () => {
     expect(printed([{
       ...READ,
       differed: [{
@@ -43,7 +43,7 @@ describe('the recorded cases whose attempts ended differently, as printed', () =
       retried: 4,
       cases: 40,
     }])).toBe([
-      "Suite unit read this checkout's record at ffffffffffff, landed 3 days ago, /cache/coverage.bin.",
+      "Suite unit read this checkout's record at ffffffffffff, landed 3 days ago.",
       '',
       'Ended differently across attempts, suite unit:',
       '  test/a.test.ts  pays',
@@ -62,7 +62,7 @@ describe('the recorded cases whose attempts ended differently, as printed', () =
 
   it('says attempts were not kept, never that no case was retried, and promises nothing of the next run', () => {
     expect(printed([{ ...READ, unkept: true }])).toBe(
-      `${RECORD}\n\nEnded differently across attempts: attempts were not kept in /cache/coverage.bin, so it does not say whether a case was retried. ` +
+      `${RECORD}\n\nEnded differently across attempts: attempts were not kept in its record, so it does not say whether a case was retried. ` +
         'A run keeps them when its runner reports each attempt, every shard of it kept them, and so did the record it carries cases from.',
     );
   });
@@ -81,8 +81,8 @@ describe('the recorded cases whose attempts ended differently, as printed', () =
       { suite: 'unit', recording: '/cache/suites/unit/coverage.bin', origin: 'own', unread: 'nothing is recorded there' },
       { suite: 'e2e', recording: '/cache/suites/e2e/coverage.bin', origin: 'own', unread: 'no run kept its cases there' },
     ])).toBe(
-      'Ended differently across attempts, suite unit: none read from /cache/suites/unit/coverage.bin, nothing is recorded there.\n\n' +
-        'Ended differently across attempts, suite e2e: none read from /cache/suites/e2e/coverage.bin, no run kept its cases there.',
+      'Ended differently across attempts, suite unit: none read, nothing is recorded there.\n\n' +
+        'Ended differently across attempts, suite e2e: none read, no run kept its cases there.',
     );
   });
 });

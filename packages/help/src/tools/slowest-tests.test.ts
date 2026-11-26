@@ -6,7 +6,7 @@ import { formatSlowest, spent } from './slowest-format.js';
 
 const ANYWHERE = { unrecorded: [] };
 const NO_CASES = { recording: '/cache/coverage.bin', unread: 'nothing is recorded there' };
-const CASES_UNREAD = 'Slowest recorded test cases: none read from /cache/coverage.bin, nothing is recorded there.';
+const CASES_UNREAD = 'Slowest recorded test cases: none read, nothing is recorded there.';
 const NOW = Date.parse('2026-10-04T12:00:00Z');
 
 const printed = (suites: readonly RecordedDurations[], scope: DurationScope = {}, over?: number): string =>
@@ -53,7 +53,7 @@ describe('the slowest recorded test files, as printed', () => {
         },
       },
     ])).toBe([
-      "Suite unit read this checkout's record, which names no commit, /cache/suites/unit/coverage.bin.",
+      "Suite unit read this checkout's record, which names no commit.",
       '',
       'Closest to their limit, suite unit: none of the 8 timed case(s) has a recorded limit, so they are listed by time alone.',
       '',
@@ -72,15 +72,15 @@ describe('the slowest recorded test files, as printed', () => {
     expect(printed([
       { recording: '/cache/coverage.bin', origin: 'own', slowest: [], timed: 0, untimed: 3, scope: ANYWHERE, cases: NO_CASES },
     ])).toBe(
-      "Read this checkout's record, which names no commit, /cache/coverage.bin.\n\n" +
-        'Slowest recorded test files: none of the 3 file(s) in /cache/coverage.bin has a recorded duration. ' +
+      "Read this checkout's record, which names no commit.\n\n" +
+        'Slowest recorded test files: none of the 3 file(s) in its record has a recorded duration. ' +
         `The next recorded run stores what its runner reports.\n\n${CASES_UNREAD}`,
     );
   });
 
-  it('says where it looked when nothing is recorded', () => {
+  it('says nothing was read, and why, when nothing is recorded', () => {
     expect(printed([{ recording: '/cache/coverage.bin', origin: 'own', unread: 'nothing is recorded there', cases: NO_CASES }])).toBe(
-      `Slowest recorded test files: none read from /cache/coverage.bin, nothing is recorded there.\n\n${CASES_UNREAD}`,
+      `Slowest recorded test files: none read, nothing is recorded there.\n\n${CASES_UNREAD}`,
     );
   });
 
@@ -99,7 +99,7 @@ describe('the slowest recorded test files, as printed', () => {
       'Slowest recorded test files, under test, that entered src/read.ts or src/gone.ts, as their runner timed them:',
       '  40 ms  test/b.test.ts',
       '1 of 1 timed file(s) shown.',
-      'Unrecorded: `src/gone.ts` has no row in /cache/coverage.bin, which says nothing about whether a test enters it.',
+      'Unrecorded: `src/gone.ts` has no row in the record, which says nothing about whether a test enters it.',
     ]);
   });
 
@@ -108,13 +108,13 @@ describe('the slowest recorded test files, as printed', () => {
       printed([{ recording: '/r', origin: 'own', slowest: [], timed: 0, untimed: 0, scope, cases: NO_CASES }], asked).split('\n')[2];
 
     expect(empty({ declared: 0, unrecorded: [] }, { from: ['lib'] }))
-      .toBe('Slowest recorded test files, under lib: no recorded file in /r is declared under lib.');
+      .toBe('Slowest recorded test files, under lib: no recorded file is declared under lib.');
     expect(empty({ entered: 0, unrecorded: [] }, { to: ['src/a.ts'] }))
-      .toBe('Slowest recorded test files, that entered src/a.ts: no recorded file in /r entered src/a.ts.');
+      .toBe('Slowest recorded test files, that entered src/a.ts: no recorded file entered src/a.ts.');
     expect(empty({ declared: 2, entered: 3, unrecorded: [] }, { from: ['lib'], to: ['src/a.ts'] }))
-      .toBe('Slowest recorded test files, under lib, that entered src/a.ts: no recorded file under lib entered src/a.ts, in /r.');
+      .toBe('Slowest recorded test files, under lib, that entered src/a.ts: no recorded file under lib entered src/a.ts.');
     expect(empty({ entered: 0, unrecorded: ['src/a.ts'] }, { to: ['src/a.ts'] }))
-      .toBe('Slowest recorded test files, that entered src/a.ts: /r holds no row at src/a.ts, so it cannot say which files entered it.');
+      .toBe('Slowest recorded test files, that entered src/a.ts: its record holds no row at src/a.ts, so it cannot say which files entered it.');
   });
 
   it('prints milliseconds under a second and tenths of a second above', () => {
@@ -128,14 +128,14 @@ describe('the record an answer read', () => {
 
   it('says whose record it is, at which commit, and when its latest run landed', () => {
     expect(said({ origin: 'mainline', commit: 'a'.repeat(40), landed: '2026-10-01T12:00:00Z' }))
-      .toBe('Read the fetched mainline record at aaaaaaaaaaaa, landed 3 days ago, /cache/coverage.bin.');
+      .toBe('Read the fetched mainline record at aaaaaaaaaaaa, landed 3 days ago.');
     expect(said({ origin: 'primary', commit: 'b'.repeat(40), landed: '2026-10-04T11:30:00Z' }))
-      .toBe("Read the primary checkout's record at bbbbbbbbbbbb, landed 30 minutes ago, /cache/coverage.bin.");
+      .toBe("Read the primary checkout's record at bbbbbbbbbbbb, landed 30 minutes ago.");
   });
 
   it('says so when the record holds no landing', () => {
     expect(said({ commit: 'c'.repeat(40) }))
-      .toBe("Read this checkout's record at cccccccccccc, landed at a time the record does not hold, /cache/coverage.bin.");
+      .toBe("Read this checkout's record at cccccccccccc, landed at a time the record does not hold.");
   });
 });
 

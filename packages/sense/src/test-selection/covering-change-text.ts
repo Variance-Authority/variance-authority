@@ -38,7 +38,7 @@ export type StatedCoveringChange = Omit<CoveringChange, 'regions'> & { readonly 
 export interface CoveringChangeHeading {
   /** The ref the diff was taken against. */
   readonly since?: string;
-  /** Where the index was read, so an empty answer can be checked against a path. */
+  /** Where the record was read. Its presence prints the provenance line; the path itself is the JSON answer's `from`, not the text's. */
   readonly from?: string;
   /** The commit the record stands at. The diff is measured from it. Absent beside `from` when the record names none. */
   readonly at?: string;
@@ -125,14 +125,15 @@ export function formatCoveringChange(
 /**
  * The provenance line, printed only where there is provenance to print.
  *
- * A reader looking at an empty answer needs to check it against a path before
- * believing it, and *which file did you read* is the first question. Under MCP
- * the host holds the index and the answer is nobody's to give, so the line is
- * absent rather than guessed.
+ * A reader looking at an empty answer needs to know which record it read, and at
+ * which commit, before believing it. The file it is kept in is the JSON answer's
+ * `from`, which a program reads; the text names the commit. Under MCP the host
+ * holds the index and the answer is nobody's to give, so the line is absent
+ * rather than guessed.
  */
 function source(heading: CoveringChangeHeading): readonly string[] {
   if (heading.from === undefined) return [];
-  return [`Read from ${heading.from}${heading.at === undefined ? '; the record names no commit' : `, recorded at ${heading.at}`}.`];
+  return [heading.at === undefined ? 'Read from a record that names no commit.' : `Read from the record, recorded at ${heading.at}.`];
 }
 
 function count(of: number, noun: string): string {

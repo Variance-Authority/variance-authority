@@ -57,7 +57,7 @@ const SUBMITS = { file: 'tests/create-event.spec.ts', line: 42, name: 'create ev
 
 describe('variance ask not-run', () => {
   it('names a declared check a passing case did not execute, with its file, line and the run\'s scope', async () => {
-    const at = await recorded({
+    await recorded({
       complete: true,
       scope: { projects: [{ name: 'chromium' }] },
       cases: [{ ...SUBMITS, attempts: [{ attempt: 1, ended: 'passed', entered: [] }] }],
@@ -67,7 +67,7 @@ describe('variance ask not-run', () => {
       code: EXIT_CLEAN,
       err: '',
       out: [
-        `Read this checkout's record at ffffffffffff, landed under a minute ago, ${at}.`,
+        "Read this checkout's record at ffffffffffff, landed under a minute ago.",
         '',
         'Declared checks not executed:',
         '  expected check create-event/submitted-title did not execute in case create event > submits the form (tests/create-event.spec.ts:42, project chromium), which passed',
@@ -79,9 +79,9 @@ describe('variance ask not-run', () => {
   });
 
   it('tells a record whose run kept no checks from a run that missed none', async () => {
-    const old = await recorded(undefined);
+    await recorded(undefined);
     expect((await run(['ask', 'not-run'])).out).toContain(
-      `Declared checks not executed: checks were not kept in ${old}, so it does not say whether a declared check ran.`,
+      `Declared checks not executed: checks were not kept in its record, so it does not say whether a declared check ran.`,
     );
 
     await recorded({
@@ -102,9 +102,9 @@ describe('variance ask not-run', () => {
       code: EXIT_CLEAN,
       err: '',
       out: expect.stringMatching(new RegExp([
-        'Declared checks not executed, suite chromium: none read from \\S+/suites/chromium/coverage\\.bin, nothing is recorded there\\.',
+        'Declared checks not executed, suite chromium: none read, nothing is recorded there\\.',
         '',
-        'Declared checks not executed, suite unit: none read from \\S+/suites/unit/coverage\\.bin, nothing is recorded there\\.',
+        'Declared checks not executed, suite unit: none read, nothing is recorded there\\.',
         '',
       ].join('\n'))),
     });
@@ -117,7 +117,7 @@ describe('variance ask not-run', () => {
     expect(await run(['ask', 'not-run'])).toEqual({
       code: EXIT_CLEAN,
       err: '',
-      out: `Declared checks not executed: none read from ${at}, the record's checks section is not JSON.\n`,
+      out: `Declared checks not executed: none read, the record's checks section is not JSON.\n`,
     });
   });
 });

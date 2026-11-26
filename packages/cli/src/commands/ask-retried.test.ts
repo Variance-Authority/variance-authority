@@ -61,7 +61,7 @@ async function run(argv: readonly string[]): Promise<{ code: number; out: string
 
 describe('variance ask retried-tests', () => {
   it('lists a case that failed and then passed with both attempts, its limit, and the record\'s origin, commit and age', async () => {
-    const at = await recorded([
+    await recorded([
       { case: 'a', attempt: 1, ended: 'failed', duration: 31, message: 'expected 1 to be 2', frame: 'test/pay.test.ts:12' },
       { case: 'a', attempt: 2, ended: 'passed', duration: 8 },
     ]);
@@ -70,7 +70,7 @@ describe('variance ask retried-tests', () => {
       code: EXIT_CLEAN,
       err: '',
       out: [
-        `Read this checkout's record at ffffffffffff, landed under a minute ago, ${at}.`,
+        "Read this checkout's record at ffffffffffff, landed under a minute ago.",
         '',
         'Ended differently across attempts:',
         '  test/pay.test.ts  checkout > pays  (limit 5.0 s)',
@@ -83,9 +83,9 @@ describe('variance ask retried-tests', () => {
   });
 
   it('tells a record whose run kept no attempts from a run that retried no case', async () => {
-    const old = await recorded(undefined);
+    await recorded(undefined);
     expect((await run(['ask', 'retried-tests'])).out).toContain(
-      `Ended differently across attempts: attempts were not kept in ${old}, so it does not say whether a case was retried.`,
+      `Ended differently across attempts: attempts were not kept in its record, so it does not say whether a case was retried.`,
     );
 
     await recorded([]);

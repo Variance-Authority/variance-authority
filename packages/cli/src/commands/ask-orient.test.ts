@@ -336,7 +336,7 @@ describe('variance ask orient', () => {
         '  packages/cart/src/price.ts',
         '    2  exported const priceOf',
         '',
-        `Packages, from the source index at ${sourceIndexPath(root)} (4 files indexed).`,
+        'Packages, from the source index (4 files indexed).',
         "Observed in source: a use is one file importing one name from another package. A package's share is of the uses on that side; " +
           "a name's share is of every use the package exporting it gets from outside. Each share has its count beside it, " +
           "and a denominator under 10 is given as the count alone.",
@@ -355,7 +355,7 @@ describe('variance ask orient', () => {
         '  No external package request was read from this path.',
         '  Not in the source index: src/gone.ts.',
         '',
-        `Recorded cases: none read from ${testCoverageFile(root)}, no run kept its cases there. A run with \`withTestSelection\` records them.`,
+        `Recorded cases: none read, no run kept its cases there. A run with \`withTestSelection\` records them.`,
         '',
         'Narrower questions:',
         '  variance ask uses --name priceOf --package @t/cart',

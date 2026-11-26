@@ -96,7 +96,7 @@ describe('an orientation, said', () => {
         '  README.md                       outside index',
         '  test/total.test.ts              outside index',
         '',
-        'Packages, from the source index at /cache/source-index.bin (40 files indexed; 2 changed or removed since).',
+        'Packages, from the source index (40 files indexed; 2 changed or removed since).',
         "Observed in source: a use is one file importing one name from another package. A package's share is of the uses on that side; " +
           "a name's share is of every use the package exporting it gets from outside. Each share has its count beside it, " +
           "and a denominator under 10 is given as the count alone.",
@@ -114,7 +114,7 @@ describe('an orientation, said', () => {
         '    100% (249)  @t/checkout          priceOf 50% (125), the whole module <1% (1), 3 more names',
         '       <1% (1)  files in no package  default <1% (1)',
         '',
-        'Recorded cases, suite unit, from /cache/suites/unit/coverage.bin:',
+        'Recorded cases, suite unit:',
         '  packages/checkout/src/total.ts  5 cases ran it, 3 of them by importing it:',
         '      test/total.test.ts > adds tax',
         '      4 more cases.',
@@ -126,7 +126,7 @@ describe('an orientation, said', () => {
         '      adds tax',
         '      2 more cases.',
         '',
-        'Recorded cases, suite stories: none read from /cache/suites/stories/coverage.bin, nothing is recorded there. A run with `withTestSelection` records them.',
+        'Recorded cases, suite stories: none read, nothing is recorded there. A run with `withTestSelection` records them.',
         '',
         'Narrower questions:',
         '  variance ask uses --name priceOf --package @t/cart',
@@ -139,7 +139,7 @@ describe('an orientation, said', () => {
   it('leaves the packages out, saying which command publishes them, when no index was published', () => {
     const text = formatOrientation({ ...READING, around: { index: '/cache/source-index.bin' } });
 
-    expect(text).toContain('Packages: no source index is published at /cache/source-index.bin. `variance index` publishes one.');
+    expect(text).toContain('Packages: no source index is published. `variance index` publishes one.');
     // Every file asked about is still said, with nothing claimed about its package.
     expect(text).toContain('4 files asked about:\n  packages/checkout/src/total.ts\n  packages/cart/src/price.ts\n  README.md\n');
     expect(text).not.toContain('outside index');

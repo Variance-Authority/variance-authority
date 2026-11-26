@@ -61,7 +61,7 @@ describe('`variance select` in a checkout that recorded nothing', () => {
     expect(here.out).toBe(there.out);
     const kept = join(home, 'laptop-cache', 'share', 'read', 'unit', ci.first, 'coverage.bin');
     expect(here.err.split('\n')).toContain(
-      `record of "unit": read from mainline main, published at ${ci.first}, at the merge base with this checkout; kept at ${kept}.`,
+      `record of "unit": read from mainline main, published at ${ci.first}, at the merge base with this checkout.`,
     );
     const json = JSON.parse((await selectOutput({ cwd: clone, format: 'json' })).out) as { journal: object };
     expect(json.journal).toMatchObject({ at: kept, commit: ci.first, from: 'mainline', mainline: 'main', distance: 0 });
@@ -78,7 +78,7 @@ describe('`variance select` in a checkout that recorded nothing', () => {
 
     // The branch's record says `other` covers the change and `total` does not; the mainline's says the reverse.
     expect(here.out).toBe('test/other.test.ts\n');
-    expect(here.err).toContain(`record of "unit": read from mainline main, published at ${ci.first}, at the merge base with this checkout;`);
+    expect(here.err).toContain(`record of "unit": read from mainline main, published at ${ci.first}, at the merge base with this checkout.\n`);
     expect(here.err).not.toContain(branch);
   });
 });
