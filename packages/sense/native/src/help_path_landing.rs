@@ -14,16 +14,19 @@ use crate::help_usage::requested;
 /// the one whose declaration that file passes on, as a barrel's `export *`
 /// does. A path the index did not resolve is not known to lead nowhere: it
 /// lands on the export the package its specifier names owns, when every export
-/// that package owns binds one declaration. `None` where it reaches no export,
+/// that package owns binds one declaration: the declaring file's own, where it
+/// exports the name. `None` where it reaches no export,
 /// or several declarations.
 pub(crate) fn landing<'e, 'a>(layers: &[Layer], name: &str, site: &PathSite<'_>, exports: &[&'e Export<'a>]) -> Option<&'e Export<'a>> {
     let declared = |export: &Export<'_>| declaration_exported(layers, export.at, export.name).map(|one| (one.at, one.line));
     let Some(to) = site.to else {
         let (owner, _) = requested(site.specifier);
-        let mut owned = exports.iter().copied().filter(|export| export.by == owner);
-        let first = owned.next()?;
+        let owned: Vec<_> = exports.iter().copied().filter(|export| export.by == owner).collect();
+        let first = *owned.first()?;
         let one = declared(first);
-        return owned.all(|other| other.at == first.at || (one.is_some() && declared(other) == one)).then_some(first);
+        if !owned.iter().all(|other| other.at == first.at || (one.is_some() && declared(other) == one)) { return None }
+        // Of a declaration and the files that pass it on, the declaring file's own export is the one the import reaches.
+        return Some(owned.iter().copied().find(|export| one.as_ref().is_some_and(|(at, _)| export.at == at)).unwrap_or(first));
     };
     if let Some(export) = exports.iter().copied().find(|export| export.at == to) { return Some(export) }
     let reached = declaration_exported(layers, to, name)?;

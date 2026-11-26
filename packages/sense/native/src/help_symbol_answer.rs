@@ -375,7 +375,16 @@ fn by_path<'a>(layers: &[crate::compact::Layer], rows: &Rows, name: &str, export
         let specifier = first.specifier;
         let (owner, _) = requested(specifier);
         let export = landing(layers, name, first, &named);
-        if let Some(held) = export { covered.insert(held.at); }
+        if let Some(held) = export {
+            covered.insert(held.at);
+            // An unresolved path reaches the package, not a file: every export it owns of that declaration is answered here.
+            if first.to.is_none() {
+                let one = declaration_exported(layers, held.at, held.name).map(|one| (one.at, one.line));
+                for other in &named {
+                    if other.by == held.by && one.is_some() && declaration_exported(layers, other.at, other.name).map(|one| (one.at, one.line)) == one { covered.insert(other.at); }
+                }
+            }
+        }
         let bound = export.and_then(|held| declaration_exported(layers, held.at, held.name));
         let mut lines = vec![bound.as_ref().map_or_else(|| name.to_owned(), |held| format!("{name} [{}]", held.kind))];
         // The slot names nothing an import can bind by.

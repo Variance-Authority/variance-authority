@@ -137,10 +137,14 @@ export function nativeFiles(question: readonly string[]): Readonly<Record<string
       'apps/app/src/surf.ts': "import { wave } from '@acme/sea/src/wave';\nexport const surf = wave();\n",
     } : {}),
     // Kibana's shape, uninstalled: a package with no entry, nested where nothing links it, so the index resolves no file for its name.
-    ...(question[2] === 'Schedule' ? {
+    ...(question[2] === 'Schedule' || question[2] === 'Cadence' ? {
       'package.json': JSON.stringify({ private: true, workspaces: ['packages/*', 'packages/reporting/server', 'apps/*'] }),
       'packages/reporting/server/package.json': JSON.stringify({ name: '@acme/reporting-server' }),
-      'packages/reporting/server/index.ts': "export * from './constants';\n",
+      // The entry passes one name on by name, as Kibana's do, and the rest through `export *`.
+      'packages/reporting/server/index.ts': "export * from './constants';\nexport { Cadence } from './cadence';\n",
+      'packages/reporting/server/cadence.ts': 'export const Cadence = 1;\n',
+      'packages/reporting/server/plan.ts': "import { Cadence } from './cadence';\nexport const plan = Cadence;\n",
+      'apps/app/src/cadence.ts': "import { Cadence } from '@acme/reporting-server';\nexport const every = Cadence;\n",
       'packages/reporting/server/constants.ts': 'export enum Schedule { Once }\n',
       'apps/app/src/schedule.ts': "import { Schedule } from '@acme/reporting-server';\nexport const once = Schedule.Once;\n",
     } : {}),

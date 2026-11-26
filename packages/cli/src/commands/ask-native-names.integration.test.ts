@@ -110,6 +110,7 @@ it.each(([
   ['symbol', '--name', 'wave'],
   ['symbol', '--name', 'lost'],
   ['symbol', '--name', 'Schedule'],
+  ['symbol', '--name', 'Cadence'],
   ['symbol', '--name', 'keptOf'],
   ['symbol', '--name', 'absentIndex'],
   ['uses', '--name', 'default'],

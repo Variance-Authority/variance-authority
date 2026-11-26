@@ -528,5 +528,10 @@
     0,
     "`Schedule` [enum] is imported in 1 place, from another package, and no entry publishes it; it is exported at packages/reporting/server/constants.ts:1.\nPath order; `--from` sorts nearest first.\n\nSource, from other packages:\n\napps/app/src/schedule.ts:1 — @acme/app, by path from @acme/reporting-server\n\nA namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted.\nSnapshot <time> may miss later changes: run `variance index`.\n",
     ""
+  ],
+  "symbol --name Cadence": [
+    0,
+    "Cadence [const]\nimport { Cadence } from '@acme/reporting-server';\ndeclared at packages/reporting/server/cadence.ts:1\nnot published: @acme/reporting-server declares no entry, so every import of it names a file.\nconst Cadence\n\nImported by path in 1 place:\n  apps/app/src/cadence.ts:1 — @acme/app, by path from @acme/reporting-server\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
   ]
 }
