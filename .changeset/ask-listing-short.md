@@ -1,4 +1,5 @@
 ---
+'@variance-authority/help': patch
 '@variance-authority/cli': patch
 ---
 

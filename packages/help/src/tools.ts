@@ -172,5 +172,6 @@ export type { DeclarationLookups } from './tools/exported-matches.js';
 export type { ImportedIn } from './tools/uses-count.js';
 export type { Help };
 export { audience, block, importing, line, reach, said } from './tools/format.js';
+export { firstSentence } from './tools/held-sentence.js';
 export { sharedSegments } from './tools/shared-segments.js';
 export { doorOf, entriesNamed, isPackage, openingOf, packageOf, specifierOf, unfound } from './tools/find.js';

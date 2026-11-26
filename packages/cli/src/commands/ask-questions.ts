@@ -1,4 +1,4 @@
-import { HELP_TOOLS, type Help } from '@variance-authority/help/tools';
+import { firstSentence, HELP_TOOLS, type Help } from '@variance-authority/help/tools';
 import { COSTS_TOOLS, REVIEW_TOOLS, TOOLS, VANTAGE_TOOLS, verbOf, type Tool } from '@variance-authority/mcp/tools';
 import { VANTAGE_VARIABLE } from '@variance-authority/vantage';
 import { takes, type Asked } from './asking.js';
@@ -48,6 +48,5 @@ export function questions(): string {
 
 /** Two lines: what the question takes, and the first sentence of its description. */
 function entry(tool: Asked): readonly string[] {
-  const first = tool.description.replace(/\s+/gu, ' ').split(/(?<=[.!?])\s/u)[0];
-  return [`${verbOf(tool)}${takes(tool)}`, `    ${first}`];
+  return [`${verbOf(tool)}${takes(tool)}`, `    ${firstSentence(tool.description)}`];
 }
