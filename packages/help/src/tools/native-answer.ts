@@ -1,6 +1,6 @@
 // compass: variance-authority.report.agent-surface
 
-import { stringArg, type ToolInvocation } from '@variance-authority/mcp/tools';
+import { startPointArg, stringArg, type ToolInvocation } from '@variance-authority/mcp/tools';
 import type { Help } from '@variance-authority/package/help';
 import { answerSymbol, answerUses, type NameAsked } from '@variance-authority/sense';
 import { storeBytesOf } from '../snapshot.js';
@@ -26,7 +26,7 @@ export function nativeAnswer(
   const asked: NameAsked = {
     name: stringArg(input, 'name'),
     ...said(input, 'package'),
-    ...said(input, 'from'),
+    ...(question === 'symbol' ? points(input) : fromOf(said(input, 'from'))),
     ...said(input, 'file'),
     ...(limit === undefined ? {} : { limit }),
     ...(invocation?.shell === undefined ? {} : { shell: invocation.shell }),
@@ -37,8 +37,19 @@ export function nativeAnswer(
   return answer.text;
 }
 
+/** `symbol`'s start points, one path or several. */
+function points(input: Readonly<Record<string, unknown>>): Partial<NameAsked> {
+  const at = startPointArg(input, 'from');
+  return at === undefined ? {} : { from: typeof at === 'string' ? [at] : [...at] };
+}
+
+/** `uses`'s one start point, said only as a word. */
+function fromOf(said: { readonly from?: string }): Partial<NameAsked> {
+  return said.from === undefined ? {} : { from: [said.from] };
+}
+
 /** An input the tools read as said only when it is a word: an empty one is not said. */
-function said(input: Readonly<Record<string, unknown>>, property: 'package' | 'from' | 'file'): Partial<NameAsked> {
+function said(input: Readonly<Record<string, unknown>>, property: 'package' | 'from' | 'file'): { readonly [key: string]: string } {
   const value = input[property];
   return typeof value === 'string' && value !== '' ? { [property]: value } : {};
 }

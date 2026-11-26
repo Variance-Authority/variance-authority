@@ -107,8 +107,7 @@ function answerOf(help: Help, input: Readonly<Record<string, unknown>>, invocati
   const from = input['package'];
   const wanted = typeof from === 'string' && from !== '' ? from : undefined;
   const at = startPointArg(input, 'from');
-  // A start point is read by this tool alone; every other question is the addon's first.
-  const native = at === undefined ? nativeAnswer('symbol', help, invocation, input, input['limit'] === undefined ? undefined : limit) : undefined;
+  const native = nativeAnswer('symbol', help, invocation, input, input['limit'] === undefined ? undefined : limit);
   if (native !== undefined) return native;
   const paths = at === undefined ? undefined : typeof at === 'string' ? [at] : [...at];
   const bound = boundBlocks(help, invocation?.root, name, wanted, spell, limit, paths);

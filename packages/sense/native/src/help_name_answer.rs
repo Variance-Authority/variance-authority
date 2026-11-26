@@ -20,8 +20,10 @@ pub struct NameAsked {
     pub name: String,
     /// The package to answer from, by name or by specifier.
     pub package: Option<String>,
-    /// The file `uses` orders its sites nearest to.
-    pub from: Option<String>,
+    /// The paths the question stands at: `symbol` orders its declarations
+    /// nearest to them and answers installed names as they resolve there, and
+    /// `uses` orders its sites nearest to the first.
+    pub from: Option<Vec<String>>,
     /// The file whose declaration `uses` answers for alone.
     pub file: Option<String>,
     /// The rows of each list to show; `symbol` cuts at its own when unsaid.
@@ -60,6 +62,7 @@ pub fn answer_symbol(root: String, index: &OpenedIndex, store: Uint8Array, asked
             lexicon: lexicon.as_deref()?,
             layers,
             wanted: asked.package.as_deref(),
+            from: asked.from.as_deref().unwrap_or_default(),
             limit: asked.limit.map(|limit| limit as usize),
             surface: Surface(asked.shell.as_deref()),
         };
@@ -80,7 +83,7 @@ pub fn answer_uses(root: String, index: &OpenedIndex, store: Uint8Array, asked: 
             layers,
             name: &asked.name,
             wanted: asked.package.as_deref(),
-            from: asked.from.as_deref(),
+            from: asked.from.as_deref().and_then(<[String]>::first).map(String::as_str),
             file: asked.file.as_deref(),
             limit: asked.limit? as usize,
             surface: Surface(asked.shell.as_deref()),

@@ -14,8 +14,8 @@ export interface NameAsked {
   readonly name: string;
   /** The package to answer from, by name or by specifier. */
   readonly package?: string;
-  /** The file `uses` orders its sites nearest to. */
-  readonly from?: string;
+  /** The paths the question stands at: `symbol` orders its declarations nearest to them and answers installed names as they resolve there, `uses` orders its sites nearest to the first. */
+  readonly from?: readonly string[];
   /** The file whose declaration `uses` answers for alone. */
   readonly file?: string;
   /** The rows of each list to show; `symbol` cuts at its own when unsaid, `uses` needs it said. */

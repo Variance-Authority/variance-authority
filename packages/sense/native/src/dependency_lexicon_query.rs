@@ -89,7 +89,7 @@ pub(crate) struct Scope {
     pub(crate) packages: u32,
     /// The manifests that own the paths the question stood at; absent when it stood nowhere.
     #[serde(skip_serializing_if = "Option::is_none")]
-    location: Option<Vec<String>>,
+    pub(crate) location: Option<Vec<String>>,
 }
 
 fn summary(doc: &str) -> String {

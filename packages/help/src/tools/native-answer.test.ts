@@ -41,9 +41,10 @@ for (const [tool, entry] of [[symbol, 'answerSymbol'], [uses, 'answerUses']] as 
   });
 }
 
-it('docs_symbol reads a start point itself, which the addon does not read', async () => {
+it('docs_symbol hands its start points to the addon, which orders by them', async () => {
   const root = await fixture.published();
   const asked = vi.spyOn(sense, 'answerSymbol');
   symbol.run(await readWorkspace(root), { name: 'taxOf', from: 'packages/kit/src/tax.ts' }, { root });
-  expect(asked).not.toHaveBeenCalled();
+  expect(asked).toHaveBeenCalledWith(root, expect.anything(), expect.objectContaining({ from: ['packages/kit/src/tax.ts'] }));
+  expect(asked).toHaveLastReturnedWith(expect.objectContaining({ found: true }));
 });

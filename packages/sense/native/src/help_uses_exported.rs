@@ -25,7 +25,7 @@ pub(super) type Declaration<'e, 'a> = (&'e str, Vec<&'e Unpublished<'a>>);
 /// `uses` for a name no entry publishes: each declaration its exports key,
 /// in file order, the first answered in full and each other one after it;
 /// `file` answers for the one it declares alone. `None` where the answer
-/// needs what this reading does not carry: an export no package owns.
+/// needs what this reading does not carry.
 pub(super) fn exported_uses(asking: &Asking<'_>, rows: &Rows, paths: &[PathSite<'_>], exported: &[Unpublished<'_>], package: &PackageScope<'_>, beside: Beside<'_>) -> Option<String> {
     let &Asking { root, layers, name, file, .. } = asking;
     let chosen: Vec<_> = match file {
@@ -48,7 +48,6 @@ pub(super) fn exported_uses(asking: &Asking<'_>, rows: &Rows, paths: &[PathSite<
 
     let ((_, primary), others) = declarations.split_first()?;
     let home = primary[0].export.by;
-    if home.is_empty() { return None }
     let own = files(primary);
     // An import by path no declaration's file is known for joins the one answered first.
     // An import by path of `default` is the declaration its file's default is named by, never a stray of the slot.

@@ -72,7 +72,12 @@ pub fn answer(args: &[OsString], mut waiting: impl FnMut(&str)) -> Option<(i32, 
     };
     let index = source_index(&root)?;
     follow_ups::settled(&index, waiting)?;
-    let (mut file, published) = publication(&root, &index)?;
+    let (mut file, published) = match publication(&root, &index) {
+        Ok(publication) => publication,
+        // A name question says why it has no snapshot to read, as the Node dispatcher says it; every other question is still the dispatcher's to recover.
+        Err(Some(unopened)) if matches!(question, Question::Symbol(_) | Question::Uses(_)) => return Some((2, unopened)),
+        Err(_) => return None,
+    };
     let text = match question {
         Question::Packages => Ok(help_package_answer::packages(&mut file)?),
         Question::Entrypoint(package, subpath) => help_package_answer::names(&mut file, package, subpath)?,
@@ -91,7 +96,7 @@ pub fn answer(args: &[OsString], mut waiting: impl FnMut(&str)) -> Option<(i32, 
         Question::Symbol(request) => {
             let chain = OpenedChain::read(index.to_str()?).ok()??;
             let asking = help_symbol_answer::Asking {
-                root: root.to_str()?, lexicon: index.parent()?, layers: chain.layers(), wanted: request.package, limit: request.limit, surface: Surface(Some(CLI)),
+                root: root.to_str()?, lexicon: index.parent()?, layers: chain.layers(), wanted: request.package, from: &request.from, limit: request.limit, surface: Surface(Some(CLI)),
             };
             let answers = exact_symbols(&asking, &mut file, &request.names)?;
             Ok(answers.into_iter().map(|answer| answer.unwrap_or_else(|nothing| nothing)).collect::<Vec<_>>().join("\n\n"))
@@ -184,6 +189,7 @@ impl<'a> UsesRequest<'a> {
 struct SymbolRequest<'a> {
     names: Vec<&'a str>,
     package: Option<&'a str>,
+    from: Vec<String>,
     limit: Option<usize>,
 }
 
@@ -191,6 +197,7 @@ impl<'a> SymbolRequest<'a> {
     fn from_args(args: &[&'a str]) -> Option<Self> {
         let mut name = None;
         let mut package = None;
+        let mut from = Vec::new();
         let mut limit = None;
         let mut args = args.iter().copied();
         while let Some(flag) = args.next() {
@@ -201,6 +208,7 @@ impl<'a> SymbolRequest<'a> {
             match flag {
                 "--name" if name.is_none() => name = Some(value),
                 "--package" if package.is_none() => package = Some(value),
+                "--from" => push_point(&mut from, value),
                 "--limit" if limit.is_none() => limit = Some(value.parse().ok().filter(|value| *value > 0)?),
                 _ => return None,
             }
@@ -211,7 +219,7 @@ impl<'a> SymbolRequest<'a> {
             .filter(|name| !name.is_empty() && seen.insert(*name))
             .collect();
         (!names.is_empty() && names.iter().all(|name| !name.starts_with("--")))
-            .then_some(Self { names, package: package.filter(|value| !value.is_empty()), limit })
+            .then_some(Self { names, package: package.filter(|value| !value.is_empty()), from, limit })
     }
 }
 
@@ -262,14 +270,28 @@ struct Publication {
     generated_at: String,
 }
 
-fn publication(root: &Path, index: &Path) -> Option<(std::fs::File, Publication)> {
-    let index = index.to_str()?;
-    let mut file = std::fs::File::open(format!("{index}.help.bin")).ok()?;
-    let [Some(owner), Some(graph_root), Some(digest), Some(generated_at), Some(_), Some(_), ..] = read_head(&mut file).ok()? else { return None };
-    if owner != root.to_str()? || digest.len() != 64 || !digest.bytes().all(|byte| byte.is_ascii_hexdigit()) {
-        return None;
+/// The published head of the help store beside `index`; `Err` carrying why
+/// when the store does not open, said as Node says it, and `Err(None)` when it
+/// opens but is not this checkout's readable publication.
+fn publication(root: &Path, index: &Path) -> Result<(std::fs::File, Publication), Option<String>> {
+    let index = index.to_str().ok_or(None)?;
+    let at = format!("{index}.help.bin");
+    let mut file = std::fs::File::open(&at).map_err(|error| Some(unopened(&at, &error)))?;
+    let [Some(owner), Some(graph_root), Some(digest), Some(generated_at), Some(_), Some(_), ..] = read_head(&mut file).map_err(|_| None)? else { return Err(None) };
+    if Some(owner.as_str()) != root.to_str() || digest.len() != 64 || !digest.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return Err(None);
     }
-    Some((file, Publication { graph_root: PathBuf::from(graph_root), graph_digest: digest, generated_at }))
+    Ok((file, Publication { graph_root: PathBuf::from(graph_root), graph_digest: digest, generated_at }))
+}
+
+/// Why the help store at `at` did not open, in the words Node's file system errors use.
+fn unopened(at: &str, error: &io::Error) -> String {
+    let said = match error.kind() {
+        ErrorKind::NotFound => format!("ENOENT: no such file or directory, open '{at}'"),
+        ErrorKind::PermissionDenied => format!("EACCES: permission denied, open '{at}'"),
+        _ => format!("{error}, open '{at}'"),
+    };
+    format!("no readable workspace snapshot at {at}: {said}. Run `variance index` to publish one.\n")
 }
 
 fn published_tree(root: &Path, index: &Path, head: &Publication) -> Option<SourceTree> {
@@ -290,7 +312,7 @@ pub(crate) fn runtime_tree(root: &Path) -> Option<crate::source_query::RuntimeTr
 
     let root = physical(root);
     let index = source_index(&root)?;
-    let (_, published) = publication(&root, &index)?;
+    let (_, published) = publication(&root, &index).ok()?;
     if root != published.graph_root { return None }
     let chain = OpenedChain::read(index.to_str()?).ok()??;
     let tree = published_tree(&root, &index, &published)?;

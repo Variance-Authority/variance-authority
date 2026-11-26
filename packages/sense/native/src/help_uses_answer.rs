@@ -9,10 +9,10 @@ use crate::harvest::is_bound;
 use crate::help_aliases::aliases;
 use crate::help_declared::{declared, DeclaredName, Matching};
 use crate::help_in_file::InFile;
-use crate::help_key::{can_keep, Keys};
+use crate::help_key::{can_keep, Keys, SLOT};
 use crate::help_members::{member_declarations, MemberSite};
 use crate::help_name_scope::{owner_of, PackageScope};
-use crate::help_symbol_answer::{member_name, nowhere};
+use crate::help_symbol_answer::{container_absence, member_name, nowhere, shared_segments};
 use crate::help_symbol_published::published_declarations;
 use crate::help_surface::Surface;
 use crate::help_symbol_rows::{Rows, Site};
@@ -86,7 +86,18 @@ pub(crate) fn uses(asking: &Asking<'_>, store: &mut (impl Read + Seek)) -> Optio
     let keys = Keys::new(root, layers, &rows);
     let published = if entries { published_declarations(&keys, name, &package)? } else { Vec::new() };
     let exported = exports_named(&keys, name, &package)?;
+    // Asked for the slot, a file imported by path answers only when its default is one nothing names.
+    if name == SLOT && published.is_empty() {
+        let mut answering = Vec::with_capacity(paths.len());
+        for site in paths { if site.to.map_or(Some(true), |to| keys.answers(to, SLOT, SLOT))? { answering.push(site) } }
+        paths = answering;
+    }
     let kept_here: Vec<&DeclaredName> = kept.names.iter().filter(|held| file.is_none_or(|file| held.at == file)).collect();
+    // A file named that declares nothing by the name, and passes no declaration of it on, is answered by the files that do.
+    let undeclared = file.filter(|file| !published.iter().any(|one| one.at == *file)
+        && !exported.iter().any(|held| held.export.at == *file)
+        && kept_here.is_empty() && !members.iter().any(|site| site.at == *file))
+        .and_then(|file| not_declared_in(name, file, &published, &exported, &kept.names, &members));
     // A name nothing declares anywhere is answered as one before the files that bind it, whichever file was asked.
     let nothing = published.is_empty() && paths.is_empty() && exported.is_empty() && members.is_empty();
     members.retain(|site| file.is_none_or(|file| site.at == file));
@@ -97,11 +108,12 @@ pub(crate) fn uses(asking: &Asking<'_>, store: &mut (impl Read + Seek)) -> Optio
         if !members.is_empty() {
             return kept::member_uses(asking, member, &members, &kept_here, &kept.unread).map(Ok);
         }
-        if container.is_some() { return None }
         if kept.names.iter().any(|held| !is_bound(&held.kind)) {
             return kept::private_uses(asking, &kept.names, &kept.unread).map(Ok);
         }
-        let absent = nowhere(name, &rows.published_names()?, layers, &kept.unread, None, wanted, package.export_hint(&rows, name, &exports)?.as_deref(), asking.surface);
+        if let Some(undeclared) = undeclared { return Some(Err(undeclared)) }
+        let absence = container_absence(&keys, root, layers, name, &package, asking.limit, asking.surface)?;
+        let absent = nowhere(name, &rows.published_names()?, layers, &kept.unread, None, wanted, package.export_hint(&rows, name, &exports)?.as_deref(), absence, asking.surface);
         if kept.names.is_empty() { return Some(Err(absent)) }
         if !nothing { return kept::private_uses(asking, &kept.names, &kept.unread).map(Ok) }
         // What was read is said with the absence, so the files it could not read are not said again.
@@ -114,10 +126,31 @@ pub(crate) fn uses(asking: &Asking<'_>, store: &mut (impl Read + Seek)) -> Optio
         files: kept::declaring(&kept_here).chain(members.iter().map(|site| site.at.as_str())).collect(),
     };
     if published.is_empty() {
+        if let Some(undeclared) = undeclared { return Some(Err(undeclared)) }
         if exported.is_empty() { return None }
         return exported::exported_uses(asking, &rows, &paths, &exported, &package, beside).map(Ok);
     }
-    published::published_uses(asking, &keys, &paths, published, &exported, &package, beside).map(Ok)
+    // A file a door opens, or a barrel between it and the declaration, passes the published one on.
+    match published::published_uses(asking, &keys, &paths, published, &exported, &package, beside) {
+        None => undeclared.map(Err),
+        answered => answered.map(Ok),
+    }
+}
+
+/// The answer for a `file` that declares no thing by the name: the files that
+/// do, or the ones that only bind it when none does; `None` when no file does either.
+fn not_declared_in(name: &str, file: &str, published: &[crate::help_symbol_published::Declaration<'_>], exported: &[crate::help_unpublished::Unpublished<'_>], kept: &[DeclaredName], members: &[MemberSite]) -> Option<String> {
+    let mut files: Vec<&str> = published.iter().map(|one| one.at)
+        .chain(exported.iter().filter(|held| held.export.bound.is_some()).map(|held| held.export.at))
+        .chain(kept.iter().filter(|held| !is_bound(&held.kind)).map(|held| held.at.as_str()))
+        .chain(members.iter().map(|site| site.at.as_str())).collect();
+    let declared = !files.is_empty();
+    if !declared { files = kept.iter().map(|held| held.at.as_str()).collect() }
+    files.sort_by(|a, b| code_unit(a, b));
+    files.dedup();
+    let (last, earlier) = files.split_last()?;
+    let all = if earlier.is_empty() { (*last).to_owned() } else { format!("{} and {last}", earlier.join(", ")) };
+    Some(format!("`{name}` is not declared in {file}; it is {} in {all}.", if declared { "declared" } else { "bound" }))
 }
 
 /// Who imports each group of `asked`, a line two names of one group reach
@@ -158,7 +191,8 @@ fn primary_sites(lines: &mut Vec<String>, asking: &Asking<'_>, owner: &str, file
     let imported = !sites.is_empty();
     if imported {
         lines.push(order_line(asking));
-        list_kinds(lines, asking, Some(owner), sites);
+        // An export no package owns has no inside to set apart: every site lists with its owner.
+        list_kinds(lines, asking, (!owner.is_empty()).then_some(owner), sites);
     }
     for at in files { list_own(lines, asking, at, "declares", own); }
     if imported { lines.push(format!("\nA{}.", &UNCOUNTED[1..])); }
@@ -187,7 +221,7 @@ fn headline(asking: &Asking<'_>, kinds: &str, published: Option<&str>, exported:
         let loaded = if count.dynamic == 0 { ".".into() } else {
             format!(", {} through import(), which loads the module when the call runs.", count.dynamic)
         };
-        format!("{named} is imported in {}{}{which}{loaded}", places(count.certain), count.split(home))
+        format!("{named} is imported in {}{}{which}{loaded}", places(count.certain), if home.is_empty() { String::new() } else { count.split(home) })
     };
     format!("{taken}{}", count.may_read(name))
 }
@@ -250,7 +284,7 @@ impl Counts {
 }
 
 fn nearest(from: Option<&str>, at: &str, line: u32, other_at: &str, other_line: u32) -> std::cmp::Ordering {
-    let shared = |at: &str| from.map_or(0, |from| from.split('/').zip(at.split('/')).take_while(|(a, b)| a == b).count());
+    let shared = |at: &str| from.map_or(0, |from| shared_segments(from, at));
     shared(other_at).cmp(&shared(at)).then_with(|| code_unit(at, other_at)).then(line.cmp(&other_line))
 }
 

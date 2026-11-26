@@ -34,6 +34,8 @@ pub(crate) struct Asking<'q> {
     pub lexicon: &'q Path,
     pub layers: &'q [Layer<'q>],
     pub wanted: Option<&'q str>,
+    /// The paths the question stands at: kept declarations nearest them first, installed ones as their manifests resolve them.
+    pub from: &'q [String],
     pub limit: Option<usize>,
     pub surface: Surface<'q>,
 }
@@ -75,7 +77,7 @@ pub(crate) fn exact_symbols(asking: &Asking<'_>, store: &mut (impl Read + Seek),
 /// One name's answer: `Err` when it is that nothing declares the name, said
 /// with the files that only bind it.
 fn exact_symbol(asking: &Asking<'_>, rows: &Rows, name: &str, binds: Vec<Alias>, package: &PackageScope<'_>) -> Option<Result<String, String>> {
-    let &Asking { root, lexicon, layers, limit: said_limit, surface, .. } = asking;
+    let &Asking { root, lexicon, layers, from, limit: said_limit, surface, .. } = asking;
     let keys = Keys::new(root, layers, rows);
     let published = published_declarations(&keys, name, package)?;
     let mut paths = rows.path_uses(name)?.into_iter().map(|row| rows.path_site(row)).collect::<Option<Vec<_>>>()?;
@@ -102,7 +104,6 @@ fn exact_symbol(asking: &Asking<'_>, rows: &Rows, name: &str, binds: Vec<Alias>,
     let (container, member) = member_name(name);
     let members: Vec<_> = member_sites(root, layers, member).into_iter()
         .filter(|site| package.member(&site.by) && container.is_none_or(|on| site.on == on)).collect();
-    if container.is_some() && members.is_empty() { return None }
     let mut blocks = Vec::new();
     let mut found = true;
     if !published.is_empty() {
@@ -121,6 +122,10 @@ fn exact_symbol(asking: &Asking<'_>, rows: &Rows, name: &str, binds: Vec<Alias>,
     let mut reading = declared(root, layers, name, Matching::Exact, None);
     reading.names.retain(|held| package.declared(&held.by) && can_keep(held));
     reading.names.sort_by_key(declaration_kind_order);
+    // Nearest a start point first, source first among equals.
+    if !from.is_empty() {
+        reading.names.sort_by_key(|held| std::cmp::Reverse(from.iter().map(|at| shared_segments(at, &held.at)).max().unwrap_or(0)));
+    }
     // A file that only binds the name declares nothing: it follows every declaration.
     let (bound, kept): (Vec<_>, Vec<_>) = reading.names.into_iter().partition(|held| is_bound(&held.kind));
     let only_members = blocks.is_empty() && kept.is_empty() && aliased.is_empty();
@@ -147,7 +152,7 @@ fn exact_symbol(asking: &Asking<'_>, rows: &Rows, name: &str, binds: Vec<Alias>,
     }
     if !workspace_door {
         let wanted = package.wanted();
-        let dependencies = dependencies::blocks(root, lexicon, name, wanted, said_limit.unwrap_or(100), surface)?;
+        let dependencies = dependencies::blocks(root, lexicon, name, wanted, from, said_limit.unwrap_or(100), surface)?;
         if let Some(found) = dependencies.as_ref().filter(|found| !found.is_empty()) {
             let no_local = blocks.is_empty();
             blocks.extend(found.iter().cloned());
@@ -159,7 +164,8 @@ fn exact_symbol(asking: &Asking<'_>, rows: &Rows, name: &str, binds: Vec<Alias>,
             } else {
                 "Whether an installed dependency publishes it is not known: the dependency lexicon is not published, and the `variance index` command publishes it.".to_owned()
             };
-            blocks.push(nowhere(name, &rows.published_names()?, layers, &reading.unread, Some(&dependencies), wanted, package.export_hint(rows, name, &exports)?.as_deref(), surface));
+            let absence = container_absence(&keys, root, layers, name, package, limit, surface)?;
+            blocks.push(nowhere(name, &rows.published_names()?, layers, &reading.unread, Some(&dependencies), wanted, package.export_hint(rows, name, &exports)?.as_deref(), absence, surface));
             found = false;
         }
     }
@@ -192,6 +198,11 @@ pub(crate) fn declaration_kind_order(name: &DeclaredName) -> u8 {
     }
 }
 
+/// How many leading path segments two paths share.
+pub(crate) fn shared_segments(left: &str, right: &str) -> usize {
+    left.split('/').zip(right.split('/')).take_while(|(a, b)| a == b).count()
+}
+
 pub(crate) fn unread_line(unread: &[String]) -> Option<String> {
     let count = unread.len();
     (count > 0).then(|| {
@@ -203,7 +214,7 @@ pub(crate) fn unread_line(unread: &[String]) -> Option<String> {
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn nowhere(name: &str, published: &[&str], layers: &[crate::compact::Layer], unread: &[String], dependencies: Option<&str>, package: Option<&str>, exported: Option<&str>, surface: Surface<'_>) -> String {
+pub(crate) fn nowhere(name: &str, published: &[&str], layers: &[crate::compact::Layer], unread: &[String], dependencies: Option<&str>, package: Option<&str>, exported: Option<&str>, container: Option<String>, surface: Surface<'_>) -> String {
     let search = surface.tool("search");
     let lowered = name.to_lowercase();
     let alike = published.iter().filter(|held| held.to_lowercase() == lowered && **held != name)
@@ -222,15 +233,51 @@ pub(crate) fn nowhere(name: &str, published: &[&str], layers: &[crate::compact::
         many => format!("{not_published}; {} are. Names are matched exactly.", many.join(" and ")),
     };
     let files = if unread.is_empty() { "" } else { " that the source index read" };
-    let mut absence = format!("No file in {where_}{files} declares `{name}`");
-    let stop = member_stop(layers, name, "there");
-    absence.push_str(if stop.is_none() { ", at its top level or as a member." } else { " at its top level, and no JavaScript or TypeScript file declares it as a member." });
+    let stop = member_stop(layers, member_name(name).1, "there");
+    let absence = container.unwrap_or_else(|| {
+        let at_top = if stop.is_none() { ", at its top level or as a member." } else { " at its top level, and no JavaScript or TypeScript file declares it as a member." };
+        format!("No file in {where_}{files} declares `{name}`{at_top}")
+    });
     let mut blocks = vec![hint, absence];
     blocks.extend(dependencies.map(str::to_owned));
     blocks.extend(stop);
     blocks.push("A name written only as text, in a string or a comment, declares nothing: a text search such as `rg` finds it.".to_owned());
     blocks.extend(unread_line(unread));
     blocks.join(" ")
+}
+
+/// For a dotted name, why no file is said to declare it: a member is declared
+/// in its container's body, which is not always read, so a dotted name is
+/// never said to be declared nowhere; `None` within for a name with no container.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn container_absence(keys: &Keys<'_>, root: &str, layers: &[Layer], name: &str, package: &PackageScope<'_>, limit: usize, surface: Surface<'_>) -> Option<Option<String>> {
+    let (Some(on), member) = member_name(name) else { return Some(None) };
+    // `Outer.Inner` is declared where `Outer` is: a file declares the name a path starts with.
+    let head = on.split('.').next().unwrap_or(on);
+    // Exported or kept to its file, a container is declared where a file binds it; an `export … from` binds nothing of its own.
+    let mut containers: Vec<(String, u32)> = exports_named(keys, head, package)?.into_iter()
+        .filter(|held| held.export.bound.is_some()).map(|held| (held.export.at.to_owned(), held.line)).collect();
+    containers.extend(declared(root, layers, head, Matching::Exact, None).names.into_iter()
+        .filter(|held| package.declared(&held.by) && held.holder_line.is_none() && !is_bound(&held.kind))
+        .map(|held| (held.at, held.line)));
+    let mut said = vec![if containers.is_empty() {
+        format!("No file read here declares `{head}` at its top level; a namespace an import or an `export * as` binds is not read as one.")
+    } else {
+        let at = containers.iter().take(limit).map(|(at, line)| format!("{at}:{line}")).collect::<Vec<_>>().join(", ");
+        format!("`{head}` is declared at {at}, and no interface, type alias or class body read here declares `{member}` on `{on}`.")
+    }];
+    if containers.len() > limit {
+        let more = containers.len() - limit;
+        let noun = if more == 1 { "declaration" } else { "declarations" };
+        said.push(format!("{more} more {noun} of `{head}` not shown; a higher `{}` shows them.", surface.input("limit")));
+    }
+    let mut languages = Vec::new();
+    for language in containers.iter().map(|(at, _)| language_of(at)) { if !languages.contains(&language) { languages.push(language) } }
+    let checker = if languages.len() > 1 { "each declaration's own language server's" }
+        else if languages.is_empty() || languages.contains(&Some(Language::Module)) { "TypeScript's language service's" }
+        else { "its language server's" };
+    said.push(format!("An inherited member is a type checker's answer, and none runs here; the source index reads no enum, namespace or object literal body: {checker} go-to-definition on `{name}` where a line writes it names the declaration."));
+    Some(Some(said.join(" ")))
 }
 
 pub(crate) fn member_name(name: &str) -> (Option<&str>, &str) {
