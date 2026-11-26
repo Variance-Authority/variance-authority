@@ -7,6 +7,7 @@
  * and never sees a record of the series.
  */
 
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import { listed, type Cell, type Table } from './view-rows.js';
 import type { Tab } from './view-panes.js';
 
@@ -71,7 +72,7 @@ function commitsTable(points: readonly HistoryPoint[]): Table {
     { id: 'history-commits', label: 'Commits', hint: 'each kept commit and suite, newest first' },
     ['commit', 'suite', 'ran', 'took', 'test files', 'cases', 'retried', 'lost', 'reached'],
     [...points]
-      .sort((a, b) => b.written - a.written || order(a.suite, b.suite))
+      .sort((a, b) => b.written - a.written || codeUnitOrder(a.suite, b.suite))
       .map((point) => [point.commit, point.suite, point.written, point.total, point.files.length, point.cases, point.retried.length, sum(point.retried.map((one) => one.lost)), point.reached]),
   );
   return typed(table, { ran: 'time', took: 'ms', lost: 'ms' });
@@ -93,7 +94,7 @@ function filesTable(points: readonly HistoryPoint[]): Table {
   }
   const rows = [...files.values()]
     .map((one) => ({ ...one, mean: one.timed === 0 ? undefined : Math.round(one.took / one.timed) }))
-    .sort((a, b) => (b.mean ?? -1) - (a.mean ?? -1) || order(a.suite, b.suite) || order(a.file, b.file));
+    .sort((a, b) => (b.mean ?? -1) - (a.mean ?? -1) || codeUnitOrder(a.suite, b.suite) || codeUnitOrder(a.file, b.file));
   return typed(
     listed(
       { id: 'history-files', label: 'Test files', hint: 'each test file over the window, slowest mean first' },
@@ -116,7 +117,7 @@ function retriedTable(points: readonly HistoryPoint[]): Table {
       cases.set(key, held);
     }
   }
-  const rows = [...cases.values()].sort((a, b) => b.lost - a.lost || b.commits - a.commits || order(a.name, b.name));
+  const rows = [...cases.values()].sort((a, b) => b.lost - a.lost || b.commits - a.commits || codeUnitOrder(a.name, b.name));
   return typed(
     listed(
       { id: 'history-retried', label: 'Retried cases', hint: 'each case retried in the window, most time lost first' },
@@ -141,7 +142,7 @@ export function movedOf(points: readonly HistoryPoint[]): readonly { readonly po
       const files = point.files
         .map(([file, took]) => [file, (took ?? 0) - (was.get(file) ?? 0)] as const)
         .filter(([, delta]) => delta !== 0)
-        .sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]) || order(a[0], b[0]))
+        .sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]) || codeUnitOrder(a[0], b[0]))
         .slice(0, MOVERS);
       moved.push({ point, before, delta: point.total - before.total, files });
     }
@@ -172,4 +173,3 @@ function typed(table: Table, as: Readonly<Record<string, 'ms' | 'time'>>): Table
 }
 
 const sum = (values: readonly number[]): number => values.reduce((total, value) => total + value, 0);
-const order = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);

@@ -8,11 +8,13 @@
  * nothing it read before. The page carries the summaries, never the records.
  */
 
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import { atCommit, readLine, type LineCell, type ShareMiss } from '@variance-authority/core/share';
 import { columnBytes } from '@variance-authority/sense/record';
 import { rawRecord } from '@variance-authority/sense/test-selection';
+import { settle } from '../settle.js';
 import { readSuiteEntry } from '../share-entries.js';
 import { describeMiss } from './share.js';
 import type { History, HistoryPoint, RecordSummary, RetriedCase } from './view-history-tables.js';
@@ -75,7 +77,7 @@ function retriedOf(record: ReturnType<typeof openRecord>): RetriedCase[] {
       lost: attempts.filter((one) => one.attempt !== last).reduce((sum, one) => sum + (one.duration ?? 0), 0),
     });
   }
-  return retried.sort((a, b) => b.lost - a.lost || (a.case < b.case ? -1 : a.case > b.case ? 1 : 0));
+  return retried.sort((a, b) => b.lost - a.lost || codeUnitOrder(a.case, b.case));
 }
 
 export interface HistoryOptions {
@@ -95,7 +97,7 @@ export async function historyOf(cell: LineCell, mainline: string, options: Histo
   const line = { kind: 'mainline', name: mainline } as const;
   const listed = await cell.commits(line);
   if (!Array.isArray(listed)) return { unread: `the share could not list the commits it keeps: ${describeMiss(listed as ShareMiss)}` };
-  const kept = listed.filter((one) => one.written >= options.now - options.since).sort((a, b) => a.written - b.written || (a.commit < b.commit ? -1 : 1));
+  const kept = listed.filter((one) => one.written >= options.now - options.since).sort((a, b) => a.written - b.written || codeUnitOrder(a.commit, b.commit));
   if (kept.length === 0) return { unread: `the share keeps no record of ${mainline} from the last ${days}` };
 
   const dir = join(options.cacheDir, 'history');
@@ -116,10 +118,7 @@ export async function historyOf(cell: LineCell, mainline: string, options: Histo
     if (summary === undefined) cold.push(one);
     else points.push({ commit: one.commit, written: one.written, suite: one.suite, ...summary });
   }
-  if (cold.length > 0) {
-    options.progress?.(`reading ${cold.length} ${cold.length === 1 ? 'record' : 'records'} kept on ${mainline} in the last ${days}`);
-    await mkdir(dir, { recursive: true });
-  }
+  if (cold.length > 0) options.progress?.(`reading ${cold.length} ${cold.length === 1 ? 'record' : 'records'} kept on ${mainline} in the last ${days}`);
   let done = 0;
   for (const one of cold) {
     const bytes = await one.read();
@@ -132,7 +131,7 @@ export async function historyOf(cell: LineCell, mainline: string, options: Histo
     await keep(dir, one.digest, summary);
     points.push({ commit: one.commit, written: one.written, suite: one.suite, ...summary });
   }
-  points.sort((a, b) => a.written - b.written || (a.suite < b.suite ? -1 : a.suite > b.suite ? 1 : 0));
+  points.sort((a, b) => a.written - b.written || codeUnitOrder(a.suite, b.suite));
   return { points, since: options.since };
 }
 
@@ -146,8 +145,5 @@ async function cached(dir: string, digest: string): Promise<RecordSummary | unde
 }
 
 async function keep(dir: string, digest: string, summary: RecordSummary): Promise<void> {
-  const path = join(dir, `${digest}.json`);
-  const temporary = `${path}.${process.pid}.tmp`;
-  await writeFile(temporary, JSON.stringify({ version: SUMMARY_VERSION, summary }));
-  await rename(temporary, path);
+  await settle(join(dir, `${digest}.json`), new TextEncoder().encode(JSON.stringify({ version: SUMMARY_VERSION, summary })));
 }
