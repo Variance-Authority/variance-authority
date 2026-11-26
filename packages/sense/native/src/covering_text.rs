@@ -181,7 +181,8 @@ fn file_page(
     let end = start.saturating_add(request.limit).min(rows.len());
     if request.offset != 0 {
         lines.push(if start >= rows.len() {
-            format!("`--offset` {} is past the last of {} rows.", request.offset, rows.len())
+            let noun = if rows.len() == 1 { "row" } else { "rows" };
+            format!("`--offset` {} is past the last of {} {noun}.", request.offset, rows.len())
         } else {
             format!("Rows {}–{end} of {}.", start + 1, rows.len())
         });

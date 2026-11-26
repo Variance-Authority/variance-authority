@@ -101,6 +101,7 @@ it.each([
   { question: ['grep', '--query', 'greet', '--from', 'packages/lib/src/missing.ts'], contains: 'is not found. 3 matching lines in 3 files reachable from `packages/lib/src/`', status: 2 },
   { question: ['grep', '--query', 'crowdedLine', '--from', 'apps/app/src/hello.ts'], contains: 'reachable from `apps/app/src/hello.ts`. ', status: 0 },
   { question: ['discover', '--from', 'apps/app/src/hello.ts', '--declares', '^greet$'], contains: 'declares greet' },
+  { question: ['discover', '--from', 'apps/app/src/hello.ts', '--declares', '^greet$', '--offset', '1'], contains: '`--offset` 1 is past the last of 1 row.' },
   { question: ['discover', '--to', 'packages/lib/src/greet.ts', '--limit', '1', '--offset', '1'], contains: 'Rows 2–2' },
   { question: ['discover', '--to', 'packages/lib/src/greet.ts#greet'], contains: 'imports greet from @acme/lib' },
   { question: ['discover', '--to', 'packages/lib/src/greet.ts,packages/lib/src/index.ts'], contains: 'chains reaching `packages/lib/src/greet.ts` end:' },
