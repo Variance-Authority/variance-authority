@@ -11,7 +11,9 @@ import { keptInOrder } from './share-lines.js';
  * puts them, as the clone last fetched it: what History measures a move by.
  */
 
-function clone(): { readonly root: string; readonly commit: (message: string) => string; readonly git: (...args: string[]) => string } {
+const DAY = 86_400_000;
+
+function clone(): { readonly root: string; readonly commit: (message: string, at?: number) => string; readonly git: (...args: string[]) => string } {
   const root = mkdtempSync(join(tmpdir(), 'va-kept-order-'));
   const git = (...args: string[]) => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
   git('init', '-q', '-b', 'main');
@@ -28,22 +30,22 @@ function clone(): { readonly root: string; readonly commit: (message: string) =>
 describe('the kept commits, in the mainline\'s order', () => {
   it('gives the kept commits on the fetched mainline\'s first-parent history, oldest first, and leaves out one it does not reach', async () => {
     const { root, commit, git } = clone();
-    const first = commit('one');
+    const opens = Date.UTC(2026, 10, 20);
+    const first = commit('one', opens + DAY);
     git('checkout', '-q', '-b', 'side');
-    const side = commit('side');
+    const side = commit('side', opens + 2 * DAY);
     git('checkout', '-q', 'main');
-    const second = commit('two');
+    const second = commit('two', opens + 3 * DAY);
     git('merge', '-q', '--no-ff', '-m', 'merge', 'side');
     const merge = git('rev-parse', 'HEAD');
     git('update-ref', 'refs/remotes/origin/main', merge);
-    const unfetched = commit('three');
+    const unfetched = commit('three', opens + 4 * DAY);
 
-    expect(await keptInOrder({}, 'main', new Set([merge, unfetched, side, first, second]), 0, root)).toEqual([first, second, merge]);
+    expect(await keptInOrder({}, 'main', new Set([merge, unfetched, side, first, second]), opens, root)).toEqual([first, second, merge]);
   });
 
   it('walks no further back than a day before the window opens, so a kept commit that landed earlier is not placed', async () => {
     const { root, commit, git } = clone();
-    const DAY = 86_400_000;
     const opens = Date.UTC(2026, 10, 20);
     const long = commit('long before', opens - 3 * DAY);
     const eve = commit('the eve', opens - DAY / 2);
@@ -55,6 +57,7 @@ describe('the kept commits, in the mainline\'s order', () => {
 
   it('gives nothing where the clone has not fetched the mainline', async () => {
     const { root, commit } = clone();
-    expect(await keptInOrder({}, 'main', new Set([commit('one')]), 0, root)).toEqual([]);
+    const opens = Date.UTC(2026, 10, 20);
+    expect(await keptInOrder({}, 'main', new Set([commit('one', opens + DAY)]), opens, root)).toEqual([]);
   });
 });
