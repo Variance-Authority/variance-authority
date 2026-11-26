@@ -14,12 +14,12 @@
  * tree to read.
  */
 
-import { mkdtemp, readdir, rm } from 'node:fs/promises';
+import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { OperatorError } from '../exit.js';
 import type { Env } from '../share-lines.js';
-import { gitIn, remadeMerge, short } from './carry-merge.js';
+import { gitIn, short, spelling } from './carry-merge.js';
 import { gh, ghFailed, type Gh } from './gh.js';
 
 export interface QueueRequest {
@@ -88,7 +88,9 @@ async function recordsFromHead(asked: Asked, exec: Gh): Promise<{ readonly dir: 
   // A conflict exits non-zero and names no tree that could have landed.
   const merged = await git('merge-tree', '--write-tree', first, head).then((out) => out.split('\n')[0], () => undefined);
   if (merged !== landed) return { none: `${short(head)} merged with ${short(first)} is not the tree ${short(asked.commit)} landed, so run ${id} tested another change` };
-  const tested = await remadeMerge(asked.root, first, head, landed);
+  // `carry merge`'s merge made again without a checkout: every clone makes the same one.
+  const spelled = await spelling(inRoot, first, head);
+  const tested = (await inRoot(['-c', 'commit.gpgsign=false', 'commit-tree', landed, '-p', first, '-p', head, '-m', spelled.message], spelled.env)).stdout.trim();
 
   const got = await downloaded(asked, id, exec);
   if ('none' in got) return got;
@@ -105,7 +107,7 @@ async function recordsFromHead(asked: Asked, exec: Gh): Promise<{ readonly dir: 
 
 /** Every record in `dir` restated from `tested` at `landed`, or why one cannot be: none is there, or one was made elsewhere. */
 async function restated(dir: string, tested: string, landed: string): Promise<string | undefined> {
-  const { cachedSuite, restateRecord } = await import('@variance-authority/sense/test-selection');
+  const { cachedSuite } = await import('@variance-authority/sense/test-selection');
   // bound: the files of the artifacts one run uploaded, downloaded into this directory alone.
   const files = (await readdir(dir, { recursive: true })).map((path) => join(dir, path)).filter((path) => cachedSuite(path) !== undefined);
   if (files.length === 0) return "its artifacts hold no record";
@@ -114,6 +116,48 @@ async function restated(dir: string, tested: string, landed: string): Promise<st
     if ('madeAt' in done) return `${file.slice(dir.length + 1)} was made at ${done.madeAt ?? 'no commit'}, not at ${short(tested)}`;
   }
   return undefined;
+}
+
+/**
+ * A record made at one commit, stated at another commit of the same tree: the
+ * pull request's run tested a merge no ref holds, and the landed commit holds
+ * the same texts. The caller proves the trees equal; this rewrites names and
+ * nothing it observed.
+ *
+ * State the record at `coverageFile`, made at `from`, at `to`: its coverage's
+ * commit, its last run's, and every commit its runs record names that is
+ * `from`. A record of cases without coverage is made where its last run says.
+ * A record made at another commit, or at none, is left as it is, and the
+ * answer names where it was made.
+ */
+export async function restateRecord(coverageFile: string, from: string, to: string): Promise<{ readonly restated: true } | { readonly madeAt: string | undefined }> {
+  const { caseSectionsOf, commitRunsFile, decodeTestCoverage, encodeTestCoverage, readCommitRuns, RecordWithoutCoverage, withCaseSections, writeCommitRuns, writeCoverageBytes } = await import('@variance-authority/sense/test-selection');
+  const bytes = await readFile(coverageFile);
+  const sections = caseSectionsOf(bytes);
+  const run = sections.last === undefined ? undefined : (JSON.parse(Buffer.from(sections.last).toString('utf8')) as { commit?: string; before?: string });
+  let coverage: ReturnType<typeof decodeTestCoverage> | undefined;
+  try {
+    coverage = decodeTestCoverage(bytes);
+  } catch (error) {
+    if (!(error instanceof RecordWithoutCoverage)) throw error;
+  }
+  const madeAt = coverage === undefined ? run?.commit : coverage.commit;
+  if (madeAt !== from) return { madeAt };
+  const at = (commit: string): string => (commit === from ? to : commit);
+
+  const last = run === undefined ? undefined : Buffer.from(JSON.stringify({ ...run, ...(run.commit === undefined ? {} : { commit: at(run.commit) }), ...(run.before === undefined ? {} : { before: at(run.before) }) }));
+  const record = coverage === undefined ? bytes : encodeTestCoverage({ ...coverage, commit: to });
+  await writeCoverageBytes(coverageFile, withCaseSections(record, { ...sections, ...(last === undefined ? {} : { last }) }));
+  const runs = await readCommitRuns(coverageFile);
+  if (runs !== undefined) {
+    await writeCommitRuns(commitRunsFile(coverageFile), {
+      ...runs,
+      ...(runs.commit === undefined ? {} : { commit: at(runs.commit) }),
+      ...(runs.over === undefined ? {} : { over: at(runs.over) }),
+      ...(runs.standing === undefined ? {} : { standing: runs.standing.map((entry) => ({ ...entry, commit: at(entry.commit) })) }),
+    });
+  }
+  return { restated: true };
 }
 
 /** The latest green run of the workflow at `commit` under `event`, or none. */

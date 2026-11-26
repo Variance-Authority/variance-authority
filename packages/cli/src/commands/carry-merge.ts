@@ -100,19 +100,8 @@ async function commitOf(git: Git, name: string): Promise<string> {
   }
 }
 
-/**
- * The commit `mergeHead` made of `head` and the record's `commit` in a run
- * whose merge was `tree`, made again here without a checkout: every clone
- * makes the same one, so a commit no ref holds is named again by its parts.
- */
-export async function remadeMerge(root: string, commit: string, head: string, tree: string): Promise<string> {
-  const git = gitIn(root, {});
-  const spelled = await spelling(git, commit, head);
-  return (await git(['-c', 'commit.gpgsign=false', 'commit-tree', tree, '-p', commit, '-p', head, '-m', spelled.message], spelled.env)).stdout.trim();
-}
-
 /** The message, the identity and the date of the merge of `head` with `commit`: the later of their commit times. */
-async function spelling(git: Git, commit: string, head: string): Promise<{ readonly message: string; readonly env: Readonly<Record<string, string>> }> {
+export async function spelling(git: Git, commit: string, head: string): Promise<{ readonly message: string; readonly env: Readonly<Record<string, string>> }> {
   const date = `@${Math.max(await committedAt(git, commit), await committedAt(git, head))} +0000`;
   // The environment, not `-c user.*`: a variable the job set would win over the config.
   const env = {
