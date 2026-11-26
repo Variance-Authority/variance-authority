@@ -138,6 +138,7 @@ export const NAVIGATION = [
       { href: "/docs/changelog", label: "Record why a baseline changed", cluster: "Decide and retain" },
       { href: "/docs/history", label: "Find changes that keep returning", cluster: "Decide and retain" },
       { href: "/docs/sharing", label: "Share evidence across systems", cluster: "Decide and retain", description: "Share run reports, execution records, and derived evidence across systems." },
+      { href: "/docs/record-lifecycle", label: "Where each checkout's record comes from", cluster: "Decide and retain" },
       { href: "/docs/cache", label: "Choose where the cache lives", cluster: "Decide and retain" },
       { href: "/docs/replacing", label: "Fit into a screenshot suite", cluster: "Adopt visual review" },
       { href: "/docs/gates", label: "Build gates and execution", cluster: "Adopt visual review" },
