@@ -16,6 +16,8 @@ record, and where each capability is turned on.
 | Storybook | each story | `variance run --since` skips them | n/a: a story is a case | `variance run --shard` | yes | [the story](start-storybook.md) |
 | [A JVM on the JUnit Platform](jvm.md) | each test class | `variance select` prints them | no | no | no | no |
 | [Cargo](rust.md) | each test | `variance select` prints them | no | no | no | no |
+| [`node:test`](node-test.md) | each case | itself | no | no | yes | no |
+| `bun test` | not recorded: [no hook to attach](node-test.md#bun-is-not-recorded) | no | no | no | no | no |
 | Any other runner | each case you hand to `observer.case` | `variance select` prints them | no | no | yes, in Node | [a custom collector](start-custom.md) |
 
 "Itself" means the runner reads `VARIANCE_AUTHORITY_SINCE` and never starts the
@@ -37,6 +39,7 @@ up. It is one wrap in the configuration your runner already reads:
 | Storybook | `@variance-authority/storybook-collector` | [`tests: true`](../packages/storybook-collector/README.md#skipping-stories-nothing-touched) in `storybookCollector` |
 | A JVM on the JUnit Platform | the agent and listener jars | [the agent on the test JVM](jvm.md#record-a-jvm-suite) |
 | Cargo | `@variance-authority/cli` | none: [`variance cargo`](rust.md#record-a-cargo-suite) runs `cargo test` |
+| `node:test` | `@variance-authority/sense` | [`runNodeTest`](node-test.md#record-the-suite) from `@variance-authority/sense/node-test`, in place of `node --test` |
 | Any other runner | `@variance-authority/sense` | [`observer.case`](../packages/sense/README.md#record-a-runner-this-package-has-no-seam-for) around the body of each case |
 
 [What each host records](execution-record.md#what-each-host-records) says what
@@ -44,7 +47,7 @@ the record holds under each of them.
 
 ## Leave out the tests a change did not reach
 
-Under Vitest, Jest, Rstest and Playwright, `VARIANCE_AUTHORITY_SINCE` on the run
+Under Vitest, Jest, Rstest, Playwright and [`node:test`](node-test.md), `VARIANCE_AUTHORITY_SINCE` on the run
 you already call leaves out the test files the record proves a change did not
 reach. `variance run --since` leaves out the stories a change did not reach.
 Under a JVM, Cargo and any other runner, `variance select` prints the same list for

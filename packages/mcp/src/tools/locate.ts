@@ -120,32 +120,26 @@ import type { Tree } from './tree.js';
 function relationArgument(relation: string, extra?: string): Readonly<Record<string, unknown>> {
   return {
     type: 'string',
-    description: `Optional. Words naming the anchor the thing sits ${relation}.${extra === undefined ? '' : ` ${extra}`}`,
+    description: `Optional. The anchor it sits ${relation}.${extra === undefined ? '' : ` ${extra}`}`,
   };
 }
 
 export const locate: Tool = {
   name: 'variance_locate',
   description:
-    'Which subjects a description names. Ranks subjects whose recorded names — id, component, ' +
-    'accessible names and text, the components it holds, covered code regions, files, roles, ' +
-    'design tokens — match the words of `query`, with the field behind each hit and the file ' +
-    'and line it is declared at. Use it before `variance_describe` or `variance_composition ' +
-    '{subject}`. Matching is lexical: no syntax, no synonyms, no stemming past a trailing plural. ' +
-    'If a word misses, the answer lists the names the suite does use; ask again in another kind ' +
-    'of name — on-screen text, component, file. To ask where on a surface something sits, name ' +
-    'the anchor in one of `under`, `above`, `inside`, `beside`, `leftOf`, `rightOf`, and the ' +
-    'surface in `on`: `{query: "warning", under: "Carrier", on: "dispatch drawer"}`. One ' +
-    'relation argument per question. On a run that resolved no layout, the answer is where the ' +
-    'anchor is, and it says the run cannot tell what sits in that relation to it.',
+    'Which subjects a description names: ranks the subjects whose recorded names — id, component, ' +
+    'accessible text, covered code, files, roles, design tokens — match the words of `query`. Use it ' +
+    'before `variance_describe` or `variance_composition` when you hold a description, not an id. ' +
+    'Lexical, with no synonyms: a miss lists the names the suite uses, so ask again in another kind of ' +
+    'name. To ask where something sits, give the anchor in one of `under`, `above`, `inside`, `beside`, ' +
+    '`leftOf`, `rightOf` and the surface in `on`: `{query: "warning", under: "Carrier", on: "dispatch ' +
+    'drawer"}`. One relation argument per question. On a run that resolved no layout, the answer is where the anchor is.',
   inputSchema: {
     type: 'object',
     properties: {
       query: {
         type: 'string',
-        description:
-          'Words naming the thing wanted: a story id fragment, a component, a label, visible ' +
-          'text. Never read as syntax, so `Under review` is two words to search for.',
+        description: 'Words naming the thing: a story id fragment, a component, a label, visible text; never read as syntax.',
       },
       under: relationArgument('beneath'),
       above: relationArgument('above'),
@@ -155,25 +149,16 @@ export const locate: Tool = {
       rightOf: relationArgument('right of'),
       on: {
         type: 'string',
-        description:
-          'Optional. Words naming the surface — `dispatch drawer` — when the anchor could be on ' +
-          'several. Needs a relation argument; alone it is refused.',
+        description: 'Optional. Words naming the surface; needs a relation argument.',
       },
-      from: {
-        ...START_POINT_SCHEMA.from,
-        description:
-          `${START_POINT_SCHEMA.from.description} Narrows the suite before ranking; rarity is ` +
-          'recounted inside what remains.',
-      },
+      from: { ...START_POINT_SCHEMA.from, description: `${START_POINT_SCHEMA.from.description} Narrows the suite before ranking.` },
       to: {
         ...START_POINT_SCHEMA.to,
-        description:
-          `${START_POINT_SCHEMA.to.description} Finds the screen behind a component: \`to\` the ` +
-          'user select, `query` the settings page.',
+        description: `${START_POINT_SCHEMA.to.description} Finds the screen behind a component: \`to\` it, \`query\` the page.`,
       },
       limit: {
         type: 'integer',
-        description: 'Optional. How many subjects to print; the rest are counted. Default 8.',
+        description: 'Optional. Subjects to print, the rest counted; 8 when not said.',
       },
     },
     required: ['query'],

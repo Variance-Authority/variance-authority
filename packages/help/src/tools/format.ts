@@ -85,11 +85,14 @@ export function section(lines: string[], ...block: readonly string[]): void {
   lines.push(...(lines.length > 0 ? [''] : []), ...block);
 }
 
+/** Where a recording tool's answer comes from, said by each in the same words. */
+export const RECORDING = 'Reads the recording a test run with test selection published';
+
 /** `count` and the noun, singular at one. */
 export const plural = (count: number, one: string, many = `${one}s`): string => `${count} ${count === 1 ? one : many}`;
 
 /** The default number of names on the one line that stands for a list the repository's own answer outranks. */
-const NAMED = 5;
+export const NAMED = 5;
 
 /** A compact list: the requested names (five by default), the number omitted, and `whole` when it can show what the line omits. */
 export function named(head: string, names: readonly string[], total: number, whole: string, limit = NAMED): readonly string[] {

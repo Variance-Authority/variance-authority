@@ -1,7 +1,21 @@
 import { readFileSync } from 'node:fs';
+import { HELP } from '@variance-authority/help/tools';
+import { EYES, handle, OBSERVABILITY, PRESENTATIONS, REPORTS, SCENARIOS, VANTAGE } from '@variance-authority/mcp/protocol';
+import type { Served } from '@variance-authority/mcp/tools';
 import { describe, expect, it } from 'vitest';
-import { BASELINE, BUDGET, judge, leadOf, overBudget, recordable, surfacesOf } from './budgets.mjs';
+import {
+  BASELINE,
+  BUDGET,
+  DEFINITION_BYTES,
+  definitionsOver,
+  judge,
+  leadOf,
+  overBudget,
+  recordable,
+  surfacesOf,
+} from './budgets.mjs';
 import { MODULES, tracked } from './modules.js';
+import { SERVED } from '../packages/cli/dist/commands/serve.js';
 
 /**
  * Every written surface has a budget, and a breach is collapsed where it happens.
@@ -152,7 +166,61 @@ describe('the debt only shrinks', () => {
   });
 });
 
+describe('an MCP tool definition is held in bytes, as `tools/list` sends it', () => {
+  const entry = (name: string, description: string) => ({ name, description, inputSchema: { type: 'object' } });
+
+  it('counts each entry as JSON in UTF-8, and names a list over its total and a tool over its own, once', () => {
+    const long = entry('long', 'é'.repeat(DEFINITION_BYTES.tool / 2));
+    const bytes = Buffer.byteLength(JSON.stringify(long));
+    expect(definitionsOver({ 'variance-authority-help': [long], 'variance serve': [long] })).toEqual([`long: ${bytes} B (budget ${DEFINITION_BYTES.tool})`]);
+    const many = Array.from({ length: 20 }, (_, at) => entry(`t${at}`, 'x'.repeat(1000)));
+    expect(definitionsOver({ 'variance-authority-help': many, 'variance serve': [] })).toEqual([
+      `variance-authority-help: ${many.reduce((sum, one) => sum + Buffer.byteLength(JSON.stringify(one)), 0)} B for 20 tools (budget 20000)`,
+    ]);
+  });
+
+  it('names a tool over its limit on any set, though a smaller definition of its name came first', () => {
+    const long = entry('same', 'x'.repeat(DEFINITION_BYTES.tool));
+    const bytes = Buffer.byteLength(JSON.stringify(long));
+    expect(definitionsOver({ 'variance-authority-help': [entry('same', 'short')], 'variance serve': [], other: [long] })).toEqual([
+      `same: ${bytes} B (budget ${DEFINITION_BYTES.tool})`,
+    ]);
+  });
+
+  it('holds a server with no total per tool only', () => {
+    const many = Array.from({ length: 40 }, (_, at) => entry(`t${at}`, 'x'.repeat(1000)));
+    expect(definitionsOver({ 'variance-authority-help': [], 'variance serve': [], other: many })).toEqual([]);
+  });
+
+  it('names a total no list was measured for, so a renamed server cannot turn it off', () => {
+    expect(definitionsOver({ 'variance-authority-help': [] })).toEqual(['variance serve: not measured (budget 33000)']);
+  });
+});
+
 describe('the repository', () => {
+  // Reads the built packages, `serve`'s set by module since it is no export: a source edit is measured after `yarn build`.
+  it('lists every MCP definition within its budget', () => {
+    const listed = (served: Served<never>) => {
+      const response = handle({ jsonrpc: '2.0', id: 1, method: 'tools/list' }, () => undefined as never, served);
+      if (response === null) throw new Error('`tools/list` answered nothing');
+      return (response.result as { tools: Record<string, unknown>[] }).tools;
+    };
+    const over = definitionsOver({
+      'variance-authority-help': listed(HELP as Served<never>),
+      'variance serve': listed(SERVED as Served<never>),
+      ...Object.fromEntries(
+        Object.entries({ EYES, OBSERVABILITY, PRESENTATIONS, REPORTS, SCENARIOS, VANTAGE }).map(([name, served]) => [name, listed(served as Served<never>)]),
+      ),
+    });
+    expect(
+      over.length === 0
+        ? ''
+        : `${over.length} MCP definition budget(s) breached:\n\n  ${over.join('\n  ')}\n\n` +
+            'Say what the tool answers, its inputs and when to pick it over its neighbours; ' +
+            'the answer shows its own layout.',
+    ).toBe('');
+  });
+
   const { surfaces, debt, where } = overBudget(MODULES, tracked('*.md'));
   const grownKeys = (lines: string[]): string[] => lines.map((line) => line.slice(0, line.indexOf(':')));
   const { grown, slack } = judge(JSON.parse(readFileSync(BASELINE, 'utf8')) as Record<string, number[]>, debt);

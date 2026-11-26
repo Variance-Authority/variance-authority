@@ -19,9 +19,8 @@ import { audience } from './format.js';
 export const gaps: Tool<Help> = {
   name: 'docs_gaps',
   description:
-    'Published names that other packages import and that have no documentation, ordered by how ' +
-    'many packages import them. Each carries the file and line to open. Names nothing imports ' +
-    'are excluded — the list is what is undocumented in front of an audience.',
+    'Published names that other packages import and that carry no documentation, most imported first, ' +
+    'each with the file and line to open.',
   inputSchema: NO_ARGS,
 
   run(help) {

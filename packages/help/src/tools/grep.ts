@@ -30,42 +30,37 @@ const SHOWN = 20;
 export const grep: Tool<unknown> = {
   name: 'docs_grep',
   description:
-    'Run ripgrep over the files a start point reaches along the imports, and answer with the ' +
-    'matching lines nearest first; past ' +
-    `${SHOWN} of them, and no \`limit\` or \`offset\` said, with the nearest few, then the paths they are ` +
-    'all in, the line count of each, and what lists them. One start point that is not found or holds no match, and no ' +
-    '`limit` or `offset` said, is answered from the nearest folder around it that has ' +
-    'one. `from` searches the files that path imports, at any depth; ' +
-    '`to` the files that import it. The pattern is ripgrep\'s, unchanged: a ' +
-    'regular expression. A start point is required: name the file or ' +
-    'folder you are working in, or a top folder at the widest. Or name a recorded test with `test` ' +
-    '(and `name` for one of its tests) instead: the files searched are those the test entered, and ' +
-    'each line is marked ran, or not taken with the branch or function the test did not enter.',
+    'Ripgrep over the files a start point imports (`from`) or that import it (`to`), at any depth, ' +
+    `matching lines nearest first; past ${SHOWN}, with no \`limit\` or \`offset\`, the nearest few, then each path and its line count. ` +
+    'A start point is required: the file or folder you are in, or a top ' +
+    'folder at the widest. One start point not found or holding no match, with no `limit` or `offset`, ' +
+    'is answered from the nearest folder around it that has one. Or give `test` to search only the files that test ran, each line marked ' +
+    'ran or not taken. Use it for text and patterns; docs_search and docs_uses answer names.',
   inputSchema: {
     type: 'object',
     properties: {
       query: {
         type: 'string',
-        description: 'The pattern, exactly as ripgrep takes it: a regular expression.',
+        description: 'A ripgrep regular expression, passed unchanged.',
       },
       from: START_POINT_SCHEMA.from,
       to: START_POINT_SCHEMA.to,
       test: {
         type: 'string',
-        description: 'A recorded test file, in place of `from` and `to`: search only the files its test entered.',
+        description: 'Optional. A recorded test file, in place of `from` and `to`.',
       },
       name: {
         type: 'string',
-        description: 'With `test`, optional when the file declares one recorded test: the test\'s name, or a word of it.',
+        description: 'With `test`: the test\'s name or a word of it; optional when the file has one.',
       },
       limit: {
         type: 'integer',
-        description: `Matching lines to show; the rest are counted. Not said, the answer shows ${SHOWN} lines, and with a start point an answer of more is the nearest few and its paths.`,
+        description: 'Optional. Matching lines to show, the rest counted; given, the lines are shown however many.',
       },
       offset: {
         type: 'integer',
         minimum: 0,
-        description: 'Rows to skip before the first shown; an answer with more names the next. 0 when not said.',
+        description: 'Rows to skip, 0 when not said; an answer with more names the next.',
       },
     },
     required: ['query'],
