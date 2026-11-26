@@ -302,8 +302,7 @@ describe('`variance ask` in a checkout with no report', () => {
 
     const fromMainline = await asked(config, repository.dir);
     expect(fromMainline).toMatch(new RegExp(
-      `^report: read from mainline main, evaluated at ${repository.commits[1]!}, at the merge base with this checkout\\.\n` +
-        'branch feat/x: nothing is published there\\.\n\n',
+      `^report: read from mainline main, evaluated at ${repository.commits[1]!}, at the merge base with this checkout\\.\nbranch feat/x: nothing is published there\\.\n\n`,
     ));
 
     await publishRun(config, await reportAt(head), { env: await pullRequest(head), cwd: repository.dir });
