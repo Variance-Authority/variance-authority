@@ -22,13 +22,23 @@ pub(crate) struct Record {
 /// Every recording the checkout's configuration declares, nearest layer first;
 /// `None` for a configuration whose suites this reading does not follow.
 pub(crate) fn recordings(layers: &Layers, config: Option<&Value>) -> Option<Vec<Record>> {
-    let nearest = |inside: &Path| -> Option<PathBuf> {
+    // This checkout's own record, else the mainline's as fetched for a suite
+    // carried by `share`, else the primary checkout's unless this checkout's
+    // read was handed on: the order `nearestRecord` reads them in.
+    let nearest = |inside: &Path, suite: Option<&str>, shared: bool| -> Option<PathBuf> {
         let own = layers.top.join(inside);
+        if own.try_exists().ok()? {
+            return Some(own);
+        }
+        let handed = suite.is_some_and(|name| pointer(&layers.cache, name).is_some_and(|pointer| pointer.handed));
+        if let Some(fetched) = suite.filter(|_| shared).and_then(|name| fetched(layers, name, handed)) {
+            return Some(fetched);
+        }
         let base = layers.base.join(inside);
-        Some(if own.try_exists().ok()? || own == base || !base.try_exists().ok()? { own } else { base })
+        Some(if handed || own == base || !base.try_exists().ok()? { own } else { base })
     };
     let Some(suites) = config.and_then(|config| config.get("suites")) else {
-        return Some(vec![Record { suite: None, file: nearest(Path::new("coverage.bin"))? }]);
+        return Some(vec![Record { suite: None, file: nearest(Path::new("coverage.bin"), None, false)? }]);
     };
     let suites = suites.as_object()?;
     if suites.is_empty() {
@@ -50,22 +60,11 @@ pub(crate) fn recordings(layers: &Layers, config: Option<&Value>) -> Option<Vec<
                 return None;
             }
             let inside = Path::new("suites").join(name).join("coverage.bin");
-            if let Some(carry) = suite.get("carry") {
-                match carry.as_str()? {
-                    "share" => {
-                        // An own record takes precedence. A shared cache without an
-                        // own record still needs the existing mainline resolver.
-                        let own = layers.top.join(&inside);
-                        if !own.try_exists().ok()?
-                            && layers.cache.join("share/read").join(name).join("fetched.json").try_exists().ok()?
-                        {
-                            return None;
-                        }
-                    }
-                    "actions-cache" => {}
-                    _ => return None,
-                }
-            }
+            let shared = match suite.get("carry").map(Value::as_str) {
+                None | Some(Some("actions-cache")) => false,
+                Some(Some("share")) => true,
+                _ => return None,
+            };
             let relations = suite.get("relations").map(Value::as_bool);
             if relations == Some(None) {
                 return None;
@@ -85,9 +84,53 @@ pub(crate) fn recordings(layers: &Layers, config: Option<&Value>) -> Option<Vec<
                     }
                 }
             }
-            Some(Record { suite: Some(name.clone()), file: nearest(&inside)? })
+            Some(Record { suite: Some(name.clone()), file: nearest(&inside, Some(name), shared)? })
         })
         .collect()
+}
+
+/// What a fetch's `fetched.json` names: the commit the record is kept under,
+/// when it was fetched, and whether another job's read was handed on here.
+struct Pointer {
+    commit: String,
+    fetched: String,
+    handed: bool,
+}
+
+/// The pointer a fetch left for `suite` in `cache`, or none when there is none or it does not read.
+fn pointer(cache: &Path, suite: &str) -> Option<Pointer> {
+    let text = std::fs::read(cache.join("share/read").join(suite).join("fetched.json")).ok()?;
+    let value: Value = serde_json::from_slice(&text).ok()?;
+    value.get("mainline")?.as_str()?;
+    Some(Pointer {
+        commit: value.get("commit")?.as_str()?.to_owned(),
+        fetched: value.get("fetched")?.as_str()?.to_owned(),
+        handed: value.get("handed").and_then(Value::as_bool) == Some(true),
+    })
+}
+
+/// The newest mainline record of `suite` fetched on this machine that this
+/// build opens, asked of this checkout's cache and its primary's, or of this
+/// one alone when its read was handed on: `lastFetchedMainline`'s answer for
+/// a reader with no selection, as every `ask` is.
+fn fetched(layers: &Layers, suite: &str, handed: bool) -> Option<PathBuf> {
+    let caches: &[&PathBuf] = if handed || layers.primary_cache == layers.cache {
+        &[&layers.cache]
+    } else {
+        &[&layers.cache, &layers.primary_cache]
+    };
+    let mut newest: Option<(String, PathBuf)> = None;
+    for cache in caches {
+        let Some(pointer) = pointer(cache, suite) else { continue };
+        if newest.as_ref().is_some_and(|(fetched, _)| *fetched >= pointer.fetched) {
+            continue;
+        }
+        let coverage = cache.join("share/read").join(suite).join(&pointer.commit).join("coverage.bin");
+        if matches!(FileFrame::open(&coverage), Ok(Some(_))) {
+            newest = Some((pointer.fetched, coverage));
+        }
+    }
+    newest.map(|(_, coverage)| coverage)
 }
 
 pub(crate) fn commit(file: &mut FileFrame) -> Result<Option<String>, String> {
@@ -150,4 +193,4 @@ pub(crate) fn recorded(root: &Path) -> Result<Vec<Recorded>, String> {
 }
 
 /// Why [`recordings`] found none to read.
-const UNFOLLOWED: &str = "the suites variance.config.json declares are not ones this reading finds the recordings of: a suite carried by `share` has no recording of its own here, or a suite holds a value this reading does not know";
+const UNFOLLOWED: &str = "the suites variance.config.json declares are not ones this reading finds the recordings of: a suite holds a value this reading does not know";

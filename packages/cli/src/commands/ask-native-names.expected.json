@@ -51,7 +51,7 @@
   ],
   "symbol --name boundExport": [
     0,
-    "boundExport [const]\nimport { boundExport } from '@acme/bound';\ndeclared at packages/bound/src/index.ts:1\nno other package imports it by its published path\n\nconst boundExport\n\nNothing is written above this declaration.\n\nboundExport [binding]\nbound, not declared, at packages/lib/src/bound-b.js:2 by @acme/lib\nconst { boundExport }\nWho can reach it is not recorded: its reader cannot tell how this file hands it out.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    "boundExport [const]\nimport { boundExport } from '@acme/bound';\ndeclared at packages/bound/src/index.ts:1\nused by 1 package: @acme/lib — 1 import by published path\n\nconst boundExport\n\nNothing is written above this declaration.\n\n`variance ask uses` names the 1 place that imports this, from another package, nearest to a file you name first.\n\nboundExport [binding]\nbound, not declared, at packages/lib/src/bound-b.js:2 by @acme/lib\nconst { boundExport }\nWho can reach it is not recorded: its reader cannot tell how this file hands it out.\nSnapshot <time> may miss later changes: run `variance index`.\n",
     ""
   ],
   "symbol --name boundModule --package @acme/lib": [
@@ -306,12 +306,12 @@
   ],
   "uses --name boundOnly": [
     0,
-    "`boundOnly` is not published by this workspace, and no published name contains it; ask `variance ask search` with a word from its documentation. No file in this workspace declares `boundOnly`, at its top level or as a member. A name written only as text, in a string or a comment, declares nothing: a text search such as `rg` finds it.\n\n`boundOnly` is bound, not declared, in 2 files:\n  packages/lib/src/bound-a.js:1 [binding]; who can reach it is not recorded\n  packages/lib/src/bound-b.js:1 [binding]; who can reach it is not recorded\n\nUsed in packages/lib/src/bound-a.js — @acme/lib, which binds it:\n\n  4\n\nUsed in packages/lib/src/bound-b.js — @acme/lib, which binds it:\n\n  4\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    "`boundOnly` is not published by this workspace, and no published name contains it; ask `variance ask search` with a word from its documentation. No file in this workspace declares `boundOnly`, at its top level or as a member. A name written only as text, in a string or a comment, declares nothing: a text search such as `rg` finds it.\n\n`boundOnly` is bound, not declared, in 2 files:\n  packages/lib/src/bound-a.js:1 [binding]; who can reach it is not recorded\n  packages/lib/src/bound-b.js:1 [binding]; who can reach it is not recorded\n\nImported in 0 places. 1 place passes the module on whole, where this reading does not follow it, and may read `boundOnly`.\n\nSource, inside @acme/lib:\n\npackages/lib/src/bound-a.js:4 (namespace, line 3, passed on whole: may read it)\n\nUsed in packages/lib/src/bound-a.js — @acme/lib, which binds it:\n\n  4\n\nUsed in packages/lib/src/bound-b.js — @acme/lib, which binds it:\n\n  4\nSnapshot <time> may miss later changes: run `variance index`.\n",
     ""
   ],
   "uses --name boundToo": [
     0,
-    "`boundToo` [function] is declared, not exported, at packages/lib/src/bound-b.js:3; who can reach it is not recorded.\n`boundToo` [binding] is bound, not declared, at packages/lib/src/bound-a.js:2; who can reach it is not recorded.\n\nUsed in packages/lib/src/bound-a.js — @acme/lib, which binds it:\n\n  4\n\nUsed in packages/lib/src/bound-b.js — @acme/lib, which declares it:\n\n  4\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    "`boundToo` [function] is declared, not exported, at packages/lib/src/bound-b.js:3; who can reach it is not recorded.\n`boundToo` [binding] is bound, not declared, at packages/lib/src/bound-a.js:2; who can reach it is not recorded.\n\nImported in 0 places. 1 place passes the module on whole, where this reading does not follow it, and may read `boundToo`.\n\nSource, inside @acme/lib:\n\npackages/lib/src/bound-a.js:4 (namespace, line 3, passed on whole: may read it)\n\nUsed in packages/lib/src/bound-a.js — @acme/lib, which binds it:\n\n  4\n\nUsed in packages/lib/src/bound-b.js — @acme/lib, which declares it:\n\n  4\nSnapshot <time> may miss later changes: run `variance index`.\n",
     ""
   ],
   "uses --name boundToo --file packages/lib/src/bound-a.js": [

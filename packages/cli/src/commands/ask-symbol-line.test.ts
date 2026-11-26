@@ -1,10 +1,10 @@
 import { execFileSync } from 'node:child_process';
-import { chmodSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import '../bin.fixture.js';
-import { testCoverageFile } from '@variance-authority/sense/test-selection';
+import { mainlineReadRoot, testCoverageFile, writeFetchedMainline } from '@variance-authority/sense/test-selection';
 import { main } from '../bin.js';
 import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
 import { recorded } from './ask-symbol-line.fixture.js';
@@ -137,6 +137,30 @@ describe('variance ask symbol --line', () => {
     expect([answered.code, answered.err]).toEqual([EXIT_CLEAN, '']);
     expect(answered.out.split('\n')[0]).toBe(`The recording cannot place src/page.ts:3: the recording at ${at} does not read (EACCES: permission denied, open '${at}'), so nothing tells the declarations of \`useSessionId\` apart:`);
     expect(answered.out).toContain('src/session.ts:1');
+  });
+
+  it('reads a suite carried by `share` from the mainline record a fetch kept, when the checkout has no recording of its own', async () => {
+    const root = await recorded();
+    const head = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim();
+    const cache = process.env['VARIANCE_AUTHORITY_CACHE']!;
+    const kept = join(mainlineReadRoot(cache, 'unit'), head);
+    mkdirSync(kept, { recursive: true });
+    copyFileSync(testCoverageFile(root), join(kept, 'coverage.bin'));
+    rmSync(testCoverageFile(root));
+    await writeFetchedMainline(cache, 'unit', { mainline: 'main', commit: head, fetched: new Date().toISOString() });
+    writeFileSync(join(root, 'variance.config.json'), JSON.stringify({ suites: { unit: { kind: 'unit', carry: 'share' } } }));
+    execFileSync('git', ['add', '.'], { cwd: root });
+    execFileSync('git', ['-c', 'user.name=fixture', '-c', 'user.email=fixture@example.com', 'commit', '--quiet', '-m', 'shared'], { cwd: root });
+    expect(await main(['index'], { out: () => {}, err: () => {} })).toBe(EXIT_CLEAN);
+
+    const answered = await run(['ask', 'symbol', '--name', 'useSessionId', '--line', 'src/page.ts:3']);
+
+    expect([answered.code, answered.err]).toEqual([EXIT_CLEAN, '']);
+    expect(answered.out.split('\n').slice(0, 3)).toEqual([
+      'suite unit: `useSessionId` at src/page.ts:3, by the 1 recorded test that ran the line:',
+      '',
+      'src/session.ts:1  1.00  1 of the 1 test that entered it ran the line',
+    ]);
   });
 
   it('refuses a line spelled without its number', async () => {
