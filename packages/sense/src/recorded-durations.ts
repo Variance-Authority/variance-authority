@@ -152,11 +152,10 @@ export function recordedDurations(
           else timed.push({ file: view.string(paths[test]!), duration });
         });
         timed.sort((left, right) => right.duration - left.duration || codeUnitOrder(left.file, right.file));
-        const runs = runsAt(commitRunsFile(recording), view.commit);
+        const { runs, ...taken } = runsTakenAt(recording, view.commit);
         const machines = runs === undefined ? undefined : byMachine(timed, filesMachines(runs), limit);
         return {
-          ...(view.commit === undefined ? {} : { commit: view.commit }),
-          ...(runs === undefined ? {} : { landed: runs.latest }),
+          ...taken,
           slowest: timed.slice(0, limit),
           timed: timed.length,
           ...(machines === undefined ? {} : { machines }),
@@ -172,8 +171,14 @@ export function recordedDurations(
 
 /** The commit the record at `recording` names, and when its latest run landed if the runs beside it stand at that commit. */
 export function takenAt(recording: string, commit: string | undefined): { readonly commit?: string; readonly landed?: string } {
+  const { runs: _runs, ...taken } = runsTakenAt(recording, commit);
+  return taken;
+}
+
+/** {@link takenAt}, with the runs record it read the landing from. */
+function runsTakenAt(recording: string, commit: string | undefined): { readonly commit?: string; readonly landed?: string; readonly runs?: CommitRuns } {
   const runs = runsAt(commitRunsFile(recording), commit);
-  return { ...(commit === undefined ? {} : { commit }), ...(runs === undefined ? {} : { landed: runs.latest }) };
+  return { ...(commit === undefined ? {} : { commit }), ...(runs === undefined ? {} : { landed: runs.latest, runs }) };
 }
 
 /** The runs record at `path`, where it stands at `commit`. */

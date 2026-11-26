@@ -17,7 +17,6 @@ import { availableParallelism, cpus, platform, release, totalmem } from 'node:os
 import { posix } from 'node:path';
 import type { CommitRuns } from './commit-runs.js';
 import type { ShardRuns } from './kept-install.js';
-import type { RanTests } from './landings.js';
 
 /** What a run's machine was, each field absent where it is not known. */
 export interface Machine {
@@ -26,7 +25,7 @@ export interface Machine {
   readonly arch?: string;
   /** The platform and its kernel release. */
   readonly os?: string;
-  /** The cores Node would use (`availableParallelism`). */
+  /** The cores Node would use (`availableParallelism`), which a recent libuv rounds a cgroup quota into. */
   readonly cores?: number;
   /** The cores a cgroup's CPU quota grants, where one sets a quota. */
   readonly cpuQuota?: number;
@@ -83,7 +82,7 @@ export function readMachine(
 }
 
 /** The workers a runner's configuration names, where it names a count. */
-export function workersOf(value: unknown): number | undefined {
+export function configuredWorkers(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isInteger(value) && value > 0 ? value : undefined;
 }
 
@@ -102,13 +101,16 @@ export function imageOf(env: NodeJS.ProcessEnv): string | undefined {
 /**
  * The cores this process's cgroup grants, the tightest quota of its group and
  * every ancestor: cgroup v2's `cpu.max`, else v1's `cpu.cfs_quota_us` over
- * `cpu.cfs_period_us`. A container mounts its own group at the root, so a
- * host path `/proc/self/cgroup` names that is not mounted is walked up to it.
+ * `cpu.cfs_period_us`. A hybrid host lists both, and its unified hierarchy
+ * holds no CPU controller, so v1 answers there. A container mounts its own
+ * group at the root, so a host path `/proc/self/cgroup` names that is not
+ * mounted is walked up to it.
  */
 export function cpuQuotaOf(read: Read): number | undefined {
   const groups = read('/proc/self/cgroup')?.split('\n') ?? [];
   const unified = groups.find((line) => line.startsWith('0::'));
-  if (unified !== undefined) return tightest('/sys/fs/cgroup', unified.slice(3), (dir) => quotaV2(read(posix.join(dir, 'cpu.max'))));
+  const v2 = unified === undefined ? undefined : tightest('/sys/fs/cgroup', unified.slice(3), (dir) => quotaV2(read(posix.join(dir, 'cpu.max'))));
+  if (v2 !== undefined) return v2;
   const cpu = groups.map((line) => line.split(':')).find(([, controllers]) => controllers?.split(',').includes('cpu') === true);
   if (cpu === undefined) return undefined;
   const [, controllers, path = '/'] = cpu;
@@ -154,9 +156,17 @@ export function machineOf(value: unknown): Machine | undefined {
   return Object.keys(machine).length === 0 ? undefined : (machine as Machine);
 }
 
-/** The class `machine` is of, as one string: two runs on one kind of machine are one class, whatever wrote its fields. */
+/**
+ * The class `machine` is of, as one string: two runs on one kind of machine
+ * are one class, whatever wrote its fields. Memory counts to the tenth of a
+ * GiB a reader is told, since two VMs of one size report it megabytes apart.
+ */
 export function machineClass(machine: Machine): string {
-  return JSON.stringify(FIELDS.map((field) => machine[field] ?? null));
+  return JSON.stringify(FIELDS.map((field) => {
+    const value = machine[field];
+    if (value === undefined) return null;
+    return field === 'memory' || field === 'memoryLimit' ? gib(value as number) : value;
+  }));
 }
 
 /** `machine` as a reader says it, in one line. */
@@ -178,43 +188,43 @@ function gib(bytes: number): string {
   return `${String(Math.round((bytes / 2 ** 30) * 10) / 10)} GiB`;
 }
 
-/** The `machines` of a run that ran every file on `machine` (`RanTests`), or nothing when it names none. */
-export function ranMachines(machine: Machine | undefined): Pick<RanTests, 'machines'> {
-  return machine === undefined ? {} : { machines: () => machine };
-}
-
 /**
  * The machine each file of a fold of `shards` ran on, as its shard's own
  * landing named it: only where that shard's record stands at the commit its
- * snapshot does, as `shardsInstall` reads the install. A file two shards
- * name on two machines names none.
+ * snapshot does and holds a run of its own, not one seeded from the base. A
+ * file two shards name on two machines names none.
  */
 export function shardsMachines(shards: readonly ShardRuns[]): (file: string) => Machine | undefined {
   const machines = new Map<string, Machine | undefined>();
   for (const { tests, runs } of shards) {
-    if (runs === undefined || tests.commit === undefined || runs.commit !== tests.commit) continue;
+    if (runs === undefined || runs.runs === 0 || tests.commit === undefined || runs.commit !== tests.commit) continue;
     const ran = new Set(tests.tests.map((test) => test.file));
     for (const landing of runs.landings) {
       for (const file of landing.files) {
         if (!ran.has(file)) continue;
-        const named = machines.get(file);
-        const differs = machines.has(file) && (named === undefined || landing.machine === undefined || machineClass(named) !== machineClass(landing.machine));
-        machines.set(file, differs ? undefined : landing.machine);
+        machines.set(file, machines.has(file) ? sameMachine(machines.get(file), landing.machine) : landing.machine);
       }
     }
   }
   return (file) => machines.get(file);
 }
 
+/** `one`, where `other` is of its class; none where either names none or the two differ. */
+function sameMachine(one: Machine | undefined, other: Machine | undefined): Machine | undefined {
+  return one !== undefined && other !== undefined && machineClass(one) === machineClass(other) ? one : undefined;
+}
+
 /**
  * The machine each file of `runs` last ran on: where the run it stands on
  * landed, the latest landing at the record's commit over where it stood
- * before. A file whose run named no machine names none.
+ * before. A file whose run named no machine names none, and so does a file a
+ * later run on another machine ran in part, whose figures may be of either.
  */
 export function filesMachines(runs: Pick<CommitRuns, 'landings' | 'standing'>): ReadonlyMap<string, Machine | undefined> {
   const machines = new Map<string, Machine | undefined>();
-  for (const { files, machine } of [...(runs.standing ?? []), ...runs.landings]) {
+  for (const { files, partly = [], machine } of [...(runs.standing ?? []), ...runs.landings]) {
     for (const file of files) machines.set(file, machine);
+    for (const file of partly) machines.set(file, sameMachine(machines.get(file), machine));
   }
   return machines;
 }

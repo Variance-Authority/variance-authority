@@ -143,6 +143,7 @@ describe('the slowest recorded test files, as printed', () => {
       '2 of 2 timed file(s) shown; 1 recorded file(s) have no duration.',
       '',
     ]);
+    expect(answer.split('\n').at(-1)).toBe('Slowest recorded test cases, on 2 classes of machine together: none read from /cache/coverage.bin, nothing is recorded there.');
   });
 
   it('prints milliseconds under a second and tenths of a second above', () => {

@@ -1,6 +1,6 @@
 import { hostname } from 'node:os';
 import { describe, expect, it } from 'vitest';
-import { cpuQuotaOf, describeMachine, imageOf, machineClass, machineOf, readMachine, shardsMachines, type Machine } from './machine.js';
+import { cpuQuotaOf, describeMachine, filesMachines, imageOf, machineClass, machineOf, readMachine, shardsMachines, type Machine } from './machine.js';
 
 /** A file system that holds `files` and nothing else. */
 function files(held: Readonly<Record<string, string>>): (path: string) => string | undefined {
@@ -27,6 +27,16 @@ describe('the CPU quota a Linux cgroup grants', () => {
     });
 
     expect(cpuQuotaOf(read)).toBe(2);
+  });
+
+  it('reads the cgroup v1 quota on a hybrid host, whose unified hierarchy holds no CPU controller', () => {
+    const read = files({
+      '/proc/self/cgroup': '4:cpu,cpuacct:/docker/abc\n0::/docker/abc\n',
+      '/sys/fs/cgroup/cpu,cpuacct/cpu.cfs_quota_us': '150000\n',
+      '/sys/fs/cgroup/cpu,cpuacct/cpu.cfs_period_us': '100000\n',
+    });
+
+    expect(cpuQuotaOf(read)).toBe(1.5);
   });
 
   it('is absent where no group sets one, or no cgroup is mounted', () => {
@@ -84,6 +94,14 @@ describe('the machine a run ran on', () => {
     expect(machineClass(one)).not.toBe(machineClass({ ...one, workers: 2 }));
   });
 
+  it('is one class for two VMs of one size that report their memory a few megabytes apart', () => {
+    const one: Machine = { arch: 'x64', memory: 16 * 2 ** 30 - 3 * 2 ** 20, memoryLimit: 8 * 2 ** 30 };
+    const other: Machine = { arch: 'x64', memory: 16 * 2 ** 30 - 9 * 2 ** 20, memoryLimit: 8 * 2 ** 30 + 2 ** 20 };
+
+    expect(machineClass(one)).toBe(machineClass(other));
+    expect(machineClass(one)).not.toBe(machineClass({ ...one, memory: 32 * 2 ** 30 }));
+  });
+
   it('names each file of a fold by the machine its shard\'s own landing ran it on, and none where a shard\'s record does not speak for it', () => {
     const runner: Machine = { arch: 'x64', cores: 4 };
     const laptop: Machine = { arch: 'arm64', cores: 12 };
@@ -92,9 +110,25 @@ describe('the machine a run ran on', () => {
       { tests: { commit: 'C', tests: [{ file: 'c.test.ts' }] }, runs: { commit: 'C', runs: 1, landings: [{ files: ['c.test.ts'], machine: laptop }] } },
       { tests: { commit: 'C', tests: [{ file: 'd.test.ts' }] }, runs: { commit: 'B', runs: 1, landings: [{ files: ['d.test.ts'], machine: laptop }] } },
       { tests: { commit: 'C', tests: [{ file: 'e.test.ts' }] }, runs: undefined },
+      // A seeded record: its landings are the base's, not this shard's.
+      { tests: { commit: 'C', tests: [{ file: 'f.test.ts' }] }, runs: { commit: 'C', runs: 0, landings: [{ files: ['f.test.ts'], machine: laptop }] } },
     ]);
 
-    expect(['a.test.ts', 'b.test.ts', 'c.test.ts', 'd.test.ts', 'e.test.ts'].map(machines)).toEqual([runner, runner, laptop, undefined, undefined]);
+    expect(['a.test.ts', 'b.test.ts', 'c.test.ts', 'd.test.ts', 'e.test.ts', 'f.test.ts'].map(machines)).toEqual([runner, runner, laptop, undefined, undefined, undefined]);
+  });
+
+  it('names the machine a file last ran on, and none for a file a run on another machine ran in part', () => {
+    const runner: Machine = { arch: 'x64', cores: 4 };
+    const laptop: Machine = { arch: 'arm64', cores: 12 };
+    const machines = filesMachines({
+      standing: [{ commit: 'B', files: ['a.test.ts', 'b.test.ts', 'c.test.ts'], machine: runner }],
+      landings: [
+        { files: ['a.test.ts'], partly: ['b.test.ts'], machine: laptop },
+        { files: [], partly: ['c.test.ts'], machine: runner },
+      ],
+    });
+
+    expect(['a.test.ts', 'b.test.ts', 'c.test.ts'].map((file) => machines.get(file))).toEqual([laptop, undefined, runner]);
   });
 
   it('says a machine in one line, its limits beside what they limit', () => {

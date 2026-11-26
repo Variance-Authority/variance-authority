@@ -50,12 +50,14 @@ export function formatSlowest(
   const atLeast = over === undefined ? '' : `, at least ${asked(over)}`;
   for (const suite of suites) {
     const of = suite.suite === undefined ? '' : `, suite ${suite.suite}`;
+    // Cases are not yet ranked per machine: where the files ran on more than one, their headers say so.
+    const mixed = 'machines' in suite && (suite.machines?.length ?? 0) > 1 ? `, on ${suite.machines!.length} classes of machine together` : '';
     if (lines.length > 0) lines.push('');
     const told = [
       recordLine(suite, now),
-      closestSection(suite.cases, `Closest to their limit${of}${where}${atLeast}`),
+      closestSection(suite.cases, `Closest to their limit${of}${where}${atLeast}${mixed}`),
       ...(over === undefined ? fileSections(suite, `Slowest recorded test files${of}${where}`, scope) : []),
-      section(suite.cases, `Slowest recorded test cases${of}${where}${atLeast}`, 'case', scope, (row) =>
+      section(suite.cases, `Slowest recorded test cases${of}${where}${atLeast}${mixed}`, 'case', scope, (row) =>
         `${row.file}  ${'name' in row ? row.name : ''}`, over),
     ];
     lines.push(...told.filter((part) => part.length > 0).flatMap((part, at) => (at === 0 ? part : ['', ...part])));

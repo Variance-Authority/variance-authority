@@ -60,7 +60,7 @@ import type { TestCoverage } from './index.js';
 import { keepRecordedInstall, type KeptInstall } from './kept-install.js';
 import { keepRecordedTexts, landedTree, ranOverTexts, type KeptTexts, type LandedTree } from './kept-texts.js';
 import { landingsAfter, observedBy, whatLanded, type Landing, type RanTests } from './landings.js';
-import { ranMachines, type Machine } from './machine.js';
+import type { Machine } from './machine.js';
 import { ownLayerAfter, readOwnLayer, workingTree, writeOwnLayer } from './own-layer.js';
 import { recordBase, takeReadFor } from './record-base.js';
 import { standingAfter } from './standing-after.js';
@@ -263,7 +263,7 @@ export async function landRun(
   // a retried landing, which the next run here repairs and nothing else does.
   // A run whose cases are not in the record laid none.
   const ranCases = cases === undefined || laid.index === undefined ? 'none' : casesRan(laid);
-  await writeCommitRuns(commitRunsFile(coverageFile), commitRunsAfter(before, held, { ...current, laid: ranCases, ...ranMachines(current.machine) }, installed, ranOver));
+  await writeCommitRuns(commitRunsFile(coverageFile), commitRunsAfter(before, held, { ...current, laid: ranCases, ...(current.machine === undefined ? {} : { machines: () => current.machine }) }, installed, ranOver));
   // The ledger last: it names this run's tests as this checkout's, and a
   // landing that died before it leaves them read as the milestone's, which a
   // re-run here corrects. A record with no ledger was laid before there was

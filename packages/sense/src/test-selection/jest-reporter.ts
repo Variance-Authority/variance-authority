@@ -36,7 +36,7 @@ import { jestPhases, reportedDuration, type JestPerfStats } from './reported-tim
 import { journalsOf, oneTestPerFile, projectNamed, readProjectJournals } from './jest-projects.js';
 import { noteABusyIndex, withIndexLock } from './index-lock.js';
 import { laidProbes, landRun } from './commit-runs.js';
-import { readMachine, workersOf } from './machine.js';
+import { readMachine, configuredWorkers } from './machine.js';
 import { markCheckout } from './cache-layers.js';
 import { repositoryRoot } from './repository-root.js';
 import { projectPath, type CapturedModule } from './instrumented-modules.js';
@@ -146,7 +146,7 @@ class JestCoverageReporter {
     config: JestReporterConfig,
   ) {
     this.#config = config;
-    this.#workers = workersOf(globalConfig?.maxWorkers);
+    this.#workers = configuredWorkers(globalConfig?.maxWorkers);
     this.#named = (globalConfig?.testNamePattern ?? '') !== '';
     const selected = 'selected' in config && config.selected === true;
     this.#alone = recordsAlone(globalConfig?.shard != null, selected, 'coverageFile' in config && handedRecord(config.root, config.coverageFile));

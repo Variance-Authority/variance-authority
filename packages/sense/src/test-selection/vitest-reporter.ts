@@ -18,7 +18,7 @@ import { namedTasks, reportedCases, taskCases } from './case-durations.js';
 import { noteRunner, projectConfig, type RunnerContext } from './governing-config.js';
 import { reopenRun, type SelectionRun } from './selection-run.js';
 import { writeCarriedStories } from './carried-stories.js';
-import { workersOf } from './machine.js';
+import { configuredWorkers } from './machine.js';
 
 export function selectionReporter(
   run: SelectionRun,
@@ -49,7 +49,7 @@ export function selectionReporter(
       runner = context;
       byName = noteRunner(run, context);
       run.watching = context.config?.watch === true;
-      run.workers = workersOf(context.config?.maxWorkers);
+      run.workers = configuredWorkers(context.config?.maxWorkers);
     },
     // Both fire before a worker reads a file of the cycle; the first cycle
     // keeps the start the run was made at, before the configuration loaded.
