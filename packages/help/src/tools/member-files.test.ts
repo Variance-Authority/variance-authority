@@ -3,7 +3,6 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { sourceIndexPath, updateSourceIndex } from '@variance-authority/sense';
-import * as sense from '@variance-authority/sense';
 import { afterEach, expect, it, vi } from 'vitest';
 import { readHelp } from '../walk.js';
 import { FoundNothing } from './find.js';
@@ -15,7 +14,6 @@ import { uses } from './uses.js';
 const temporary: string[] = [];
 
 afterEach(() => {
-  vi.restoreAllMocks();
   vi.unstubAllEnvs();
   for (const directory of temporary.splice(0)) rmSync(directory, { recursive: true, force: true });
 });
@@ -56,30 +54,12 @@ for (const tool of [symbol, uses]) {
     expect(membership.unread).toBeUndefined();
     expect(() => tool.files!(help, { name: 'Missing.member' }, { root })).toThrow(FoundNothing);
   });
-
-  it(`${tool.name} carries declarations the index did not read`, async () => {
-    const { root, help } = await fixture();
-    // The addon reads its own declarations, so the file it did not read is injected into the tool's reading, which a start point or a shape the addon hands back reaches.
-    vi.spyOn(sense, 'answerSymbol').mockReturnValue(undefined);
-    vi.spyOn(sense, 'answerUses').mockReturnValue(undefined);
-    const read = sense.declaredOf;
-    vi.spyOn(sense, 'declaredOf').mockImplementation((...args) => {
-      const result = read(...args);
-      return result === undefined ? undefined : { ...result, unread: ['src/unread.ts'] };
-    });
-    const input = { name: 'Widget.completed' };
-    expect(tool.run(help, input, { root })).toContain('src/unread.ts');
-    expect(tool.files!(help, input, { root }).unread?.join('\n')).toContain('src/unread.ts');
-  });
 }
 
-it('symbol retains a known export while qualifying the source index it could not read', async () => {
+it('symbol and uses refuse, naming the source index, when none is published', async () => {
   const { root, help } = await fixture();
   rmSync(sourceIndexPath(root));
-  const membership = symbol.files!(help, { name: 'ready' }, { root });
-  expect(membership.files.get('src/widget.ts')).toEqual([2]);
-  expect(membership.unread?.join('\n')).toContain('no source index is published');
-  // An unpublished export's import lookup already refuses the unread index.
+  expect(() => symbol.files!(help, { name: 'ready' }, { root })).toThrow('no source index is published');
   expect(() => uses.files!(help, { name: 'ready' }, { root })).toThrow('no source index is published');
 });
 

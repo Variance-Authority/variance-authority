@@ -12,12 +12,12 @@ use crate::record_layout::LAYOUT;
 use crate::resolve::Tsconfig;
 use crate::GitTree;
 
-pub(super) struct Record {
-    suite: Option<String>,
-    file: PathBuf,
+pub(crate) struct Record {
+    pub(crate) suite: Option<String>,
+    pub(crate) file: PathBuf,
 }
 
-pub(super) fn recordings(layers: &super::Layers, config: Option<&Value>) -> Option<Vec<Record>> {
+pub(crate) fn recordings(layers: &super::Layers, config: Option<&Value>) -> Option<Vec<Record>> {
     let nearest = |inside: &Path| -> Option<PathBuf> {
         let own = layers.top.join(inside);
         let base = layers.base.join(inside);
@@ -159,7 +159,7 @@ fn walk(
         .ok_or_else(|| Why::Unprepared("there is no source index".to_owned()))
 }
 
-fn commit(file: &mut FileFrame) -> Result<Option<String>, String> {
+pub(crate) fn commit(file: &mut FileFrame) -> Result<Option<String>, String> {
     if !file.columns.iter().any(|section| section.name == "snapshot.commit") {
         if file.columns.iter().all(|section| LAYOUT.coverage.parts.iter().any(|(_, name)| *name == section.name)) {
             return Err("the record holds cases but no coverage".to_owned());
@@ -211,4 +211,20 @@ fn line(label: &str, made: JourneysPrepared) -> String {
         ));
     }
     notes.join("; ")
+}
+
+/// The recordings `symbol --line` orders declarations by: each of
+/// [`recordings`] that keeps its cases, with the commit it ran at or why it does not read.
+pub(crate) fn recorded(layers: &super::Layers, config: Option<&Value>) -> Option<Vec<crate::help_symbol_line::Recorded>> {
+    let mut kept = Vec::new();
+    for record in recordings(layers, config)? {
+        let Ok(Some(mut file)) = FileFrame::open(&record.file) else { continue };
+        if !file.columns.iter().any(|section| section.name == LAYOUT.coverage.part("index")) { continue }
+        let (commit, unread) = match commit(&mut file) {
+            Ok(commit) => (commit, None),
+            Err(why) => (None, Some(format!("the recording does not read ({why})"))),
+        };
+        kept.push(crate::help_symbol_line::Recorded { suite: record.suite, recording: record.file.to_str()?.to_owned(), commit, unread });
+    }
+    Some(kept)
 }

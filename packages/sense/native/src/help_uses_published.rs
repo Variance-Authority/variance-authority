@@ -40,6 +40,7 @@ pub(super) fn published_uses(asking: &Asking<'_>, keys: &Keys<'_>, paths: &[Path
     let mut read = importers_of_every(root, layers, &asked);
     for group in &mut read.groups { group.uses.retain(|site| package.through(&site.key)); }
     let (answered, apart) = read.groups.split_at(published.len());
+    asking.listed.borrow_mut().through.extend(answered.iter().flat_map(|group| group.through.iter().cloned()));
     let mut chosen: Vec<_> = published.iter().zip(answered).collect();
     if let Some(file) = file {
         let at = chosen.iter().position(|(one, _)| one.at == file)

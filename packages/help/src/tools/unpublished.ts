@@ -19,9 +19,6 @@ import { importersOf } from '@variance-authority/sense';
 import { answering as answersTo, says } from './declaration-key.js';
 import { pathsWritten } from './rows.js';
 
-/** What an import count leaves out: a use that names the export without importing it. */
-export const UNCOUNTED = 'a namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted';
-
 /**
  * Every export of `name` from ordinary source, in `within` when one is named,
  * and every default export its declaration is named `name` by.
@@ -43,14 +40,6 @@ export function exportsNamed(help: Help, root: string | undefined, name: string,
 function fileOf(help: Help, held: Named, within: string): boolean {
   if (!within.startsWith(`${held.by}/`)) return false;
   return pathsWritten(help, within).some(([deep]) => deep.to === held.at);
-}
-
-/** `at:line`, and how many more exports there are past the first. */
-export function exportedAt(exported: readonly Named[]): string {
-  const [first] = exported;
-  if (first === undefined) return '';
-  const more = exported.length > 1 ? ` and ${exported.length - 1} more` : '';
-  return `${first.at}:${first.line}${more}`;
 }
 
 /** One use the source index resolved, with the specifier its file wrote. */
@@ -134,19 +123,3 @@ export type Asked = { readonly file: string; readonly name: string };
 
 /** What the source index says one file asked about answers alone: its uses and the files passing it on, or why it could not be read. */
 export type Apart = { readonly uses: readonly IndexedUse[]; readonly through: readonly string[] } | { readonly unread: string };
-
-/**
- * `importsOf` for each asked file and name apart, in the order asked, read in
- * one walk: the imports of the name out of that file, or a file passing it on
- * from it, and the files passing it on, that file left out.
- */
-export function importsApart(root: string | undefined, asked: readonly Asked[]): readonly Apart[] {
-  const read = importers(root, asked.map((one) => [one]));
-  if ('unread' in read) return asked.map(() => read);
-  return read.groups.map((one) => ({ uses: one.uses.map(indexedUse), through: one.through }));
-}
-
-/** The refusal when the imports cannot be read: the export is known, the index that holds its importers is not. */
-export function indexMissing(name: string, exported: readonly Named[], unread: string): string {
-  return `\`${name}\` is exported, without being published, at ${exportedAt(exported)}; who imports it is read from the source index, and ${unread}.`;
-}

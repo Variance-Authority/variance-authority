@@ -117,19 +117,6 @@ function namedEntries(rows: PublishedEntries, name: string) {
 }
 
 /**
- * The entry an import names, by its exact exported spelling: its specifier
- * first, else the file it resolved to, in the order the published table holds.
- * Only the selected entry's metadata is decoded.
- */
-export function entryNamed(help: Help, name: string, specifier: string, at: string | undefined): readonly [Documented, Opening, Entry] | undefined {
-  const rows = publishedEntriesOf(help);
-  const named = namedEntries(rows, name);
-  const found = named.find(([, [published, opening]]) => specifierOf(published, opening) === specifier) ??
-    (at === undefined ? undefined : named.find(([, [, , entry]]) => entry.at === at));
-  return found === undefined ? undefined : [found[1][0], found[1][1], rows.entry(found[0])];
-}
-
-/**
  * Why a name was not found, said so the next question is the right one.
  *
  * Exact matching is the contract of `docs_symbol` and `docs_uses`, and it

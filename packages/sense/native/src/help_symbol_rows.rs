@@ -89,6 +89,8 @@ pub(crate) struct Entry<'a> {
     pub at: &'a str,
     pub kind: &'a str,
     pub line: u32,
+    /// The source file the entry's opening resolves to, when the reading followed it to one.
+    pub source: Option<&'a str>,
     pub signature: Option<&'a str>,
     pub doc: Option<&'a str>,
     pub mention: Option<(&'a str, u32, &'a str)>,
@@ -420,6 +422,7 @@ impl Rows {
             at: self.string("pub.at", row)?,
             kind: self.string("pub.kind", row)?,
             line: self.number("pub.line", row)?,
+            source: self.optional("open.source", parent)?,
             signature: self.optional("pub.signature", row)?,
             doc: self.optional("pub.doc", row)?,
             mention,

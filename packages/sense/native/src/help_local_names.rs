@@ -30,6 +30,8 @@ const CAP: usize = 12;
 pub(crate) struct LocalName {
     pub text: String,
     pub brief: Option<(String, String)>,
+    /// Each import that binds the local name, and the declaration it names, as `file`, `line` and the name written there.
+    pub files: Vec<(String, u32, String)>,
 }
 
 /// What `symbol` says about `local` as the name the imports `aliases` bind:
@@ -81,7 +83,9 @@ pub(crate) fn local_names(keys: &Keys<'_>, layers: &[Layer], lexicon: &Path, loc
             (lines.join("\n"), key)
         });
         lead.push(original.text);
-        blocks.push(LocalName { text: lead.join("\n"), brief });
+        let mut files: Vec<_> = group.iter().map(|alias| (alias.at.clone(), alias.line, local.to_owned())).collect();
+        files.extend(original.at);
+        blocks.push(LocalName { text: lead.join("\n"), brief, files });
     }
     Some(blocks)
 }
@@ -90,6 +94,8 @@ pub(crate) fn local_names(keys: &Keys<'_>, layers: &[Layer], lexicon: &Path, loc
 struct Original {
     text: String,
     brief: Option<(Vec<String>, String, String)>,
+    /// The export and the declaration it reaches, as `file`, `line` and name; none when it is no file of the checkout.
+    at: Vec<(String, u32, String)>,
 }
 
 /// The published entry the import's specifier opens or whose file it resolved
@@ -107,7 +113,7 @@ fn original_of(keys: &Keys<'_>, layers: &[Layer], lexicon: &Path, unfollowed: &H
         let import = (entry.name != SLOT).then(|| format!("import {{ {} }} from '{}';", entry.name, entry.specifier));
         let mut lines = door_lines(&entry, entry.name, import, &Counts::of(&may, entry.package));
         lines.extend(member_rows(layers, entry.at, entry.name, entry.line));
-        return Some(Some(Original { text: lines.join("\n"), brief: None }));
+        return Some(Some(Original { text: lines.join("\n"), brief: None, at: vec![(entry.at.to_owned(), entry.line, entry.name.to_owned())] }));
     }
     if let Some(to) = &alias.to {
         if let Some(held) = rows.exports_in(to)?.into_iter().find(|one| one.name == name) {
@@ -116,18 +122,20 @@ fn original_of(keys: &Keys<'_>, layers: &[Layer], lexicon: &Path, unfollowed: &H
             let brief = lines[..lines.len().min(if passes { 3 } else { 2 })].to_vec();
             let key = keys.key_of(held.at, held.name)?;
             lines.extend(member_rows(layers, &at, &on, line));
-            return Some(Some(Original { text: lines.join("\n"), brief: Some((brief, format!("{at}:{line}"), format!("{}\0{}", key.at, key.named))) }));
+            let mut files = vec![(held.at.to_owned(), rows.export_line(&held)?, held.name.to_owned())];
+            if passes { files.push((at.clone(), line, on.clone())) }
+            return Some(Some(Original { text: lines.join("\n"), brief: Some((brief, format!("{at}:{line}"), format!("{}\0{}", key.at, key.named))), at: files }));
         }
     }
     if let Some(text) = imported_from(lexicon, name, &alias.at, &alias.specifier, wanted)? {
-        return Some(Some(Original { text, brief: None }));
+        return Some(Some(Original { text, brief: None, at: Vec::new() }));
     }
     if wanted.is_some() { return Some(None) }
     let text = match &alias.to {
         None => format!("Where `{name}` is declared is not known: the source index did not resolve '{}' to a file.", alias.specifier),
         Some(to) => format!("Where `{name}` is declared is not known: {to} exports no `{name}` this reading holds."),
     };
-    Some(Some(Original { text, brief: None }))
+    Some(Some(Original { text, brief: None, at: Vec::new() }))
 }
 
 /// The entry published under `name` that `specifier` opens, else one declared in `at`.

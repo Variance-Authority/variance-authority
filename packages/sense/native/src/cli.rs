@@ -14,17 +14,18 @@ use crate::help_search_answer::search;
 use crate::help_store::{graph_digest, read_head};
 use crate::help_surface::{CLI, Surface};
 use crate::help_symbol_answer::{self, exact_symbols};
+use crate::help_symbol_line;
 use crate::help_uses_answer::{self, uses};
 use crate::index_chain::OpenedChain;
 use crate::source_query::SourceTree;
 use crate::text_cut::blank;
 
 #[path = "cli_cache.rs"]
-mod cache;
+pub(crate) mod cache;
 #[path = "cli_source.rs"]
 mod source;
 #[path = "cli_index.rs"]
-mod index;
+pub(crate) mod index;
 #[path = "cli_manifests.rs"]
 mod manifests;
 #[path = "cli_follow_ups.rs"]
@@ -99,13 +100,19 @@ pub fn answer(args: &[OsString], mut waiting: impl FnMut(&str)) -> Option<(i32, 
                 root: root.to_str()?, lexicon: index.parent()?, layers: chain.layers(), wanted: request.package, from: &request.from, limit: request.limit, surface: Surface(Some(CLI)),
             };
             let answers = exact_symbols(&asking, &mut file, &request.names)?;
-            Ok(answers.into_iter().map(|answer| answer.unwrap_or_else(|nothing| nothing)).collect::<Vec<_>>().join("\n\n"))
+            match request.line {
+                Some(line) => {
+                    let recorded = index::journeys::recorded(&cache::Layers::at(&root)?, root_config(&root)?.as_ref())?;
+                    help_symbol_line::at_line(root.to_str()?, &request.names, line, &answers, &recorded)
+                }
+                None => Ok(answers.into_iter().map(|answer| answer.text).collect::<Vec<_>>().join("\n\n")),
+            }
         }
         Question::Uses(request) => {
             let chain = OpenedChain::read(index.to_str()?).ok()??;
             let asking = help_uses_answer::Asking {
                 root: root.to_str()?, layers: chain.layers(), name: request.name, wanted: request.package,
-                from: request.from, file: request.file, limit: request.limit, surface: Surface(Some(CLI)),
+                from: request.from, file: request.file, limit: request.limit, surface: Surface(Some(CLI)), listed: Default::default(),
             };
             Ok(uses(&asking, &mut file)?.unwrap_or_else(|nothing| nothing))
         }
@@ -191,6 +198,7 @@ struct SymbolRequest<'a> {
     package: Option<&'a str>,
     from: Vec<String>,
     limit: Option<usize>,
+    line: Option<&'a str>,
 }
 
 impl<'a> SymbolRequest<'a> {
@@ -199,6 +207,7 @@ impl<'a> SymbolRequest<'a> {
         let mut package = None;
         let mut from = Vec::new();
         let mut limit = None;
+        let mut line = None;
         let mut args = args.iter().copied();
         while let Some(flag) = args.next() {
             let (flag, value) = match flag.split_once('=') {
@@ -210,6 +219,7 @@ impl<'a> SymbolRequest<'a> {
                 "--package" if package.is_none() => package = Some(value),
                 "--from" => push_point(&mut from, value),
                 "--limit" if limit.is_none() => limit = Some(value.parse().ok().filter(|value| *value > 0)?),
+                "--line" if line.is_none() => line = Some(value),
                 _ => return None,
             }
         }
@@ -219,7 +229,7 @@ impl<'a> SymbolRequest<'a> {
             .filter(|name| !name.is_empty() && seen.insert(*name))
             .collect();
         (!names.is_empty() && names.iter().all(|name| !name.starts_with("--")))
-            .then_some(Self { names, package: package.filter(|value| !value.is_empty()), from, limit })
+            .then_some(Self { names, package: package.filter(|value| !value.is_empty()), from, limit, line })
     }
 }
 
@@ -336,7 +346,7 @@ fn primary_checkout(root: &Path) -> PathBuf {
     root.to_owned()
 }
 
-fn root_config(checkout: &Path) -> Option<Option<Value>> {
+pub(crate) fn root_config(checkout: &Path) -> Option<Option<Value>> {
     match std::fs::read(checkout.join("variance.config.json")) {
         Ok(bytes) => serde_json::from_slice(&bytes).ok().map(Some),
         Err(error) if error.kind() == ErrorKind::NotFound => Some(None),

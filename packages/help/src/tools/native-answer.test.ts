@@ -26,18 +26,31 @@ function said(tool: typeof symbol, help: Awaited<ReturnType<typeof readWorkspace
 }
 
 for (const [tool, entry] of [[symbol, 'answerSymbol'], [uses, 'answerUses']] as const) {
-  it(`${tool.name} answers through the addon, word for word what its own reading says`, async () => {
+  it(`${tool.name} answers through the addon, its text and whether it found the name`, async () => {
     const root = await fixture.published();
     const asked = vi.spyOn(sense, entry);
     // Over the wire and from a shell, each spells the inputs and the tools its answer names as its host does.
     for (const shell of [undefined, 'variance ask']) {
       for (const name of ['taxOf', 'nothingDeclaresThis']) {
-        const native = said(tool, await readWorkspace(root), { name, limit: 3 }, root, shell);
+        const answer = said(tool, await readWorkspace(root), { name, limit: 3 }, root, shell);
         expect(asked).toHaveLastReturnedWith(expect.objectContaining({ found: name === 'taxOf' }));
-        asked.mockReturnValueOnce(undefined);
-        expect(said(tool, await readWorkspace(root), { name, limit: 3 }, root, shell)).toBe(native);
+        const last = asked.mock.results.at(-1)?.value as { readonly text: string } | undefined;
+        const text = last?.text;
+        expect(answer).toBe(name === 'taxOf' ? text : `nothing: ${text}`);
       }
     }
+  });
+
+  it(`${tool.name} refuses a host that named no checkout`, async () => {
+    const help = await readWorkspace(await fixture.published());
+    expect(() => tool.run(help, { name: 'taxOf' }, undefined)).toThrow(`\`${tool.name}\` reads the source index of a checkout, and this host named none`);
+  });
+
+  it(`${tool.name} says no source index is published when the addon finds none`, async () => {
+    const root = await fixture.published();
+    const help = await readWorkspace(root);
+    vi.spyOn(sense, entry).mockReturnValue(undefined);
+    expect(() => tool.run(help, { name: 'taxOf' }, { root })).toThrow('no source index is published; run `variance index`');
   });
 }
 

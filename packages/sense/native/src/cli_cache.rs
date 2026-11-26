@@ -4,16 +4,16 @@
 
 use std::path::{Path, PathBuf};
 
-pub(super) struct Layers {
-    pub(super) top: PathBuf,
-    pub(super) base: PathBuf,
+pub(crate) struct Layers {
+    pub(crate) top: PathBuf,
+    pub(crate) base: PathBuf,
     pub(super) cache: PathBuf,
     primary: PathBuf,
     primary_cache: PathBuf,
 }
 
 impl Layers {
-    pub(super) fn at(root: &Path) -> Option<Self> {
+    pub(crate) fn at(root: &Path) -> Option<Self> {
         if std::env::var_os("GIT_DIR").is_some() || std::env::var_os("GIT_WORK_TREE").is_some() {
             return None;
         }

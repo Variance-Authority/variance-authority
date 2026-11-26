@@ -1,8 +1,8 @@
 import { execFileSync } from 'node:child_process';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { Help } from '@variance-authority/package/help';
 import { readWorkspace } from './read.js';
 import { uses } from './tools/uses.js';
@@ -52,17 +52,20 @@ let temporary: string;
 let help: Help;
 
 beforeAll(async () => {
-  temporary = await mkdtemp(join(tmpdir(), 'help-held-whole-'));
+  // The source index is kept in a cache of its own, keyed by the path the checkout is at.
+  temporary = await realpath(await mkdtemp(join(tmpdir(), 'help-held-whole-')));
+  vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(temporary, '.cache'));
   for (const [path, text] of Object.entries(FILES)) {
     await mkdir(dirname(join(temporary, path)), { recursive: true });
     await writeFile(join(temporary, path), text);
   }
   execFileSync('git', ['init', '--quiet'], { cwd: temporary });
   execFileSync('git', ['add', '.'], { cwd: temporary });
-  help = await readWorkspace(temporary, { index: join(temporary, 'source-index.bin') });
+  help = await readWorkspace(temporary);
 });
 
 afterAll(async () => {
+  vi.unstubAllEnvs();
   await rm(temporary, { recursive: true, force: true });
 });
 
@@ -86,9 +89,9 @@ describe('a name read off a module held whole', () => {
   });
 
   it('says in the answer that an import() loads the module when the call runs', () => {
-    const answer = uses.run(help, { name: 'narrow' });
+    const answer = uses.run(help, { name: 'narrow' }, { root: temporary });
     expect(answer).toContain('imported in 1 place, from another package, 1 through import(), which loads the module when the call runs.');
     expect(answer).toContain('packages/beta/src/index.ts:7 — beta (import() on line 4)');
-    expect(uses.run(help, { name: 'spaced' })).toContain('packages/beta/src/index.ts:7 — beta (namespace, line 1)');
+    expect(uses.run(help, { name: 'spaced' }, { root: temporary })).toContain('packages/beta/src/index.ts:7 — beta (namespace, line 1)');
   });
 });

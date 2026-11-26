@@ -12,7 +12,7 @@ use crate::help_symbol_published::{member_rows, renamed_line};
 use crate::help_key::{Keys, SLOT};
 use crate::help_symbol_rows::Export;
 use crate::help_unpublished::{Unpublished, UNCOUNTED};
-use crate::help_usage::{importers, Asked};
+use crate::help_usage::{importers, Asked, Group};
 use crate::text_cut::blank;
 
 const UNFOLLOWED: &str = "this reading could not follow to a source file, such as a build output the checkout does not hold";
@@ -21,16 +21,11 @@ const UNFOLLOWED: &str = "this reading could not follow to a source file, such a
 /// source index resolved to it; a file that passes another one's export on is
 /// left out, unless every one does. `None` where the walk to a declaration
 /// ends at a default.
-pub(crate) fn exported_only(keys: &Keys<'_>, root: &str, layers: &[Layer], name: &str, exported: &[&Unpublished<'_>], surface: Surface<'_>) -> Option<String> {
+pub(crate) fn exported_only(keys: &Keys<'_>, layers: &[Layer], name: &str, exported: &[(&Unpublished<'_>, &Group)], surface: Surface<'_>) -> Option<String> {
     let rows = keys.rows();
-    let asked: Vec<_> = exported.iter().map(|held| vec![Asked { file: held.export.at.to_owned(), name: held.export.name.to_owned() }]).collect();
-    let read = importers(root, layers, &asked);
-    if read.groups.len() != exported.len() { return None }
-    let passing: HashSet<&str> = read.groups.iter().flat_map(|group| group.through.iter().map(String::as_str)).collect();
-    let mut declaring: Vec<_> = exported.iter().zip(&read.groups).filter(|(held, _)| !passing.contains(held.export.at)).collect();
-    if declaring.is_empty() { declaring = exported.iter().zip(&read.groups).collect() }
+    let declaring = declaring(exported);
     let unfollowed = rows.unfollowed()?;
-    let blocks = declaring.into_iter().map(|(held, group)| {
+    let blocks = declaring.into_iter().map(|&(held, group)| {
         let Opening { at, on, line, mut lines, .. } = exported_rows(keys, layers, &unfollowed, name, &held.export, held.line, held.type_only)?;
         let count = group.uses.len();
         lines.push(if count == 0 {
@@ -43,6 +38,23 @@ pub(crate) fn exported_only(keys: &Keys<'_>, root: &str, layers: &[Layer], name:
         Some(lines.join("\n"))
     }).collect::<Option<Vec<_>>>()?;
     Some(blocks.join("\n\n"))
+}
+
+/// Each export of a name the source index read who imports, in the order
+/// asked; `None` when the walk read another count of groups than asked.
+pub(crate) fn imports_of(root: &str, layers: &[Layer], exported: &[Unpublished<'_>]) -> Option<Vec<Group>> {
+    if exported.is_empty() { return Some(Vec::new()) }
+    let asked: Vec<_> = exported.iter().map(|held| vec![Asked { file: held.export.at.to_owned(), name: held.export.name.to_owned() }]).collect();
+    let read = importers(root, layers, &asked);
+    (read.groups.len() == exported.len()).then_some(read.groups)
+}
+
+/// The exports that declare the name: a file that passes another one's export
+/// on is left out, unless every one does, and then all are.
+pub(crate) fn declaring<'e, 'a>(exported: &'e [(&'e Unpublished<'a>, &'e Group)]) -> Vec<&'e (&'e Unpublished<'a>, &'e Group)> {
+    let passing: HashSet<&str> = exported.iter().flat_map(|(_, group)| group.through.iter().map(String::as_str)).collect();
+    let declaring: Vec<_> = exported.iter().filter(|(held, _)| !passing.contains(held.export.at)).collect();
+    if declaring.is_empty() { exported.iter().collect() } else { declaring }
 }
 
 /// The rows that open one export's answer, and the declaration whose members follow them.

@@ -106,6 +106,10 @@ pub(super) fn declaring<'k, 's>(kept: &'s [&'k DeclaredName]) -> impl Iterator<I
 fn member_lines(asking: &Asking<'_>, member: &str, members: &[MemberSite]) -> Vec<String> {
     let &Asking { layers, from, surface, .. } = asking;
     let mut lines = vec![order_line(asking)];
+    asking.listed.borrow_mut().sites.extend(members.iter().flat_map(|site| {
+        let uses = site.uses.iter().flatten().map(|one| (one.at.clone(), one.line));
+        std::iter::once((site.at.clone(), site.line)).chain(uses)
+    }));
     let ordered = ordered(members, from);
     member_list(&mut lines, asking, "Member declarations:", ordered.len(), ordered.iter().map(|site| format!("{}:{} — {}", site.at, site.line, site.on)));
     let mut unused = Vec::new();
@@ -169,6 +173,7 @@ fn keeping(asking: &Asking<'_>, kept: &[&DeclaredName]) -> Option<Keeping> {
     let mut selected = kept.to_vec();
     selected.sort_by_key(|held| declaration_kind_order(held));
     let first = selected.first()?;
+    asking.listed.borrow_mut().sites.extend(selected.iter().map(|held| (held.at.clone(), held.line)));
     let files = files_of(&selected);
     let (bound, declaring): (Vec<_>, Vec<_>) = selected.iter().copied().partition(|held| is_bound(&held.kind));
     let (opening, mut rest) = if declaring.is_empty() { (kept_lines(name, &bound, surface), Vec::new()) } else { (kept_lines(name, &declaring, surface), kept_lines(name, &bound, surface)) };

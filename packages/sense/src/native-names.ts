@@ -7,6 +7,7 @@
 
 import { entry, onIndex } from './help-reading.js';
 import { asOneQuestion, type OpenedIndex } from './help-question.js';
+import type { NativeRecorded } from './native-journeys.js';
 import { sourceIndexPath } from './source-index.js';
 
 /** One name as `symbol` or `uses` is asked about it. */
@@ -22,19 +23,45 @@ export interface NameAsked {
   readonly limit?: number;
   /** The words a question starts with in a shell; a wire host has none. */
   readonly shell?: string;
+  /** `<file>:<line>`, the line `symbol` orders the declarations by. */
+  readonly line?: string;
+  /** The recordings `line` is read in, as `recordedSuites` finds them. */
+  readonly recorded?: readonly NativeRecorded[];
 }
 
-/** An answer, and whether it is that nothing declares the name. */
+/** One file an answer read, at the lines it read there. */
+export interface FileLines {
+  readonly file: string;
+  readonly lines: readonly number[];
+}
+
+/** Every name a declaration is written by at `at`, `file:line`, and the last line of its head when the index cut one. */
+export interface Spelled {
+  readonly at: string;
+  readonly names: readonly string[];
+  readonly through?: number | null;
+}
+
+/**
+ * An answer, whether it is that nothing declares the name, and the files it
+ * rests on: `files` are the declarations `symbol` says and the lines `uses`
+ * lists, absent with `absent` saying why when no file of the checkout declares
+ * the name; `restsOn` are the files a caught-up look compares with the checkout.
+ */
 export interface NameAnswer {
   readonly text: string;
   readonly found: boolean;
+  readonly files?: readonly FileLines[] | null;
+  readonly spelled?: readonly Spelled[] | null;
+  readonly unread: readonly string[];
+  readonly absent?: string | null;
+  readonly restsOn?: readonly string[] | null;
 }
 
 /**
  * `symbol`'s answer about `asked.name` in the checkout at `root`, read from the
- * help store `store`; absent when there is no index, an index that does not
- * read, or an answer that needs a reading only the tool carries, which then
- * answers it itself.
+ * help store `store`; absent when no source index is published. An index that
+ * does not read throws, saying why.
  */
 export function answerSymbol(root: string, store: Uint8Array, asked: NameAsked): NameAnswer | undefined {
   return answered(root, (opened) => entry('answerSymbol')(root, opened, store, asked));
@@ -45,15 +72,7 @@ export function answerUses(root: string, store: Uint8Array, asked: NameAsked): N
   return answered(root, (opened) => entry('answerUses')(root, opened, store, asked));
 }
 
-/** `answer` over the index of `root`, opened once for the question; an index that does not read is left to the tool, whose answer says why. */
+/** `answer` over the index of `root`, opened once for the question. */
 function answered(root: string, answer: (opened: OpenedIndex) => NameAnswer | null): NameAnswer | undefined {
-  const index = sourceIndexPath(root);
-  return asOneQuestion(() => {
-    try {
-      onIndex(index, () => undefined);
-    } catch {
-      return undefined;
-    }
-    return onIndex(index, answer) ?? undefined;
-  });
+  return asOneQuestion(() => onIndex(sourceIndexPath(root), answer) ?? undefined);
 }

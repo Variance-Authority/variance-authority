@@ -29,6 +29,10 @@ pub(crate) mod help_join;
 pub(crate) mod help_key;
 #[path = "help_local_names.rs"]
 pub(crate) mod help_local_names;
+#[path = "help_declared_in.rs"]
+pub(crate) mod help_declared_in;
+#[path = "help_symbol_line.rs"]
+pub(crate) mod help_symbol_line;
 #[path = "help_members.rs"]
 pub(crate) mod help_members;
 #[path = "help_name_answer.rs"]

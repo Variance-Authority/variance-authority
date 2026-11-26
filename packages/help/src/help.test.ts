@@ -3,20 +3,25 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { readHelp } from './walk.js';
 import { HELP, HELP_TOOLS, audience } from './tools.js';
 import { serveWorkspace } from './server.js';
 import { writePages } from './write.js';
 import { FoundNothing } from './tools/find.js';
 import { publishing } from './__fixtures__/published-then-written.js';
+import { indexedCopy } from './__fixtures__/indexed-copy.js';
 
 const WORKSPACE = join(dirname(fileURLToPath(import.meta.url)), './__fixtures__/workspace');
 const READING = readHelp(WORKSPACE);
+// `symbol` and `uses` read the source index of a checkout, which the fixture is published into.
+const INDEXED = await indexedCopy(WORKSPACE);
+afterAll(INDEXED.remove);
 
 function call(name: string, args: Record<string, unknown> = {}): string {
   const tool = HELP_TOOLS.find((candidate) => candidate.name === name);
   if (tool === undefined) throw new Error(`no tool named \`${name}\``);
+  if (name === 'docs_symbol' || name === 'docs_uses') return tool.run(INDEXED.help, args, { root: INDEXED.root });
   return tool.run(READING, args);
 }
 
@@ -138,10 +143,11 @@ describe('one name in full', () => {
     expect(call('docs_symbol', { name: 'deeper' })).toContain('exported, without being published, at packages/beta/src/inner/deeper.ts:3');
   });
 
-  it('says who imports an unpublished name is unreadable when the host named no checkout', () => {
-    expect(() => call('docs_uses', { name: 'deeper' })).toThrow(
-      '`deeper` is exported, without being published, at packages/beta/src/inner/deeper.ts:3; who imports it is read from the source index, and this host named no checkout to read the source index of.',
-    );
+  it('refuses a name question when the host named no checkout to read the source index of', () => {
+    for (const name of ['docs_symbol', 'docs_uses']) {
+      const tool = HELP_TOOLS.find((candidate) => candidate.name === name)!;
+      expect(() => tool.run(READING, { name: 'deeper' })).toThrow(`\`${name}\` reads the source index of a checkout, and this host named none`);
+    }
   });
 
   it('names the package that exports a name when another package is asked about it', () => {
@@ -157,7 +163,7 @@ describe('one name in full', () => {
 
   it('answers the files of an unknown name as found nothing, as its answer is', () => {
     const symbol = HELP_TOOLS.find((tool) => tool.name === 'docs_symbol')!;
-    expect(() => symbol.files!(READING, { name: 'nope' })).toThrow(FoundNothing);
+    expect(() => symbol.files!(INDEXED.help, { name: 'nope' }, { root: INDEXED.root })).toThrow(FoundNothing);
   });
 
   it('refuses an empty name rather than answering about the first thing it finds', () => {
@@ -216,9 +222,9 @@ describe('where the repository already writes a name', () => {
     );
   });
 
-  it('answers plainly when no other package imports a published name, and says the imports within its own were not read', () => {
+  it('answers plainly when nothing in the workspace imports a published name', () => {
     expect(call('docs_uses', { name: 'Span' })).toBe(
-      '`Span` [type] is published and no other package imports it; the imports within its own package are read from the source index, and this host named no checkout to read the source index of.',
+      '`Span` [type] is published and nothing in this workspace imports it; a namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted. `docs_symbol` has its signature and what is written above it.',
     );
   });
 

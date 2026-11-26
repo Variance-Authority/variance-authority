@@ -2,6 +2,7 @@
 
 // compass: variance-authority.report.agent-surface
 
+use std::cell::RefCell;
 use std::io::{Read, Seek};
 
 use crate::compact::Layer;
@@ -12,7 +13,8 @@ use crate::help_in_file::InFile;
 use crate::help_key::{can_keep, Keys, SLOT};
 use crate::help_members::{member_declarations, MemberSite};
 use crate::help_name_scope::{owner_of, PackageScope};
-use crate::help_symbol_answer::{container_absence, member_name, nowhere, shared_segments};
+use crate::help_symbol_answer::{container_absence, member_name, member_stop, nowhere, shared_segments, unread_line};
+use crate::help_declared_in::{joined, publishing, rows_of, Readings};
 use crate::help_symbol_published::published_declarations;
 use crate::help_surface::Surface;
 use crate::help_symbol_rows::{Rows, Site};
@@ -46,6 +48,43 @@ pub(crate) struct Asking<'q> {
     pub file: Option<&'q str>,
     pub limit: usize,
     pub surface: Surface<'q>,
+    /// What the answer read, collected as it is said: [`Listed`].
+    pub listed: RefCell<Listed>,
+}
+
+/// The files a `uses` answer lists and rests on, every row and not only those shown.
+#[derive(Default)]
+pub(crate) struct Listed {
+    /// Every site, line of a declaring file, member declaration and use, and kept declaration, at its line.
+    pub sites: Vec<(String, u32)>,
+    /// Each file that passes a published declaration on between its entry and its file.
+    pub through: Vec<String>,
+    /// The files that declare, bind and publish the name; none when no file of the checkout does.
+    pub rests: Option<Vec<String>>,
+    pub unread: Vec<String>,
+}
+
+impl Listed {
+    /// The files the answer lists, each with its lines, ascending, once.
+    pub(crate) fn files(&self) -> Vec<(String, Vec<u32>)> {
+        let mut files: Vec<(String, Vec<u32>)> = Vec::new();
+        let mut at = std::collections::HashMap::new();
+        for (file, line) in &self.sites {
+            let held = *at.entry(file.as_str()).or_insert_with(|| { files.push((file.clone(), Vec::new())); files.len() - 1 });
+            files[held].1.push(*line);
+        }
+        for (_, lines) in &mut files { lines.sort_unstable(); lines.dedup(); }
+        files
+    }
+
+    /// The files the answer rests on: those that declare and publish the name, then each it lists.
+    pub(crate) fn printed(&self) -> Vec<String> {
+        let listed = self.files().into_iter().map(|(file, _)| file);
+        match &self.rests {
+            Some(rests) => rests.iter().cloned().chain(self.through.iter().cloned()).chain(listed).collect(),
+            None => listed.collect(),
+        }
+    }
 }
 
 /// The line that says how to narrow an answer naming several declaring files to one.
@@ -57,7 +96,7 @@ fn narrow(surface: Surface<'_>) -> String {
 /// index layers it carries: `Err` when the answer is that nothing declares it,
 /// and `None` to hand the question to the full reading.
 pub(crate) fn uses(asking: &Asking<'_>, store: &mut (impl Read + Seek)) -> Option<Result<String, String>> {
-    let &Asking { root, layers, name, wanted, from, file, limit: _, surface: _ } = asking;
+    let &Asking { root, layers, name, wanted, from, file, .. } = asking;
     let mut rows = Rows::read(store)?;
     let published = rows.published(name)?;
     // The entries are read for a name published, bound by an import, or published under another name of its declaration.
@@ -91,6 +130,15 @@ pub(crate) fn uses(asking: &Asking<'_>, store: &mut (impl Read + Seek)) -> Optio
         let mut answering = Vec::with_capacity(paths.len());
         for site in paths { if site.to.map_or(Some(true), |to| keys.answers(to, SLOT, SLOT))? { answering.push(site) } }
         paths = answering;
+    }
+    {
+        let every: Vec<_> = exported.iter().collect();
+        let read = Readings { name, member, published: &published, paths: &paths, exports: &exports, declared: &kept.names, members: &members };
+        let resting = rows_of(&read, &rows, layers, &every, true, &[])?;
+        let mut listed = asking.listed.borrow_mut();
+        listed.rests = (!resting.is_empty()).then(|| joined(resting).0.into_iter().map(|(file, _)| file).chain(publishing(&published, &[])).collect());
+        listed.unread.extend(unread_line(&kept.unread));
+        listed.unread.extend(member_stop(layers, member, if members.is_empty() { "there" } else { "there too" }));
     }
     let kept_here: Vec<&DeclaredName> = kept.names.iter().filter(|held| file.is_none_or(|file| held.at == file)).collect();
     // A file named that declares nothing by the name, and passes no declaration of it on, is answered by the files that do.
@@ -203,6 +251,7 @@ fn primary_sites(lines: &mut Vec<String>, asking: &Asking<'_>, owner: &str, file
 /// apart, each with its package, since no declaration read here is theirs.
 fn stray_sites(lines: &mut Vec<String>, asking: &Asking<'_>, mut sites: Vec<Site<'_>>) {
     let &Asking { name, from, limit, .. } = asking;
+    asking.listed.borrow_mut().sites.extend(sites.iter().map(|site| (site.at.to_owned(), site.line)));
     sites.sort_by(|a, b| nearest(from, a.at, a.line, b.at, b.line));
     let import = if sites.len() == 1 { "imports" } else { "import" };
     let heading = format!("{} more {import} `{name}` by a path that reaches no file exporting it here, so no declaration read here is theirs:", sites.len());
@@ -310,6 +359,7 @@ fn nearest(from: Option<&str>, at: &str, line: u32, other_at: &str, other_line: 
 
 fn list_kinds(lines: &mut Vec<String>, asking: &Asking<'_>, home: Option<&str>, mut sites: Vec<Site<'_>>) {
     let &Asking { name, from, limit, .. } = asking;
+    asking.listed.borrow_mut().sites.extend(sites.iter().map(|site| (site.at.to_owned(), site.line)));
     sites.sort_by(|a, b| nearest(from, a.at, a.line, b.at, b.line));
     for (kind, heading) in [("story", "Stories"), ("test", "Tests"), ("source", "Source")] {
         let of = sites.iter().filter(|site| site.kind == kind);
@@ -329,6 +379,7 @@ fn list_own(lines: &mut Vec<String>, asking: &Asking<'_>, at: &str, does: &str, 
     let group = &uses[start..];
     let end = group.partition_point(|site| site.at == at);
     if end == 0 { return }
+    asking.listed.borrow_mut().sites.extend(group[..end].iter().map(|site| (site.at.clone(), site.line)));
     let by = &group[0].by;
     let who = if by.is_empty() { String::new() } else { format!(" — {by}") };
     list(lines, asking, &format!("Used in {at}{who}, which {does} it:"), group[..end].iter().map(|site| format!("  {}", site.line)));

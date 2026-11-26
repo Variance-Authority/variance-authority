@@ -17,7 +17,8 @@ use crate::help_name_scope::{owner_of, PackageScope};
 use crate::help_origin::declaration_exported;
 use crate::help_surface::Surface;
 use crate::help_symbol_published::{published_declarations, published_symbols};
-use crate::help_symbol_exported::exported_only;
+use crate::help_declared_in::{heads, joined, publishing, rows_of, Readings};
+use crate::help_symbol_exported::{declaring, exported_only, imports_of};
 use crate::help_symbol_rows::{Export, PathKind, PathSite, Rows};
 use crate::help_unpublished::exports_named;
 use crate::help_usage::requested;
@@ -40,10 +41,31 @@ pub(crate) struct Asking<'q> {
     pub surface: Surface<'q>,
 }
 
+/// One name's answer, and the files of the checkout it rests on.
+pub(crate) struct SymbolAnswer {
+    pub text: String,
+    /// Whether anything, in the checkout or installed, declares the name.
+    pub found: bool,
+    /// The checkout's declarations of the name; `Err` saying so when no file of the checkout declares it.
+    pub declared: Result<Declared, String>,
+    /// Every file the answer rests on: each declaration, every export and
+    /// binding, and each entry and barrel a published one is taught through;
+    /// none when no file of the checkout declares or binds the name.
+    pub rests_on: Option<Vec<String>>,
+}
+
+/// The files of the checkout that declare a name, each at its lines, every name each `file:line` is written by, and what was not read.
+pub(crate) struct Declared {
+    pub files: Vec<(String, Vec<u32>)>,
+    pub spelled: Vec<(String, Vec<String>)>,
+    /// For each of `spelled`, the last line of the head the index cut for it.
+    pub heads: Vec<Option<u32>>,
+    pub unread: Vec<String>,
+}
+
 /// Answer exact names in request order from the help store `store` and the
-/// index layers `asking` carries, each `Err` when the answer is that nothing
-/// declares it; `None` hands the question to the full reading.
-pub(crate) fn exact_symbols(asking: &Asking<'_>, store: &mut (impl Read + Seek), names: &[&str]) -> Option<Vec<Result<String, String>>> {
+/// index layers `asking` carries; `None` hands the question to the full reading.
+pub(crate) fn exact_symbols(asking: &Asking<'_>, store: &mut (impl Read + Seek), names: &[&str]) -> Option<Vec<SymbolAnswer>> {
     let wanted = asking.wanted;
     let mut rows = Rows::read(store)?;
     let mut entries = false;
@@ -74,9 +96,8 @@ pub(crate) fn exact_symbols(asking: &Asking<'_>, store: &mut (impl Read + Seek),
     names.iter().zip(renamed).map(|(name, binds)| exact_symbol(asking, &rows, name, binds, &package)).collect()
 }
 
-/// One name's answer: `Err` when it is that nothing declares the name, said
-/// with the files that only bind it.
-fn exact_symbol(asking: &Asking<'_>, rows: &Rows, name: &str, binds: Vec<Alias>, package: &PackageScope<'_>) -> Option<Result<String, String>> {
+/// One name's answer, said with the files that only bind it, and the files it rests on.
+fn exact_symbol(asking: &Asking<'_>, rows: &Rows, name: &str, binds: Vec<Alias>, package: &PackageScope<'_>) -> Option<SymbolAnswer> {
     let &Asking { root, lexicon, layers, from, limit: said_limit, surface, .. } = asking;
     let keys = Keys::new(root, layers, rows);
     let published = published_declarations(&keys, name, package)?;
@@ -95,6 +116,7 @@ fn exact_symbol(asking: &Asking<'_>, rows: &Rows, name: &str, binds: Vec<Alias>,
     exported.retain(|held| !published.iter().any(|one| one.at == held.key.at && one.declared == held.key.named));
     // A local name of a declaration answered above says it by its line, not again whole.
     let local = local_names(&keys, layers, lexicon, name, binds, package)?;
+    let alias_files: Vec<_> = local.iter().flat_map(|one| one.files.iter().cloned()).collect();
     let above: HashSet<String> = published.iter().map(|one| format!("{}\0{}", one.at, one.declared))
         .chain(exported.iter().map(|held| format!("{}\0{}", held.key.at, held.key.named))).collect();
     let aliased: Vec<_> = local.into_iter().map(|one| match one.brief {
@@ -104,27 +126,42 @@ fn exact_symbol(asking: &Asking<'_>, rows: &Rows, name: &str, binds: Vec<Alias>,
     let (container, member) = member_name(name);
     let members: Vec<_> = member_sites(root, layers, member).into_iter()
         .filter(|site| package.member(&site.by) && container.is_none_or(|on| site.on == on)).collect();
-    let mut blocks = Vec::new();
-    let mut found = true;
-    if !published.is_empty() {
-        blocks.extend(published_symbols(&keys, root, layers, name, published, &paths, package, surface)?);
-        if !exported.is_empty() { blocks.push(exported_only(&keys, root, layers, name, &exported.iter().collect::<Vec<_>>(), surface)?); }
-    } else if !paths.is_empty() {
-        let (by_path, imported) = by_path(layers, rows, name, &in_package, paths)?;
-        blocks.extend(by_path);
-        let rest: Vec<_> = exported.iter().filter(|held| !imported.contains(held.export.at)).collect();
-        if !rest.is_empty() { blocks.push(exported_only(&keys, root, layers, name, &rest, surface)?); }
-    }
-    let workspace_door = !blocks.is_empty();
-    if !workspace_door && !exported.is_empty() {
-        blocks.push(exported_only(&keys, root, layers, name, &exported.iter().collect::<Vec<_>>(), surface)?);
-    }
     let mut reading = declared(root, layers, name, Matching::Exact, None);
     reading.names.retain(|held| package.declared(&held.by) && can_keep(held));
     reading.names.sort_by_key(declaration_kind_order);
     // Nearest a start point first, source first among equals.
     if !from.is_empty() {
         reading.names.sort_by_key(|held| std::cmp::Reverse(from.iter().map(|at| shared_segments(at, &held.at)).max().unwrap_or(0)));
+    }
+    let groups = imports_of(root, layers, &exported)?;
+    let paired: Vec<_> = exported.iter().zip(&groups).collect();
+    let read = Readings { name, member, published: &published, paths: &paths, exports: &in_package, declared: &reading.names, members: &members };
+    let own: Vec<_> = declaring(&paired).into_iter().map(|(held, _)| *held).collect();
+    let declared_rows = rows_of(&read, rows, layers, &own, false, &alias_files)?;
+    let joined_rows = (!declared_rows.is_empty()).then(|| {
+        let (files, spelled) = joined(declared_rows);
+        let heads = heads(&spelled, layers, &reading.names);
+        (files, spelled, heads)
+    });
+    let every: Vec<_> = exported.iter().collect();
+    let resting = rows_of(&read, rows, layers, &every, true, &alias_files)?;
+    let mut blocks = Vec::new();
+    let mut found = true;
+    let mut through = Vec::new();
+    if !published.is_empty() {
+        let (said, passing) = published_symbols(&keys, root, layers, name, &published, &paths, package, surface)?;
+        blocks.extend(said);
+        through = passing;
+        if !paired.is_empty() { blocks.push(exported_only(&keys, layers, name, &paired, surface)?); }
+    } else if !paths.is_empty() {
+        let (by_path, imported) = by_path(layers, rows, name, &in_package, paths)?;
+        blocks.extend(by_path);
+        let rest: Vec<_> = paired.iter().copied().filter(|(held, _)| !imported.contains(held.export.at)).collect();
+        if !rest.is_empty() { blocks.push(exported_only(&keys, layers, name, &rest, surface)?); }
+    }
+    let workspace_door = !blocks.is_empty();
+    if !workspace_door && !paired.is_empty() {
+        blocks.push(exported_only(&keys, layers, name, &paired, surface)?);
     }
     // A file that only binds the name declares nothing: it follows every declaration.
     let (bound, kept): (Vec<_>, Vec<_>) = reading.names.into_iter().partition(|held| is_bound(&held.kind));
@@ -171,7 +208,20 @@ fn exact_symbol(asking: &Asking<'_>, rows: &Rows, name: &str, binds: Vec<Alias>,
     }
     blocks.extend(bindings);
     let text = blocks.join("\n\n");
-    Some(if found { Ok(text) } else { Err(text) })
+    let rests_on = (!resting.is_empty()).then(|| {
+        let mut files: Vec<_> = joined(resting).0.into_iter().map(|(file, _)| file).collect();
+        files.extend(publishing(&published, &through));
+        files
+    });
+    let declared = if let Some((files, spelled, heads)) = joined_rows {
+        let mut unread: Vec<_> = unread_line(&reading.unread).into_iter().collect();
+        unread.extend(member_stop(layers, member, if members.is_empty() { "there" } else { "there too" }));
+        Ok(Declared { files, spelled, heads, unread })
+    } else {
+        let absence = container_absence(&keys, root, layers, name, package, limit, surface)?;
+        Err(nowhere(name, &rows.published_names()?, layers, &reading.unread, None, package.wanted(), package.export_hint(rows, name, &exports)?.as_deref(), absence, surface))
+    };
+    Some(SymbolAnswer { text, found, declared, rests_on })
 }
 
 /// What a file does with a name it does not export, as every answer about the name says it.

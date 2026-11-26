@@ -18,8 +18,9 @@ use crate::text_cut::blank;
 
 /// Each declaration published under this spelling or answering to it, with
 /// its own entry points and import sites: `declarations` from
-/// [`published_declarations`], `paths` the imports by path of `name`.
-pub(crate) fn published_symbols<'a>(keys: &Keys<'a>, root: &str, layers: &[Layer], name: &str, declarations: Vec<Declaration<'a>>, paths: &[PathSite<'a>], package: &PackageScope<'a>, surface: Surface<'_>) -> Option<Vec<String>> {
+/// [`published_declarations`], `paths` the imports by path of `name`; and
+/// every file that passes one of them on between an entry and its file.
+pub(crate) fn published_symbols<'a>(keys: &Keys<'a>, root: &str, layers: &[Layer], name: &str, declarations: &[Declaration<'a>], paths: &[PathSite<'a>], package: &PackageScope<'a>, surface: Surface<'_>) -> Option<(Vec<String>, Vec<String>)> {
     let rows = keys.rows();
     let asked: Vec<_> = declarations.iter().map(|one| one.spellings.iter().map(|spelled| Asked { file: one.at.to_owned(), name: spelled.clone() }).collect()).collect();
     let mut read = importers(root, layers, &asked);
@@ -42,7 +43,8 @@ pub(crate) fn published_symbols<'a>(keys: &Keys<'a>, root: &str, layers: &[Layer
         let import = if lead.name != SLOT { Some(format!("import {{ {} }} from '{}';", lead.name, lead.specifier)) } else if named == SLOT { None } else { Some(format!("import {named} from '{}';", lead.specifier)) };
         blocks.push(published_symbol(layers, &named, import, &one.doors, owner, &sites, surface));
     }
-    Some(blocks)
+    let through = read.groups.into_iter().flat_map(|group| group.through).collect();
+    Some((blocks, through))
 }
 
 /// One published declaration: the file declaring it, the name it is keyed by,
