@@ -20,6 +20,9 @@ describe('the list of questions', () => {
 
     expect(entries.filter((line) => signatures.has(line))).toHaveLength(ASKED.length);
     expect(prose.length).toBeLessThanOrEqual(ASKED.length);
+    for (const [at, line] of lines.entries()) {
+      if (signatures.has(line)) expect(lines[at + 2]?.startsWith('    ')).toBe(false);
+    }
     const summary = lines.indexOf('summary');
     expect(lines[summary + 1]).toBe(
       '    What the last visual run found: counts by verdict, then one line per subject that needs attention, then which subjects were not observed at all.',

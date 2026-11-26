@@ -53,9 +53,9 @@ package is missing, add it as a devDependency with the project's
 package manager.
 
 Bare `variance ask` prints every question in two lines: what it takes, and the
-first sentence of what it answers. A question's whole description is its MCP
-tool's, at `tools/list`. It reads no config and no run, so it is the whole
-install check. Question arguments such as
+first sentence of what it answers. It reads no config and no run, so it is the
+whole install check. A question's whole description is its MCP tool's, at
+`tools/list`. Question arguments such as
 `--query` and `--to` require a question first: `variance ask <question> ...`.
 Without it, the command prints a short diagnostic and exits `2`. Explicit
 `variance ask --help` still prints help.
