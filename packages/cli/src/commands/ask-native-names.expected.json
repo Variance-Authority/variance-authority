@@ -541,7 +541,7 @@
   ],
   "symbol --name crowdedPath --limit 2": [
     0,
-    "crowdedPath [const]\nimport { crowdedPath } from '@acme/kit/src/crowd';\ndeclared at packages/kit/src/crowd.ts:1\nnot published: @acme/kit declares no entry, so every import of it names a file.\nconst crowdedPath\n\nImported by path in 3 places:\n  apps/app/src/crowd-1.ts:1 — @acme/app, by path from @acme/kit/src/crowd\n  apps/app/src/crowd-2.ts:1 — @acme/app, by path from @acme/kit/src/crowd\n1 more import of `crowdedPath` not shown; `variance ask uses --name crowdedPath --file packages/kit/src/crowd.ts` lists them, nearest to a file you name first.\n\n3 more import `crowdedPath` by a path the source index resolved to no file, so none is credited with them:\n  apps/app/src/gone-1.ts:1 — @acme/app, by path from @acme/kit/src/gone\n  apps/app/src/gone-2.ts:1 — @acme/app, by path from @acme/kit/src/gone\n1 more import of `crowdedPath` not shown; `variance ask uses --name crowdedPath` lists them, nearest to a file you name first.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    "crowdedPath [const]\nimport { crowdedPath } from '@acme/kit/src/crowd';\ndeclared at packages/kit/src/crowd.ts:1\nnot published: @acme/kit declares no entry, so every import of it names a file.\nconst crowdedPath\n\nImported by path in 3 places:\n  apps/app/src/crowd-1.ts:1 — @acme/app, by path from @acme/kit/src/crowd\n  apps/app/src/crowd-2.ts:1 — @acme/app, by path from @acme/kit/src/crowd\n1 more import of `crowdedPath` not shown; `variance ask uses --name crowdedPath --file packages/kit/src/crowd.ts` lists them a page of `--limit` at a time, nearest to a file you name first.\n\n3 more import `crowdedPath` by a path the source index resolved to no file, so none is credited with them:\n  apps/app/src/gone-1.ts:1 — @acme/app, by path from @acme/kit/src/gone\n  apps/app/src/gone-2.ts:1 — @acme/app, by path from @acme/kit/src/gone\n1 more import of `crowdedPath` not shown; `variance ask uses --name crowdedPath` lists them a page of `--limit` at a time, nearest to a file you name first.\nSnapshot <time> may miss later changes: run `variance index`.\n",
     ""
   ],
   "uses --name crowdedPath --file packages/kit/src/crowd.ts": [
@@ -551,7 +551,7 @@
   ],
   "symbol --name ghost --limit 2": [
     0,
-    "ghost\nimport { ghost } from '@acme/kit/src/crowd';\nnot published: @acme/kit declares no entry, so every import of it names a file.\n\nImported by path in 3 places:\n  apps/app/src/ghost-1.ts:1 — @acme/app, by path from @acme/kit/src/crowd\n  apps/app/src/ghost-2.ts:1 — @acme/app, by path from @acme/kit/src/crowd\n1 more import of `ghost` not shown; `variance ask uses --name ghost` lists them, nearest to a file you name first.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    "ghost\nimport { ghost } from '@acme/kit/src/crowd';\nnot published: @acme/kit declares no entry, so every import of it names a file.\n\nImported by path in 3 places:\n  apps/app/src/ghost-1.ts:1 — @acme/app, by path from @acme/kit/src/crowd\n  apps/app/src/ghost-2.ts:1 — @acme/app, by path from @acme/kit/src/crowd\n1 more import of `ghost` not shown; `variance ask uses --name ghost` lists them a page of `--limit` at a time, nearest to a file you name first.\nSnapshot <time> may miss later changes: run `variance index`.\n",
     ""
   ]
 }
