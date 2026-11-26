@@ -451,7 +451,10 @@ impl<'a> Visit<'a> for Walker<'_, '_> {
     // module, and `Promise.all([import('m')]).then(([m]) => …)` pairs as `await`
     // does. A callback that is not written there takes the module whole.
     fn visit_call_expression(&mut self, it: &CallExpression<'a>) {
-        self.required_whole(it);
+        // A `require` the walk does not follow goes on whole, as an `import()`'s does.
+        if let Some(index) = self.loads.call(it, self.mock_factory.as_deref()).filter(|_| !self.followed.contains(&it.span.start)) {
+            self.add(Held::whole(Via::Required(index)), WHOLE, it.span.start);
+        }
         if let Some(target) = crate::mocks::factory_target(it) {
             self.visit_expression(&it.callee);
             for (index, argument) in it.arguments.iter().enumerate() {

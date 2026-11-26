@@ -143,14 +143,6 @@ impl Walker<'_, '_> {
         }
     }
 
-    /// A `require` whose value goes where the walk does not follow it: the
-    /// module goes on whole there, as an `import()`'s does.
-    pub(super) fn required_whole(&mut self, it: &CallExpression) {
-        if let Some(index) = self.loads.call(it, self.mock_factory.as_deref()).filter(|_| !self.followed.contains(&it.span.start)) {
-            self.add(Held::whole(Via::Required(index)), WHOLE, it.span.start);
-        }
-    }
-
     /// The value `name` read off what `held` holds: an export of the module,
     /// a member of the module's `default`, or a member of a value inside it.
     /// A read off a value's `default` is the type's to say.
