@@ -6,10 +6,10 @@ use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::ops::Range;
 
-use crate::help_grep_answer::Page;
 use crate::help_name_scope::owner_of;
+use crate::help_page::Page;
 use crate::help_search_answer::plural;
-use crate::help_surface::shell;
+use crate::help_surface::{shell, Surface as Asked, CLI};
 use crate::help_symbol_rows::Rows;
 use crate::order::code_unit;
 
@@ -24,6 +24,9 @@ const NOTHING: &str = "this workspace publishes no package: no manifest it decla
 
 /// Rows of each list shown when `--limit` is not said: the first page answers where to start, and the rest are counted.
 pub(crate) const SHOWN: usize = 20;
+
+/// The heading of the first list, so its paging lines say what they count.
+const ENTRIES: &str = "Published entries, one row per import specifier:";
 
 /// Every list is a page: one offset skips the first rows of each list alike, and `page.limit` rows follow in each.
 pub(crate) fn packages(file: &mut File, page: &Page) -> Option<String> {
@@ -54,7 +57,11 @@ pub(crate) fn packages(file: &mut File, page: &Page) -> Option<String> {
     if surface.packages().is_empty() {
         answer.push(format!("T{}.", &NOTHING[1..]));
     }
-    answer.extend(listed(page, opened.iter().map(Opening::line).collect()));
+    let entries = listed(page, opened.iter().map(Opening::line).collect());
+    if !entries.is_empty() {
+        answer.push(ENTRIES.to_owned());
+        answer.extend(entries);
+    }
     let mut paths = HashMap::<&str, (HashSet<(&str, &str)>, HashSet<&str>)>::new();
     for row in surface.group(1)? {
         let spec = rows.string("deep.specifier", row)?;
@@ -260,8 +267,9 @@ fn listed(page: &Page, rows: Vec<String>) -> Vec<String> {
     if rows.is_empty() {
         return rows;
     }
-    let mut lines: Vec<String> = page.above(rows.len(), "--offset").into_iter().collect();
-    let below = page.below(rows.len(), "--offset");
+    let offset = Asked(Some(CLI)).input("offset");
+    let mut lines: Vec<String> = page.above(rows.len(), &offset).into_iter().collect();
+    let below = page.below(rows.len(), &offset);
     let shown = page.rows(rows.len());
     lines.extend(rows.into_iter().skip(shown.start).take(shown.len()));
     lines.extend(below);

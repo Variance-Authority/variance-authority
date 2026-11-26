@@ -8,7 +8,8 @@ use std::path::{Path, PathBuf};
 
 use serde_json::Value;
 
-use crate::help_grep_answer::{self, Page, Roots, Said};
+use crate::help_grep_answer::{self, Roots, Said};
+use crate::help_page::Page;
 use crate::help_package_answer;
 use crate::help_search_answer::search;
 use crate::help_store::{graph_digest, read_head};

@@ -44,7 +44,7 @@ describe('docs_packages', () => {
     expect(first).not.toContain('@acme/stamp');
     expect(second).toMatch(/^Rows 2–2 of 2\.\n {2}@acme\/stamp — 1 name from 1 of its files$/m);
     expect(second).not.toMatch(/^ {2}@acme\/kit — /m);
-    expect(second).toContain('`offset` 1 is past the last of 1 rows.');
+    expect(second).toMatch(/^Published entries, one row per import specifier:\n`offset` 1 is past the last of 1 row\.$/m);
   });
 
   it('refuses an offset that is not a whole number, naming it as the surface asked takes it', () => {

@@ -78,7 +78,7 @@ export function paged<Row>(rows: readonly Row[], page: Page): readonly Row[] {
  */
 export function pageAt(page: Page, total: number, spell: Spelling): readonly string[] {
   if (page.offset === 0) return [];
-  if (page.offset >= total) return [`\`${spell.input('offset')}\` ${page.offset} is past the last of ${total} rows.`];
+  if (page.offset >= total) return [`\`${spell.input('offset')}\` ${page.offset} is past the last of ${total} ${total === 1 ? 'row' : 'rows'}.`];
   return [`Rows ${page.offset + 1}–${Math.min(total, page.offset + page.limit)} of ${total}.`];
 }
 

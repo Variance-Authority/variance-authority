@@ -45,6 +45,8 @@ pub(crate) mod help_own_uses;
 #[cfg(feature = "standalone-cli")]
 #[path = "help_package_answer.rs"]
 pub(crate) mod help_package_answer;
+#[path = "help_page.rs"]
+pub(crate) mod help_page;
 #[path = "help_publish.rs"]
 pub(crate) mod help_publish;
 #[path = "help_search.rs"]

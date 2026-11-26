@@ -6,6 +6,9 @@ import { REACHING, UNFOLLOWED, counted, countsByPath, unfollowedEntry } from './
 import { NOTHING_PUBLISHED, specifierOf } from './find.js';
 import { mostUsed, narrower, openingRow, plural, section } from './format.js';
 
+/** The heading of the first list, so its paging lines say what they count. */
+const ENTRIES = 'Published entries, one row per import specifier:';
+
 /** Rows of each list shown when `limit` is not said: the first page answers where to start, and the rest are counted. */
 const SHOWN = 20;
 
@@ -36,7 +39,7 @@ export const packages: Tool<Help> = {
   inputSchema: {
     type: 'object',
     properties: {
-      limit: { type: 'integer', description: `Rows to show in each list. ${SHOWN} when not said; the rest are counted.` },
+      limit: { type: 'integer', minimum: 1, description: `Rows to show in each list. ${SHOWN} when not said; the rest are counted.` },
       offset: {
         type: 'integer',
         minimum: 0,
@@ -53,7 +56,8 @@ export const packages: Tool<Help> = {
     const lines: string[] =
       help.packages.length === 0 ? [`${NOTHING_PUBLISHED.charAt(0).toUpperCase()}${NOTHING_PUBLISHED.slice(1)}.`] : [];
     const opened = help.packages.flatMap((published) => published.openings.map((held) => [published, held] as const));
-    lines.push(...rows(opened.map(([published, held]) => openingRow(published, held))));
+    const entries = rows(opened.map(([published, held]) => openingRow(published, held)));
+    if (entries.length > 0) lines.push(ENTRIES, ...entries);
 
     // A package that declares no entry opens nothing to list. What other
     // packages import from it is its surface, and nothing else is.

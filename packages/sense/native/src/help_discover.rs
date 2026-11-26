@@ -6,7 +6,8 @@ use std::collections::{BTreeMap, HashMap};
 use std::path::Path;
 
 use crate::help_grep::match_lines;
-use crate::help_grep_answer::{refusal, seeds, Page};
+use crate::help_grep_answer::{refusal, seeds};
+use crate::help_page::Page;
 use crate::help_names_filter::{names_filter, ImportAsked, NameHit};
 use crate::help_usage::{importers, Asked};
 use crate::index_chain::OpenedChain;
