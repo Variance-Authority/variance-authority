@@ -1,4 +1,5 @@
 import { createRequire } from 'node:module';
+import { JSDOM } from 'jsdom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import caseOwner from './case-owner.cjs';
 import journals from './journal-format.cjs';
@@ -25,8 +26,8 @@ function spin(ms: number): void {
 }
 
 /** One cut file's recording: its case scope, its cut, and each case's statement times once the file ends. */
-function recording() {
-  const holder: Record<PropertyKey, unknown> = {};
+function recording(realm: Record<PropertyKey, unknown> = {}) {
+  const holder = realm;
   const collector = collectors.scoped(holder, true);
   const scope = holder[CASE_SCOPE] as Scope;
   const cut: Cut = (line) => (holder.__VA__ as { c(line: number): void }).c(line);
@@ -40,8 +41,8 @@ function recording() {
 }
 
 /** Runs each body as a case of one cut file, and reads each case's statement times from its frame. */
-function timed(bodies: Record<string, (cut: Cut) => void>, hook?: (cut: Cut) => void) {
-  const { scope, cut, read, key } = recording();
+function timed(bodies: Record<string, (cut: Cut) => void>, hook?: (cut: Cut) => void, realm?: Record<PropertyKey, unknown>) {
+  const { scope, cut, read, key } = recording(realm);
   for (const [name, body] of Object.entries(bodies)) {
     scope.begin();
     hook?.(cut);
@@ -242,5 +243,43 @@ describe('how a case times its statements', () => {
 
     const { waits } = file.read();
     expect(at(waits, 7)).toBeGreaterThanOrEqual(60 * MS);
+  });
+
+  it('records beside each statement the load, RSS and free memory as it ended, and no page where the realm has none', () => {
+    const times = timed({ reads: (cut) => { cut(3); spin(5); cut(4); } });
+
+    expect(linesOf(times.reads)).toEqual([3, 4]);
+    for (const statement of times.reads!) {
+      // Windows reports no load average, which is absent there and never 0.
+      if (process.platform === 'win32') expect(statement.load).toBeUndefined();
+      else expect(statement.load).toBeGreaterThanOrEqual(0);
+      expect(statement.rss).toBeGreaterThan(0);
+      expect(Number.isInteger(statement.rss)).toBe(true);
+      expect(statement.free).toBeGreaterThanOrEqual(0);
+      expect(statement).not.toHaveProperty('added');
+    }
+  });
+
+  it('counts the nodes each statement added to the realm\'s page, each with every node under it', () => {
+    const { window } = new JSDOM('<main></main>');
+    const { document } = window;
+    const main = document.querySelector('main')!;
+    const times = timed({
+      renders: (cut) => {
+        cut(3);
+        const list = document.createElement('ul');
+        for (let item = 0; item < 30; item += 1) list.append(document.createElement('li'));
+        main.append(list);
+        cut(4);
+        main.append('text alone');
+        cut(5);
+        for (let turn = 0; turn < 2; turn += 1) {
+          cut(6);
+          main.append(document.createElement('p'));
+        }
+      },
+    }, undefined, { document, MutationObserver: window.MutationObserver });
+
+    expect(times.renders?.map(({ line, added }) => [line, added])).toEqual([[3, 31], [4, 1], [5, 0], [6, 2]]);
   });
 });

@@ -8,15 +8,19 @@
  */
 
 import { lineOf } from '../test-selection/case-lines.js';
-import { shareOf } from '../test-selection/case-times.js';
+import { FIGURES, shareOf, type CaseTime } from '../test-selection/case-times.js';
 import { newestRegions } from '../test-selection/case-readings.js';
 import type { ReadRegion } from '../test-selection/readings-bytes.js';
 import type { ExecutionTest } from '../test-selection/reverse.js';
 import { namedCases, type OutcomeRegion } from './outcomes.js';
 import { drawersOf } from './region-coordinates.js';
 
-/** A line of the case: the regions it was the first to run, and its microseconds where the case was timed. Line 0 is before the body's first statement. */
-export interface Statement {
+/**
+ * A line of the case: the regions it was the first to run, and its
+ * microseconds where the case was timed, beside what surrounded it as
+ * {@link CaseTime} keeps it. Line 0 is before the body's first statement.
+ */
+export interface Statement extends Partial<Pick<CaseTime, (typeof FIGURES)[number]>> {
   readonly line: number;
   readonly time?: number;
   /** Whole percent of the case, as {@link shareOf} reads it; absent where either time was not reported. */
@@ -83,9 +87,9 @@ export function statementsOf(
   };
   const statements: Statement[] = [
     ...before.map((line) => ({ line, ...lined(line, body) })),
-    ...times.map(({ line, time }) => {
+    ...times.map(({ line, time, ...around }) => {
       const share = shareOf(time, test.duration);
-      return { line, time, ...(share === undefined ? {} : { share }), ...lined(line, body) };
+      return { line, time, ...(share === undefined ? {} : { share }), ...around, ...lined(line, body) };
     }),
     ...rest.map((line) => ({ line, ...lined(line, body) })),
   ];

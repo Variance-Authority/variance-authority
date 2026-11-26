@@ -42,9 +42,12 @@ pub fn limit_of(packed: &str) -> Option<f64> {
 }
 
 /// The statement times a frame's case took: the ninth field's `<line> <time>`
-/// pairs, laid as `case_times` stores a row; empty where the field is.
+/// pairs, beside the tenth's four words a statement of what surrounded it, `-`
+/// for one not read, laid as `case_times` stores a row; empty where the ninth
+/// field is. `timesCase` in `case-owner.cts`.
 pub fn times_of(packed: &str) -> Result<Vec<u8>, String> {
-    let Some(field) = packed.split('\0').nth(8).filter(|times| !times.is_empty()) else {
+    let mut fields = packed.split('\0').skip(8);
+    let Some(field) = fields.next().filter(|times| !times.is_empty()) else {
         return Ok(Vec::new());
     };
     let words: Vec<&str> = field.split(' ').collect();
@@ -54,7 +57,22 @@ pub fn times_of(packed: &str) -> Result<Vec<u8>, String> {
         let line = pair[0].parse::<u32>().map_err(|_| refused())?;
         times.push((line, pair[1].parse::<u64>().map_err(|_| refused())?));
     }
-    Ok(crate::case_times::encode(&times))
+    let around = match fields.next().filter(|around| !around.is_empty()) {
+        None => Vec::new(),
+        Some(around) => {
+            let figures: Vec<&str> = around.split(' ').collect();
+            let refused = || format!("a case frame's surroundings are not four whole numbers a statement: {around}");
+            if figures.len() != times.len() * 4 {
+                return Err(refused());
+            }
+            let figure = |word: &str| if word == "-" { Ok(None) } else { word.parse::<u64>().map(Some).map_err(|_| refused()) };
+            figures
+                .chunks_exact(4)
+                .map(|four| Ok([figure(four[0])?, figure(four[1])?, figure(four[2])?, figure(four[3])?]))
+                .collect::<Result<Vec<crate::case_times::Around>, String>>()?
+        }
+    };
+    Ok(crate::case_times::encode_around(&times, &around))
 }
 
 /// `file` named from `root` as node's `path.relative` names it, in `/`: both
@@ -162,5 +180,18 @@ mod tests {
         assert!(times_of(&owner("", "")).unwrap().is_empty());
         assert!(times_of(&owner("", "4 3.5")).is_err());
         assert!(times_of(&owner("", "-4 30")).is_err());
+    }
+
+    #[test]
+    fn what_surrounded_each_statement_is_laid_beside_its_time_as_case_times_ts_lays_it() {
+        let around = |times: &str, around: &str| [owner("", times), around.to_owned()].join("\0");
+        let row = times_of(&around("4 210000 9 3 5 40", "1625 300 0 30000 1625 300 0 0 - 120 - -")).unwrap();
+        // `encodeCaseTimes` of the same statements, load to the hundredth.
+        assert_eq!(row, [0, 8, 208, 232, 12, 71, 178, 25, 216, 4, 176, 234, 1, 10, 3, 40, 7, 40, 6, 231, 2]);
+        assert_eq!(crate::case_times::decode(&row).unwrap(), vec![(4, 210_000), (9, 3), (5, 40)]);
+        // A row none of whose statements read a figure is the pairs row.
+        assert_eq!(times_of(&around("4 30", "- - - -")).unwrap(), times_of(&owner("", "4 30")).unwrap());
+        assert!(times_of(&around("4 30", "1 2 3")).is_err());
+        assert!(times_of(&around("4 30", "1.5 2 3 4")).is_err());
     }
 }

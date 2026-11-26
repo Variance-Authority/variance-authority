@@ -74,6 +74,13 @@ describe('the statement times of a case, under each runner', () => {
     // Every line it cut at holds a time, the quick ones included.
     expect(waits?.times?.length).toBeGreaterThan(1);
     expect(waits?.times?.every(({ time }) => Number.isInteger(time) && time >= 0)).toBe(true);
+    // Beside each, what surrounded it reaches the record whole; the fixture's realm has no page.
+    for (const statement of waits?.times ?? []) {
+      expect(statement.rss).toBeGreaterThan(0);
+      expect(statement.free).toBeGreaterThanOrEqual(0);
+      if (process.platform !== 'win32') expect(statement.load).toBeGreaterThanOrEqual(0);
+      expect(statement).not.toHaveProperty('added');
+    }
   }, 120_000);
 
   // `test/stops.limit.ts`: the runner stops the first case at 50 ms on line 13,

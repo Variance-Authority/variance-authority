@@ -78,6 +78,14 @@ describe('statementsOf', () => {
 
     expect(explained).toMatchObject({ timed: true, lined: true, statements: [{ line: 4, time: 1500, regions: [] }] });
   });
+
+  it('keeps beside a statement\'s time what surrounded it, and nothing where it was not read', () => {
+    const times = [{ line: 4, time: 1500, load: 2.5, rss: 300, free: 0, added: 12 }, { line: 5, time: 10 }];
+    const [read, unread] = statementsOf({ ...CASE, duration: 2, times }, []).statements;
+
+    expect(read).toEqual({ line: 4, time: 1500, share: 75, load: 2.5, rss: 300, free: 0, added: 12, regions: [], declarations: [] });
+    expect(unread).toEqual({ line: 5, time: 10, share: 1, regions: [], declarations: [] });
+  });
 });
 
 describe('declarations', () => {

@@ -13,6 +13,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import { keepsCases } from './test-selection/case-record.js';
+import type { CaseTime } from './test-selection/case-times.js';
 import { commitRunsFile } from './test-selection/commit-runs.js';
 import { commitRunsIn } from './test-selection/commit-runs-text.js';
 import { askCoverageFile } from './test-selection/coverage-file.js';
@@ -55,10 +56,10 @@ export interface TimedTestCase {
   readonly limit?: number;
   /**
    * Every statement the case's body ran, as its line in `file` and its whole
-   * microseconds on the real clock, in the order it first reached them;
-   * absent where the case was not cut.
+   * microseconds on the real clock, in the order it first reached them, beside
+   * what surrounded it as it ended; absent where the case was not cut.
    */
-  readonly times?: readonly { readonly line: number; readonly time: number }[];
+  readonly times?: readonly CaseTime[];
 }
 
 /** One suite's slowest recorded cases, or why there is no case index to read. */
