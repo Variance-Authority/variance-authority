@@ -201,8 +201,11 @@ than pushing the file from a workflow step; the action's README shows the job's
 `contents: write` and the README line.
 
 `variance coverage --packages --fan-in --format html` writes the whole answer
-as one self-contained page: suites, kinds, every package with its files and the
-test files that cover each, and every directory no suite loads. The format
+as one self-contained page that reads on a phone: what changed since the base
+first (the ratio before and after, the regions each suite started and stopped
+running, the test files and source files that moved), then suites, every
+package with its files and the test files that cover each, kinds, and every
+directory no suite loads. The format
 counts nothing the flags do not ask for, and refuses `--session`, which it does
 not draw. Point a person at it; read
 `--format json` yourself.
