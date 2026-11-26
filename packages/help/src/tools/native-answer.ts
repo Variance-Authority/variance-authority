@@ -1,6 +1,6 @@
 // compass: variance-authority.report.agent-surface
 
-import { startPointArg, stringArg, type ToolInvocation } from '@variance-authority/mcp/tools';
+import { startPointArg, stringArg, type FileSet, type ToolInvocation } from '@variance-authority/mcp/tools';
 import type { Help } from '@variance-authority/package/help';
 import { answerSymbol, answerUses, recordedSuites, type NameAnswer, type NameAsked } from '@variance-authority/sense';
 import { storeBytesOf } from '../snapshot.js';
@@ -36,6 +36,12 @@ export function nativeAnswer(
   const answer = (question === 'symbol' ? answerSymbol : answerUses)(root, store, asked);
   if (answer === undefined) throw new Error(`${tool} reads the source index, and no source index is published; run \`variance index\``);
   return answer;
+}
+
+/** The files `answer` names, each at its lines, and those it could not read. */
+export function fileSetOf(answer: NameAnswer): FileSet {
+  const files = new Map((answer.files ?? []).map(({ file, lines }) => [file, [...lines]]));
+  return { files, ...(answer.unread.length === 0 ? {} : { unread: [...answer.unread] }) };
 }
 
 /** {@link nativeAnswer}'s answer, thrown as {@link FoundNothing} when nothing declares the name. */

@@ -1,7 +1,7 @@
 import type { FileSet, Tool, ToolInvocation } from '@variance-authority/mcp/tools';
 import { limitOf, spellingOf } from '@variance-authority/mcp/tools';
 import type { Help } from '@variance-authority/package/help';
-import { foundAnswer, nativeAnswer } from './native-answer.js';
+import { fileSetOf, foundAnswer, nativeAnswer } from './native-answer.js';
 
 /**
  * `docs_uses` — how this repository actually writes a name.
@@ -155,9 +155,7 @@ export const uses: Tool<Help> = {
  * read leaves the imports within the package unread.
  */
 function usesFiles(help: Help, input: Readonly<Record<string, unknown>>, invocation?: ToolInvocation<Help>): FileSet {
-  const answer = foundAnswer('uses', help, invocation, input, SHOWN);
-  const files = new Map((answer.files ?? []).map(({ file, lines }) => [file, [...lines]]));
-  return { files, ...(answer.unread.length === 0 ? {} : { unread: [...answer.unread] }) };
+  return fileSetOf(foundAnswer('uses', help, invocation, input, SHOWN));
 }
 
 /**

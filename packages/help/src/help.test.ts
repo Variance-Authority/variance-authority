@@ -21,8 +21,7 @@ afterAll(INDEXED.remove);
 function call(name: string, args: Record<string, unknown> = {}): string {
   const tool = HELP_TOOLS.find((candidate) => candidate.name === name);
   if (tool === undefined) throw new Error(`no tool named \`${name}\``);
-  if (name === 'docs_symbol' || name === 'docs_uses') return tool.run(INDEXED.help, args, { root: INDEXED.root });
-  return tool.run(READING, args);
+  return name === 'docs_symbol' || name === 'docs_uses' ? tool.run(INDEXED.help, args, { root: INDEXED.root }) : tool.run(READING, args);
 }
 
 describe('the question that takes no argument', () => {
@@ -144,10 +143,8 @@ describe('one name in full', () => {
   });
 
   it('refuses a name question when the host named no checkout to read the source index of', () => {
-    for (const name of ['docs_symbol', 'docs_uses']) {
-      const tool = HELP_TOOLS.find((candidate) => candidate.name === name)!;
-      expect(() => tool.run(READING, { name: 'deeper' })).toThrow(`\`${name}\` reads the source index of a checkout, and this host named none`);
-    }
+    for (const tool of HELP_TOOLS.filter(({ name }) => name === 'docs_symbol' || name === 'docs_uses'))
+      expect(() => tool.run(READING, { name: 'deeper' })).toThrow(`\`${tool.name}\` reads the source index of a checkout, and this host named none`);
   });
 
   it('names the package that exports a name when another package is asked about it', () => {

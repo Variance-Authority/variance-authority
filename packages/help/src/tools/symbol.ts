@@ -3,7 +3,7 @@ import { limitOf, START_POINT_SCHEMA, spellingOf } from '@variance-authority/mcp
 import type { Help } from '@variance-authority/package/help';
 import { DECLARED_CAP } from './declared.js';
 import { FoundNothing } from './find.js';
-import { foundAnswer } from './native-answer.js';
+import { fileSetOf, foundAnswer } from './native-answer.js';
 import { eachAnswer, eachDeclared, joinedFiles } from './symbol-names.js';
 
 /** Installed declarations shown when the question says no `limit`. */
@@ -82,8 +82,7 @@ export const symbol: Tool<Help> = {
     return joinedFiles(eachDeclared(input, (one) => {
       const answer = answered(help, one, invocation, undefined);
       if (answer.files == null) throw new FoundNothing(answer.absent ?? answer.text);
-      const files = new Map(answer.files.map(({ file, lines }) => [file, [...lines]]));
-      return { files, ...(answer.unread.length === 0 ? {} : { unread: [...answer.unread] }) };
+      return fileSetOf(answer);
     }));
   },
 };
