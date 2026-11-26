@@ -9,6 +9,7 @@
 
 import { chip, text } from './report-html-elements.js';
 import { MARK, PAGE } from './report-html-style.js';
+import type { History } from './view-history-tables.js';
 
 /** The record a page carries, and what is known of it outside its own bytes. */
 export interface Carried {
@@ -19,6 +20,8 @@ export interface Carried {
   readonly size: number;
   /** The record with its runs raw, gzipped. */
   readonly packed: Buffer;
+  /** The mainline series the History tab draws; absent where none was read. */
+  readonly history?: History;
   /** The page's own code. */
   readonly code: string;
 }
@@ -42,10 +45,14 @@ export function viewPage(carried: Carried): string {
     '<nav class="tabs" aria-label="views"></nav>',
     '<main><p class="empty">Opening the record…</p></main>',
     `<script id="recording" type="application/octet-stream">${carried.packed.toString('base64')}</script>`,
+    ...(carried.history === undefined ? [] : [`<script id="history" type="application/json">${json(carried.history)}</script>`]),
     `<script>${carried.code.replaceAll('</script', '<\\/script')}</script>`,
     '</body></html>',
   ].join('\n');
 }
+
+/** JSON that no `</script` or comment opener inside it can end early. */
+const json = (value: unknown): string => JSON.stringify(value).replaceAll('<', '\\u003c');
 
 const STYLE = `
 main{max-width:96rem;margin:0 auto;padding:1.5rem 1.25rem 4rem}

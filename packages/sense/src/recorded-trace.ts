@@ -19,7 +19,8 @@ import { decodeExecutionTests } from './test-selection/execution-format.js';
 import { NO_DURATION, PHASE_NAMES } from './test-selection/format-layout.js';
 import { laneAt, startAt } from './test-selection/format.js';
 import { nearestRecord } from './test-selection/record-location.js';
-import { costs, takenAt } from './recorded-durations.js';
+import { takenAt } from './recorded-durations.js';
+import { costs } from './test-selection/file-cost.js';
 
 /** One phase of a test file and the milliseconds the runner timed it at. */
 export interface TracedPhase {

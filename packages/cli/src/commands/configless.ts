@@ -377,7 +377,7 @@ export async function answerConfigless(
     // file and prints where it is.
     case 'view': {
       const { viewOutput } = await import('./view-command.js');
-      const said = await viewOutput(parsed, process.cwd());
+      const said = await viewOutput(parsed, process.cwd(), { progress: (line) => streams.err(`view: ${line}\n`) });
       streams.err(said.err);
       streams.out(said.out);
       return EXIT_CLEAN;
