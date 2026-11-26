@@ -142,6 +142,11 @@ describe('a record without coverage', () => {
     expect(caseSectionsAt(record).index).toBeDefined();
   });
 
+  it('is not answered where no file is there, which keeps no cases either', () => {
+    expect(withoutCoverage(record)).toBe(false);
+    expect(keepsCases(record)).toBe(false);
+  });
+
   it('is not answered from a header the file ends inside, which a reader refuses on its own terms', async () => {
     await landRun(record, uninstrumented, root, undefined, fresh());
     const whole = readFileSync(record);
