@@ -29,8 +29,8 @@ cost:
 | The record | What `select` runs |
 | --- | --- |
 | at your merge base with the mainline | the tests your change needs |
-| behind your merge base | those, plus the tests every mainline commit in between changes |
-| past your merge base, as when a pull request's check merges into the mainline's tip | those, plus the tests the mainline's commits since the record change |
+| behind your merge base, as when a pull request's check merges into a mainline tip newer than the last publish | those, plus the tests the mainline's commits between the record and your merge base change |
+| past your merge base, as when your branch has not taken the mainline's latest commits | those, plus the tests the mainline's commits between your merge base and the record change |
 | none, or one this version cannot read | every test file |
 
 A run made on the same machine since then narrows it again: a test file you ran
@@ -55,7 +55,7 @@ own:
 | a worktree's first run, with nothing fetched | it starts from a copy of the primary checkout's record, and says so |
 | a run of some test files | their rows are replaced; every other row stays |
 | a newer mainline record is fetched, at a commit your branch contains | the checkout's record changes to it, and keeps the rows of the test files you ran since |
-| a `variance` upgrade | the next run replaces the record or stops and names it: [after an upgrade](cache.md#after-an-upgrade) |
+| a `variance` upgrade | the next run adds to the record, replaces it, or fails after its tests and names it: [after an upgrade](cache.md#after-an-upgrade) |
 
 A command reads the checkout's own record first, then the mainline's from a
 share, then, in a worktree, the primary checkout's: [a suite your checkout has
@@ -88,7 +88,8 @@ selection on one machine, or when CI time is not what you are paying for.
 
 The mainline's push saves the cache directory, and each pull request restores
 that save; a pull request never saves over it. [In CI](cache.md#in-ci) has the
-GitHub Actions workflow, [`variance carry`](../packages/cli/README.md#what-the-next-job-reads)
+GitHub Actions workflow; on another CI host, the same save on a mainline push
+and restore on a pull request use that host's cache. [`variance carry`](../packages/cli/README.md#what-the-next-job-reads)
 prints the paths and keys for a suite with `"carry": "actions-cache"`, and
 [review coverage on every pull request](review-coverage.md) uses this
 transport with no steps of your own. Laptops and agents never read it.
@@ -103,7 +104,8 @@ you already run:
 
 - [the repository's own refs](sharing.md#the-repositorys-own-refs), when CI can
   push to the repository. It also keeps each mainline publish at its commit,
-  so every branch reads the record at its own merge base.
+  so a branch reads the record at its own merge base once that commit's CI
+  has published, and the newest one behind it until then.
 - [a directory](sharing.md#a-directory), when CI and readers share a mount.
 - [an HTTP endpoint](sharing.md#an-http-endpoint), including a
   [Tribunal](../packages/tribunal/README.md) deployment, when you run a store
@@ -112,25 +114,30 @@ you already run:
 
 [Publishing](sharing.md#publishing) says which runs write which line, and
 [what a line keeps](sharing.md#what-a-line-keeps) says which publish wins and
-what is never deleted. A share that does not answer is a miss, and selection
-runs as with no record: [when a share fails](sharing.md#when-a-share-fails).
+what is never deleted. When a share does not answer, a command reads the
+record this machine fetched from it earlier, and with none, runs as with no
+record: [when a share fails](sharing.md#when-a-share-fails).
 
 ### Several suites or projects in one repository
 
 Declare each suite under `suites` in the root `variance.config.json`, and each
 gets its own record and its own `carry`:
 [one record for each suite](execution-record.md#one-record-for-each-suite).
-One share serves one config, so each project with its own config gets its own
-share location: [what a line keeps](sharing.md#what-a-line-keeps).
+`select` and `review` read every suite's record from the share the root config
+names. A project with a config of its own publishes its run reports to the
+share that config names, so give each one its own location: [what a line
+keeps](sharing.md#what-a-line-keeps).
 
 ## Options for pull requests, merge queues and shards
 
-Each of these is a GitHub Actions workflow, and each changes which record a CI
-job reads:
+Each of these changes how far the record a CI job selects from is from the
+commit it tests. The next-push keys and the merge-queue publish work on GitHub
+Actions only:
 
 - **[Test a pull request on the record's commit](sharing.md#a-pull-request-that-runs-the-mainlines-changes-too)**
-  with `variance carry merge`, so the mainline's commits since the record are
-  not counted as the pull request's change.
+  with `variance carry merge`, which merges the pull request into the record's
+  commit, so the mainline's commits since the record are not counted as its
+  change.
 - **[Keep a pull request's record for its next push](selecting.md#a-pull-requests-next-push)**
   with `variance carry keep` and `take`, so each push runs what changed since
   the last one.
@@ -139,19 +146,19 @@ job reads:
   record before the mainline's whole run finishes.
 - **[Hand every shard one record](sharding.md#run-a-failed-shard-again)** with
   `variance carry hand` and `receive`, so every shard and every re-run selects
-  from the same record.
+  from the same record of each suite the share serves.
 
 ## Choose by your situation
 
 | Your situation | What to set up | The record each job selects from |
 | --- | --- | --- |
 | One machine, or trying it out | nothing beyond the wrap | your own last run; CI runs every test file |
-| GitHub Actions, CI time only | the CI host's cache, or the review action | the last mainline push that saved; laptops record their own |
-| Laptops and agents should select from CI's run | a share, published on each mainline push | the latest publish; a git share gives each branch the one at its merge base |
-| A busy mainline | a git share and `carry merge` | the one at the pull request's merge, so only its own change counts |
+| CI time only | the CI host's cache, with a selecting run on pull requests | the last mainline push that saved; laptops record their own |
+| Laptops and agents should select from CI's run | a share, published on each mainline push | the latest publish; a git share gives each branch the one at or behind its merge base |
+| A busy mainline | a share and `carry merge` | the mainline's latest, with the pull request merged into its commit, so only the pull request's change counts |
 | A merge queue | `--from-queue` on the push | the queue's run, from the moment the commit lands |
 | Many pushes per pull request | `carry keep` and `take` | the last push's, over the mainline's |
-| A sharded suite | `carry hand` and `receive` | one record for every shard and re-run |
+| A sharded suite | a share, `carry hand` and `receive` | one record for every shard and re-run |
 | Pull requests from forks | a git share | the mainline's; an HTTP share has no token there, so the fork runs every test file |
-| GitLab CI, Bitbucket Pipelines or another CI | no transport | each machine's own; only GitHub Actions publishes a mainline line to a share |
-| A monorepo | a suite per runner config, and a share location per project | each suite's own last publish |
+| GitLab CI, Bitbucket Pipelines or another CI | the CI host's cache | the last mainline push that saved; only GitHub Actions publishes a mainline line to a share, so laptops record their own |
+| A monorepo | a suite per runner config under the root config, and a share location per project config | each suite's own last publish |
