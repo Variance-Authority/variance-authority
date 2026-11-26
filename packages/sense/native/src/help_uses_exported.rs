@@ -49,10 +49,10 @@ pub(super) fn exported_uses(asking: &Asking<'_>, rows: &Rows, paths: &[PathSite<
     let ((_, primary), others) = declarations.split_first()?;
     let home = primary[0].export.by;
     let own = files(primary);
-    // An import by path no declaration's file is known for joins the one answered first.
+    // An import by path that reaches no file exporting the name is no declaration's, and is listed apart.
     // An import by path of `default` is the declaration its file's default is named by, never a stray of the slot.
-    let stray = |site: &&PathSite<'_>| file.is_none() && name != SLOT && site.to.is_none_or(|to| !every.contains(to));
-    let by_path = paths.iter().filter(|site| site.to.is_some_and(|to| own.contains(&to)) || stray(site)).map(|site| site.site);
+    let strays: Vec<_> = paths.iter().filter(|site| file.is_none() && name != SLOT && site.to.is_none_or(|to| !every.contains(to))).map(|site| site.site).collect();
+    let by_path = paths.iter().filter(|site| site.to.is_some_and(|to| own.contains(&to))).map(|site| site.site);
     let group = &read.groups[0];
     let sites = joined_sites(&[], by_path, &group.uses, &group.through);
     let passed = match primary.as_slice() {
@@ -67,7 +67,7 @@ pub(super) fn exported_uses(asking: &Asking<'_>, rows: &Rows, paths: &[PathSite<
     let mut lines = vec![headline(asking, &kinds, None, Some((&format!("{}{passed}", exported_at(primary)), member.as_deref())), home, &sites)];
     let namesakes = others.iter().map(|(_, held)| format!("{}, exported without being published", exported_at(held))).collect();
     lines.extend(others_lines(name, namesakes, &beside.kept, &beside.members));
-    primary_sites(&mut lines, asking, home, &in_file_of(&read.in_file, &own), sites, &read.in_file);
+    primary_sites(&mut lines, asking, home, &in_file_of(&read.in_file, &own), sites, strays, &read.in_file);
     for ((_, held), group) in others.iter().zip(&read.groups[1..]) { namesake(&mut lines, asking, held, paths, group, &read.in_file) }
     lines.extend(beside.after);
     let declaring: HashSet<_> = exported.iter().filter(|held| held.export.bound.is_some()).map(|held| held.export.at).chain(beside.files).collect();

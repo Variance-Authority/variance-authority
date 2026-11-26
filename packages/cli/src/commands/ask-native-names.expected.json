@@ -381,7 +381,7 @@
   ],
   "uses --name lost": [
     0,
-    "`lost` [const] is imported in 3 places, all from other packages, and no entry publishes it; it is exported at packages/kit/src/lost.ts:1.\nPath order; `--from` sorts nearest first.\n\nSource, from other packages:\n\napps/app/src/elsewhere.ts:1 — @acme/app, by path from @acme/kit/src/orphan\napps/app/src/found.ts:1 — @acme/app, by path from @acme/kit/src/lost; used on line 2\napps/app/src/stray.ts:1 — @acme/app, by path from @acme/kit/src/gone\n\nA namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    "`lost` [const] is imported in 1 place, from another package, and no entry publishes it; it is exported at packages/kit/src/lost.ts:1.\nPath order; `--from` sorts nearest first.\n\nSource, from other packages:\n\napps/app/src/found.ts:1 — @acme/app, by path from @acme/kit/src/lost; used on line 2\n\n2 more import `lost` by a path that reaches no file exporting it here, so no declaration read here is theirs:\n\napps/app/src/elsewhere.ts:1 — @acme/app, by path from @acme/kit/src/orphan\napps/app/src/stray.ts:1 — @acme/app, by path from @acme/kit/src/gone\n\nA namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted.\nSnapshot <time> may miss later changes: run `variance index`.\n",
     ""
   ],
   "uses --name lost --file packages/kit/src/lost.ts": [

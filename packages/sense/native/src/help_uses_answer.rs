@@ -127,7 +127,7 @@ pub(crate) fn uses(asking: &Asking<'_>, store: &mut (impl Read + Seek)) -> Optio
     };
     if published.is_empty() {
         if let Some(undeclared) = undeclared { return Some(Err(undeclared)) }
-        if exported.is_empty() { return None }
+        if exported.is_empty() { return Some(Ok(path_uses(asking, &paths))) }
         return exported::exported_uses(asking, &rows, &paths, &exported, &package, beside).map(Ok);
     }
     // A file a door opens, or a barrel between it and the declaration, passes the published one on.
@@ -187,15 +187,35 @@ fn order_line(asking: &Asking<'_>) -> String {
 }
 
 /// The imports of the declaration answered first, then the lines of each of `files` that use it.
-fn primary_sites(lines: &mut Vec<String>, asking: &Asking<'_>, owner: &str, files: &[&str], sites: Vec<Site<'_>>, own: &[InFile]) {
-    let imported = !sites.is_empty();
+fn primary_sites(lines: &mut Vec<String>, asking: &Asking<'_>, owner: &str, files: &[&str], sites: Vec<Site<'_>>, strays: Vec<Site<'_>>, own: &[InFile]) {
+    let imported = !sites.is_empty() || !strays.is_empty();
     if imported {
         lines.push(order_line(asking));
         // An export no package owns has no inside to set apart: every site lists with its owner.
         list_kinds(lines, asking, (!owner.is_empty()).then_some(owner), sites);
+        stray_sites(lines, asking, strays);
     }
     for at in files { list_own(lines, asking, at, "declares", own); }
     if imported { lines.push(format!("\nA{}.", &UNCOUNTED[1..])); }
+}
+
+/// The imports by a path that reaches no file exporting the name here: listed
+/// apart, each with its package, since no declaration read here is theirs.
+fn stray_sites(lines: &mut Vec<String>, asking: &Asking<'_>, mut sites: Vec<Site<'_>>) {
+    let &Asking { name, from, limit, .. } = asking;
+    sites.sort_by(|a, b| nearest(from, a.at, a.line, b.at, b.line));
+    let import = if sites.len() == 1 { "imports" } else { "import" };
+    let heading = format!("{} more {import} `{name}` by a path that reaches no file exporting it here, so no declaration read here is theirs:", sites.len());
+    list(lines, asking, &heading, sites.iter().map(|site| site_line(site, name, false, limit)));
+}
+
+/// `uses` for a name only imports by path name, which no file here exports:
+/// each import, with its package.
+fn path_uses(asking: &Asking<'_>, paths: &[crate::help_symbol_rows::PathSite<'_>]) -> String {
+    let sites: Vec<_> = paths.iter().map(|path| path.site).collect();
+    let mut lines = vec![format!("`{}` is imported in {}, and no entry publishes it.", asking.name, places(sites.len())), order_line(asking)];
+    list_kinds(&mut lines, asking, None, sites);
+    lines.join("\n")
 }
 
 fn headline(asking: &Asking<'_>, kinds: &str, published: Option<&str>, exported: Option<(&str, Option<&str>)>, home: &str, sites: &[Site<'_>]) -> String {

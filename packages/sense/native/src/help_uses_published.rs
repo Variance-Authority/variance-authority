@@ -63,7 +63,7 @@ pub(super) fn published_uses(asking: &Asking<'_>, keys: &Keys<'_>, paths: &[Path
     let which = (!others.is_empty() || renamed).then(|| published_at(lead, name));
     let mut lines = vec![headline(asking, &kinds, which.as_deref(), None, owner, &sites)];
     lines.extend(others);
-    primary_sites(&mut lines, asking, owner, &[lead.at], sites, &read.in_file);
+    primary_sites(&mut lines, asking, owner, &[lead.at], sites, Vec::new(), &read.in_file);
     for (one, group) in rest {
         lines.push(format!("\n`{name}` is {} as well, which is another declaration.", published_at(one, name)));
         let sites = sites_of(rows, name, paths, package, one, &group.uses, &group.through)?;
