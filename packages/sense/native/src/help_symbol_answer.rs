@@ -419,7 +419,7 @@ fn by_path<'a>(layers: &[crate::compact::Layer], rows: &Rows, name: &str, export
         if group.len() > limit {
             let mut asked = vec![("name", Value::Text(name))];
             if let Some(at) = &declaring { asked.push(("file", Value::Text(at))) }
-            lines.push(more_imports(name, group.len() - limit, &surface.question("uses", &asked)));
+            lines.push(more_imports(name, group.len() - limit, &surface.question("uses", &asked), &surface.input("limit")));
         }
         covered.insert(file);
         blocks.push(lines.join("\n"));
@@ -427,15 +427,15 @@ fn by_path<'a>(layers: &[crate::compact::Layer], rows: &Rows, name: &str, export
     let strays = [(dead, DEAD), (unresolved, UNRESOLVED)].into_iter().filter(|(sites, _)| !sites.is_empty()).map(|(sites, how)| {
         let mut said = vec![stray_heading(name, sites.len(), how)];
         said.extend(sites.iter().take(limit).cloned());
-        if sites.len() > limit { said.push(more_imports(name, sites.len() - limit, &surface.question("uses", &[("name", Value::Text(name))]))) }
+        if sites.len() > limit { said.push(more_imports(name, sites.len() - limit, &surface.question("uses", &[("name", Value::Text(name))]), &surface.input("limit"))) }
         said.join("\n")
     }).collect();
     Some(ByPath { blocks, covered, strays })
 }
 
 /// The line under a list of imports by path cut at the limit: how many more, and the question, `ask`, that lists them.
-fn more_imports(name: &str, more: usize, ask: &str) -> String {
-    format!("{more} more import{} of `{name}` not shown; {ask} lists them a page of `--limit` at a time, nearest to a file you name first.", if more == 1 { "" } else { "s" })
+fn more_imports(name: &str, more: usize, ask: &str, limit: &str) -> String {
+    format!("{more} more import{} of `{name}` not shown; {ask} lists them, nearest to a file you name first, and a higher `{limit}` shows more of them.", if more == 1 { "" } else { "s" })
 }
 
 /// One import by path, with its package and how it names the file.
