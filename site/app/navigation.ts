@@ -89,6 +89,7 @@ export const NAVIGATION = [
       { href: "/docs/distance", label: "Measure test distance", cluster: "Run less of the suite" },
       { href: "/docs/jvm", label: "Select Java tests from the methods each one ran", cluster: "Run less of the suite" },
       { href: "/docs/rust", label: "Select Rust tests from the functions each one ran", cluster: "Run less of the suite" },
+      { href: "/docs/node-test", label: "Record and select tests under node:test", cluster: "Run less of the suite" },
       { href: "/docs/optimize-a-test", label: "Make one test cost less", cluster: "Make one test cost less" },
       { href: "/docs/distill", label: "Distil a test to what it witnesses", cluster: "Make one test cost less" },
     ],
