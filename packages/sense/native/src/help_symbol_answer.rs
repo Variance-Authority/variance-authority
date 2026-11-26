@@ -435,7 +435,7 @@ fn by_path<'a>(layers: &[crate::compact::Layer], rows: &Rows, name: &str, export
 
 /// The line under a list of imports by path cut at the limit: how many more, and the question, `ask`, that lists them.
 fn more_imports(name: &str, more: usize, ask: &str) -> String {
-    format!("{more} more import{} of `{name}` not shown; {ask} lists them, nearest to a file you name first.", if more == 1 { "" } else { "s" })
+    format!("{more} more import{} of `{name}` not shown; {ask} lists them a page of `--limit` at a time, nearest to a file you name first.", if more == 1 { "" } else { "s" })
 }
 
 /// One import by path, with its package and how it names the file.
