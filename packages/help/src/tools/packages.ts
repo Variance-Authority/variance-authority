@@ -22,13 +22,10 @@ import { mostUsed, narrower, openingRow, plural, section } from './format.js';
 export const packages: Tool<Help> = {
   name: 'docs_packages',
   description:
-    'What each package in this workspace is imported for, counted. Call this first: the specifiers it ' +
-    'returns are the arguments every other tool here takes. A package that publishes an entry ' +
-    'has a row per import specifier it opens, with how many names it opens, how many of those anything ' +
-    'imports and how many carry documentation. A package that declares no entry has a row with how many ' +
-    'of its names and files other packages import by path. Imports that reach past a published ' +
-    'entrypoint are counted per package. Every row names the argument of docs_entrypoint, which counts ' +
-    'the import sites behind the counts per file.',
+    'What each package in this workspace is imported for, counted: a row per import specifier a ' +
+    'package opens, with how many names it opens, how many of those anything imports and how many ' +
+    'carry documentation, or, for a package with no entry, the names and files other packages import ' +
+    'from it by path. Call it first: each row names the argument docs_entrypoint takes.',
   inputSchema: NO_ARGS,
 
   run(help) {

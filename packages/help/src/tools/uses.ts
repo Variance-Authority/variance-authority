@@ -178,45 +178,29 @@ function held(use: Use): string {
 export const uses: Tool<Help> = {
   name: 'docs_uses',
   description:
-    'Every file:line in the workspace that imports one exported name, including reads through ' +
-    '`import()` or `import * as`, marked with the line that loads the module, and imports that ' +
-    'name the file by path, marked as such. Imports within the exporting package are read from the ' +
-    'source index, through each `export … from` that passes the name on, so a ' +
-    'name exported and not published is answered too. A site is marked `(as x)` where its import or a re-export ' +
-    'renames the name, and with the lines its file uses what the import binds on. The imports inside the declaring package and the ones from ' +
-    'other packages are counted and listed apart. The lines of the declaring file that use the name are listed after the imports. A member of an interface, a type literal or a class by that ' +
-    'name is listed with its declarations, after the imports, each with the lines that read, write or destructure ' +
-    'it through a value whose type is written as its container and the members of the classes that write `implements` of it, ' +
-    "and the declaration to ask its language's find-references and go-to-implementation about for the uses and implementations no line types. A top-level " +
-    'name a file declares and does not export is answered with its kind, where it is declared and who can reach it there, and ' +
-    'one a file only binds to a value defined elsewhere as a binding, never as another declaration. Stories ' +
-    'and tests are listed apart. `from`, the file you are in, sorts sites by shared path; `limit` says how many sites of ' +
-    'each kind are shown. A name only passed on with `export … from` is followed to the declaration it reaches. ' +
-    'A name an entry publishes only inside `export * as ns` is said to be published as `ns.name`, and a read ' +
-    'through a namespace inside a namespace or one passed on as `default` is a site. ' +
-    'Each file declaring the name declares another thing: the answer lists every one with its own imports, kept ' +
-    'apart, and `file`, the file one is declared in or a file passing it on, answers for that declaration alone.',
+    'Every file:line that imports one name, `import()` and `import * as` reads included, followed ' +
+    'through each `export … from` that passes it on, then the lines of the declaring file that use ' +
+    'it. It answers exported, unpublished and ' +
+    'file-local names, and a member as `Container.member`: the lines that read or write it through a ' +
+    'value typed as its container. Namesakes declared in several files are answered apart; `file` ' +
+    'picks one. Use docs_symbol for what the name is, docs_grep for text that is not an import.',
   inputSchema: {
     type: 'object',
     properties: {
-      name: { type: 'string', description: 'The exported name or member name, matched exactly; `Container.member` asks for that container\'s member.' },
-      package: { type: 'string', description: 'Only answer from this package, by name or by specifier. Optional.' },
+      name: { type: 'string', description: 'The name, matched exactly; `Container.member` for a member.' },
+      package: { type: 'string', description: 'Optional. Answer only from this package, by name or specifier.' },
       from: {
         type: 'string',
         description:
-          'The file you are working in, relative to the workspace root. Sites written near it ' +
-          'are listed first. This orders the sites and never removes one — every site of the ' +
-          'name still comes back. Unlike `from` on docs_search, it is not a start point and no ' +
-          'import graph is walked: nearness here is how many leading path segments two files ' +
-          'share. Optional.',
+          'Optional. The file you are in, from the workspace root: sites sharing more leading path segments with it come first. ' +
+          'It orders sites, removes none and walks no imports.',
       },
       file: {
         type: 'string',
         description:
-          'The file the name is declared in, or a file that passes it on with `export … from`, relative to the workspace root, ' +
-          'to answer for that declaration alone among namesakes. Optional.',
+          'Optional. The file declaring the name, or one passing it on, from the workspace root, to answer for that declaration alone.',
       },
-      limit: { type: 'integer', description: `Sites of each kind to show. ${SHOWN} when not said; the rest are counted.` },
+      limit: { type: 'integer', description: `Optional. Sites of each kind, the rest counted; ${SHOWN} when not said.` },
     },
     required: ['name'],
     additionalProperties: false,

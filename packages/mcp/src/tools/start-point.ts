@@ -234,15 +234,14 @@ export const START_POINT_SCHEMA = {
   from: {
     oneOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }],
     description:
-      'Optional. Repo-relative path, or an array of them: `app/dispatch/page.tsx` a file, ' +
-      "`app/dispatch/*` that folder's own files, `app/dispatch/` everything under it (a bare folder name no file has is the folder). Exact " +
-      'case, from the root, no other globs; a path the repository does not hold is rejected. ' +
-      'Scope: everything it imports, transitively. `to` is the other direction.',
+      'Optional. Repo-relative paths, exact case: `src/a.ts` a file, `src/x/*` its own files, `src/x/` ' +
+      '(or a bare `src/x` no file has) all under it; no other globs; a path not in the repository is rejected. ' +
+      'Scope: what it imports, at any depth.',
   },
   to: {
     oneOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }],
     description:
-      'Optional. Same path forms as `from`. Scope: everything that imports it, transitively. ' +
-      'With `from`, the two scopes are answered side by side, not intersected.',
+      'Optional. Path forms as `from`. Scope: what imports it, at any depth. ' +
+      'With `from`, answered side by side, not intersected.',
   },
 } as const;
