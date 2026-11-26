@@ -214,17 +214,32 @@ fn line(label: &str, made: JourneysPrepared) -> String {
 }
 
 /// The recordings `symbol --line` orders declarations by: each of
-/// [`recordings`] that keeps its cases, with the commit it ran at or why it does not read.
-pub(crate) fn recorded(layers: &super::Layers, config: Option<&Value>) -> Option<Vec<crate::help_symbol_line::Recorded>> {
+/// [`recordings`] that keeps its cases, with the commit it ran at or why it
+/// does not read, in the words the Node entry's `recordedSuites` says them.
+pub(crate) fn recorded(root: &Path, layers: &super::Layers, config: Option<&Value>) -> Option<Vec<crate::help_symbol_line::Recorded>> {
     let mut kept = Vec::new();
     for record in recordings(layers, config)? {
-        let Ok(Some(mut file)) = FileFrame::open(&record.file) else { continue };
+        let at = record.file.to_str()?.to_owned();
+        let spelled = record.file.strip_prefix(root).ok().and_then(Path::to_str).unwrap_or(&at).to_owned();
+        let unread = |why: &str| Some(format!("the recording at {spelled} does not read ({})", why.lines().next().unwrap_or_default()));
+        let mut file = match std::fs::File::open(&record.file) {
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(error) => {
+                kept.push(crate::help_symbol_line::Recorded { suite: record.suite, recording: at.clone(), commit: None, unread: unread(&crate::cli::node_said(&at, &error)) });
+                continue;
+            }
+            Ok(_) => match FileFrame::open(&record.file) {
+                Ok(Some(file)) => file,
+                _ => continue,
+            },
+        };
         if !file.columns.iter().any(|section| section.name == LAYOUT.coverage.part("index")) { continue }
         let (commit, unread) = match commit(&mut file) {
-            Ok(commit) => (commit, None),
-            Err(why) => (None, Some(format!("the recording does not read ({why})"))),
+            Ok(Some(commit)) => (Some(commit), None),
+            Ok(None) => (None, Some("the recording names no commit".to_owned())),
+            Err(why) => (None, unread(&why)),
         };
-        kept.push(crate::help_symbol_line::Recorded { suite: record.suite, recording: record.file.to_str()?.to_owned(), commit, unread });
+        kept.push(crate::help_symbol_line::Recorded { suite: record.suite, recording: at, commit, unread });
     }
     Some(kept)
 }

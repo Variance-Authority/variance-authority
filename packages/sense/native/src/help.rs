@@ -33,6 +33,8 @@ pub(crate) mod help_local_names;
 pub(crate) mod help_declared_in;
 #[path = "help_path_landing.rs"]
 pub(crate) mod help_path_landing;
+#[path = "help_unread.rs"]
+pub(crate) mod help_unread;
 #[path = "help_symbol_line.rs"]
 pub(crate) mod help_symbol_line;
 #[path = "help_members.rs"]

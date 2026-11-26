@@ -20,7 +20,7 @@ use crate::help_usage::{Asked, NameUse};
 
 use super::exported::{asked_of, declarations, landed, namesake};
 use super::kept::{others_lines, spelled_as};
-use super::{headline, importers_of_every, list_kinds, list_own, narrow, places, primary_sites, Asking, Beside, Counts};
+use super::{headline, importers_of_every, list_kinds, list_own, narrow, places, primary_sites, Asking, Beside, Counts, Strays};
 
 /// `uses` for a name entries publish: `published` from `published_declarations`,
 /// `exported` every export that answers to the name. `file` answers for the
@@ -62,9 +62,9 @@ pub(super) fn published_uses(asking: &Asking<'_>, keys: &Keys<'_>, paths: &[Path
     // An answer covering more than one declaration says which it counts first, and so does one a door or its file spells by another name.
     let renamed = lead.declared != name || lead.doors.iter().any(|entry| entry.name != name);
     let which = (!others.is_empty() || renamed).then(|| published_at(lead, name));
-    let mut lines = vec![headline(asking, &kinds, which.as_deref(), None, owner, &sites)];
+    let mut lines = vec![headline(asking, &kinds, which.as_deref(), None, owner, &sites, false)];
     lines.extend(others);
-    primary_sites(&mut lines, asking, owner, &[lead.at], sites, Vec::new(), &read.in_file);
+    primary_sites(&mut lines, asking, owner, &[lead.at], sites, Strays::default(), &read.in_file);
     for (one, group) in rest {
         lines.push(format!("\n`{name}` is {} as well, which is another declaration.", published_at(one, name)));
         let sites = sites_of(rows, name, paths, package, one, &group.uses, &group.through)?;

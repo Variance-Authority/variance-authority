@@ -127,9 +127,7 @@ export const uses: Tool<Help> = {
   },
 
   run(help, input, invocation) {
-    // Refused before any name is read; unsaid, each list keeps its own default.
-    const limit = limitOf(input, SHOWN, spellingOf(invocation));
-    return foundAnswer('uses', help, invocation, input, input['limit'] === undefined ? undefined : limit).text;
+    return foundAnswer('uses', help, invocation, input, saidLimit(input, invocation)).text;
   },
 
   files: usesFiles,
@@ -141,7 +139,13 @@ export const uses: Tool<Help> = {
  * read leaves the imports within the package unread.
  */
 function usesFiles(help: Help, input: Readonly<Record<string, unknown>>, invocation?: ToolInvocation<Help>): FileSet {
-  return fileSetOf(foundAnswer('uses', help, invocation, input, SHOWN));
+  return fileSetOf(foundAnswer('uses', help, invocation, input, saidLimit(input, invocation)));
+}
+
+/** The `limit` the question says, refused before any name is read; unsaid, each list keeps its own default. */
+function saidLimit(input: Readonly<Record<string, unknown>>, invocation: ToolInvocation<Help> | undefined): number | undefined {
+  const limit = limitOf(input, SHOWN, spellingOf(invocation));
+  return input['limit'] === undefined ? undefined : limit;
 }
 
 /**
@@ -151,5 +155,5 @@ function usesFiles(help: Help, input: Readonly<Record<string, unknown>>, invocat
  * reveals is the one thing a look at them cannot see.
  */
 export function usesPrinted(help: Help, input: Readonly<Record<string, unknown>>, invocation?: ToolInvocation<Help>): Iterable<string> {
-  return nativeAnswer('uses', help, invocation, input, SHOWN).restsOn ?? [];
+  return nativeAnswer('uses', help, invocation, input, saidLimit(input, invocation)).restsOn ?? [];
 }

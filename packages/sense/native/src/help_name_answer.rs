@@ -11,7 +11,8 @@ use napi::bindgen_prelude::Uint8Array;
 use napi_derive::napi;
 
 use crate::help_publish::{opened_chain, OpenedIndex};
-use crate::help_surface::Surface;
+use crate::help_surface::{Surface, Value};
+use crate::help_unread::{not_answered, uses_not_answered, Said, STORE};
 use crate::help_symbol_answer::{self, exact_symbols, Declared, SymbolAnswer};
 use crate::help_symbol_line::{at_line, Recorded};
 use crate::help_uses_answer::{self, uses, Listed};
@@ -99,30 +100,31 @@ impl NameAnswer {
 
 /// `symbol`'s answer about `asked.name` in the checkout at `root`, read from
 /// the help store `store` and the chain `index` holds; `None` when there is
-/// no index or the answer needs the reading only the tool carries.
+/// no index, and refused, saying why, when the answer did not read.
 ///
 /// bound: the help store JavaScript already holds, lent without a copy, and one answer whose lists are cut at the limit
 #[napi(catch_unwind)]
 pub fn answer_symbol(root: String, index: &OpenedIndex, store: Uint8Array, asked: NameAsked) -> napi::Result<Option<NameAnswer>> {
     let lexicon = Path::new(index.path()).parent().map(Path::to_path_buf);
-    opened_chain(index, |layers| {
+    let surface = Surface(asked.shell.as_deref());
+    let Some(answer) = opened_chain(index, |layers| {
         let asking = help_symbol_answer::Asking {
             root: &root,
-            lexicon: lexicon.as_deref()?,
+            lexicon: lexicon.as_deref().said("the source index is held in no folder")?,
             layers,
             wanted: asked.package.as_deref(),
             from: asked.from.as_deref().unwrap_or_default(),
             limit: asked.limit.map(|limit| limit as usize),
-            surface: Surface(asked.shell.as_deref()),
+            surface,
         };
-        exact_symbols(&asking, &mut Cursor::new(&store[..]), &[&asked.name])?.pop()
-    })?.flatten().map(|mut answer| {
-        if let Some(line) = &asked.line {
-            let recorded = asked.recorded.as_deref().unwrap_or_default();
-            answer.text = at_line(&root, &[&asked.name], line, std::slice::from_ref(&answer), recorded).map_err(napi::Error::from_reason)?;
-        }
-        Ok(NameAnswer::symbol(answer))
-    }).transpose()
+        exact_symbols(&asking, &mut Cursor::new(&store[..]), &[&asked.name])?.pop().said(STORE)
+    })? else { return Ok(None) };
+    let mut answer = answer.map_err(|why| refused(surface, &asked.name, &why))?;
+    if let Some(line) = &asked.line {
+        let recorded = asked.recorded.as_deref().unwrap_or_default();
+        answer.text = at_line(&root, &[&asked.name], line, std::slice::from_ref(&answer), recorded).map_err(napi::Error::from_reason)?;
+    }
+    Ok(Some(NameAnswer::symbol(answer)))
 }
 
 /// `uses`'s answer about `asked.name`, read as [`answer_symbol`] reads, and
@@ -131,7 +133,8 @@ pub fn answer_symbol(root: String, index: &OpenedIndex, store: Uint8Array, asked
 /// bound: the help store JavaScript already holds, lent without a copy, and one answer whose lists are cut at `asked.limit`
 #[napi(catch_unwind)]
 pub fn answer_uses(root: String, index: &OpenedIndex, store: Uint8Array, asked: NameAsked) -> napi::Result<Option<NameAnswer>> {
-    Ok(opened_chain(index, |layers| {
+    let surface = Surface(asked.shell.as_deref());
+    let Some(answer) = opened_chain(index, |layers| {
         let asking = help_uses_answer::Asking {
             root: &root,
             layers,
@@ -140,10 +143,16 @@ pub fn answer_uses(root: String, index: &OpenedIndex, store: Uint8Array, asked: 
             from: asked.from.as_deref().and_then(<[String]>::first).map(String::as_str),
             file: asked.file.as_deref(),
             limit: asked.limit.map(|limit| limit as usize),
-            surface: Surface(asked.shell.as_deref()),
+            surface,
             listed: RefCell::default(),
         };
-        let answer = uses(&asking, &mut Cursor::new(&store[..]))?;
-        Some(NameAnswer::uses(answer, asking.listed.into_inner()))
-    })?.flatten())
+        let answer = uses(&asking, &mut Cursor::new(&store[..])).map_err(|why| uses_not_answered(&asking, &why))?;
+        Ok::<_, String>(NameAnswer::uses(answer, asking.listed.into_inner()))
+    })? else { return Ok(None) };
+    answer.map(Some).map_err(napi::Error::from_reason)
+}
+
+/// The refusal of a `symbol` question about `name` whose answer did not read, saying why.
+fn refused(surface: Surface<'_>, name: &str, why: &str) -> napi::Error {
+    napi::Error::from_reason(not_answered(&surface.question("symbol", &[("name", Value::Text(name))]), why))
 }

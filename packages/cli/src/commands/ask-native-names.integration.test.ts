@@ -13,7 +13,11 @@ const executable = fileURLToPath(new URL(bin.variance, manifest));
 const nodeEntry = fileURLToPath(new URL('../../dist/bin.js', import.meta.url));
 const repository = fileURLToPath(new URL('../../../../', import.meta.url)).replace(/\/$/u, '');
 
-/** What each question was answered with before the answers moved to Rust, recorded from the TypeScript tools. */
+/**
+ * What each question is answered with: recorded from the TypeScript tools before the answers moved to Rust, but
+ * for an import the index resolved to no file (`lost`, `Schedule`, `Cadence`), now listed apart rather than credited
+ * by its package's name, and an export bound to no declaration (`unbound`), now refused saying so.
+ */
 const recorded = JSON.parse(readFileSync(new URL('./ask-native-names.expected.json', import.meta.url), 'utf8')) as Record<string, readonly [number, string, string]>;
 
 /** What differs between runs: the checkout's path, this repository's, the cache's and the snapshot's time. */
@@ -129,6 +133,7 @@ it.each(([
   ['uses', '--name', 'greet', '--limit', '1'],
   ['uses', '--name', 'keptOf'],
   ['uses', '--name', 'absentIndex'],
+  ['uses', '--name', 'unbound', '--file', 'packages/kit/src/relay.ts'],
 ] as readonly (readonly string[])[]).map((question) => ({ question })) as readonly { question: readonly string[] }[])('answers $question through both entries as the TypeScript tools did', async ({ question }) => {
   const previous = process.cwd();
   const root = checkout(nativeFiles(question));

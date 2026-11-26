@@ -46,6 +46,20 @@ for (const [tool, entry] of [[symbol, 'answerSymbol'], [uses, 'answerUses']] as 
     expect(() => tool.run(help, { name: 'taxOf' }, undefined)).toThrow(`\`${tool.name}\` reads the source index of a checkout, and this host named none`);
   });
 
+  it(`${tool.name} refuses a host that holds no snapshot`, async () => {
+    const root = await fixture.published();
+    // A copy was read from no store, so it holds none.
+    const help = { ...(await readWorkspace(root)) };
+    expect(() => tool.run(help, { name: 'taxOf' }, { root })).toThrow(`\`${tool.name}\` reads a published workspace snapshot, and this host holds none; run \`variance index\``);
+  });
+
+  it(`${tool.name} says why, in the addon's words, when the answer did not read`, async () => {
+    const root = await fixture.published();
+    const help = await readWorkspace(root);
+    vi.spyOn(sense, entry).mockImplementation(() => { throw new Error('the answer did not read: the export is bound to no declaration.'); });
+    expect(() => tool.run(help, { name: 'taxOf' }, { root })).toThrow(/^the answer did not read: the export is bound to no declaration\.$/u);
+  });
+
   it(`${tool.name} says no source index is published when the addon finds none`, async () => {
     const root = await fixture.published();
     const help = await readWorkspace(root);

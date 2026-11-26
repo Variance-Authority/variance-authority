@@ -60,22 +60,28 @@ export const symbol: Tool<Help> = {
 
   // Several names are each answered as one is, in the order asked.
   run(help, input, invocation) {
-    // Refused before any name is read, so a bad `limit` is said once.
-    const limit = limitOf(input, DECLARED_CAP, spellingOf(invocation));
-    return eachAnswer(input, (one) => answered(help, one, invocation, input['limit'] === undefined ? undefined : limit).text);
+    const limit = saidLimit(input, invocation);
+    return eachAnswer(input, (one) => answered(help, one, invocation, limit).text);
   },
 
   // The files of this checkout that declare the names, each at its line, by the
   // same reading `run` answers from; an installed declaration is
   // not a file of the checkout, so a name only a dependency declares is unfound.
   files(help, input, invocation): FileSet {
+    const limit = saidLimit(input, invocation);
     return joinedFiles(eachDeclared(input, (one) => {
-      const answer = answered(help, one, invocation, undefined);
+      const answer = answered(help, one, invocation, limit);
       if (answer.files == null) throw new FoundNothing(answer.absent ?? answer.text);
       return fileSetOf(answer);
     }));
   },
 };
+
+/** The `limit` the question says, refused before any name is read, so a bad one is said once; unsaid, each list keeps its own default. */
+function saidLimit(input: Readonly<Record<string, unknown>>, invocation: ToolInvocation<Help> | undefined): number | undefined {
+  const limit = limitOf(input, DECLARED_CAP, spellingOf(invocation));
+  return input['limit'] === undefined ? undefined : limit;
+}
 
 /** {@link symbol}'s answer about one name, thrown as {@link FoundNothing} when nothing declares it. */
 function answered(help: Help, input: Readonly<Record<string, unknown>>, invocation: ToolInvocation<Help> | undefined, limit: number | undefined) {
@@ -89,8 +95,9 @@ function answered(help: Help, input: Readonly<Record<string, unknown>>, invocati
  * between that entry and its file, through which the answer teaches its import.
  */
 export function restsOn(help: Help, input: Readonly<Record<string, unknown>>, invocation?: ToolInvocation<Help>): Iterable<string> {
+  const limit = saidLimit(input, invocation);
   return eachDeclared(input, (one) => {
-    const answer = answered(help, one, invocation, undefined);
+    const answer = answered(help, one, invocation, limit);
     if (answer.restsOn == null) throw new FoundNothing(answer.absent ?? answer.text);
     return answer.restsOn;
   }).flat();

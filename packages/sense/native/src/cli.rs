@@ -12,7 +12,8 @@ use crate::help_grep_answer::{self, Roots, Said};
 use crate::help_package_answer;
 use crate::help_search_answer::search;
 use crate::help_store::{graph_digest, read_head};
-use crate::help_surface::{CLI, Surface};
+use crate::help_surface::{CLI, Surface, Value as Input};
+use crate::help_unread::{not_answered, uses_not_answered};
 use crate::help_symbol_answer::{self, exact_symbols};
 use crate::help_symbol_line;
 use crate::help_uses_answer::{self, uses};
@@ -94,27 +95,28 @@ pub fn answer(args: &[OsString], mut waiting: impl FnMut(&str)) -> Option<(i32, 
             let asked = help_grep_answer::Asked { query: request.query, from: request.from, to: request.to, said };
             help_grep_answer::answered(&tree, &roots, asked, Surface(Some(CLI)))
         }
-        Question::Symbol(request) => {
-            let chain = OpenedChain::read(index.to_str()?).ok()??;
+        Question::Symbol(request) => 'symbol: {
+            let chain = match name_chain(&index) { Ok(chain) => chain, Err(why) => return Some((2, why)) };
             let asking = help_symbol_answer::Asking {
                 root: root.to_str()?, lexicon: index.parent()?, layers: chain.layers(), wanted: request.package, from: &request.from, limit: request.limit, surface: Surface(Some(CLI)),
             };
-            let answers = exact_symbols(&asking, &mut file, &request.names)?;
+            let question = Surface(Some(CLI)).question("symbol", &[("name", Input::List(&request.names))]);
+            let answers = match exact_symbols(&asking, &mut file, &request.names) { Ok(answers) => answers, Err(why) => break 'symbol Err(not_answered(&question, &why)) };
             match request.line {
                 Some(line) => {
-                    let recorded = index::journeys::recorded(&cache::Layers::at(&root)?, root_config(&root)?.as_ref())?;
+                    let recorded = index::journeys::recorded(&root, &cache::Layers::at(&root)?, root_config(&root)?.as_ref())?;
                     help_symbol_line::at_line(root.to_str()?, &request.names, line, &answers, &recorded)
                 }
                 None => Ok(answers.into_iter().map(|answer| answer.text).collect::<Vec<_>>().join("\n\n")),
             }
         }
         Question::Uses(request) => {
-            let chain = OpenedChain::read(index.to_str()?).ok()??;
+            let chain = match name_chain(&index) { Ok(chain) => chain, Err(why) => return Some((2, why)) };
             let asking = help_uses_answer::Asking {
                 root: root.to_str()?, layers: chain.layers(), name: request.name, wanted: request.package,
                 from: request.from, file: request.file, limit: request.limit, surface: Surface(Some(CLI)), listed: Default::default(),
             };
-            Ok(uses(&asking, &mut file)?.unwrap_or_else(|nothing| nothing))
+            uses(&asking, &mut file).map(|answer| answer.unwrap_or_else(|nothing| nothing)).map_err(|why| uses_not_answered(&asking, &why))
         }
         Question::Search(request) => {
             if request.offset.is_some() { return None }
@@ -294,14 +296,19 @@ fn publication(root: &Path, index: &Path) -> Result<(std::fs::File, Publication)
     Ok((file, Publication { graph_root: PathBuf::from(graph_root), graph_digest: digest, generated_at }))
 }
 
-/// Why the help store at `at` did not open, in the words Node's file system errors use.
+/// Why the help store at `at` did not open.
 fn unopened(at: &str, error: &io::Error) -> String {
-    let said = match error.kind() {
+    format!("no readable workspace snapshot at {at}: {}. Run `variance index` to publish one.\n", node_said(at, error))
+}
+
+/// Why `at` did not open, in the words Node's file system errors use: what the
+/// Node entry says of the same file.
+pub(crate) fn node_said(at: &str, error: &io::Error) -> String {
+    match error.kind() {
         ErrorKind::NotFound => format!("ENOENT: no such file or directory, open '{at}'"),
         ErrorKind::PermissionDenied => format!("EACCES: permission denied, open '{at}'"),
         _ => format!("{error}, open '{at}'"),
-    };
-    format!("no readable workspace snapshot at {at}: {said}. Run `variance index` to publish one.\n")
+    }
 }
 
 fn published_tree(root: &Path, index: &Path, head: &Publication) -> Option<SourceTree> {
@@ -315,6 +322,17 @@ fn published_tree(root: &Path, index: &Path, head: &Publication) -> Option<Sourc
 
 pub(crate) fn source_index(root: &Path) -> Option<PathBuf> {
     Some(cache::Layers::at(root)?.top.join("source-index.bin"))
+}
+
+/// The chain a name question reads, or what it prints when there is none: no
+/// index published, said apart from an index that does not read.
+fn name_chain(index: &Path) -> Result<OpenedChain, String> {
+    let at = index.to_str().ok_or_else(|| format!("variance: the source index path {} is not UTF-8\n", index.display()))?;
+    match OpenedChain::read(at) {
+        Ok(Some(chain)) => Ok(chain),
+        Ok(None) => Err("No source index is published for this checkout; run `variance index`.\n".to_owned()),
+        Err(why) => Err(format!("The source index at {at} does not read: {why}\n")),
+    }
 }
 
 pub(crate) fn runtime_tree(root: &Path) -> Option<crate::source_query::RuntimeTree> {

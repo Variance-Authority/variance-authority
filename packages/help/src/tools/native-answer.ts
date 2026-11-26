@@ -4,6 +4,7 @@ import { startPointArg, stringArg, type FileSet, type ToolInvocation } from '@va
 import type { Help } from '@variance-authority/package/help';
 import { answerSymbol, answerUses, recordedSuites, type NameAnswer, type NameAsked } from '@variance-authority/sense';
 import { storeBytesOf } from '../snapshot.js';
+import { askedOnce } from './asked-once.js';
 import { FoundNothing } from './find.js';
 
 /**
@@ -33,10 +34,23 @@ export function nativeAnswer(
     ...(invocation?.shell === undefined ? {} : { shell: invocation.shell }),
     ...(line === undefined ? {} : { line, recorded: recordedSuites(root) }),
   };
-  const answer = (question === 'symbol' ? answerSymbol : answerUses)(root, store, asked);
+  // A line is ordered by the recording, which no generation names, so only an answer without one is kept.
+  const answer = line === undefined ? answeredOnce(help, question, root, JSON.stringify(asked)) : answeredNow(question, root, store, asked);
   if (answer === undefined) throw new Error(`${tool} reads the source index, and no source index is published; run \`variance index\``);
   return answer;
 }
+
+/** The addon's answer to `asked`, read now. */
+function answeredNow(question: 'symbol' | 'uses', root: string, store: Uint8Array, asked: NameAsked): NameAnswer | undefined {
+  return (question === 'symbol' ? answerSymbol : answerUses)(root, store, asked);
+}
+
+/**
+ * The addon's answer to a question, once per generation: a tool's `run`, its
+ * `files` and the look at what it rests on ask it the same, in any order.
+ */
+const answeredOnce = askedOnce((help: Help, question: string, root: string, asked: string) =>
+  answeredNow(question as 'symbol' | 'uses', root, storeBytesOf(help)!, JSON.parse(asked) as NameAsked));
 
 /** The files `answer` names, each at its lines, and those it could not read. */
 export function fileSetOf(answer: NameAnswer): FileSet {

@@ -46,11 +46,15 @@ export function journeysPath(index: string, suite?: string): string {
 
 /** One suite's recording, found the way every reader of one finds it: the nearest snapshot, when it carries its cases. */
 function recordings(root: string): readonly { readonly suite?: string; readonly recording?: string; readonly looked: string }[] {
-  const suites = declaredSuites(root)?.map((suite) => suite.name) ?? [undefined];
-  return suites.map((suite) => {
+  return suitesOf(root).map((suite) => {
     const looked = nearestTestCoverage(root, { suite });
     return { ...(suite === undefined ? {} : { suite }), ...(keepsCases(looked) ? { recording: looked } : {}), looked };
   });
+}
+
+/** Each declared suite's name, or one unnamed suite when none is declared. */
+function suitesOf(root: string): readonly (string | undefined)[] {
+  return declaredSuites(root)?.map((suite) => suite.name) ?? [undefined];
 }
 
 /**
@@ -374,14 +378,17 @@ export function linesThen(root: string, commit: string, file: string, lines: rea
 
 /**
  * Every declared suite's recording that keeps its cases, with the commit it ran
- * at, or why it names none: what `symbol --line` orders a name's declarations
- * by, found the way every reader of a recording finds it.
+ * at, or why it names none or does not open: what `symbol --line` orders a
+ * name's declarations by, found where every reader of a recording finds it.
+ * The executable finds the same rows in Rust, in the same words; the
+ * `symbol --line` integration test holds the two equal.
  */
 export function recordedSuites(root: string): readonly NativeRecorded[] {
-  return recordings(root).flatMap(({ suite, recording }) => {
-    if (recording === undefined) return [];
+  return suitesOf(root).flatMap((suite) => {
+    const recording = nearestTestCoverage(root, { suite });
     let at: NativeJourneysCommit;
     try {
+      if (!keepsCases(recording)) return [];
       at = commitOf(recording);
     } catch (error) {
       at = { unread: unreadable(root, recording, error) };

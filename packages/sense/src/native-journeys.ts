@@ -458,5 +458,4 @@ export interface NativeJourneys {
   testRan?(recording: string, file: string, name?: string | null): NativeTestRan;
   /** Where each of `lines` of `file` stood at `commit`: `null` for a line written since. */
   linesThen?(root: string, commit: string, file: string, lines: number[]): NativeLinesThen;
-  /** How each of `candidates`, the declarations of one name, resonates with `file:line`. */
 }

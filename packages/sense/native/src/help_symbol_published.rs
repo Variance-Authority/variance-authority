@@ -11,6 +11,7 @@ use crate::help_members::members_on;
 use crate::help_name_scope::PackageScope;
 use crate::help_key::{says, Keys, SLOT};
 use crate::help_symbol_rows::{Entry, Export, PathSite, Site};
+use crate::help_unread::{Said, STORE};
 use crate::help_usage::{importers, Asked, Importers, NameUse};
 use crate::help_uses_answer::Counts;
 use crate::order::code_unit;
@@ -61,22 +62,22 @@ pub(crate) struct Declaration<'a> {
 /// the name its declaring file exports it under, from the package asked, the
 /// one whose leading door the workspace imports most first, then by file and
 /// declared name in code units.
-pub(crate) fn published_declarations<'a>(keys: &Keys<'a>, name: &str, package: &PackageScope<'_>) -> Option<Vec<Declaration<'a>>> {
+pub(crate) fn published_declarations<'a>(keys: &Keys<'a>, name: &str, package: &PackageScope<'_>) -> Result<Vec<Declaration<'a>>, String> {
     let rows = keys.rows();
-    let mut candidates = rows.published(name)?;
-    let answering: HashSet<(&str, &str)> = keys.answering(name)?.iter().map(|held| (held.at, held.name)).collect();
+    let mut candidates = rows.published(name).said(STORE)?;
+    let answering: HashSet<(&str, &str)> = keys.answering(name).said(STORE)?.iter().map(|held| (held.at, held.name)).collect();
     if rows.holds("pub.at") {
-        candidates.extend(rows.published_declaring(&answering)?);
+        candidates.extend(rows.published_declaring(&answering).said(STORE)?);
     } else if !answering.is_empty() {
-        // The entries are read for a name published or bound by an import; a door to another of its spellings is the full reading's.
+        // The entries are read for a name published or bound by an import, so a door to another of its spellings was not read.
         let spelled: HashSet<&str> = answering.iter().map(|(_, spelled)| *spelled).collect();
-        if rows.publishes_declared(&spelled)? { return None }
+        if rows.publishes_declared(&spelled).said(STORE)? { return Err(format!("an entry publishes `{name}` under another of its names, and this reading did not read the entries")) }
     }
     let mut doors = Vec::new();
     for row in candidates {
-        let entry = rows.entry(row)?;
-        if !(says(entry.name, name) || keys.answers(entry.at, entry.declared, name)?) || !package.entry(&entry) { continue }
-        let key = keys.key_of(entry.at, entry.declared)?;
+        let entry = rows.entry(row).said(STORE)?;
+        if !(says(entry.name, name) || keys.answers(entry.at, entry.declared, name).said(STORE)?) || !package.entry(&entry) { continue }
+        let key = keys.key_of(entry.at, entry.declared).said(STORE)?;
         doors.push((entry, key));
     }
     doors.sort_by(|a, b| by_door(&a.0, &b.0));
@@ -88,7 +89,7 @@ pub(crate) fn published_declarations<'a>(keys: &Keys<'a>, name: &str, package: &
         }
     }
     declarations.sort_by(|a, b| by_door(&a.doors[0], &b.doors[0]).then_with(|| code_unit(a.at, b.at)).then_with(|| code_unit(&a.declared, &b.declared)));
-    Some(declarations)
+    Ok(declarations)
 }
 
 pub(crate) type Published<'a> = (Vec<Entry<'a>>, &'a str);

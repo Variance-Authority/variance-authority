@@ -9,9 +9,9 @@ import { uses } from './tools/uses.js';
 
 /**
  * What an answer whose files are unchanged pays for the look: a stat of each,
- * and no second walk of the source index. The index is cut at the reads that
- * cost, each still answered, so a repeated reading shows as a count: the
- * tools' own reads, and the addon's answers, one question each.
+ * and no second question to the source index. The index is cut at the reads
+ * that cost, each still answered, so a repeated reading shows as a count: the
+ * tools' own reads, and the addon's answers.
  */
 
 const asked = vi.hoisted(() => ({ reads: 0, importers: 0, native: 0 }));
@@ -49,21 +49,11 @@ afterEach(fixture.after);
 describe('the look at an answer whose files are unchanged', () => {
   const later = (at: string | undefined): number => Date.parse(at!) + 1;
 
-  it('asks the source index nothing more once `docs_search` has answered', async () => {
-    const root = await fixture.published();
-    const help = await readWorkspace(root);
-    const input = { query: 'taxOf' };
-    search.run(help, input, { root });
-    asked.reads = 0;
-
-    expect(await outlived(search.name, help, input, { root }, later(workspaceGeneration(help)))).toBe(false);
-    expect(asked.reads).toBe(0);
-  });
-
   it.each([
     [symbol, { name: 'taxOf' }],
     [uses, { name: 'taxOf' }],
-  ])('looks at `$name` with one question to the addon and none of its own', async (tool, input) => {
+    [search, { query: 'taxOf' }],
+  ])('asks the source index nothing more once `$name` has answered', async (tool, input) => {
     const root = await fixture.published();
     const help = await readWorkspace(root);
     tool.run(help, input, { root });
@@ -71,7 +61,21 @@ describe('the look at an answer whose files are unchanged', () => {
     asked.native = 0;
 
     expect(await outlived(tool.name, help, input, { root }, later(workspaceGeneration(help)))).toBe(false);
-    expect([asked.reads, asked.native]).toEqual([0, 1]);
+    expect([asked.reads, asked.native]).toEqual([0, 0]);
+  });
+
+  it.each([
+    [symbol, { name: 'taxOf' }],
+    [uses, { name: 'taxOf' }],
+  ])('leaves `$name` nothing more to ask when it looks first, as `variance ask` does', async (tool, input) => {
+    const root = await fixture.published();
+    const help = await readWorkspace(root);
+    await outlived(tool.name, help, input, { root }, later(workspaceGeneration(help)));
+    asked.reads = 0;
+    asked.native = 0;
+
+    tool.run(help, input, { root });
+    expect([asked.reads, asked.native]).toEqual([0, 0]);
   });
 
   it('walks who imports a published name for `docs_search` no more for the look, in either order', async () => {

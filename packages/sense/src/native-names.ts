@@ -61,7 +61,7 @@ export interface NameAnswer {
 /**
  * `symbol`'s answer about `asked.name` in the checkout at `root`, read from the
  * help store `store`; absent when no source index is published. An index that
- * does not read throws, saying why.
+ * does not read, or an answer that does not, throws, saying why.
  */
 export function answerSymbol(root: string, store: Uint8Array, asked: NameAsked): NameAnswer | undefined {
   return answered(root, (opened) => entry('answerSymbol')(root, opened, store, asked));

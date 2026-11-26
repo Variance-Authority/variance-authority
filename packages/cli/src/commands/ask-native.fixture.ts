@@ -157,6 +157,12 @@ export function nativeFiles(question: readonly string[]): Readonly<Record<string
       'apps/app/src/through.ts': "import { lost } from '@acme/kit/src/barrel';\nexport const through = lost;\n",
     } : {}),
     'packages/lib/src/session.ts': 'interface AgentSession { sessionToken: string }\ninterface SavedSession { sessionToken: number }\nexport function tokenOf(session: AgentSession) { return session.sessionToken; }\n',
+    // A file that passes a name on from a file that is not there: an export the index binds to no declaration.
+    ...(question[2] === 'unbound' ? {
+      'packages/kit/src/relay.ts': "export { unbound } from './nowhere';\n",
+      'packages/kit/src/unbound.ts': 'export const unbound = 1;\n',
+      'apps/app/src/relayed.ts': "import { unbound } from '@acme/kit/src/relay';\nexport const relayed = unbound;\n",
+    } : {}),
     ...(question[2] === 'packages/lib/src/greet.ts,packages/lib/src/index.ts' ? {
       'apps/app/src/bridge.ts': "export { hello } from './hello.js';\n",
       'apps/app/src/outer-a.ts': "import { hello } from './bridge.js';\nexport const a = hello;\n",
