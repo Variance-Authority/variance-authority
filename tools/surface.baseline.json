@@ -3336,6 +3336,7 @@
         "FanInFile": "interface",
         "FanInKind": "interface",
         "FetchedMainline": "interface",
+        "FileChange": "interface",
         "FilePhases": "interface",
         "FileReading": "type",
         "FileReferences": "interface",
