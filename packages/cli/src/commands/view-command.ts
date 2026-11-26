@@ -47,12 +47,17 @@ async function historyFor(cwd: string, since: number, here: ViewHere): Promise<H
   const cell = await lineCellOf({ share: selected.share, cacheRoot: selected.cacheRoot }, { cwd, reuseMs: READ_REUSE_MS });
   if (cell === undefined) return { unread: 'no share is configured, so no mainline record is kept' };
   if ('kind' in cell) return { unread: `the share could not be opened: ${describeMiss(cell)}` };
-  return historyOf(cell, selected.named.name, {
-    since,
-    now: here.now ?? Date.now(),
-    cacheDir: selected.cacheRoot,
-    ...(here.progress === undefined ? {} : { progress: here.progress }),
-  });
+  try {
+    return await historyOf(cell, selected.named.name, {
+      since,
+      now: here.now ?? Date.now(),
+      cacheDir: selected.cacheRoot,
+      ...(here.progress === undefined ? {} : { progress: here.progress }),
+    });
+  } catch (error) {
+    // The page is still worth drawing: the series says why it is missing.
+    return { unread: `the series could not be read: ${error instanceof Error ? error.message : String(error)}` };
+  }
 }
 
 /** The suite asked for, or the first whose record is on disk; each is located, none is read. */

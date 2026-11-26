@@ -17,9 +17,7 @@ import { commitRunsFile } from './test-selection/commit-runs.js';
 import { commitRunsIn } from './test-selection/commit-runs-text.js';
 import { askCoverageFile } from './test-selection/coverage-file.js';
 import { decodeExecutionIndex, decodeExecutionTests } from './test-selection/execution-format.js';
-import { fileCost } from './test-selection/file-cost.js';
-import { NO_DURATION, PHASE_NAMES } from './test-selection/format-layout.js';
-import type { TestCoverageView } from './test-selection/format-view.js';
+import { costs } from './test-selection/file-cost.js';
 import { recordDigestAt } from './test-selection/record-base.js';
 import { nearestRecord, nearestTestCoverage, type RecordOrigin } from './test-selection/record-location.js';
 import { declaredSuites } from './test-selection/suites.js';
@@ -163,14 +161,6 @@ function landedAt(runs: string, commit: string | undefined): { readonly landed?:
     // The durations stand without their age, and the reader says the record does not hold it.
     return {};
   }
-}
-
-/** What running test `test` of `view` cost, as {@link fileCost} reads it; absent where its runner timed nothing. */
-export function costs(view: TestCoverageView): (test: number) => number | undefined {
-  const durations = view.testDuration?.all();
-  const phases = view.testPhases?.all();
-  const width = PHASE_NAMES.length;
-  return (test) => fileCost(durations?.[test] ?? NO_DURATION, phases?.subarray(test * width, (test + 1) * width));
 }
 
 /**

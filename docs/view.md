@@ -54,10 +54,12 @@ sorts it, the first click largest first.
   took, its test files and cases, the cases it retried and the time their
   earlier attempts cost. It adds each test file's mean time over the window,
   each retried case with the commits it was retried on, and the commits whose
-  suite time moved most from the one kept before, with the test files that
-  moved it. `--since <n>d` or `--since <n>w` widens or narrows the window.
-  Where there is no series to draw, because no share is configured or it keeps
-  nothing in the window, the tab says why.
+  suite time moved most from the one kept before, over the test files both
+  runs timed, with the files that moved it. A record it does not draw, such as
+  a partial run or one the share could not hand over, is named with why.
+  `--since <n>d` or `--since <n>w` widens or narrows the window. Where there is
+  no series to draw, because no share is configured or it keeps nothing in the
+  window, the tab says why.
 - **Record**: every section of the file with its size; open one to see its
   rows.
 

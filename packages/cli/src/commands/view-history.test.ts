@@ -76,18 +76,17 @@ async function kept(published: readonly { readonly commit: string; readonly ago:
 const cache = () => mkdtempSync(join(tmpdir(), 'va-history-'));
 
 describe('one record, summarised', () => {
-  it('gives each test file and its time, the cases, the retried case and its earlier attempt\'s time, and the files reached', () => {
+  it('gives each test file and its time, the cases, and the retried case and its earlier attempt\'s time', () => {
     expect(summaryOf(record([12, 30], { retried: true }))).toEqual({
       files: [['test/a.test.ts', 12], ['test/pay.test.ts', 30]],
       total: 42,
       cases: 3,
-      retried: [{ case: 'p', name: 'checkout > pays', file: 'test/pay.test.ts', attempts: 2, lost: 31 }],
-      reached: 2,
+      retried: [{ case: 'p', name: 'checkout > pays', file: 'test/pay.test.ts', lost: 31 }],
     });
   });
 
-  it('retries nothing where the record keeps no attempts', () => {
-    expect(summaryOf(record([12, 30])).retried).toEqual([]);
+  it('says nothing of retries where the record kept no attempts', () => {
+    expect(summaryOf(record([12, 30]))).not.toHaveProperty('retried');
   });
 });
 
@@ -147,5 +146,51 @@ describe('the kept commits, as a series', () => {
 
     expect(await historyOf(cell, 'main', { since: 14 * DAY, now: NOW, cacheDir: cache() })).toEqual({ unread: 'the share keeps no record of main from the last 14 days' });
     expect(await historyOf({ ...cell, commits: undefined }, 'main', { since: 14 * DAY, now: NOW, cacheDir: cache() })).toEqual({ unread: 'the share keeps only the latest record of each line, so it holds no series' });
+    const unlisted: LineCell = { ...cell, commits: async () => ({ kind: 'unreachable', detail: 'timed out' }) };
+    expect(await historyOf(unlisted, 'main', { since: 14 * DAY, now: NOW, cacheDir: cache() })).toMatchObject({ unread: expect.stringMatching(/^the share could not list the commits it keeps: /u) });
+  });
+
+  it('names a record it cannot open, and why, and draws the rest', async () => {
+    const { cell } = await kept([
+      { commit: C1, ago: 2, entries: [entry(C1, record([10, 30]))] },
+      { commit: C2, ago: 1, entries: [entry(C2, new Uint8Array([1, 2, 3]))] },
+    ]);
+
+    const history = await historyOf(cell, 'main', { since: 14 * DAY, now: NOW, cacheDir: cache() });
+
+    expect(history).toMatchObject({ skipped: [{ commit: C2, suite: 'unit', why: expect.any(String) }] });
+    expect('points' in history && history.points.map(({ commit }) => commit)).toEqual([C1]);
+  });
+
+  it('carries each test file once for the window, and each point its move from the one before', async () => {
+    const { cell } = await kept([
+      { commit: C1, ago: 2, entries: [entry(C1, record([10, 30]))] },
+      { commit: C2, ago: 1, entries: [entry(C2, record([10, 90]))] },
+    ]);
+
+    const history = await historyOf(cell, 'main', { since: 14 * DAY, now: NOW, cacheDir: cache() });
+
+    expect('points' in history && history.files).toEqual([
+      { suite: 'unit', file: 'test/a.test.ts', runs: 2, timed: 2, took: 20 },
+      { suite: 'unit', file: 'test/pay.test.ts', runs: 2, timed: 2, took: 120 },
+    ]);
+    expect('points' in history && history.points.map((point) => [point.testFiles, point.moved])).toEqual([
+      [2, undefined],
+      [2, { before: C1, delta: 60, files: [['test/pay.test.ts', 60]] }],
+    ]);
+  });
+
+  it('names a partial run as not read, and draws none of it', async () => {
+    const { cell } = await kept([
+      { commit: C1, ago: 2, entries: [entry(C1, record([10, 30]))] },
+      { commit: C2, ago: 1, entries: [{ ...entry(C2, record([10, 90])), partial: true }] },
+    ]);
+
+    const history = await historyOf(cell, 'main', { since: 14 * DAY, now: NOW, cacheDir: cache() });
+
+    expect('points' in history && [history.points.map(({ commit }) => commit), history.skipped]).toEqual([
+      [C1],
+      [{ commit: C2, suite: 'unit', why: 'a partial run: it holds only the tests it ran' }],
+    ]);
   });
 });

@@ -39,7 +39,11 @@ describe('the series a git share keeps', () => {
     const again: string[] = [];
     await viewOutput({ command: 'view' }, clone, { progress: (line) => again.push(line) });
 
-    expect(historyIn(await readFile(out.trim(), 'utf8'))).toMatchObject({ points: [{ commit: first, suite: 'unit', files: [['test/other.test.ts', null], ['test/total.test.ts', null]] }] });
+    expect(historyIn(await readFile(out.trim(), 'utf8'))).toMatchObject({
+      points: [{ commit: first, suite: 'unit', testFiles: 2 }],
+      files: [{ file: 'test/other.test.ts', runs: 1, timed: 0 }, { file: 'test/total.test.ts', runs: 1, timed: 0 }],
+      skipped: [],
+    });
     expect(said).toEqual(['reading 1 record kept on main in the last 14 days', 'read 1 of 1']);
     expect(again).toEqual([]);
   }, 60_000);
