@@ -1,28 +1,10 @@
 /**
- * `docs_orient` — what the code around some files is.
- *
- * It starts from files somebody already has: the ones a stack trace, a ticket
- * or an editor names, or the ones `docs_search`, `docs_symbol` and `docs_grep`
- * found. Finding them is those tools' job. The first two answer from the index
- * `variance index` publishes and the third runs ripgrep over what one file
- * reaches, so orientation does not scan source text. This answers the graph
- * questions each of those files raises: what it declares at its top level, the
- * package it belongs to, the names that cross that package's edge in both
- * directions, the recorded cases that ran it, the calls those cases took into
- * and out of it, and the commands that ask about one of the names it printed;
- * `path:line` narrows the calls to the function holding that line.
- *
- * The package graph and the recorded cases are the addon's, through
- * `@variance-authority/sense`: they read what an earlier `variance index` and
- * an earlier recorded run published, and the calls are the journeys `variance
- * index` walked from that run; nothing here scans or runs anything.
- * A reading that was never published is said to be absent, with the command
- * that publishes it.
- *
- * Asked with no files, it prints the code map instead: the package graph folded
- * into nested areas, one page at a time, which `variance index` prepares beside
- * the source index. The top page is where a reader with nothing in hand starts,
- * and `area` opens one of the areas it lists.
+ * `docs_orient` — what the code around some files is. It starts from files
+ * somebody already has, from a stack trace, a ticket, an editor or
+ * `docs_search`, `docs_symbol` and `docs_grep`, and finds none itself; with no
+ * files it prints the code map `variance index` prepares. Every reading is the
+ * addon's, through `@variance-authority/sense`, from what an earlier `variance
+ * index` and recorded run published; nothing here scans or runs anything.
  */
 
 // compass: variance-authority.report.agent-surface
