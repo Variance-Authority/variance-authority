@@ -12,17 +12,47 @@ import { fileURLToPath } from 'node:url';
 import { gzipSync } from 'node:zlib';
 import { cacheRootFor, declaredSuites, nearestRecord, rawRecord } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
-import type { ParsedView } from '../view-args.js';
+import { lineCellOf, READ_REUSE_MS } from '../share-lines.js';
+import { VIEW_SINCE_DEFAULT, type ParsedView } from '../view-args.js';
+import { selectMainline } from './mainline-selected.js';
+import { describeMiss } from './share.js';
+import { historyOf } from './view-history.js';
+import type { History } from './view-history-tables.js';
 import { viewPage } from './view-page.js';
 
+/** What the command is told while it works, and when it is. */
+export interface ViewHere {
+  /** A line for the person waiting, written as it happens. */
+  readonly progress?: (line: string) => void;
+  readonly now?: number;
+}
+
 /** The page's path on stdout. */
-export function viewOutput(parsed: ParsedView, cwd: string): { readonly out: string; readonly err: string } {
+export async function viewOutput(parsed: ParsedView, cwd: string, here: ViewHere = {}): Promise<{ readonly out: string; readonly err: string }> {
   const { suite, recording } = chosen(cwd, parsed.suite);
   const record = readFileSync(recording);
+  const history = await historyFor(cwd, parsed.since ?? VIEW_SINCE_DEFAULT, here);
   const path = resolve(cwd, `${cacheRootFor(cwd)}/variance-view.html`);
   mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, viewPage({ ...(suite === undefined ? {} : { suite }), recording, size: record.length, packed: gzipSync(rawRecord(record)), code: code() }));
+  writeFileSync(path, viewPage({ ...(suite === undefined ? {} : { suite }), recording, size: record.length, packed: gzipSync(rawRecord(record)), history, code: code() }));
   return { out: `${path}\n`, err: '' };
+}
+
+/** The series of the mainline this checkout reads, from the share the root config names, or why there is none. */
+async function historyFor(cwd: string, since: number, here: ViewHere): Promise<History> {
+  const selected = await selectMainline(cwd);
+  if ('unconfigured' in selected) return { unread: `the share section does not parse: ${selected.unconfigured}` };
+  if (selected.share === undefined) return { unread: 'no share is configured, so no mainline record is kept' };
+  if (selected.named === undefined) return { unread: 'no mainline could be chosen for this checkout' };
+  const cell = await lineCellOf({ share: selected.share, cacheRoot: selected.cacheRoot }, { cwd, reuseMs: READ_REUSE_MS });
+  if (cell === undefined) return { unread: 'no share is configured, so no mainline record is kept' };
+  if ('kind' in cell) return { unread: `the share could not be opened: ${describeMiss(cell)}` };
+  return historyOf(cell, selected.named.name, {
+    since,
+    now: here.now ?? Date.now(),
+    cacheDir: selected.cacheRoot,
+    ...(here.progress === undefined ? {} : { progress: here.progress }),
+  });
 }
 
 /** The suite asked for, or the first whose record is on disk; each is located, none is read. */

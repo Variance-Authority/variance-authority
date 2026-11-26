@@ -49,6 +49,15 @@ sorts it, the first click largest first.
   before, where it kept them.
 - A tab for each other part the record carries, such as retried attempts, shown
   as it is stored.
+- **History**: every record the [share](sharing.md) keeps of the mainline in
+  the last two weeks, one row per commit and suite: when it ran, how long it
+  took, its test files and cases, the cases it retried and the time their
+  earlier attempts cost. It adds each test file's mean time over the window,
+  each retried case with the commits it was retried on, and the commits whose
+  suite time moved most from the one kept before, with the test files that
+  moved it. `--since <n>d` or `--since <n>w` widens or narrows the window.
+  Where there is no series to draw, because no share is configured or it keeps
+  nothing in the window, the tab says why.
 - **Record**: every section of the file with its size; open one to see its
   rows.
 
@@ -84,6 +93,10 @@ name in CI.
 - The page decompresses the record itself, with `DecompressionStream`, which
   every current Chrome, Edge, Firefox and Safari has.
 - With no record on disk, the command writes no page and names where it looked.
+- The History tab reads every kept record in the window whole, once: the first
+  open of a wide window fetches each one and says on stderr how far it has
+  got. What it learnt from each record is kept in the cache under the record's
+  digest, so the next open reads only the records kept since.
 
 ## Reference: addresses
 
