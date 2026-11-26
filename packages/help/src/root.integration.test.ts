@@ -84,8 +84,10 @@ describe('variance-authority-help --root', () => {
 
     const answer = execFileSync('node', [BIN, 'orient', '--root', root, '--files', 'src/a.ts'], { cwd: elsewhere, env: env(), encoding: 'utf8' });
 
-    expect(answer).toContain('Recorded cases');
-    expect(answer).toContain(cache);
+    // The text names no cache file, so it no longer tells the root's record from the working directory's:
+    // that the root is the one read is the `slowest-tests` case's to show, from the same `--root`.
+    expect(answer).toContain('Recorded cases: none read, no run kept its cases there.');
+    expect(answer).not.toContain(cache);
   });
 
   it('serves the root it was started on over MCP, from any working directory', async () => {
