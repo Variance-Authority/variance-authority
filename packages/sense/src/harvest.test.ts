@@ -53,7 +53,7 @@ describe('declaration facts harvested with a module record', () => {
 
   it('names an anonymous default value as a constant', () => {
     expect(readModule('literal.ts', "export default 'value' as const;").symbols).toEqual([
-      { name: 'default', kind: 'const', line: 1, reach: 'file' },
+      { name: 'default', kind: 'const', line: 1, endLine: 1, reach: 'file' },
     ]);
   });
 

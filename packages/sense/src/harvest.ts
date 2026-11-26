@@ -59,6 +59,8 @@ export interface SourceSymbol {
   readonly name: string;
   readonly kind: SourceSymbolKind;
   readonly line: number;
+  /** The line it ends on. */
+  readonly endLine: number;
   readonly signature?: TextSpan;
   readonly doc?: TextSpan;
   readonly reach?: SourceSymbolReach;

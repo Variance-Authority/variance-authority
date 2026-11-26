@@ -84,6 +84,7 @@ impl<'s, 'a> ParseView<'s, 'a> {
                     name: stored.text(columns.symbol_name.at(at)).to_owned(),
                     kind,
                     line: columns.symbol_line.at(at),
+                    end_line: columns.symbol_end_line.at(at),
                     signature: None,
                     doc: None,
                     reach: reach_of(columns.symbol_reach[at]),
@@ -132,6 +133,7 @@ impl ParseRow for ParseView<'_, '_> {
         }
         for at in columns.member_declarations.range(row) {
             text(columns.member_declaration_name, at);
+            text(columns.member_declaration_kind, at);
             text(columns.member_declaration_on, at);
         }
         for at in columns.member_uses.range(row) {
@@ -205,7 +207,7 @@ impl ParseRow for ParseView<'_, '_> {
             into.symbol(
                 id(columns.symbol_name, symbol),
                 id(columns.symbol_kind, symbol),
-                columns.symbol_line.at(symbol),
+                (columns.symbol_line.at(symbol), columns.symbol_end_line.at(symbol)),
                 span(columns.symbol_signature, symbol),
                 span(columns.symbol_doc, symbol),
                 columns.symbol_reach[symbol],
@@ -224,7 +226,8 @@ impl ParseRow for ParseView<'_, '_> {
         for at in columns.member_declarations.range(row) {
             into.member_declaration(
                 id(columns.member_declaration_name, at),
-                columns.member_declaration_line.at(at),
+                id(columns.member_declaration_kind, at),
+                (columns.member_declaration_line.at(at), columns.member_declaration_end_line.at(at)),
                 id(columns.member_declaration_on, at),
                 span(columns.member_declaration_doc, at),
                 text(columns.member_declaration_line_text, at),
@@ -245,7 +248,7 @@ impl ParseRow for ParseView<'_, '_> {
             into.nested(
                 id(columns.nested_name, at),
                 id(columns.nested_kind, at),
-                columns.nested_line.at(at),
+                (columns.nested_line.at(at), columns.nested_end_line.at(at)),
                 span(columns.nested_signature, at),
                 span(columns.nested_doc, at),
                 strings.optional(stored.optional(columns.nested_holder.at(at))),

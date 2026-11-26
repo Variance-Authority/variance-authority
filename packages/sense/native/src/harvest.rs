@@ -25,6 +25,9 @@ pub struct SourceSymbol {
     pub name: String,
     pub kind: &'static str,
     pub line: u32,
+    /// The line its declaration ends on, as the parser spans it.
+    #[serde(rename = "endLine")]
+    pub end_line: u32,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub signature: Option<TextSpan>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -45,6 +48,9 @@ pub struct NestedSymbol {
     pub name: String,
     pub kind: &'static str,
     pub line: u32,
+    /// The line its declaration ends on, as the parser spans it.
+    #[serde(rename = "endLine")]
+    pub end_line: u32,
     pub signature: TextSpan,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub doc: Option<TextSpan>,
@@ -239,7 +245,7 @@ impl Harvest {
                 let doc = harvest.doc(bound.statement.start);
                 // A name destructured out of a value, or a module required whole, is bound, not defined, here.
                 let kind = if bound.destructured || bound.required { BINDING } else { bound.kind };
-                harvest.push(bound.name.to_owned(), kind, lines.at(bound.statement.start), doc, bound.signature);
+                harvest.push(bound.name.to_owned(), kind, (lines.at(bound.statement.start), lines.last(bound.statement)), doc, bound.signature);
             });
             harvest.nested = crate::nested::nested(program)
                 .into_iter()
@@ -247,6 +253,7 @@ impl Harvest {
                     doc: harvest.doc(found.statement.start),
                     signature: harvest.span(found.signature),
                     line: lines.at(found.statement.start),
+                    end_line: lines.last(found.statement),
                     holder_line: lines.at(found.holder_at),
                     name: found.name,
                     kind: found.kind,
@@ -269,7 +276,7 @@ impl Harvest {
         &mut self,
         name: String,
         kind: &'static str,
-        line: u32,
+        (line, end_line): (u32, u32),
         doc: Option<TextSpan>,
         signature: Option<Span>,
     ) {
@@ -277,6 +284,7 @@ impl Harvest {
             name,
             kind,
             line,
+            end_line,
             signature: signature.map(|span| self.span(span)),
             doc,
             reach: None,

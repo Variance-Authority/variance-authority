@@ -51,6 +51,8 @@ pub(crate) struct Parses<'a> {
     pub symbol_name: U32s<'a>,
     pub symbol_kind: U32s<'a>,
     pub symbol_line: U32s<'a>,
+    /// The line each symbol's declaration ends on.
+    pub symbol_end_line: U32s<'a>,
     pub symbol_signature: Ends<'a>,
     pub symbol_doc: Ends<'a>,
     /// A symbol's reach as [`crate::harvest::reach_code`] stores it.
@@ -67,7 +69,11 @@ pub(crate) struct Parses<'a> {
     pub member_through_default: &'a [u8],
     pub member_declarations: U32s<'a>,
     pub member_declaration_name: U32s<'a>,
+    /// What each member is to its container — a method, a property, … — as a string id.
+    pub member_declaration_kind: U32s<'a>,
     pub member_declaration_line: U32s<'a>,
+    /// The line each member's declaration ends on.
+    pub member_declaration_end_line: U32s<'a>,
     pub member_declaration_on: U32s<'a>,
     pub member_declaration_doc: Ends<'a>,
     /// As [`Self::export_line_text`] is of an export.
@@ -84,6 +90,8 @@ pub(crate) struct Parses<'a> {
     pub nested_name: U32s<'a>,
     pub nested_kind: U32s<'a>,
     pub nested_line: U32s<'a>,
+    /// The line each nested function's declaration ends on.
+    pub nested_end_line: U32s<'a>,
     pub nested_signature: Ends<'a>,
     pub nested_doc: Ends<'a>,
     /// The holder's name, or `NONE` when nothing names it.
@@ -159,6 +167,7 @@ impl<'a> Parses<'a> {
             symbols: stored.offsets("parses.symbols", rows, symbol_name.len())?,
             symbol_kind: u32s("symbols.kind")?,
             symbol_line: u32s("symbols.line")?,
+            symbol_end_line: u32s("symbols.end-line")?,
             symbol_signature: ends("symbols.signature-start", "symbols.signature-end", "symbols.signature-text")?,
             symbol_doc: ends("symbols.doc-start", "symbols.doc-end", "symbols.doc-text")?,
             symbol_reach: stored.codes("symbols.reach", REACHES.len() as u8)?,
@@ -173,7 +182,9 @@ impl<'a> Parses<'a> {
             member_through_default: stored.u8s("members.through-default")?,
             member_name,
             member_declarations: stored.offsets("parses.member-declarations", rows, member_declaration_name.len())?,
+            member_declaration_kind: u32s("member-declarations.kind")?,
             member_declaration_line: u32s("member-declarations.line")?,
+            member_declaration_end_line: u32s("member-declarations.end-line")?,
             member_declaration_on: u32s("member-declarations.on")?,
             member_declaration_doc: ends("member-declarations.doc-start", "member-declarations.doc-end", "member-declarations.doc-text")?,
             member_declaration_line_text: u32s("member-declarations.line-text")?,
@@ -189,6 +200,7 @@ impl<'a> Parses<'a> {
             nested: stored.offsets("parses.nested", rows, nested_name.len())?,
             nested_kind: u32s("nested.kind")?,
             nested_line: u32s("nested.line")?,
+            nested_end_line: u32s("nested.end-line")?,
             nested_signature: ends("nested.signature-start", "nested.signature-end", "nested.signature-text")?,
             nested_doc: ends("nested.doc-start", "nested.doc-end", "nested.doc-text")?,
             nested_holder: u32s("nested.holder")?,
@@ -297,6 +309,7 @@ impl<'a> Parses<'a> {
         same_length(self.symbol_name.len(), &[
             ("symbols.kind", self.symbol_kind.len()),
             ("symbols.line", self.symbol_line.len()),
+            ("symbols.end-line", self.symbol_end_line.len()),
             ("symbols.signature-start", signature_start.len()),
             ("symbols.signature-end", signature_end.len()),
             ("symbols.signature-text", signature_text.len()),
@@ -311,7 +324,9 @@ impl<'a> Parses<'a> {
             ("members.through-default", self.member_through_default.len()),
         ])?;
         same_length(self.member_declaration_name.len(), &[
+            ("member-declarations.kind", self.member_declaration_kind.len()),
             ("member-declarations.line", self.member_declaration_line.len()),
+            ("member-declarations.end-line", self.member_declaration_end_line.len()),
             ("member-declarations.on", self.member_declaration_on.len()),
             ("member-declarations.doc-start", self.member_declaration_doc[0].len()),
             ("member-declarations.doc-end", self.member_declaration_doc[1].len()),
@@ -327,6 +342,7 @@ impl<'a> Parses<'a> {
         same_length(self.nested_name.len(), &[
             ("nested.kind", self.nested_kind.len()),
             ("nested.line", self.nested_line.len()),
+            ("nested.end-line", self.nested_end_line.len()),
             ("nested.signature-start", self.nested_signature[0].len()),
             ("nested.signature-end", self.nested_signature[1].len()),
             ("nested.signature-text", self.nested_signature[2].len()),

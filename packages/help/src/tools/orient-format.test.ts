@@ -55,7 +55,7 @@ const ORIENTATION: Orientation = {
 };
 
 const READING: OrientReading = {
-  files: ['packages/checkout/src/total.ts', 'packages/cart/src/price.ts', 'README.md', 'test/total.test.ts'],
+  asks: ['packages/checkout/src/total.ts', 'packages/cart/src/price.ts', 'README.md', 'test/total.test.ts'].map((file) => ({ file })),
   around: { index: '/cache/source-index.bin', orientation: ORIENTATION },
   recorded: [
     {
@@ -148,7 +148,7 @@ describe('an orientation, said', () => {
   it('says a file with no package as that, and one the index does not hold as that, never dropping either', () => {
     const owners = [{ indexed: true }, { package: '@t/app', directory: 'apps/app', indexed: false }, { indexed: false }];
     const text = formatOrientation({
-      files: ['scripts/build.ts', 'apps/app/README.md', 'src/new.ts'],
+      asks: ['scripts/build.ts', 'apps/app/README.md', 'src/new.ts'].map((file) => ({ file })),
       around: { index: '', orientation: { ...ORIENTATION, owners, packages: [] } },
       recorded: [],
     });
@@ -159,6 +159,84 @@ describe('an orientation, said', () => {
         '  scripts/build.ts    no package',
         '  apps/app/README.md  @t/app, outside index',
         '  src/new.ts          outside index',
+        '',
+      ].join('\n'),
+    );
+  });
+
+  it('names the declarations each line asked about is in, outermost first, the top level when it is in none, and why when it cannot tell', () => {
+    const basket = { name: 'Basket', kind: 'class', line: 10, end: 15, depth: 0 };
+    const unchanged = { read: true, changed: false };
+    const text = formatOrientation({
+      asks: [
+        { file: 'src/cart.ts', line: 13 },
+        { file: 'src/cart.ts', line: 2 },
+        { file: 'src/cart.ts', line: 16 },
+        { file: 'src/cart.ts', line: 30 },
+        { file: 'src/cart.ts', line: 31 },
+        { file: 'src/total.rs', line: 30 },
+        { file: 'src/cart.py', line: 3 },
+        { file: 'src/old.ts', line: 1 },
+        { file: 'src/moved.ts', line: 4 },
+      ],
+      around: { index: '/cache/source-index.bin' },
+      lines: [
+        { file: 'src/cart.ts', line: 13, ...unchanged, holders: [basket, { name: 'total', kind: 'method', line: 12, end: 14, depth: 1 }] },
+        {
+          file: 'src/cart.ts',
+          line: 2,
+          ...unchanged,
+          holders: [
+            { name: 'Props', kind: 'interface', line: 2, end: 2, depth: 0 },
+            { name: 'name', kind: 'property', line: 2, end: 2, depth: 1 },
+            { name: 'onClick', kind: 'method', line: 2, end: 2, depth: 1 },
+          ],
+        },
+        { file: 'src/cart.ts', line: 16, ...unchanged, holders: [] },
+        {
+          file: 'src/cart.ts',
+          line: 30,
+          ...unchanged,
+          holders: [{ name: 'a', kind: 'function', line: 30, end: 30, depth: 0 }, { name: 'b', kind: 'function', line: 30, end: 30, depth: 0 }],
+        },
+        {
+          file: 'src/cart.ts',
+          line: 31,
+          ...unchanged,
+          holders: [{ name: 'c', kind: 'function', line: 29, end: 31, depth: 0 }, { name: 'd', kind: 'function', line: 31, end: 33, depth: 0 }],
+        },
+        { file: 'src/total.rs', line: 30, ...unchanged, holders: [] },
+        { file: 'src/cart.py', line: 3, ...unchanged, holders: [{ name: 'Cart', kind: 'class', line: 1, end: 6, depth: 0 }] },
+        { file: 'src/old.ts', line: 1, read: false, changed: false, holders: [] },
+        { file: 'src/moved.ts', line: 4, read: true, changed: true, holders: [] },
+      ],
+      recorded: [],
+    });
+
+    expect(text).toContain(
+      [
+        '5 files asked about:',
+        '  src/cart.ts:13',
+        '  src/cart.ts:2',
+        '  src/cart.ts:16',
+        '  src/cart.ts:30',
+        '  src/cart.ts:31',
+        '  src/total.rs:30',
+        '  src/cart.py:3',
+        '  src/old.ts:1',
+        '  src/moved.ts:4',
+        '',
+        'Lines asked about, from the source index:',
+        '  src/cart.ts:13   in class Basket > method total (lines 12–14)',
+        '  src/cart.ts:2    in interface Props > property name, method onClick (line 2)',
+        '  src/cart.ts:16   at the top level of the module',
+        '  src/cart.ts:30   in function a, function b (line 30)',
+        '  src/cart.ts:31   in function c (lines 29–31), function d (lines 31–33)',
+        '  src/total.rs:30  in none of the declarations the index records; members are read from JavaScript and TypeScript only, ' +
+          'so it may be in a member of this Rust file',
+        '  src/cart.py:3    in class Cart (lines 1–6); members are read from JavaScript and TypeScript only, so it may also be in a member of it',
+        '  src/old.ts:1     the index holds no parse of its declarations',
+        '  src/moved.ts:4   changed since the index parsed it, so its lines are not answered from that parse; `variance index` updates it',
         '',
       ].join('\n'),
     );

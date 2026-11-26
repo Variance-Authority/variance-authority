@@ -302,14 +302,23 @@ pub(crate) fn orientation_over(chain: &Chain, layers: &[Layer], owners: &Owners,
     }
 }
 
+/// Whether the record at `at` is of the content git's tree holds for `file`
+/// today; false for a file git no longer lists.
+pub(crate) fn current(layers: &[Layer], owners: &Owners, listed: &Listed, file: &str, (layer, row): At) -> bool {
+    let (stored, records) = (&layers[layer].stored, &layers[layer].records);
+    owners.files.get(file).is_some_and(|&(_, listing)| {
+        stored.optional(records.digest.at(row)).is_some_and(|digest| names_object(digest, &listed.oids[listing as usize]))
+    })
+}
+
 /// Whether the record is stale, and which other packages its targets land in.
 fn record<'a>(layers: &'a [Layer<'a>], owners: &Owners, listed: &Listed, file: &'a str, at: At) -> Record<'a> {
     let (layer, row) = at;
     let (stored, records) = (&layers[layer].stored, &layers[layer].records);
-    let Some(&(owner, listing)) = owners.files.get(file) else {
+    let Some(&(owner, _)) = owners.files.get(file) else {
         return Record { file, at, owner: None, stale: true, others: Vec::new() };
     };
-    let stale = !stored.optional(records.digest.at(row)).is_some_and(|digest| names_object(digest, &listed.oids[listing as usize]));
+    let stale = !current(layers, owners, listed, file, at);
     let mut others: Vec<u32> = Vec::new();
     if records.targets_present[row] == 1 {
         // TODO: a target outside the tracked tree — an installed package, which

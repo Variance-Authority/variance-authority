@@ -81,6 +81,7 @@ impl ParseRow for Read {
         values.extend(self.members.iter().map(|member| member.name.as_str()));
         for declared in &self.member_declarations {
             values.insert(&declared.name);
+            values.insert(declared.kind);
             values.insert(&declared.on);
         }
         for used in &self.member_uses {
@@ -125,7 +126,7 @@ impl ParseRow for Read {
             );
         }
         for symbol in &self.symbols {
-            into.symbol(id(&symbol.name), id(symbol.kind), symbol.line, span(&symbol.signature), span(&symbol.doc), crate::harvest::reach_code(symbol.reach));
+            into.symbol(id(&symbol.name), id(symbol.kind), (symbol.line, symbol.end_line), span(&symbol.signature), span(&symbol.doc), crate::harvest::reach_code(symbol.reach));
         }
         for name in &self.declares {
             into.declare(id(name));
@@ -135,7 +136,7 @@ impl ParseRow for Read {
             into.member(member.request, id(&member.name), member.line, member.through_default);
         }
         for declared in &self.member_declarations {
-            into.member_declaration(id(&declared.name), declared.line, id(&declared.on), span(&declared.doc), declared.line_text.as_deref());
+            into.member_declaration(id(&declared.name), id(declared.kind), (declared.line, declared.end_line), id(&declared.on), span(&declared.doc), declared.line_text.as_deref());
         }
         for used in &self.member_uses {
             into.member_use(id(&used.name), used.line, id(&used.of), id(&used.how));
@@ -145,7 +146,7 @@ impl ParseRow for Read {
         }
         for nested in &self.nested {
             let holder = strings.optional(nested.holder.as_deref());
-            into.nested(id(&nested.name), id(nested.kind), nested.line, Some((nested.signature.start, nested.signature.end, nested.signature.text.as_deref())), span(&nested.doc), holder, nested.holder_line);
+            into.nested(id(&nested.name), id(nested.kind), (nested.line, nested.end_line), Some((nested.signature.start, nested.signature.end, nested.signature.text.as_deref())), span(&nested.doc), holder, nested.holder_line);
         }
         for read in &self.binding_members {
             into.binding_member(read.request, id(&read.binding), read.within.iter().map(|name| id(name)), id(&read.name), read.line);

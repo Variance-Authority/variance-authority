@@ -9,7 +9,7 @@
 use tree_sitter::Node;
 
 use super::shape::{Binding, Export, Exports, Kind, Read, Requests, NAMESPACE_NAME};
-use super::{children_for_field, head, kind_of, line_of, named_children, span_of, text_of};
+use super::{children_for_field, end_line_of, head, kind_of, line_of, named_children, span_of, text_of};
 use crate::harvest::{SourceSymbol, TextSpan};
 
 /// Everything a Python file's bytes say, without touching a disk.
@@ -74,6 +74,7 @@ pub fn declarations(tree: &tree_sitter::Tree, source: &str) -> Vec<SourceSymbol>
                     name: text_of(name, source).to_string(),
                     kind,
                     line: line_of(node),
+                    end_line: end_line_of(node),
                     signature: Some(head(node, source)),
                     doc: docstring(node),
                     reach: None,
@@ -94,6 +95,7 @@ pub fn declarations(tree: &tree_sitter::Tree, source: &str) -> Vec<SourceSymbol>
                         name: text_of(left, source).to_string(),
                         kind: "variable",
                         line: line_of(assignment),
+                        end_line: end_line_of(assignment),
                         signature: Some(head(assignment, source)),
                         doc: None,
                         reach: None,
