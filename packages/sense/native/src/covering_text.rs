@@ -178,15 +178,9 @@ fn file_page(
         });
         cases.push((row, true));
     }
-    let start = request.offset.min(rows.len());
-    let end = start.saturating_add(request.limit).min(rows.len());
-    if request.offset != 0 {
-        if start >= rows.len() {
-            lines.extend(Page { offset: request.offset, limit: request.limit }.above(rows.len(), "--offset"));
-        } else {
-            lines.push(format!("Rows {}–{end} of {}.", start + 1, rows.len()));
-        }
-    }
+    let page = Page { offset: request.offset, limit: request.limit };
+    let std::ops::Range { start, end } = page.rows(rows.len());
+    lines.extend(page.above(rows.len(), "--offset"));
     let mut cut = end - start < rows.len();
     for (file, counts) in &rows[start..end] {
         let suffix = counts.map_or_else(String::new, |row| format!(" — {}/{}", row.cases, row.of));
