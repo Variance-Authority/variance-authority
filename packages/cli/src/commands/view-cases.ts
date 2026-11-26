@@ -16,6 +16,7 @@ export interface Cases {
   rowOf(id: string): number | undefined;
   idAt(row: number): string;
   nameAt(row: number): string;
+  fileAt(row: number): string;
   testDetail(row: number): Detail;
   regionDetail(row: number): Detail;
 }
@@ -107,6 +108,7 @@ function casesOf(columns: SetColumns, prefix: string, label: string): Cases {
     rowOf: (key) => byId().get(key)?.[0],
     idAt: id,
     nameAt: name,
+    fileAt: file,
     testDetail: (row) => {
       const held = test(row);
       const written = linesOf(columns.testLines, row);

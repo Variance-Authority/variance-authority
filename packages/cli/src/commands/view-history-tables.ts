@@ -24,8 +24,10 @@ export interface RetriedCase {
 export interface RecordSummary {
   /** Each test file and what running it cost in ms, as sense's `costs` reads it; null where the record keeps no time. */
   readonly files: readonly (readonly [string, number | null])[];
-  /** The sum of the known costs, in ms. */
-  readonly total: number;
+  /** The sum of the known costs, in ms; absent where the runner timed no file. */
+  readonly total?: number;
+  /** The source files some test of the run reached. */
+  readonly reached: number;
   /** The cases its per-case index holds; absent where it holds none. */
   readonly cases?: number;
   /** The cases retried; absent where the record kept no attempts. */
@@ -46,8 +48,9 @@ export interface HistoryPoint {
   /** When the share kept it, in ms since the epoch. */
   readonly written: number;
   readonly suite: string;
-  readonly total: number;
+  readonly total?: number;
   readonly testFiles: number;
+  readonly reached: number;
   readonly cases?: number;
   readonly retried?: readonly RetriedCase[];
   readonly moved?: Moved;
@@ -104,10 +107,10 @@ export function historyTab(history: History): Tab {
 function commitsTable(points: readonly HistoryPoint[]): Table {
   const table = listed(
     { id: 'history-commits', label: 'Commits', hint: 'each kept commit and suite, newest first' },
-    ['commit', 'suite', 'ran', 'took', 'test files', 'cases', 'retried', 'lost'],
+    ['commit', 'suite', 'ran', 'took', 'test files', 'files reached', 'cases', 'retried', 'lost'],
     [...points]
       .sort((a, b) => b.written - a.written || codeUnitOrder(a.suite, b.suite))
-      .map((point) => [point.commit, point.suite, point.written, point.total, point.testFiles, point.cases, point.retried?.length, point.retried === undefined ? undefined : sum(point.retried.map((one) => one.lost))]),
+      .map((point) => [point.commit, point.suite, point.written, point.total, point.testFiles, point.reached, point.cases, point.retried?.length, point.retried === undefined ? undefined : sum(point.retried.map((one) => one.lost))]),
   );
   return typed(table, { ran: 'time', took: 'ms', lost: 'ms' });
 }

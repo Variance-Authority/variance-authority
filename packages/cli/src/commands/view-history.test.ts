@@ -69,17 +69,22 @@ async function kept(published: readonly { readonly commit: string; readonly ago:
     await publishLine(cell, MAIN, one.entries, { descends: async () => false, image: async () => new Uint8Array() });
   }
   let reads = 0;
-  const counted: LineCell = { ...cell, blob: async (line, path) => { reads += 1; return cell.blob(line, path); } };
+  const counted: LineCell = {
+    ...cell,
+    load: async (line) => { reads += 1; return cell.load(line); },
+    blob: async (line, path) => { reads += 1; return cell.blob(line, path); },
+  };
   return { cell: counted, reads: () => reads };
 }
 
 const cache = () => mkdtempSync(join(tmpdir(), 'va-history-'));
 
 describe('one record, summarised', () => {
-  it('gives each test file and its time, the cases, and the retried case and its earlier attempt\'s time', () => {
+  it('gives each test file and its time, the source files its tests reached, the cases, and the retried case and its earlier attempt\'s time', () => {
     expect(summaryOf(record([12, 30], { retried: true }))).toEqual({
       files: [['test/a.test.ts', 12], ['test/pay.test.ts', 30]],
       total: 42,
+      reached: 2,
       cases: 3,
       retried: [{ case: 'p', name: 'checkout > pays', file: 'test/pay.test.ts', lost: 31 }],
     });
@@ -109,7 +114,7 @@ describe('the kept commits, as a series', () => {
     ]);
   });
 
-  it('reads nothing the second time: each record\'s summary is kept under its digest', async () => {
+  it('reads nothing but the listing the second time: each commit\'s manifest and each record\'s summary are kept', async () => {
     const { cell, reads } = await kept([
       { commit: C1, ago: 2, entries: [entry(C1, record([10, 30]))] },
       { commit: C2, ago: 1, entries: [entry(C2, record([10, 90]))] },
@@ -125,7 +130,7 @@ describe('the kept commits, as a series', () => {
     expect(reads()).toBe(before);
   });
 
-  it('says how many records it reads and how far it has got, and says nothing of what it held', async () => {
+  it('says how many commits it reads and how far it has got, and says nothing of what it held', async () => {
     const { cell } = await kept([
       { commit: C1, ago: 2, entries: [entry(C1, record([10, 30]))] },
       { commit: C2, ago: 1, entries: [entry(C2, record([10, 90]))] },
@@ -137,7 +142,7 @@ describe('the kept commits, as a series', () => {
     const warm: string[] = [];
     await historyOf(cell, 'main', { since: 14 * DAY, now: NOW, cacheDir, progress: (line) => warm.push(line) });
 
-    expect(said).toEqual(['reading 2 records kept on main in the last 14 days', 'read 1 of 2', 'read 2 of 2']);
+    expect(said).toEqual(['reading 2 commits kept on main in the last 14 days', 'read 1 of 2', 'read 2 of 2']);
     expect(warm).toEqual([]);
   });
 
@@ -160,6 +165,21 @@ describe('the kept commits, as a series', () => {
 
     expect(history).toMatchObject({ skipped: [{ commit: C2, suite: 'unit', why: expect.any(String) }] });
     expect('points' in history && history.points.map(({ commit }) => commit)).toEqual([C1]);
+  });
+
+  it('reads a commit again where a record it names could not be read, and where the share wrote it again', async () => {
+    const { cell, reads } = await kept([{ commit: C1, ago: 2, entries: [entry(C1, new Uint8Array([1, 2, 3]))] }]);
+    const cacheDir = cache();
+    await historyOf(cell, 'main', { since: 14 * DAY, now: NOW, cacheDir });
+    const before = reads();
+
+    await historyOf(cell, 'main', { since: 14 * DAY, now: NOW, cacheDir });
+
+    expect(reads()).toBeGreaterThan(before);
+  });
+
+  it('says nothing of a total where the runner timed no test file', () => {
+    expect(summaryOf(record([NaN, NaN]))).not.toHaveProperty('total');
   });
 
   it('carries each test file once for the window, and each point its move from the one before', async () => {

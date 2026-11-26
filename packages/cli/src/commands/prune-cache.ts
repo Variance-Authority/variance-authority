@@ -16,6 +16,8 @@
  * mainline record a suite's `fetched.json` names, always
  * stays. A shared report names no commit, so it is aged out after
  * {@link STORY_AGE_MS}; the share still holds it, and the next read fetches it.
+ * A History summary at `history/<digest>.json` is aged out after the same 14
+ * days, the default window of `variance view`.
  *
  * `scans/` has no writer: the source index replaced it, and it is removed whole.
  */
@@ -51,7 +53,7 @@ import { sharedReportRoot, suiteIndexRoot } from './resources.js';
 export const COMMITS_BEHIND = 200;
 
 /** Why a CLI cache entry is removed. {@link CACHE_PRUNE_REASONS} says it in words. */
-export type CachePruneReason = 'behind' | 'off-line' | 'unheld' | 'old-report' | 'unwritten';
+export type CachePruneReason = 'behind' | 'off-line' | 'unheld' | 'old-report' | 'old-summary' | 'unwritten';
 
 /** Each reason, as one entry and as several. */
 export const CACHE_PRUNE_REASONS: Readonly<Record<CachePruneReason, readonly [string, string]>> = {
@@ -59,6 +61,7 @@ export const CACHE_PRUNE_REASONS: Readonly<Record<CachePruneReason, readonly [st
   'off-line': ['commit HEAD does not contain, older than 14 days', 'commits HEAD does not contain, older than 14 days'],
   unheld: ['commit this clone does not hold, older than 30 days', 'commits this clone does not hold, older than 30 days'],
   'old-report': ['shared report older than 14 days', 'shared reports older than 14 days'],
+  'old-summary': ['History summary older than 14 days', 'History summaries older than 14 days'],
   unwritten: ['directory nothing writes any more', 'directories nothing writes any more'],
 };
 
@@ -133,13 +136,22 @@ export async function planCachePrune(
     if (written !== undefined && owners.now - written > STORY_AGE_MS) await drop(path, 'old-report');
   }
 
+  // A summary is written after the record it reads was kept, so one older than
+  // the default window reads a record outside it; a wider window derives it again.
+  const summaries = join(root, 'history');
+  for (const name of await namesIn(summaries)) {
+    const path = join(summaries, name);
+    const written = await mtimeOf(path);
+    if (written !== undefined && owners.now - written > STORY_AGE_MS) await drop(path, 'old-summary');
+  }
+
   const scans = join(root, 'scans');
   if (existsSync(scans)) await drop(scans, 'unwritten');
 
   let held: number | undefined;
   if (options.measure === true) {
     held = 0;
-    for (const path of [suites, read, reports, scans]) held += await bytesUnder(path);
+    for (const path of [suites, read, reports, summaries, scans]) held += await bytesUnder(path);
   }
   return { root, remove, kept, ...(held !== undefined ? { held } : {}) };
 }

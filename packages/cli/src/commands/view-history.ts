@@ -11,17 +11,17 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { codeUnitOrder } from '@variance-authority/core/segment';
-import { atCommit, readLine, type LineCell, type ShareMiss } from '@variance-authority/core/share';
-import { openSetColumns } from '@variance-authority/sense/record';
-import { caseSectionsOf, costs, openTestCoverage, rawRecord, readableAttempts, retriedAttempts, type RecordedAttempt } from '@variance-authority/sense/test-selection';
+import { atCommit, readLine, type KeptAt, type LineCell, type ShareMiss } from '@variance-authority/core/share';
+import { caseSectionsOf, costs, openTestCoverage, pool, rawRecord, readableAttempts, type RecordedAttempt } from '@variance-authority/sense/test-selection';
 import { settle } from '../settle.js';
 import { readSuiteEntry, suiteOfEntry } from '../share-entries.js';
 import { describeMiss } from './share.js';
+import { openCases, type Cases } from './view-cases.js';
 import type { FileRuns, History, HistoryPoint, Moved, RecordSummary, RetriedCase, Skipped } from './view-history-tables.js';
 
 const DAY = 86_400_000;
 /** Bumped when a summary's shape changes, so an older one is read again. */
-const SUMMARY_VERSION = 2;
+const SUMMARY_VERSION = 3;
 /** Records read at once: a share answers each over the network. */
 const READING = 8;
 const MOVERS = 3;
@@ -34,31 +34,39 @@ export function summaryOf(bytes: Uint8Array): RecordSummary {
   const files = Array.from(view.testPath.all(), (id, test): [string, number | null] => [view.string(id), cost(test) ?? null]);
   const sections = caseSectionsOf(bytes);
   const attempts = readableAttempts(sections.attempts);
-  const index = sections.index === undefined ? undefined : openSetColumns(sections.index);
+  const index = sections.index === undefined ? undefined : openCases(sections.index, '', '');
+  const blocks = view.moduleBlocks.all();
+  const sets = view.blockSet.all();
+  let reached = 0;
+  for (let module = 0; module + 1 < blocks.length; module += 1) {
+    for (let block = blocks[module]!; block < blocks[module + 1]!; block += 1) {
+      if (view.crossings.count(sets[block]!) > 0) {
+        reached += 1;
+        break;
+      }
+    }
+  }
+  const timed = files.filter(([, took]) => took !== null);
   return {
     files,
-    total: files.reduce((sum, [, took]) => sum + (took ?? 0), 0),
-    ...(index === undefined ? {} : { cases: index.testId.length }),
-    ...(attempts === undefined ? {} : { retried: retriedOf(retriedAttempts(attempts), index) }),
+    ...(timed.length === 0 ? {} : { total: timed.reduce((sum, [, took]) => sum + took!, 0) }),
+    reached,
+    ...(index === undefined ? {} : { cases: index.count }),
+    ...(attempts === undefined ? {} : { retried: retriedOf(attempts, index) }),
   };
 }
 
-function retriedOf(rows: readonly RecordedAttempt[], index: ReturnType<typeof openSetColumns>): RetriedCase[] {
+function retriedOf(rows: readonly RecordedAttempt[], index: Cases | undefined): RetriedCase[] {
   const byCase = new Map<string, RecordedAttempt[]>();
   for (const row of rows) byCase.set(row.case, [...(byCase.get(row.case) ?? []), row]);
-  if (byCase.size === 0) return [];
-  const decoder = new TextDecoder();
-  const string = (id: number) => decoder.decode(index!.strings.blob.subarray(index!.strings.offsets[id]!, index!.strings.offsets[id + 1]!));
-  const rowOf = new Map<string, number>();
-  for (let row = 0; row < (index?.testId.length ?? 0); row += 1) rowOf.set(string(index!.testId[row]!), row);
   const retried: RetriedCase[] = [];
   for (const [id, attempts] of byCase) {
     const last = Math.max(...attempts.map((one) => one.attempt));
-    const row = rowOf.get(id);
+    const row = index?.rowOf(id);
     retried.push({
       case: id,
-      name: row === undefined ? id : string(index!.testName[row]!),
-      ...(row === undefined ? {} : { file: string(index!.testFile[row]!) }),
+      name: row === undefined ? id : index!.nameAt(row),
+      ...(row === undefined ? {} : { file: index!.fileAt(row) }),
       lost: attempts.filter((one) => one.attempt < last).reduce((sum, one) => sum + (one.duration ?? 0), 0),
     });
   }
@@ -100,8 +108,9 @@ export function seriesOf(summarised: readonly Summarised[]): { readonly points: 
       commit: one.commit,
       written: one.written,
       suite: one.suite,
-      total: one.total,
+      ...(one.total === undefined ? {} : { total: one.total }),
       testFiles: one.files.length,
+      reached: one.reached,
       ...(one.cases === undefined ? {} : { cases: one.cases }),
       ...(one.retried === undefined ? {} : { retried: one.retried }),
       ...(moved === undefined ? {} : { moved }),
@@ -135,15 +144,20 @@ export interface HistoryOptions {
   readonly progress?: (line: string) => void;
 }
 
-interface Wanted {
-  readonly commit: string;
-  readonly written: number;
+/** What a kept commit's manifest names: its suites, each by the digest its record is kept under. */
+interface Named {
   readonly suite: string;
   readonly digest: string;
-  read(): Promise<Uint8Array | ShareMiss>;
+  readonly partial?: true;
 }
 
-/** Every suite record `mainline` keeps at a commit written in the window, summarised; each one not read is named with why. */
+/**
+ * Every suite record `mainline` keeps at a commit written in the window, summarised; each one not read is named with why.
+ *
+ * A commit's manifest is kept beside the summaries under the commit and the
+ * time the share wrote it, so a warm open reads the listing and nothing else:
+ * a commit is read from the share only where it, or a record it names, is new.
+ */
 export async function historyOf(cell: LineCell, mainline: string, options: HistoryOptions): Promise<History> {
   const days = `${Math.round(options.since / DAY)} days`;
   if (cell.commits === undefined) return { unread: 'the share keeps only the latest record of each line, so it holds no series' };
@@ -153,51 +167,70 @@ export async function historyOf(cell: LineCell, mainline: string, options: Histo
   const kept = listed.filter((one) => one.written >= options.now - options.since).sort((a, b) => a.written - b.written || codeUnitOrder(a.commit, b.commit));
   if (kept.length === 0) return { unread: `the share keeps no record of ${mainline} from the last ${days}` };
 
+  const dir = join(options.cacheDir, 'history');
   const skipped: Skipped[] = [];
-  const wanted: Wanted[] = [];
-  const lines = await pooled(kept, async (one) => ({ one, held: await readLine(cell, atCommit(line, one.commit)) }));
-  for (const { one, held } of lines) {
-    if (!('manifest' in held)) {
-      skipped.push({ commit: one.commit, why: describeMiss(held) });
+  const summarised: Summarised[] = [];
+  const cold: KeptAt[] = [];
+  for (const one of kept) {
+    const named = await heldJson<readonly Named[]>(dir, manifestName(one));
+    const summaries = named === undefined ? undefined : await Promise.all(named.map(async (entry) => (entry.partial === true ? PARTIAL : await heldJson<RecordSummary>(dir, entry.digest))));
+    if (named === undefined || summaries === undefined || summaries.includes(undefined)) {
+      cold.push(one);
       continue;
     }
-    for (const entry of held.manifest.entries) {
-      const suite = suiteOfEntry(entry.name);
-      if (suite === undefined) continue;
-      if (entry.partial === true) skipped.push({ commit: one.commit, suite, why: PARTIAL });
-      else wanted.push({ commit: one.commit, written: one.written, suite, digest: entry.digest, read: () => held.entry(entry) });
-    }
+    named.forEach((entry, at) => {
+      const summary = summaries[at]!;
+      if (typeof summary === 'string') skipped.push({ commit: one.commit, suite: entry.suite, why: summary });
+      else summarised.push({ commit: one.commit, written: one.written, suite: entry.suite, ...summary });
+    });
   }
 
-  const dir = join(options.cacheDir, 'history');
-  const summarised: Summarised[] = [];
-  const cold: Wanted[] = [];
-  for (const one of wanted) {
-    const summary = await cached(dir, one.digest);
-    if (summary === undefined) cold.push(one);
-    else summarised.push({ commit: one.commit, written: one.written, suite: one.suite, ...summary });
-  }
-  if (cold.length > 0) options.progress?.(`reading ${cold.length} ${cold.length === 1 ? 'record' : 'records'} kept on ${mainline} in the last ${days}`);
+  if (cold.length > 0) options.progress?.(`reading ${cold.length} ${cold.length === 1 ? 'commit' : 'commits'} kept on ${mainline} in the last ${days}`);
   let done = 0;
-  await pooled(cold, async (one) => {
-    const read = await summarise(one);
+  await pool(READING, cold, async (one) => {
+    await readCommit(one);
     done += 1;
     options.progress?.(`read ${done} of ${cold.length}`);
-    if (typeof read === 'string') {
-      skipped.push({ commit: one.commit, suite: one.suite, why: read });
-      return;
-    }
-    await keep(dir, one.digest, read);
-    summarised.push({ commit: one.commit, written: one.written, suite: one.suite, ...read });
   });
   skipped.sort((a, b) => codeUnitOrder(a.commit, b.commit) || codeUnitOrder(a.suite ?? '', b.suite ?? ''));
   return { ...seriesOf(summarised), since: options.since, skipped };
+
+  async function readCommit(one: KeptAt): Promise<void> {
+    const held = await readLine(cell, atCommit(line, one.commit));
+    if (!('manifest' in held)) {
+      skipped.push({ commit: one.commit, why: describeMiss(held) });
+      return;
+    }
+    const named: Named[] = [];
+    for (const entry of held.manifest.entries) {
+      const suite = suiteOfEntry(entry.name);
+      if (suite === undefined) continue;
+      named.push({ suite, digest: entry.digest, ...(entry.partial === true ? { partial: true as const } : {}) });
+      if (entry.partial === true) {
+        skipped.push({ commit: one.commit, suite, why: PARTIAL });
+        continue;
+      }
+      const summary = (await heldJson<RecordSummary>(dir, entry.digest)) ?? (await summarise(() => held.entry(entry)));
+      if (typeof summary === 'string') {
+        skipped.push({ commit: one.commit, suite, why: summary });
+        continue;
+      }
+      await keep(dir, entry.digest, summary);
+      summarised.push({ commit: one.commit, written: one.written, suite, ...summary });
+    }
+    // Kept only once every record it names is summarised, so a record that
+    // could not be read is asked for again on the next open.
+    if (!skipped.some((miss) => miss.commit === one.commit && miss.why !== PARTIAL)) await keep(dir, manifestName(one), named);
+  }
 }
 
+/** A commit's manifest is named for the commit and when the share wrote it: a republish at that commit is another name. */
+const manifestName = (one: KeptAt): string => `${one.commit}@${one.written}`;
+
 /** One record's summary, or why it could not be read. */
-async function summarise(one: Wanted): Promise<RecordSummary | string> {
+async function summarise(read: () => Promise<Uint8Array | ShareMiss>): Promise<RecordSummary | string> {
   try {
-    const bytes = await one.read();
+    const bytes = await read();
     if (!(bytes instanceof Uint8Array)) return describeMiss(bytes);
     const entry = readSuiteEntry(bytes);
     return typeof entry === 'string' ? entry : summaryOf(entry.coverage);
@@ -206,34 +239,20 @@ async function summarise(one: Wanted): Promise<RecordSummary | string> {
   }
 }
 
-/** `run` over `items`, at most `READING` at once, in their order. */
-async function pooled<T, R>(items: readonly T[], run: (item: T) => Promise<R>): Promise<R[]> {
-  const out: R[] = [];
-  let next = 0;
-  const worker = async () => {
-    while (next < items.length) {
-      const at = next++;
-      out[at] = await run(items[at]!);
-    }
-  };
-  await Promise.all(Array.from({ length: Math.min(READING, items.length) }, worker));
-  return out;
-}
-
-async function cached(dir: string, digest: string): Promise<RecordSummary | undefined> {
+async function heldJson<T>(dir: string, name: string): Promise<T | undefined> {
   try {
-    const held = JSON.parse(await readFile(join(dir, `${digest}.json`), 'utf8')) as { readonly version: number; readonly summary: RecordSummary };
-    return held.version === SUMMARY_VERSION ? held.summary : undefined;
+    const held = JSON.parse(await readFile(join(dir, `${name}.json`), 'utf8')) as { readonly version: number; readonly held: T };
+    return held.version === SUMMARY_VERSION ? held.held : undefined;
   } catch {
     return undefined;
   }
 }
 
-/** Keeps a summary for the next open; a cache that cannot be written only costs that open a read. */
-async function keep(dir: string, digest: string, summary: RecordSummary): Promise<void> {
+/** Keeps what was derived for the next open; a cache that cannot be written only costs that open a read. */
+async function keep(dir: string, name: string, held: unknown): Promise<void> {
   try {
-    await settle(join(dir, `${digest}.json`), new TextEncoder().encode(JSON.stringify({ version: SUMMARY_VERSION, summary })));
+    await settle(join(dir, `${name}.json`), new TextEncoder().encode(JSON.stringify({ version: SUMMARY_VERSION, held })));
   } catch {
-    // Nothing to do: the summary is already in the series.
+    // Nothing to do: what it holds is already in the series.
   }
 }

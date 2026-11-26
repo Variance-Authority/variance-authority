@@ -13,7 +13,7 @@ const DAY = 86_400_000;
 const [C1, C2, C3] = ['1', '2', '3'].map((digit) => digit.repeat(40)) as [string, string, string];
 
 function point(commit: string, written: number, files: readonly (readonly [string, number | null])[], retried: Summarised['retried'] = []): Summarised {
-  return { commit, written, suite: 'unit', files, total: files.reduce((sum, [, took]) => sum + (took ?? 0), 0), cases: 3, retried };
+  return { commit, written, suite: 'unit', files, total: files.reduce((sum, [, took]) => sum + (took ?? 0), 0), reached: 1, cases: 3, retried };
 }
 
 const SERIES = seriesOf([
@@ -30,11 +30,12 @@ const column = (table: Table, name: string): unknown[] => {
 const tables = () => new Map(historyTab(HISTORY).tables().map((table) => [table.id, table]));
 
 describe('the History tab', () => {
-  it('lists each kept commit and suite, newest first, with its time, files, cases and retries', () => {
+  it('lists each kept commit and suite, newest first, with its time, test files, files reached, cases and retries', () => {
     const commits = tables().get('history-commits')!;
     expect(column(commits, 'commit')).toEqual([C3, C2, C1]);
     expect(column(commits, 'took')).toEqual([14, 100, 40]);
     expect(column(commits, 'test files')).toEqual([2, 2, 2]);
+    expect(column(commits, 'files reached')).toEqual([1, 1, 1]);
     expect(column(commits, 'retried')).toEqual([0, 1, 0]);
     expect(column(commits, 'lost')).toEqual([0, 31, 0]);
   });
@@ -74,7 +75,7 @@ describe('the History tab', () => {
   });
 
   it('says retries are not known, and draws none, where a record kept no attempts', () => {
-    const tab = historyTab({ ...seriesOf([{ commit: C1, written: DAY, suite: 'unit', files: [['test/a.test.ts', 10]], total: 10 }]), since: 14 * DAY, skipped: [] });
+    const tab = historyTab({ ...seriesOf([{ commit: C1, written: DAY, suite: 'unit', files: [['test/a.test.ts', 10]], total: 10, reached: 1 }]), since: 14 * DAY, skipped: [] });
     expect(new Map(tab.facts()).get('retries')).toBe('some records kept no attempts, so their retries are not known');
     expect(column(new Map(tab.tables().map((one) => [one.id, one])).get('history-commits')!, 'retried')).toEqual([undefined]);
   });

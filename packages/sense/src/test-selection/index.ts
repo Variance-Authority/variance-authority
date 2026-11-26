@@ -202,6 +202,7 @@ export { landedCoverage, recordedRun, type RecordedRun } from './fold-landing.js
 export { BLOCK_KINDS, NO_BLOB, NO_DURATION, PHASE_NAMES } from './format-layout.js';
 export type { FilePhases } from './reported-time.js';
 export { costs, timeBeforeCases } from './file-cost.js';
+export { pool } from './pool.js';
 export { findModules, sharedPreconditions, testsGovernedBy } from './lookup.js';
 // The runs that wrote the case index and the snapshot, and what they were laid over.
 // The lock every writer of a record takes, for a caller that lands one.
@@ -214,7 +215,7 @@ export { editsBetween, regionTouched, type Edit, type TextNames } from './region
 export { caseIndexOf, caseSectionsAt, caseSectionsOf, keepsCases, keepsEyes, recordOfCases, recordStorageAt, recordedAttemptsAt, recordedCases, recordedEyesAt, recordedEyesOf, sharedRecord, withCaseSections, withoutCoverage, type CaseSections, type RecordStorage } from './case-record.js';
 export { collectedRecord } from './collected-record.js';
 export { type EyesSection, type ObservedEyes, type RecordedEyes } from './eyes-record.js';
-export { readableAttempts, retriedAttempts, type ObservedAttempt, type RecordedAttempt } from './attempts-record.js';
+export { readableAttempts, type ObservedAttempt, type RecordedAttempt } from './attempts-record.js';
 export { rawRecord } from './raw-record.js';
 export { RecordWithoutCoverage } from './format-validation.js';
 export { commitRunsAfter, commitRunsFile, heldCommitRuns, landRun, namedCommits, readCommitRuns, writeCommitRuns, type CommitRuns, type RecordedTests, type StandingEntry } from './commit-runs.js';

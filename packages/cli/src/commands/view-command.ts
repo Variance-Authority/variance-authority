@@ -38,16 +38,18 @@ export async function viewOutput(parsed: ParsedView, cwd: string, here: ViewHere
   return { out: `${path}\n`, err: '' };
 }
 
+const NO_SHARE: History = { unread: 'no share is configured, so no mainline record is kept' };
+
 /** The series of the mainline this checkout reads, from the share the root config names, or why there is none. */
 async function historyFor(cwd: string, since: number, here: ViewHere): Promise<History> {
-  const selected = await selectMainline(cwd);
-  if ('unconfigured' in selected) return { unread: `the share section does not parse: ${selected.unconfigured}` };
-  if (selected.share === undefined) return { unread: 'no share is configured, so no mainline record is kept' };
-  if (selected.named === undefined) return { unread: 'no mainline could be chosen for this checkout' };
-  const cell = await lineCellOf({ share: selected.share, cacheRoot: selected.cacheRoot }, { cwd, reuseMs: READ_REUSE_MS });
-  if (cell === undefined) return { unread: 'no share is configured, so no mainline record is kept' };
-  if ('kind' in cell) return { unread: `the share could not be opened: ${describeMiss(cell)}` };
   try {
+    const selected = await selectMainline(cwd);
+    if ('unconfigured' in selected) return { unread: `the share section does not parse: ${selected.unconfigured}` };
+    if (selected.share === undefined) return NO_SHARE;
+    if (selected.named === undefined) return { unread: 'no mainline could be chosen for this checkout' };
+    const cell = await lineCellOf({ share: selected.share, cacheRoot: selected.cacheRoot }, { cwd, reuseMs: READ_REUSE_MS });
+    if (cell === undefined) return NO_SHARE;
+    if ('kind' in cell) return { unread: `the share could not be opened: ${describeMiss(cell)}` };
     return await historyOf(cell, selected.named.name, {
       since,
       now: here.now ?? Date.now(),
@@ -55,8 +57,10 @@ async function historyFor(cwd: string, since: number, here: ViewHere): Promise<H
       ...(here.progress === undefined ? {} : { progress: here.progress }),
     });
   } catch (error) {
-    // The page is still worth drawing: the series says why it is missing.
-    return { unread: `the series could not be read: ${error instanceof Error ? error.message : String(error)}` };
+    // The page is still worth drawing: the series says why it is missing, and so does stderr.
+    const unread = `the series could not be read: ${error instanceof Error ? error.message : String(error)}`;
+    here.progress?.(unread);
+    return { unread };
   }
 }
 

@@ -44,7 +44,7 @@ describe('the series a git share keeps', () => {
       files: [{ file: 'test/other.test.ts', runs: 1, timed: 0 }, { file: 'test/total.test.ts', runs: 1, timed: 0 }],
       skipped: [],
     });
-    expect(said).toEqual(['reading 1 record kept on main in the last 14 days', 'read 1 of 1']);
+    expect(said).toEqual(['reading 1 commit kept on main in the last 14 days', 'read 1 of 1']);
     expect(again).toEqual([]);
   }, 60_000);
 });
