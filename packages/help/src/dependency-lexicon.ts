@@ -61,9 +61,12 @@ export interface LexiconMatches {
   readonly describedUnread?: string;
 }
 
+/** Installed names a lexicon question answers when it says no `limit`. */
+export const INSTALLED_CAP = 20;
+
 /** Return names the native lexicon found, or absence when it is unpublished. */
 export function queryDependencyLexicon(root: string, query: string, files?: readonly string[],
-  exact = false, packageName?: string, limit = 20): LexiconMatches | undefined {
+  exact = false, packageName?: string, limit = INSTALLED_CAP): LexiconMatches | undefined {
   const answer = queryDependencyLexiconNative(root, query, files, exact, packageName, limit);
   return answer === undefined ? undefined : JSON.parse(answer) as LexiconMatches;
 }

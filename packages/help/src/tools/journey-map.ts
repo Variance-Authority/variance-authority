@@ -13,6 +13,7 @@
 import { checkoutListing, checkoutPath, journeyMaps } from '@variance-authority/sense';
 import type { Tool } from '@variance-authority/mcp/tools';
 import { formatJourneyMap } from './journey-map-format.js';
+import { RECORDING } from './slowest-format.js';
 import { recordedOnce, refuseUnknownPath } from './unknown-path.js';
 
 /** The words of a task, from a string or a list, lowercase-insensitive and without blanks. */
@@ -28,15 +29,15 @@ export const journeyMapTool: Tool<unknown> = {
   description:
     'The code around one file, from what the recorded tests ran: how many tests ran it, the paths ' +
     'through its functions, then the code beyond it most of those tests ran, nearest first, and the ' +
-    'code only some ran. `query` keeps the tests whose file or name holds any of its words. Reads the ' +
-    'recording; reads no source.',
+    'code only some ran. Use it to work in one file; docs_orient answers what a file is and who calls it, ' +
+    `docs_test_composition one test's parts. ${RECORDING}; reads no source.`,
   inputSchema: {
     type: 'object',
     properties: {
       file: { type: 'string', description: 'The file to map around, from the root of the checkout or of the file system.' },
       query: {
         type: 'string',
-        description: 'Optional. Words of the task.',
+        description: 'Optional. Words of the task; keeps the tests whose file or name holds any. With none, every test that ran the file.',
       },
     },
     required: ['file'],

@@ -235,13 +235,13 @@ export const START_POINT_SCHEMA = {
     oneOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }],
     description:
       'Optional. Repo-relative paths, exact case: `src/a.ts` a file, `src/x/*` its own files, `src/x/` ' +
-      'everything under it; no other globs, and a path the repository does not hold is rejected. ' +
+      '(or a bare `src/x` no file has) all under it; no other globs; a path not in the repository is rejected. ' +
       'Scope: what it imports, at any depth.',
   },
   to: {
     oneOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }],
     description:
       'Optional. Path forms as `from`. Scope: what imports it, at any depth. ' +
-      'With `from`, the two scopes are answered side by side, not intersected.',
+      'With `from`, answered side by side, not intersected.',
   },
 } as const;

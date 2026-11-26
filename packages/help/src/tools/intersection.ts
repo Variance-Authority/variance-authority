@@ -148,7 +148,7 @@ export function intersectionOf<Subject>(operands: readonly Tool<Subject>[]): Too
     description:
       'The files every one of two or more questions answers. Each question is one this server answers ' +
       'alone with a set of files — `symbol`, `uses`, `search`, `grep`, `discover` — given its own input and ' +
-      'read whole, never capped. Each common file says which lines put it in each question. When the sets ' +
+      'read whole, never capped. When the sets ' +
       'are operands docs_discover takes, one docs_discover call is cheaper.',
     inputSchema: {
       type: 'object',

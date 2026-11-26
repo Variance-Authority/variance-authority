@@ -1,12 +1,13 @@
 import { readFileSync } from 'node:fs';
-import { HELP_TOOLS } from '@variance-authority/help/tools';
-import { COSTS_TOOLS, REVIEW_TOOLS, TOOLS } from '@variance-authority/mcp/tools';
+import { SERVED } from '@variance-authority/cli';
+import { HELP } from '@variance-authority/help/tools';
+import { EYES, handle, OBSERVABILITY, PRESENTATIONS, REPORTS, SCENARIOS, VANTAGE } from '@variance-authority/mcp/protocol';
+import type { Served } from '@variance-authority/mcp/tools';
 import { describe, expect, it } from 'vitest';
 import {
   BASELINE,
   BUDGET,
   DEFINITION_BYTES,
-  definitionBytes,
   definitionsOver,
   judge,
   leadOf,
@@ -166,26 +167,38 @@ describe('the debt only shrinks', () => {
 });
 
 describe('an MCP tool definition is held in bytes, as `tools/list` sends it', () => {
-  const tool = (name: string, description: string) => ({ name, description, inputSchema: { type: 'object' } });
+  const entry = (name: string, description: string) => ({ name, description, inputSchema: { type: 'object' } });
 
-  it('counts the name, the description and the input schema as JSON, in UTF-8', () => {
-    expect(definitionBytes(tool('a', 'é'))).toBe('{"name":"a","description":"é","inputSchema":{"type":"object"}}'.length + 1);
+  it('counts each entry as JSON in UTF-8, and names a list over its total and a tool over its own, once', () => {
+    const long = entry('long', 'é'.repeat(DEFINITION_BYTES.tool / 2));
+    const bytes = Buffer.byteLength(JSON.stringify(long));
+    expect(definitionsOver({ 'variance-authority-help': [long], 'variance serve': [long] })).toEqual([`long: ${bytes} B (budget ${DEFINITION_BYTES.tool})`]);
+    const many = Array.from({ length: 20 }, (_, at) => entry(`t${at}`, 'x'.repeat(1000)));
+    expect(definitionsOver({ 'variance-authority-help': many })).toEqual([
+      `variance-authority-help: ${many.reduce((sum, one) => sum + Buffer.byteLength(JSON.stringify(one)), 0)} B for 20 tools (budget 20000)`,
+    ]);
   });
 
-  it('names a set over its total and a tool over its own, each tool once', () => {
-    const long = tool('long', 'x'.repeat(DEFINITION_BYTES.tool));
-    const sets = { 'variance-authority-help': [long], 'variance serve': [long] };
-    expect(definitionsOver(sets)).toEqual([`long: ${definitionBytes(long)} B (budget ${DEFINITION_BYTES.tool})`]);
-    expect(() => definitionsOver({ other: [] })).toThrow('no definition budget for other');
+  it('holds a server with no total per tool only', () => {
+    const many = Array.from({ length: 40 }, (_, at) => entry(`t${at}`, 'x'.repeat(1000)));
+    expect(definitionsOver({ other: many })).toEqual([]);
   });
 });
 
 describe('the repository', () => {
+  // Reads the built packages: a source edit is measured after `yarn build`.
   it('lists every MCP definition within its budget', () => {
-    // `variance serve` lists the report tools, costs, review and the help tools, in that order.
+    const listed = (served: Served<never>) => {
+      const response = handle({ jsonrpc: '2.0', id: 1, method: 'tools/list' }, () => undefined as never, served);
+      if (response === null) throw new Error('`tools/list` answered nothing');
+      return (response.result as { tools: Record<string, unknown>[] }).tools;
+    };
     const over = definitionsOver({
-      'variance-authority-help': HELP_TOOLS,
-      'variance serve': [...TOOLS, ...COSTS_TOOLS, ...REVIEW_TOOLS, ...HELP_TOOLS],
+      'variance-authority-help': listed(HELP as Served<never>),
+      'variance serve': listed(SERVED as Served<never>),
+      ...Object.fromEntries(
+        Object.entries({ EYES, OBSERVABILITY, PRESENTATIONS, REPORTS, SCENARIOS, VANTAGE }).map(([name, served]) => [name, listed(served as Served<never>)]),
+      ),
     });
     expect(
       over.length === 0

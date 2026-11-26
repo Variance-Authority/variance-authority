@@ -12,6 +12,7 @@
 import { testCompositions } from '@variance-authority/sense';
 import type { Tool } from '@variance-authority/mcp/tools';
 import { ASKED_TEST_INPUT, askedTest, suitesAnswer } from './asked-test.js';
+import { RECORDING } from './slowest-format.js';
 import { formatTestComposition } from './test-composition-format.js';
 
 /** Typed over nothing, like `docs_journey_map`: the checkout is the one the host names on the call. */
@@ -21,7 +22,7 @@ export const testCompositionTool: Tool<unknown> = {
     'What one recorded test is made of: the smaller tests whose code sits inside its own (its ' +
     'pieces), the larger tests holding it (its wholes), and the code no piece ran, which a test ' +
     'nearer that code would cover more cheaply. Use docs_test_claims to hold a test against its name ' +
-    'and steps. Reads the recording; reads no source.',
+    `and steps. ${RECORDING}; reads no source.`,
   inputSchema: ASKED_TEST_INPUT,
 
   run: (_subject, input, invocation) => {

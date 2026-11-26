@@ -153,8 +153,7 @@ export const classify: Tool<Help> = {
     'capital past its first letter, an underscore, a digit after a letter) that a file declares or ' +
     'names, or a repo-relative path; a plain lowercase word is never looked up as a name. When words ' +
     'remain unrecognized, or `from` or `to` is given, it ranks the folders of the code map those ' +
-    'words point to, ten at most. It ends with the source files the request names and the functions ' +
-    'and classes each declares. Ask it first when you hold a request in words; docs_symbol takes a ' +
+    'words point to, and names the source files the request names. Ask it first when you hold a request in words; docs_symbol takes a ' +
     'name it found, docs_search the words it did not.',
   inputSchema: {
     type: 'object',

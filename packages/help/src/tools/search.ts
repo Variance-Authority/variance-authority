@@ -8,7 +8,8 @@ import type { Matches, Searched, SearchQuestion } from './search-matches.js';
 import { aliasLine, declaredLine, heldLine, unreadLine } from './declared.js';
 import { casesUnder, describedRow, exportedLine, isPublished, matchLine, publishedLine, testLine } from './search-rows.js';
 import { unreadStop } from './members.js';
-import { CAP, ELSEWHERE_CAP, searched } from './search-answer.js';
+import { CAP, ELSEWHERE_CAP, LOOSE_CAP, NEAR_CAP, searched } from './search-answer.js';
+import { INSTALLED_CAP } from '../dependency-lexicon.js';
 import type { ImportingOf } from './published-match.js';
 import type { DeclarationLookups } from './exported-matches.js';
 import { named } from './format.js';
@@ -350,9 +351,8 @@ export const search: Tool<Help> = {
   description:
     'Find candidate names by words, when you do not know the exact name. A name matches when its name ' +
     'or documentation contains your text, case-insensitive, or its words share the stem of every word ' +
-    'you typed. Published names come first, each with the specifier to pass to docs_symbol; then ' +
-    'unpublished and file-local names, recorded test cases, installed third-party names and packages, ' +
-    'and near matches that show the repository\'s own wording. Words only, no synonyms: `auth` does ' +
+    'you typed: published names, with the specifier for docs_symbol, then unpublished and file-local ' +
+    'names, recorded test cases, installed names and packages, and near matches. Words only, no synonyms: `auth` does ' +
     'not find `CredentialGate`, so when nothing matches, ask another candidate word, not a longer ' +
     'phrase. A word under three letters has no stem but still counts as written: `node id` finds ' +
     '`NodeId`. On a large repository give `from` or `to`; an empty answer there is a fact about that ' +
@@ -362,7 +362,7 @@ export const search: Tool<Help> = {
     properties: {
       query: {
         type: 'string',
-        description: 'A substring, or a few words of what the name does; one candidate word per query.',
+        description: 'A substring, or a few words of what the name does. Ask each candidate word as its own query.',
       },
       from: START_POINT_SCHEMA.from,
       to: {
@@ -372,7 +372,7 @@ export const search: Tool<Help> = {
       },
       limit: {
         type: 'integer',
-        description: `Optional. Rows per list, the rest counted; ${CAP} published and ${ELSEWHERE_CAP} of each other kind when not said.`,
+        description: `Optional. Rows per list, the rest counted. When not said: ${CAP} published, ${INSTALLED_CAP} installed, ${NEAR_CAP} near, ${LOOSE_CAP} loose or described, ${ELSEWHERE_CAP} of each other kind.`,
       },
     },
     required: ['query'],

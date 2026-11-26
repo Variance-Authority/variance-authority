@@ -133,8 +133,7 @@ export const locate: Tool = {
     'Lexical, with no synonyms: a miss lists the names the suite uses, so ask again in another kind of ' +
     'name. To ask where something sits, give the anchor in one of `under`, `above`, `inside`, `beside`, ' +
     '`leftOf`, `rightOf` and the surface in `on`: `{query: "warning", under: "Carrier", on: "dispatch ' +
-    'drawer"}`. On a run that resolved no layout, the answer is where the anchor is, and it says the run ' +
-    'cannot tell what sits in that relation to it.',
+    'drawer"}`. One relation argument per question. On a run that resolved no layout, the answer is where the anchor is.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -152,7 +151,7 @@ export const locate: Tool = {
         type: 'string',
         description: 'Optional. Words naming the surface; needs a relation argument.',
       },
-      from: START_POINT_SCHEMA.from,
+      from: { ...START_POINT_SCHEMA.from, description: `${START_POINT_SCHEMA.from.description} Narrows the suite before ranking.` },
       to: {
         ...START_POINT_SCHEMA.to,
         description: `${START_POINT_SCHEMA.to.description} Finds the screen behind a component: \`to\` it, \`query\` the page.`,

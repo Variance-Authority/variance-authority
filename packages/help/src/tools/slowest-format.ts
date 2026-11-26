@@ -18,6 +18,9 @@ import type {
 } from '@variance-authority/sense';
 import { ago, shareOf } from '@variance-authority/sense/test-selection';
 
+/** Where a recording tool's answer comes from, said by each in the same words. */
+export const RECORDING = 'Reads the recording a test run with test selection published';
+
 /** A duration as a reader compares them: milliseconds under a second, seconds to a tenth above. */
 export function spent(milliseconds: number): string {
   return milliseconds < 1000 ? `${milliseconds} ms` : `${(milliseconds / 1000).toFixed(1)} s`;

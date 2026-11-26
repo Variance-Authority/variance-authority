@@ -38,8 +38,7 @@ export const symbol: Tool<Help> = {
   name: 'docs_symbol',
   description:
     'Everything known about each name asked, matched exactly: what it is, the import line that ' +
-    'reaches it, where it is declared, its signature and documentation (or the README passage that ' +
-    'names it), which packages import it, where an import renames it, and the members an interface, ' +
+    'reaches it, where it is declared, its signature and documentation, which packages import it, where an import renames it, and the members an interface, ' +
     'type or class declares. It answers exported, unpublished and file-local names, `as` bindings, ' +
     'members as `Container.member`, and installed third-party declarations when the API catalogue is ' +
     'published. Use docs_search when you do not know the exact name, docs_uses for where it is ' +
@@ -67,7 +66,7 @@ export const symbol: Tool<Help> = {
       },
       limit: {
         type: 'integer',
-        description: `Optional. Rows per list, the rest counted; ${DECLARED_CAP} declarations of each kind when not said.`,
+        description: `Optional. Rows per list, the rest counted; ${DECLARED_CAP} declarations of each kind and ${INSTALLED_CAP} installed when not said.`,
       },
     },
     required: ['name'],

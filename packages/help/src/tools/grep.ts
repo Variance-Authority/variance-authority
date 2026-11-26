@@ -32,8 +32,8 @@ export const grep: Tool<unknown> = {
   description:
     'Ripgrep over the files a start point imports (`from`) or that import it (`to`), at any depth, ' +
     'matching lines nearest first. A start point is required: the file or folder you are in, or a top ' +
-    'folder at the widest; one not found, or holding no match, is answered from the nearest folder ' +
-    'around it that has one. Or give `test` to search only the files that test ran, each line marked ' +
+    'folder at the widest. One start point not found or holding no match, with no `limit` or `offset`, ' +
+    'is answered from the nearest folder around it that has one. Or give `test` to search only the files that test ran, each line marked ' +
     'ran or not taken. Use it for text and patterns; docs_search and docs_uses answer names.',
   inputSchema: {
     type: 'object',

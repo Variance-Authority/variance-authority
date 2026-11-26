@@ -180,8 +180,7 @@ export const uses: Tool<Help> = {
   description:
     'Every file:line that imports one name, `import()` and `import * as` reads included, followed ' +
     'through each `export … from` that passes it on, then the lines of the declaring file that use ' +
-    'it. Imports inside the declaring package, from other packages, and from stories and tests are ' +
-    'listed apart; a renaming site is marked `(as x)`. It answers exported, unpublished and ' +
+    'it. It answers exported, unpublished and ' +
     'file-local names, and a member as `Container.member`: the lines that read or write it through a ' +
     'value typed as its container. Namesakes declared in several files are answered apart; `file` ' +
     'picks one. Use docs_symbol for what the name is, docs_grep for text that is not an import.',
@@ -193,13 +192,13 @@ export const uses: Tool<Help> = {
       from: {
         type: 'string',
         description:
-          'Optional. The file you are in: sites sharing more leading path segments with it come first. ' +
+          'Optional. The file you are in, from the workspace root: sites sharing more leading path segments with it come first. ' +
           'It orders sites, removes none and walks no imports.',
       },
       file: {
         type: 'string',
         description:
-          'Optional. The file declaring the name, or one passing it on, to answer for that declaration alone.',
+          'Optional. The file declaring the name, or one passing it on, from the workspace root, to answer for that declaration alone.',
       },
       limit: { type: 'integer', description: `Optional. Sites of each kind, the rest counted; ${SHOWN} when not said.` },
     },

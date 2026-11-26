@@ -78,7 +78,7 @@ export const stack: Tool<Help> = {
     'The third-party packages a location can already use: for each, its role (runtime, dev, ' +
     'types-only), how the owning manifest declares it, its version and how often the code imports it, ' +
     'imported packages first. A package that ships agent skills names each skill\'s SKILL.md: read it ' +
-    'before using the package. Paged; `offset` takes the next page. Use docs_symbol with `from` for ' +
+    'before using the package. Use docs_symbol with `from` for ' +
     'one installed name\'s signature there.',
   inputSchema: {
     type: 'object',

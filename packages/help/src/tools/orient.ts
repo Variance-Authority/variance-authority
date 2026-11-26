@@ -70,8 +70,7 @@ export const orient: Tool<unknown> = {
   name: 'docs_orient',
   description:
     'With no files, the code map: packages grouped into areas, each with its size, dependency layers ' +
-    'and what it imports; `area` opens one. With files you already hold (from a stack trace, a ' +
-    'ticket, docs_search, docs_symbol or docs_grep), for each: its package, its top-level ' +
+    'and what it imports; `area` opens one. With files you already hold, for each: its package, its top-level ' +
     'declarations and members, what crosses its package\'s edges, the external packages it requests, ' +
     'the recorded tests that ran it, its callers and callees as those tests walked them, and the ' +
     'narrower questions to ask next. It finds nothing itself and is the widest answer here. Reads ' +

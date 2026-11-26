@@ -12,7 +12,7 @@
 import type { Tool } from '@variance-authority/mcp/tools';
 import { recordedDurations, type DurationScope } from '@variance-authority/sense';
 import { limitOf, spellingOf, type Spelling } from '@variance-authority/mcp/tools';
-import { formatSlowest } from './slowest-format.js';
+import { formatSlowest, RECORDING } from './slowest-format.js';
 import { recordedOnce, refuseUnknownPath } from './unknown-path.js';
 
 /** Files, and cases, listed per suite when the question names no limit. */
@@ -67,19 +67,19 @@ export const slowestTests: Tool<unknown> = {
     'The test files and cases that took longest in the latest recorded run, slowest first, as the ' +
     'runner timed them, after the cases closest to their timeout. A file\'s time includes its ' +
     'environment, setup files and imports; a case\'s slowest statement is named when it held a ' +
-    'millisecond or more. Reads the recording; runs and times nothing.',
+    `millisecond or more. ${RECORDING}; runs and times nothing.`,
   inputSchema: {
     type: 'object',
     properties: {
       from: {
         ...PATHS,
         description:
-          'Optional. Repo-relative paths; only tests declared in a file at or under one.',
+          'Optional. Repo-relative paths; only tests declared in a file at or under one, a folder matched on a `/` boundary.',
       },
       to: {
         ...PATHS,
         description:
-          'Optional. Repo-relative paths; only tests the recording says ran code in a file at or under one.',
+          'Optional. As `from`, for tests the recording says ran code there. With `from`, a test must meet both.',
       },
       over: {
         type: 'string',

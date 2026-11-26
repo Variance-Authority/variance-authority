@@ -12,7 +12,7 @@
 
 import type { Tool } from '@variance-authority/mcp/tools';
 import { recordedChecks, type ChecksScope, type RecordedChecks } from '@variance-authority/sense';
-import { eachSuite } from './slowest-format.js';
+import { eachSuite, RECORDING } from './slowest-format.js';
 
 const NAMED = 'Declared checks not executed';
 
@@ -73,7 +73,7 @@ export const notRun: Tool<unknown> = {
     'Each check a test case declared, with the annotation `variance:check` and a step of the same ' +
     'title, that a passing attempt never executed in the latest recorded run, with the file and line ' +
     'declaring the case: a case can pass without its check. It also counts the checks that ran and ' +
-    'the scope the run covered. Reads the recording; runs nothing.',
+    `the scope the run covered. ${RECORDING}; runs nothing.`,
   inputSchema: { type: 'object', properties: {}, additionalProperties: false },
 
   run: (_subject, _input, invocation) => {

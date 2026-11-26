@@ -356,10 +356,10 @@ export const discover: Tool<unknown> = {
   inputSchema: {
     type: 'object',
     properties: {
-      from: { type: 'array', items: { type: 'string' }, description: 'Paths; each the files it imports, itself included.' },
-      to: { type: 'array', items: { type: 'string' }, description: 'Paths; each the files importing it, itself included. `file#name` starts at that name\'s imports.' },
+      from: { type: 'array', items: { type: 'string' }, description: 'Paths, in `search`\'s forms (`x/` and `x/*` for folders); each the files it imports, itself included.' },
+      to: { type: 'array', items: { type: 'string' }, description: 'Paths, as `from`; each the files importing it, itself included. `file#name` starts at that name\'s imports.' },
       imports: { type: 'array', items: { type: 'string' }, description: '`module#name` or `module`, as written or as the file it resolves to; each the files importing it.' },
-      declares: { type: 'string', description: 'A Rust `regex` (no lookaround), case-insensitive; the files declaring a matching name.' },
+      declares: { type: 'string', description: 'A Rust `regex` (no lookaround or backreferences), case-insensitive; the files declaring a matching name. `export default function make()` declares `make`.' },
       path: { type: 'string', description: 'A regular expression over repo-relative paths.' },
       text: { type: 'string', description: 'A ripgrep pattern over the files the other operands kept.' },
       exceptFrom: { type: 'array', items: { type: 'string' }, description: 'As `from`, taken out.' },
@@ -368,7 +368,7 @@ export const discover: Tool<unknown> = {
       exceptDeclares: { type: 'string', description: 'As `declares`, taken out.' },
       exceptPath: { type: 'string', description: 'As `path`, taken out.' },
       limit: { type: 'integer', description: `Files to show, the rest counted; ${SHOWN} when not said.` },
-      offset: { type: 'integer', minimum: 0, description: 'Rows to skip; an answer with more names the next.' },
+      offset: { type: 'integer', minimum: 0, description: 'Rows to skip, 0 when not said; an answer with more names the next.' },
     },
     additionalProperties: false,
   },

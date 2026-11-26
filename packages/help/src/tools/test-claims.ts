@@ -13,6 +13,7 @@ import { testCompositions, testsRan } from '@variance-authority/sense';
 import type { Tool } from '@variance-authority/mcp/tools';
 import { recordedSteps } from '@variance-authority/mcp/recorded-steps';
 import { ASKED_TEST_INPUT, askedTest, suitesAnswer } from './asked-test.js';
+import { RECORDING } from './slowest-format.js';
 import { formatTestClaims } from './test-claims-format.js';
 
 /** Typed over nothing, like `docs_test_composition`: the checkout is the one the host names on the call. */
@@ -22,8 +23,7 @@ export const testClaimsTool: Tool<unknown> = {
     'One recorded test held against what it says: its name and, when the run kept an Eyes journal, ' +
     'its steps and assertions; the functions it ran; what only it covers beside the tests that ran ' +
     'the same code; and the branches of its functions it did not take, each with whether another test ' +
-    'takes it. Use docs_test_composition for its pieces and wholes. Reads the recording; reads no ' +
-    'source.',
+    `takes it. Use docs_test_composition for its pieces and wholes. ${RECORDING}; reads no source.`,
   inputSchema: ASKED_TEST_INPUT,
 
   run: (_subject, input, invocation) => {
