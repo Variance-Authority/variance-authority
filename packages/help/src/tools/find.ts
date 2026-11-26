@@ -2,11 +2,8 @@ import type { Documented, Entry, Help, Opening } from '@variance-authority/packa
 import { everyEntry } from '@variance-authority/package/help';
 import { SLOT } from './declaration-key.js';
 import { exportedNamed, pathsWritten } from './rows.js';
-import { declarations, declaredAt, isBound, isNested, unreadLine } from './declared.js';
-import { CHECKER, checkerOf, type Members, membersStop } from './members.js';
-import { notShownPast, type Spelling } from '@variance-authority/mcp/tools';
+import type { Spelling } from '@variance-authority/mcp/tools';
 import { search } from './search.js';
-import { exportsNamed } from './unpublished.js';
 import { searchIndexOf, storeBytesOf } from '../snapshot.js';
 import type { StoreRows } from '../store-rows.js';
 
@@ -117,19 +114,6 @@ function namedEntries(rows: PublishedEntries, name: string) {
 }
 
 /**
- * The entry an import names, by its exact exported spelling: its specifier
- * first, else the file it resolved to, in the order the published table holds.
- * Only the selected entry's metadata is decoded.
- */
-export function entryNamed(help: Help, name: string, specifier: string, at: string | undefined): readonly [Documented, Opening, Entry] | undefined {
-  const rows = publishedEntriesOf(help);
-  const named = namedEntries(rows, name);
-  const found = named.find(([, [published, opening]]) => specifierOf(published, opening) === specifier) ??
-    (at === undefined ? undefined : named.find(([, [, , entry]]) => entry.at === at));
-  return found === undefined ? undefined : [found[1][0], found[1][1], rows.entry(found[0])];
-}
-
-/**
  * Why a name was not found, said so the next question is the right one.
  *
  * Exact matching is the contract of `docs_symbol` and `docs_uses`, and it
@@ -182,62 +166,3 @@ export class FoundNothing extends Error {
   override readonly name = 'FoundNothing';
 }
 
-/** Where a name is written that no reader here declares. */
-const AS_TEXT = 'A name written only as text, in a string or a comment, declares nothing: a text search such as `rg` finds it.';
-
-/**
- * The answer for a name nothing in the workspace declares: that no file
- * declares it, then, given `dependencies`, what is known of the installed
- * ones, then where the reading of members stopped, then that a name written
- * only as text is a text search's to find, then the files the source
- * index holds no declarations of. Where the index could not be read, that is
- * said in place of a claim about the files. Members are read from JavaScript
- * and TypeScript only, so where the index holds files of another language the
- * claim about members is made of those two, and the others are named.
- */
-export function nowhere(
-  help: Help,
-  name: string,
-  wanted: string | undefined,
-  root: string | undefined,
-  members: Members | undefined,
-  dependencies: string | undefined,
-  spell: Spelling,
-  limit: number,
-): string {
-  const where = wanted === undefined ? 'this workspace' : `\`${wanted}\``;
-  const read = declarations(root, name);
-  const why = 'refused' in read ? read.refused : members?.unread;
-  const unread = 'refused' in read ? [] : unreadLine(read.unread);
-  const stop = why === undefined && members !== undefined ? membersStop(members) : undefined;
-  // A dotted name asks for a member of its container: whether that container is declared decides the answer, never a namesake on another one.
-  const on = why === undefined ? members?.on : undefined;
-  // `Outer.Inner` is declared where `Outer` is: a file declares the name a path starts with.
-  const head = on?.split('.')[0];
-  // Exported or kept to its file, a container is declared where a file binds it; an `export … from` binds nothing of its own.
-  const containers = head === undefined
-    ? []
-    : [
-        ...exportsNamed(help, root, head, wanted).filter((held) => held.bound !== undefined),
-        ...declaredAt(help, root, head, wanted).filter((one) => !isNested(one) && !isBound(one)),
-      ];
-  // What was read and found nothing comes first, as only what was read; what was not read, last.
-  const none = `No file in ${where}${unread.length === 0 ? '' : ' that the source index read'} declares \`${name}\``;
-  const files = why !== undefined
-    ? `Which files declare \`${name}\` is not known: ${why}.`
-    : on !== undefined && head !== undefined && members !== undefined
-      ? [
-          // A member is declared in its container's body, which is not always read, so a dotted name is never said to be declared nowhere.
-          // A namespace `import * as` binds is no declaration the index holds, so a container nothing declares is never proven absent.
-          containers.length === 0
-            ? `No file read here declares \`${head}\` at its top level; a namespace an import or an \`export * as\` binds is not read as one.`
-            : `\`${head}\` is declared at ${containers.slice(0, limit).map((one) => `${one.at}:${one.line}`).join(', ')}, and no interface, type alias or class body read here declares \`${members.member}\` on \`${on}\`.`,
-          ...notShownPast(containers.length, limit, spell, { one: `declaration of \`${head}\``, many: `declarations of \`${head}\`` }),
-          `An inherited member is a type checker's answer, and none runs here; the source index reads no enum, namespace or object literal body: ` +
-            `${CHECKER[checkerOf(containers.map((one) => one.at))]} go-to-definition on \`${name}\` where a line writes it names the declaration.`,
-        ].join(' ')
-      : stop === undefined
-        ? `${none}, at its top level or as a member.`
-        : `${none} at its top level, and no JavaScript or TypeScript file declares it as a member.`;
-  return [unfound(help, name, wanted, spell), files, ...(dependencies === undefined ? [] : [dependencies]), ...(stop === undefined ? [] : [stop]), AS_TEXT, ...unread].join(' ');
-}

@@ -10,10 +10,11 @@ import { uses } from './tools/uses.js';
 /**
  * What an answer whose files are unchanged pays for the look: a stat of each,
  * and no second question to the source index. The index is cut at the reads
- * that cost, each still answered, so a repeated reading shows as a count.
+ * that cost, each still answered, so a repeated reading shows as a count: the
+ * tools' own reads, and the addon's answers.
  */
 
-const asked = vi.hoisted(() => ({ reads: 0, importers: 0 }));
+const asked = vi.hoisted(() => ({ reads: 0, importers: 0, native: 0 }));
 
 vi.mock('@variance-authority/sense', async (actual) => {
   const sense = await actual<typeof import('@variance-authority/sense')>();
@@ -30,6 +31,14 @@ vi.mock('@variance-authority/sense', async (actual) => {
       return sense.importersOf(...args);
     },
     memberDeclarationsOf: counted(sense.memberDeclarationsOf),
+    answerSymbol: (...args: Parameters<typeof sense.answerSymbol>) => {
+      asked.native += 1;
+      return sense.answerSymbol(...args);
+    },
+    answerUses: (...args: Parameters<typeof sense.answerUses>) => {
+      asked.native += 1;
+      return sense.answerUses(...args);
+    },
   };
 });
 
@@ -49,9 +58,10 @@ describe('the look at an answer whose files are unchanged', () => {
     const help = await readWorkspace(root);
     tool.run(help, input, { root });
     asked.reads = 0;
+    asked.native = 0;
 
     expect(await outlived(tool.name, help, input, { root }, later(workspaceGeneration(help)))).toBe(false);
-    expect(asked.reads).toBe(0);
+    expect([asked.reads, asked.native]).toEqual([0, 0]);
   });
 
   it.each([
@@ -62,16 +72,15 @@ describe('the look at an answer whose files are unchanged', () => {
     const help = await readWorkspace(root);
     await outlived(tool.name, help, input, { root }, later(workspaceGeneration(help)));
     asked.reads = 0;
+    asked.native = 0;
 
     tool.run(help, input, { root });
-    expect(asked.reads).toBe(0);
+    expect([asked.reads, asked.native]).toEqual([0, 0]);
   });
 
-  it.each([
-    [symbol, { name: 'taxOf' }],
-    [uses, { name: 'taxOf' }],
-    [search, { query: 'taxOf' }],
-  ])('walks who imports a published name for `$name` no more for the look, in either order', async (tool, input) => {
+  it('walks who imports a published name for `docs_search` no more for the look, in either order', async () => {
+    const tool = search;
+    const input = { query: 'taxOf' };
     const root = await fixture.published({
       'packages/kit/package.json': JSON.stringify({ name: '@acme/kit', exports: './src/index.ts' }),
       'packages/kit/src/index.ts': "export * from './tax.js';\n",
@@ -95,6 +104,24 @@ describe('the look at an answer whose files are unchanged', () => {
     expect(asked.importers).toBe(answer);
   });
 
+  it.each([
+    [symbol, { name: 'taxOf' }],
+    [uses, { name: 'taxOf' }],
+  ])('asks the addon once for `$name` and its look, in either order', async (tool, input) => {
+    const root = await fixture.published();
+    const answered = await readWorkspace(root);
+    asked.native = 0;
+    tool.run(answered, input, { root });
+    await outlived(tool.name, answered, input, { root }, later(workspaceGeneration(answered)));
+    expect(asked.native).toBe(1);
+
+    const looked = await readWorkspace(root);
+    asked.native = 0;
+    await outlived(tool.name, looked, input, { root }, later(workspaceGeneration(looked)));
+    tool.run(looked, input, { root });
+    expect(asked.native).toBe(1);
+  });
+
   it('walks nothing more for a `docs_search` asked again, however many times it looks', async () => {
     const root = await fixture.published({
       'packages/kit/package.json': JSON.stringify({ name: '@acme/kit', exports: './src/index.ts' }),
@@ -113,16 +140,25 @@ describe('the look at an answer whose files are unchanged', () => {
 
   it('shares nothing with another generation of the same checkout', async () => {
     const root = await fixture.published();
-    symbol.run(await readWorkspace(root), { name: 'taxOf' }, { root });
+    search.run(await readWorkspace(root), { query: 'taxOf' }, { root });
     asked.reads = 0;
 
-    symbol.run(await readWorkspace(root), { name: 'taxOf' }, { root });
+    search.run(await readWorkspace(root), { query: 'taxOf' }, { root });
     expect(asked.reads).toBeGreaterThan(0);
+  });
+
+  it('asks the addon again for `docs_symbol` in another generation of the same checkout', async () => {
+    const root = await fixture.published();
+    symbol.run(await readWorkspace(root), { name: 'taxOf' }, { root });
+    asked.native = 0;
+
+    symbol.run(await readWorkspace(root), { name: 'taxOf' }, { root });
+    expect(asked.native).toBe(1);
   });
 });
 
 describe('a name several files declare', () => {
-  it('asks the source index who imports it once for all of them, and counts each apart', async () => {
+  it('asks the addon once for all of them, and counts each apart', async () => {
     const root = await fixture.published({
       'packages/shop/package.json': JSON.stringify({ name: '@acme/shop' }),
       'packages/shop/src/tax.ts': 'export function taxOf(amount: number): number {\n  return amount / 4;\n}\n',
@@ -131,15 +167,15 @@ describe('a name several files declare', () => {
       'packages/till/src/tax.ts': 'export function taxOf(amount: number): number {\n  return amount / 3;\n}\n',
     });
     const help = await readWorkspace(root);
-    asked.importers = 0;
+    asked.native = 0;
 
     const answer = symbol.run(help, { name: 'taxOf' }, { root });
-    expect(asked.importers).toBe(1);
+    expect(asked.native).toBe(1);
     expect(answer.match(/Imported in 1 place;/gu)).toHaveLength(2);
     expect(answer).toContain('Nothing in this workspace imports it');
   });
 
-  it('asks once when one of them is exported as the default', async () => {
+  it('asks the addon once when one of them is exported as the default', async () => {
     const root = await fixture.published({
       'packages/shop/package.json': JSON.stringify({ name: '@acme/shop' }),
       'packages/shop/src/tax.ts': 'export function taxOf(amount: number): number {\n  return amount / 4;\n}\n',
@@ -148,10 +184,10 @@ describe('a name several files declare', () => {
       'packages/till/src/tax.ts': 'export default function taxOf(amount: number): number {\n  return amount / 3;\n}\n',
     });
     const help = await readWorkspace(root);
-    asked.importers = 0;
+    asked.native = 0;
 
     const answer = symbol.run(help, { name: 'taxOf' }, { root });
-    expect(asked.importers).toBe(1);
+    expect(asked.native).toBe(1);
     expect(answer.match(/Imported in 1 place;/gu)).toHaveLength(2);
   });
 });

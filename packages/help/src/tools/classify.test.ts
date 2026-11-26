@@ -7,7 +7,6 @@ import * as sense from '@variance-authority/sense';
 import { HELP_TOOLS } from '../tools.js';
 import { classify } from './classify.js';
 import { classifyWords, formatClassified, formatNamedFiles, identifier, namedFiles, placedAreas, unshownFiles, type CodeMapPlaces, type Named } from './classify-words.js';
-import * as symbol from './symbol.js';
 
 /**
  * `docs_classify`: which words of the asker's own sentence are, whole, a
@@ -65,7 +64,6 @@ describe('docs_classify', () => {
       declared: [{ name: 'ModuleLoader', at: 'lib/ModuleLoader.ts', line: 3 }],
     });
     const liveFiles = vi.spyOn(sense, 'filesNamed').mockImplementation(() => { throw new Error('live Git is forbidden'); });
-    const liveSymbol = vi.spyOn(symbol, 'declaredInCheckout').mockImplementation(() => { throw new Error('live symbol metadata is forbidden'); });
     vi.spyOn(sense, 'declarationsOf').mockReturnValue([]);
 
     const text = classify.run(HELP, { query: 'ModuleLoader' }, { root: '/unused', sourceIndex: { index: '/scoped/source-index.bin', within: 'app' } });
@@ -74,7 +72,6 @@ describe('docs_classify', () => {
     expect(text).toContain('ModuleLoader — declared lib/ModuleLoader.ts:3');
     expect(text).toContain('file lib/ModuleLoader.ts');
     expect(liveFiles).not.toHaveBeenCalled();
-    expect(liveSymbol).not.toHaveBeenCalled();
   });
 
   it.each(['checkoutPath', 'sense/test-selection'])('answers a fully recognized unscoped query without requesting area ranking (%s)', (query) => {

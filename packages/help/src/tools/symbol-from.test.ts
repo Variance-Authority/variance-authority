@@ -86,7 +86,7 @@ it('answers a name only a dependency declares at a line as it does without one',
 it('refuses a line when the host names no checkout to read its recording from', async () => {
   const root = await fixture();
   expect(() => symbol.run(readHelp(root), { name: 'sharedName', line: 'packages/beta/src/x.ts:2' }, undefined))
-    .toThrow('`symbol --line` reads what a checkout recorded, and this host named no checkout to read');
+    .toThrow('`docs_symbol` reads the source index of a checkout, and this host named none');
 });
 
 // The workspace answers nothing for the name, so it may be declared in a file

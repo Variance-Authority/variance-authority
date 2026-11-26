@@ -412,10 +412,6 @@
     "count": 1
   },
   {
-    "at": "packages/sense/native/src/journey_resonance.rs resonance",
-    "count": 1
-  },
-  {
     "at": "packages/sense/native/src/journey_select.rs select_journeys",
     "count": 1
   },

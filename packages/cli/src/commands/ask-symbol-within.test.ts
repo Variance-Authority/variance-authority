@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { sourceIndexPath } from '@variance-authority/sense';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { EXIT_CLEAN } from '../exit.js';
+import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
 import { checkout, run } from './ask-packages.fixture.js';
 
 /**
@@ -113,15 +113,14 @@ describe('variance ask symbol over the imports of a published name inside its ow
     );
   });
 
-  it('counts the imports from other packages alone when the source index does not read, and says why', async () => {
+  it('refuses with the reason when the source index does not read, and counts nothing', async () => {
     const root = checkout(FIVE_WITHIN);
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
     writeFileSync(sourceIndexPath(root), 'not a source index');
 
-    const { code, out } = await run(['ask', 'symbol', '--name', 'greet']);
-    expect(code).toBe(EXIT_CLEAN);
-    expect(out).toMatch(
-      /^`variance ask uses` names the 1 place that imports this, from another package, nearest to a file you name first\. The imports inside @acme\/lib are read from the source index, and the source index at .* did not read: .*; run `variance index`\.$/m,
-    );
+    const { code, out, err } = await run(['ask', 'symbol', '--name', 'greet']);
+    expect(code).toBe(EXIT_OPERATOR);
+    expect(out).toBe('');
+    expect(err).toMatch(/^the source index at .* did not read: .+$/m);
   });
 });

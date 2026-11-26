@@ -61,14 +61,6 @@ fn refused(reason: String) -> Resonance {
 }
 
 /// How each of `candidates`, the declarations of one name, resonates with `file:line`.
-#[napi(catch_unwind)]
-pub fn resonance(recording: String, file: String, line: u32, candidates: Vec<Declaration>) -> Resonance {
-    match JourneyMasks::open(&recording).and_then(|mut masks| resonate(&mut masks, &file, line, &candidates)) {
-        Ok(answer) => answer,
-        Err(error) => refused(format!("the recording did not read ({error})")),
-    }
-}
-
 pub(crate) fn resonate(masks: &mut JourneyMasks, file: &str, line: u32, candidates: &[Declaration]) -> Result<Resonance, String> {
     let Some(module) = masks.journey.module_of(file)? else {
         return Ok(refused(format!("no recorded test loaded {file}")));

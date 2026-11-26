@@ -10,7 +10,7 @@
 import { type Site, packageOf, sureness } from './uses-of.js';
 
 /** The places that import a name, those from other packages and those inside `home`. */
-export interface Counted {
+interface Counted {
   /** The sites that import the name, which are the places counted. */
   readonly certain: readonly Site[];
   /** The sites that may read the name and are no use of it, counted apart. */
@@ -34,28 +34,11 @@ export function counted(sites: readonly Site[], home: string | undefined): Count
 }
 
 /** `sites` split by whether they are inside `home`; none on either side when `home` is unknown. */
-export function apart(sites: readonly Site[], home: string | undefined): Pick<Counted, 'inside' | 'outside'> {
+function apart(sites: readonly Site[], home: string | undefined): Pick<Counted, 'inside' | 'outside'> {
   return {
     outside: home === undefined ? [] : sites.filter((site) => site.by !== home),
     inside: home === undefined ? [] : sites.filter((site) => site.by === home),
   };
-}
-
-/**
- * Where the places are, said after the count: `: 1 from another package and
- * 2 inside @acme/lib` when they are on both sides, `, all inside @acme/lib`
- * or `, from another package` when they are on one; empty when there is no
- * place.
- */
-export function spokenSplit(count: Pick<Counted, 'inside' | 'outside'>, home: string): string {
-  const outside = count.outside.length;
-  const inside = count.inside.length;
-  if (outside > 0 && inside > 0) {
-    return `: ${outside} from ${outside === 1 ? 'another package' : 'other packages'} and ${inside} inside ${home}`;
-  }
-  if (outside > 0) return outside === 1 ? ', from another package' : ', all from other packages';
-  if (inside > 0) return inside === 1 ? `, inside ${home}` : `, all inside ${home}`;
-  return '';
 }
 
 /** How many places import a name, and how many packages those places sit in. */

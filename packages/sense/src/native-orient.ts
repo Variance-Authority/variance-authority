@@ -423,12 +423,6 @@ export interface NativeImporters {
   groups: NativeGroup[];
   /** Every line of a file asked about that uses the name it declares, by file in code units, then by line. */
   inFile: NativeInFile[];
-  /**
-   * Every namespace a file passes the name on inside, by file in code units,
-   * then by name: `export * as shout` passes `greet` as `shout.greet`, `name`
-   * `shout` and `members` `['greet']`, the last member the name itself.
-   */
-  namespaces: NativeNamespace[];
 }
 
 /** One file asked who imports a name out of it, and the name it exports it under. */
@@ -443,6 +437,12 @@ export interface NativeGroup {
   uses: NativeNameUse[];
   /** Every file that passes one of its names on, in code-unit order; none of the group's own files. */
   through: string[];
+  /**
+   * Every namespace a file passes one of its names on inside, by file in code
+   * units, then by name: `export * as shout` passes `greet` as `shout.greet`,
+   * `name` `shout` and `members` `['greet']`, the last member the name itself.
+   */
+  namespaces: NativeNamespace[];
 }
 
 /** A namespace one file passes a name on inside, under the name it exports it as. */

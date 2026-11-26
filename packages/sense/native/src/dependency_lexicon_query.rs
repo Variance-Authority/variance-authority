@@ -89,7 +89,7 @@ pub(crate) struct Scope {
     pub(crate) packages: u32,
     /// The manifests that own the paths the question stood at; absent when it stood nowhere.
     #[serde(skip_serializing_if = "Option::is_none")]
-    location: Option<Vec<String>>,
+    pub(crate) location: Option<Vec<String>>,
 }
 
 fn summary(doc: &str) -> String {
@@ -129,11 +129,11 @@ pub fn query_dependency_lexicon(path: String, sites: String, query: String, file
         .transpose()
 }
 
-#[cfg(feature = "standalone-cli")]
-pub(crate) fn exact_dependencies(directory: &std::path::Path, name: &str, package: Option<&str>, limit: u32) -> Option<Option<Matches>> {
+/// The installed declarations named exactly `name`, usable at `files` when they are named, else anywhere in the checkout.
+pub(crate) fn exact_dependencies(directory: &std::path::Path, name: &str, files: Option<Vec<String>>, package: Option<&str>, limit: u32) -> Option<Option<Matches>> {
     let catalogue = directory.join("dependency-lexicon.bin");
     let sites = directory.join("dependency-lexicon.sites.bin");
-    query_matches(catalogue.to_str()?.to_owned(), sites.to_str()?.to_owned(), name.to_owned(), None, true, package.map(str::to_owned), limit).ok()
+    query_matches(catalogue.to_str()?.to_owned(), sites.to_str()?.to_owned(), name.to_owned(), files, true, package.map(str::to_owned), limit).ok()
 }
 
 #[cfg(feature = "standalone-cli")]

@@ -4,22 +4,48 @@
 
 use std::path::Path;
 
-use crate::dependency_lexicon::query::{exact_dependencies, Match, Silent};
+use crate::dependency_lexicon::query::{exact_dependencies, Match, Matches, Silent};
 use crate::help_readme::mention_at;
-use crate::help_search_dependencies::provenance;
+use crate::help_surface::Surface;
 
-pub(super) fn blocks(root: &str, directory: &Path, name: &str, package: Option<&str>, limit: usize) -> Option<Option<Vec<String>>> {
-    let Some(matches) = exact_dependencies(directory, name, package, u32::try_from(limit).unwrap_or(u32::MAX))? else {
+/// The installed declarations of `name`, one block each, as the manifests
+/// owning `from` resolve them when it names paths: there, or, when they
+/// offer none and another manifest does, why not and where it is offered.
+/// `None` inside when the catalogue is not published.
+pub(super) fn blocks(root: &str, directory: &Path, name: &str, package: Option<&str>, from: &[String], limit: usize, surface: Surface<'_>) -> Option<Option<Vec<String>>> {
+    let limit = u32::try_from(limit).unwrap_or(u32::MAX);
+    let Some(everywhere) = exact_dependencies(directory, name, None, package, limit)? else {
         return Some(None);
     };
+    let here = if from.is_empty() { None } else { exact_dependencies(directory, name, Some(from.to_vec()), package, limit)? };
+    if let Some(here) = here.as_ref().filter(|here| here.total == 0 && everywhere.total > 0) {
+        let owner = here.scope.location.as_ref().map_or_else(|| "the manifest that owns it".to_owned(), |location| location.join(", "));
+        let mut blocks = vec![format!("`{name}` is not usable from {}: {owner} does not declare or import it. It is offered under:", from.join(", "))];
+        blocks.extend(shown(&everywhere, surface)?);
+        return Some(Some(blocks));
+    }
+    let matches = here.as_ref().unwrap_or(&everywhere);
+    let mut blocks = shown(matches, surface)?;
+    blocks.extend(silent(Path::new(root), name, &matches.silent, package.is_some())?);
+    Some(Some(blocks))
+}
+
+/// One block per match shown, and the count of the rest.
+fn shown(matches: &Matches, surface: Surface<'_>) -> Option<Vec<String>> {
     let mut blocks: Vec<_> = matches.shown.iter().map(installed).collect::<Option<_>>()?;
     let rest = matches.total as usize - blocks.len();
     if rest > 0 {
         let noun = if rest == 1 { "match" } else { "matches" };
-        blocks.push(format!("{rest} more {noun} not shown; a higher `--limit` shows them."));
+        blocks.push(format!("{rest} more {noun} not shown; a higher `{}` shows them.", surface.input("limit")));
     }
-    blocks.extend(silent(Path::new(root), name, &matches.silent, package.is_some())?);
-    Some(Some(blocks))
+    Some(blocks)
+}
+
+/// The installed declarations of `name` usable at `at` that `specifier` opens, one block each; `None` inside when there are none.
+pub(crate) fn imported_from(directory: &Path, name: &str, at: &str, specifier: &str, package: Option<&str>) -> Option<Option<String>> {
+    let Some(matches) = exact_dependencies(directory, name, Some(vec![at.to_owned()]), package, 100)? else { return Some(None) };
+    let blocks: Vec<_> = matches.shown.iter().filter(|entry| entry.specifier == specifier).map(installed).collect::<Option<_>>()?;
+    Some((!blocks.is_empty()).then(|| blocks.join("\n\n")))
 }
 
 fn installed(entry: &Match) -> Option<String> {
@@ -70,4 +96,17 @@ fn silent(root: &Path, name: &str, entries: &[Silent], named: bool) -> Option<Ve
         blocks.push(lines.join("\n"));
     }
     Some(blocks)
+}
+
+/// Where an installed dependency stands: its version, the manifest that
+/// declares it, and how often the workspace imports it.
+pub(crate) fn provenance(version: Option<&str>, declared: Option<&str>, manifest: &str, imports: Option<u32>, site: Option<&str>) -> String {
+    let version = version.map_or_else(|| "version not resolved".into(), |version| format!("@{version}"));
+    let declared = declared.map_or_else(|| format!("imported under {manifest}, not declared there"), |kind| format!("{kind} in {manifest}"));
+    let used = match imports {
+        None => "imports not indexed".into(),
+        Some(0) => "not imported".into(),
+        Some(count) => format!("imported {count}× (first {})", site.unwrap_or("site not recorded")),
+    };
+    format!("{version} · {declared} · {used}")
 }

@@ -1,12 +1,13 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
+import { chmodSync, copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
-import { encodeExecutionIndex, landCases, testCoverageFile, withCaseSections, writeTestCoverage } from '@variance-authority/sense/test-selection';
+import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import '../bin.fixture.js';
+import { mainlineReadRoot, testCoverageFile, writeFetchedMainline } from '@variance-authority/sense/test-selection';
 import { main } from '../bin.js';
 import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
+import { recorded } from './ask-symbol-line.fixture.js';
 
 /**
  * `variance ask symbol --line`, through the command a person types: the
@@ -36,6 +37,16 @@ async function run(argv: readonly string[]): Promise<{ code: number; out: string
   let err = '';
   const code = await main(argv, { out: (text) => { out += text; }, err: (text) => { err += text; } });
   return { code, out, err };
+}
+
+/** Whether `file` still opens for reading, as it does for root whatever its mode. */
+function opens(file: string): boolean {
+  try {
+    readFileSync(file);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 describe('variance ask symbol --line', () => {
@@ -126,6 +137,44 @@ describe('variance ask symbol --line', () => {
     expect(answered.out.split('\n')[0]).toBe(`No recording under ${root} holds a suite, so nothing tells the declarations of \`useSessionId\` apart:`);
   });
 
+  it('says the recording does not open, and names the declarations as it would without the line', async (context) => {
+    const root = await recorded();
+    chmodSync(testCoverageFile(root), 0);
+    // A mode of 0 does not stop root, as CI runs: there the file still opens and the case has nothing to say.
+    if (opens(testCoverageFile(root))) context.skip();
+
+    const answered = await run(['ask', 'symbol', '--name', 'useSessionId', '--line', 'src/page.ts:3']);
+
+    const at = testCoverageFile(root);
+    expect([answered.code, answered.err]).toEqual([EXIT_CLEAN, '']);
+    expect(answered.out.split('\n')[0]).toBe(`The recording cannot place src/page.ts:3: the recording at ${at} does not read (EACCES: permission denied, open '${at}'), so nothing tells the declarations of \`useSessionId\` apart:`);
+    expect(answered.out).toContain('src/session.ts:1');
+  });
+
+  it('reads a suite carried by `share` from the mainline record a fetch kept, when the checkout has no recording of its own', async () => {
+    const root = await recorded();
+    const head = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim();
+    const cache = process.env['VARIANCE_AUTHORITY_CACHE']!;
+    const kept = join(mainlineReadRoot(cache, 'unit'), head);
+    mkdirSync(kept, { recursive: true });
+    copyFileSync(testCoverageFile(root), join(kept, 'coverage.bin'));
+    rmSync(testCoverageFile(root));
+    await writeFetchedMainline(cache, 'unit', { mainline: 'main', commit: head, fetched: new Date().toISOString() });
+    writeFileSync(join(root, 'variance.config.json'), JSON.stringify({ suites: { unit: { kind: 'unit', carry: 'share' } } }));
+    execFileSync('git', ['add', '.'], { cwd: root });
+    execFileSync('git', ['-c', 'user.name=fixture', '-c', 'user.email=fixture@example.com', 'commit', '--quiet', '-m', 'shared'], { cwd: root });
+    expect(await main(['index'], { out: () => {}, err: () => {} })).toBe(EXIT_CLEAN);
+
+    const answered = await run(['ask', 'symbol', '--name', 'useSessionId', '--line', 'src/page.ts:3']);
+
+    expect([answered.code, answered.err]).toEqual([EXIT_CLEAN, '']);
+    expect(answered.out.split('\n').slice(0, 3)).toEqual([
+      'suite unit: `useSessionId` at src/page.ts:3, by the 1 recorded test that ran the line:',
+      '',
+      'src/session.ts:1  1.00  1 of the 1 test that entered it ran the line',
+    ]);
+  });
+
   it('refuses a line spelled without its number', async () => {
     await recorded();
 
@@ -192,101 +241,3 @@ describe('variance ask symbol --line', () => {
     ]);
   });
 });
-
-/**
- * Five tests, each named for what it renders, recorded at the commit the
- * sources are written at, at `commit` when it names one, at none when it is
- * false, and not recorded at all when `recording` is false.
- */
-async function recorded({ commit = true, recording = true }: { readonly commit?: boolean | string; readonly recording?: boolean } = {}): Promise<string> {
-  const root = realpathSync(mkdtempSync(join(tmpdir(), 'va-symbol-line-')));
-  execFileSync('git', ['init', '--quiet', '--initial-branch', 'main'], { cwd: root, stdio: 'pipe' });
-  process.chdir(root);
-  const declares = (name: string, value: string): string => `export function ${name}(): string {\n  return '${value}';\n}\n`;
-  const sources: Record<string, string> = {
-    'package.json': JSON.stringify({ name: 'resonance', private: true }),
-    'src/session.ts': declares('useSessionId', 'real'),
-    'src/legacy.ts': declares('useSessionId', 'legacy'),
-    'src/stale.ts': declares('useSessionId', 'stale'),
-    'src/constant.ts': `export const useSessionId = 'constant';\n${declares('other', 'other')}`,
-    'src/page.ts': [
-      "import { useSessionId } from './session';",
-      'export function page(): string {',
-      '  return useSessionId();',
-      '}',
-      'export function header(): string {',
-      '  return useSessionId();',
-      '}',
-      '',
-    ].join('\n'),
-    'src/idle.ts': "import { useSessionId } from './session';\nexport function idle(): string {\n  return useSessionId();\n}\n",
-    'src/a.ts': declares('format', 'a'),
-    'src/b.ts': declares('format', 'b'),
-    'src/c.ts': "function shout(): string {\n  return 'c';\n}\nexport { shout as format };\n",
-    'src/use.ts': "import { format } from './a';\nexport const used = (): string => format();\n",
-    'src/log.ts': declares('log', 'loud'),
-    'src/quiet.ts': declares('log', 'quiet'),
-    'src/report.ts': "import { log } from './quiet';\nexport const report = (): string => log();\n",
-    'src/arrow.ts': "export const token =\n  (): string => 'arrow';\n",
-    'src/store.ts': "export class Store {\n  token(): string {\n    return 'method';\n  }\n}\n",
-    'src/fixed.ts': "export const token = 'fixed';\n{\n  const token = (): string => 'inner';\n  void token;\n}\n",
-  };
-  for (const [path, text] of Object.entries(sources)) {
-    mkdirSync(dirname(join(root, path)), { recursive: true });
-    writeFileSync(join(root, path), text);
-  }
-  const git = (...args: string[]): string => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
-  git('add', '.');
-  git('-c', 'user.name=fixture', '-c', 'user.email=fixture@example.com', 'commit', '--quiet', '-m', 'recorded');
-  // A question reads the generation `variance index` published.
-  expect(await main(['index'], { out: () => {}, err: () => {} })).toBe(EXIT_CLEAN);
-  if (!recording) return root;
-  const at = testCoverageFile(root);
-  const files = ['test/page.test.ts', 'test/legacy.test.ts', 'test/header.test.ts', 'test/use.test.ts', 'test/report.test.ts'];
-  const region = (kind: string, name: string, startLine: number, endLine: number, entered: readonly number[]) => ({
-    kind, name, path: 'entry', startLine, endLine, source: true, crossings: entered.map((test) => ({ test, distance: 0 })),
-  });
-  const modules: Record<string, ReturnType<typeof region>[]> = {
-    'src/session.ts': [region('function', 'useSessionId', 1, 3, [0])],
-    'src/legacy.ts': [region('function', 'useSessionId', 1, 3, [1])],
-    'src/stale.ts': [region('function', 'useSessionId', 1, 3, [])],
-    'src/constant.ts': [region('function', 'other', 2, 4, [])],
-    'src/page.ts': [region('function', 'page', 2, 4, [0]), region('function', 'header', 5, 7, [2])],
-    'src/idle.ts': [region('function', 'idle', 2, 4, [])],
-    'src/a.ts': [region('function', 'format', 1, 3, [3])],
-    'src/b.ts': [region('function', 'format', 1, 3, [3])],
-    'src/c.ts': [region('function', 'shout', 1, 3, [3])],
-    'src/use.ts': [region('function', 'used', 2, 2, [3])],
-    'src/log.ts': [region('function', 'log', 1, 3, [0, 1, 2, 3, 4])],
-    'src/quiet.ts': [region('function', 'log', 1, 3, [4])],
-    'src/report.ts': [region('function', 'report', 2, 2, [4])],
-    'src/arrow.ts': [region('function', 'token', 2, 2, [0])],
-    'src/store.ts': [region('function', 'Store/token', 2, 4, [0])],
-    'src/fixed.ts': [region('function', 'token', 3, 3, [0])],
-  };
-  const covered = (file: string, blocks: readonly ReturnType<typeof region>[]) => ({
-    file,
-    sourceDigest: `digest:${file}`,
-    instrumented: true,
-    blocks: blocks.map((block, ordinal) => ({
-      ordinal, kind: block.kind, digest: `block:${file}:${ordinal}`, name: block.name, path: block.path, source: true,
-      startLine: block.startLine, endLine: block.endLine, testFiles: block.crossings.map(({ test }) => files[test] ?? ''),
-    })),
-  });
-  await writeTestCoverage(at, {
-    version: 3,
-    instrumentation: 'fixture-instrumentation',
-    ...(commit === false ? {} : { commit: commit === true ? git('rev-parse', 'HEAD') : commit }),
-    tests: files.map((file) => ({ file, complete: true, preconditions: [] })),
-    modules: Object.entries(modules).map(([file, blocks]) => covered(file, blocks)),
-  });
-  const tests = files.map((file, at) => ({ id: `t${at}`, file, name: `renders ${file.slice(5, -8)}` }));
-  const shard = join(mkdtempSync(join(tmpdir(), 'va-symbol-line-shard-')), 'run.bin');
-  writeFileSync(shard, withCaseSections(readFileSync(at), { index: encodeExecutionIndex({
-    tests,
-    modules: Object.entries(modules).map(([file, blocks]) => ({ file, blocks })),
-  }) }));
-  const { sections } = await landCases(at, {}, root, [{ path: shard, coverage: { tests: files.map((file) => ({ file, complete: true })) } }]);
-  writeFileSync(at, withCaseSections(readFileSync(at), sections));
-  return root;
-}

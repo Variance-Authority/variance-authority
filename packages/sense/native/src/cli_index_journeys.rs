@@ -2,9 +2,7 @@
 
 // compass: variance-authority.reach
 
-use std::path::{Path, PathBuf};
-
-use serde_json::Value;
+use std::path::Path;
 
 use crate::journey_columns::FileFrame;
 use crate::journeys::{self, JourneysCommit, JourneysPrepared};
@@ -12,79 +10,8 @@ use crate::record_layout::LAYOUT;
 use crate::resolve::Tsconfig;
 use crate::GitTree;
 
-pub(super) struct Record {
-    suite: Option<String>,
-    file: PathBuf,
-}
-
-pub(super) fn recordings(layers: &super::Layers, config: Option<&Value>) -> Option<Vec<Record>> {
-    let nearest = |inside: &Path| -> Option<PathBuf> {
-        let own = layers.top.join(inside);
-        let base = layers.base.join(inside);
-        Some(if own.try_exists().ok()? || own == base || !base.try_exists().ok()? { own } else { base })
-    };
-    let Some(suites) = config.and_then(|config| config.get("suites")) else {
-        return Some(vec![Record { suite: None, file: nearest(Path::new("coverage.bin"))? }]);
-    };
-    let suites = suites.as_object()?;
-    if suites.is_empty() {
-        return None;
-    }
-    let mut names: Vec<_> = suites.keys().collect();
-    names.sort_unstable();
-    names
-        .into_iter()
-        .map(|name| {
-            let suite = suites.get(name)?.as_object()?;
-            if !name.bytes().next()?.is_ascii_alphanumeric()
-                || !name.bytes().all(|byte| byte.is_ascii_alphanumeric() || b"._-".contains(&byte))
-                || suite.keys().any(|key| {
-                    !matches!(key.as_str(), "before" | "carry" | "ignore" | "precision" | "kind" | "relations")
-                })
-                || !matches!(suite.get("kind")?.as_str()?, "unit" | "integration" | "e2e" | "visual" | "job")
-            {
-                return None;
-            }
-            let inside = Path::new("suites").join(name).join("coverage.bin");
-            if let Some(carry) = suite.get("carry") {
-                match carry.as_str()? {
-                    "share" => {
-                        // An own record takes precedence. A shared cache without an
-                        // own record still needs the existing mainline resolver.
-                        let own = layers.top.join(&inside);
-                        if !own.try_exists().ok()?
-                            && layers.cache.join("share/read").join(name).join("fetched.json").try_exists().ok()?
-                        {
-                            return None;
-                        }
-                    }
-                    "actions-cache" => {}
-                    _ => return None,
-                }
-            }
-            let relations = suite.get("relations").map(Value::as_bool);
-            if relations == Some(None) {
-                return None;
-            }
-            if let Some(precision) = suite.get("precision") {
-                match precision.as_str()? {
-                    "file" | "symbol" if relations != Some(Some(false)) => {}
-                    "file-use" | "function-use" | "region-use" => {}
-                    _ => return None,
-                }
-            }
-            for key in ["before", "ignore"] {
-                if let Some(paths) = suite.get(key) {
-                    let paths = paths.as_array()?;
-                    if paths.is_empty() || paths.iter().any(|path| path.as_str().is_none_or(str::is_empty)) {
-                        return None;
-                    }
-                }
-            }
-            Some(Record { suite: Some(name.clone()), file: nearest(&inside)? })
-        })
-        .collect()
-}
+pub(crate) use crate::recordings::{recordings, Record};
+use crate::recordings::commit;
 
 pub(super) fn prepare(
     root: &str,
@@ -157,31 +84,6 @@ fn walk(
         .map_err(|error| Why::Failed(error.reason))?
         .map(Some)
         .ok_or_else(|| Why::Unprepared("there is no source index".to_owned()))
-}
-
-fn commit(file: &mut FileFrame) -> Result<Option<String>, String> {
-    if !file.columns.iter().any(|section| section.name == "snapshot.commit") {
-        if file.columns.iter().all(|section| LAYOUT.coverage.parts.iter().any(|(_, name)| *name == section.name)) {
-            return Err("the record holds cases but no coverage".to_owned());
-        }
-        return Err("the record has no snapshot.commit section".to_owned());
-    }
-    let mut columns = file.selected(&["strings.blob", "strings.off", "snapshot.commit"])?;
-    let commit = columns.take_words("snapshot.commit")?;
-    let id = match commit.as_slice() {
-        [] => return Ok(None),
-        [id] => *id as usize,
-        _ => return Err("the record names more than one commit".to_owned()),
-    };
-    let offsets = columns.take_words("strings.off")?;
-    let blob = columns.held("strings.blob")?;
-    let text = offsets
-        .get(id)
-        .zip(offsets.get(id + 1))
-        .and_then(|(&start, &end)| blob.get(start as usize..end as usize))
-        .ok_or("the record's commit string is out of bounds")?;
-    let commit = std::str::from_utf8(text).map_err(|error| error.to_string())?;
-    Ok(Some(commit.to_owned()))
 }
 
 fn line(label: &str, made: JourneysPrepared) -> String {

@@ -2,34 +2,101 @@
 
 // compass: variance-authority.report.agent-surface
 
+use crate::help_surface::Surface;
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 
 use crate::compact::Layer;
 use crate::help_members::members_on;
 use crate::help_name_scope::PackageScope;
-use crate::help_origin::declaration_exported;
-use crate::help_symbol_rows::{Entry, Export, Site};
+use crate::help_key::{says, Keys, SLOT};
+use crate::help_symbol_rows::{Entry, Export, PathSite, Site};
+use crate::help_unread::{Said, STORE};
 use crate::help_usage::{importers, Asked, Importers, NameUse};
 use crate::help_uses_answer::Counts;
 use crate::order::code_unit;
 use crate::text_cut::blank;
 
-/// Each declaration published under this spelling, with its own entry points and import sites.
-pub(crate) fn published_symbols<'a>(root: &str, layers: &[Layer], name: &str, entries: Vec<Entry<'a>>, exports: &[Export<'a>], paths: &[crate::help_symbol_rows::PathSite<'a>], package: &PackageScope<'a>) -> Option<Vec<String>> {
-    let (declarations, read) = published_imports(root, layers, name, entries, exports, PublicationScope::Asked(package))?;
-    Some(declarations.iter().zip(&read.groups).map(|((entries, owner), group)| {
-        let paths = paths.iter().filter(|path| path.to == Some(entries[0].at)).map(|path| path.site);
-        let sites = joined_sites(entries, paths, &group.uses, &group.through);
-        published_symbol(layers, name, entries, owner, &sites)
-    }).collect())
+/// Each declaration published under this spelling or answering to it, with
+/// its own entry points and import sites: `declarations` from
+/// [`published_declarations`], `paths` the imports by path of `name`; and
+/// every file that passes one of them on between an entry and its file.
+pub(crate) fn published_symbols<'a>(keys: &Keys<'a>, root: &str, layers: &[Layer], name: &str, declarations: &[Declaration<'a>], paths: &[PathSite<'a>], package: &PackageScope<'a>, surface: Surface<'_>) -> Option<(Vec<String>, Vec<String>)> {
+    let rows = keys.rows();
+    let asked: Vec<_> = declarations.iter().map(|one| one.spellings.iter().map(|spelled| Asked { file: one.at.to_owned(), name: spelled.clone() }).collect()).collect();
+    let mut read = importers(root, layers, &asked);
+    for group in &mut read.groups { group.uses.retain(|site| package.through(&site.key)); }
+    let mut blocks = Vec::with_capacity(declarations.len());
+    for (one, group) in declarations.iter().zip(&read.groups) {
+        // A declaration published by another name is imported by path by that name.
+        let by_declared;
+        let paths = if one.declared == name { paths } else {
+            by_declared = rows.path_uses(&one.declared)?.into_iter().map(|row| rows.path_site(row)).filter(|site| site.as_ref().is_none_or(|site| package.path(site.specifier))).collect::<Option<Vec<_>>>()?;
+            &by_declared[..]
+        };
+        let paths = paths.iter().filter(|path| path.to == Some(one.at)).map(|path| path.site);
+        let sites = joined_sites(&one.doors, paths, &group.uses, &group.through);
+        let lead = &one.doors[0];
+        // Inside is the declaring file's package, which a re-exporting door is not.
+        let owner = rows.exports_in(one.at)?.first().map(|held| held.by).filter(|by| !by.is_empty()).unwrap_or(lead.package);
+        // A default export is headed by the name its declaration is keyed by, as every import of it is read.
+        let named = if lead.name == SLOT { keys.key_of(lead.at, lead.declared)?.named } else { lead.name.to_owned() };
+        let import = if lead.name != SLOT { Some(format!("import {{ {} }} from '{}';", lead.name, lead.specifier)) } else if named == SLOT { None } else { Some(format!("import {named} from '{}';", lead.specifier)) };
+        blocks.push(published_symbol(layers, &named, import, &one.doors, owner, &sites, surface));
+    }
+    let through = read.groups.into_iter().flat_map(|group| group.through).collect();
+    Some((blocks, through))
+}
+
+/// One published declaration: the file declaring it, the name it is keyed by,
+/// every name that file exports it under, and the entries publishing it, the
+/// one the workspace imports it by most first.
+pub(crate) struct Declaration<'a> {
+    pub at: &'a str,
+    pub declared: String,
+    pub spellings: Vec<String>,
+    pub doors: Vec<Entry<'a>>,
+}
+
+/// Every published declaration of `name`: by the name an entry publishes, or
+/// the name its declaring file exports it under, from the package asked, the
+/// one whose leading door the workspace imports most first, then by file and
+/// declared name in code units.
+pub(crate) fn published_declarations<'a>(keys: &Keys<'a>, name: &str, package: &PackageScope<'_>) -> Result<Vec<Declaration<'a>>, String> {
+    let rows = keys.rows();
+    let mut candidates = rows.published(name).said(STORE)?;
+    let answering: HashSet<(&str, &str)> = keys.answering(name).said(STORE)?.iter().map(|held| (held.at, held.name)).collect();
+    if rows.holds("pub.at") {
+        candidates.extend(rows.published_declaring(&answering).said(STORE)?);
+    } else if !answering.is_empty() {
+        // The entries are read for a name published or bound by an import, so a door to another of its spellings was not read.
+        let spelled: HashSet<&str> = answering.iter().map(|(_, spelled)| *spelled).collect();
+        if rows.publishes_declared(&spelled).said(STORE)? { return Err(format!("an entry publishes `{name}` under another of its names, and this reading did not read the entries")) }
+    }
+    let mut doors = Vec::new();
+    for row in candidates {
+        let entry = rows.entry(row).said(STORE)?;
+        if !(says(entry.name, name) || keys.answers(entry.at, entry.declared, name).said(STORE)?) || !package.entry(&entry) { continue }
+        let key = keys.key_of(entry.at, entry.declared).said(STORE)?;
+        doors.push((entry, key));
+    }
+    doors.sort_by(|a, b| by_door(&a.0, &b.0));
+    let mut declarations: Vec<Declaration<'a>> = Vec::new();
+    for (entry, key) in doors {
+        match declarations.iter_mut().find(|one| one.at == entry.at && one.declared == key.named) {
+            Some(one) => one.doors.push(entry),
+            None => declarations.push(Declaration { at: entry.at, declared: key.named, spellings: key.spellings, doors: vec![entry] }),
+        }
+    }
+    declarations.sort_by(|a, b| by_door(&a.doors[0], &b.doors[0]).then_with(|| code_unit(a.at, b.at)).then_with(|| code_unit(&a.declared, &b.declared)));
+    Ok(declarations)
 }
 
 pub(crate) type Published<'a> = (Vec<Entry<'a>>, &'a str);
 
-pub(crate) enum PublicationScope<'a> { Asked(&'a PackageScope<'a>), PublishedOnly }
-
-pub(crate) fn published_imports<'a>(root: &str, layers: &[Layer], name: &str, entries: Vec<Entry<'a>>, exports: &[Export<'a>], scope: PublicationScope<'_>) -> Option<(Vec<Published<'a>>, Importers)> {
+/// The declarations the entries `entries` publish `name` from, by file, with who imports each: `None` where one is published or bound under another name, whose imports are read under every name of its key.
+#[cfg_attr(not(feature = "standalone-cli"), allow(dead_code))]
+pub(crate) fn published_imports<'a>(root: &str, layers: &[Layer], name: &str, entries: Vec<Entry<'a>>, exports: &[Export<'a>]) -> Option<(Vec<Published<'a>>, Importers)> {
     if entries.iter().any(|entry| entry.declared != name || entry.name != name) {
         return None;
     }
@@ -37,26 +104,14 @@ pub(crate) fn published_imports<'a>(root: &str, layers: &[Layer], name: &str, en
     for entry in entries {
         declarations.entry(entry.at).or_default().push(entry);
     }
-    if let PublicationScope::Asked(package) = scope {
-        for export in exports.iter().filter(|export| package.export(export)) {
-            if export.name != name || declaration_exported(layers, export.at, export.name)
-                .is_none_or(|found| found.name != name || !declarations.contains_key(found.at.as_str()))
-            {
-                return None;
-            }
-        }
-    } else if exports.iter().any(|export| export.name != name && export.bound == Some(name) && declarations.contains_key(export.at)) {
-        // Counting under multiple export spellings uses the binding's full key.
+    if exports.iter().any(|export| export.name != name && export.bound == Some(name) && declarations.contains_key(export.at)) {
         return None;
     }
     let mut declarations: Vec<_> = declarations.into_values().collect();
     for entries in &mut declarations { entries.sort_by(by_door); }
     declarations.sort_by(|a, b| by_door(&a[0], &b[0]).then_with(|| code_unit(a[0].at, b[0].at)));
     let asked: Vec<_> = declarations.iter().map(|entries| vec![Asked { file: entries[0].at.to_owned(), name: name.to_owned() }]).collect();
-    let mut read = importers(root, layers, &asked);
-    if let PublicationScope::Asked(package) = scope {
-        for group in &mut read.groups { group.uses.retain(|site| package.through(&site.key)); }
-    }
+    let read = importers(root, layers, &asked);
     let homes: HashMap<_, _> = exports.iter().filter(|export| export.bound == Some(name)).map(|export| (export.at, export.by)).collect();
     let declarations = declarations.into_iter().map(|entries| {
         let lead = &entries[0];
@@ -99,24 +154,11 @@ pub(crate) fn joined_sites<'a>(entries: &'a [Entry<'_>], paths: impl IntoIterato
     held.chain(indexed).filter(|site| seen.insert((site.at, site.line))).collect()
 }
 
-fn published_symbol(layers: &[Layer], name: &str, entries: &[Entry<'_>], owner: &str, sites: &[Site<'_>]) -> String {
+fn published_symbol(layers: &[Layer], name: &str, import: Option<String>, entries: &[Entry<'_>], owner: &str, sites: &[Site<'_>], surface: Surface<'_>) -> String {
     let lead = &entries[0];
-    let at = lead.at;
     let count = Counts::of(sites, owner);
 
-    let mut lines = vec![
-        format!("{name} [{}]", lead.kind),
-        format!("import {{ {name} }} from '{}';", lead.specifier),
-        format!("declared at {at}:{}", lead.line),
-        reach(lead, &count),
-    ];
-    if let Some(signature) = lead.signature { lines.extend([String::new(), signature.to_owned()]); }
-    lines.push(String::new());
-    match (lead.doc, lead.mention) {
-        (Some(doc), _) => lines.push(doc.to_owned()),
-        (None, Some((at, line, text))) => lines.extend([format!("Nothing is written above this declaration. {at}:{line} names it:"), String::new(), text.to_owned()]),
-        _ => lines.push("Nothing is written above this declaration.".to_owned()),
-    }
+    let mut lines = door_lines(lead, name, import, &count);
     append_members(&mut lines, layers, lead);
     append_renames(&mut lines, &sites, name);
     if entries.len() > 1 {
@@ -128,11 +170,28 @@ fn published_symbol(layers: &[Layer], name: &str, entries: &[Entry<'_>], owner: 
         let split = count.split(owner);
         let (place, imports) = if count.certain == 1 { ("place", "imports") } else { ("places", "import") };
         let also = if may { ", and the ones that may read it" } else { "" };
-        lines.push(format!("\n`variance ask uses` names the {} {place} that {imports} this{split}, nearest to a file you name first{also}.", count.certain));
+        lines.push(format!("\n`{}` names the {} {place} that {imports} this{split}, nearest to a file you name first{also}.", surface.tool("uses"), count.certain));
     } else if may {
-        lines.push("\n`variance ask uses` names no place that imports this, and lists the ones that may read it.".into());
+        lines.push(format!("\n`{}` names no place that imports this, and lists the ones that may read it.", surface.tool("uses")));
     }
     lines.join("\n")
+}
+
+/// The block that says `entry` as `name`: its kind, the import that reads it
+/// when there is one, where it is declared, who reaches it through `sites`,
+/// its signature and what is written above it.
+pub(crate) fn door_lines(entry: &Entry<'_>, name: &str, import: Option<String>, sites: &Counts) -> Vec<String> {
+    let mut lines = vec![format!("{name} [{}]", entry.kind)];
+    lines.extend(import);
+    lines.extend([format!("declared at {}:{}", entry.at, entry.line), reach(entry, sites)]);
+    if let Some(signature) = entry.signature { lines.extend([String::new(), signature.to_owned()]); }
+    lines.push(String::new());
+    match (entry.doc, entry.mention) {
+        (Some(doc), _) => lines.push(doc.to_owned()),
+        (None, Some((at, line, text))) => lines.extend([format!("Nothing is written above this declaration. {at}:{line} names it:"), String::new(), text.to_owned()]),
+        _ => lines.push("Nothing is written above this declaration.".to_owned()),
+    }
+    lines
 }
 
 fn reach(entry: &Entry<'_>, sites: &Counts) -> String {
@@ -162,25 +221,41 @@ fn reach(entry: &Entry<'_>, sites: &Counts) -> String {
 }
 
 fn append_members(lines: &mut Vec<String>, layers: &[Layer], entry: &Entry<'_>) {
-    let mut seen = HashSet::from([entry.line]);
-    let members: Vec<_> = members_on(layers, entry.at, entry.declared).into_iter().filter(|one| seen.insert(one.line)).collect();
-    if members.is_empty() { return }
-    lines.extend([String::new(), "Members:".to_owned()]);
-    let prefix = if members.len() == 1 { format!("{}:", entry.at) } else { lines.push(entry.at.to_owned()); "  ".to_owned() };
+    lines.extend(member_rows(layers, entry.at, entry.declared, entry.line));
+}
+
+/// A blank row, `Members:` and one row per line of `at` declaring a member of
+/// the container `on`, as the index recorded the line; a line `line` already
+/// shows is not shown again. Nothing when the container declares no members.
+pub(crate) fn member_rows(layers: &[Layer], at: &str, on: &str, line: u32) -> Vec<String> {
+    let mut seen = HashSet::from([line]);
+    let members: Vec<_> = members_on(layers, at, on).into_iter().filter(|one| seen.insert(one.line)).collect();
+    if members.is_empty() { return Vec::new() }
+    let mut lines = vec![String::new(), "Members:".to_owned()];
+    let prefix = if members.len() == 1 { format!("{at}:") } else { lines.push(at.to_owned()); "  ".to_owned() };
     for member in members {
         let text = member.text.as_deref().map_or(member.name.as_str(), |text| text.trim_matches(blank));
         lines.push(format!("{prefix}{}: {text}", member.line));
     }
+    lines
 }
 
 fn append_renames(lines: &mut Vec<String>, sites: &[Site<'_>], name: &str) {
-    let mut sites = sites.to_vec();
-    sites.sort_by(|a, b| code_unit(a.at, b.at).then(a.line.cmp(&b.line)));
-    let renamed: Vec<_> = sites.iter().filter_map(|site| {
-        let local = site.local.filter(|local| *local != name)?;
-        Some(format!("{}:{} as `{local}`", site.at, site.line))
+    lines.extend(renamed_line(name, sites.iter().map(|site| (site.at, site.line, site.local))).map(|line| format!("\n{line}")));
+}
+
+/// `Imported under another name:` and each import of `sites` that knows it
+/// by a name other than `name`, once, by file in code units, then by line.
+pub(crate) fn renamed_line<'s>(name: &str, sites: impl IntoIterator<Item = (&'s str, u32, Option<&'s str>)>) -> Option<String> {
+    let mut sites: Vec<_> = sites.into_iter().collect();
+    sites.sort_by(|a, b| code_unit(a.0, b.0).then(a.1.cmp(&b.1)));
+    let mut seen = HashSet::new();
+    let renamed: Vec<_> = sites.into_iter().filter_map(|(at, line, known)| {
+        let known = known.filter(|known| *known != name)?;
+        let said = format!("{at}:{line} as `{known}`");
+        seen.insert(said.clone()).then_some(said)
     }).collect();
-    if renamed.is_empty() { return }
+    if renamed.is_empty() { return None }
     let more = if renamed.len() > 12 { format!(", and {} more", renamed.len() - 12) } else { String::new() };
-    lines.push(format!("\nImported under another name: {}{more}.", renamed[..renamed.len().min(12)].join(", ")));
+    Some(format!("Imported under another name: {}{more}.", renamed[..renamed.len().min(12)].join(", ")))
 }

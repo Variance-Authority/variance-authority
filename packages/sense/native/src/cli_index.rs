@@ -25,7 +25,7 @@ use super::manifests::{self, Manifests};
 use super::source;
 
 #[path = "cli_index_journeys.rs"]
-mod journeys;
+pub(crate) mod journeys;
 
 enum Mode {
     Wait,
