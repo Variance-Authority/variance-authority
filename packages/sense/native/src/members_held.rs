@@ -262,9 +262,10 @@ impl Walker<'_, '_> {
     /// What the left of a qualified name holds, `lib.ns` in `lib.ns.T`.
     pub(super) fn qualified_held(&mut self, name: &TSTypeName) -> Vec<Held> {
         match name {
+            // A type names the binding's declared type, which no write narrows.
             TSTypeName::IdentifierReference(it) => {
                 self.followed.insert(it.span.start);
-                self.holder(it)
+                self.symbol_of(it).map_or_else(Vec::new, |symbol| self.holding(symbol, None))
             }
             TSTypeName::QualifiedName(it) => self.qualified_held(&it.left).into_iter().filter_map(|held| self.member_of(held, &it.right.name)).collect(),
             _ => Vec::new(),

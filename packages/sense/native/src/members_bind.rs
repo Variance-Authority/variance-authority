@@ -60,38 +60,41 @@ impl Walker<'_, '_> {
     /// An assignment. What its right side holds is read before the walk goes
     /// into it and written after, so `m = m.next` reads `next` off what `m`
     /// held. `=` writes a name in place of what it held, a value that is not a
-    /// module among them, and `??=`, `||=` and `&&=` may not run, so they only
-    /// add; a pattern takes only a module, and the name tested is not read whole.
+    /// module among them, where it surely runs, and beside it anywhere else;
+    /// `??=`, `||=` and `&&=` may not run, so they only add. A pattern takes
+    /// only a module, and the name tested is not read whole.
     pub(super) fn assignment<'a>(&mut self, it: &AssignmentExpression<'a>) {
         let named = match &it.left {
             AssignmentTarget::AssignmentTargetIdentifier(target) => Some(&**target),
             _ => None,
         };
         let replaces = it.operator == AssignmentOperator::Assign && takes(&it.left);
-        let adds = it.operator.is_logical() && named.is_some();
+        let logical = it.operator.is_logical() && named.is_some();
+        let adds = !self.sure(it.span.start) || logical;
         let all = if replaces { self.held_all(&it.right) } else { None };
-        let held = if all.is_none() && (replaces || adds) { self.held(&it.right) } else { Vec::new() };
-        if let Some(target) = named.filter(|_| adds) {
+        let held = if all.is_none() && (replaces || logical) { self.held(&it.right) } else { Vec::new() };
+        if let Some(target) = named.filter(|_| logical) {
             self.followed.insert(target.span.start);
         }
         walk::walk_assignment_expression(self, it);
         if let Some(all) = &all {
-            self.assign_all(&it.left, all);
+            self.assign_all(&it.left, all, adds);
         }
         match named {
-            Some(target) if replaces || adds => self.write(target, &held, adds),
-            _ if replaces && !held.is_empty() => self.assign(&it.left, &held),
+            Some(target) if replaces || logical => self.write(target, &held, adds),
+            _ if replaces && !held.is_empty() => self.assign(&it.left, &held, adds),
             _ => {}
         }
     }
 
     /// `bind` for an assignment, whose target is a reference rather than a
-    /// declaration, or a property, where the module goes on whole.
-    pub(super) fn assign(&mut self, target: &AssignmentTarget, held: &[Held]) {
+    /// declaration, or a property, where the module goes on whole; `adds`,
+    /// beside what the reference held, for an assignment that may not run.
+    pub(super) fn assign(&mut self, target: &AssignmentTarget, held: &[Held], adds: bool) {
         match target {
             AssignmentTarget::AssignmentTargetIdentifier(it) => {
                 self.followed.insert(it.span.start);
-                self.write(it, held, false);
+                self.write(it, held, adds);
             }
             AssignmentTarget::ObjectAssignmentTarget(it) => {
                 for property in &it.properties {
@@ -99,20 +102,20 @@ impl Walker<'_, '_> {
                         AssignmentTargetProperty::AssignmentTargetPropertyIdentifier(it) => {
                             let taken = self.taken(held, Some(&it.binding.name), it.span.start);
                             if !taken.is_empty() {
-                                self.write(&it.binding, &taken, false);
+                                self.write(&it.binding, &taken, adds);
                             }
                         }
                         AssignmentTargetProperty::AssignmentTargetPropertyProperty(it) => {
                             let name = it.name.static_name().and_then(|name| name.into_cow_str());
                             let taken = self.taken(held, name.as_deref(), it.span.start);
                             if let (Some(target), false) = (target_of(&it.binding), taken.is_empty()) {
-                                self.assign(target, &taken);
+                                self.assign(target, &taken, adds);
                             }
                         }
                     }
                 }
                 if let Some(rest) = &it.rest {
-                    self.assign(&rest.target, held);
+                    self.assign(&rest.target, held, adds);
                 }
             }
             AssignmentTarget::ArrayAssignmentTarget(it) => self.whole(held, it.span.start),
@@ -122,7 +125,7 @@ impl Walker<'_, '_> {
     }
 
     /// `bind_all` for an assignment.
-    pub(super) fn assign_all(&mut self, target: &AssignmentTarget, held: &[Option<Via>]) {
+    pub(super) fn assign_all(&mut self, target: &AssignmentTarget, held: &[Option<Via>], adds: bool) {
         let AssignmentTarget::ArrayAssignmentTarget(array) = target else {
             let at = oxc_span::GetSpan::span(target).start;
             for request in held.iter().flatten() {
@@ -135,7 +138,7 @@ impl Walker<'_, '_> {
             match (array.elements.get(index), &array.rest) {
                 (Some(Some(element)), _) => {
                     if let Some(target) = target_of(element) {
-                        self.assign(target, &[Held::whole(request)]);
+                        self.assign(target, &[Held::whole(request)], adds);
                     }
                 }
                 (None, Some(rest)) => self.add(Held::whole(request), WHOLE, rest.span.start),

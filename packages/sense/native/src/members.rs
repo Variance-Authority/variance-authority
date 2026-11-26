@@ -118,41 +118,16 @@ pub struct BindingMember {
 /// Last come the bindings a pattern destructures off a holder, by name and
 /// line: the module's values under a local name, as an import binds them.
 pub fn members_and_loads_in<'l>(program: &Program, scoping: &Scoping, lines: &'l Lines, requests: &[Request]) -> (Vec<Member>, Vec<BindingMember>, Loads<'l>) {
-    let mut holders = HashMap::new();
-    let mut chains = Chains::default();
-    for (index, request) in requests.iter().enumerate() {
-        // A type-only namespace or default holds the module, or its `default`, for its types.
-        // A named one holds the value it takes; an `export … from` binds nothing here.
-        for binding in &request.bindings {
-            let held = match binding.imported.as_str() {
-                "*" => Held::whole(Via::Indexed(index as u32)),
-                "default" => Held::whole(Via::Indexed(index as u32)).default(),
-                _ if request.republishes => continue,
-                imported => Held::named(Via::Indexed(index as u32), chains.of(Chain { export: imported.to_owned(), within: Vec::new() })),
-            };
-            if let Some(symbol) = scoping.get_root_binding(binding.local.as_str().into()) {
-                holders.insert(symbol, held);
-            }
-        }
-    }
-    let passing = Passing::of(program, scoping);
-    holders.extend(passing.stand_ins());
-    let mut walker = Walker {
-        lines,
-        scoping,
-        followed: held::passed_on(program, scoping, &holders),
-        holders,
-        written: Written::default(),
-        passing,
-        chains,
-        aliases: typed::aliases(program),
-        typed_at: HashMap::new(),
-        stated: requests.len() as u32,
-        loads: Loads::new(lines, crate::loads::Requires::of(program, scoping)),
-        found: BTreeSet::new(),
-        mock_factory: None,
-    };
+    let mut walker = Walker::new(program, scoping, lines, requests, Written::default(), Chains::default());
     walker.visit_program(program);
+    // A read above a write that reaches it, in a loop or below a function, needs
+    // what the walk met later: a second walk reads with everything the first gave,
+    // and keeps its chains, which what the first gave names by index.
+    if walker.written.again() {
+        let Walker { written, chains, .. } = walker;
+        walker = Walker::new(program, scoping, lines, requests, written.settled(), chains);
+        walker.visit_program(program);
+    }
     // A required request's index is known only once the walk has met every `import()`.
     let required = walker.stated + walker.loads.dynamic.len() as u32;
     let typed = required + walker.loads.required.len() as u32;
@@ -204,6 +179,44 @@ struct Walker<'l, 's> {
     /// Where an `import()`, a `require` or a holder is read in a way the walk
     /// follows, by the offset it starts at: anywhere else, the module escapes whole.
     followed: HashSet<u32>,
+}
+
+impl<'l, 's> Walker<'l, 's> {
+    fn new(program: &Program, scoping: &'s Scoping, lines: &'l Lines, requests: &[Request], written: Written, mut chains: Chains) -> Self {
+        let mut holders = HashMap::new();
+        for (index, request) in requests.iter().enumerate() {
+            // A type-only namespace or default holds the module, or its `default`, for its types.
+            // A named one holds the value it takes; an `export … from` binds nothing here.
+            for binding in &request.bindings {
+                let held = match binding.imported.as_str() {
+                    "*" => Held::whole(Via::Indexed(index as u32)),
+                    "default" => Held::whole(Via::Indexed(index as u32)).default(),
+                    _ if request.republishes => continue,
+                    imported => Held::named(Via::Indexed(index as u32), chains.of(Chain { export: imported.to_owned(), within: Vec::new() })),
+                };
+                if let Some(symbol) = scoping.get_root_binding(binding.local.as_str().into()) {
+                    holders.insert(symbol, held);
+                }
+            }
+        }
+        let passing = Passing::of(program, scoping);
+        holders.extend(passing.stand_ins());
+        Walker {
+            lines,
+            scoping,
+            followed: held::passed_on(program, scoping, &holders),
+            holders,
+            written,
+            passing,
+            chains,
+            aliases: typed::aliases(program),
+            typed_at: HashMap::new(),
+            stated: requests.len() as u32,
+            loads: Loads::new(lines, crate::loads::Requires::of(program, scoping)),
+            found: BTreeSet::new(),
+            mock_factory: None,
+        }
+    }
 }
 
 impl Walker<'_, '_> {
