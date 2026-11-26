@@ -14,6 +14,7 @@ import {
 } from '@variance-authority/mcp/tools';
 import type { Unknown } from '../args.js';
 import { OperatorError } from '../exit.js';
+import { PLACEHOLDER } from '../placeholder.js';
 
 /**
  * The catalogue behind `variance ask`: which questions exist, what each takes,
@@ -114,54 +115,6 @@ export interface Argument {
    */
   readonly kind: 'text' | 'list' | 'number' | 'questions' | 'switch';
 }
-
-/**
- * How each argument is spelled in a synopsis.
- *
- * The one declared thing in this module, and deliberately keyed by property
- * rather than by tool: two questions taking a `subject` are taking the same kind
- * of thing, and a reader who has seen `<id>` once should not have to decide
- * whether the second one means something else. A property nobody has listed
- * falls back to its type, so this being out of date costs a word and not a flag.
- */
-const PLACEHOLDER: Readonly<Record<string, string>> = {
-  subject: '<id>',
-  subjects: '<id>[,...]',
-  component: '<name>',
-  rule: '<id>',
-  shape: '<digest>',
-  claims: '<path>',
-  test: '<id>',
-  state: '<state>',
-  build: '<id>',
-  file: '<path>',
-  files: '<path>[,...]',
-  name: '<name>',
-  line: '<file>:<line>',
-  package: '<name>',
-  subpath: '<subpath>',
-  query: '<words>',
-  under: '<words>',
-  above: '<words>',
-  inside: '<words>',
-  beside: '<words>',
-  leftOf: '<words>',
-  rightOf: '<words>',
-  on: '<words>',
-  from: '<path>',
-  to: '<path>',
-  imports: '<module#name>',
-  declares: '<regex>',
-  path: '<regex>',
-  text: '<pattern>',
-  exceptFrom: '<path>',
-  exceptTo: '<path>',
-  exceptImports: '<module#name>',
-  exceptDeclares: '<regex>',
-  exceptPath: '<regex>',
-  limit: '<n>',
-  questions: "'<question>'",
-};
 
 /** What a question takes, read off its own schema. */
 export function argumentsOf(tool: Asked): readonly Argument[] {
