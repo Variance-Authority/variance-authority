@@ -179,6 +179,14 @@ describe('an MCP tool definition is held in bytes, as `tools/list` sends it', ()
     ]);
   });
 
+  it('names a tool over its limit on any set, though a smaller definition of its name came first', () => {
+    const long = entry('same', 'x'.repeat(DEFINITION_BYTES.tool));
+    const bytes = Buffer.byteLength(JSON.stringify(long));
+    expect(definitionsOver({ 'variance-authority-help': [entry('same', 'short')], 'variance serve': [], other: [long] })).toEqual([
+      `same: ${bytes} B (budget ${DEFINITION_BYTES.tool})`,
+    ]);
+  });
+
   it('holds a server with no total per tool only', () => {
     const many = Array.from({ length: 40 }, (_, at) => entry(`t${at}`, 'x'.repeat(1000)));
     expect(definitionsOver({ 'variance-authority-help': [], 'variance serve': [], other: many })).toEqual([]);

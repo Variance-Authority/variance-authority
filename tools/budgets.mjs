@@ -35,8 +35,8 @@ export const BUDGET = { overview: 15, docblock: 10, block: 5, lead: 15 };
 export const DEFINITION_BYTES = { tool: 2400, lists: { 'variance-authority-help': 20000, 'variance serve': 33000 } };
 
 /**
- * Each budgeted list over its total, and each listed tool over the per-tool
- * limit, named once. `lists` maps a server to the entries its `tools/list`
+ * Each budgeted list over its total, and each listed definition over the
+ * per-tool limit, each breach named once. `lists` maps a server to the entries its `tools/list`
  * answered; a server with no total is held per tool only, and a total no list
  * was measured for is named, so a renamed server cannot turn its total off.
  */
@@ -51,8 +51,9 @@ export function definitionsOver(lists) {
     const budget = DEFINITION_BYTES.lists[server];
     if (budget !== undefined && total > budget) over.push(`${server}: ${total} B for ${entries.length} tools (budget ${budget})`);
     for (const [name, bytes] of sizes) {
-      if (bytes > DEFINITION_BYTES.tool && !named.has(name)) over.push(`${name}: ${bytes} B (budget ${DEFINITION_BYTES.tool})`);
-      named.add(name);
+      const breach = `${name}: ${bytes} B (budget ${DEFINITION_BYTES.tool})`;
+      if (bytes > DEFINITION_BYTES.tool && !named.has(breach)) over.push(breach);
+      named.add(breach);
     }
   }
   return over;
