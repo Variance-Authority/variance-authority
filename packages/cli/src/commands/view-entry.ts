@@ -6,6 +6,7 @@
 
 import './view-buffer.js';
 import './view-no-node.js';
+import type { History } from './view-history-tables.js';
 import { openRecord } from './view-record.js';
 import { panesOf, type Panes, type Tab } from './view-panes.js';
 import { tableOf, written } from './view-table.js';
@@ -23,6 +24,12 @@ async function carried(): Promise<Uint8Array> {
   const packed = Uint8Array.from(atob(document.getElementById('recording')!.textContent!), (letter) => letter.charCodeAt(0));
   const plain = new Blob([packed]).stream().pipeThrough(new DecompressionStream('gzip'));
   return new Uint8Array(await new Response(plain).arrayBuffer());
+}
+
+/** The mainline series the page carries, where `variance view` read one. */
+function history(): History | undefined {
+  const held = document.getElementById('history')?.textContent;
+  return held === undefined || held === null ? undefined : (JSON.parse(held) as History);
 }
 
 function factList(facts: readonly (readonly [string, Cell, Column['as']?])[]): HTMLElement {
@@ -53,7 +60,7 @@ function draw(panes: Panes, main: HTMLElement): void {
 async function open(): Promise<void> {
   const main = document.querySelector('main')!;
   const suite = document.body.dataset['suite'] ?? '';
-  const panes = panesOf(openRecord(await carried()), suite);
+  const panes = panesOf(openRecord(await carried()), suite, history());
   document.querySelector('.tabs')!.replaceChildren(
     ...panes.tabs.map(({ id, label }) => {
       const link = made('a', '', label) as HTMLAnchorElement;

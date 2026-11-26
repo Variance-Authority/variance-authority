@@ -128,6 +128,16 @@ describe('planCachePrune', () => {
     ]);
     expect(plan.held).toBe(3);
   });
+  test('a History summary not opened for 14 days is swept, and one opened since is kept', async () => {
+    const cacheRoot = await mkdtemp(resolve(tmpdir(), 'va-prune-cache-'));
+    const old = await put(join(cacheRoot, 'history', 'aaaa.json'), 15 * DAY);
+    await put(join(cacheRoot, 'history', 'bbbb.json'), 13 * DAY);
+
+    const plan = await planCachePrune({ cacheRoot }, owners({}), { measure: true });
+
+    expect(plan.remove.map((entry) => [entry.path, entry.reason])).toEqual([[old, 'old-summary']]);
+    expect(plan.held).toBe(2);
+  });
 });
 
 test('pruneCacheWhenDue prunes once a day and says what it took', async () => {

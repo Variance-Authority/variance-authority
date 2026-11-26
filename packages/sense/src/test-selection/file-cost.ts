@@ -16,6 +16,7 @@
 // compass: variance-authority.reach
 
 import { NO_DURATION, PHASE_NAMES } from './format-layout.js';
+import type { TestCoverageView } from './format-view.js';
 
 const CASES = PHASE_NAMES.indexOf('cases');
 
@@ -49,4 +50,12 @@ function summed(phases: ArrayLike<number> | undefined, end: number): number | un
     if (word !== NO_DURATION) sum = (sum ?? 0) + word;
   }
   return sum;
+}
+
+/** What running test `test` of `view` cost, as {@link fileCost} reads it; absent where its runner timed nothing. */
+export function costs(view: TestCoverageView): (test: number) => number | undefined {
+  const durations = view.testDuration?.all();
+  const phases = view.testPhases?.all();
+  const width = PHASE_NAMES.length;
+  return (test) => fileCost(durations?.[test] ?? NO_DURATION, phases?.subarray(test * width, (test + 1) * width));
 }

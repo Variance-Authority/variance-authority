@@ -16,11 +16,10 @@ import { keepsCases } from './test-selection/case-record.js';
 import { commitRunsFile, type CommitRuns } from './test-selection/commit-runs.js';
 import { commitRunsIn } from './test-selection/commit-runs-text.js';
 import { askCoverageFile } from './test-selection/coverage-file.js';
-import { decodeExecutionIndex, decodeExecutionTests } from './test-selection/execution-format.js';
-import { fileCost } from './test-selection/file-cost.js';
-import { filesMachines, machineClass, type Machine } from './test-selection/machine.js';
-import { NO_DURATION, PHASE_NAMES } from './test-selection/format-layout.js';
 import type { TestCoverageView } from './test-selection/format-view.js';
+import { decodeExecutionIndex, decodeExecutionTests } from './test-selection/execution-format.js';
+import { costs } from './test-selection/file-cost.js';
+import { filesMachines, machineClass, type Machine } from './test-selection/machine.js';
 import { recordDigestAt } from './test-selection/record-base.js';
 import { nearestRecord, nearestTestCoverage, type RecordOrigin } from './test-selection/record-location.js';
 import { declaredSuites } from './test-selection/suites.js';
@@ -212,12 +211,13 @@ function byMachine(
   return [...classes.values()].map(({ files, ...machine }) => ({ ...machine, slowest: files.slice(0, limit), timed: files.length }));
 }
 
-/** What running test `test` of `view` cost, as {@link fileCost} reads it; absent where its runner timed nothing. */
-export function costs(view: TestCoverageView): (test: number) => number | undefined {
-  const durations = view.testDuration?.all();
-  const phases = view.testPhases?.all();
-  const width = PHASE_NAMES.length;
-  return (test) => fileCost(durations?.[test] ?? NO_DURATION, phases?.subarray(test * width, (test + 1) * width));
+/**
+ * Each test file an open record holds, in its order, and what running it cost
+ * in ms: absent where the runner reported no time, never zero.
+ */
+export function fileTimes(view: TestCoverageView): readonly (readonly [file: string, ms: number | undefined])[] {
+  const costOf = costs(view);
+  return Array.from(view.testPath.all(), (path, test) => [view.string(path), costOf(test)] as const);
 }
 
 /**
@@ -233,15 +233,12 @@ export function costs(view: TestCoverageView): (test: number) => number | undefi
 export function recordedTimes(recording: string): SuiteTimes {
   if (!existsSync(recording)) return { recording, unread: 'nothing is recorded there' };
   const placed = askCoverageFile(recording, (view) => {
-    const paths = view.testPath.all();
-    const costOf = costs(view);
     const times = new Map<string, number>();
     const untimed: string[] = [];
-    paths.forEach((path, test) => {
-      const duration = costOf(test);
-      if (duration === undefined) untimed.push(view.string(path));
-      else times.set(view.string(path), duration);
-    });
+    for (const [file, duration] of fileTimes(view)) {
+      if (duration === undefined) untimed.push(file);
+      else times.set(file, duration);
+    }
     return { times, untimed, ...(view.commit === undefined ? {} : { commit: view.commit }) };
   });
   // The record read, which a shard's record names (`record-base.ts`).

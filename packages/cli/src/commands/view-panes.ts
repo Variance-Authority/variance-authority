@@ -4,6 +4,7 @@
  * the key percent-encoded; one no tab or row answers says so.
  */
 
+import { historyTab, type History } from './view-history-tables.js';
 import type { ViewRecord } from './view-record.js';
 import type { Cell, Detail, Table } from './view-rows.js';
 import { openSections, type Sections } from './view-raw.js';
@@ -21,8 +22,8 @@ export interface Panes {
   detail(kind: string, key: string): Detail | undefined;
 }
 
-/** The panes of `record`, recorded for `suite`. */
-export function panesOf(record: ViewRecord, suite: string): Panes {
+/** The panes of `record`, recorded for `suite`, and the mainline series `history` where the page carries one. */
+export function panesOf(record: ViewRecord, suite: string, history?: History): Panes {
   const { coverage, cases, before, parts } = record;
   let sections: Sections | undefined;
   const raw = (): Sections => (sections ??= openSections(record.bytes));
@@ -52,6 +53,7 @@ export function panesOf(record: ViewRecord, suite: string): Panes {
   add('preconditions', 'Preconditions', coverage?.preconditions);
   if (before !== undefined) add('before', 'Before the last run', before.tests, () => [before.regions]);
   for (const part of parts.parts) if (part.name !== 'cases.last' && part.tables.length > 0) tabs.push(tab(part.name, part.name, () => part.tables));
+  if (history !== undefined) tabs.push(historyTab(history));
   tabs.push(tab('record', 'Record', () => [raw().table]));
   const about = (detail: Detail | undefined, more: readonly Table[]): Detail | undefined => (detail === undefined ? undefined : { ...detail, tables: [...detail.tables, ...more] });
   return {
