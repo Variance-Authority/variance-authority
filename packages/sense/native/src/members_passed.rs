@@ -114,7 +114,7 @@ impl Walker<'_, '_> {
         let symbol = parameter.pattern.get_binding_identifier().filter(|_| matches!(parameter.pattern, BindingPattern::BindingIdentifier(_))).and_then(|it| it.symbol_id.get());
         match self.passing.stand_in(symbol.and_then(|it| self.holders.get(&it).copied())) {
             Some(index) => _ = self.passing.typed.insert(index, held),
-            None => self.bind(&parameter.pattern, held),
+            None => self.bind(&parameter.pattern, &[held]),
         }
     }
 
@@ -130,7 +130,7 @@ impl Walker<'_, '_> {
             if !matches!(argument.get_inner_expression(), Expression::Identifier(_) | Expression::AwaitExpression(_)) {
                 continue;
             }
-            if let Some(held) = self.held(argument).filter(|held| held.named.is_none() && !held.off) {
+            for held in self.held(argument).into_iter().filter(|held| held.named.is_none() && !held.off) {
                 self.passing.flows.push((parameter, held));
             }
         }

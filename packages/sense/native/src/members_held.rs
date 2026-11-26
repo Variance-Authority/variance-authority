@@ -126,27 +126,39 @@ pub(super) fn passed_on(program: &Program, scoping: &Scoping, holders: &HashMap<
 }
 
 impl Walker<'_, '_> {
-    /// What an expression evaluates to, looking through parentheses,
+    /// What an expression may evaluate to, looking through parentheses,
     /// TypeScript's casts and `await`: an awaited `import()`, a `require`, a
-    /// holder, the `default` of either, or else what a cast says it is.
-    pub(super) fn held(&mut self, expression: &Expression) -> Option<Held> {
-        match expression.get_inner_expression() {
-            Expression::AwaitExpression(it) => self.promised(&it.argument).map(Held::whole).or_else(|| self.held(&it.argument)),
-            Expression::Identifier(it) => {
-                let held = self.holder(it)?;
-                self.followed.insert(it.span.start);
-                Some(held)
-            }
-            Expression::StaticMemberExpression(it) if it.property.name == "default" => self.held(&it.object).map(Held::default),
-            Expression::StaticMemberExpression(it) => self.held(&it.object).and_then(|held| self.member_of(held, &it.property.name)),
-            Expression::ComputedMemberExpression(it) => match &it.expression {
-                Expression::StringLiteral(name) if name.value != "default" => self.held(&it.object).and_then(|held| self.member_of(held, name.value.as_str()?)),
-                _ => None,
+    /// holder, the `default` of either, or else what a cast says it is. A
+    /// holder the file writes again may hold several, and one may hold none.
+    pub(super) fn held(&mut self, expression: &Expression) -> Vec<Held> {
+        let held = match expression.get_inner_expression() {
+            Expression::AwaitExpression(it) => match self.promised(&it.argument) {
+                Some(via) => vec![Held::whole(via)],
+                None => self.held(&it.argument),
             },
-            Expression::CallExpression(it) => self.required(it),
-            _ => None,
-        }
-        .or_else(|| self.cast(expression))
+            Expression::Identifier(it) => {
+                let held = self.holder(it);
+                if !held.is_empty() {
+                    self.followed.insert(it.span.start);
+                }
+                held
+            }
+            Expression::StaticMemberExpression(it) if it.property.name == "default" => self.held(&it.object).into_iter().map(Held::default).collect(),
+            Expression::StaticMemberExpression(it) => self.held(&it.object).into_iter().filter_map(|held| self.member_of(held, &it.property.name)).collect(),
+            Expression::ComputedMemberExpression(it) => match &it.expression {
+                Expression::StringLiteral(name) if name.value != "default" => {
+                    let held = self.held(&it.object);
+                    match name.value.as_str() {
+                        Some(name) => held.into_iter().filter_map(|held| self.member_of(held, name)).collect(),
+                        None => Vec::new(),
+                    }
+                }
+                _ => Vec::new(),
+            },
+            Expression::CallExpression(it) => self.required(it).into_iter().collect(),
+            _ => Vec::new(),
+        };
+        if held.is_empty() { self.cast(expression).into_iter().collect() } else { held }
     }
 
     /// The request an `import()` promises. The promise is not the module: a read
@@ -233,33 +245,29 @@ impl Walker<'_, '_> {
     }
 
     /// What the object of a JSX member expression holds, `lib.ns` in `<lib.ns.X />`.
-    pub(super) fn jsx_held(&mut self, object: &JSXMemberExpressionObject) -> Option<Held> {
+    pub(super) fn jsx_held(&mut self, object: &JSXMemberExpressionObject) -> Vec<Held> {
         match object {
             JSXMemberExpressionObject::IdentifierReference(it) => {
-                let held = self.holder(it)?;
-                self.followed.insert(it.span.start);
-                Some(held)
+                let held = self.holder(it);
+                if !held.is_empty() {
+                    self.followed.insert(it.span.start);
+                }
+                held
             }
-            JSXMemberExpressionObject::MemberExpression(it) => {
-                let held = self.jsx_held(&it.object)?;
-                self.member_of(held, &it.property.name)
-            }
-            JSXMemberExpressionObject::ThisExpression(_) => None,
+            JSXMemberExpressionObject::MemberExpression(it) => self.jsx_held(&it.object).into_iter().filter_map(|held| self.member_of(held, &it.property.name)).collect(),
+            JSXMemberExpressionObject::ThisExpression(_) => Vec::new(),
         }
     }
 
     /// What the left of a qualified name holds, `lib.ns` in `lib.ns.T`.
-    pub(super) fn qualified_held(&mut self, name: &TSTypeName) -> Option<Held> {
+    pub(super) fn qualified_held(&mut self, name: &TSTypeName) -> Vec<Held> {
         match name {
             TSTypeName::IdentifierReference(it) => {
                 self.followed.insert(it.span.start);
                 self.holder(it)
             }
-            TSTypeName::QualifiedName(it) => {
-                let held = self.qualified_held(&it.left)?;
-                self.member_of(held, &it.right.name)
-            }
-            _ => None,
+            TSTypeName::QualifiedName(it) => self.qualified_held(&it.left).into_iter().filter_map(|held| self.member_of(held, &it.right.name)).collect(),
+            _ => Vec::new(),
         }
     }
 }

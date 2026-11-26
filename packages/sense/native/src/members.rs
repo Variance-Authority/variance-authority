@@ -34,7 +34,9 @@
 //! request's `bindings` stay what the statement wrote, so a namespace still
 //! reads as the whole module to anything that charges a change. A holder is the
 //! binding, resolved by scope, so a parameter that reuses its name is another
-//! value. Where the module goes on whole — read as a value anywhere the walk
+//! value, and one the file writes again holds, at a read, what the writes that
+//! may reach the read hold, as [`written`] says: one module, several, or none.
+//! Where the module goes on whole — read as a value anywhere the walk
 //! does not follow — the read is `*`: a write or a type query is not one. The
 //! module's `default` is a value of the module, so it moving is a use of
 //! `default` and no more; a name read off it is read through `default`.
@@ -56,7 +58,6 @@ use crate::read::{Lines, Request};
 
 #[path = "members_bind.rs"]
 mod bind;
-use bind::takes;
 
 #[path = "members_typed.rs"]
 mod typed;
@@ -68,6 +69,10 @@ use held::{Chain, Chains, Held, Via, WHOLE};
 #[path = "members_passed.rs"]
 mod passed;
 use passed::Passing;
+
+#[path = "members_written.rs"]
+mod written;
+use written::Written;
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 pub struct Member {
@@ -134,6 +139,7 @@ pub fn members_and_loads_in<'l>(program: &Program, scoping: &Scoping, lines: &'l
         scoping,
         followed: held::passed_on(program, scoping, &holders),
         holders,
+        written: Written::default(),
         passing,
         chains,
         aliases: typed::aliases(program),
@@ -175,8 +181,10 @@ pub fn members_and_loads_in<'l>(program: &Program, scoping: &Scoping, lines: &'l
 struct Walker<'l, 's> {
     lines: &'l Lines,
     scoping: &'s Scoping,
-    /// A binding to what it holds.
+    /// A binding the file never writes again to the one value it holds.
     holders: HashMap<SymbolId, Held>,
+    /// What each binding the file writes again may hold.
+    written: Written,
     /// The functions the module declares, and what calls hand their parameters.
     passing: Passing,
     /// The values inside a module a holder holds, which a [`Held`] names by index.
@@ -196,20 +204,8 @@ struct Walker<'l, 's> {
 }
 
 impl Walker<'_, '_> {
-    /// What a reference's binding holds.
-    fn holder(&self, it: &IdentifierReference) -> Option<Held> {
-        let symbol = self.symbol_of(it)?;
-        self.holders.get(&symbol).copied()
-    }
-
     fn symbol_of(&self, it: &IdentifierReference) -> Option<SymbolId> {
         self.scoping.get_reference(it.reference_id.get()?).symbol_id()
-    }
-
-    fn hold(&mut self, symbol: Option<SymbolId>, held: Held) {
-        if let Some(symbol) = symbol {
-            self.holders.insert(symbol, held);
-        }
     }
 
     /// A name read off what is held. Off the `default`, the value going on
@@ -233,27 +229,46 @@ impl<'a> Visit<'a> for Walker<'_, '_> {
         if let Some(init) = &it.init {
             if let Some(held) = self.held_all(init) {
                 self.bind_all(&it.id, &held);
-            } else if let Some(held) = self.held(init).or(annotated) {
-                self.bind(&it.id, held);
+            } else if let Some(held) = Some(self.held(init)).filter(|held| !held.is_empty()).or(annotated.map(|held| vec![held])) {
+                self.bind(&it.id, &held);
             } else if !matches!(it.id, BindingPattern::BindingIdentifier(_)) {
                 // A pattern destructures the promise, which reads it and holds nothing.
                 self.promise_read(init);
             }
         } else if let Some(held) = annotated {
-            self.bind(&it.id, held);
+            self.bind(&it.id, &[held]);
         }
         walk::walk_variable_declarator(self, it);
     }
 
     fn visit_assignment_expression(&mut self, it: &AssignmentExpression<'a>) {
-        if it.operator == AssignmentOperator::Assign && takes(&it.left) {
-            if let Some(held) = self.held_all(&it.right) {
-                self.assign_all(&it.left, &held);
-            } else if let Some(held) = self.held(&it.right) {
-                self.assign(&it.left, held);
-            }
-        }
-        walk::walk_assignment_expression(self, it);
+        self.assignment(it);
+    }
+
+    // A write that is a statement of a list holds for the rest of the list,
+    // and as the list ends the binding holds what it held at its start too.
+    fn visit_statements(&mut self, it: &oxc_allocator::Vec<'a, Statement<'a>>) {
+        self.may_skip(|walker| it.iter().for_each(|statement| walk::walk_statement(walker, statement)));
+    }
+
+    // A statement no list holds is a loop's or a label's body, which may not run.
+    fn visit_statement(&mut self, it: &Statement<'a>) {
+        self.may_skip(|walker| walk::walk_statement(walker, it));
+    }
+
+    fn visit_if_statement(&mut self, it: &IfStatement<'a>) {
+        self.visit_expression(&it.test);
+        self.either(|walker| walk::walk_statement(walker, &it.consequent), |walker| it.alternate.iter().for_each(|it| walk::walk_statement(walker, it)));
+    }
+
+    fn visit_conditional_expression(&mut self, it: &ConditionalExpression<'a>) {
+        self.visit_expression(&it.test);
+        self.either(|walker| walker.visit_expression(&it.consequent), |walker| walker.visit_expression(&it.alternate));
+    }
+
+    fn visit_logical_expression(&mut self, it: &LogicalExpression<'a>) {
+        self.visit_expression(&it.left);
+        self.may_skip(|walker| walker.visit_expression(&it.right));
     }
 
     // An exported holder is the module handed to every importer of this file,
@@ -266,7 +281,7 @@ impl<'a> Visit<'a> for Walker<'_, '_> {
             _ => Vec::new(),
         };
         for binding in bindings {
-            if let Some(held) = binding.symbol_id.get().and_then(|symbol| self.holders.get(&symbol).copied()) {
+            for held in binding.symbol_id.get().map_or_else(Vec::new, |symbol| self.holding(symbol, None)) {
                 self.add(held, WHOLE, binding.span.start);
             }
         }
@@ -278,10 +293,12 @@ impl<'a> Visit<'a> for Walker<'_, '_> {
     }
 
     fn visit_static_member_expression(&mut self, it: &StaticMemberExpression<'a>) {
-        if let Some(held) = self.held(&it.object) {
-            self.add(held, &it.property.name, it.property.span.start);
-        } else if !matches!(it.property.name.as_str(), "then" | "catch" | "finally") {
+        let held = self.held(&it.object);
+        if held.is_empty() && !matches!(it.property.name.as_str(), "then" | "catch" | "finally") {
             self.promise_read(&it.object);
+        }
+        for held in held {
+            self.add(held, &it.property.name, it.property.span.start);
         }
         walk::walk_static_member_expression(self, it);
     }
@@ -289,17 +306,19 @@ impl<'a> Visit<'a> for Walker<'_, '_> {
     fn visit_computed_member_expression(&mut self, it: &ComputedMemberExpression<'a>) {
         // A key the walk cannot spell reads the module whole: the object is not followed.
         if let Expression::StringLiteral(name) = &it.expression {
-            if let Some(held) = self.held(&it.object) {
-                self.add(held, name.value.as_str().unwrap_or(WHOLE), name.span.start);
-            } else {
+            let held = self.held(&it.object);
+            if held.is_empty() {
                 self.promise_read(&it.object);
+            }
+            for held in held {
+                self.add(held, name.value.as_str().unwrap_or(WHOLE), name.span.start);
             }
         }
         walk::walk_computed_member_expression(self, it);
     }
 
     fn visit_jsx_member_expression(&mut self, it: &JSXMemberExpression<'a>) {
-        if let Some(held) = self.jsx_held(&it.object) {
+        for held in self.jsx_held(&it.object) {
             self.add(held, &it.property.name, it.property.span.start);
         }
         walk::walk_jsx_member_expression(self, it);
@@ -308,7 +327,7 @@ impl<'a> Visit<'a> for Walker<'_, '_> {
     // `ns.T` in a type reads `T` off the holder, and `ns.a.b` reads `a` off
     // it and `b` off the value `ns.a` is, as the same names do in a value.
     fn visit_ts_qualified_name(&mut self, it: &TSQualifiedName<'a>) {
-        if let Some(held) = self.qualified_held(&it.left) {
+        for held in self.qualified_held(&it.left) {
             self.add(held, &it.right.name, it.right.span.start);
         }
         walk::walk_ts_qualified_name(self, it);
@@ -331,7 +350,8 @@ impl<'a> Visit<'a> for Walker<'_, '_> {
         if !flags.is_read() || flags.is_type() || flags.is_value_as_type() || self.followed.contains(&it.span.start) {
             return;
         }
-        if let Some(held) = reference.symbol_id().and_then(|symbol| self.holders.get(&symbol).copied()) {
+        let Some(symbol) = reference.symbol_id() else { return };
+        for held in self.holding(symbol, Some(reference.scope_id())) {
             self.add(held, WHOLE, it.span.start);
         }
     }
@@ -368,7 +388,7 @@ impl<'a> Visit<'a> for Walker<'_, '_> {
 
     fn visit_ts_import_equals_declaration(&mut self, it: &TSImportEqualsDeclaration<'a>) {
         if let Some(index) = self.loads.import_equals(it) {
-            self.hold(it.id.symbol_id.get(), Held::whole(Via::Required(index)));
+            self.hold(it.id.symbol_id.get(), &[Held::whole(Via::Required(index))]);
         }
         walk::walk_ts_import_equals_declaration(self, it);
     }
@@ -408,7 +428,7 @@ impl<'a> Visit<'a> for Walker<'_, '_> {
                         }
                     } else if let Some(request) = self.promised(&callee.object) {
                         if let Some(parameter) = parameter {
-                            self.bind(&parameter.pattern, Held::whole(request));
+                            self.bind(&parameter.pattern, &[Held::whole(request)]);
                         }
                     }
                 }

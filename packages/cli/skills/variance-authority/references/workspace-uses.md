@@ -62,6 +62,11 @@ on whole, held, `m()` or `hand(m)`, or in place, `hand(require('./m'))` or
 `module.exports = require('./m')`, is listed as passing the module on whole.
 Not read, and not named where the answer says what is not counted: a `require`
 of a computed specifier, and another object's, such as `loader.require('./m')`.
+A variable the file writes again, `let m = await import('./m')` or
+`let m = require('./m')`, holds at each read the modules the writes that may
+reach it loaded: one in a branch, a loop or a function adds its module beside
+the one held before, and a write of anything else, `m = stub()`, leaves none
+held, so `m.name` after it is no use.
 A package that passes a module on as `export * as ns`,
 or as `export { ns }` after `import * as ns`, passes each of its names as a
 member of `ns`: `import { ns } from 'pkg'` and

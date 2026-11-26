@@ -134,3 +134,74 @@ fn a_typeof_import_reads_no_name_until_what_it_types_is_read() {
         ]
     );
 }
+
+#[test]
+fn a_holder_written_with_another_value_reads_nothing_of_the_module_after_the_write() {
+    // Before the write the binding holds the module. A write that may not run
+    // leaves it holding the module where it still may. After a write on every
+    // path it holds the other value, and a name read off it is not the module's.
+    let source = concat!(
+        "let m = await import('./a');\n",
+        "m.before();\n",
+        "if (x) m = other;\n",
+        "m.maybe();\n",
+        "m = other;\n",
+        "m.after();\n",
+    );
+    assert_eq!(members("a.ts", source), [read("./a", "before", 2, false), read("./a", "maybe", 4, false)]);
+}
+
+#[test]
+fn a_read_off_a_holder_is_read_off_each_module_it_may_hold_there() {
+    // A write that may not run adds what it holds to what the binding held. A
+    // function may run at any time, so a read inside one reads the module the
+    // binding held above it, whatever a later write on every path holds.
+    let source = concat!(
+        "let m = await import('./a');\n",
+        "if (offline) m = await import('./b');\n",
+        "m.foo();\n",
+    );
+    assert_eq!(members("a.ts", source), [read("./a", "foo", 3, false), read("./b", "foo", 3, false)]);
+    let source = concat!(
+        "let m = await import('./a');\n",
+        "function later() {\n",
+        "  m.inside();\n",
+        "}\n",
+        "m = other;\n",
+        "m.after();\n",
+    );
+    assert_eq!(members("a.ts", source), [read("./a", "inside", 3, false)]);
+}
+
+#[test]
+fn a_write_in_a_branch_holds_in_that_branch_and_joins_what_was_held_after_it() {
+    // `else` starts from what the binding held before `if`; `?:`, `&&` and
+    // `??=` may not run; a write inside a function may run after any other.
+    let source = concat!(
+        "let m = await import('./a');\n",
+        "if (x) {\n",
+        "  m = await import('./b');\n",
+        "  m.inside();\n",
+        "} else {\n",
+        "  m.otherwise();\n",
+        "}\n",
+        "m = other;\n",
+        "x ? (m = await import('./c')) : m.unset();\n",
+        "x && (m = other);\n",
+        "m ??= await import('./d');\n",
+        "m.both();\n",
+        "const swap = async () => (m = await import('./e'));\n",
+        "m = other;\n",
+        "m.last();\n",
+    );
+    assert_eq!(
+        members("a.ts", source),
+        [
+            read("./a", "otherwise", 6, false),
+            read("./b", "inside", 4, false),
+            read("./c", "both", 12, false),
+            read("./d", "both", 12, false),
+            read("./e", "last", 15, false),
+        ]
+    );
+}
