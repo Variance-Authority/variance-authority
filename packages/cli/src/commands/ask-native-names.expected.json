@@ -548,5 +548,10 @@
     0,
     "`crowdedPath` [const] is imported in 3 places, all from other packages, and no entry publishes it; it is exported at packages/kit/src/crowd.ts:1.\nPath order; `--from` sorts nearest first.\n\nSource, from other packages:\n\napps/app/src/crowd-1.ts:1 — @acme/app, by path from @acme/kit/src/crowd; used on line 2\napps/app/src/crowd-2.ts:1 — @acme/app, by path from @acme/kit/src/crowd; used on line 2\napps/app/src/crowd-3.ts:1 — @acme/app, by path from @acme/kit/src/crowd; used on line 2\n\nA namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted.\nSnapshot <time> may miss later changes: run `variance index`.\n",
     ""
+  ],
+  "symbol --name ghost --limit 2": [
+    0,
+    "ghost\nimport { ghost } from '@acme/kit/src/crowd';\nnot published: @acme/kit declares no entry, so every import of it names a file.\n\nImported by path in 3 places:\n  apps/app/src/ghost-1.ts:1 — @acme/app, by path from @acme/kit/src/crowd\n  apps/app/src/ghost-2.ts:1 — @acme/app, by path from @acme/kit/src/crowd\n1 more import of `ghost` not shown; `variance ask uses --name ghost` lists them, nearest to a file you name first.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
   ]
 }
