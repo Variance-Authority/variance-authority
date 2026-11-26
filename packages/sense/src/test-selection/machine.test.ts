@@ -121,6 +121,21 @@ describe('the machine a run ran on', () => {
       .toEqual([runner, runner, laptop, undefined, undefined, undefined, undefined]);
   });
 
+  it('names no machine for a file two shards ran where one shard\'s record does not speak for it', () => {
+    const runner: Machine = { arch: 'x64', cores: 4 };
+    const named = { tests: { commit: 'C', tests: [{ file: 'a.test.ts' }] }, runs: { commit: 'C', runs: 1, landings: [{ files: ['a.test.ts'], machine: runner }] } };
+    const unspoken = [
+      { tests: { commit: 'C', tests: [{ file: 'a.test.ts' }] }, runs: undefined },
+      { tests: { commit: 'C', tests: [{ file: 'a.test.ts' }] }, runs: { commit: 'B', runs: 1, landings: [{ files: ['a.test.ts'], machine: runner }] } },
+      { tests: { commit: 'C', tests: [{ file: 'a.test.ts' }] }, runs: { commit: 'C', runs: 0, landings: [{ files: ['a.test.ts'], machine: runner }] } },
+      // A record of its own that lists the file in no landing.
+      { tests: { commit: 'C', tests: [{ file: 'a.test.ts' }] }, runs: { commit: 'C', runs: 1, landings: [{ files: ['b.test.ts'], machine: runner }] } },
+    ];
+
+    expect(unspoken.flatMap((other) => [shardsMachines([named, other])('a.test.ts'), shardsMachines([other, named])('a.test.ts')]))
+      .toEqual(Array(8).fill(undefined));
+  });
+
   it('names the machine a file last ran on, and none for a file a run on another machine ran in part', () => {
     const runner: Machine = { arch: 'x64', cores: 4 };
     const laptop: Machine = { arch: 'arm64', cores: 12 };

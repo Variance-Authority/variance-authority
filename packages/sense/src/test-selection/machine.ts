@@ -114,15 +114,17 @@ function gib(bytes: number): string {
  * The machine each file of a fold of `shards` ran on, as its shard's own
  * landing named it: only where that shard's record stands at the commit its
  * snapshot does and holds a run of its own, not one seeded from the base. A
- * file two shards, or two runs, name on two machines names none.
+ * file two shards, or two runs, name on two machines names none, and so does
+ * one a shard ran whose record does not name it.
  */
 export function shardsMachines(shards: readonly ShardRuns[]): (file: string) => Machine | undefined {
   const machines = new Map<string, Machine | undefined>();
   for (const { tests, runs } of shards) {
-    if (runs === undefined || runs.runs === 0 || tests.commit === undefined || runs.commit !== tests.commit) continue;
-    const ran = new Set(tests.tests.map((test) => test.file));
-    const named = agreedMachines(runs.landings);
-    for (const file of ran) if (named.has(file)) agree(machines, file, named.get(file));
+    const own = runs !== undefined && runs.runs > 0 && tests.commit !== undefined && runs.commit === tests.commit;
+    const named = own ? agreedMachines(runs.landings) : new Map<string, Machine | undefined>();
+    // A file this shard ran that its record does not name was run on a
+    // machine nobody knows, and the fold's figures for it are partly its.
+    for (const { file } of tests.tests) agree(machines, file, named.get(file));
   }
   return (file) => machines.get(file);
 }
