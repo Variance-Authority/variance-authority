@@ -172,6 +172,9 @@ Sending the trace to a backend from the job itself is not built: the action
 has no input for it, and no `variance` command posts a trace. Until it does,
 the `POST` above is yours to run from a machine that reads the artifact.
 
+To see the run without a trace viewer, [`variance view`](view.md) draws the same
+timeline on a page you open from disk.
+
 ## Limits
 
 - Playwright only. Another runner's record has no start.

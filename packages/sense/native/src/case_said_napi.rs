@@ -74,22 +74,3 @@ pub fn said_laid(said: Vec<Option<String>>, bytes: Buffer, offsets: Uint32Array,
         offsets: pool.offsets().to_vec().into(),
     })
 }
-
-/// What each of `test_count` cases heard off its `tests.said`, `tests.read` and
-/// `tests.misused` sections, each absent, and their pool: `null` for a case no
-/// recorder listened to.
-#[napi(catch_unwind)]
-pub fn said_read(
-    said: Option<Buffer>,
-    read: Option<Buffer>,
-    misused: Option<Buffer>,
-    bytes: Buffer,
-    offsets: Uint32Array,
-    test_count: u32,
-) -> napi::Result<Vec<Option<String>>> {
-    let pool =
-        SetPool::from_pool(bytes.to_vec(), offsets.to_vec(), test_count as usize).map_err(napi::Error::from_reason)?;
-    let sections = [said.as_deref(), read.as_deref(), misused.as_deref()];
-    let heard = case_said::read(sections, test_count as usize, |set| pool.members(set)).map_err(napi::Error::from_reason)?;
-    Ok(heard.into_iter().map(|heard| heard.map(|heard| case_said::spell(&heard))).collect())
-}

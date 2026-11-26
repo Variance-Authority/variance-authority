@@ -215,6 +215,7 @@ export { caseIndexOf, caseSectionsAt, caseSectionsOf, keepsCases, keepsEyes, rec
 export { collectedRecord } from './collected-record.js';
 export { type EyesSection, type ObservedEyes, type RecordedEyes } from './eyes-record.js';
 export { type ObservedAttempt, type RecordedAttempt } from './attempts-record.js';
+export { rawRecord } from './raw-record.js';
 export { RecordWithoutCoverage } from './format-validation.js';
 export { commitRunsAfter, commitRunsFile, heldCommitRuns, landRun, namedCommits, readCommitRuns, writeCommitRuns, type CommitRuns, type RecordedTests, type StandingEntry } from './commit-runs.js';
 export { commitRunsIn } from './commit-runs-text.js';
@@ -348,6 +349,11 @@ export interface CoverageTest {
    * millisecond.
    */
   readonly start?: number;
+  /**
+   * The worker lane the runner ran the file on, counted from 0: the lane of
+   * the attempt `start` names. Absent when the runner gave none.
+   */
+  readonly lane?: number;
 }
 
 /**

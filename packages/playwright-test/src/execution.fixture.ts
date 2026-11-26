@@ -53,6 +53,7 @@ export async function ended(
   status: TestInfo['status'],
   duration?: number,
   timeout?: number,
+  lane?: number,
 ): Promise<void> {
   const declared = varianceCompletedFixtures.varianceCompleted as unknown as readonly [
     (
@@ -70,5 +71,6 @@ export async function ended(
     testId: `${owner}-1`,
     ...(duration === undefined ? {} : { duration }),
     ...(timeout === undefined ? {} : { timeout }),
+    ...(lane === undefined ? {} : { parallelIndex: lane }),
   } as unknown as TestInfo);
 }

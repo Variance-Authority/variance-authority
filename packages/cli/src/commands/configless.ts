@@ -26,10 +26,10 @@ import type { Parsed } from '../parse.js';
 import type { Apart, Detach, HandBack } from './index-follow-ups.js';
 import { writePieces } from '../json-pieces.js';
 
-/** The fourteen commands that read no project configuration at all. */
+/** The fifteen commands that read no project configuration at all. */
 export type Configless = Extract<
   Parsed,
-  { command: 'watch' | 'distill' | 'covering' | 'coverage' | 'layers' | 'restrictions' | 'review' | 'story' | 'index' | 'select' | 'shards' | 'reach' | 'trace' | 'prune' }
+  { command: 'watch' | 'distill' | 'covering' | 'coverage' | 'layers' | 'restrictions' | 'review' | 'story' | 'index' | 'select' | 'shards' | 'reach' | 'trace' | 'view' | 'prune' }
 >;
 
 export function withoutConfig(parsed: Parsed): parsed is Configless {
@@ -47,6 +47,7 @@ export function withoutConfig(parsed: Parsed): parsed is Configless {
     || parsed.command === 'shards'
     || parsed.command === 'reach'
     || parsed.command === 'trace'
+    || parsed.command === 'view'
     || parsed.command === 'prune'
   );
 }
@@ -367,6 +368,16 @@ export async function answerConfigless(
     case 'trace': {
       const { traceOutput } = await import('./trace-command.js');
       const said = traceOutput({ cwd: process.cwd(), ...(parsed.suite === undefined ? {} : { suite: parsed.suite }) });
+      streams.err(said.err);
+      streams.out(said.out);
+      return EXIT_CLEAN;
+    }
+
+    // The record as one page to open; nothing runs. The command writes the
+    // file and prints where it is.
+    case 'view': {
+      const { viewOutput } = await import('./view-command.js');
+      const said = await viewOutput(parsed, process.cwd());
       streams.err(said.err);
       streams.out(said.out);
       return EXIT_CLEAN;

@@ -49,7 +49,8 @@ impl SetPool {
         Ok(Self { test_count, bytes, offsets, hashes })
     }
 
-    /// The cases in set `id`.
+    /// The cases in set `id`; only tests read a set back, the page and the CLI read it in `case-said-read.ts`.
+    #[cfg(test)]
     pub fn members(&self, id: u32) -> Result<Vec<u32>, String> {
         let (from, to) = (self.offsets.get(id as usize), self.offsets.get(id as usize + 1));
         let (Some(from), Some(to)) = (from, to) else {

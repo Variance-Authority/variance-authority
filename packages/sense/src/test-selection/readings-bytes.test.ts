@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import { decodeCase, encodeReadings } from './__fixtures__/readings.js';
+import { encodeReadings } from './__fixtures__/readings.js';
 import { decodeReadings } from './readings-bytes.js';
+import { decodeCase } from './readings-case.js';
 
 describe('encodeReadings', () => {
   // The same bytes `record_parts_tests.rs` expects the native fold to write.

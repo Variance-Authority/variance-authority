@@ -73,6 +73,10 @@
       "types": "./dist/test-selection/journey.d.ts",
       "default": "./dist/test-selection/journey.js"
     },
+    "./record": {
+      "types": "./dist/test-selection/record-read.d.ts",
+      "default": "./dist/test-selection/record-read.js"
+    },
     "./page": {
       "types": "./dist/test-selection/page.d.ts",
       "default": "./dist/test-selection/page.js"

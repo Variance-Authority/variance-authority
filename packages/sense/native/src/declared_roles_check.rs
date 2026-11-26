@@ -26,7 +26,7 @@ use napi::bindgen_prelude::AsyncTask;
 use napi_derive::napi;
 use rayon::prelude::*;
 
-use crate::chain_lookup::fold;
+use crate::chain_lookup::live_records;
 use crate::compact::Layer;
 use crate::declared_role::{PRODUCTION, TEST_ONLY};
 use crate::index_chain::read_chain;
@@ -217,8 +217,7 @@ struct Declared<'a> {
 /// How many exports declare a role, and what contradicts them. Without a
 /// current `shipped` list only a doc contradicting itself is found.
 pub(crate) fn check(layers: &[Layer], shipped: Option<&HashSet<&str>>) -> (u32, Vec<DeclaredRoleFinding>) {
-    let folded = fold(layers);
-    let mut crossings: Vec<Crossing> = folded
+    let mut crossings: Vec<Crossing> = live_records(layers)
         .into_iter()
         .map(|(path, at)| Crossing { file: path, owner: NO_OWNER, others: Vec::new(), at, parse: None })
         .collect();

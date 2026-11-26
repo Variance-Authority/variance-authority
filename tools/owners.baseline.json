@@ -785,6 +785,11 @@
     "count": 1
   },
   {
+    "idiom": "fresh-page",
+    "at": "packages/cli/src/commands/view-page.chromium.test.ts",
+    "count": 3
+  },
+  {
     "idiom": "timer",
     "at": "packages/cli/src/commands/workers.test.ts",
     "count": 1

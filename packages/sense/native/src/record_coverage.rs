@@ -22,6 +22,9 @@ pub(crate) const START: usize = 2;
 /// A test file's start, `coverage.no_duration` in both words where its runner gave none.
 pub(crate) type Start = [u32; START];
 
+/// A test file's worker lane, `coverage.no_duration` where its runner gave none.
+pub(crate) type Lane = u32;
+
 /// A test file's phases, `coverage.no_duration` for one its runner did not report.
 pub(crate) type Phases = [u32; PHASES];
 
@@ -39,6 +42,8 @@ pub(crate) struct Coverage {
     pub test_phases: Option<Vec<u32>>,
     /// `START` words a test; `None` for a layout before `tests.start`.
     pub test_start: Option<Vec<u32>>,
+    /// One word a test; `None` for a layout before `tests.lane`.
+    pub test_lane: Option<Vec<u32>>,
     pub precondition_name: Vec<u32>,
     pub precondition_digest: Vec<u32>,
     pub module_path: Vec<u32>,
@@ -137,7 +142,7 @@ fn readable(version: u8) -> Result<(), String> {
     if layout.readable(version) {
         return Ok(());
     }
-    Err(format!("unsupported record version: {version}; this build reads versions {}, {}, {}, {}, {} and {}", layout.untimed, layout.uncased, layout.unphased, layout.unkeyed, layout.unstarted, layout.format))
+    Err(format!("unsupported record version: {version}; this build reads versions {}, {}, {}, {}, {}, {} and {}", layout.untimed, layout.uncased, layout.unphased, layout.unkeyed, layout.unstarted, layout.unlaned, layout.format))
 }
 
 /// The test files a record's coverage holds, read off its header alone: the
@@ -162,7 +167,8 @@ pub(crate) struct Head {
 fn coverage(mut decoded: Decoded, version: u8) -> Result<Coverage, String> {
     let decoded = &mut decoded;
     let timed = version != LAYOUT.coverage.untimed;
-    let started = version == LAYOUT.coverage.format;
+    let laned = version == LAYOUT.coverage.format;
+    let started = laned || version == LAYOUT.coverage.unlaned;
     let keyed = started || version == LAYOUT.coverage.unstarted;
     let phased = keyed || version == LAYOUT.coverage.unkeyed;
     let one = |name: &str, values: Vec<u32>, empty: bool| -> Result<Option<u32>, String> {
@@ -183,6 +189,7 @@ fn coverage(mut decoded: Decoded, version: u8) -> Result<Coverage, String> {
         test_duration: if timed { Some(decoded.take_words(&LAYOUT.coverage.duration)?) } else { None },
         test_phases: if phased { Some(decoded.take_words(&LAYOUT.coverage.phases)?) } else { None },
         test_start: if started { Some(decoded.take_words(&LAYOUT.coverage.start)?) } else { None },
+        test_lane: if laned { Some(decoded.take_words(&LAYOUT.coverage.lane)?) } else { None },
         precondition_name: decoded.take_words("preconditions.name")?,
         precondition_digest: decoded.take_words("preconditions.digest")?,
         module_path: decoded.take_words("modules.path")?,
@@ -309,6 +316,11 @@ impl Coverage {
         held
     }
 
+    /// The worker lane of test `test`; `coverage.no_duration` where none was given.
+    pub fn lane(&self, test: usize) -> Lane {
+        self.test_lane.as_ref().map_or(LAYOUT.coverage.no_duration, |lane| lane[test])
+    }
+
     /// The git blob name id of module `module`'s text, `coverage.no_blob` where none was recorded.
     pub fn blob(&self, module: usize) -> u32 {
         self.module_blob.as_ref().map_or(LAYOUT.coverage.no_blob, |blob| blob[module])
@@ -348,6 +360,9 @@ impl Coverage {
         }
         if let Some(start) = &self.test_start {
             rows(&LAYOUT.coverage.start, start.len(), tests * START)?;
+        }
+        if let Some(lane) = &self.test_lane {
+            rows(&LAYOUT.coverage.lane, lane.len(), tests)?;
         }
         bounds("tests.preconditions", &self.test_preconditions, preconditions)?;
         rows("preconditions.digest", self.precondition_digest.len(), preconditions)?;

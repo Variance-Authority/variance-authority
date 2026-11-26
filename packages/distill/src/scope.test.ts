@@ -278,9 +278,9 @@ describe('where the time of a scope went', () => {
     const length = Buffer.from(bytes).readUInt32LE(0);
     const header = Buffer.from(bytes).toString('utf8', 4, 4 + length);
     const version = (JSON.parse(header.replace(/\0+$/, '')) as { version: number }).version;
-    // The layout before phases is numbered three below, under the ones before file starts and before git blob names; its readers ignore all three sections.
+    // The layout before phases is numbered four below, under the ones before worker lanes, file starts and git blob names; its readers ignore all four sections.
     const older = Buffer.from(bytes);
-    older.write(header.replace(`"version":${version}`, `"version":${version - 3}`), 4, 'utf8');
+    older.write(header.replace(`"version":${version}`, `"version":${version - 4}`), 4, 'utf8');
 
     expect(distillScope({ records: [{ record: older }], relations }).time).toBeUndefined();
   });
