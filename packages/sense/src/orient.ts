@@ -130,7 +130,13 @@ export function dependenciesAround(root: string, files: readonly string[], limit
 /** One suite's recording, or why there is none to read. */
 export type RecordedCases =
   | { readonly suite?: string; readonly recording: string; readonly files: readonly NativeCasesEntered[] }
-  | { readonly suite?: string; readonly recording: string; readonly unread: string };
+  | {
+      readonly suite?: string;
+      readonly recording: string;
+      readonly unread: string;
+      /** Set where the recording is there and could not be read, so its cases are unknown; one that kept none has none. */
+      readonly unreadable?: true;
+    };
 
 /**
  * For each suite the root config declares, or the one record of a repository

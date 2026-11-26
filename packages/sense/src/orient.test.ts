@@ -134,6 +134,7 @@ describe('the recorded cases around some files', () => {
     const [only] = recordedCases(root, ['src/api.ts'], 2);
 
     expect(only && 'unread' in only ? only.unread : undefined).toMatch(/cannot read journey file/u);
+    expect(only && 'unread' in only ? only.unreadable : undefined).toBe(true);
   });
 
   it('says why a recording whose header does not read is left out, not that no run kept its cases', () => {
@@ -144,6 +145,7 @@ describe('the recorded cases around some files', () => {
     const [only] = recordedCases(root, ['src/api.ts'], 2);
 
     expect(only).toMatchObject({ recording: at, unread: expect.not.stringMatching(/kept its cases/u) });
+    expect(only && 'unread' in only ? only.unreadable : undefined).toBe(true);
   });
 });
 
