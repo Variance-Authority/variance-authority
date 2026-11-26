@@ -150,7 +150,7 @@ fn member_lines(asking: &Asking<'_>, member: &str, members: &[MemberSite]) -> Ve
 }
 
 fn member_list(lines: &mut Vec<String>, asking: &Asking<'_>, heading: &str, count: usize, rows: impl Iterator<Item = String>) {
-    let limit = asking.limit;
+    let limit = asking.shown();
     lines.extend([String::new(), heading.to_owned(), String::new()]);
     lines.extend(rows.take(limit));
     if count > limit { lines.push(more_line(asking, count - limit)); }

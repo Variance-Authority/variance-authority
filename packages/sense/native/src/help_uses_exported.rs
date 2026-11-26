@@ -10,7 +10,8 @@ use crate::help_in_file::InFile;
 use crate::help_name_scope::PackageScope;
 use crate::help_origin::declaration_exported;
 use crate::help_symbol_published::joined_sites;
-use crate::help_symbol_rows::{PathSite, Rows};
+use crate::help_path_landing::landing;
+use crate::help_symbol_rows::{Export, PathSite, Rows};
 use crate::help_unpublished::{exported_at, Unpublished};
 use crate::help_key::SLOT;
 use crate::help_usage::{Asked, Group, Namespace};
@@ -37,7 +38,7 @@ pub(super) fn exported_uses(asking: &Asking<'_>, rows: &Rows, paths: &[PathSite<
     };
     let mut declarations = declarations(&chosen);
     if let Some(file) = file { declarations.retain(|(at, _)| *at == file) }
-    let every: HashSet<&str> = declarations.iter().flat_map(|(_, held)| held.iter().map(|one| one.export.at)).collect();
+    let exports: Vec<&Export<'_>> = declarations.iter().flat_map(|(_, held)| held.iter().map(|one| &one.export)).collect();
     let asked: Vec<_> = declarations.iter().map(|(_, held)| asked_of(held)).collect();
     let mut read = importers_of_every(root, layers, &asked);
     if read.groups.len() != declarations.len() { return None }
@@ -49,9 +50,8 @@ pub(super) fn exported_uses(asking: &Asking<'_>, rows: &Rows, paths: &[PathSite<
     let ((_, primary), others) = declarations.split_first()?;
     let home = primary[0].export.by;
     let own = files(primary);
-    // An import by path lands on the export file it names, or on the one whose declaration a barrel it names passes on.
-    let landed: Vec<Option<&str>> = paths.iter().map(|site| site.to.and_then(|to| landing(layers, name, &every, to))).collect();
-    // An import by path that reaches no file exporting the name is no declaration's, and is listed apart.
+    let landed = landed(asking, paths, &exports);
+    // An import by path that reaches no declaration read here is no declaration's, and is listed apart.
     // An import by path of `default` is the declaration its file's default is named by, never a stray of the slot.
     let strays: Vec<_> = paths.iter().zip(&landed).filter(|(_, to)| file.is_none() && name != SLOT && to.is_none()).map(|(site, _)| site.site).collect();
     let by_path = paths.iter().zip(&landed).filter(|(_, to)| to.is_some_and(|to| own.contains(&to))).map(|(site, _)| site.site);
@@ -70,7 +70,7 @@ pub(super) fn exported_uses(asking: &Asking<'_>, rows: &Rows, paths: &[PathSite<
     let namesakes = others.iter().map(|(_, held)| format!("{}, exported without being published", exported_at(held))).collect();
     lines.extend(others_lines(name, namesakes, &beside.kept, &beside.members));
     primary_sites(&mut lines, asking, home, &in_file_of(&read.in_file, &own), sites, strays, &read.in_file);
-    for ((_, held), group) in others.iter().zip(&read.groups[1..]) { namesake(&mut lines, asking, held, paths, group, &read.in_file) }
+    for ((_, held), group) in others.iter().zip(&read.groups[1..]) { namesake(&mut lines, asking, held, paths, &landed, group, &read.in_file) }
     lines.extend(beside.after);
     let declaring: HashSet<_> = exported.iter().filter(|held| held.export.bound.is_some()).map(|held| held.export.at).chain(beside.files).collect();
     if file.is_none() && declaring.len() > 1 { lines.push(narrow(asking.surface)); }
@@ -78,11 +78,11 @@ pub(super) fn exported_uses(asking: &Asking<'_>, rows: &Rows, paths: &[PathSite<
 }
 
 /// The section of a declaration exported without being published, beside the one answered first: its imports and the lines of its files that use it.
-pub(super) fn namesake(lines: &mut Vec<String>, asking: &Asking<'_>, held: &[&Unpublished<'_>], paths: &[PathSite<'_>], group: &Group, in_file: &[InFile]) {
+pub(super) fn namesake(lines: &mut Vec<String>, asking: &Asking<'_>, held: &[&Unpublished<'_>], paths: &[PathSite<'_>], landed: &[Option<&str>], group: &Group, in_file: &[InFile]) {
     let name = asking.name;
     lines.push(format!("\n`{name}` is exported, without being published, at {} as well, which is another declaration.", exported_at(held)));
     let at = files(held);
-    let by_path = paths.iter().filter(|site| site.to.is_some_and(|to| at.contains(&to))).map(|site| site.site);
+    let by_path = paths.iter().zip(landed).filter(|(_, to)| to.is_some_and(|to| at.contains(&to))).map(|(site, _)| site.site);
     let sites = joined_sites(&[], by_path, &group.uses, &group.through);
     if sites.is_empty() {
         lines.push("Nothing in this workspace imports it.".into());
@@ -139,14 +139,9 @@ pub(super) fn declarations<'e, 'a>(exported: &[&'e Unpublished<'a>]) -> Vec<Decl
 }
 
 /// The files `held` are exported from, each once, in the order they come.
-/// The file of `every` that an import of `name` from `to` reaches: `to` itself
-/// when it exports the name, else the one whose declaration `to` passes on.
-fn landing<'e>(layers: &[crate::compact::Layer], name: &str, every: &HashSet<&'e str>, to: &str) -> Option<&'e str> {
-    if let Some(at) = every.get(to) { return Some(at) }
-    let reached = declaration_exported(layers, to, name)?;
-    let mut held: Vec<&'e str> = every.iter().copied().collect();
-    held.sort_unstable();
-    held.into_iter().find(|at| declaration_exported(layers, at, name).is_some_and(|one| one.at == reached.at && one.line == reached.line))
+/// The file of the export each of `paths` lands on, among `exports`; `None` where it reaches none.
+pub(super) fn landed<'e>(asking: &Asking<'_>, paths: &[PathSite<'_>], exports: &[&'e Export<'_>]) -> Vec<Option<&'e str>> {
+    paths.iter().map(|site| landing(asking.layers, asking.name, site, exports).map(|export| export.at)).collect()
 }
 
 fn files<'a>(held: &[&Unpublished<'a>]) -> Vec<&'a str> {

@@ -126,7 +126,7 @@ pub fn answer_symbol(root: String, index: &OpenedIndex, store: Uint8Array, asked
 }
 
 /// `uses`'s answer about `asked.name`, read as [`answer_symbol`] reads, and
-/// cut at `asked.limit`, which the tool always says.
+/// cut at `asked.limit`, or at its own default when the question says none.
 ///
 /// bound: the help store JavaScript already holds, lent without a copy, and one answer whose lists are cut at `asked.limit`
 #[napi(catch_unwind)]
@@ -139,7 +139,7 @@ pub fn answer_uses(root: String, index: &OpenedIndex, store: Uint8Array, asked: 
             wanted: asked.package.as_deref(),
             from: asked.from.as_deref().and_then(<[String]>::first).map(String::as_str),
             file: asked.file.as_deref(),
-            limit: asked.limit? as usize,
+            limit: asked.limit.map(|limit| limit as usize),
             surface: Surface(asked.shell.as_deref()),
             listed: RefCell::default(),
         };

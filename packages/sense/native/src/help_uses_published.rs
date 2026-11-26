@@ -18,7 +18,7 @@ use crate::help_symbol_rows::{PathSite, Rows, Site};
 use crate::help_unpublished::{exported_at, Unpublished};
 use crate::help_usage::{Asked, NameUse};
 
-use super::exported::{asked_of, declarations, namesake};
+use super::exported::{asked_of, declarations, landed, namesake};
 use super::kept::{others_lines, spelled_as};
 use super::{headline, importers_of_every, list_kinds, list_own, narrow, places, primary_sites, Asking, Beside, Counts};
 
@@ -78,7 +78,9 @@ pub(super) fn published_uses(asking: &Asking<'_>, keys: &Keys<'_>, paths: &[Path
         }
         list_own(&mut lines, asking, one.at, "declares", &read.in_file);
     }
-    for ((_, held), group) in groups.iter().zip(apart) { namesake(&mut lines, asking, held, paths, group, &read.in_file) }
+    let exports: Vec<_> = groups.iter().flat_map(|(_, held)| held.iter().map(|one| &one.export)).collect();
+    let landed = landed(asking, paths, &exports);
+    for ((_, held), group) in groups.iter().zip(apart) { namesake(&mut lines, asking, held, paths, &landed, group, &read.in_file) }
     lines.extend(beside.after);
     if file.is_none() && every.len() > 1 { lines.push(narrow(asking.surface)); }
     Some(lines.join("\n"))

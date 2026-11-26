@@ -13,7 +13,7 @@ use crate::help_in_file::InFile;
 use crate::help_key::{can_keep, Keys, SLOT};
 use crate::help_members::{member_declarations, MemberSite};
 use crate::help_name_scope::{owner_of, PackageScope};
-use crate::help_symbol_answer::{container_absence, member_name, member_stop, nowhere, shared_segments, unread_line};
+use crate::help_symbol_answer::{container_absence, DECLARED_CAP, member_name, member_stop, nowhere, shared_segments, unread_line};
 use crate::help_declared_in::{joined, publishing, rows_of, Readings};
 use crate::help_symbol_published::published_declarations;
 use crate::help_surface::Surface;
@@ -46,10 +46,19 @@ pub(crate) struct Asking<'q> {
     pub wanted: Option<&'q str>,
     pub from: Option<&'q str>,
     pub file: Option<&'q str>,
-    pub limit: usize,
+    /// Rows of each kind shown, [`SHOWN`] when the question says none.
+    pub limit: Option<usize>,
     pub surface: Surface<'q>,
     /// What the answer read, collected as it is said: [`Listed`].
     pub listed: RefCell<Listed>,
+}
+
+/// Sites of one kind shown when the question says no limit: how many are worth naming before the list stops being read.
+const SHOWN: usize = 12;
+
+impl Asking<'_> {
+    /// Rows of each kind this answer shows.
+    pub(crate) fn shown(&self) -> usize { self.limit.unwrap_or(SHOWN) }
 }
 
 /// The files a `uses` answer lists and rests on, every row and not only those shown.
@@ -160,7 +169,7 @@ pub(crate) fn uses(asking: &Asking<'_>, store: &mut (impl Read + Seek)) -> Optio
             return kept::private_uses(asking, &kept.names, &kept.unread).map(Ok);
         }
         if let Some(undeclared) = undeclared { return Some(Err(undeclared)) }
-        let absence = container_absence(&keys, root, layers, name, &package, asking.limit, asking.surface)?;
+        let absence = container_absence(&keys, root, layers, name, &package, asking.limit.unwrap_or(DECLARED_CAP), asking.surface)?;
         let absent = nowhere(name, &rows.published_names()?, layers, &kept.unread, None, wanted, package.export_hint(&rows, name, &exports)?.as_deref(), absence, asking.surface);
         if kept.names.is_empty() { return Some(Err(absent)) }
         if !nothing { return kept::private_uses(asking, &kept.names, &kept.unread).map(Ok) }
@@ -247,14 +256,16 @@ fn primary_sites(lines: &mut Vec<String>, asking: &Asking<'_>, owner: &str, file
     if imported { lines.push(format!("\nA{}.", &UNCOUNTED[1..])); }
 }
 
-/// The imports by a path that reaches no file exporting the name here: listed
-/// apart, each with its package, since no declaration read here is theirs.
+/// The imports by a path that reaches no one declaration of the name read
+/// here — a file exporting none, or a package owning several — listed apart,
+/// each with its package, since none is credited with them.
 fn stray_sites(lines: &mut Vec<String>, asking: &Asking<'_>, mut sites: Vec<Site<'_>>) {
-    let &Asking { name, from, limit, .. } = asking;
+    let &Asking { name, from, .. } = asking;
+    let limit = asking.shown();
     asking.listed.borrow_mut().sites.extend(sites.iter().map(|site| (site.at.to_owned(), site.line)));
     sites.sort_by(|a, b| nearest(from, a.at, a.line, b.at, b.line));
     let import = if sites.len() == 1 { "imports" } else { "import" };
-    let heading = format!("{} more {import} `{name}` by a path that reaches no file exporting it here, so no declaration read here is theirs:", sites.len());
+    let heading = format!("{} more {import} `{name}` by a path that reaches no one declaration read here, so none is credited with them:", sites.len());
     list(lines, asking, &heading, sites.iter().map(|site| site_line(site, name, false, limit)));
 }
 
@@ -358,7 +369,8 @@ fn nearest(from: Option<&str>, at: &str, line: u32, other_at: &str, other_line: 
 }
 
 fn list_kinds(lines: &mut Vec<String>, asking: &Asking<'_>, home: Option<&str>, mut sites: Vec<Site<'_>>) {
-    let &Asking { name, from, limit, .. } = asking;
+    let &Asking { name, from, .. } = asking;
+    let limit = asking.shown();
     asking.listed.borrow_mut().sites.extend(sites.iter().map(|site| (site.at.to_owned(), site.line)));
     sites.sort_by(|a, b| nearest(from, a.at, a.line, b.at, b.line));
     for (kind, heading) in [("story", "Stories"), ("test", "Tests"), ("source", "Source")] {
@@ -386,7 +398,7 @@ fn list_own(lines: &mut Vec<String>, asking: &Asking<'_>, at: &str, does: &str, 
 }
 
 fn list(lines: &mut Vec<String>, asking: &Asking<'_>, heading: &str, rows: impl ExactSizeIterator<Item = String>) {
-    let limit = asking.limit;
+    let limit = asking.shown();
     let count = rows.len();
     if count == 0 { return }
     lines.extend([String::new(), heading.to_owned(), String::new()]);

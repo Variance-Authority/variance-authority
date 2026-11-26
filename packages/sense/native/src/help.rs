@@ -31,6 +31,8 @@ pub(crate) mod help_key;
 pub(crate) mod help_local_names;
 #[path = "help_declared_in.rs"]
 pub(crate) mod help_declared_in;
+#[path = "help_path_landing.rs"]
+pub(crate) mod help_path_landing;
 #[path = "help_symbol_line.rs"]
 pub(crate) mod help_symbol_line;
 #[path = "help_members.rs"]

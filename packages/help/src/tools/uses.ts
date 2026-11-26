@@ -143,7 +143,9 @@ export const uses: Tool<Help> = {
   },
 
   run(help, input, invocation) {
-    return foundAnswer('uses', help, invocation, input, limitOf(input, SHOWN, spellingOf(invocation))).text;
+    // Refused before any name is read; unsaid, each list keeps its own default.
+    const limit = limitOf(input, SHOWN, spellingOf(invocation));
+    return foundAnswer('uses', help, invocation, input, input['limit'] === undefined ? undefined : limit).text;
   },
 
   files: usesFiles,

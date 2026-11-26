@@ -167,7 +167,7 @@ struct UsesRequest<'a> {
     package: Option<&'a str>,
     from: Option<&'a str>,
     file: Option<&'a str>,
-    limit: usize,
+    limit: Option<usize>,
 }
 
 impl<'a> UsesRequest<'a> {
@@ -189,7 +189,7 @@ impl<'a> UsesRequest<'a> {
             }
         }
         let name = name?;
-        (!name.is_empty()).then_some(Self { name, package: package.filter(|value| !value.is_empty()), from: from.filter(|value| !value.is_empty()), file: file.filter(|value| !value.is_empty()), limit: limit.unwrap_or(12) })
+        (!name.is_empty()).then_some(Self { name, package: package.filter(|value| !value.is_empty()), from: from.filter(|value| !value.is_empty()), file: file.filter(|value| !value.is_empty()), limit })
     }
 }
 

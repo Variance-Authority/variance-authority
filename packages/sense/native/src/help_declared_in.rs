@@ -10,11 +10,11 @@ use crate::compact::Layer;
 use crate::harvest::is_bound;
 use crate::help_declared::DeclaredName;
 use crate::help_members::MemberSite;
+use crate::help_path_landing::landing;
 use crate::help_origin::declaration_exported;
 use crate::help_symbol_published::Declaration;
 use crate::help_symbol_rows::{Export, PathSite, Rows};
 use crate::help_unpublished::Unpublished;
-use crate::help_usage::requested;
 
 /// One declaration an answer reads: its file, its line, and every name written there.
 pub(crate) type Row = (String, u32, Vec<String>);
@@ -42,11 +42,9 @@ pub(crate) fn rows_of(read: &Readings<'_, '_>, rows: &Rows, layers: &[Layer], ex
     let name = read.name;
     let mut at: Vec<Row> = read.published.iter().map(|one| (one.at.to_owned(), one.doors[0].line, one.spellings.clone())).collect();
     if at.is_empty() {
+        let named: Vec<_> = read.exports.iter().filter(|export| export.name == name).collect();
         for site in read.paths {
-            let (owner, _) = requested(site.specifier);
-            let mut named = read.exports.iter().filter(|export| export.name == name && site.to.map_or(export.by == owner, |to| export.at == to));
-            let export = named.next().filter(|_| site.to.is_some() || named.next().is_none());
-            if let Some(held) = export { at.push((held.at.to_owned(), rows.export_line(held)?, vec![held.name.to_owned()])) }
+            if let Some(held) = landing(layers, name, site, &named) { at.push((held.at.to_owned(), rows.export_line(held)?, vec![held.name.to_owned()])) }
         }
     }
     for held in exported {

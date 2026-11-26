@@ -18,11 +18,15 @@ use crate::help_origin::declaration_exported;
 use crate::help_surface::Surface;
 use crate::help_symbol_published::{published_declarations, published_symbols};
 use crate::help_declared_in::{heads, joined, publishing, rows_of, Readings};
+use crate::help_path_landing::landing;
 use crate::help_symbol_exported::{declaring, exported_only, imports_of};
 use crate::help_symbol_rows::{Export, PathKind, PathSite, Rows};
 use crate::help_unpublished::exports_named;
 use crate::help_usage::requested;
 use crate::read_any::{language_of, Language};
+
+/// Declarations of a name shown when the question says no limit.
+pub(crate) const DECLARED_CAP: usize = 5;
 
 #[path = "help_symbol_dependencies.rs"]
 pub(crate) mod dependencies;
@@ -166,7 +170,7 @@ fn exact_symbol(asking: &Asking<'_>, rows: &Rows, name: &str, binds: Vec<Alias>,
     // A file that only binds the name declares nothing: it follows every declaration.
     let (bound, kept): (Vec<_>, Vec<_>) = reading.names.into_iter().partition(|held| is_bound(&held.kind));
     let only_members = blocks.is_empty() && kept.is_empty() && aliased.is_empty();
-    let limit = said_limit.unwrap_or(5);
+    let limit = said_limit.unwrap_or(DECLARED_CAP);
     let bindings = listed(&bound, name, limit, "binding", surface);
     blocks.extend(listed(&kept, name, limit, "declaration", surface));
     if !kept.is_empty() { blocks.extend(unread_line(&reading.unread)); }
@@ -363,17 +367,14 @@ fn by_path<'a>(layers: &[crate::compact::Layer], rows: &Rows, name: &str, export
         });
         groups[at].1.push(site);
     }
+    let named: Vec<_> = exports.iter().filter(|export| export.name == name).collect();
     let mut covered = HashSet::new();
     let mut blocks = Vec::new();
     for (file, group) in groups {
         let first = &group[0];
         let specifier = first.specifier;
         let (owner, _) = requested(specifier);
-        let mut matching = exports.iter().filter(|export| export.name == name && match first.to {
-            Some(at) => export.at == at,
-            None => export.by == owner,
-        });
-        let export = matching.next().filter(|_| first.to.is_some() || matching.next().is_none());
+        let export = landing(layers, name, first, &named);
         if let Some(held) = export { covered.insert(held.at); }
         let bound = export.and_then(|held| declaration_exported(layers, held.at, held.name));
         let mut lines = vec![bound.as_ref().map_or_else(|| name.to_owned(), |held| format!("{name} [{}]", held.kind))];

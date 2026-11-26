@@ -136,6 +136,14 @@ export function nativeFiles(question: readonly string[]): Readonly<Record<string
       'apps/app/src/beach.ts': "import { wave } from '@acme/sea';\nexport const beach = wave();\n",
       'apps/app/src/surf.ts': "import { wave } from '@acme/sea/src/wave';\nexport const surf = wave();\n",
     } : {}),
+    // Kibana's shape, uninstalled: a package with no entry, nested where nothing links it, so the index resolves no file for its name.
+    ...(question[2] === 'Schedule' ? {
+      'package.json': JSON.stringify({ private: true, workspaces: ['packages/*', 'packages/reporting/server', 'apps/*'] }),
+      'packages/reporting/server/package.json': JSON.stringify({ name: '@acme/reporting-server' }),
+      'packages/reporting/server/index.ts': "export * from './constants';\n",
+      'packages/reporting/server/constants.ts': 'export enum Schedule { Once }\n',
+      'apps/app/src/schedule.ts': "import { Schedule } from '@acme/reporting-server';\nexport const once = Schedule.Once;\n",
+    } : {}),
     ...(question[2] === 'lost' ? {
       'packages/kit/src/lost.ts': 'export const lost = 1;\n',
       'apps/app/src/found.ts': "import { lost } from '@acme/kit/src/lost';\nexport const found = lost;\n",
