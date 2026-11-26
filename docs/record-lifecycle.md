@@ -130,8 +130,8 @@ keeps](sharing.md#what-a-line-keeps).
 
 ## Options for pull requests, merge queues and shards
 
-Each of these changes how far the record a CI job selects from is from the
-commit it tests. The next-push keys and the merge-queue publish work on GitHub
+Each of these decides which record a CI job selects from, or what it is
+compared with. The next-push keys and the merge-queue publish work on GitHub
 Actions only:
 
 - **[Test a pull request on the record's commit](sharing.md#a-pull-request-that-runs-the-mainlines-changes-too)**
