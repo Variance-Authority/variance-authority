@@ -286,7 +286,7 @@
   ],
   "uses --name PutRequest": [
     0,
-    "`PutRequest` [type] is published as `Api.PutRequest` by @acme/lib-exports, and exported at packages/lib-exports/src/api.ts:1, and nothing in this workspace imports it; a namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted.\nIt is declared once more, as another thing:\n  packages/lib/src/api.ts:1, exported without being published, imported in 1 place\n\n`--file`, the file one of them is declared in, answers for that declaration alone.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    "`PutRequest` [type] is imported in 1 place, from another package, published as `Api.PutRequest` by @acme/lib; it is exported at packages/lib/src/api.ts:1.\nIt is declared once more, as another thing:\n  packages/lib-exports/src/api.ts:1, exported without being published, imported nowhere\nPath order; `--from` sorts nearest first.\n\nSource, from other packages:\n\napps/app/src/put.ts:3 — @acme/app (namespace, line 2)\n\nA namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted.\n\n`--file`, the file one of them is declared in, answers for that declaration alone.\nSnapshot <time> may miss later changes: run `variance index`.\n",
     ""
   ],
   "uses --name absentIndex": [

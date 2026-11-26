@@ -157,12 +157,23 @@ describe('variance ask uses over a name several files declare', () => {
     const out = await uses();
     expect(out).toMatch(/^apps\/app\/src\/hello\.ts:1 — @acme\/app; used on line 2$/m);
     // The module passed on whole may read the name, and is no place that imports it.
-    expect(out).toMatch(/^ {2}packages\/second\/src\/index\.ts:1, published by @acme\/second, imported in 1 place$/m);
+    expect(out).toMatch(/^ {2}packages\/second\/src\/index\.ts:1, published by @acme\/second, imported in 1 place, and 1 more may read it$/m);
     expect(out).not.toMatch(/second\.ts|second-whole\.ts/);
     const alone = await uses('--file', 'packages/second/src/index.ts');
     expect(alone).toMatch(/^`greet`(?: \[[^\]]+\])? is imported in 1 place, from another package\. 1 more passes the module on whole, where this reading does not follow it, and may read `greet`\.$/m);
     expect(alone).toMatch(/^apps\/app\/src\/second\.ts:1 — @acme\/app; used on line 2$/m);
     expect(alone).not.toMatch(/hello\.ts/);
+  });
+
+  it('says a namesake only a module passed on whole reaches may be read, not that nothing imports it', async () => {
+    checkout({
+      'packages/second/package.json': JSON.stringify({ name: '@acme/second', exports: { '.': './src/index.ts' } }),
+      'packages/second/src/index.ts': 'export const greet = 2;\n',
+      'apps/app/src/second-whole.ts': "import * as second from '@acme/second';\nexport const modules = [second];\n",
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    expect(await uses()).toMatch(/^ {2}packages\/second\/src\/index\.ts:1, published by @acme\/second, imported by name nowhere, and 1 place may read it$/m);
   });
 
   it('names the published declaration it answers first when another shares its name', async () => {
@@ -205,7 +216,7 @@ describe('variance ask uses over a name several files declare', () => {
     });
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
 
-    expect((await uses()).match(/^ {2}packages\/second\/src\/index\.ts:1, /gm)).toHaveLength(1);
+    expect((await uses()).match(/^ {2}packages\/second\/src\/index\.ts:1, .*, imported in 1 place$/gm)).toHaveLength(1);
     expect((await uses('--file', 'packages/second/src/index.ts')).match(/^apps\/app\/src\/second\.ts:1 /gm)).toHaveLength(1);
   });
 

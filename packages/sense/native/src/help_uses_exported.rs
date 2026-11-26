@@ -1,5 +1,5 @@
 //! Who imports a name files export and no entry publishes: the declaration
-//! answered first with its imports, and each other declaration of the name on
+//! most places import, with its imports, and each other declaration of the name on
 //! a line with how many places import it, answered alone by `--file`.
 
 // compass: variance-authority.report.agent-surface
@@ -25,8 +25,8 @@ use super::{headline, imported, importers_of_every, list_kinds, list_own, narrow
 pub(super) type Declaration<'e, 'a> = (&'e str, Vec<&'e Unpublished<'a>>);
 
 /// `uses` for a name no entry publishes: each declaration its exports key,
-/// in file order, the first answered in full and each other one named on a
-/// line with its import count; `file` answers for the declarations it
+/// the one most places import answered in full and each other one named, in
+/// file order, on a line with its import count; `file` answers for the declarations it
 /// declares, each in full. `Err` says why the answer did not read.
 pub(super) fn exported_uses(asking: &Asking<'_>, rows: &Rows, paths: &[PathSite<'_>], exported: &[Unpublished<'_>], package: &PackageScope<'_>, beside: Beside<'_>) -> Result<String, String> {
     let &Asking { root, layers, name, file, .. } = asking;
@@ -47,15 +47,24 @@ pub(super) fn exported_uses(asking: &Asking<'_>, rows: &Rows, paths: &[PathSite<
     let asked: Vec<_> = declarations.iter().map(|(_, held)| asked_of(held)).collect();
     let mut read = importers_of_every(root, layers, &asked);
     if read.groups.len() != declarations.len() { return Err(format!("the importers read of `{name}` are not one group per declaration of it")) }
+    for group in &mut read.groups { group.uses.retain(|site| package.through(&site.key)); }
+    let landed = landed(asking, paths, &exports);
+    // Asked for no file, the declaration most places import is answered in full, the first in file order among equals.
+    if file.is_none() {
+        let reach: Vec<usize> = declarations.iter().zip(&read.groups).map(|((_, held), group)| namesake_sites(held, paths, &landed, group).len()).collect();
+        let most = (0..reach.len()).fold(0, |best, at| if reach[at] > reach[best] { at } else { best });
+        let lead = declarations.remove(most);
+        declarations.insert(0, lead);
+        let lead = read.groups.remove(most);
+        read.groups.insert(0, lead);
+    }
     // The headline is the declaration answered first's, so only the namespaces it is passed on inside are named.
     let inside = published_inside(rows, &read.groups.first().said(STORE)?.namespaces).said(STORE)?;
     let member = (!inside.is_empty()).then(|| format!("published as {}", inside.join(" and as ")));
-    for group in &mut read.groups { group.uses.retain(|site| package.through(&site.key)); }
 
     let ((_, primary), others) = declarations.split_first().said(STORE)?;
     let home = primary[0].export.by;
     let own = files(primary);
-    let landed = landed(asking, paths, &exports);
     // An import by path that reaches no declaration read here is no declaration's, and is listed apart.
     // An import by path of `default` is the declaration its file's default is named by, never a stray of the slot.
     let mut strays = Strays::default();

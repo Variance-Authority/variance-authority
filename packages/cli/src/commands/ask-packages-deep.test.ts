@@ -149,9 +149,9 @@ describe('variance ask over a private app that reaches into another package', ()
     );
 
     const uses = await run(['ask', 'uses', '--name', 'roundTax']);
-    // Each declaration is counted with its own imports, never one count for both.
-    expect(uses.out).toMatch(/^`roundTax` \[const\] is exported, without being published, at packages\/kit\/src\/money\/round\.ts:1, and nothing in this workspace imports it;/m);
-    expect(uses.out).toMatch(/^ {2}packages\/lib\/src\/internal\/math\.ts:5, exported without being published, imported in 1 place$/m);
+    // Each declaration is counted with its own imports, never one count for both; the one imported leads.
+    expect(uses.out).toMatch(/^`roundTax` \[const\] is imported in 1 place, inside @acme\/lib, and no entry publishes it; it is exported at packages\/lib\/src\/internal\/math\.ts:5\.$/m);
+    expect(uses.out).toMatch(/^ {2}packages\/kit\/src\/money\/round\.ts:1, exported without being published, imported nowhere$/m);
     const lib = (await run(['ask', 'uses', '--name', 'roundTax', '--file', 'packages/lib/src/internal/math.ts'])).out;
     expect(lib).toMatch(/^packages\/lib\/src\/internal\/rounded\.ts:1; used on line 2$/m);
   });

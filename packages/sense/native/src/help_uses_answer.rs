@@ -341,10 +341,15 @@ fn places(count: usize) -> String {
 }
 
 /// How many places import a declaration named on one line beside the one answered first.
+/// A place that reads the name off `default` or passes the module on whole is counted apart, as one that may read it.
 fn imported(sites: &[Site<'_>]) -> String {
-    match Counts::of(sites, "").certain {
-        0 => ", imported nowhere".into(),
-        count => format!(", imported in {}", places(count)),
+    let count = Counts::of(sites, "");
+    let may = count.off + count.whole;
+    match (count.certain, may) {
+        (0, 0) => ", imported nowhere".into(),
+        (0, may) => format!(", imported by name nowhere, and {} may read it", places(may)),
+        (certain, 0) => format!(", imported in {}", places(certain)),
+        (certain, may) => format!(", imported in {}, and {may} more may read it", places(certain)),
     }
 }
 

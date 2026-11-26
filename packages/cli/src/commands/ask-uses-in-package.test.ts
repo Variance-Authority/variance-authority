@@ -84,7 +84,8 @@ describe('variance ask uses inside the declaring package', () => {
     });
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
 
-    const { code, out } = await run(['ask', 'uses', '--name', 'shared']);
+    // The namesake nothing publishes is one line without `--file`; its imports are listed for that file.
+    const { code, out } = await run(['ask', 'uses', '--name', 'shared', '--file', 'tools/shared.ts']);
     expect(code).toBe(EXIT_CLEAN);
     expect(out).toContain('tools/a.ts:1');
     expect(out).not.toMatch(/inside [:,.]/);
