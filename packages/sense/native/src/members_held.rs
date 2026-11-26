@@ -1,11 +1,11 @@
-//! What a binding the walk follows holds, the request it reads through, and
-//! what a name read off it holds.
+//! What an expression or a binding the walk follows holds, the request it
+//! reads through, and what a name read off it holds.
 
 // compass: variance-authority.reach.source-index
 
 use std::collections::{HashMap, HashSet};
 
-use oxc_ast::ast::{Argument, ArrayExpression, CallExpression, Expression, JSXMemberExpressionObject, ModuleExportName, Program, Statement, TSTypeName};
+use oxc_ast::ast::{Argument, ArrayExpression, ArrayExpressionElement, CallExpression, Expression, JSXMemberExpressionObject, ModuleExportName, Program, Statement, TSTypeName};
 use oxc_semantic::Scoping;
 use oxc_syntax::symbol::SymbolId;
 
@@ -126,6 +126,79 @@ pub(super) fn passed_on(program: &Program, scoping: &Scoping, holders: &HashMap<
 }
 
 impl Walker<'_, '_> {
+    /// What an expression evaluates to, looking through parentheses,
+    /// TypeScript's casts and `await`: an awaited `import()`, a `require`, a
+    /// holder, the `default` of either, or else what a cast says it is.
+    pub(super) fn held(&mut self, expression: &Expression) -> Option<Held> {
+        match expression.get_inner_expression() {
+            Expression::AwaitExpression(it) => self.promised(&it.argument).map(Held::whole).or_else(|| self.held(&it.argument)),
+            Expression::Identifier(it) => {
+                let held = self.holder(it)?;
+                self.followed.insert(it.span.start);
+                Some(held)
+            }
+            Expression::StaticMemberExpression(it) if it.property.name == "default" => self.held(&it.object).map(Held::default),
+            Expression::StaticMemberExpression(it) => self.held(&it.object).and_then(|held| self.member_of(held, &it.property.name)),
+            Expression::ComputedMemberExpression(it) => match &it.expression {
+                Expression::StringLiteral(name) if name.value != "default" => self.held(&it.object).and_then(|held| self.member_of(held, name.value.as_str()?)),
+                _ => None,
+            },
+            Expression::CallExpression(it) => self.required(it),
+            _ => None,
+        }
+        .or_else(|| self.cast(expression))
+    }
+
+    /// The request an `import()` promises. The promise is not the module: a read
+    /// off it, `.then` among them, is the promise's own.
+    pub(super) fn promised(&mut self, expression: &Expression) -> Option<Via> {
+        match handed_on(expression) {
+            Expression::ImportExpression(it) => {
+                self.followed.insert(it.span.start);
+                self.loads.import(it).map(|index| Via::Indexed(self.stated + index))
+            }
+            _ => None,
+        }
+    }
+
+    /// What an awaited `Promise.all([...])` resolves to, element by element:
+    /// the request each `import()` in the array holds, and none for any other
+    /// element, a hole, or everything from a spread on, whose positions are unknown.
+    pub(super) fn held_all(&mut self, expression: &Expression) -> Option<Vec<Option<Via>>> {
+        match expression.get_inner_expression() {
+            Expression::AwaitExpression(it) => self.promised_all(&it.argument),
+            _ => None,
+        }
+    }
+
+    pub(super) fn promised_all(&mut self, expression: &Expression) -> Option<Vec<Option<Via>>> {
+        let array = all_of(expression)?;
+        let mut held = Vec::new();
+        for element in &array.elements {
+            match element {
+                ArrayExpressionElement::SpreadElement(_) => break,
+                ArrayExpressionElement::Elision(_) => held.push(None),
+                _ => held.push(element.as_expression().and_then(|it| self.promised(it))),
+            }
+        }
+        Some(held)
+    }
+
+    /// An expression whose value is thrown away: an `import()` there, awaited
+    /// or not, is run for its side effects, and reads no name.
+    pub(super) fn discarded(&mut self, expression: &Expression) {
+        let expression = match expression.get_inner_expression() {
+            Expression::AwaitExpression(it) => it.argument.get_inner_expression(),
+            Expression::UnaryExpression(it) if it.operator.is_void() => it.argument.get_inner_expression(),
+            other => other,
+        };
+        if let Some(array) = all_of(expression) {
+            for element in array.elements.iter().filter_map(ArrayExpressionElement::as_expression) {
+                self.promise_read(element);
+            }
+        }
+        self.promise_read(expression);
+    }
     /// What a `require` returns, read where the walk follows it: the module it loads.
     pub(super) fn required(&mut self, it: &CallExpression) -> Option<Held> {
         let index = self.loads.call(it, self.mock_factory.as_deref())?;

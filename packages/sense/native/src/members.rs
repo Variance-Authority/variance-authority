@@ -63,7 +63,7 @@ mod typed;
 
 #[path = "members_held.rs"]
 mod held;
-use held::{all_of, handed_on, Chain, Chains, Held, Via, WHOLE};
+use held::{Chain, Chains, Held, Via, WHOLE};
 
 #[path = "members_passed.rs"]
 mod passed;
@@ -196,41 +196,6 @@ struct Walker<'l, 's> {
 }
 
 impl Walker<'_, '_> {
-    /// What an expression evaluates to, looking through parentheses,
-    /// TypeScript's casts and `await`: an awaited `import()`, a `require`, a
-    /// holder, the `default` of either, or else what a cast says it is.
-    fn held(&mut self, expression: &Expression) -> Option<Held> {
-        match expression.get_inner_expression() {
-            Expression::AwaitExpression(it) => self.promised(&it.argument).map(Held::whole).or_else(|| self.held(&it.argument)),
-            Expression::Identifier(it) => {
-                let held = self.holder(it)?;
-                self.followed.insert(it.span.start);
-                Some(held)
-            }
-            Expression::StaticMemberExpression(it) if it.property.name == "default" => self.held(&it.object).map(Held::default),
-            Expression::StaticMemberExpression(it) => self.held(&it.object).and_then(|held| self.member_of(held, &it.property.name)),
-            Expression::ComputedMemberExpression(it) => match &it.expression {
-                Expression::StringLiteral(name) if name.value != "default" => self.held(&it.object).and_then(|held| self.member_of(held, name.value.as_str()?)),
-                _ => None,
-            },
-            Expression::CallExpression(it) => self.required(it),
-            _ => None,
-        }
-        .or_else(|| self.cast(expression))
-    }
-
-    /// The request an `import()` promises. The promise is not the module: a read
-    /// off it, `.then` among them, is the promise's own.
-    fn promised(&mut self, expression: &Expression) -> Option<Via> {
-        match handed_on(expression) {
-            Expression::ImportExpression(it) => {
-                self.followed.insert(it.span.start);
-                self.loads.import(it).map(|index| Via::Indexed(self.stated + index))
-            }
-            _ => None,
-        }
-    }
-
     /// What a reference's binding holds.
     fn holder(&self, it: &IdentifierReference) -> Option<Held> {
         let symbol = self.symbol_of(it)?;
@@ -245,45 +210,6 @@ impl Walker<'_, '_> {
         if let Some(symbol) = symbol {
             self.holders.insert(symbol, held);
         }
-    }
-
-    /// What an awaited `Promise.all([...])` resolves to, element by element:
-    /// the request each `import()` in the array holds, and none for any other
-    /// element, a hole, or everything from a spread on, whose positions are unknown.
-    fn held_all(&mut self, expression: &Expression) -> Option<Vec<Option<Via>>> {
-        match expression.get_inner_expression() {
-            Expression::AwaitExpression(it) => self.promised_all(&it.argument),
-            _ => None,
-        }
-    }
-
-    fn promised_all(&mut self, expression: &Expression) -> Option<Vec<Option<Via>>> {
-        let array = all_of(expression)?;
-        let mut held = Vec::new();
-        for element in &array.elements {
-            match element {
-                ArrayExpressionElement::SpreadElement(_) => break,
-                ArrayExpressionElement::Elision(_) => held.push(None),
-                _ => held.push(element.as_expression().and_then(|it| self.promised(it))),
-            }
-        }
-        Some(held)
-    }
-
-    /// An expression whose value is thrown away: an `import()` there, awaited
-    /// or not, is run for its side effects, and reads no name.
-    fn discarded(&mut self, expression: &Expression) {
-        let expression = match expression.get_inner_expression() {
-            Expression::AwaitExpression(it) => it.argument.get_inner_expression(),
-            Expression::UnaryExpression(it) if it.operator.is_void() => it.argument.get_inner_expression(),
-            other => other,
-        };
-        if let Some(array) = all_of(expression) {
-            for element in array.elements.iter().filter_map(ArrayExpressionElement::as_expression) {
-                self.promise_read(element);
-            }
-        }
-        self.promise_read(expression);
     }
 
     /// A name read off what is held. Off the `default`, the value going on
