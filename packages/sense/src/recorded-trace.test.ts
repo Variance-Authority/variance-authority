@@ -86,6 +86,22 @@ describe('the recorded trace', () => {
     expect('files' in trace && trace.files[0]).toMatchObject({ phases: [{ name: 'setup', ms: 100 }], cases: [{ name: 'opens', duration: 400 }] });
   });
 
+  it('carries the worker lane each file ran on, and leaves it out of a file with none, never a zero', () => {
+    record([
+      { file: 'e2e/a.spec.ts', complete: true, preconditions: [], duration: 40, start: 1_800_000_001_000, lane: 0 },
+      { file: 'e2e/b.spec.ts', complete: true, preconditions: [], duration: 40, start: 1_800_000_001_000, lane: 3 },
+      { file: 'e2e/c.spec.ts', complete: true, preconditions: [], duration: 40, start: 1_800_000_001_000 },
+    ]);
+
+    const trace = recordedTrace(root);
+
+    expect('files' in trace && trace.files.map((file) => [file.file, file.lane])).toEqual([
+      ['e2e/a.spec.ts', 0],
+      ['e2e/b.spec.ts', 3],
+      ['e2e/c.spec.ts', undefined],
+    ]);
+  });
+
   it('says there is nothing to read where nothing is recorded', () => {
     expect(recordedTrace(root)).toMatchObject({ unread: 'nothing is recorded there' });
   });

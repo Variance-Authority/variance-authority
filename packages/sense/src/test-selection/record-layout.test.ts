@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { BlockKind } from '../instrument/index.js';
-import { BLOB, BLOCK_KINDS, DURATION, FORMAT, NAMES, NO_BLOB, NO_DURATION, NO_OWNER, PHASES, START } from './format-layout.js';
+import { BLOB, BLOCK_KINDS, DURATION, FORMAT, NAMES, NO_BLOB, NO_DURATION, NO_OWNER, PHASES, START, LANE } from './format-layout.js';
 import { LAYOUT, type RecordLayout } from './record-layout.js';
 
 describe('the record layout both sides read', () => {
@@ -17,7 +17,7 @@ describe('the record layout both sides read', () => {
 
   it('is where the format constants come from', () => {
     expect(FORMAT).toBe(LAYOUT.coverage.format);
-    expect([...NAMES, DURATION, PHASES, START, BLOB].sort()).toEqual([...LAYOUT.coverage.sections].sort());
+    expect([...NAMES, DURATION, PHASES, START, LANE, BLOB].sort()).toEqual([...LAYOUT.coverage.sections].sort());
     expect([NO_OWNER, NO_DURATION, NO_BLOB]).toEqual([0xffff_ffff, 0xffff_ffff, 0xffff_ffff]);
   });
 
@@ -35,8 +35,8 @@ describe('the record layout both sides read', () => {
       codecs: { raw: true, zstd: true },
       levels: { numbers: true, text: true },
       coverage: {
-        model: true, format: true, unstarted: true, unkeyed: true, unphased: true, uncased: true, untimed: true, noOwner: true, noDuration: true, noBlob: true, noLine: true,
-        sections: true, duration: true, phases: true, start: true, blob: true, phaseNames: true, parts: true, blockKinds: true, spared: true,
+        model: true, format: true, unlaned: true, unstarted: true, unkeyed: true, unphased: true, uncased: true, untimed: true, noOwner: true, noDuration: true, noBlob: true, noLine: true,
+        sections: true, duration: true, phases: true, start: true, lane: true, blob: true, phaseNames: true, parts: true, blockKinds: true, spared: true,
       },
       sets: { list: true, bits: true, runs: true, narrow: true },
       cases: { format: true, loadedSets: true, readings: true, duration: true, limit: true, lines: true, linesOffsets: true, times: true, timesOffsets: true },

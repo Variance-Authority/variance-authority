@@ -492,6 +492,7 @@ parent has rows: child rows for parent `i` are `[off[i], off[i + 1])`.
 | tests | `tests.duration` | the whole milliseconds the test runner reported for the file, `0xffffffff` when it reported none |
 | tests | `tests.phases` | five words a file, the whole milliseconds of its prepare, environment, setup, collect and cases phases, `0xffffffff` for a phase the runner did not time |
 | tests | `tests.start` | two words a file, the epoch milliseconds the runner started it at, low word then high, `0xffffffff` in both when it gave none |
+| tests | `tests.lane` | one word a file, the Playwright worker lane (`parallelIndex`) of the attempt that started first, `0xffffffff` when none was recorded |
 | tests | `tests.preconditions` | range into the precondition rows |
 | preconditions | `preconditions.name`, `preconditions.digest` | a path the test's answer depends on, and the digest it had |
 | modules | `modules.path`, `modules.source` | the module path, sorted by code unit, and the digest of its source |
@@ -544,6 +545,8 @@ is the render through `afterEach`, or to the phase it ended on when it errored,
 was aborted or was read before `afterEach` finished. Phases are summed across
 projects and readings as durations are. A record written before phases were kept
 opens with every file unphased.
+
+**Lane.** `tests.lane` is the worker lane (`parallelIndex`) the file's earliest attempt ran on. Only Playwright records one. A file with none stores the sentinel and a reader answers it as absent, never as lane 0; a record written before lanes were kept opens with every file unlaned. A join keeps the lane of the earlier start.
 
 **Start.** `tests.start` is when the runner started the file, in milliseconds
 since the epoch on the runner's own clock, the earliest of its attempts. Only

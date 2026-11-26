@@ -110,10 +110,12 @@ function reader(bytes: Uint8Array): Reader {
   };
 }
 
-function invalid(): never {
+/** Throws what `refused` makes; for a read that cannot go on. */
+export function invalid(): never {
   throw refused();
 }
 
-function refused(): Error {
+/** The error a reader of `cases.readings` throws on bytes this build does not read. */
+export function refused(): Error {
   return new Error('the record\'s readings section is not one this build reads');
 }

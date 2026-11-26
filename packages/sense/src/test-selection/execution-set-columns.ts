@@ -1,7 +1,8 @@
 import { openBlob, openBytes, openWords, resident, type Bytes } from './columns.js';
 import { durationWord, NO_DURATION, NO_OWNER, validSections, type Header, type Section } from './format-layout.js';
 import { openCrossingSets, type CrossingSetsView } from './crossing-sets-read.js';
-import { saidRead, type Said } from './case-said.js';
+import type { Said } from './case-said.js';
+import { saidRead } from './case-said-read.js';
 import { checkedRows, invalid, LINES_COLUMN, LINES_OFFSETS, type RowsTable } from './case-lines.js';
 import { TIMES_COLUMN, TIMES_OFFSETS } from './case-times.js';
 import type { ExecutionTest } from './reverse.js';
@@ -127,7 +128,7 @@ export const OVERWRITTEN_SECTION = 'blocks.overwrittenSet';
 
 const HEARD_SECTIONS = { said: SAID_SECTION, read: READ_SECTION, misused: MISUSED_SECTION } as const;
 
-/** What each case heard, read by the addon off the sections and the index's crossing-set pool. */
+/** What each case heard, read off the sections and the index's crossing-set pool. */
 function saidOf(opened: OpenedSections, testCount: number): readonly (Said | undefined)[] {
   const offsets = columnWords(opened, 'sets.off');
   const sections = Object.fromEntries(
@@ -217,6 +218,7 @@ function named(column: Uint32Array, strings: number): Uint32Array {
   return column;
 }
 
+/** A record's bytes with its header read and its sections found by name, nothing yet decoded. */
 export interface OpenedSections {
   readonly file: Bytes;
   readonly bytes: Uint8Array;
@@ -225,6 +227,7 @@ export interface OpenedSections {
   readonly found: ReadonlyMap<string, Section>;
 }
 
+/** Opens a record's header and finds its sections; refused when a section runs past the bytes. */
 export function sectionsOf(bytes: Uint8Array): OpenedSections {
   if (bytes.length < 4) throw invalid();
   const headerLength = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength).readUInt32LE(0);
@@ -256,6 +259,7 @@ function whole(opened: OpenedSections, name: string): Uint8Array {
   return opened.file.read(opened.base + section.offset, opened.base + section.offset + section.length);
 }
 
+/** Section `name` as little-endian words, packed or not; refused when the record lacks it. */
 export function columnWords(opened: OpenedSections, name: string): Uint32Array {
   const section = opened.found.get(name);
   if (section === undefined) throw invalid();
@@ -265,12 +269,14 @@ export function columnWords(opened: OpenedSections, name: string): Uint32Array {
   return new Uint32Array(bytes.buffer, bytes.byteOffset, section.length / 4);
 }
 
+/** Section `name` as bytes, packed or not; refused when the record lacks it. */
 export function columnBytes(opened: OpenedSections, name: string): Uint8Array {
   const section = opened.found.get(name);
   if (section === undefined) throw invalid();
   return section.rows === undefined ? whole(opened, name) : openBytes(stored(opened, name), section.rows).all();
 }
 
+/** Section `name` as one blob that `offsets` cuts, packed or not; refused when the record lacks it. */
 export function columnBlob(opened: OpenedSections, name: string, offsets: Uint32Array): Uint8Array {
   const section = opened.found.get(name);
   if (section === undefined) throw invalid();

@@ -164,6 +164,7 @@ variance select  [--since <ref> [--ran-at <commit>]] [--execution <journey-file>
 variance shards  [--setup <seconds>] [--budget <seconds>] [--max <n>] [--workers <n>] [--since <ref> [--ran-at <commit>] [--collected <file>]] [--at-distance <hops>] [--suite <name>] [--unrecorded <n>] [--format text|json]
 variance reach   --since <ref> [--format plain|json] [--whole-files] [--no-git]
 variance trace   [--format otlp] [--suite <name>]
+variance view    [--suite <name>]
 variance covering --file <path> [--line <n>|<a>-<b>] [--function <name>] [--at-distance <hops>] [--in-package] [--hops] [--text <path>|-] | --since <ref> [--against <record>] [--cases last|<test file>] [--where <name>[=<value>]]... [--read <name>[=<value>]]... [--execution <path> | --suite <name>] [--root <path>] [--format text|refs|json] [--limit <n>] [--offset <n>]
 variance coverage [--suite <name> [--against <record>]] [--from <dir> | --packages] [--at-distance <hops>] [--fan-in] [--session <name>=<path>]... [--served <dir>] [--root <path>] [--format text|markdown|json|badge|html]
 variance layers  [--against <index>] [--package <name>]... [--root <path>] [--format text|markdown|json]
@@ -199,6 +200,7 @@ variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [--to-
 | `shards` | prints how many shards a recorded suite is worth, and the `k/n` of each for a CI matrix, from what each shard spends before its first test |
 | `reach` | names every file a diff reaches, in any language it reads, for whatever you pipe it into |
 | `trace` | prints a recorded Playwright run as OTLP spans for any trace viewer; [Trace](https://variance-authority.dev/docs/trace) says where to send them |
+| `view` | writes the whole recording as one HTML page to open from disk: test files, cases, a timeline, modules, regions and every section; [View](https://variance-authority.dev/docs/view) says what each tab shows |
 | `covering` | names the tests that covered one source file, line or function, nearest first with `--hops` |
 | `review` | prints what a change did, after the suite ran it: the edits, the changed code no case covered, the cases added, and what changed outside any import |
 | `report` | re-reads what `run` wrote |

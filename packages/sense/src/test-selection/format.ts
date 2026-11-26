@@ -15,6 +15,7 @@ import {
   PHASE_NAMES,
   durationWord,
   kindId,
+  laneWord,
   startWords,
 } from './format-layout.js';
 import { native, nativeRefusal } from '../addon.js';
@@ -127,6 +128,7 @@ export function coverageRows(coverage: RunCoverage): NativeCoverageRows {
     testDuration: Uint32Array.from(tests, (test) => durationWord(test.duration)),
     testPhases: phaseWords(tests.map((test) => test.phases)),
     testStart: Uint32Array.from(tests.flatMap((test) => startWords(test.start))),
+    testLane: Uint32Array.from(tests, (test) => laneWord(test.lane)),
     testPreconditions,
     preconditionName,
     preconditionDigest,
@@ -185,6 +187,12 @@ export function startAt(words: Uint32Array | undefined, test: number): { readonl
   return high === NO_DURATION ? {} : { start: high * 2 ** 32 + low };
 }
 
+/** The lane test `test` holds in a `tests.lane` column, as a field to spread: absent where none was given. */
+export function laneAt(words: Uint32Array | undefined, test: number): { readonly lane?: number } {
+  const lane = words?.[test] ?? NO_DURATION;
+  return lane === NO_DURATION ? {} : { lane };
+}
+
 /** Decode the snapshot for callers that explicitly ask for the logical model. */
 export function decodeTestCoverage(bytes: Uint8Array): TestCoverage {
   const view = openTestCoverage(bytes);
@@ -214,6 +222,7 @@ export function decodeTestCoverage(bytes: Uint8Array): TestCoverage {
   const testDuration = view.testDuration?.all();
   const testPhases = view.testPhases?.all();
   const testStart = view.testStart?.all();
+  const testLane = view.testLane?.all();
   const preconditionName = view.preconditionName.all();
   const preconditionDigest = view.preconditionDigest.all();
   const tests: CoverageTest[] = [];
@@ -233,6 +242,7 @@ export function decodeTestCoverage(bytes: Uint8Array): TestCoverage {
       ...(duration === NO_DURATION ? {} : { duration }),
       ...phasesAt(testPhases, test),
       ...startAt(testStart, test),
+      ...laneAt(testLane, test),
     });
   }
   const modulePath = view.modulePath.all();

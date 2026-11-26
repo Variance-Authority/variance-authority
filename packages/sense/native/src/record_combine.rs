@@ -422,3 +422,7 @@ mod tests;
 #[cfg(test)]
 #[path = "record_combine_dispute_tests.rs"]
 mod dispute_tests;
+
+#[cfg(test)]
+#[path = "record_combine_lane_tests.rs"]
+mod lane_tests;

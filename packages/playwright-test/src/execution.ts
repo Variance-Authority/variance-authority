@@ -36,6 +36,7 @@ import {
   type ObservedSubject,
   type PreconditionStanding,
 } from '@variance-authority/sense/journal';
+import { timedSubjects } from './file-timing.js';
 import { stitchJourneys } from '@variance-authority/sense/journey';
 import { askedForStories, pageStories, storyPageSource, type StoryCase } from '@variance-authority/sense/story';
 import { limitAcross, recordFileFor, repositoryRoot, type CoveragePrecondition } from '@variance-authority/sense/test-selection';
@@ -117,7 +118,7 @@ export interface ExecutionRecorder {
    * and the case each sum their attempts; nothing here reads a clock. `limit`
    * is `testInfo.timeout` at the same moment, after any `test.setTimeout`, and
    * the case keeps its longest attempt's. `start` is `testInfo.startTime` in
-   * milliseconds since the epoch; the file keeps the earliest of its attempts.
+   * milliseconds since the epoch, and `lane` is `parallelIndex`; the file keeps the earliest attempt's.
    */
   readonly mark: (
     owner: string,
@@ -126,6 +127,7 @@ export interface ExecutionRecorder {
     duration?: number,
     limit?: number,
     start?: number,
+    lane?: number,
   ) => void;
   /**
    * Keep one attempt's Eyes journal for its case, counted from 1, or without
@@ -194,6 +196,7 @@ export function createExecutionRecorder(
   const tried = new Map<string, ObservedAttempt[]>();
   // When the runner started each owner's earliest attempt, in epoch milliseconds.
   const began = new Map<string, number>();
+  const laned = new Map<string, number>(); // the lane of the attempt `began` holds
   const add = (key: string, duration: number): void => void spent.set(key, (spent.get(key) ?? 0) + duration);
   // The medium is opened on the first execution that could use it, and only when
   // a head was named: a suite with one realm has nothing to reach it from
@@ -271,9 +274,12 @@ export function createExecutionRecorder(
       return journey;
     },
 
-    mark: (owner, complete, subject, duration, limit, start) => {
+    mark: (owner, complete, subject, duration, limit, start, lane) => {
       if (duration !== undefined) add(owner, duration);
-      if (start !== undefined && Number.isFinite(start)) began.set(owner, Math.min(began.get(owner) ?? start, start));
+      if (start !== undefined && Number.isFinite(start)) {
+        if (lane !== undefined && start < (began.get(owner) ?? Infinity)) laned.set(owner, lane);
+        began.set(owner, Math.min(began.get(owner) ?? start, start));
+      }
       if (subject !== undefined) {
         const key = caseKey(owner, subject.id);
         // A case the page had nothing to drain for is still a case: it stopped,
@@ -413,6 +419,7 @@ export function createExecutionRecorder(
         complete: accumulated.complete && stitched.complete,
         ...(spent.has(owner) ? { duration: spent.get(owner)! } : {}),
         ...(began.has(owner) ? { start: began.get(owner)! } : {}),
+        ...(laned.has(owner) ? { lane: laned.get(owner)! } : {}),
         journal: journalOf(accumulated),
         ...(preconditions.has(owner) ? { preconditions: preconditions.get(owner)! } : {}),
       });
@@ -423,7 +430,7 @@ export function createExecutionRecorder(
     // subjects reads to the merge as a second run and retires what the first
     // wrote. They are joined here and written once, against every inventory
     // the run drove.
-    const joined = joinObservations([subjects, ...stitched.heads.values()]);
+    const joined = timedSubjects(joinObservations([subjects, ...stitched.heads.values()]), spent, began, laned);
     if (joined.length === 0) return;
 
     // A worker is one process of several and the index is one file, so a worker

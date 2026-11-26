@@ -178,6 +178,7 @@ export const NAVIGATION = [
       { href: "/docs/source", label: "Source scan", cluster: "Source and execution records" },
       { href: "/docs/execution-record", label: "Execution record", cluster: "Source and execution records" },
       { href: "/docs/trace", label: "Trace", cluster: "Source and execution records" },
+      { href: "/docs/view", label: "View", cluster: "Source and execution records" },
       { href: "/docs/how-selection-scales", label: "How the test-to-code map stays small", cluster: "Source and execution records" },
       { href: "/docs/polyglot", label: "How different languages are handled", cluster: "Source and execution records" },
       { href: "/docs/presentation-reference", label: "Presentation evidence", cluster: "UI and runtime evidence" },
