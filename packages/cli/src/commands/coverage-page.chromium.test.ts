@@ -21,7 +21,9 @@ const BROWSER_AVAILABLE = ((): boolean => {
 })();
 
 if (!BROWSER_AVAILABLE) {
-  console.warn('\npackages/cli coverage page in a browser: skipped.' + '\n  no browser — npx playwright install chromium\n');
+  console.warn(
+    '\npackages/cli coverage page in a browser: skipped.' + '\n  no browser — npx playwright install chromium\n',
+  );
 }
 
 const LONG = 'packages/cli/src/commands/a-file-with-a-name-long-enough-to-overflow-a-phone.ts';
