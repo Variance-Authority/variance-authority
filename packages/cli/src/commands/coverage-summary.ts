@@ -4,23 +4,37 @@ import { code } from './comment-text.js';
 import type { CoverageSource } from './coverage-source.js';
 import type { Coverage, CoverageSuite } from './coverage.js';
 
+/** One part of a suite's change: its regions, whether it adds to the count or takes from it, and what it says. */
+interface Part {
+  readonly sign: 1 | -1 | 0;
+  readonly count: number;
+  readonly said: string;
+}
+
 /**
  * The parts of a suite's change in regions run, each signed by what it does to
- * the count, so they add up to the count's own change. Fewer cases is said
- * unsigned: those regions still run.
+ * the count, so they add up to the count's own change. Fewer cases is unsigned:
+ * those regions still run. The one reading the text, the sum and the split share.
  */
-export function coverageParts(change: SuiteChange): readonly string[] {
-  const said: string[] = [];
+function parts(change: SuiteChange): readonly Part[] {
   const regions = (count: number, word: string) => `${grouped(count)} ${word}${count === 1 ? '' : 's'}`;
-  if (change.gained > 0) said.push(`+${grouped(change.gained)} newly run`);
-  if (change.lost > 0) said.push(`−${grouped(change.lost)} no longer run`);
-  if (change.hidden > 0) said.push(`−${grouped(change.hidden)} no longer run after a case stopped`);
-  if (change.unmeasured > 0) said.push(`−${grouped(change.unmeasured)} unmeasured: their cases last ran before their file changed`);
-  if (change.thinned > 0) said.push(`${grouped(change.thinned)} run by fewer cases`);
-  if (change.written.regions > 0) said.push(`+${grouped(change.written.run)} run in ${regions(change.written.regions, 'added region')}`);
-  if (change.deleted.regions > 0) said.push(`−${grouped(change.deleted.run)} had run in ${regions(change.deleted.regions, 'removed region')}`);
-  if (change.arrived.files.length > 0) said.push(`+${grouped(change.arrived.run)} run in ${grouped(change.arrived.files.length)} newly loaded file${change.arrived.files.length === 1 ? '' : 's'}`);
-  if (change.departed.files.length > 0) said.push(`−${grouped(change.departed.run)} had run in ${files(change.departed.files.length)} no longer loaded`);
+  const arrived = change.arrived.files.length;
+  return [
+    { sign: 1, count: change.gained, said: 'newly run', shown: change.gained > 0 },
+    { sign: -1, count: change.lost, said: 'no longer run', shown: change.lost > 0 },
+    { sign: -1, count: change.hidden, said: 'no longer run after a case stopped', shown: change.hidden > 0 },
+    { sign: -1, count: change.unmeasured, said: 'unmeasured: their cases last ran before their file changed', shown: change.unmeasured > 0 },
+    { sign: 0, count: change.thinned, said: 'run by fewer cases', shown: change.thinned > 0 },
+    { sign: 1, count: change.written.run, said: `run in ${regions(change.written.regions, 'added region')}`, shown: change.written.regions > 0 },
+    { sign: -1, count: change.deleted.run, said: `had run in ${regions(change.deleted.regions, 'removed region')}`, shown: change.deleted.regions > 0 },
+    { sign: 1, count: change.arrived.run, said: `run in ${grouped(arrived)} newly loaded file${arrived === 1 ? '' : 's'}`, shown: arrived > 0 },
+    { sign: -1, count: change.departed.run, said: `had run in ${files(change.departed.files.length)} no longer loaded`, shown: change.departed.files.length > 0 },
+  ].filter((part) => part.shown).map(({ sign, count, said }) => ({ sign: sign as Part['sign'], count, said }));
+}
+
+/** The parts of `change` as text, each signed by what it does to the count. */
+export function coverageParts(change: SuiteChange): readonly string[] {
+  const said = parts(change).map(({ sign, count, said }) => `${sign > 0 ? '+' : sign < 0 ? '−' : ''}${grouped(count)} ${said}`);
   return said.length === 0 ? ['no region newly run, no longer run, added or removed'] : said;
 }
 
@@ -32,10 +46,13 @@ export function coverageSum(change: SuiteChange): number {
 
 /** The regions `change` started running and stopped running: its positive parts, and its negative ones. */
 export function startedStopped(change: SuiteChange): { readonly started: number; readonly stopped: number } {
-  return {
-    started: change.gained + change.written.run + change.arrived.run,
-    stopped: change.lost + change.hidden + change.unmeasured + change.deleted.run + change.departed.run,
-  };
+  let started = 0;
+  let stopped = 0;
+  for (const { sign, count } of parts(change)) {
+    if (sign > 0) started += count;
+    else if (sign < 0) stopped += count;
+  }
+  return { started, stopped };
 }
 
 /** `+2`, `−3`, `0`. */
