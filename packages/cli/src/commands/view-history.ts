@@ -22,7 +22,7 @@ import type { FileRuns, History, HistoryPoint, Moved, RecordSummary, RetriedCase
 
 const DAY = 86_400_000;
 /** Bumped when a summary's shape changes, so an older one is read again. */
-const SUMMARY_VERSION = 5;
+const SUMMARY_VERSION = 6;
 /** Records read at once: a share answers each over the network. */
 const READING = 8;
 const MOVERS = 3;
@@ -58,10 +58,11 @@ export function summaryOf(bytes: Uint8Array): RecordSummary {
 }
 
 /** A retried case and the summed time of every attempt before its last, the one its runner reported. */
-function lostTo({ file, name, attempts }: { readonly file: string; readonly name: string; readonly attempts: readonly { readonly duration?: number }[] }): RetriedCase {
+function lostTo({ file, name, attempts }: { readonly file: string; readonly name: string; readonly attempts: readonly { readonly attempt: number; readonly duration?: number }[] }): RetriedCase {
   const earlier = attempts.slice(0, -1);
-  // An attempt the runner kept no time for cost something unknown, not nothing.
-  return earlier.some((one) => one.duration === undefined) ? { name, file } : { name, file, lost: earlier.reduce((sum, one) => sum + one.duration!, 0) };
+  // An attempt the runner kept no time for, or no row at all, cost something unknown, not nothing.
+  const unknown = attempts.some((one, at) => one.attempt !== at + 1) || earlier.some((one) => one.duration === undefined);
+  return unknown ? { name, file } : { name, file, lost: earlier.reduce((sum, one) => sum + one.duration!, 0) };
 }
 
 /** One record's summary, and where the share kept it. */

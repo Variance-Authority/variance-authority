@@ -26,7 +26,7 @@ const MAIN = { kind: 'mainline', name: 'main' } as const;
 const IN_GIT = async (kept: ReadonlySet<string>) => [C0, C1, C2, C3].filter((commit) => kept.has(commit));
 
 /** A record of two test files, the second's cases with one retried once. */
-function record(durations: readonly [number, number], options: { readonly retried?: boolean; readonly stray?: boolean; readonly untimed?: boolean } = {}): Uint8Array {
+function record(durations: readonly [number, number], options: { readonly retried?: boolean; readonly stray?: boolean; readonly untimed?: boolean; readonly gap?: boolean } = {}): Uint8Array {
   const coverage = encodeTestCoverage({
     version: 3,
     instrumentation: 'fixture',
@@ -52,7 +52,7 @@ function record(durations: readonly [number, number], options: { readonly retrie
     ...(options.retried === true
       ? { attempts: encodeRecordedAttempts([
           options.untimed === true ? { case: 'p', attempt: 1, ended: 'failed' } as const : { case: 'p', attempt: 1, ended: 'failed', duration: 31 } as const,
-          { case: 'p', attempt: 2, ended: 'passed', duration: 8 },
+          { case: 'p', attempt: options.gap === true ? 3 : 2, ended: 'passed', duration: 8 },
           ...(options.stray === true ? [{ case: 'gone', attempt: 1, ended: 'failed', duration: 5 } as const, { case: 'gone', attempt: 2, ended: 'passed', duration: 5 } as const] : []),
         ]) }
       : {}),
@@ -99,6 +99,10 @@ describe('one record, summarised', () => {
 
   it('says nothing of the time lost where an earlier attempt kept no time, rather than counting it as none', () => {
     expect(summaryOf(record([12, 30], { retried: true, untimed: true })).retried).toEqual([{ name: 'checkout > pays', file: 'test/pay.test.ts' }]);
+  });
+
+  it('says nothing of the time lost where an earlier attempt left no row, rather than counting it as none', () => {
+    expect(summaryOf(record([12, 30], { retried: true, gap: true })).retried).toEqual([{ name: 'checkout > pays', file: 'test/pay.test.ts' }]);
   });
 
   it('says nothing of retries where the record kept no attempts', () => {
