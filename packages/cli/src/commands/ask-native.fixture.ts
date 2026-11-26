@@ -110,6 +110,15 @@ export function nativeFiles(question: readonly string[]): Readonly<Record<string
       'packages/lib-exports/src/greet.ts': "export const greet = 'unpublished';\n",
       'packages/lib-exports/src/greeted.ts': "import { greet } from './greet.js';\nexport const greeted = greet;\n",
     } : {}),
+    ...(question[2] === 'splitFoo' ? {
+      'packages/lib/src/index.ts': "export { greet } from './greet.js';\nexport { splitFoo } from './split.js';\n",
+      'packages/lib/src/split.ts': 'export const splitFoo = 1;\n',
+      'packages/lib-exports/src/split.ts': 'export const splitFoo = 2;\n',
+      'packages/lib-exports/src/split-use.ts': "import { splitFoo } from './split.js';\nexport const split = splitFoo;\n",
+    } : {}),
+    ...(question[2] === 'hiddenFoo' ? {
+      'packages/lib/src/hidden.ts': 'function hiddenFoo(): number { return 1; }\nexport const hidden = hiddenFoo();\n',
+    } : {}),
     ...(question[2] === 'heldFoo' ? {
       'packages/lib/src/held.ts': 'const { heldFoo } = make();\nexport const held = heldFoo;\n',
       'packages/lib-exports/src/foo.ts': 'export const heldFoo = 1;\n',

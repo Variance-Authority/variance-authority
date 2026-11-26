@@ -163,13 +163,14 @@ pub(crate) fn uses(asking: &Asking<'_>, store: &mut (impl Read + Seek)) -> Resul
     let elsewhere = file.is_some_and(|file| (!kept_here.is_empty() || !members.is_empty())
         && !published.iter().any(|one| one.at == file) && !exported.iter().any(|held| held.export.at == file && held.export.bound.is_some()));
     if (published.is_empty() && paths.is_empty() && exported.is_empty()) || elsewhere {
+        // A file named that declares nothing by the name is answered by the files that do, before any of theirs is read.
+        if let Some(undeclared) = undeclared { return Ok(Err(undeclared)) }
         if !members.is_empty() {
             return kept::member_uses(asking, member, &members, &kept_here, &kept.unread).said(STORE).map(Ok);
         }
         if kept.names.iter().any(|held| !is_bound(&held.kind)) {
             return kept::private_uses(asking, &kept.names, &kept.unread).said(STORE).map(Ok);
         }
-        if let Some(undeclared) = undeclared { return Ok(Err(undeclared)) }
         let absence = container_absence(&keys, root, layers, name, &package, asking.limit.unwrap_or(DECLARED_CAP), asking.surface).said(STORE)?;
         let absent = nowhere(name, &rows.published_names().said(STORE)?, layers, &kept.unread, None, wanted, package.export_hint(&rows, name, &exports).said(STORE)?.as_deref(), absence, asking.surface);
         if kept.names.is_empty() { return Ok(Err(absent)) }
@@ -188,6 +189,11 @@ pub(crate) fn uses(asking: &Asking<'_>, store: &mut (impl Read + Seek)) -> Resul
         if exported.is_empty() { return Ok(Ok(path_uses(asking, &paths))) }
         return exported::exported_uses(asking, &rows, &paths, &exported, &package, beside).map(Ok);
     }
+    // A file named that exports a declaration of its own, which no entry publishes, is answered for that declaration alone.
+    let unpublished_here = file.is_some_and(|file| !published.iter().any(|one| one.at == file)
+        && exported.iter().any(|held| held.export.at == file && held.export.bound.is_some()
+            && !published.iter().any(|one| one.at == held.key.at && one.declared == held.key.named)));
+    if unpublished_here { return exported::exported_uses(asking, &rows, &paths, &exported, &package, beside).map(Ok) }
     // A file a door opens, or a barrel between it and the declaration, passes the published one on.
     match published::published_uses(asking, &keys, &paths, published, &exported, &package, beside) {
         None => undeclared.map(Err).said(STORE),
