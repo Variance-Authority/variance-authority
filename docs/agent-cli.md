@@ -36,6 +36,7 @@ imports. It does not list where those imports are written: `uses` gives the file
 and line of each. An answer looks like this, abridged:
 
 ```text
+Published entries, one row per import specifier:
 @acme/ui — 12 names, 9 imported elsewhere, 7 documented
 @acme/ui/button — 3 names, 3 imported elsewhere, 1 documented
 

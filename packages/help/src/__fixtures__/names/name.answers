@@ -263,6 +263,7 @@ Next: `variance-authority-help symbol --name Clock --package kit`
 Snapshot <masked>
 
 ## packages
+Published entries, one row per import specifier:
 app — 1 name, 0 imported elsewhere, 1 documented
 kit — 6 names, 6 imported elsewhere, 4 documented
 kit/extra — 1 name, 1 imported elsewhere, 1 documented
