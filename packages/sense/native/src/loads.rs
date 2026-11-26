@@ -21,7 +21,8 @@
 //!
 //! This holds what one walk finds and walks nothing itself: the walk in
 //! [`members`](crate::members) drives it, because a name read through an
-//! `import()` needs that call's request, and one walk answers both.
+//! `import()` or a `require` needs that call's request, and one walk answers
+//! both.
 
 use std::collections::{HashMap, HashSet};
 
@@ -47,12 +48,14 @@ pub(crate) struct Loads<'l> {
     pub(crate) unread_typed: usize,
     /// Each `import()` met so far, by its start offset, and its index in `dynamic`.
     met: HashMap<u32, Option<u32>>,
+    /// Each `require` call met so far, by its start offset, and its index in `required`.
+    called: HashMap<u32, Option<u32>>,
     requires: Requires,
 }
 
 impl<'l> Loads<'l> {
     pub(crate) fn new(lines: &'l Lines, requires: Requires) -> Self {
-        Self { lines, dynamic: Vec::new(), unread_dynamic: 0, required: Vec::new(), unread_required: 0, typed: Vec::new(), unread_typed: 0, met: HashMap::new(), requires }
+        Self { lines, dynamic: Vec::new(), unread_dynamic: 0, required: Vec::new(), unread_required: 0, typed: Vec::new(), unread_typed: 0, met: HashMap::new(), called: HashMap::new(), requires }
     }
 
     /// The index in `dynamic` of the request this call makes, read once however
@@ -75,19 +78,29 @@ impl<'l> Loads<'l> {
         index
     }
 
-    // Forwarding a factory's own target cancels its replacement; it does not
-    // request that module. Other targets remain ordinary written requests.
-    pub(crate) fn call(&mut self, it: &CallExpression, factory: Option<&str>) {
-        let here = match self.requires.load(&it.callee) {
-            Some(Base::Here) => true,
-            Some(Base::Elsewhere) => false,
-            None => return,
-        };
-        match it.arguments.first().and_then(Argument::as_expression).and_then(constant).filter(|_| here) {
-            Some(value) if factory != Some(value) => self.required.push(self.request(value, Kind::Imports, it.span.start)),
-            Some(_) => {},
-            None => self.unread_required += 1,
+    /// The index in `required` of the request this call makes, read once however
+    /// often the walk asks, and none when it loads nothing, its specifier is not
+    /// a constant, or it forwards a factory's own target: that cancels the
+    /// factory's replacement and requests no module.
+    pub(crate) fn call(&mut self, it: &CallExpression, factory: Option<&str>) -> Option<u32> {
+        // A call of what a load returns starts where the load does, so only loads are kept.
+        let here = matches!(self.requires.load(&it.callee)?, Base::Here);
+        if let Some(index) = self.called.get(&it.span.start) {
+            return *index;
         }
+        let index = match it.arguments.first().and_then(Argument::as_expression).and_then(constant).filter(|_| here) {
+            Some(value) if factory != Some(value) => {
+                self.required.push(self.request(value, Kind::Imports, it.span.start));
+                Some(self.required.len() as u32 - 1)
+            }
+            Some(_) => None,
+            None => {
+                self.unread_required += 1;
+                None
+            }
+        };
+        self.called.insert(it.span.start, index);
+        index
     }
 
     /// The index in `required` of the request this declaration makes, and none
