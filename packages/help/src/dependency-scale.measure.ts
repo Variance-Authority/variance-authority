@@ -22,7 +22,7 @@ import { refreshDependencyLexicon } from './dependency-lexicon.js';
  * question reads a published generation the way a user's does. The catalogue is
  * then refreshed cold (no lexicon on disk), again over the unchanged install and index, and once more
  * with the root manifest's modification time moved, so it reads again what its stamps no longer vouch for. Four answers are timed end to end, node start
- * included, and each must come in under a second warm; `ask packages` is one of them because it takes no
+ * included, and each must come in under a second warm; `ask packages` is one of them because it needs no
  * argument, so nothing narrows what it reads. So is `orient` over the start point, which reads
  * the package graph, the external requests and the recorded cases. Its cost is the working-tree reading,
  * `status`, which walks every file unless the repository turns on the two accelerators

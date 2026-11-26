@@ -19,6 +19,8 @@ const FLAG_KITS = Array.from({ length: 10 }, (_, at) => `flag-kit-${at}`);
 
 it.each([
   { question: ['packages'], contains: 'packages that declare no entry are imported by path' },
+  { question: ['packages', '--limit', '1'], contains: '1 more not shown; `--offset` 1 shows the next 1.' },
+  { question: ['packages', '--limit=1', '--offset=1'], contains: 'Rows 2–2 of 2.' },
   { question: ['entrypoint', '--package', '@acme/lib'], contains: '@acme/lib — 2 names' },
   { question: ['entrypoint', '--package', '@acme/lib/src/internal/math'], contains: 'By name, most imported first:' },
   { question: ['entrypoint', '--package', '@acme/tools-only'], contains: 'opens no main entry' },

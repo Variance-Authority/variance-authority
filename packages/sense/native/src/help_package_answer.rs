@@ -6,6 +6,7 @@ use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::ops::Range;
 
+use crate::help_grep_answer::Page;
 use crate::help_name_scope::owner_of;
 use crate::help_search_answer::plural;
 use crate::help_surface::shell;
@@ -21,7 +22,11 @@ const REACHING: &str =
     "Either the manifest has stopped describing what the package is used for, or something is reaching into its internals";
 const NOTHING: &str = "this workspace publishes no package: no manifest it declares is both named and public";
 
-pub(crate) fn packages(file: &mut File) -> Option<String> {
+/// Rows of each list shown when `--limit` is not said: the first page answers where to start, and the rest are counted.
+pub(crate) const SHOWN: usize = 20;
+
+/// Every list is a page: one offset skips the first rows of each list alike, and `page.limit` rows follow in each.
+pub(crate) fn packages(file: &mut File, page: &Page) -> Option<String> {
     let rows = Rows::columns(
         file,
         [
@@ -49,7 +54,7 @@ pub(crate) fn packages(file: &mut File) -> Option<String> {
     if surface.packages().is_empty() {
         answer.push(format!("T{}.", &NOTHING[1..]));
     }
-    answer.extend(opened.iter().map(Opening::line));
+    answer.extend(listed(page, opened.iter().map(Opening::line).collect()));
     let mut paths = HashMap::<&str, (HashSet<(&str, &str)>, HashSet<&str>)>::new();
     for row in surface.group(1)? {
         let spec = rows.string("deep.specifier", row)?;
@@ -75,7 +80,7 @@ pub(crate) fn packages(file: &mut File) -> Option<String> {
                 "{} imported by path, most names first:",
                 plural(unentered.len(), "package that declares no entry is", "packages that declare no entry are")
             ),
-            unentered.iter().map(|(owner, (names, files))| format!("  {owner} — {}", counted(*names, *files))),
+            listed(page, unentered.iter().map(|(owner, (names, files))| format!("  {owner} — {}", counted(*names, *files))).collect()),
         );
     }
     if !deep.is_empty() {
@@ -83,7 +88,7 @@ pub(crate) fn packages(file: &mut File) -> Option<String> {
         block(
             &mut answer,
             format!("{} past a published entrypoint. {REACHING}:", plural(total, "import reaches", "imports reach")),
-            deep.iter().map(|(owner, imports)| format!("  {owner} — {}", count(*imports, "import"))),
+            listed(page, deep.iter().map(|(owner, imports)| format!("  {owner} — {}", count(*imports, "import"))).collect()),
         );
     }
     let mut unfollowed_packages = Vec::new();
@@ -110,7 +115,7 @@ pub(crate) fn packages(file: &mut File) -> Option<String> {
         block(
             &mut answer,
             heading.join(" "),
-            unfollowed.iter().map(|(owner, imports)| format!("  {owner} — {}", count(*imports, "import"))),
+            listed(page, unfollowed.iter().map(|(owner, imports)| format!("  {owner} — {}", count(*imports, "import"))).collect()),
         );
     }
     let unread = rows.column("unreadable");
@@ -121,7 +126,7 @@ pub(crate) fn packages(file: &mut File) -> Option<String> {
         block(
             &mut answer,
             format!("{} could not be read, so the usage counts above are floors:", count(unread.len(), "file")),
-            paths,
+            listed(page, paths),
         );
     }
     let asks = [
@@ -248,6 +253,19 @@ fn count(n: usize, noun: &str) -> String {
 
 fn counted(names: usize, files: usize) -> String {
     format!("{} from {files} of its files", count(names, "name"))
+}
+
+/// One list's page: which of its rows it shows when it does not start at the first, those rows, and the offset of the next page; nothing for a list with no rows.
+fn listed(page: &Page, rows: Vec<String>) -> Vec<String> {
+    if rows.is_empty() {
+        return rows;
+    }
+    let mut lines: Vec<String> = page.above(rows.len(), "--offset").into_iter().collect();
+    let below = page.below(rows.len(), "--offset");
+    let shown = page.rows(rows.len());
+    lines.extend(rows.into_iter().skip(shown.start).take(shown.len()));
+    lines.extend(below);
+    lines
 }
 
 fn block(answer: &mut Vec<String>, heading: String, rows: impl IntoIterator<Item = String>) {

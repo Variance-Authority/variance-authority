@@ -59,6 +59,12 @@ could not follow to a source file, such as a `main` naming a build output the
 checkout does not hold, opens no names; the imports that name that entry are
 counted apart, and only an import past every entry it declares is deep.
 
+Each list shows its first 20 rows; a heading above one counts all of it. A list cut
+short ends with how many rows it left and the `--offset` that shows the next
+page, such as ``48 more not shown; `--offset` 20 shows the next 20.`` One
+`--offset` skips the same number of rows at the top of every list, and
+`--limit` sets how many each shows.
+
 Pass the package's name to count those imports per file, the file the most
 files import first: `variance ask entrypoint --package @acme/legacy`. Each row
 of that answer is a specifier. Pass it to count the imports written as that

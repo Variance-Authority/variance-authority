@@ -22,9 +22,36 @@ pub(crate) struct Scope {
     pub files: Vec<(String, u32)>,
 }
 
+/// One page of an ordered list: `limit` rows after the first `offset`.
 pub(crate) struct Page {
     pub offset: usize,
     pub limit: usize,
+}
+
+impl Page {
+    /// The rows of a list of `total` this page shows.
+    pub(crate) fn rows(&self, total: usize) -> Range<usize> {
+        let start = self.offset.min(total);
+        start..start.saturating_add(self.limit).min(total)
+    }
+
+    /// What the page says above its rows when it does not start at the first: which rows it shows, or that `flag` is past the last.
+    pub(crate) fn above(&self, total: usize, flag: &str) -> Option<String> {
+        if self.offset == 0 {
+            None
+        } else if self.offset >= total {
+            Some(format!("`{flag}` {} is past the last of {total} rows.", self.offset))
+        } else {
+            Some(format!("Rows {}–{} of {total}.", self.offset + 1, self.rows(total).end))
+        }
+    }
+
+    /// What the page says below its rows when rows remain: how many, and the `flag` that shows the next page.
+    pub(crate) fn below(&self, total: usize, flag: &str) -> Option<String> {
+        let end = self.rows(total).end;
+        let rest = total - end;
+        (rest > 0).then(|| format!("{rest} more not shown; `{flag}` {end} shows the next {}.", rest.min(self.limit)))
+    }
 }
 
 /// The page a question said; an answer it would not all fit is collapsed when neither is said.
@@ -262,19 +289,10 @@ fn written(roots: &Roots, query: &str, found: Found, said: &Said, around: Option
     let page = Page { offset: said.offset.unwrap_or(0), limit: said.limit.unwrap_or(SHOWN) };
     let offset_flag = surface.input("offset");
     let mut lines = vec![format!("{heading}, nearest first:")];
-    let start = page.offset.min(total);
-    let end = start.saturating_add(page.limit).min(total);
-    if page.offset >= total {
-        lines.push(format!("`{offset_flag}` {} is past the last of {total} rows.", page.offset));
-    } else if page.offset != 0 {
-        lines.push(format!("Rows {}–{end} of {total}.", start + 1));
-    }
-    lines.extend(listed(&found, start..end, &files, &distances));
+    lines.extend(page.above(total, &offset_flag));
+    lines.extend(listed(&found, page.rows(total), &files, &distances));
     lines.extend(notes);
-    if end < total {
-        let rest = total - end;
-        lines.push(format!("{rest} more not shown; `{offset_flag}` {end} shows the next {}.", rest.min(page.limit)));
-    }
+    lines.extend(page.below(total, &offset_flag));
     lines.join("\n")
 }
 

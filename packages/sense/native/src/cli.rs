@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 
 use serde_json::Value;
 
-use crate::help_grep_answer::{self, Roots, Said};
+use crate::help_grep_answer::{self, Page, Roots, Said};
 use crate::help_package_answer;
 use crate::help_search_answer::search;
 use crate::help_store::{graph_digest, read_head};
@@ -57,7 +57,7 @@ pub fn answer(args: &[OsString], mut waiting: impl FnMut(&str)) -> Option<(i32, 
         return Some((0, out));
     }
     let question = match args.as_slice() {
-        ["ask", "packages"] => Question::Packages,
+        ["ask", "packages", rest @ ..] => Question::Packages(page_args(rest)?),
         ["ask", "entrypoint", rest @ ..] => {
             let (package, subpath) = entrypoint_args(rest)?;
             Question::Entrypoint(package, subpath)
@@ -73,7 +73,7 @@ pub fn answer(args: &[OsString], mut waiting: impl FnMut(&str)) -> Option<(i32, 
     follow_ups::settled(&index, waiting)?;
     let (mut file, published) = publication(&root, &index)?;
     let text = match question {
-        Question::Packages => Ok(help_package_answer::packages(&mut file)?),
+        Question::Packages(page) => Ok(help_package_answer::packages(&mut file, &page)?),
         Question::Entrypoint(package, subpath) => help_package_answer::names(&mut file, package, subpath)?,
         Question::Discover(request) => {
             if root != published.graph_root { return None }
@@ -109,13 +109,31 @@ pub fn answer(args: &[OsString], mut waiting: impl FnMut(&str)) -> Option<(i32, 
 }
 
 enum Question<'a> {
-    Packages,
+    Packages(Page),
     Entrypoint(&'a str, Option<&'a str>),
     Discover(discover::Request<'a>),
     Grep(QueryRequest<'a>),
     Symbol(SymbolRequest<'a>),
     Uses(UsesRequest<'a>),
     Search(QueryRequest<'a>),
+}
+
+/// The page `ask packages` said: `--limit` and `--offset`, each once; any other flag is the Node dispatcher's to refuse.
+fn page_args(args: &[&str]) -> Option<Page> {
+    let (mut offset, mut limit) = (None, None);
+    let mut args = args.iter().copied();
+    while let Some(flag) = args.next() {
+        let (flag, value) = match flag.split_once('=') {
+            Some(pair) => pair,
+            None => (flag, args.next().filter(|value| !value.starts_with("--"))?),
+        };
+        match flag {
+            "--offset" if offset.is_none() => offset = Some(value.parse().ok()?),
+            "--limit" if limit.is_none() => limit = Some(value.parse().ok().filter(|value| *value > 0)?),
+            _ => return None,
+        }
+    }
+    Some(Page { offset: offset.unwrap_or(0), limit: limit.unwrap_or(help_package_answer::SHOWN) })
 }
 
 fn entrypoint_args<'a>(args: &[&'a str]) -> Option<(&'a str, Option<&'a str>)> {

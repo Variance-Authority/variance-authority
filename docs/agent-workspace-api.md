@@ -444,7 +444,9 @@ when the package declares no entry, or past the entry it declares, a deep
 import. A package whose declared entry the reading could not follow to a source
 file, such as a build output the checkout does not hold, opens no names, and
 the imports that name that entry are counted apart from the deep ones. Either
-row goes to `docs_entrypoint` as `package`, exactly as printed.
+row goes to `docs_entrypoint` as `package`, exactly as printed. Each block
+shows 20 rows; `limit` and `offset` page every block alike, and a block cut
+short ends with how many rows it left and the `offset` of the next page.
 
 Holding a request in words, whether or not it spells code names and paths, call
 `docs_classify` with it as `query` instead. It says which of its words are,

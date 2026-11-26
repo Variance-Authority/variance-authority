@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import { NO_ARGS } from '@variance-authority/mcp/tools';
 import type { Help } from '@variance-authority/package/help';
 import { BY_PATH, QUIET, SUBPATHS_ONLY, busier, importOf, stored } from '../__fixtures__/imported-by-path.js';
 import { HELP_TOOLS } from '../tools.js';
@@ -22,8 +21,34 @@ import { packages } from './packages.js';
  */
 
 describe('docs_packages', () => {
-  it('takes no argument', () => {
-    expect(packages.inputSchema).toEqual(NO_ARGS);
+  it('takes `limit` and `offset`, and nothing else', () => {
+    expect(Object.keys(packages.inputSchema.properties ?? {})).toEqual(['limit', 'offset']);
+    expect(packages.inputSchema.required ?? []).toEqual([]);
+  });
+
+  it('shows 20 rows of a longer list, counts the rest and names the offset of the next page', () => {
+    const owners = Array.from({ length: 25 }, (_, at) => importOf(`@acme/p${String(at).padStart(2, '0')}/src/file`, '@acme/app', `apps/app/src/f${at}.ts`, ['one']));
+    const text = packages.run({ ...BY_PATH, deep: [], byPath: owners }, {});
+
+    expect(text).toMatch(/^25 packages that declare no entry are imported by path, most names first:$/m);
+    expect(text.split('\n').filter((line) => /^ {2}@acme\/p\d\d — /u.test(line))).toHaveLength(20);
+    expect(text).toMatch(/^ {2}@acme\/p19 — .*\n5 more not shown; `offset` 20 shows the next 5\.$/m);
+    expect(text).not.toContain('@acme/p20 —');
+  });
+
+  it('takes `limit` and `offset` alike for every list, and ends each list cut short with its count and the next offset', () => {
+    const first = packages.run(BY_PATH, { limit: 1 });
+    const second = packages.run(BY_PATH, { limit: 1, offset: 1 });
+
+    expect(first).toMatch(/^ {2}@acme\/kit — 2 names from 2 of its files\n1 more not shown; `offset` 1 shows the next 1\.$/m);
+    expect(first).not.toContain('@acme/stamp');
+    expect(second).toMatch(/^Rows 2–2 of 2\.\n {2}@acme\/stamp — 1 name from 1 of its files$/m);
+    expect(second).not.toMatch(/^ {2}@acme\/kit — /m);
+    expect(second).toContain('`offset` 1 is past the last of 1 rows.');
+  });
+
+  it('refuses an offset that is not a whole number, naming it as the surface asked takes it', () => {
+    expect(() => packages.run(BY_PATH, { offset: -1 })).toThrow('`offset` takes a whole number of rows to skip');
   });
 
   it('counts what each package is imported for, one row per package, and lists no import', () => {
@@ -111,6 +136,13 @@ describe('docs_packages', () => {
     expect(text).toMatch(/^1 import reaches past a published entrypoint\. .*:\n {2}@acme\/quiet — 1 import$/m);
     expect(text).toMatch(/^ {2}variance ask entrypoint --package @acme\/quiet$/m);
     expect(packages.run(BY_PATH, {})).not.toContain('could not follow');
+  });
+
+  it('pages no list that has no rows, so a heading that counts only packages ends where it is', () => {
+    const text = packages.run({ ...QUIET, packages: QUIET.packages.slice(1), unfollowed: [] }, { offset: 1 });
+
+    expect(text).toMatch(/so none of its names are listed\.\n\n/u);
+    expect(text).not.toContain('of 0 rows');
   });
 
   it('names a package whose entry it could not follow only when imports reach past that entry', () => {
