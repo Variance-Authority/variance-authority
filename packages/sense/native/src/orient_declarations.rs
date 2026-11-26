@@ -14,6 +14,15 @@
 //! the declarations and the member lines cut are each counted once for the
 //! file, so the counts add no line per container. A name the file only binds is
 //! no declaration: unless an export binds it, it takes no line and is counted.
+//!
+//! A file asked about at a line is answered with the declarations the line is
+//! in, read off the same parse by the lines each one spans: its top-level
+//! symbols, the members of its classes, interfaces and type literals, and the
+//! functions written inside its functions. The holders are those whose first
+//! and last lines enclose the line, outermost first, as a language server's
+//! document symbols nest; none is the module's own top level. Nothing is
+//! guessed from where the next declaration starts: a blank line between two
+//! functions is in neither.
 
 // compass: variance-authority.reach.relations
 
@@ -63,6 +72,97 @@ pub struct FileDeclarations {
     /// False when the parse kept no exports, or it was not read: whether a name
     /// is exported is unknown, the names counted as bound included.
     pub exports_kept: bool,
+}
+
+/// A line asked about in a file: 1-based, as an editor numbers it.
+#[napi(object)]
+pub struct AskedLine {
+    pub file: String,
+    pub line: u32,
+}
+
+/// A declaration whose first and last lines enclose an asked line.
+#[napi(object)]
+pub struct LineHolder {
+    /// Its name; the names one statement declares on the same lines, such as
+    /// `const width = 1, height = 2`, are joined as `width, height`.
+    pub name: String,
+    /// The word the parse stored for it: a top-level symbol's kind, a nested
+    /// function's, or what a member is to its container (`method`, `property`, …).
+    pub kind: String,
+    pub line: u32,
+    /// The line it ends on.
+    pub end: u32,
+}
+
+/// The declarations one asked line is in, or why they cannot be told.
+#[napi(object)]
+pub struct LineHeld {
+    pub file: String,
+    pub line: u32,
+    /// False when the index holds the file and no parse of its declarations:
+    /// the line may be in anything.
+    pub read: bool,
+    /// The declarations whose lines enclose the line, outermost first; none when
+    /// it is at the module's top level.
+    pub holders: Vec<LineHolder>,
+}
+
+/// The declarations each of `asked` is in, in the order asked; an ask of a file the chain
+/// does not hold is left out, as the list of files asked about already says it
+/// is outside the index.
+pub(crate) fn lines_held(layers: &[Layer], asked: &[AskedLine]) -> Vec<LineHeld> {
+    let (asks, mut crossings): (Vec<&AskedLine>, Vec<Crossing>) = asked
+        .iter()
+        .filter_map(|ask| record(layers, &ask.file).map(|(file, at)| (ask, Crossing { file, owner: NO_OWNER, others: Vec::new(), at, parse: None })))
+        .unzip();
+    join_parses(layers, &mut crossings);
+    asks.into_iter()
+        .zip(&crossings)
+        .map(|(ask, crossing)| {
+            let parse = crossing.parse.filter(|(layer, row)| layers[*layer].parses.harvested[*row] == 1);
+            LineHeld {
+                file: crossing.file.to_owned(),
+                line: ask.line,
+                read: parse.is_some(),
+                holders: parse.map_or_else(Vec::new, |(layer, row)| holders(&spans(&layers[layer], row), ask.line)),
+            }
+        })
+        .collect()
+}
+
+/// Every declaration one parse row records, as `(kind, name, first, last)`
+/// lines: its top-level symbols, then its members, then its nested functions,
+/// the order a tie of lines keeps. A last line the parse did not keep is read
+/// as the first, so the declaration spans the line it starts on.
+fn spans<'a>(layer: &'a Layer, row: usize) -> Vec<(&'a str, &'a str, u32, u32)> {
+    let (stored, parses) = (&layer.stored, &layer.parses);
+    let span = |kind: u32, name: u32, line: u32, end: u32| (stored.text(kind), stored.text(name), line, end.max(line));
+    let symbols = parses.symbols.range(row).map(|at| span(parses.symbol_kind.at(at), parses.symbol_name.at(at), parses.symbol_line.at(at), parses.symbol_end_line.at(at)));
+    let members = parses.member_declarations.range(row).map(|at| {
+        span(parses.member_declaration_kind.at(at), parses.member_declaration_name.at(at), parses.member_declaration_line.at(at), parses.member_declaration_end_line.at(at))
+    });
+    let nested = parses.nested.range(row).map(|at| span(parses.nested_kind.at(at), parses.nested_name.at(at), parses.nested_line.at(at), parses.nested_end_line.at(at)));
+    symbols.chain(members).chain(nested).collect()
+}
+
+/// The declarations among `spans` whose lines enclose `line`, outermost first: an
+/// earlier first line, then a later last line. Two of one kind on the same
+/// lines are one statement's names, and are one holder.
+fn holders(spans: &[(&str, &str, u32, u32)], line: u32) -> Vec<LineHolder> {
+    let mut holding: Vec<&(&str, &str, u32, u32)> = spans.iter().filter(|(_, _, first, last)| *first <= line && line <= *last).collect();
+    holding.sort_by(|left, right| left.2.cmp(&right.2).then(right.3.cmp(&left.3)));
+    let mut chain: Vec<LineHolder> = Vec::new();
+    for &(kind, name, first, last) in holding {
+        match chain.last_mut() {
+            Some(held) if (held.kind.as_str(), held.line, held.end) == (kind, first, last) => {
+                held.name.push_str(", ");
+                held.name.push_str(name);
+            }
+            _ => chain.push(LineHolder { name: name.to_owned(), kind: kind.to_owned(), line: first, end: last }),
+        }
+    }
+    chain
 }
 
 /// The top level of each of `files` the chain holds, in the order asked, each

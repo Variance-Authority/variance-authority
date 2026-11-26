@@ -93,6 +93,7 @@ pub struct ParseColumns {
     symbol_name: Vec<u32>,
     symbol_kind: Vec<u32>,
     symbol_line: Vec<u32>,
+    symbol_end_line: Vec<u32>,
     symbol_signature: [Vec<u32>; 3],
     symbol_doc: [Vec<u32>; 3],
     symbol_reach: Vec<u8>,
@@ -107,7 +108,9 @@ pub struct ParseColumns {
     member_through_default: Vec<u8>,
     member_declarations: Vec<u32>,
     member_declaration_name: Vec<u32>,
+    member_declaration_kind: Vec<u32>,
     member_declaration_line: Vec<u32>,
+    member_declaration_end_line: Vec<u32>,
     member_declaration_on: Vec<u32>,
     member_declaration_doc: [Vec<u32>; 3],
     member_declaration_line_text: Vec<u32>,
@@ -123,6 +126,7 @@ pub struct ParseColumns {
     nested_name: Vec<u32>,
     nested_kind: Vec<u32>,
     nested_line: Vec<u32>,
+    nested_end_line: Vec<u32>,
     nested_signature: [Vec<u32>; 3],
     nested_doc: [Vec<u32>; 3],
     nested_holder: Vec<u32>,
@@ -247,11 +251,13 @@ impl ParseColumns {
         self.export_line_text.push(self.texts.push(line_text));
     }
 
-    /// `reach` as [`crate::harvest::reach_code`] stores it.
-    pub fn symbol(&mut self, name: u32, kind: u32, line: u32, signature: Span, doc: Span, reach: u8) {
+    /// `lines` are the first and the last its declaration spans; `reach` as
+    /// [`crate::harvest::reach_code`] stores it.
+    pub fn symbol(&mut self, name: u32, kind: u32, (line, end_line): (u32, u32), signature: Span, doc: Span, reach: u8) {
         self.symbol_name.push(name);
         self.symbol_kind.push(kind);
         self.symbol_line.push(line);
+        self.symbol_end_line.push(end_line);
         span(&mut self.symbol_signature, &mut self.texts, signature);
         span(&mut self.symbol_doc, &mut self.texts, doc);
         self.symbol_reach.push(reach);
@@ -273,10 +279,13 @@ impl ParseColumns {
         self.member_through_default.push(u8::from(through_default));
     }
 
-    /// `line_text` is as [`Self::export`] takes it.
-    pub fn member_declaration(&mut self, name: u32, line: u32, on: u32, doc: Span, line_text: Option<&str>) {
+    /// `lines` are its name's and the last its declaration spans; `line_text`
+    /// is as [`Self::export`] takes it.
+    pub fn member_declaration(&mut self, name: u32, kind: u32, (line, end_line): (u32, u32), on: u32, doc: Span, line_text: Option<&str>) {
         self.member_declaration_name.push(name);
+        self.member_declaration_kind.push(kind);
         self.member_declaration_line.push(line);
+        self.member_declaration_end_line.push(end_line);
         self.member_declaration_on.push(on);
         span(&mut self.member_declaration_doc, &mut self.texts, doc);
         self.member_declaration_line_text.push(self.texts.push(line_text));
@@ -294,13 +303,15 @@ impl ParseColumns {
         self.own_use_line.push(line);
     }
 
-    /// One function a function's body declares; `holder` is an id, or `NONE`
-    /// when nothing names the function that holds it.
+    /// One function a function's body declares; `lines` are the first and the
+    /// last it spans, and `holder` is an id, or `NONE` when nothing names the
+    /// function that holds it.
     #[allow(clippy::too_many_arguments, reason = "one column each, in the encoder's order")]
-    pub fn nested(&mut self, name: u32, kind: u32, line: u32, signature: Span, doc: Span, holder: u32, holder_line: u32) {
+    pub fn nested(&mut self, name: u32, kind: u32, (line, end_line): (u32, u32), signature: Span, doc: Span, holder: u32, holder_line: u32) {
         self.nested_name.push(name);
         self.nested_kind.push(kind);
         self.nested_line.push(line);
+        self.nested_end_line.push(end_line);
         span(&mut self.nested_signature, &mut self.texts, signature);
         span(&mut self.nested_doc, &mut self.texts, doc);
         self.nested_holder.push(holder);
@@ -368,6 +379,7 @@ impl ParseColumns {
             u32s("symbols.name", self.symbol_name),
             u32s("symbols.kind", self.symbol_kind),
             u32s("symbols.line", self.symbol_line),
+            u32s("symbols.end-line", self.symbol_end_line),
             u32s("symbols.signature-start", symbol_signature_start),
             u32s("symbols.signature-end", symbol_signature_end),
             u32s("symbols.signature-text", symbol_signature_text),
@@ -394,7 +406,9 @@ impl ParseColumns {
             u8s("members.through-default", self.member_through_default),
             u32s("parses.member-declarations", self.member_declarations),
             u32s("member-declarations.name", self.member_declaration_name),
+            u32s("member-declarations.kind", self.member_declaration_kind),
             u32s("member-declarations.line", self.member_declaration_line),
+            u32s("member-declarations.end-line", self.member_declaration_end_line),
             u32s("member-declarations.on", self.member_declaration_on),
             u32s("member-declarations.doc-start", member_declaration_doc_start),
             u32s("member-declarations.doc-end", member_declaration_doc_end),
@@ -412,6 +426,7 @@ impl ParseColumns {
             u32s("nested.name", self.nested_name),
             u32s("nested.kind", self.nested_kind),
             u32s("nested.line", self.nested_line),
+            u32s("nested.end-line", self.nested_end_line),
             u32s("nested.signature-start", nested_signature_start),
             u32s("nested.signature-end", nested_signature_end),
             u32s("nested.signature-text", nested_signature_text),

@@ -45,10 +45,22 @@ prints that and names `variance index`.
 
 With `--files` it reads no file's text and finds nothing itself; use `search`,
 `symbol` or `grep` in the [workspace API](workspace-api.md) to find the files.
-Each file is answered in the order you gave. A `:<line>` after a path narrows
-the call journeys to the function that contains that line. The answer prints its
-own definitions. What you decide from it:
+Each file is answered in the order you gave. A `:<line>` after a path is
+answered from the source index for every file it parsed, whether or not a case
+ran the line. The recording adds the cases: the call journeys narrow to the
+function the line is in. The answer prints its own definitions. What you decide
+from it:
 
+- **`Lines asked about`** names, for each `:<line>`, the declarations whose
+  first and last lines enclose it, outermost first, such as
+  `in class Basket > method total (lines 12–14)`; the lines are the innermost
+  declaration's. A member counts from the line of its name. `at the top level of
+  the module` means no declaration the index records encloses the line, such as
+  a blank line between two functions; a function written inside a top-level
+  block, such as an `if`, is not recorded. Members are read from JavaScript and
+  TypeScript only, so in another language the line may be in a member, and the
+  answer says so. `the index holds no parse of its declarations` means the line
+  may be in any declaration.
 - **`Declared at the top level`** lists each file's own declarations from the
   source index, by line: the kind, the name, and `exported` when an export
   binds it. A class's, an interface's or a type's members follow it, one row

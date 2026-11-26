@@ -2864,6 +2864,7 @@
       ".": {
         "Alias": "interface",
         "AreasAsked": "interface",
+        "AskedLine": "interface",
         "BINDING": "const",
         "CODE_EXTENSIONS": "const",
         "CapViolation": "interface",
@@ -2942,6 +2943,8 @@
         "LayerHeld": "interface",
         "LayerMoves": "interface",
         "LayerPresence": "interface",
+        "LineHeld": "interface",
+        "LineHolder": "interface",
         "LinesThen": "interface",
         "MemberDeclarations": "interface",
         "MemberSite": "interface",

@@ -31,6 +31,13 @@ pub fn line_of(node: Node) -> u32 {
     node.start_position().row as u32 + 1
 }
 
+/// The 1-based line a node ends on: the line of its last character, so a node
+/// whose span takes the line break after it still ends on the line it closes.
+pub fn end_line_of(node: Node) -> u32 {
+    let end = node.end_position();
+    if end.column == 0 && end.row > node.start_position().row { end.row as u32 } else { end.row as u32 + 1 }
+}
+
 /// The source a node covers. Empty for a range no `&str` can be cut at, which
 /// tree-sitter does not produce over valid UTF-8 and which must not panic if it does.
 pub fn text_of<'source>(node: Node, source: &'source str) -> &'source str {
@@ -45,6 +52,7 @@ pub fn declaration(children: &[Node], at: usize, name: String, kind: &'static st
         name,
         kind,
         line: line_of(node),
+        end_line: end_line_of(node),
         signature: Some(head(node, source)),
         doc: doc_above(children, at, source, between),
         reach: None,

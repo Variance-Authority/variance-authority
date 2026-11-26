@@ -1,6 +1,12 @@
 /**
- * The declarations part of `docs_orient`'s answer: what each file asked about
- * declares at its top level, from its parse in the source index.
+ * The two parts of `docs_orient`'s answer read off each asked file's parse in
+ * the source index: the declarations each line asked about is in, and what
+ * each file declares at its top level.
+ *
+ * A line is answered by the declarations whose first and last lines enclose
+ * it, outermost first, as an editor's breadcrumb names them; a line in none is
+ * at the top level of the module. The parse answers it whether or not a case
+ * ran the line: the journeys part adds the cases that did.
  *
  * A reader handed a file wants its outline before its text: each name with the
  * line it is declared on, whether an export binds it, and, under a class, an
@@ -12,10 +18,30 @@
 
 // compass: variance-authority.report.agent-surface
 
-import type { FileDeclaration, FileDeclarations } from '@variance-authority/sense';
+import type { FileDeclaration, FileDeclarations, LineHeld } from '@variance-authority/sense';
 import { memberLines } from './container.js';
-import { plural } from './format.js';
-import { membersNotReadIn } from './members.js';
+import { linesOf, plural } from './format.js';
+import { memberlessLanguageOf, membersNotReadIn } from './members.js';
+
+/** The lines part, or nothing when no line asked about is in a file the index holds. */
+export function formatLines(lines: readonly LineHeld[] | undefined): readonly string[] {
+  if (lines === undefined || lines.length === 0) return [];
+  const asked = lines.map((held) => `${held.file}:${held.line}`);
+  const wide = Math.max(...asked.map((spelled) => spelled.length));
+  return ['', 'Lines asked about, from the source index:', ...lines.map((held, at) => `  ${asked[at]!.padEnd(wide)}  ${heldBy(held)}`)];
+}
+
+function heldBy(held: LineHeld): string {
+  // Absent is not empty: the line of a file whose declarations were not read may be in any of them.
+  if (!held.read) return 'the index holds no parse of its declarations';
+  const innermost = held.holders[held.holders.length - 1];
+  if (innermost !== undefined) return `in ${held.holders.map((holder) => `${holder.kind} ${holder.name}`).join(' > ')} (${linesOf(innermost)})`;
+  const language = memberlessLanguageOf(held.file);
+  // The line of a file whose members the scan does not record may be in one, so it is not called the top level.
+  return language === undefined
+    ? 'at the top level of the module'
+    : `in none of the declarations the index records; members are read from JavaScript and TypeScript only, so it may be in a member of this ${language} file`;
+}
 
 /** The declarations part, or nothing when no file asked about is in the index. */
 export function formatDeclarations(files: readonly FileDeclarations[] | undefined): readonly string[] {

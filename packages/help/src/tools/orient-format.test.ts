@@ -55,7 +55,7 @@ const ORIENTATION: Orientation = {
 };
 
 const READING: OrientReading = {
-  files: ['packages/checkout/src/total.ts', 'packages/cart/src/price.ts', 'README.md', 'test/total.test.ts'],
+  asks: ['packages/checkout/src/total.ts', 'packages/cart/src/price.ts', 'README.md', 'test/total.test.ts'].map((file) => ({ file })),
   around: { index: '/cache/source-index.bin', orientation: ORIENTATION },
   recorded: [
     {
@@ -148,7 +148,7 @@ describe('an orientation, said', () => {
   it('says a file with no package as that, and one the index does not hold as that, never dropping either', () => {
     const owners = [{ indexed: true }, { package: '@t/app', directory: 'apps/app', indexed: false }, { indexed: false }];
     const text = formatOrientation({
-      files: ['scripts/build.ts', 'apps/app/README.md', 'src/new.ts'],
+      asks: ['scripts/build.ts', 'apps/app/README.md', 'src/new.ts'].map((file) => ({ file })),
       around: { index: '', orientation: { ...ORIENTATION, owners, packages: [] } },
       recorded: [],
     });
@@ -159,6 +159,42 @@ describe('an orientation, said', () => {
         '  scripts/build.ts    no package',
         '  apps/app/README.md  @t/app, outside index',
         '  src/new.ts          outside index',
+        '',
+      ].join('\n'),
+    );
+  });
+
+  it('names the declarations each line asked about is in, outermost first, the top level when it is in none, and why when it cannot tell', () => {
+    const basket = { name: 'Basket', kind: 'class', line: 10, end: 15 };
+    const text = formatOrientation({
+      asks: [{ file: 'src/cart.ts', line: 13 }, { file: 'src/cart.ts', line: 2 }, { file: 'src/cart.ts', line: 16 }, { file: 'src/total.rs', line: 30 }, { file: 'src/old.ts', line: 1 }],
+      around: { index: '/cache/source-index.bin' },
+      lines: [
+        { file: 'src/cart.ts', line: 13, read: true, holders: [basket, { name: 'total', kind: 'method', line: 12, end: 14 }] },
+        { file: 'src/cart.ts', line: 2, read: true, holders: [{ name: 'Cart', kind: 'interface', line: 1, end: 4 }, { name: 'total', kind: 'property', line: 2, end: 2 }] },
+        { file: 'src/cart.ts', line: 16, read: true, holders: [] },
+        { file: 'src/total.rs', line: 30, read: true, holders: [] },
+        { file: 'src/old.ts', line: 1, read: false, holders: [] },
+      ],
+      recorded: [],
+    });
+
+    expect(text).toContain(
+      [
+        '3 files asked about:',
+        '  src/cart.ts:13',
+        '  src/cart.ts:2',
+        '  src/cart.ts:16',
+        '  src/total.rs:30',
+        '  src/old.ts:1',
+        '',
+        'Lines asked about, from the source index:',
+        '  src/cart.ts:13   in class Basket > method total (lines 12–14)',
+        '  src/cart.ts:2    in interface Cart > property total (line 2)',
+        '  src/cart.ts:16   at the top level of the module',
+        '  src/total.rs:30  in none of the declarations the index records; members are read from JavaScript and TypeScript only, ' +
+          'so it may be in a member of this Rust file',
+        '  src/old.ts:1     the index holds no parse of its declarations',
         '',
       ].join('\n'),
     );

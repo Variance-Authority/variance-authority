@@ -104,7 +104,7 @@ describe('the journeys around some files, said', () => {
           'in 2 combinations, co-entry and not a crossing; the 2 most taken, with an example case:',
         '      5  @t/checkout → @t/cart  (test/total.test.ts > adds tax)',
         '      2  @t/cart → no package  (test/price.test.ts > rounds)',
-        '  packages/cart/src/price.ts:6  in priceOf (lines 3–9), which 12 cases ran; the line is in a branch (lines 6–7) that 3 cases ran. ' +
+        '  packages/cart/src/price.ts:6  in function priceOf (lines 3–9), which 12 cases ran; the line is in a branch (lines 6–7) that 3 cases ran. ' +
           'The file changed since the recording; this was line 5 then.',
         '    It also ran while its module evaluated.',
         '    Called from (a caller is found in 10 of its 12 cases):',
@@ -135,7 +135,7 @@ describe('the journeys around some files, said', () => {
 
   it('prints no journeys when nothing is recorded, and one line when they could not be read', () => {
     const reading = {
-      files: ['README.md'],
+      asks: [{ file: 'README.md' }],
       around: { index: '/cache/source-index.bin' },
       recorded: [{ recording: '/cache/coverage.bin', unread: 'nothing is recorded there' }],
     } as const;

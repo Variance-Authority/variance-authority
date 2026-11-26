@@ -1,20 +1,22 @@
 //! A file's top level read off the chain: each declaration with its line and
 //! whether an export binds it, a container's members under it, and every cut
-//! the line budget makes counted where it was made.
+//! the line budget makes counted where it was made; and the declarations an
+//! asked line is in, by the lines each one spans.
 
 use oxc_allocator::Allocator;
 
-use super::{declarations_of, FileDeclarations};
+use super::{declarations_of, lines_held, AskedLine, FileDeclarations, LineHeld};
 use crate::compact::Layer;
 use crate::generation::Delta;
 use crate::graph_index::merged;
 use crate::index::{parses_only, way};
-use crate::read::{read_module, Read};
+use crate::read::Read;
+use crate::read_any::read_file;
 
 const BASKET: &str = "/** The sum. */\nexport function total() {}\n\nexport class Basket {\n  lines = [];\n  add() {}\n}\n\nconst limit = 10;\n";
 
 /// A records layer naming each file at its digest, and a parse layer written
-/// from each file's read: no file is on any disk.
+/// from each file's read, in the language its name says: no file is on any disk.
 fn chain(files: &[(&str, &str, &str)]) -> (Vec<u8>, Vec<u8>) {
     let records: Vec<String> = files
         .iter()
@@ -23,7 +25,7 @@ fn chain(files: &[(&str, &str, &str)]) -> (Vec<u8>, Vec<u8>) {
     let document = format!(r#"{{"records": [{}], "parses": [], "deletedRecords": [], "deletedParses": []}}"#, records.join(", "));
     let reads: Vec<(String, Read)> = files
         .iter()
-        .map(|(file, digest, source)| (crate::parse_store::key(digest, &way(file)), read_module(file, source, &Allocator::default(), true)))
+        .map(|(file, digest, source)| (crate::parse_store::key(digest, &way(file)), read_file(file, source, &Allocator::default(), true)))
         .collect();
     let mut rows: Vec<(&str, &Read)> = reads.iter().map(|(key, read)| (key.as_str(), read)).collect();
     rows.sort_unstable_by(|left, right| crate::order::code_unit(left.0, right.0));
@@ -188,4 +190,54 @@ fn a_name_the_file_binds_and_declares_is_listed_at_the_declaration_and_not_count
     assert_eq!(found.bound, 1);
     let cut = declarations_of(&layers, &["src/pool.ts".to_owned()], 0).remove(0);
     assert_eq!((cut.more, cut.bound), (2, 1), "a name whose declaration the budget cut is still declared");
+}
+
+const CART: &str = "export interface Cart {\n  total: number;\n  add(item: string): void;\n}\n\nexport const limit = {\n  items: 10,\n};\n\nexport class Basket {\n  lines = [];\n  total() {\n    return this.lines.length;\n  }\n}\n\nfunction first() {\n  const inner = () => {\n    return 1;\n  };\n}\n\nfunction second() {}\n";
+
+/// What an asked line is in, outermost first, each as `kind name start-end`.
+fn held(found: &LineHeld) -> String {
+    if !found.read { return "not read".to_owned() }
+    if found.holders.is_empty() { return "top level".to_owned() }
+    let holders: Vec<String> = found.holders.iter().map(|holder| format!("{} {} {}-{}", holder.kind, holder.name, holder.line, holder.end)).collect();
+    holders.join(" > ")
+}
+
+fn asked(file: &str, lines: &[u32]) -> Vec<AskedLine> {
+    lines.iter().map(|line| AskedLine { file: file.to_owned(), line: *line }).collect()
+}
+
+#[test]
+fn a_line_is_in_every_declaration_whose_lines_enclose_it_outermost_first_and_in_none_between_them() {
+    let (records, parses) = chain(&[("src/cart.ts", "git:n", CART)]);
+    let layers = [Layer::open(&records).unwrap(), Layer::open(&parses).unwrap()];
+    let mut lines = asked("src/cart.ts", &[2, 4, 7, 13, 16, 19, 22]);
+    lines.extend(asked("src/gone.ts", &[1]));
+    let found: Vec<String> = lines_held(&layers, &lines).iter().map(held).collect();
+    assert_eq!(found, vec![
+        "interface Cart 1-4 > property total 2-2",
+        "interface Cart 1-4",
+        "const limit 6-8",
+        "class Basket 10-15 > method total 12-14",
+        "top level",
+        "function first 17-21 > const inner 18-20",
+        "top level",
+    ], "a file the chain does not hold is left out");
+}
+
+#[test]
+fn a_line_of_a_tree_sitter_language_is_in_the_items_whose_lines_enclose_it() {
+    let source = "pub fn total() -> u32 {\n    1\n}\n\n#[cfg(test)]\nmod tests {\n    fn fixture() {\n        let _ = 1;\n    }\n}\n";
+    let (records, parses) = chain(&[("src/total.rs", "git:o", source)]);
+    let layers = [Layer::open(&records).unwrap(), Layer::open(&parses).unwrap()];
+    let found: Vec<String> = lines_held(&layers, &asked("src/total.rs", &[2, 4, 8])).iter().map(held).collect();
+    assert_eq!(found, vec!["function total 1-3", "top level", "module tests 6-10 > function tests::fixture 7-9"]);
+}
+
+#[test]
+fn names_one_statement_declares_on_the_same_lines_are_one_holder() {
+    let source = "export const width = 1,\n  height = 2;\ninterface Box { a: string; b: string }\n";
+    let (records, parses) = chain(&[("src/size.ts", "git:p", source)]);
+    let layers = [Layer::open(&records).unwrap(), Layer::open(&parses).unwrap()];
+    let found: Vec<String> = lines_held(&layers, &asked("src/size.ts", &[2, 3])).iter().map(held).collect();
+    assert_eq!(found, vec!["const width, height 1-2", "interface Box 3-3 > property a, b 3-3"]);
 }

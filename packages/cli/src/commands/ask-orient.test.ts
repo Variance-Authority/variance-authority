@@ -323,9 +323,12 @@ describe('variance ask orient', () => {
       err: '',
       out: [
         '3 files asked about:',
-        '  packages/checkout/src/total.ts  @t/checkout',
-        '  packages/cart/src/price.ts      @t/cart',
-        '  src/gone.ts                     outside index',
+        '  packages/checkout/src/total.ts:2  @t/checkout',
+        '  packages/cart/src/price.ts        @t/cart',
+        '  src/gone.ts                       outside index',
+        '',
+        'Lines asked about, from the source index:',
+        '  packages/checkout/src/total.ts:2  at the top level of the module',
         '',
         'Declared at the top level, from the source index:',
         '  packages/checkout/src/total.ts',
@@ -399,6 +402,68 @@ describe('variance ask orient', () => {
       '         8  add(line: string): void {',
       '    13  const limit',
       '    14  exported const capacity',
+    ]);
+  });
+
+  it('names the declarations each line asked about is in, with no recording, in TypeScript and in Rust', async () => {
+    repository({
+      'package.json': JSON.stringify({ name: 'shop', private: true }),
+      'src/cart.ts': [
+        'export interface Cart {',
+        '  total: number;',
+        '  add(item: string): void;',
+        '}',
+        '',
+        'export const limit = {',
+        '  items: 10,',
+        '};',
+        '',
+        'export class Basket {',
+        '  lines: string[] = [];',
+        '  total(): number {',
+        '    return this.lines.length;',
+        '  }',
+        '}',
+        '',
+        'function first(): number {',
+        '  const inner = () => 1;',
+        '  return inner();',
+        '}',
+        '',
+        'function second(): number {',
+        '  return limit.items + first();',
+        '}',
+        '',
+      ].join('\n'),
+      'src/total.rs': 'pub fn total() -> u32 {\n    1\n}\n\n#[cfg(test)]\nmod tests {\n    fn fixture() {\n        let _ = 1;\n    }\n}\n',
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const answered = await run(['ask', 'orient', '--files', 'src/cart.ts:2,src/cart.ts:4,src/cart.ts:7,src/cart.ts:13,src/cart.ts:21,src/total.rs:2,src/total.rs:8']);
+
+    expect(answered.code).toBe(EXIT_CLEAN);
+    const lines = answered.out.split('\n');
+    expect(lines.slice(0, 9)).toEqual([
+      '2 files asked about:',
+      '  src/cart.ts:2   shop',
+      '  src/cart.ts:4   shop',
+      '  src/cart.ts:7   shop',
+      '  src/cart.ts:13  shop',
+      '  src/cart.ts:21  shop',
+      '  src/total.rs:2  shop',
+      '  src/total.rs:8  shop',
+      '',
+    ]);
+    expect(lines.slice(9, 18)).toEqual([
+      'Lines asked about, from the source index:',
+      '  src/cart.ts:2   in interface Cart > property total (line 2)',
+      '  src/cart.ts:4   in interface Cart (lines 1–4)',
+      '  src/cart.ts:7   in const limit (lines 6–8)',
+      '  src/cart.ts:13  in class Basket > method total (lines 12–14)',
+      '  src/cart.ts:21  at the top level of the module',
+      '  src/total.rs:2  in function total (lines 1–3)',
+      '  src/total.rs:8  in module tests > function tests::fixture (lines 7–9)',
+      '',
     ]);
   });
 

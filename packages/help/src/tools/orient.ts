@@ -63,7 +63,7 @@ export const orient: Tool<unknown> = {
         type: 'array',
         items: { type: 'string' },
         description:
-          'Paths from the root, as git lists them, each with an optional `:<line>` that narrows to the function holding it.',
+          'Paths from the root, as git lists them, each with an optional `:<line>`: the declarations it is in, and the calls of the function it is in.',
       },
       area: {
         type: 'string',
@@ -97,11 +97,13 @@ export const orient: Tool<unknown> = {
           'ask with `files` alone, or with `area` alone.',
       );
     }
-    const { packages: around, external, declarations: declared } = orientAround(root, files, LIMITS, { rows: 8, names: 3 }, DECLARED_LINES);
+    const lines = asks.flatMap((ask) => (ask.line == null ? [] : [{ file: ask.file, line: ask.line }]));
+    const { packages: around, external, declarations: declared, lines: held } = orientAround(root, files, LIMITS, { rows: 8, names: 3 }, DECLARED_LINES, lines);
     return formatOrientation({
-      files,
+      asks,
       declarations,
       around,
+      ...(held === undefined ? {} : { lines: held }),
       ...(declared === undefined ? {} : { declared }),
       external: { ...external, declarationsQuestion: spellingOf(invocation).question(orient, { files: said, declarations: true }) },
       recorded: recordedCases(root, files, TITLES),

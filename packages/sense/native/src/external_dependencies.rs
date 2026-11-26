@@ -15,7 +15,7 @@ use crate::chain_lookup::fold;
 use crate::compact::Layer;
 use crate::index_chain::{read_chain, Chain};
 use crate::order::code_unit;
-use crate::orient_declarations::{declarations_of, FileDeclarations};
+use crate::orient_declarations::{declarations_of, lines_held, AskedLine, FileDeclarations, LineHeld};
 use crate::package_graph::{join_parses, names_object, opened, orientation_over, Crossing, Limits, Listed, Orientation};
 use crate::package_owners::{declared, Manifest, Owners, NO_OWNER};
 use crate::specifier::{package_of, request_of};
@@ -86,6 +86,8 @@ pub struct Around {
     pub external: ExternalOrientation,
     /// What each asked file the chain holds declares at its top level, in the order asked.
     pub declarations: Vec<FileDeclarations>,
+    /// The declarations each asked line is in, in the order asked; a line of a file the chain does not hold is left out.
+    pub lines: Vec<LineHeld>,
 }
 
 #[napi(catch_unwind)]
@@ -99,6 +101,7 @@ pub fn orient_around(
     external_rows: u32,
     external_sites: u32,
     declaration_lines: u32,
+    lines: Vec<AskedLine>,
 ) -> napi::Result<Option<Around>> {
     let (chain, snapshot) = std::thread::scope(|scope| {
         let snapshot = scope.spawn(|| crate::git::snapshot(&root));
@@ -115,9 +118,10 @@ pub fn orient_around(
             || orientation_over(&chain, &layers, &owners, &listed, &files, limits),
             || inspect_over(&root, &chain, &layers, &owners, &listed, &files, external_rows as usize, external_sites as usize),
         ),
-        || declarations_of(&layers, &files, declaration_lines as usize),
+        || (declarations_of(&layers, &files, declaration_lines as usize), lines_held(&layers, &lines)),
     );
-    Ok(Some(Around { packages, external, declarations }))
+    let (declarations, lines) = declarations;
+    Ok(Some(Around { packages, external, declarations, lines }))
 }
 
 struct Found {

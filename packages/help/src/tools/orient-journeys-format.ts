@@ -12,6 +12,7 @@
 // compass: variance-authority.report.agent-surface
 
 import type { JourneysAround, JourneysBlock, JourneysCall, JourneysFile, JourneysFlows, JourneysRegion } from '@variance-authority/sense';
+import { linesOf } from './format.js';
 
 const plural = (count: number, one: string, many = `${one}s`): string => `${count} ${count === 1 ? one : many}`;
 
@@ -47,9 +48,6 @@ function percent(part: number, whole: number): string {
   return rounded === 0 && part > 0 ? '<1%' : `${rounded}%`;
 }
 
-const lines = (block: { readonly line: number; readonly end: number }): string =>
-  block.line === block.end ? `line ${block.line}` : `lines ${block.line}–${block.end}`;
-
 /** The far end of a call, and the asked file's own function when the question was the whole file. */
 function callRow(call: JourneysCall, into: boolean): { readonly cases: string; readonly text: string } {
   const where = call.file == null ? '' : call.line == null ? `  ${call.file}` : `  ${call.file}:${call.line}`;
@@ -74,7 +72,7 @@ function blocks(heading: string, rows: readonly JourneysBlock[], more: number, i
   const wide = Math.max(...rows.map((block) => String(block.cases).length));
   return [
     `${indent}${heading}:`,
-    ...rows.map((block) => `${indent}  ${String(block.cases).padStart(wide)}  ${block.name}  ${lines(block)}`),
+    ...rows.map((block) => `${indent}  ${String(block.cases).padStart(wide)}  ${block.name}  ${linesOf(block)}`),
     ...(more > 0 ? [`${indent}  ${plural(more, 'more function')}.`] : []),
   ];
 }
@@ -117,9 +115,9 @@ function lineHead(file: JourneysFile, line: number): string {
   const today = file.unplaced == null ? '' : ` The line is read as it is numbered today, because ${file.unplaced}.`;
   const then = `${changed}${today}`;
   if (file.writtenSince) return `  ${asked}  was written after the recording, so no recorded case ran it.${then}`;
-  const holding = file.holding == null ? '' : `; the line is in a ${file.holding.kind} (${lines(file.holding)}) that ${plural(file.holding.cases, 'case')} ran`;
+  const holding = file.holding == null ? '' : `; the line is in a ${file.holding.kind} (${linesOf(file.holding)}) that ${plural(file.holding.cases, 'case')} ran`;
   if (file.focus == null) return `  ${asked}  is in no function a recorded case ran${holding}.${then}`;
-  return `  ${asked}  in ${file.focus.name} (${lines(file.focus)}), which ${plural(file.focus.cases, 'case')} ran${holding}.${then}`;
+  return `  ${asked}  in ${file.focus.kind} ${file.focus.name} (${linesOf(file.focus)}), which ${plural(file.focus.cases, 'case')} ran${holding}.${then}`;
 }
 
 function fileRows(file: JourneysFile, cases: number, said: Set<string>): readonly string[] {

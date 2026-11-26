@@ -227,9 +227,14 @@ const unread = (languages: readonly string[]): string => {
   return `Members are read from JavaScript and TypeScript files only, and this workspace's ${named} files were not read for them`;
 };
 
+/** The name of `file`'s language when the scan records no members of it; absent when it does. */
+export function memberlessLanguageOf(file: string): string | undefined {
+  return unreadMemberLanguages([file])[0];
+}
+
 /** Why no member of `file` is listed when its language's members are not read; nothing when they are. */
 export function membersNotReadIn(file: string): string | undefined {
-  const [language] = unreadMemberLanguages([file]);
+  const language = memberlessLanguageOf(file);
   return language === undefined ? undefined : `the index reads members from JavaScript and TypeScript only, so none of this ${language} file is listed`;
 }
 
