@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { documentDigest, type RenderDocument, type RenderResource } from './document.js';
+import { blackBoxRefusal, documentDigest, type RenderDocument, type RenderResource } from './document.js';
 
 const LOGO: RenderResource = { contentType: 'image/png', bytes: 'iVBORw0KGgo=', digest: 'v1:aaa' };
 const FONT: RenderResource = { contentType: 'font/woff2', bytes: 'd09GMgAB', digest: 'v1:bbb' };
@@ -45,5 +45,21 @@ describe('documentDigest across the origin a build was served on', () => {
     const home = servedAt(page, {});
 
     expect(documentDigest({ ...home, baseUrl: `${page}/about` })).not.toBe(documentDigest(home));
+  });
+});
+
+describe('blackBoxRefusal', () => {
+  const holding = (html: string): RenderDocument => ({ ...servedAt('http://127.0.0.1:4000', {}), html });
+
+  it('names a canvas and a video, and sends the subject to in-place capture', () => {
+    const refusal = blackBoxRefusal(holding('<main><CANVAS id="c"></CANVAS><video src="a.mp4"></video></main>'));
+
+    expect(refusal).toContain('route:/home');
+    expect(refusal).toContain('a canvas and a video');
+    expect(refusal).toContain("kind: 'in-place'");
+  });
+
+  it('is silent for a document the markup fully describes', () => {
+    expect(blackBoxRefusal(holding('<main><canvaslike></canvaslike><img src="a.png"></main>'))).toBeUndefined();
   });
 });
