@@ -353,9 +353,10 @@ async function sinceMergeBase(
  * nearest first: the mainline commits at or behind it that published a
  * record. A reader stops at the first that answers, which ends the walk.
  */
-export async function* keptBehind(base: string, kept: ReadonlySet<string>, cwd: string): AsyncGenerator<string> {
+export async function* keptBehind(base: string, kept: ReadonlySet<string>, cwd: string, landedAfter?: number): AsyncGenerator<string> {
   if (kept.size === 0) return;
-  const child = spawn('git', ['rev-list', '--first-parent', base], { cwd, env: { ...process.env, GIT_TERMINAL_PROMPT: '0' }, stdio: ['ignore', 'pipe', 'ignore'] });
+  const bound = landedAfter === undefined ? [] : [`--since=@${Math.floor(landedAfter / 1000)}`];
+  const child = spawn('git', ['rev-list', '--first-parent', ...bound, base], { cwd, env: { ...process.env, GIT_TERMINAL_PROMPT: '0' }, stdio: ['ignore', 'pipe', 'ignore'] });
   try {
     for await (const commit of createInterface({ input: child.stdout })) {
       if (kept.has(commit)) yield commit;
@@ -365,14 +366,19 @@ export async function* keptBehind(base: string, kept: ReadonlySet<string>, cwd: 
   }
 }
 
+/** How long before a window opens a commit may have landed and still publish its record inside it. */
+const LANDED_BEFORE_PUBLISHED = 86_400_000;
+
 /**
  * The commits of `kept` on `mainline`'s first-parent history as this clone
- * last fetched it, oldest first. One the fetch does not reach is left out:
- * git cannot say what came before it.
+ * last fetched it, oldest first. The walk stops a day before `opens`, so it
+ * costs the window and not the repository's age; a kept commit that the fetch
+ * does not reach, or that landed earlier, is left out: git cannot say here
+ * what came before it.
  */
-export async function keptInOrder(config: Pick<Config, 'share'>, mainline: string, kept: ReadonlySet<string>, cwd: string): Promise<readonly string[]> {
+export async function keptInOrder(config: Pick<Config, 'share'>, mainline: string, kept: ReadonlySet<string>, opens: number, cwd: string): Promise<readonly string[]> {
   const found: string[] = [];
-  for await (const commit of keptBehind(`refs/remotes/${remoteOf(config)}/${mainline}`, kept, cwd)) {
+  for await (const commit of keptBehind(`refs/remotes/${remoteOf(config)}/${mainline}`, kept, cwd, opens - LANDED_BEFORE_PUBLISHED)) {
     found.push(commit);
     if (found.length === kept.size) break;
   }

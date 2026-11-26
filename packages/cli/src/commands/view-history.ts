@@ -142,8 +142,8 @@ export interface HistoryOptions {
   readonly now: number;
   /** The cache root; summaries are kept in its `history/`. */
   readonly cacheDir: string;
-  /** The kept commits on the mainline's first-parent history, oldest first: what a move is measured from. */
-  readonly order: (kept: ReadonlySet<string>) => Promise<readonly string[]>;
+  /** The kept commits on the mainline's first-parent history, oldest first: what a move is measured from; `opens` is when the window opens, so the walk need go no further. */
+  readonly order: (kept: ReadonlySet<string>, opens: number) => Promise<readonly string[]>;
   /** A line for a person waiting on a cold read. */
   readonly progress?: (line: string) => void;
 }
@@ -197,7 +197,7 @@ export async function historyOf(cell: LineCell, mainline: string, options: Histo
     options.progress?.(`read ${done} of ${cold.length}`);
   });
   skipped.sort((a, b) => codeUnitOrder(a.commit, b.commit) || codeUnitOrder(a.suite ?? '', b.suite ?? ''));
-  const order = await options.order(new Set(summarised.map((one) => one.commit)));
+  const order = await options.order(new Set(summarised.map((one) => one.commit)), options.now - options.since);
   return { ...seriesOf(summarised, order), since: options.since, skipped };
 
   async function readCommit(one: KeptAt): Promise<void> {

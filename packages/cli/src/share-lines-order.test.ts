@@ -17,8 +17,9 @@ function clone(): { readonly root: string; readonly commit: (message: string) =>
   git('init', '-q', '-b', 'main');
   git('config', 'user.email', 'test@example.com');
   git('config', 'user.name', 'test');
-  const commit = (message: string) => {
-    git('commit', '-q', '--allow-empty', '-m', message);
+  const commit = (message: string, at?: number) => {
+    const env = at === undefined ? process.env : { ...process.env, GIT_COMMITTER_DATE: `@${Math.round(at / 1000)} +0000`, GIT_AUTHOR_DATE: `@${Math.round(at / 1000)} +0000` };
+    execFileSync('git', ['commit', '-q', '--allow-empty', '-m', message], { cwd: root, env });
     return git('rev-parse', 'HEAD');
   };
   return { root, commit, git };
@@ -37,11 +38,23 @@ describe('the kept commits, in the mainline\'s order', () => {
     git('update-ref', 'refs/remotes/origin/main', merge);
     const unfetched = commit('three');
 
-    expect(await keptInOrder({}, 'main', new Set([merge, unfetched, side, first, second]), root)).toEqual([first, second, merge]);
+    expect(await keptInOrder({}, 'main', new Set([merge, unfetched, side, first, second]), 0, root)).toEqual([first, second, merge]);
+  });
+
+  it('walks no further back than a day before the window opens, so a kept commit that landed earlier is not placed', async () => {
+    const { root, commit, git } = clone();
+    const DAY = 86_400_000;
+    const opens = Date.UTC(2026, 10, 20);
+    const long = commit('long before', opens - 3 * DAY);
+    const eve = commit('the eve', opens - DAY / 2);
+    const inside = commit('inside', opens + DAY);
+    git('update-ref', 'refs/remotes/origin/main', inside);
+
+    expect(await keptInOrder({}, 'main', new Set([long, eve, inside]), opens, root)).toEqual([eve, inside]);
   });
 
   it('gives nothing where the clone has not fetched the mainline', async () => {
     const { root, commit } = clone();
-    expect(await keptInOrder({}, 'main', new Set([commit('one')]), root)).toEqual([]);
+    expect(await keptInOrder({}, 'main', new Set([commit('one')]), 0, root)).toEqual([]);
   });
 });

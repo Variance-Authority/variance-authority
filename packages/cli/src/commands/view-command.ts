@@ -56,7 +56,7 @@ async function historyFor(cwd: string, since: number, here: ViewHere): Promise<H
       since,
       now: here.now ?? Date.now(),
       cacheDir: selected.cacheRoot,
-      order: (kept) => keptInOrder({ share }, mainline, kept, cwd),
+      order: (kept, opens) => keptInOrder({ share }, mainline, kept, opens, cwd),
       ...(here.progress === undefined ? {} : { progress: here.progress }),
     });
   } catch (error) {
