@@ -36,8 +36,11 @@ cost:
 A run made on the same machine since then narrows it again: a test file you ran
 after the record is selected from the commit it last ran at.
 
-None of these rows skips a test the change needs, so a stale record costs time,
-never a missed failure. How much time depends on which tests the mainline's
+None of these rows skips a test the change needs on the record's word, so a
+stale record costs time. One case it cannot see: a file added after the record
+that a test reaches by scanning a directory, not by an import, selects nothing
+until a record that holds it is read, as [sharing](sharing.md#a-suite-your-checkout-has-not-recorded)
+describes. How much time depends on which tests the mainline's
 commits in between change, so one commit to a module every test imports runs
 every test. [Where selection widens](selecting.md#where-selection-widens) lists
 the other changes that run more than the diff.
@@ -121,7 +124,9 @@ record: [when a share fails](sharing.md#when-a-share-fails).
 ### Several suites or projects in one repository
 
 Declare each suite under `suites` in the root `variance.config.json`, and each
-gets its own record and its own `carry`:
+gets its own record and its own `carry`. Only a suite whose `carry` is
+`"share"` publishes to the share and reads from it; the others keep a record on
+each machine:
 [one record for each suite](execution-record.md#one-record-for-each-suite).
 `select` and `review` read every suite's record from the share the root config
 names. A project with a config of its own publishes its run reports to the
@@ -161,4 +166,4 @@ Actions only:
 | A sharded suite | a share, `carry hand` and `receive` | one record for every shard and re-run |
 | Pull requests from forks | a git share | the mainline's; an HTTP share has no token there, so the fork runs every test file |
 | GitLab CI, Bitbucket Pipelines or another CI | the CI host's cache | the last mainline push that saved; only GitHub Actions publishes a mainline line to a share, so laptops record their own |
-| A monorepo | a suite per runner config under the root config, and a share location per project config | each suite's own last publish |
+| A monorepo | a suite per runner config under the root config, each with `"carry": "share"`, and a share location per project config | each suite's own last publish |
