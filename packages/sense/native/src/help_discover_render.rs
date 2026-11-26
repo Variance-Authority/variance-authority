@@ -40,8 +40,7 @@ pub(super) fn answer(
             lines.push(format!("chains {which}end: {}", suffix.join(" → ")));
         }
         if page.offset >= files.len() {
-            let noun = if files.len() == 1 { "row" } else { "rows" };
-            lines.push(format!("`--offset` {} is past the last of {} {noun}.", page.offset, files.len()));
+            lines.extend(page.above(files.len(), "--offset"));
         } else if page.offset != 0 {
             lines.push(format!("Rows {}–{end} of {}.", page.offset + 1, files.len()));
         }
