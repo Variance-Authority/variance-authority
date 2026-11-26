@@ -240,7 +240,11 @@ export function recordOfCases(cases: CaseSections): Buffer {
   return sections(parts, FORMAT);
 }
 
-/** The sections the header of the record at `coverageFile` lists: none where no record is there, and `undefined` where its header does not read. */
+/**
+ * The sections the header of the record at `coverageFile` lists: none where no
+ * record is there, and `undefined` where its header does not read, by the test
+ * a record reader applies to it.
+ */
 function sectionsAt(coverageFile: string): readonly Section[] | undefined {
   let fd: number;
   try {
@@ -250,12 +254,7 @@ function sectionsAt(coverageFile: string): readonly Section[] | undefined {
     throw error;
   }
   try {
-    const file = descriptor(fd);
-    const head = file.read(0, Math.min(file.length, 4));
-    if (head.length < 4) return undefined;
-    const length = Buffer.from(head.buffer, head.byteOffset, 4).readUInt32LE(0);
-    if (length > file.length - 4) return undefined;
-    return framedHeader(Buffer.concat([head, file.read(4, 4 + length)]))?.sections;
+    return directoryIn(descriptor(fd))?.header.sections;
   } finally {
     closeSync(fd);
   }
@@ -333,15 +332,25 @@ interface Opened {
 
 /** The physical directory shared by case reads and storage inspection. */
 function directoryOf(file: Bytes): { readonly header: Header; readonly base: number } {
-  if (file.length < 4) throw invalid();
+  const directory = directoryIn(file);
+  if (directory === undefined) throw invalid();
+  return directory;
+}
+
+/**
+ * The directory `file` frames, or `undefined` where its header does not read:
+ * the one test of a header, so the header readers answer as the record readers
+ * do.
+ */
+function directoryIn(file: Bytes): { readonly header: Header; readonly base: number } | undefined {
+  if (file.length < 4) return undefined;
   const head = file.read(0, 4);
   const headerLength = Buffer.from(head.buffer, head.byteOffset, head.byteLength).readUInt32LE(0);
-  if (headerLength > file.length - 4) throw invalid();
+  if (headerLength > file.length - 4) return undefined;
   const header = framedHeader(Buffer.concat([head, file.read(4, 4 + headerLength)]));
-  if (header === undefined) throw invalid();
+  if (header === undefined) return undefined;
   const base = 4 + headerLength;
-  if (!validSections(header.sections, file.length - base)) throw invalid();
-  return { header, base };
+  return validSections(header.sections, file.length - base) ? { header, base } : undefined;
 }
 
 function opened(file: Bytes): Opened {
