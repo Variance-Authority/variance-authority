@@ -18,8 +18,8 @@
 
 import { existsSync, readFileSync } from 'node:fs';
 import { codeUnitOrder } from '@variance-authority/core/segment';
-import { endedDifferently, type RecordedAttempt } from './test-selection/attempts-record.js';
-import { keepsCases, recordedAttemptsAt } from './test-selection/case-record.js';
+import { decodeRecordedAttempts, endedDifferently, type RecordedAttempt } from './test-selection/attempts-record.js';
+import { caseSectionsOf, keepsCases, recordedAttemptsAt } from './test-selection/case-record.js';
 import { askCoverageFile } from './test-selection/coverage-file.js';
 import { decodeExecutionTests } from './test-selection/execution-format.js';
 import { nearestRecord, type RecordOrigin } from './test-selection/record-location.js';
@@ -81,6 +81,18 @@ export function recordedAttempts(root: string, limit: number): readonly Recorded
       return { ...read, unread: error instanceof Error ? error.message : String(error) };
     }
   });
+}
+
+/**
+ * Every case the record in `record` reports more than one attempt of, with
+ * each attempt, read the way `recordedAttempts` reads a record on disk;
+ * `undefined` where the record kept no attempts. A record whose attempts name
+ * a case it does not hold is refused, not guessed at.
+ */
+export function retriedIn(record: Uint8Array): readonly RetriedCase[] | undefined {
+  const { attempts } = caseSectionsOf(record);
+  if (attempts === undefined) return undefined;
+  return retriedCases(decodeRecordedAttempts(attempts), new Map(decodeExecutionTests(record).map((test) => [test.id, test])));
 }
 
 /** `rows` as one entry per case, in code-unit order of path and then of name; the section orders a case's attempts. */

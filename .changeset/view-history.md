@@ -14,6 +14,7 @@ summary kept in the cache, so a second open of the same commits fetches
 nothing but the share's listing; a cold read reports its progress on stderr,
 and `prune-cache` clears a summary not opened for 14 days.
 
-`@variance-authority/sense/test-selection` publishes `costs` and `readableAttempts`,
-the readers the tab builds on, and `pool`, the bounded worker pool it reads
-the share through.
+`@variance-authority/sense` publishes `retriedIn`, a record's retried cases
+with every attempt, and `@variance-authority/sense/test-selection` publishes
+`costs`, the per-file time the tab builds on, and `pool`, the bounded worker
+pool it reads the share through.

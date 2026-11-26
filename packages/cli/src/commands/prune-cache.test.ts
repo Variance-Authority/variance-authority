@@ -128,7 +128,7 @@ describe('planCachePrune', () => {
     ]);
     expect(plan.held).toBe(3);
   });
-  test('a History summary is aged out at 14 days, the default window: a record kept since was published after it', async () => {
+  test('a History summary not opened for 14 days is swept, and one opened since is kept', async () => {
     const cacheRoot = await mkdtemp(resolve(tmpdir(), 'va-prune-cache-'));
     const old = await put(join(cacheRoot, 'history', 'aaaa.json'), 15 * DAY);
     await put(join(cacheRoot, 'history', 'bbbb.json'), 13 * DAY);

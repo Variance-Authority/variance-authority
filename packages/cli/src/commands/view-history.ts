@@ -8,15 +8,16 @@
  * nothing it read before. The page carries the summaries, never the records.
  */
 
-import { readFile } from 'node:fs/promises';
+import { readFile, utimes } from 'node:fs/promises';
 import { join } from 'node:path';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import { atCommit, readLine, type KeptAt, type LineCell, type ShareMiss } from '@variance-authority/core/share';
-import { caseSectionsOf, costs, openTestCoverage, pool, rawRecord, readableAttempts, type RecordedAttempt } from '@variance-authority/sense/test-selection';
+import { retriedIn } from '@variance-authority/sense';
+import { caseSectionsOf, costs, openTestCoverage, pool, rawRecord } from '@variance-authority/sense/test-selection';
 import { settle } from '../settle.js';
 import { readSuiteEntry, suiteOfEntry } from '../share-entries.js';
 import { describeMiss } from './share.js';
-import { openCases, type Cases } from './view-cases.js';
+import { openCases } from './view-cases.js';
 import type { FileRuns, History, HistoryPoint, Moved, RecordSummary, RetriedCase, Skipped } from './view-history-tables.js';
 
 const DAY = 86_400_000;
@@ -33,7 +34,7 @@ export function summaryOf(bytes: Uint8Array): RecordSummary {
   const cost = costs(view);
   const files = Array.from(view.testPath.all(), (id, test): [string, number | null] => [view.string(id), cost(test) ?? null]);
   const sections = caseSectionsOf(bytes);
-  const attempts = readableAttempts(sections.attempts);
+  const retried = retriedIn(bytes);
   const index = sections.index === undefined ? undefined : openCases(sections.index, '', '');
   const blocks = view.moduleBlocks.all();
   const sets = view.blockSet.all();
@@ -52,26 +53,16 @@ export function summaryOf(bytes: Uint8Array): RecordSummary {
     ...(timed.length === 0 ? {} : { total: timed.reduce((sum, [, took]) => sum + took!, 0) }),
     reached,
     ...(index === undefined ? {} : { cases: index.count }),
-    ...(attempts === undefined ? {} : { retried: retriedOf(attempts, index) }),
+    ...(retried === undefined ? {} : { retried: retried.map(lostTo).sort((a, b) => b.lost - a.lost || codeUnitOrder(a.file, b.file) || codeUnitOrder(a.name, b.name)) }),
   };
 }
 
-function retriedOf(rows: readonly RecordedAttempt[], index: Cases | undefined): RetriedCase[] {
-  const byCase = new Map<string, RecordedAttempt[]>();
-  for (const row of rows) byCase.set(row.case, [...(byCase.get(row.case) ?? []), row]);
-  const retried: RetriedCase[] = [];
-  for (const [id, attempts] of byCase) {
-    const last = Math.max(...attempts.map((one) => one.attempt));
-    const row = index?.rowOf(id);
-    retried.push({
-      case: id,
-      name: row === undefined ? id : index!.nameAt(row),
-      ...(row === undefined ? {} : { file: index!.fileAt(row) }),
-      lost: attempts.filter((one) => one.attempt < last).reduce((sum, one) => sum + (one.duration ?? 0), 0),
-    });
-  }
-  return retried.sort((a, b) => b.lost - a.lost || codeUnitOrder(a.case, b.case));
-}
+/** A retried case and the summed time of every attempt before its last, the one its runner reported. */
+const lostTo = ({ file, name, attempts }: { readonly file: string; readonly name: string; readonly attempts: readonly { readonly duration?: number }[] }): RetriedCase => ({
+  name,
+  file,
+  lost: attempts.slice(0, -1).reduce((sum, one) => sum + (one.duration ?? 0), 0),
+});
 
 /** One record's summary, and where the share kept it. */
 export interface Summarised extends RecordSummary {
@@ -239,10 +230,15 @@ async function summarise(read: () => Promise<Uint8Array | ShareMiss>): Promise<R
   }
 }
 
+/** What an earlier open kept, marked as opened now: `prune-cache` sweeps by age, and a window still reading it keeps it. */
 async function heldJson<T>(dir: string, name: string): Promise<T | undefined> {
   try {
-    const held = JSON.parse(await readFile(join(dir, `${name}.json`), 'utf8')) as { readonly version: number; readonly held: T };
-    return held.version === SUMMARY_VERSION ? held.held : undefined;
+    const path = join(dir, `${name}.json`);
+    const held = JSON.parse(await readFile(path, 'utf8')) as { readonly version: number; readonly held: T };
+    if (held.version !== SUMMARY_VERSION) return undefined;
+    const now = new Date();
+    await utimes(path, now, now).catch(() => undefined);
+    return held.held;
   } catch {
     return undefined;
   }

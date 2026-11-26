@@ -18,7 +18,7 @@ function point(commit: string, written: number, files: readonly (readonly [strin
 
 const SERIES = seriesOf([
   point(C1, 1 * DAY, [['test/a.test.ts', 10], ['test/pay.test.ts', 30]]),
-  point(C2, 2 * DAY, [['test/a.test.ts', 10], ['test/pay.test.ts', 90]], [{ case: 'p', name: 'checkout > pays', file: 'test/pay.test.ts', lost: 31 }]),
+  point(C2, 2 * DAY, [['test/a.test.ts', 10], ['test/pay.test.ts', 90]], [{ name: 'checkout > pays', file: 'test/pay.test.ts', lost: 31 }]),
   point(C3, 3 * DAY, [['test/a.test.ts', 14], ['test/pay.test.ts', null]]),
 ]);
 const HISTORY = { ...SERIES, since: 14 * DAY, skipped: [] };

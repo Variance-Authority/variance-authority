@@ -13,9 +13,8 @@ import type { Tab } from './view-panes.js';
 
 /** A retried case in one record, and what its earlier attempts cost. */
 export interface RetriedCase {
-  readonly case: string;
   readonly name: string;
-  readonly file?: string;
+  readonly file: string;
   /** The summed duration of every attempt before the last, in ms. */
   readonly lost: number;
 }
@@ -130,11 +129,11 @@ function filesTable(files: readonly FileRuns[]): Table {
 }
 
 function retriedTable(points: readonly HistoryPoint[]): Table {
-  const cases = new Map<string, { suite: string; name: string; file?: string; commits: number; lost: number }>();
+  const cases = new Map<string, { suite: string; name: string; file: string; commits: number; lost: number }>();
   for (const point of points) {
     for (const one of point.retried ?? []) {
-      const key = `${point.suite}\u0000${one.case}`;
-      const held = cases.get(key) ?? { suite: point.suite, name: one.name, ...(one.file === undefined ? {} : { file: one.file }), commits: 0, lost: 0 };
+      const key = `${point.suite}\u0000${one.file}\u0000${one.name}`;
+      const held = cases.get(key) ?? { suite: point.suite, name: one.name, file: one.file, commits: 0, lost: 0 };
       held.commits += 1;
       held.lost += one.lost;
       cases.set(key, held);

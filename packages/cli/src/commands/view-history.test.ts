@@ -1,5 +1,5 @@
 // compass: variance-authority.reach.crossings
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, readdirSync, statSync, utimesSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { memoryLineCell, publishLine, type LineCell, type ShareEntry } from '@variance-authority/core/share';
@@ -24,7 +24,7 @@ const [C0, C1, C2, C3] = ['0', '1', '2', '3'].map((digit) => digit.repeat(40)) a
 const MAIN = { kind: 'mainline', name: 'main' } as const;
 
 /** A record of two test files, the second's cases with one retried once. */
-function record(durations: readonly [number, number], options: { readonly retried?: boolean } = {}): Uint8Array {
+function record(durations: readonly [number, number], options: { readonly retried?: boolean; readonly stray?: boolean } = {}): Uint8Array {
   const coverage = encodeTestCoverage({
     version: 3,
     instrumentation: 'fixture',
@@ -51,6 +51,7 @@ function record(durations: readonly [number, number], options: { readonly retrie
       ? { attempts: encodeRecordedAttempts([
           { case: 'p', attempt: 1, ended: 'failed', duration: 31 },
           { case: 'p', attempt: 2, ended: 'passed', duration: 8 },
+          ...(options.stray === true ? [{ case: 'gone', attempt: 1, ended: 'failed', duration: 5 } as const, { case: 'gone', attempt: 2, ended: 'passed', duration: 5 } as const] : []),
         ]) }
       : {}),
   });
@@ -86,8 +87,12 @@ describe('one record, summarised', () => {
       total: 42,
       reached: 2,
       cases: 3,
-      retried: [{ case: 'p', name: 'checkout > pays', file: 'test/pay.test.ts', lost: 31 }],
+      retried: [{ name: 'checkout > pays', file: 'test/pay.test.ts', lost: 31 }],
     });
+  });
+
+  it('refuses a record whose attempts name a case it does not hold, as sense does', () => {
+    expect(() => summaryOf(record([12, 30], { retried: true, stray: true }))).toThrow(/a case the record does not hold: gone/u);
   });
 
   it('says nothing of retries where the record kept no attempts', () => {
@@ -128,6 +133,20 @@ describe('the kept commits, as a series', () => {
     expect(second).toEqual(first);
     expect(before).toBeGreaterThan(0);
     expect(reads()).toBe(before);
+  });
+
+  it('marks what it held as opened, so a cache sweep by age keeps what a window still reads', async () => {
+    const { cell } = await kept([{ commit: C1, ago: 2, entries: [entry(C1, record([10, 30]))] }]);
+    const cacheDir = cache();
+    await historyOf(cell, 'main', { since: 14 * DAY, now: NOW, cacheDir });
+    const held = readdirSync(join(cacheDir, 'history')).map((name) => join(cacheDir, 'history', name));
+    const old = new Date(Date.now() - 30 * DAY);
+    for (const path of held) utimesSync(path, old, old);
+
+    await historyOf(cell, 'main', { since: 14 * DAY, now: NOW, cacheDir });
+
+    expect(held.length).toBeGreaterThan(0);
+    expect(held.filter((path) => statSync(path).mtimeMs < Date.now() - DAY)).toEqual([]);
   });
 
   it('says how many commits it reads and how far it has got, and says nothing of what it held', async () => {

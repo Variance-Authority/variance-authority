@@ -61,7 +61,7 @@ export const CACHE_PRUNE_REASONS: Readonly<Record<CachePruneReason, readonly [st
   'off-line': ['commit HEAD does not contain, older than 14 days', 'commits HEAD does not contain, older than 14 days'],
   unheld: ['commit this clone does not hold, older than 30 days', 'commits this clone does not hold, older than 30 days'],
   'old-report': ['shared report older than 14 days', 'shared reports older than 14 days'],
-  'old-summary': ['History summary older than 14 days', 'History summaries older than 14 days'],
+  'old-summary': ['History summary not opened for 14 days', 'History summaries not opened for 14 days'],
   unwritten: ['directory nothing writes any more', 'directories nothing writes any more'],
 };
 
@@ -136,13 +136,13 @@ export async function planCachePrune(
     if (written !== undefined && owners.now - written > STORY_AGE_MS) await drop(path, 'old-report');
   }
 
-  // A summary is written after the record it reads was kept, so one older than
-  // the default window reads a record outside it; a wider window derives it again.
+  // `view` marks a summary as opened each time it reads one, so one not opened
+  // for 14 days serves no window still being read.
   const summaries = join(root, 'history');
   for (const name of await namesIn(summaries)) {
     const path = join(summaries, name);
-    const written = await mtimeOf(path);
-    if (written !== undefined && owners.now - written > STORY_AGE_MS) await drop(path, 'old-summary');
+    const opened = await mtimeOf(path);
+    if (opened !== undefined && owners.now - opened > STORY_AGE_MS) await drop(path, 'old-summary');
   }
 
   const scans = join(root, 'scans');
