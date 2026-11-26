@@ -54,12 +54,13 @@ describe('variance ask over the imports of a name within its own package', () =>
     expect(out).toMatch(/^packages\/lib\/src\/both\.ts:2; used on line 3$/m);
     expect(out).toMatch(/^packages\/lib\/src\/barrelled\.ts:1; used on line 2$/m);
     expect(out).toMatch(/^packages\/lib\/src\/saluted\.ts:1 \(as salute\); used on line 2$/m);
-    // The same-named export of another file is answered apart, with its own import.
-    const [own, namesake] = out.split('`greet` is exported, without being published, at packages/lib/src/other.ts:1 as well, which is another declaration.');
-    expect(own).not.toMatch(/both\.ts:1|index\.ts|alias\.ts|unrelated\.ts/);
-    expect(own).toContain(`\n\n${UNCOUNTED_LINE}`);
-    expect(namesake).toMatch(/^Imported in 1 place, inside @acme\/lib\.$/m);
-    expect(namesake).toMatch(/^packages\/lib\/src\/unrelated\.ts:1; used on line 2$/m);
+    // The same-named export of another file is counted on its line, and its own import listed under `--file`.
+    expect(out).toMatch(/^ {2}packages\/lib\/src\/other\.ts:1, exported without being published, imported in 1 place$/m);
+    expect(out).not.toMatch(/both\.ts:1|index\.ts|alias\.ts|unrelated\.ts/);
+    expect(out).toContain(`\n\n${UNCOUNTED_LINE}`);
+    const namesake = await run(['ask', 'uses', '--name', 'greet', '--file', 'packages/lib/src/other.ts']);
+    expect(namesake.code).toBe(EXIT_CLEAN);
+    expect(namesake.out).toMatch(/^packages\/lib\/src\/unrelated\.ts:1; used on line 2$/m);
   });
 
   it('lists the imports within its package of a name an entry publishes under another name than its declaration', async () => {

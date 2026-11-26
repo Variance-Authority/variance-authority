@@ -38,7 +38,7 @@ pub(super) fn member_uses(asking: &Asking<'_>, member: &str, members: &[MemberSi
     let mut lines = if kept.iter().any(|held| !is_bound(&held.kind)) {
         let keeping = keeping(asking, kept)?;
         let mut lines = keeping.first;
-        if file.is_none() { lines.extend(others_lines(name, Vec::new(), &[], &ordered(members, from))); }
+        if file.is_none() { lines.extend(others_lines(name, Vec::new(), &[], &ordered(members, from), true)); }
         lines.extend(keeping.rest);
         lines.extend([String::new(), format!("`{name}` is a member too, {declared}")]);
         lines.extend(member_lines(asking, member, members));
@@ -75,8 +75,10 @@ pub(super) fn beside(asking: &Asking<'_>, member: &str, members: &[MemberSite], 
     Some(lines)
 }
 
-/// Every declaration beside the one answered first, in the order the sections below answer them; nothing when there is none.
-pub(super) fn others_lines(name: &str, namesakes: Vec<String>, kept: &[&DeclaredName], members: &[&MemberSite]) -> Vec<String> {
+/// Every declaration beside the one answered first, in the order the answer
+/// names them, `below` when each is answered in a section of its own; nothing
+/// when there is none.
+pub(super) fn others_lines(name: &str, namesakes: Vec<String>, kept: &[&DeclaredName], members: &[&MemberSite], below: bool) -> Vec<String> {
     let mut others = namesakes;
     let mut kept = kept.to_vec();
     kept.sort_by_key(|held| declaration_kind_order(held));
@@ -85,7 +87,7 @@ pub(super) fn others_lines(name: &str, namesakes: Vec<String>, kept: &[&Declared
     if others.is_empty() { return others }
     let count = others.len();
     let times = if count == 1 { "once more, as another thing".to_owned() } else { format!("{count} more times, each another thing") };
-    let mut lines = vec![format!("It is declared {times}, answered below:")];
+    let mut lines = vec![format!("It is declared {times}{}:", if below { ", answered below" } else { "" })];
     lines.extend(others.into_iter().map(|one| format!("  {one}")));
     lines
 }

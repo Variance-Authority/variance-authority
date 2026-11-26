@@ -109,19 +109,21 @@ A file that only binds the name, by destructuring it out of a value or with
 answer lists it as `bound, not declared, at <path>:<line>`, then the lines of
 that file that use it, and when no file declares the name it says so first.
 
-Each file that declares a name declares another thing, so `uses` answers for
-every one of them, each kept apart: the published declaration's imports, a line
-naming each file that exports the name without publishing it followed by that
-declaration's own imports, and each file that keeps it to itself. The lines
-under the headline name every other declaration by file and line, so the count
-the headline gives is read as one declaration's. `--file
-<path>`, the file one of them is declared in, answers for that declaration
-alone; a file that only passes the name on with `export … from` answers for the
-declaration it reaches. The answer ends by saying so when it covers more than one:
+Each file that declares a name declares another thing, so `uses` keeps every
+one of them apart. It answers in full the declaration most places import,
+among those an entry publishes when any is, and the lines under the
+headline name every other declaration by file and line, so the count the
+headline gives is read as one declaration's. Each other declaration a file
+exports is that one line, with how many places import it; each file that keeps
+the name to itself is still answered after the imports. `--file <path>`, the
+file one of them is declared in, answers for that declaration alone; a file
+that only passes the name on with `export … from` answers for the declaration
+it reaches. The answer ends by saying so when it covers more than one:
 
 ```
-`greet` is exported, without being published, at packages/lib/src/other.ts:1 as well, which is another declaration.
-Imported in 1 place, inside @acme/lib.
+It is declared 2 more times, each another thing:
+  packages/second/src/index.ts:1, published by @acme/second, imported nowhere
+  packages/lib/src/other.ts:1, exported without being published, imported in 1 place
 
 `file`, the file one of them is declared in, answers for that declaration alone.
 ```

@@ -91,7 +91,7 @@ export interface UsesAnswer {
   uses: Use[];
   /** The containers that declare `name` as a member. */
   memberOf: string[];
-  /** Each other declaration of `name`, at its file, with its own uses. */
+  /** Each other declaration of `name`, at its file, with its own uses: those `--file` with that file answers. */
   namesakes: { at: string; uses: Use[] }[];
   code: number;
 }
@@ -100,20 +100,28 @@ export interface UsesAnswer {
 /** The facts of `ask uses --name <name>`. */
 export async function uses(name: string): Promise<UsesAnswer> {
   const { code, out } = await run(['ask', 'uses', '--name', name, '--limit', '1000']);
-  const found: Use[] = [];
-  const memberOf: string[] = [];
+  const read = facts(out);
   const namesakes: { at: string; uses: Use[] }[] = [];
-  let into = found;
+  // Each other exported declaration is one line; `--file` answers its own uses.
+  for (const at of read.others) {
+    namesakes.push({ at, uses: facts((await run(['ask', 'uses', '--name', name, '--file', at, '--limit', '1000'])).out).uses });
+  }
+  return { uses: read.uses, memberOf: read.memberOf, namesakes, code };
+}
+
+/** The uses and member containers one `uses` answer lists, and the files of the exported declarations it names on one line each. */
+function facts(out: string): { uses: Use[]; memberOf: string[]; others: string[] } {
+  const into: Use[] = [];
+  const memberOf: string[] = [];
+  const others: string[] = [];
   let section: Section | 'member-declarations' | undefined;
   let container: string | undefined;
   // A file's own lines are listed under a heading naming it, each row the line alone.
   let ownFile = '';
   for (const line of out.split('\n')) {
     let m: RegExpExecArray | null;
-    if ((m = new RegExp(`^\`[\\w$]+\` is .* at ${AT} as well, which is another declaration\\.$`, 'u').exec(line))) {
-      namesakes.push({ at: m[1]!, uses: [] });
-      into = namesakes.at(-1)!.uses;
-      section = undefined;
+    if ((m = new RegExp(`^ {2}${AT}(?: and \\d+ more)?(?: as \\S+(?: default)?)?, (?:published by .+|exported without being published), imported `, 'u').exec(line))) {
+      others.push(m[1]!);
     } else if (/^Tests(?:, from other packages|, inside \S+)?:$/u.test(line)) section = 'tests';
     else if (/^Source(?:, from other packages|, inside \S+)?:$/u.test(line)) section = 'source';
     else if (line === 'Member declarations:') section = 'member-declarations';
@@ -143,7 +151,7 @@ export async function uses(name: string): Promise<UsesAnswer> {
       });
     }
   }
-  return { uses: found, memberOf, namesakes, code };
+  return { uses: into, memberOf, others };
 }
 
 /** One declaration `search` finds, in the order it ranks them. */
