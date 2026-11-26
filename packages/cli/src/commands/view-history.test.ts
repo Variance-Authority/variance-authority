@@ -207,6 +207,25 @@ describe('the kept commits, as a series', () => {
     expect(summaryOf(record([NaN, NaN]))).not.toHaveProperty('total');
   });
 
+  it('says nothing of a total where the runner timed some test files and not others, rather than a partial sum as the suite\'s', () => {
+    expect(summaryOf(record([12, NaN]))).not.toHaveProperty('total');
+  });
+
+  it('moves nothing across a record it could not read: the commit after it is not measured from the one before it', async () => {
+    const { cell } = await kept([
+      { commit: C1, ago: 3, entries: [entry(C1, record([10, 30]))] },
+      { commit: C2, ago: 2, entries: [entry(C2, new Uint8Array([1, 2, 3]))] },
+      { commit: C3, ago: 1, entries: [entry(C3, record([10, 90]))] },
+    ]);
+
+    const history = await historyOf(cell, 'main', { since: 14 * DAY, now: NOW, cacheDir: cache(), order: IN_GIT });
+
+    expect('points' in history && history.points.map((point) => [point.commit, point.moved])).toEqual([
+      [C1, undefined],
+      [C3, undefined],
+    ]);
+  });
+
   it('carries each test file once for the window, and each point its move from the one before', async () => {
     const { cell } = await kept([
       { commit: C1, ago: 2, entries: [entry(C1, record([10, 30]))] },

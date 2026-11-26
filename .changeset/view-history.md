@@ -9,7 +9,8 @@ files, the source files its tests reached, cases, retried cases and the time the
 file's mean over the window; every retried case; and the commits whose suite
 time moved most, over the test files both runs timed, with the files that
 moved it, each commit measured from the one before it on the mainline's
-first-parent history; a record it does not draw is named with why, and a
+first-parent history, and none measured across a record it could not read; a
+suite time is drawn only where every file was timed; a record it does not draw is named with why, and a
 commit the clone's fetched mainline does not reach is drawn and said to move
 nothing. `--since <n>d` or `<n>w`
 sets the window, 14 days by default. Each record is read whole once and its

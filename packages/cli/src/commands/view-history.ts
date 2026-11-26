@@ -22,7 +22,7 @@ import type { FileRuns, History, HistoryPoint, Moved, RecordSummary, RetriedCase
 
 const DAY = 86_400_000;
 /** Bumped when a summary's shape changes, so an older one is read again. */
-const SUMMARY_VERSION = 4;
+const SUMMARY_VERSION = 5;
 /** Records read at once: a share answers each over the network. */
 const READING = 8;
 const MOVERS = 3;
@@ -46,10 +46,11 @@ export function summaryOf(bytes: Uint8Array): RecordSummary {
       }
     }
   }
-  const timed = files.filter(([, took]) => took !== null);
+  // A sum over the files the runner timed is not the suite's time where it left any untimed.
+  const untimed = files.length === 0 || files.some(([, took]) => took === null);
   return {
     files,
-    ...(timed.length === 0 ? {} : { total: timed.reduce((sum, [, took]) => sum + took!, 0) }),
+    ...(untimed ? {} : { total: files.reduce((sum, [, took]) => sum + took!, 0) }),
     reached,
     ...(index === undefined ? {} : { cases: index.count }),
     ...(retried === undefined ? {} : { retried: retried.map(lostTo).sort((a, b) => (b.lost ?? -1) - (a.lost ?? -1) || codeUnitOrder(a.file, b.file) || codeUnitOrder(a.name, b.name)) }),
@@ -75,19 +76,28 @@ export interface Summarised extends RecordSummary {
  * move from the suite's point at the commit before it on `order`, the
  * mainline's first-parent history oldest first, and each test file across the
  * window. A commit `order` does not hold is drawn and moves nothing: the share
- * wrote it, but git cannot say what came before it. A move is summed over the
- * files both runs timed, so a file added, dropped or untimed in either moves
- * nothing.
+ * wrote it, but git cannot say what came before it. A record in `skipped`, one
+ * suite's or a whole commit's, is a gap: the point after it moves nothing,
+ * since what changed across it is unknown. A move is summed over the files
+ * both runs timed, so a file added, dropped or untimed in either moves nothing.
  */
 export function seriesOf(
   summarised: readonly Summarised[],
   order: readonly string[],
+  skipped: readonly Skipped[] = [],
 ): { readonly points: readonly HistoryPoint[]; readonly files: readonly FileRuns[]; readonly unplaced: number } {
   const ordered = [...summarised].sort((a, b) => a.written - b.written || codeUnitOrder(a.suite, b.suite) || codeUnitOrder(a.commit, b.commit));
   const place = new Map(order.map((commit, at) => [commit, at]));
   const moves = new Map<Summarised, Moved>();
   const last = new Map<string, Summarised>();
+  const gaps = [...skipped].filter((one) => place.has(one.commit)).sort((a, b) => place.get(a.commit)! - place.get(b.commit)!);
+  let gap = 0;
   for (const one of ordered.filter((held) => place.has(held.commit)).sort((a, b) => place.get(a.commit)! - place.get(b.commit)! || codeUnitOrder(a.suite, b.suite))) {
+    for (; gap < gaps.length && place.get(gaps[gap]!.commit)! < place.get(one.commit)!; gap += 1) {
+      const suite = gaps[gap]!.suite;
+      if (suite === undefined) last.clear();
+      else last.delete(suite);
+    }
     const before = last.get(one.suite);
     last.set(one.suite, one);
     const moved = before === undefined ? undefined : movedFrom(before, one);
@@ -197,8 +207,8 @@ export async function historyOf(cell: LineCell, mainline: string, options: Histo
     options.progress?.(`read ${done} of ${cold.length}`);
   });
   skipped.sort((a, b) => codeUnitOrder(a.commit, b.commit) || codeUnitOrder(a.suite ?? '', b.suite ?? ''));
-  const order = await options.order(new Set(summarised.map((one) => one.commit)), options.now - options.since);
-  return { ...seriesOf(summarised, order), since: options.since, skipped };
+  const order = await options.order(new Set([...summarised, ...skipped].map((one) => one.commit)), options.now - options.since);
+  return { ...seriesOf(summarised, order, skipped), since: options.since, skipped };
 
   async function readCommit(one: KeptAt): Promise<void> {
     const held = await readLine(cell, atCommit(line, one.commit));
