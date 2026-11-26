@@ -72,4 +72,20 @@ describe('variance view', () => {
     const history = /<script id="history" type="application\/json">([^<]*)<\/script>/u.exec(html)![1]!;
     expect(JSON.parse(history)).toEqual({ unread: 'no share is configured, so no mainline record is kept' });
   });
+
+  it.each([
+    ['a share section that does not parse', { kind: 'nowhere' }, /^the share section does not parse: /u],
+    ['a git share this clone has no remote for', { kind: 'git', mainlines: ['main'] }, /^the share could not be opened: /u],
+    ['a share no mainline is named for, by the config, the remote or the event', { kind: 'directory', root: 'share' }, /^no mainline could be chosen for this checkout$/u],
+  ])('carries a history that says why it holds no series, for %s, and draws the page', async (_, share, why) => {
+    vi.stubEnv('GITHUB_EVENT_PATH', undefined);
+    writeFileSync(join(root, 'variance.config.json'), JSON.stringify({ share }));
+    record();
+
+    const { out } = await viewOutput({ command: 'view' }, root);
+
+    const html = readFileSync(out.trim(), 'utf8');
+    const history = /<script id="history" type="application\/json">([^<]*)<\/script>/u.exec(html)![1]!;
+    expect(JSON.parse(history)).toEqual({ unread: expect.stringMatching(why) });
+  });
 });

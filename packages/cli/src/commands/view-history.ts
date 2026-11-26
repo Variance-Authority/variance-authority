@@ -262,7 +262,8 @@ async function heldJson<T>(dir: string, name: string): Promise<T | undefined> {
     const held = JSON.parse(await readFile(path, 'utf8')) as { readonly version: number; readonly held: T };
     if (held.version !== SUMMARY_VERSION) return undefined;
     const now = new Date();
-    await utimes(path, now, now).catch(() => undefined);
+    // A summary whose time cannot be marked is read again, as one not held.
+    await utimes(path, now, now);
     return held.held;
   } catch {
     return undefined;

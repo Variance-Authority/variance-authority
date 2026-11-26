@@ -1,5 +1,5 @@
 // compass: variance-authority.reach.crossings
-import { mkdtempSync, readdirSync, statSync, utimesSync } from 'node:fs';
+import { mkdtempSync, readdirSync, readFileSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { memoryLineCell, publishLine, type LineCell, type ShareEntry } from '@variance-authority/core/share';
@@ -26,7 +26,7 @@ const MAIN = { kind: 'mainline', name: 'main' } as const;
 const IN_GIT = async (kept: ReadonlySet<string>) => [C0, C1, C2, C3].filter((commit) => kept.has(commit));
 
 /** A record of two test files, the second's cases with one retried once. */
-function record(durations: readonly [number, number], options: { readonly retried?: boolean; readonly stray?: boolean; readonly untimed?: boolean; readonly gap?: boolean } = {}): Uint8Array {
+function record(durations: readonly [number, number], options: { readonly retried?: boolean; readonly stray?: boolean; readonly untimed?: boolean; readonly gap?: boolean; readonly refunds?: boolean } = {}): Uint8Array {
   const coverage = encodeTestCoverage({
     version: 3,
     instrumentation: 'fixture',
@@ -53,6 +53,7 @@ function record(durations: readonly [number, number], options: { readonly retrie
       ? { attempts: encodeRecordedAttempts([
           options.untimed === true ? { case: 'p', attempt: 1, ended: 'failed' } as const : { case: 'p', attempt: 1, ended: 'failed', duration: 31 } as const,
           { case: 'p', attempt: options.gap === true ? 3 : 2, ended: 'passed', duration: 8 },
+          ...(options.refunds === true ? [{ case: 'r', attempt: 1, ended: 'failed', duration: 50 } as const, { case: 'r', attempt: 2, ended: 'passed', duration: 9 } as const] : []),
           ...(options.stray === true ? [{ case: 'gone', attempt: 1, ended: 'failed', duration: 5 } as const, { case: 'gone', attempt: 2, ended: 'passed', duration: 5 } as const] : []),
         ]) }
       : {}),
@@ -91,6 +92,13 @@ describe('one record, summarised', () => {
       cases: 3,
       retried: [{ name: 'checkout > pays', file: 'test/pay.test.ts', lost: 31 }],
     });
+  });
+
+  it('puts the retried case that lost the most time first', () => {
+    expect(summaryOf(record([12, 30], { retried: true, refunds: true })).retried).toEqual([
+      { name: 'checkout > refunds', file: 'test/pay.test.ts', lost: 50 },
+      { name: 'checkout > pays', file: 'test/pay.test.ts', lost: 31 },
+    ]);
   });
 
   it('refuses a record whose attempts name a case it does not hold, as sense does', () => {
@@ -291,5 +299,90 @@ describe('the kept commits, as a series', () => {
       [C1],
       [{ commit: C2, suite: 'unit', why: 'a partial run: it holds only the tests it ran' }],
     ]);
+  });
+
+  it('names a commit whose manifest it cannot read, draws the rest, and moves nothing across it', async () => {
+    const { cell } = await kept([
+      { commit: C1, ago: 3, entries: [entry(C1, record([10, 30]))] },
+      { commit: C2, ago: 2, entries: [entry(C2, record([10, 50]))] },
+      { commit: C3, ago: 1, entries: [entry(C3, record([10, 90])), { ...entry(C3, record([5, 5]), 'chromium'), partial: true }] },
+    ]);
+    const unreadable: LineCell = { ...cell, load: async (line) => ('at' in line && line.at === C2 ? { kind: 'unreachable', detail: 'timed out' } : cell.load(line)) };
+
+    const history = await historyOf(unreadable, 'main', { since: 14 * DAY, now: NOW, cacheDir: cache(), order: IN_GIT });
+
+    expect('points' in history && [history.points.map((point) => [point.commit, point.moved]), history.skipped]).toEqual([
+      [[C1, undefined], [C3, undefined]],
+      [{ commit: C2, why: expect.any(String) }, { commit: C3, suite: 'chromium', why: 'a partial run: it holds only the tests it ran' }],
+    ]);
+  });
+
+  it('names a record the share lists and cannot hand over, and why', async () => {
+    const { cell } = await kept([
+      { commit: C1, ago: 2, entries: [entry(C1, record([10, 30]))] },
+      { commit: C2, ago: 1, entries: [entry(C2, record([10, 90]))] },
+    ]);
+    const lost: LineCell = { ...cell, blob: async (line, path) => ('at' in line && line.at === C2 ? { kind: 'unreachable', detail: 'gone' } : cell.blob(line, path)) };
+
+    const history = await historyOf(lost, 'main', { since: 14 * DAY, now: NOW, cacheDir: cache(), order: IN_GIT });
+
+    expect(history).toMatchObject({ skipped: [{ commit: C2, suite: 'unit', why: expect.any(String) }] });
+  });
+
+  it('moves nothing from a run whose test files were all untimed', async () => {
+    const { cell } = await kept([
+      { commit: C1, ago: 2, entries: [entry(C1, record([NaN, NaN]))] },
+      { commit: C2, ago: 1, entries: [entry(C2, record([10, 30]))] },
+    ]);
+
+    const history = await historyOf(cell, 'main', { since: 14 * DAY, now: NOW, cacheDir: cache(), order: IN_GIT });
+
+    expect('points' in history && history.points.map((point) => [point.commit, point.moved])).toEqual([[C1, undefined], [C2, undefined]]);
+  });
+
+  it('names a partial run it held from an earlier open as it named it then', async () => {
+    const { cell, reads } = await kept([{ commit: C1, ago: 1, entries: [{ ...entry(C1, record([10, 90])), partial: true }] }]);
+    const cacheDir = cache();
+    const first = await historyOf(cell, 'main', { since: 14 * DAY, now: NOW, cacheDir, order: IN_GIT });
+    const before = reads();
+
+    const second = await historyOf(cell, 'main', { since: 14 * DAY, now: NOW, cacheDir, order: IN_GIT });
+
+    expect(second).toEqual(first);
+    expect(reads()).toBe(before);
+  });
+
+  it('passes over an entry that is not a suite\'s record', async () => {
+    const { cell } = await kept([{ commit: C1, ago: 1, entries: [entry(C1, record([10, 30])), { name: 'other-v1/x', commit: C1, bytes: new Uint8Array([1]) }] }]);
+
+    const history = await historyOf(cell, 'main', { since: 14 * DAY, now: NOW, cacheDir: cache(), order: IN_GIT });
+
+    expect('points' in history && [history.points.map(({ suite }) => suite), history.skipped]).toEqual([['unit'], []]);
+  });
+
+  it('reads again what an earlier version of the summary kept', async () => {
+    const { cell, reads } = await kept([{ commit: C1, ago: 1, entries: [entry(C1, record([10, 30]))] }]);
+    const cacheDir = cache();
+    const first = await historyOf(cell, 'main', { since: 14 * DAY, now: NOW, cacheDir, order: IN_GIT });
+    for (const name of readdirSync(join(cacheDir, 'history'))) {
+      const path = join(cacheDir, 'history', name);
+      writeFileSync(path, JSON.stringify({ ...JSON.parse(readFileSync(path, 'utf8')), version: 0 }));
+    }
+    const before = reads();
+
+    const second = await historyOf(cell, 'main', { since: 14 * DAY, now: NOW, cacheDir, order: IN_GIT });
+
+    expect(second).toEqual(first);
+    expect(reads()).toBeGreaterThan(before);
+  });
+
+  it('draws the series where its cache cannot be written', async () => {
+    const { cell } = await kept([{ commit: C1, ago: 1, entries: [entry(C1, record([10, 30]))] }]);
+    const cacheDir = cache();
+    writeFileSync(join(cacheDir, 'history'), '');
+
+    const history = await historyOf(cell, 'main', { since: 14 * DAY, now: NOW, cacheDir, order: IN_GIT });
+
+    expect('points' in history && history.points.map(({ commit, total }) => [commit, total])).toEqual([[C1, 40]]);
   });
 });

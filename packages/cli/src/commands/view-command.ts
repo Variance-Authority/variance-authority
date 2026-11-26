@@ -42,29 +42,22 @@ const NO_SHARE: History = { unread: 'no share is configured, so no mainline reco
 
 /** The series of the mainline this checkout reads, from the share the root config names, or why there is none. */
 async function historyFor(cwd: string, since: number, here: ViewHere): Promise<History> {
-  try {
-    const selected = await selectMainline(cwd);
-    if ('unconfigured' in selected) return { unread: `the share section does not parse: ${selected.unconfigured}` };
-    if (selected.share === undefined) return NO_SHARE;
-    if (selected.named === undefined) return { unread: 'no mainline could be chosen for this checkout' };
-    const cell = await lineCellOf({ share: selected.share, cacheRoot: selected.cacheRoot }, { cwd, reuseMs: READ_REUSE_MS });
-    if (cell === undefined) return NO_SHARE;
-    if ('kind' in cell) return { unread: `the share could not be opened: ${describeMiss(cell)}` };
-    const mainline = selected.named.name;
-    const share = selected.share;
-    return await historyOf(cell, mainline, {
-      since,
-      now: here.now ?? Date.now(),
-      cacheDir: selected.cacheRoot,
-      order: (kept, opens) => keptInOrder({ share }, mainline, kept, opens, cwd),
-      ...(here.progress === undefined ? {} : { progress: here.progress }),
-    });
-  } catch (error) {
-    // The page is still worth drawing: the series says why it is missing, and so does stderr.
-    const unread = `the series could not be read: ${error instanceof Error ? error.message : String(error)}`;
-    here.progress?.(unread);
-    return { unread };
-  }
+  const selected = await selectMainline(cwd);
+  if ('unconfigured' in selected) return { unread: `the share section does not parse: ${selected.unconfigured}` };
+  if (selected.share === undefined) return NO_SHARE;
+  // A configured share is a cell or the miss that says why not; `lineCellOf` answers nothing only where none is.
+  const cell = (await lineCellOf({ share: selected.share, cacheRoot: selected.cacheRoot }, { cwd, reuseMs: READ_REUSE_MS }))!;
+  if ('kind' in cell) return { unread: `the share could not be opened: ${describeMiss(cell)}` };
+  if (selected.named === undefined) return { unread: 'no mainline could be chosen for this checkout' };
+  const mainline = selected.named.name;
+  const share = selected.share;
+  return historyOf(cell, mainline, {
+    since,
+    now: here.now ?? Date.now(),
+    cacheDir: selected.cacheRoot,
+    order: (kept, opens) => keptInOrder({ share }, mainline, kept, opens, cwd),
+    ...(here.progress === undefined ? {} : { progress: here.progress }),
+  });
 }
 
 /** The suite asked for, or the first whose record is on disk; each is located, none is read. */
