@@ -58,9 +58,8 @@ import { fileSetOf, foundAnswer, nativeAnswer, saidLimit } from './native-answer
  * is answered from there alone. Asked for one specifier of a package, an
  * import through another specifier of it is left to that one.
  *
- * An index that is missing or does not read is refused, with why and the
- * command that publishes one: an answer counted without it would say less
- * than it knows.
+ * An index that is missing or does not read is refused, saying why and how
+ * to publish one: an answer counted without it would say less than it knows.
  *
  * ## A use in the declaring file is a site
  *
