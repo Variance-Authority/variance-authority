@@ -39,6 +39,7 @@ import { governingPreconditions } from './governing-config.js';
 import { markCheckout } from './cache-layers.js';
 import { repositoryRoot } from './repository-root.js';
 import { prepareRecord } from './replaced-record.js';
+import { readMachine } from './machine.js';
 
 /** Where a fold writes, and which of this seam's own files it clears up after. */
 export interface FoldDestination {
@@ -162,6 +163,7 @@ export function foldRun(
       ...(commit === undefined ? {} : { commit }),
       tests: tests.sort((left, right) => codeUnitOrder(left.file, right.file)),
       ...crossedModules(joined.modules, crossings),
+      machine: readMachine(run.workers),
     };
     // In the record, with the coverage, in one write. A run that could record
     // a case, and recorded none and finished no file — no worker loaded this

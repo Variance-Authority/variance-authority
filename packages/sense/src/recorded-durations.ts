@@ -13,11 +13,12 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import { keepsCases } from './test-selection/case-record.js';
-import { commitRunsFile } from './test-selection/commit-runs.js';
+import { commitRunsFile, type CommitRuns } from './test-selection/commit-runs.js';
 import { commitRunsIn } from './test-selection/commit-runs-text.js';
 import { askCoverageFile } from './test-selection/coverage-file.js';
 import { decodeExecutionIndex, decodeExecutionTests } from './test-selection/execution-format.js';
 import { fileCost } from './test-selection/file-cost.js';
+import { filesMachines, machineClass, type Machine } from './test-selection/machine.js';
 import { NO_DURATION, PHASE_NAMES } from './test-selection/format-layout.js';
 import type { TestCoverageView } from './test-selection/format-view.js';
 import { recordDigestAt } from './test-selection/record-base.js';
@@ -82,6 +83,16 @@ export type RecordedCaseDurations =
     }
   | { readonly recording: string; readonly unread: string };
 
+/** The slowest recorded files of one class of machine, ranked only against each other. */
+export interface MachineDurations {
+  /** The machine the files last ran on; absent for the files whose run named none. */
+  readonly machine?: Machine;
+  /** The slowest first, at most the limit asked for. */
+  readonly slowest: readonly TimedTestFile[];
+  /** The files of this class the recording holds a duration for. */
+  readonly timed: number;
+}
+
 /** One suite's slowest recorded files and cases, or why there is no recording to read. */
 export type RecordedDurations = (
   | {
@@ -96,6 +107,12 @@ export type RecordedDurations = (
       readonly slowest: readonly TimedTestFile[];
       /** Every file the recording holds a duration for. */
       readonly timed: number;
+      /**
+       * The timed files grouped by the class of machine each last ran on, the
+       * class with the slowest file first; absent where no run beside the
+       * record names a machine. A figure is compared within its class only.
+       */
+      readonly machines?: readonly MachineDurations[];
       /** Recorded files whose runner reported no duration, or that a recording older than durations holds. */
       readonly untimed: number;
       /** What each half of the scope matched in the snapshot. */
@@ -135,10 +152,14 @@ export function recordedDurations(
           else timed.push({ file: view.string(paths[test]!), duration });
         });
         timed.sort((left, right) => right.duration - left.duration || codeUnitOrder(left.file, right.file));
+        const runs = runsAt(commitRunsFile(recording), view.commit);
+        const machines = runs === undefined ? undefined : byMachine(timed, filesMachines(runs), limit);
         return {
-          ...takenAt(recording, view.commit),
+          ...(view.commit === undefined ? {} : { commit: view.commit }),
+          ...(runs === undefined ? {} : { landed: runs.latest }),
           slowest: timed.slice(0, limit),
           timed: timed.length,
+          ...(machines === undefined ? {} : { machines }),
           untimed,
           scope: counts,
         };
@@ -151,18 +172,39 @@ export function recordedDurations(
 
 /** The commit the record at `recording` names, and when its latest run landed if the runs beside it stand at that commit. */
 export function takenAt(recording: string, commit: string | undefined): { readonly commit?: string; readonly landed?: string } {
-  return { ...(commit === undefined ? {} : { commit }), ...landedAt(commitRunsFile(recording), commit) };
+  const runs = runsAt(commitRunsFile(recording), commit);
+  return { ...(commit === undefined ? {} : { commit }), ...(runs === undefined ? {} : { landed: runs.latest }) };
 }
 
-function landedAt(runs: string, commit: string | undefined): { readonly landed?: string } {
+/** The runs record at `path`, where it stands at `commit`. */
+function runsAt(path: string, commit: string | undefined): CommitRuns | undefined {
   try {
-    const held = commitRunsIn(readFileSync(runs, 'utf8'), `the runs record at ${runs}`);
+    const held = commitRunsIn(readFileSync(path, 'utf8'), `the runs record at ${path}`);
     // A landing that died between its two writes leaves a snapshot beside the runs of the commit before it.
-    return held.commit === commit ? { landed: held.latest } : {};
+    return held.commit === commit ? held : undefined;
   } catch {
-    // The durations stand without their age, and the reader says the record does not hold it.
-    return {};
+    // The durations stand without their age or machine, and the reader says the record does not hold them.
+    return undefined;
   }
+}
+
+/** `timed`, slowest first, grouped by the class of machine `machines` names each on; absent where it names none. */
+function byMachine(
+  timed: readonly TimedTestFile[],
+  machines: ReadonlyMap<string, Machine | undefined>,
+  limit: number,
+): readonly MachineDurations[] | undefined {
+  const classes = new Map<string, { machine?: Machine; files: TimedTestFile[] }>();
+  for (const file of timed) {
+    const machine = machines.get(file.file);
+    const key = machine === undefined ? '' : machineClass(machine);
+    const held = classes.get(key) ?? { ...(machine === undefined ? {} : { machine }), files: [] };
+    held.files.push(file);
+    classes.set(key, held);
+  }
+  if (![...classes.keys()].some((key) => key !== '')) return undefined;
+  // `timed` is slowest first, so each class's first file is its slowest and the classes arrive in that order.
+  return [...classes.values()].map(({ files, ...machine }) => ({ ...machine, slowest: files.slice(0, limit), timed: files.length }));
 }
 
 /** What running test `test` of `view` cost, as {@link fileCost} reads it; absent where its runner timed nothing. */

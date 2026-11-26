@@ -17,6 +17,7 @@ import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { CommitRuns, RecordedTests, StandingEntry } from './commit-runs.js';
 import { installKey } from './kept-install.js';
 import { partlyIn, partOf } from './landings.js';
+import { machineClass } from './machine.js';
 
 /**
  * Where each test the snapshot held before this run last ran, this run's own
@@ -79,21 +80,26 @@ export function standingAfter(
 }
 
 /**
- * A stand as one string: its commit, whether it was assumed there, the install
- * and texts it ran on, and when it landed. Those go with the tests, so a stand
- * is compared from what its tests ran on at every select, and two runs at one
- * commit are two stands: one run's time is never another's.
+ * A stand as one string: its commit, whether it was assumed there, the install,
+ * texts and machine it ran on, and when it landed. Those go with the tests, so
+ * a stand is compared from what its tests ran on at every select, and two runs
+ * at one commit are two stands: one run's time is never another's.
  */
-export function standKey(stand: Pick<StandingEntry, 'commit' | 'assumed' | 'installed' | 'texts' | 'first' | 'latest'>): string {
+export function standKey(stand: Pick<StandingEntry, 'commit' | 'assumed' | 'installed' | 'texts' | 'first' | 'latest' | 'machine'>): string {
   const installed = stand.installed === undefined ? '' : ` ${installKey(stand.installed)}`;
   const texts = stand.texts === undefined ? '' : ` texts ${installKey(stand.texts)}`;
   const landed = stand.first === undefined || stand.latest === undefined ? '' : ` landed ${stand.first} ${stand.latest}`;
-  return `${stand.assumed === true ? 'assumed' : 'observed'} ${stand.commit}${installed}${texts}${landed}`;
+  const machine = stand.machine === undefined ? '' : ` on ${machineClass(stand.machine)}`;
+  return `${stand.assumed === true ? 'assumed' : 'observed'} ${stand.commit}${installed}${texts}${landed}${machine}`;
 }
 
-/** The install and texts `of` holds, each where it holds one. */
-export function ranOn(of: Pick<StandingEntry, 'installed' | 'texts'>): Pick<StandingEntry, 'installed' | 'texts'> {
-  return { ...(of.installed === undefined ? {} : { installed: of.installed }), ...(of.texts === undefined ? {} : { texts: of.texts }) };
+/** The install, texts and machine `of` holds, each where it holds one. */
+export function ranOn(of: Pick<StandingEntry, 'installed' | 'texts' | 'machine'>): Pick<StandingEntry, 'installed' | 'texts' | 'machine'> {
+  return {
+    ...(of.installed === undefined ? {} : { installed: of.installed }),
+    ...(of.texts === undefined ? {} : { texts: of.texts }),
+    ...(of.machine === undefined ? {} : { machine: of.machine }),
+  };
 }
 
 type Landed = Pick<StandingEntry, 'first' | 'latest' | 'runs'>;

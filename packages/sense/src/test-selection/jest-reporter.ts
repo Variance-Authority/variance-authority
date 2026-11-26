@@ -36,6 +36,7 @@ import { jestPhases, reportedDuration, type JestPerfStats } from './reported-tim
 import { journalsOf, oneTestPerFile, projectNamed, readProjectJournals } from './jest-projects.js';
 import { noteABusyIndex, withIndexLock } from './index-lock.js';
 import { laidProbes, landRun } from './commit-runs.js';
+import { readMachine, workersOf } from './machine.js';
 import { markCheckout } from './cache-layers.js';
 import { repositoryRoot } from './repository-root.js';
 import { projectPath, type CapturedModule } from './instrumented-modules.js';
@@ -137,11 +138,15 @@ class JestCoverageReporter {
   /** When `onRunStart` began this run: see `runTexts`. */
   #startedAt = 0;
 
+  /** The workers Jest ran test files in, as its `maxWorkers` resolved. */
+  readonly #workers: number | undefined;
+
   constructor(
-    globalConfig: { readonly shard?: unknown; readonly testNamePattern?: string } | undefined,
+    globalConfig: { readonly shard?: unknown; readonly testNamePattern?: string; readonly maxWorkers?: unknown } | undefined,
     config: JestReporterConfig,
   ) {
     this.#config = config;
+    this.#workers = workersOf(globalConfig?.maxWorkers);
     this.#named = (globalConfig?.testNamePattern ?? '') !== '';
     const selected = 'selected' in config && config.selected === true;
     this.#alone = recordsAlone(globalConfig?.shard != null, selected, 'coverageFile' in config && handedRecord(config.root, config.coverageFile));
@@ -254,6 +259,7 @@ class JestCoverageReporter {
       ...(commit === undefined ? {} : { commit }),
       tests: tests.sort((left, right) => codeUnitOrder(left.file, right.file)),
       ...crossedModules(modules, crossings),
+      machine: readMachine(this.#workers),
     };
     // In the record, with the coverage, in one write. A run that recorded no
     // case and finished no file has none to lay, and the record's cases stay

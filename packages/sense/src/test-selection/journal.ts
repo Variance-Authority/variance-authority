@@ -72,10 +72,11 @@ import { deriveModules } from './captured-modules.js';
 import { coverageModule } from './coverage-rows.js';
 import { recordFileFor } from './record-location.js';
 import { prepareRecord } from './replaced-record.js';
+import { readMachine } from './machine.js';
+import type { RunCoverage } from './format.js';
 import {
   type CoveragePrecondition,
   type CoverageTest,
-  type TestCoverage,
 } from './index.js';
 
 export { EXECUTION_GLOBAL } from './execution-global.js';
@@ -214,6 +215,12 @@ export interface RecordExecutionOptions {
    * keeps none, because a run that declared no check names none missing.
    */
   readonly checks?: ChecksSection;
+  /**
+   * The workers the runner ran its subjects in, which the machine the runs
+   * record names for this run carries. Absent where the runner did not say.
+   * TODO: Storybook's recorder does not say them yet.
+   */
+  readonly workers?: number;
 }
 
 /** What a run learned, or why it learned nothing. */
@@ -397,7 +404,7 @@ export async function recordExecution(
     .sort((left, right) => codeUnitOrder(left.file, right.file));
 
   const commit = options.commit ?? (await commitOf(root));
-  const current: TestCoverage = {
+  const current: RunCoverage = {
     version: 3,
     instrumentation,
     ...(commit === undefined ? {} : { commit }),
@@ -411,6 +418,7 @@ export async function recordExecution(
         ),
       )
       .sort((left, right) => codeUnitOrder(left.file, right.file)),
+    machine: readMachine(options.workers),
   };
 
   // In the record, never beside it, and only for a driver that asked. A file the

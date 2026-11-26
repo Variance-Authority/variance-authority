@@ -117,6 +117,34 @@ describe('the slowest recorded test files, as printed', () => {
       .toBe('Slowest recorded test files, that entered src/a.ts: /r holds no row at src/a.ts, so it cannot say which files entered it.');
   });
 
+  it('ranks the files once for each class of machine they ran on, naming the machine, and counts what it left out once', () => {
+    const answer = printed([{
+      recording: '/cache/coverage.bin',
+      origin: 'own',
+      slowest: [{ file: 'test/b.test.ts', duration: 900 }, { file: 'test/c.test.ts', duration: 300 }],
+      timed: 3,
+      untimed: 1,
+      machines: [
+        { machine: { arch: 'x64', cores: 2, workers: 2 }, slowest: [{ file: 'test/b.test.ts', duration: 900 }], timed: 1 },
+        { slowest: [{ file: 'test/c.test.ts', duration: 300 }, { file: 'test/a.test.ts', duration: 40 }], timed: 2 },
+      ],
+      scope: ANYWHERE,
+      cases: NO_CASES,
+    }]);
+
+    expect(answer.split('\n').slice(2, 11)).toEqual([
+      'Slowest recorded test files, on x64, 2 cores, 2 workers, as their runner timed them:',
+      '  900 ms  test/b.test.ts',
+      '1 of 1 timed file(s) shown.',
+      '',
+      'Slowest recorded test files, on a machine its run did not name, as their runner timed them:',
+      '  300 ms  test/c.test.ts',
+      '   40 ms  test/a.test.ts',
+      '2 of 2 timed file(s) shown; 1 recorded file(s) have no duration.',
+      '',
+    ]);
+  });
+
   it('prints milliseconds under a second and tenths of a second above', () => {
     expect([0, 999, 1000, 12_345].map(spent)).toEqual(['0 ms', '999 ms', '1.0 s', '12.3 s']);
   });

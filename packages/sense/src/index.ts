@@ -124,6 +124,7 @@ export {
   recordedDurations,
   recordedPaths,
   recordedTimes,
+  type MachineDurations,
   type RecordedCaseDurations,
   type RecordedDurations,
   type TimedTestCase,

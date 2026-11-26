@@ -320,6 +320,43 @@ describe('the record an answer read', () => {
     expect(suite).not.toHaveProperty('landed');
   });
 
+  it('ranks the files within each class of machine their runs landed on, never across one', () => {
+    const runner = { arch: 'x64', cores: 2 };
+    const laptop = { arch: 'arm64', cores: 12 };
+    const at = record({ ...coverage([['test/a.test.ts', 40], ['test/b.test.ts', 900], ['test/c.test.ts', 300], ['test/d.test.ts', 10]]), commit });
+    writeFileSync(commitRunsFile(at), commitRunsText({
+      commit,
+      latest: LANDED,
+      runs: 2,
+      landings: [
+        { files: ['test/a.test.ts', 'test/c.test.ts'], machine: laptop },
+        { files: ['test/b.test.ts'], machine: runner },
+      ],
+      standing: [{ commit: 'e'.repeat(40), files: ['test/d.test.ts'] }],
+    }));
+
+    const [suite] = recordedDurations(root, 1);
+
+    expect(suite).toMatchObject({
+      timed: 4,
+      machines: [
+        { machine: runner, slowest: [{ file: 'test/b.test.ts', duration: 900 }], timed: 1 },
+        { machine: laptop, slowest: [{ file: 'test/c.test.ts', duration: 300 }], timed: 2 },
+        { slowest: [{ file: 'test/d.test.ts', duration: 10 }], timed: 1 },
+      ],
+    });
+    expect(suite !== undefined && 'machines' in suite ? suite.machines?.[2] : undefined).not.toHaveProperty('machine');
+  });
+
+  it('groups nothing by machine when no run beside the record names one', () => {
+    const at = record({ ...coverage([['test/a.test.ts', 40]]), commit });
+    writeFileSync(commitRunsFile(at), commitRunsText({ commit, latest: LANDED, runs: 1, landings: [{ files: ['test/a.test.ts'] }] }));
+
+    const [suite] = recordedDurations(root, 1);
+
+    expect(suite).not.toHaveProperty('machines');
+  });
+
   it('still answers from a record whose runs beside it cannot be read', () => {
     const at = record({ ...coverage([['test/a.test.ts', 40]]), commit });
     writeFileSync(commitRunsFile(at), 'not json');

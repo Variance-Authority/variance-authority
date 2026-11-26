@@ -214,6 +214,8 @@ by time alone.
 Then the test files and test cases that run spent longest in. A file's time is what running it cost: the larger of the duration its
 runner reported and its phases summed, so the environment, setup files and
 import before its first case count, as Vitest's own file duration does not.
+Where the runs named their machines, the files are ranked once per class of
+machine, each under the machine it names, and never compared across two.
 Nothing is timed here. A file or case
 with no reported duration is counted apart and never ranked as fast. `--from`
 keeps the tests declared under the paths you give. `--to` keeps the tests that,

@@ -318,6 +318,7 @@ export default class implements Reporter {
         ...(staged.cases !== undefined && staged.cases.length > 0
           ? { cases: staged.cases }
           : {}),
+        ...(this.#config === undefined ? {} : { workers: this.#config.workers }),
         checks,
       });
       if (!record.recorded) {

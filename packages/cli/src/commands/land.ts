@@ -89,6 +89,8 @@ async function landCombined(
       );
   const installed = ran === undefined ? undefined : selection.shardsInstall(ran);
   const ranOver = ran === undefined ? undefined : selection.shardsTexts(ran);
+  // Each shard's landing named the machine it ran on, so the fold lands once per class of machine.
+  const machines = ran === undefined ? {} : { machines: selection.shardsMachines(ran) };
 
   // The snapshot is read, merged and written, its cases laid into it, under
   // the lock every runner seam takes on it. The runs record beside the snapshot
@@ -180,7 +182,7 @@ async function landCombined(
     const ranCases = 'laid' in landing && landing.shards > 0 ? selection.casesRan(laid) : 'none';
     const runs = folded === undefined
       ? undefined
-      : selection.commitRunsAfter(before, held, { ...folded, laid: ranCases }, installed, ranOver);
+      : selection.commitRunsAfter(before, held, { ...folded, laid: ranCases, ...machines }, installed, ranOver);
     const cases = 'unanswered' in landing
       ? { ...landing, shards: [...shards] }
       : { ...landing, shards: landing.shards === 0 ? 0 : cased };
