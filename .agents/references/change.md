@@ -161,7 +161,9 @@ these.
   declaration's docblock 10, a block comment in code 5, a public page's lead 15.
   Blank lines, bare tags and pragmas such as `// compass:` do not count.
   `tools/budgets.check.ts` reads comments with oxc and holds the debt recorded
-  in `tools/budgets.baseline.json`.
+  in `tools/budgets.baseline.json`. An MCP tool definition is held in bytes, as
+  `tools/list` sends it, per tool and per server's list: `DEFINITION_BYTES` in
+  `tools/budgets.mjs`, with no debt.
 - **A breach is a collapse, not a trim.** Write what the task needs while you
   work; the limits are checked once, in `verify:rules`. A surface or file that
   breaches is collapsed in the same change, as a commit of its own before the

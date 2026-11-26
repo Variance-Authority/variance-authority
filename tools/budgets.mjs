@@ -24,6 +24,37 @@ export const BASELINE = join(ROOT, 'tools/budgets.baseline.json');
 /** Content lines per surface. A breach collapses the surface to about half. */
 export const BUDGET = { overview: 15, docblock: 10, block: 5, lead: 15 };
 
+/**
+ * Bytes per MCP tool definition, and per server's list of them: a client puts
+ * every definition in the model's context at the start of each session, asked
+ * or not. Held for the 19 `docs_*` tools `variance-authority-help` lists and the
+ * 34 `variance serve` lists, which adds the report, costs and review tools.
+ */
+// About 2% over the definitions as #1848 left them, so growth displaces a sentence; one tool, ~600 tokens.
+export const DEFINITION_BYTES = { tool: 2400, 'variance-authority-help': 20000, 'variance serve': 33000 };
+
+/** One tool's definition as `tools/list` sends it: name, description and input schema, as JSON. */
+export const definitionBytes = (tool) =>
+  Buffer.byteLength(JSON.stringify({ name: tool.name, description: tool.description, inputSchema: tool.inputSchema }));
+
+/** Each listed set over its total, and each tool in any of them over the per-tool budget. */
+export function definitionsOver(sets) {
+  const over = [];
+  const named = new Set();
+  for (const [set, tools] of Object.entries(sets)) {
+    const budget = DEFINITION_BYTES[set];
+    if (budget === undefined) throw new Error(`budgets: no definition budget for ${set}`);
+    const total = tools.reduce((sum, tool) => sum + definitionBytes(tool), 0);
+    if (total > budget) over.push(`${set}: ${total} B for ${tools.length} tools (budget ${budget})`);
+    for (const tool of tools) {
+      const bytes = definitionBytes(tool);
+      if (bytes > DEFINITION_BYTES.tool && !named.has(tool.name)) over.push(`${tool.name}: ${bytes} B (budget ${DEFINITION_BYTES.tool})`);
+      named.add(tool.name);
+    }
+  }
+  return over;
+}
+
 const PRAGMA =
   /^\s*(?:compass:|eslint-|oxlint-|@ts-|biome-ignore|prettier-ignore|c8 |v8 |istanbul |@vitest-environment|@jsx|#region|#endregion|<reference|<depends)/;
 const TAG = /^(?:@\w+(?:\s+\S+)?|\{@link\s+[^}]*\})$/;

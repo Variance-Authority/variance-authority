@@ -1,6 +1,19 @@
 import { readFileSync } from 'node:fs';
+import { HELP_TOOLS } from '@variance-authority/help/tools';
+import { COSTS_TOOLS, REVIEW_TOOLS, TOOLS } from '@variance-authority/mcp/tools';
 import { describe, expect, it } from 'vitest';
-import { BASELINE, BUDGET, judge, leadOf, overBudget, recordable, surfacesOf } from './budgets.mjs';
+import {
+  BASELINE,
+  BUDGET,
+  DEFINITION_BYTES,
+  definitionBytes,
+  definitionsOver,
+  judge,
+  leadOf,
+  overBudget,
+  recordable,
+  surfacesOf,
+} from './budgets.mjs';
 import { MODULES, tracked } from './modules.js';
 
 /**
@@ -152,7 +165,37 @@ describe('the debt only shrinks', () => {
   });
 });
 
+describe('an MCP tool definition is held in bytes, as `tools/list` sends it', () => {
+  const tool = (name: string, description: string) => ({ name, description, inputSchema: { type: 'object' } });
+
+  it('counts the name, the description and the input schema as JSON, in UTF-8', () => {
+    expect(definitionBytes(tool('a', 'é'))).toBe('{"name":"a","description":"é","inputSchema":{"type":"object"}}'.length + 1);
+  });
+
+  it('names a set over its total and a tool over its own, each tool once', () => {
+    const long = tool('long', 'x'.repeat(DEFINITION_BYTES.tool));
+    const sets = { 'variance-authority-help': [long], 'variance serve': [long] };
+    expect(definitionsOver(sets)).toEqual([`long: ${definitionBytes(long)} B (budget ${DEFINITION_BYTES.tool})`]);
+    expect(() => definitionsOver({ other: [] })).toThrow('no definition budget for other');
+  });
+});
+
 describe('the repository', () => {
+  it('lists every MCP definition within its budget', () => {
+    // `variance serve` lists the report tools, costs, review and the help tools, in that order.
+    const over = definitionsOver({
+      'variance-authority-help': HELP_TOOLS,
+      'variance serve': [...TOOLS, ...COSTS_TOOLS, ...REVIEW_TOOLS, ...HELP_TOOLS],
+    });
+    expect(
+      over.length === 0
+        ? ''
+        : `${over.length} MCP definition budget(s) breached:\n\n  ${over.join('\n  ')}\n\n` +
+            'Say what the tool answers, its inputs and when to pick it over its neighbours; ' +
+            'the answer shows its own layout.',
+    ).toBe('');
+  });
+
   const { surfaces, debt, where } = overBudget(MODULES, tracked('*.md'));
   const grownKeys = (lines: string[]): string[] => lines.map((line) => line.slice(0, line.indexOf(':')));
   const { grown, slack } = judge(JSON.parse(readFileSync(BASELINE, 'utf8')) as Record<string, number[]>, debt);
