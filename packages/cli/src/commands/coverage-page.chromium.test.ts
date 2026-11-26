@@ -20,7 +20,9 @@ const BROWSER_AVAILABLE = ((): boolean => {
   }
 })();
 
-if (!BROWSER_AVAILABLE) console.warn('\npackages/cli coverage page in a browser: skipped.\n  no browser — npx playwright install chromium\n');
+if (!BROWSER_AVAILABLE) {
+  console.warn('\npackages/cli coverage page in a browser: skipped.' + '\n  no browser — npx playwright install chromium\n');
+}
 
 const LONG = 'packages/cli/src/commands/a-file-with-a-name-long-enough-to-overflow-a-phone.ts';
 const region = (name: string, startLine: number) => ({ file: LONG, kind: 'function', name, startLine, endLine: startLine + 3 });
@@ -63,6 +65,8 @@ let page: Page | undefined;
 
 beforeAll(async () => {
   if (!BROWSER_AVAILABLE) return;
+  // One browser and one page: the page is the subject, and it is loaded once.
+  // `@variance-authority/playwright` does not publish its browser lease.
   browser = await chromium.launch();
   page = await browser.newPage({ viewport: { width: 390, height: 844 } });
   await page.setContent(formatCoverage(ANSWER, 'html'));

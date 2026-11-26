@@ -9,6 +9,7 @@
  * a change are only added up, signed as `coverageParts` signs them.
  */
 
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { MovedRegion, TestFileMotion } from '@variance-authority/sense/test-selection';
 import { files, grouped, paired, ratio, short, startedStopped } from './coverage-summary.js';
 import { section, text } from './report-html-elements.js';
@@ -71,7 +72,7 @@ function movedTests(motions: readonly { readonly suite: string | undefined; read
   if (motions.length === 0) return '';
   const moved = (motion: TestFileMotion) => motion.entered.length + motion.left.length;
   const rows = [...motions]
-    .sort((a, b) => moved(b.motion) - moved(a.motion) || (a.motion.file < b.motion.file ? -1 : a.motion.file > b.motion.file ? 1 : 0))
+    .sort((a, b) => moved(b.motion) - moved(a.motion) || codeUnitOrder(a.motion.file, b.motion.file))
     .map(({ suite, motion }) => line(`moved:${suite ?? ''}:${motion.file}`, motion.file, motion.entered.length, motion.left.length, suite));
   return listed('Test files whose reach moved', 'regions each began and stopped calling into', rows);
 }
@@ -92,7 +93,7 @@ function touchedFiles(motions: readonly TestFileMotion[]): string {
   }
   if (byFile.size === 0) return '';
   const rows = [...byFile]
-    .sort(([a, x], [b, y]) => y.entered.size + y.left.size - (x.entered.size + x.left.size) || (a < b ? -1 : 1))
+    .sort(([a, x], [b, y]) => y.entered.size + y.left.size - (x.entered.size + x.left.size) || codeUnitOrder(a, b))
     .map(([file, { entered, left }]) => line(`touched:${file}`, file, entered.size, left.size));
   return listed('Source files whose regions moved', 'regions a test file began and stopped calling into', rows);
 }
