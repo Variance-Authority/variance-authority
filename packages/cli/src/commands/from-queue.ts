@@ -131,27 +131,29 @@ async function witnessed(asked: Asked, witness: Witness, exec: Gh): Promise<{ re
   const proof = witness.prove === undefined ? undefined : await witness.prove(id);
   if (proof !== undefined && 'none' in proof) return proof;
   const got = await downloaded(asked, id, exec);
-  if ('none' in got || proof === undefined) return got;
+  if ('none' in got) return got;
   try {
-    const refused = await restated(got.dir, proof.tested, asked.commit);
-    if (refused === undefined) return { dir: got.dir, from: proof.from };
+    const { cachedSuite } = await import('@variance-authority/sense/test-selection');
+    // bound: the files of the artifacts one run uploaded, downloaded into this directory alone.
+    const files = (await readdir(got.dir, { recursive: true })).map((path) => join(got.dir, path)).filter((path) => cachedSuite(path) !== undefined);
+    const refused = files.length === 0
+      ? `run ${id} kept no record in its artifacts named ${asked.pattern}`
+      : proof === undefined ? undefined : await restated(got.dir, files, id, proof, asked.commit);
+    if (refused === undefined) return proof === undefined ? got : { dir: got.dir, from: proof.from };
     await rm(got.dir, { recursive: true, force: true });
-    return { none: `run ${id} did not test ${proof.madeOf}: ${refused}` };
+    return { none: refused };
   } catch (error) {
     await rm(got.dir, { recursive: true, force: true });
     throw error;
   }
 }
 
-/** Every record in `dir` restated from `tested` at `landed`, or why one cannot be: none is there, or one was made elsewhere. */
-async function restated(dir: string, tested: string, landed: string): Promise<string | undefined> {
-  const { cachedSuite, restateRecord } = await import('@variance-authority/sense/test-selection');
-  // bound: the files of the artifacts one run uploaded, downloaded into this directory alone.
-  const files = (await readdir(dir, { recursive: true })).map((path) => join(dir, path)).filter((path) => cachedSuite(path) !== undefined);
-  if (files.length === 0) return "its artifacts hold no record";
+/** Every record in `files` restated from the commit `proof` names at `landed`, or why one cannot be: it was made elsewhere. */
+async function restated(dir: string, files: readonly string[], id: string, proof: Proof, landed: string): Promise<string | undefined> {
+  const { restateRecord } = await import('@variance-authority/sense/test-selection');
   for (const file of files) {
-    const done = await restateRecord(file, tested, landed);
-    if ('madeAt' in done) return `${file.slice(dir.length + 1)} was made at ${done.madeAt ?? 'no commit'}, not at ${short(tested)}`;
+    const done = await restateRecord(file, proof.tested, landed);
+    if ('madeAt' in done) return `run ${id} did not test ${proof.madeOf}: ${file.slice(dir.length + 1)} was made at ${done.madeAt ?? 'no commit'}, not at ${short(proof.tested)}`;
   }
   return undefined;
 }
