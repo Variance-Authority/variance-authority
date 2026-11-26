@@ -20,13 +20,18 @@ export type SuiteCaseNames = CasesUnread | { readonly cases: readonly RecordedCa
 
 /**
  * Each suite's cases. The section adds to an answer that needs no suite, so a
- * root config that names none leaves it unread and the rest of the answer stands.
+ * root config that names none leaves it unread, as cases unknown, and the rest
+ * of the answer stands.
  */
 export function suiteCaseNames(root: string): readonly SuiteCaseNames[] {
   try {
-    return recordedCaseNames(root).map((answer) => ('unread' in answer ? { ...(answer.suite === undefined ? {} : { suite: answer.suite }), why: answer.unread } : answer));
+    return recordedCaseNames(root).map((answer) => {
+      if (!('unread' in answer)) return answer;
+      const { suite, unread, unreadable } = answer;
+      return { ...(suite === undefined ? {} : { suite }), why: unread, ...(unreadable === undefined ? {} : { unreadable }) };
+    });
   } catch (error) {
-    return [{ why: error instanceof Error ? error.message : String(error) }];
+    return [{ why: error instanceof Error ? error.message : String(error), unreadable: true }];
   }
 }
 
