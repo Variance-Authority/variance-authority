@@ -230,14 +230,19 @@ export function readFlags(
   return { values, present, positionals, repeated, unknown };
 }
 
+/** A backreference by number or name, or a named group: what changes meaning once two patterns are joined. */
+const UNJOINABLE = /\\[1-9]|\\k<|\(\?<(?![=!])/u;
+
 /**
  * The refusal of a repeated flag, with the one pattern that matches either value
  * when both are patterns. It says *either*: a second pattern may have meant both,
- * which no one pattern asks, and an empty one would match everything.
+ * which no one pattern asks, and an empty one would match everything. A value
+ * with a backreference or a named group gets none: joined, a number would count
+ * the other value's groups, and a name could be declared twice.
  */
 function givenTwice(name: string, patterns: readonly string[] = []): string {
   const refusal = `\`${name}\` was given more than once`;
-  if (patterns.length === 0 || patterns.includes('')) return refusal;
+  if (patterns.length === 0 || patterns.some((pattern) => pattern === '' || UNJOINABLE.test(pattern))) return refusal;
   const joined = patterns.map((pattern) => `(?:${pattern})`).join('|');
   return `${refusal}. It takes one regular expression; to match either, give \`${name} ${quoted(joined)}\``;
 }

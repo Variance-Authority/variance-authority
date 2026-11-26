@@ -72,6 +72,12 @@ describe('a pattern flag of discover given twice', () => {
     expect(read(['discover', '--path=a', '--path='])).toThrow(/^`--path` was given more than once$/u);
   });
 
+  it('offers no pattern when joining would change what a value matches', () => {
+    expect(read(['discover', '--path', '(a)\\1', '--path', '(b)\\1'])).toThrow(/^`--path` was given more than once$/u);
+    expect(read(['discover', '--path', '(?<at>a)', '--path', '(?<at>b)'])).toThrow(/^`--path` was given more than once$/u);
+    expect(read(['discover', '--text', '(?<=a)b', '--text', 'c'])).toThrow(/to match either, give `--text '\(\?:\(\?<=a\)b\)\|\(\?:c\)'`$/u);
+  });
+
   it('names no pattern for a flag that takes none', () => {
     expect(read(['discover', '--from', 'a.ts', '--from', 'b.ts'])).toThrow(/^`--from` was given more than once$/u);
   });
