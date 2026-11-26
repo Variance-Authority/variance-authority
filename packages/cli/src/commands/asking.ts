@@ -359,19 +359,6 @@ function takesNow(tool: Asked): string {
   return `it takes ${flags.length === 0 ? 'none' : flags.join(', ')}`;
 }
 
-/** Greedy, on spaces, and nothing else. The descriptions are prose, not layout. */
-export function wrap(text: string, width: number): readonly string[] {
-  const lines: string[] = [];
-
-  for (const word of text.split(/\s+/)) {
-    const last = lines[lines.length - 1];
-    if (last === undefined || last.length + 1 + word.length > width) lines.push(word);
-    else lines[lines.length - 1] = `${last} ${word}`;
-  }
-
-  return lines;
-}
-
 /** The command every question is asked through, which every hint in an answer is spelled for. */
 const SHELL = 'variance ask';
 
