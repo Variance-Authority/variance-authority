@@ -217,7 +217,7 @@ fn spelled(held: &DeclaredName, name: &str) -> String {
 }
 
 /// How a declaration's own name differs from the one asked: its default, or another name.
-fn spelled_as(spelled: &str, asked: &str) -> String {
+pub(super) fn spelled_as(spelled: &str, asked: &str) -> String {
     match spelled {
         _ if spelled == asked => String::new(),
         "default" => " as its default".into(),

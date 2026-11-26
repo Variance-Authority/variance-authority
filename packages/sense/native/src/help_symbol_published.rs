@@ -9,7 +9,6 @@ use std::collections::{HashMap, HashSet};
 use crate::compact::Layer;
 use crate::help_members::members_on;
 use crate::help_name_scope::PackageScope;
-use crate::help_origin::declaration_exported;
 use crate::help_key::{says, Keys, SLOT};
 use crate::help_symbol_rows::{Entry, Export, PathSite, Site};
 use crate::help_usage::{importers, Asked, Importers, NameUse};
@@ -92,13 +91,9 @@ pub(crate) fn published_declarations<'a>(keys: &Keys<'a>, name: &str, package: &
 
 pub(crate) type Published<'a> = (Vec<Entry<'a>>, &'a str);
 
-pub(crate) enum PublicationScope<'a> {
-    Asked(&'a PackageScope<'a>),
-    #[cfg_attr(not(feature = "standalone-cli"), allow(dead_code))]
-    PublishedOnly,
-}
-
-pub(crate) fn published_imports<'a>(root: &str, layers: &[Layer], name: &str, entries: Vec<Entry<'a>>, exports: &[Export<'a>], scope: PublicationScope<'_>) -> Option<(Vec<Published<'a>>, Importers)> {
+/// The declarations the entries `entries` publish `name` from, by file, with who imports each: `None` where one is published or bound under another name, whose imports are read under every name of its key.
+#[cfg_attr(not(feature = "standalone-cli"), allow(dead_code))]
+pub(crate) fn published_imports<'a>(root: &str, layers: &[Layer], name: &str, entries: Vec<Entry<'a>>, exports: &[Export<'a>]) -> Option<(Vec<Published<'a>>, Importers)> {
     if entries.iter().any(|entry| entry.declared != name || entry.name != name) {
         return None;
     }
@@ -106,26 +101,14 @@ pub(crate) fn published_imports<'a>(root: &str, layers: &[Layer], name: &str, en
     for entry in entries {
         declarations.entry(entry.at).or_default().push(entry);
     }
-    if let PublicationScope::Asked(package) = scope {
-        for export in exports.iter().filter(|export| package.export(export)) {
-            if export.name != name || declaration_exported(layers, export.at, export.name)
-                .is_none_or(|found| found.name != name || !declarations.contains_key(found.at.as_str()))
-            {
-                return None;
-            }
-        }
-    } else if exports.iter().any(|export| export.name != name && export.bound == Some(name) && declarations.contains_key(export.at)) {
-        // Counting under multiple export spellings uses the binding's full key.
+    if exports.iter().any(|export| export.name != name && export.bound == Some(name) && declarations.contains_key(export.at)) {
         return None;
     }
     let mut declarations: Vec<_> = declarations.into_values().collect();
     for entries in &mut declarations { entries.sort_by(by_door); }
     declarations.sort_by(|a, b| by_door(&a[0], &b[0]).then_with(|| code_unit(a[0].at, b[0].at)));
     let asked: Vec<_> = declarations.iter().map(|entries| vec![Asked { file: entries[0].at.to_owned(), name: name.to_owned() }]).collect();
-    let mut read = importers(root, layers, &asked);
-    if let PublicationScope::Asked(package) = scope {
-        for group in &mut read.groups { group.uses.retain(|site| package.through(&site.key)); }
-    }
+    let read = importers(root, layers, &asked);
     let homes: HashMap<_, _> = exports.iter().filter(|export| export.bound == Some(name)).map(|export| (export.at, export.by)).collect();
     let declarations = declarations.into_iter().map(|entries| {
         let lead = &entries[0];

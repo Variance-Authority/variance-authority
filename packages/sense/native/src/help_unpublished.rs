@@ -23,13 +23,6 @@ pub(crate) struct Unpublished<'a> {
     pub key: Key,
 }
 
-impl Unpublished<'_> {
-    /// Whether the export is written under `name` and keys a declaration of that name exported under it alone: the one shape `uses` carries.
-    pub(crate) fn plain(&self, name: &str) -> bool {
-        says(self.export.name, name) && self.key.named == name && self.key.spellings.iter().all(|one| one == name)
-    }
-}
-
 /// Every export from ordinary source that answers to `name` and `package`
 /// keeps: those written under it first, then, of the files that write none,
 /// the exports keyed by it, each in export-list order.
