@@ -19,7 +19,7 @@ import { askCoverageFile } from './test-selection/coverage-file.js';
 import type { TestCoverageView } from './test-selection/format-view.js';
 import { decodeExecutionIndex, decodeExecutionTests } from './test-selection/execution-format.js';
 import { costs } from './test-selection/file-cost.js';
-import { filesMachines, machineClass, type Machine } from './test-selection/machine.js';
+import { classKey, filesMachines, type Machine } from './test-selection/machine.js';
 import { recordDigestAt } from './test-selection/record-base.js';
 import { nearestRecord, nearestTestCoverage, type RecordOrigin } from './test-selection/record-location.js';
 import { declaredSuites } from './test-selection/suites.js';
@@ -201,7 +201,7 @@ function byMachine(
   const classes = new Map<string, { machine?: Machine; files: TimedTestFile[] }>();
   for (const file of timed) {
     const machine = machines.get(file.file);
-    const key = machine === undefined ? '' : machineClass(machine);
+    const key = classKey(machine);
     const held = classes.get(key) ?? { ...(machine === undefined ? {} : { machine }), files: [] };
     held.files.push(file);
     classes.set(key, held);

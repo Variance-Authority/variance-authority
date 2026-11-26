@@ -1,6 +1,7 @@
 import { hostname } from 'node:os';
 import { describe, expect, it } from 'vitest';
-import { cpuQuotaOf, describeMachine, filesMachines, imageOf, machineClass, machineOf, readMachine, shardsMachines, type Machine } from './machine.js';
+import { cpuQuotaOf, readMachine } from './machine-read.js';
+import { describeMachine, filesMachines, imageOf, machineClass, machineOf, shardsMachines, type Machine } from './machine.js';
 
 /** A file system that holds `files` and nothing else. */
 function files(held: Readonly<Record<string, string>>): (path: string) => string | undefined {

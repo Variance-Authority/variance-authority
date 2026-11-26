@@ -36,7 +36,8 @@ import { jestPhases, reportedDuration, type JestPerfStats } from './reported-tim
 import { journalsOf, oneTestPerFile, projectNamed, readProjectJournals } from './jest-projects.js';
 import { noteABusyIndex, withIndexLock } from './index-lock.js';
 import { laidProbes, landRun } from './commit-runs.js';
-import { readMachine, configuredWorkers } from './machine.js';
+import { configuredWorkers } from './machine.js';
+import { readMachine } from './machine-read.js';
 import { markCheckout } from './cache-layers.js';
 import { repositoryRoot } from './repository-root.js';
 import { projectPath, type CapturedModule } from './instrumented-modules.js';

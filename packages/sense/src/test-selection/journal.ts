@@ -72,7 +72,7 @@ import { deriveModules } from './captured-modules.js';
 import { coverageModule } from './coverage-rows.js';
 import { recordFileFor } from './record-location.js';
 import { prepareRecord } from './replaced-record.js';
-import { readMachine } from './machine.js';
+import { readMachine } from './machine-read.js';
 import type { RunCoverage } from './format.js';
 import {
   type CoveragePrecondition,

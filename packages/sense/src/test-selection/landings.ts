@@ -19,7 +19,7 @@ import type { RecordedTests, StandingEntry } from './commit-runs.js';
 import type { CoverageTest, TestCoverage } from './index.js';
 import { sameInstall, type KeptInstall } from './kept-install.js';
 import type { KeptTexts } from './kept-texts.js';
-import { machineClass, type Machine } from './machine.js';
+import { classKey, type Machine } from './machine.js';
 
 /** One run at the record's commit, while a test file it finished has not been finished again there. */
 export interface Landing extends Pick<StandingEntry, 'installed' | 'texts' | 'partly' | 'cases' | 'machine'> {
@@ -138,7 +138,7 @@ export function landingsAfter(
   const pieces = new Map<string, { readonly machine: Machine | undefined; readonly files: string[]; readonly partly: Set<string> }>();
   const pieceOf = (file: string) => {
     const machine = machines?.(file);
-    const key = machine === undefined ? '' : machineClass(machine);
+    const key = classKey(machine);
     const piece = pieces.get(key) ?? { machine, files: [], partly: new Set<string>() };
     pieces.set(key, piece);
     return piece;
