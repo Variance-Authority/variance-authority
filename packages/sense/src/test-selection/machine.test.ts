@@ -112,23 +112,30 @@ describe('the machine a run ran on', () => {
       { tests: { commit: 'C', tests: [{ file: 'e.test.ts' }] }, runs: undefined },
       // A seeded record: its landings are the base's, not this shard's.
       { tests: { commit: 'C', tests: [{ file: 'f.test.ts' }] }, runs: { commit: 'C', runs: 0, landings: [{ files: ['f.test.ts'], machine: laptop }] } },
+      // A file one run finished on the runner and a later run on the laptop ran in part.
+      { tests: { commit: 'C', tests: [{ file: 'g.test.ts' }] }, runs: { commit: 'C', runs: 2, landings: [{ files: ['g.test.ts'], machine: runner }, { files: [], partly: ['g.test.ts'], machine: laptop }] } },
     ]);
 
-    expect(['a.test.ts', 'b.test.ts', 'c.test.ts', 'd.test.ts', 'e.test.ts', 'f.test.ts'].map(machines)).toEqual([runner, runner, laptop, undefined, undefined, undefined]);
+    expect(['a.test.ts', 'b.test.ts', 'c.test.ts', 'd.test.ts', 'e.test.ts', 'f.test.ts', 'g.test.ts'].map(machines))
+      .toEqual([runner, runner, laptop, undefined, undefined, undefined, undefined]);
   });
 
   it('names the machine a file last ran on, and none for a file a run on another machine ran in part', () => {
     const runner: Machine = { arch: 'x64', cores: 4 };
     const laptop: Machine = { arch: 'arm64', cores: 12 };
     const machines = filesMachines({
-      standing: [{ commit: 'B', files: ['a.test.ts', 'b.test.ts', 'c.test.ts'], machine: runner }],
+      standing: [
+        // Stands are ordered by their keys, not by file: the run in part is listed before the one that finished the file.
+        { commit: 'B', files: ['e.test.ts'], partly: ['d.test.ts'], machine: laptop },
+        { commit: 'A', files: ['b.test.ts', 'c.test.ts', 'd.test.ts'], machine: runner },
+      ],
       landings: [
         { files: ['a.test.ts'], partly: ['b.test.ts'], machine: laptop },
         { files: [], partly: ['c.test.ts'], machine: runner },
       ],
     });
 
-    expect(['a.test.ts', 'b.test.ts', 'c.test.ts'].map((file) => machines.get(file))).toEqual([laptop, undefined, runner]);
+    expect(['a.test.ts', 'b.test.ts', 'c.test.ts', 'd.test.ts', 'e.test.ts'].map((file) => machines.get(file))).toEqual([laptop, undefined, runner, undefined, laptop]);
   });
 
   it('says a machine in one line, its limits beside what they limit', () => {

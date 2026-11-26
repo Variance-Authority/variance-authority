@@ -192,19 +192,15 @@ function gib(bytes: number): string {
  * The machine each file of a fold of `shards` ran on, as its shard's own
  * landing named it: only where that shard's record stands at the commit its
  * snapshot does and holds a run of its own, not one seeded from the base. A
- * file two shards name on two machines names none.
+ * file two shards, or two runs, name on two machines names none.
  */
 export function shardsMachines(shards: readonly ShardRuns[]): (file: string) => Machine | undefined {
   const machines = new Map<string, Machine | undefined>();
   for (const { tests, runs } of shards) {
     if (runs === undefined || runs.runs === 0 || tests.commit === undefined || runs.commit !== tests.commit) continue;
     const ran = new Set(tests.tests.map((test) => test.file));
-    for (const landing of runs.landings) {
-      for (const file of landing.files) {
-        if (!ran.has(file)) continue;
-        machines.set(file, machines.has(file) ? sameMachine(machines.get(file), landing.machine) : landing.machine);
-      }
-    }
+    const named = agreedMachines(runs.landings);
+    for (const file of ran) if (named.has(file)) agree(machines, file, named.get(file));
   }
   return (file) => machines.get(file);
 }
@@ -215,16 +211,25 @@ function sameMachine(one: Machine | undefined, other: Machine | undefined): Mach
 }
 
 /**
- * The machine each file of `runs` last ran on: where the run it stands on
- * landed, the latest landing at the record's commit over where it stood
- * before. A file whose run named no machine names none, and so does a file a
- * later run on another machine ran in part, whose figures may be of either.
+ * The machine each file of `runs` ran on: the one class every landing and
+ * stand that ran it, whole or in part, agrees on. Its figures may be of any
+ * of those runs, and the record does not say which, so a file two of them
+ * ran on two machines names none, whatever order they are listed in, and so
+ * does a file a run that named no machine ran.
  */
 export function filesMachines(runs: Pick<CommitRuns, 'landings' | 'standing'>): ReadonlyMap<string, Machine | undefined> {
+  return agreedMachines([...(runs.standing ?? []), ...runs.landings]);
+}
+
+function agreedMachines(entries: readonly { readonly files: readonly string[]; readonly partly?: readonly string[]; readonly machine?: Machine }[]): Map<string, Machine | undefined> {
   const machines = new Map<string, Machine | undefined>();
-  for (const { files, partly = [], machine } of [...(runs.standing ?? []), ...runs.landings]) {
-    for (const file of files) machines.set(file, machine);
-    for (const file of partly) machines.set(file, sameMachine(machines.get(file), machine));
+  for (const { files, partly = [], machine } of entries) {
+    for (const file of [...files, ...partly]) agree(machines, file, machine);
   }
   return machines;
+}
+
+/** Names `file` on `machine` in `machines`, or on none where it already names another. */
+function agree(machines: Map<string, Machine | undefined>, file: string, machine: Machine | undefined): void {
+  machines.set(file, machines.has(file) ? sameMachine(machines.get(file), machine) : machine);
 }
