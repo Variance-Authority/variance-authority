@@ -162,6 +162,7 @@ describe('variance ask uses over a name several files declare', () => {
       'packages/second/src/index.ts': 'export const greet = 2;\n',
       'apps/app/src/second.ts': "import { greet } from '@acme/second';\nexport const second = greet;\n",
       'apps/app/src/second-whole.ts': "import * as second from '@acme/second';\nexport const modules = [second];\n",
+      'apps/app/src/again.ts': "import { greet } from '@acme/lib';\nexport const again = greet;\n",
     });
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
 
@@ -196,6 +197,21 @@ describe('variance ask uses over a name several files declare', () => {
 
     const [headline] = (await uses()).split('\n');
     expect(headline).toMatch(/^`greet` \[function\] is imported in 1 place, from another package, published by @acme\/lib, declared at packages\/lib\/src\/greet\.ts:\d+\.$/);
+  });
+
+  it('answers in full the published declaration most places import, and folds the other', async () => {
+    checkout({
+      'packages/second/package.json': JSON.stringify({ name: '@acme/second', exports: { '.': './src/index.ts', './more': './src/more.ts' } }),
+      'packages/second/src/index.ts': 'export const greet = 2;\n',
+      'packages/second/src/more.ts': "export { greet } from './index.js';\n",
+      'apps/app/src/second.ts': "import { greet } from '@acme/second';\nexport const second = greet;\n",
+      'apps/app/src/more.ts': "import { greet } from '@acme/second/more';\nexport const more = greet;\n",
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const [headline, ...rest] = (await uses()).split('\n');
+    expect(headline).toMatch(/^`greet` \[const\] is imported in 2 places, all from other packages, published by @acme\/second, @acme\/second\/more,/);
+    expect(rest).toContain('  packages/lib/src/greet.ts:1, published by @acme/lib, imported in 1 place');
   });
 
   it('names the published declaration it answers first when a kept one shares its name', async () => {

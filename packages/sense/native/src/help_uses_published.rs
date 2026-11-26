@@ -21,7 +21,7 @@ use crate::help_usage::{Asked, NameUse};
 
 use super::exported::{asked_of, declarations, exported_line, landed, namesake, namesake_sites};
 use super::kept::{others_lines, spelled_as};
-use super::{headline, imported, importers_of_every, narrow, primary_sites, Asking, Beside, Strays};
+use super::{headline, imported, importers_of_every, narrow, primary_sites, Asking, Beside, Counts, Strays};
 
 /// `uses` for a name entries publish: `published` from `published_declarations`,
 /// `exported` every export that answers to the name. `file` answers for the
@@ -48,9 +48,12 @@ pub(super) fn published_uses(asking: &Asking<'_>, keys: &Keys<'_>, paths: &[Path
             .or_else(|| chosen.iter().position(|(_, group)| group.through.iter().any(|at| at == file)))?;
         chosen = vec![chosen[at]];
     }
-    let mut answers = chosen.into_iter();
-    let (lead, group) = answers.next()?;
-    let sites = sites_of(rows, name, paths, package, lead, &group.uses, &group.through)?;
+    // The lead is the published declaration most places import by name, then the most that may read it, then the first in order.
+    let mut answers = chosen.into_iter().map(|(one, group)| Some((one, sites_of(rows, name, paths, package, one, &group.uses, &group.through)?))).collect::<Option<Vec<_>>>()?;
+    let rank = |sites: &[Site<'_>]| { let count = Counts::of(sites, ""); (count.certain, count.off + count.whole) };
+    let most = (0..answers.len()).fold(0, |best, at| if rank(&answers[at].1) > rank(&answers[best].1) { at } else { best });
+    if answers.is_empty() { return None }
+    let (lead, sites) = answers.remove(most);
     let owner = home(keys, lead)?;
     let kinds: BTreeSet<_> = lead.doors.iter().map(|entry| entry.kind).collect();
     let kinds = kinds.into_iter().collect::<Vec<_>>().join(", ");
@@ -59,9 +62,8 @@ pub(super) fn published_uses(asking: &Asking<'_>, keys: &Keys<'_>, paths: &[Path
     // Asked for no file, each other declaration is one line with its import count; `--file` answers one.
     let mut namesakes = Vec::new();
     if file.is_none() {
-        for (one, group) in answers {
-            let sites = sites_of(rows, name, paths, package, one, &group.uses, &group.through)?;
-            namesakes.push(format!("{}:{}{}, published by {}{}", one.at, one.doors[0].line, spelled_as(&one.declared, name), publishers(one, name), imported(asking, &sites)));
+        for (one, sites) in &answers {
+            namesakes.push(format!("{}:{}{}, published by {}{}", one.at, one.doors[0].line, spelled_as(&one.declared, name), publishers(one, name), imported(asking, sites)));
         }
         namesakes.extend(groups.iter().zip(apart).map(|((_, held), group)| exported_line(held, &imported(asking, &namesake_sites(held, paths, &landed, group)))));
     }
