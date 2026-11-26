@@ -1,11 +1,13 @@
+import { execFileSync } from 'node:child_process';
+import { realpathSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, onTestFinished, vi } from 'vitest';
 import type { RenderIdentity } from '@variance-authority/core/format';
 import type { VantageState } from '@variance-authority/vantage';
 import type { VantageReading } from '@variance-authority/vantage/attach';
-import { readHelp } from '@variance-authority/help';
+import { readHelp, readWorkspace } from '@variance-authority/help';
 import { HELP_TOOLS, type Help } from '@variance-authority/help/tools';
 import { TOOLS, VANTAGE_TOOLS, toolByName, vantageToolByName, verbOf } from '@variance-authority/mcp/tools';
 import { ask, askSource, type Sourced } from './ask.js';
@@ -101,7 +103,10 @@ describe('the questions', () => {
  * files written to a checkout and read into a store, which holds the search.
  */
 async function workspace(): Promise<Help> {
-  const root = await directory();
+  return readHelp(await written(await directory()));
+}
+
+async function written(root: string): Promise<string> {
   const files: Record<string, string> = {
     'package.json': JSON.stringify({ name: 'fixture', private: true, workspaces: ['packages/*'] }),
     'packages/alpha/package.json': JSON.stringify({ name: '@example/alpha', version: '1.0.0', main: 'src/index.ts' }),
@@ -115,7 +120,7 @@ async function workspace(): Promise<Help> {
     await mkdir(dirname(join(root, path)), { recursive: true });
     await writeFile(join(root, path), text);
   }
-  return readHelp(root);
+  return root;
 }
 
 describe('a question about the code', () => {
@@ -126,7 +131,14 @@ describe('a question about the code', () => {
     // The report reader is a trap here: a source question that touched it would
     // be a question with two subjects, answering from whichever it read first.
     const read = (): Promise<CliRunReport> => Promise.reject(new Error('read the report'));
-    const answer = await ask(asking('/nowhere/report.json', 'symbol', { name: 'viewport', read, source: sourced }));
+    // `symbol` reads the source index published for the checkout it is asked in, so the fixture is indexed there.
+    const root = realpathSync(await directory());
+    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', await directory());
+    const started = vi.spyOn(process, 'cwd').mockReturnValue(root);
+    onTestFinished(() => (started.mockRestore(), vi.unstubAllEnvs()));
+    execFileSync('git', ['init', '--quiet', '--initial-branch', 'main'], { cwd: root, stdio: 'pipe' });
+    const help = await readWorkspace(await written(root));
+    const answer = await ask(asking('/nowhere/report.json', 'symbol', { name: 'viewport', read, source: () => Promise.resolve({ help }) }));
 
     expect(answer).toContain('viewport [function]');
     expect(answer).toContain("import { viewport } from '@example/alpha'");
