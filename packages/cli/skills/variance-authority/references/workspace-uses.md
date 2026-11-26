@@ -101,7 +101,8 @@ answer lists it as `bound, not declared, at <path>:<line>`, then the lines of
 that file that use it, and when no file declares the name it says so first.
 
 Each file that declares a name declares another thing, so `uses` keeps every
-one of them apart. It answers the first in full, and the lines under the
+one of them apart. It answers in full a declaration an entry publishes, or
+else the one most places import, and the lines under the
 headline name every other declaration by file and line, so the count the
 headline gives is read as one declaration's. Each other declaration a file
 exports is that one line, with how many places import it; each file that keeps

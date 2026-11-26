@@ -342,7 +342,9 @@ fn places(count: usize) -> String {
 
 /// How many places import a declaration named on one line beside the one answered first.
 /// A place that reads the name off `default` or passes the module on whole is counted apart, as one that may read it.
-fn imported(sites: &[Site<'_>]) -> String {
+/// Each place counted is listed with the answer, so what reads its files, and when they change, sees every one.
+fn imported(asking: &Asking<'_>, sites: &[Site<'_>]) -> String {
+    asking.listed.borrow_mut().sites.extend(sites.iter().map(|site| (site.at.to_owned(), site.line)));
     let count = Counts::of(sites, "");
     let may = count.off + count.whole;
     match (count.certain, may) {

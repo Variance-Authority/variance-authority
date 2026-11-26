@@ -16,10 +16,10 @@ use crate::help_key::Keys;
 use crate::help_name_scope::PackageScope;
 use crate::help_symbol_published::{joined_sites, Declaration};
 use crate::help_symbol_rows::{PathSite, Rows, Site};
-use crate::help_unpublished::{exported_at, Unpublished};
+use crate::help_unpublished::Unpublished;
 use crate::help_usage::{Asked, NameUse};
 
-use super::exported::{asked_of, declarations, landed, namesake, namesake_sites};
+use super::exported::{asked_of, declarations, exported_line, landed, namesake, namesake_sites};
 use super::kept::{others_lines, spelled_as};
 use super::{headline, imported, importers_of_every, narrow, primary_sites, Asking, Beside, Strays};
 
@@ -61,9 +61,9 @@ pub(super) fn published_uses(asking: &Asking<'_>, keys: &Keys<'_>, paths: &[Path
     if file.is_none() {
         for (one, group) in answers {
             let sites = sites_of(rows, name, paths, package, one, &group.uses, &group.through)?;
-            namesakes.push(format!("{}:{}{}, published by {}{}", one.at, one.doors[0].line, spelled_as(&one.declared, name), publishers(one, name), imported(&sites)));
+            namesakes.push(format!("{}:{}{}, published by {}{}", one.at, one.doors[0].line, spelled_as(&one.declared, name), publishers(one, name), imported(asking, &sites)));
         }
-        namesakes.extend(groups.iter().zip(apart).map(|((_, held), group)| format!("{}, exported without being published{}", exported_at(held), imported(&namesake_sites(held, paths, &landed, group)))));
+        namesakes.extend(groups.iter().zip(apart).map(|((_, held), group)| exported_line(held, &imported(asking, &namesake_sites(held, paths, &landed, group)))));
     }
     // Only the kept and member declarations left are answered below.
     let below = namesakes.is_empty();

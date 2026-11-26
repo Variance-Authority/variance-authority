@@ -145,6 +145,17 @@ describe('variance ask uses over a name several files declare', () => {
     expect(alone).toMatch(/^packages\/lib\/src\/unrelated\.ts:1; used on line 2$/m);
   });
 
+  it('keeps the importers of a folded namesake in the files its answer hands on', async () => {
+    checkout(NAMESAKES);
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    // The line counts `unrelated.ts`, so a question crossing the answer's files still finds it.
+    const { code, out } = await run(['ask', 'intersection', 'uses --name greet', 'discover --path unrelated']);
+    expect(code).toBe(EXIT_CLEAN);
+    expect(out).toContain('1 file in all of them:');
+    expect(out).toMatch(/^packages\/lib\/src\/unrelated\.ts — /m);
+  });
+
   it('counts the imports of a published namesake on its line, and lists them apart under `--file`', async () => {
     checkout({
       'packages/second/package.json': JSON.stringify({ name: '@acme/second', exports: { '.': './src/index.ts' } }),

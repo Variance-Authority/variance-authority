@@ -49,10 +49,13 @@ pub(super) fn exported_uses(asking: &Asking<'_>, rows: &Rows, paths: &[PathSite<
     if read.groups.len() != declarations.len() { return Err(format!("the importers read of `{name}` are not one group per declaration of it")) }
     for group in &mut read.groups { group.uses.retain(|site| package.through(&site.key)); }
     let landed = landed(asking, paths, &exports);
-    // Asked for no file, the declaration most places import is answered in full, the first in file order among equals.
+    // Asked for no file, the lead is the declaration most places import by name, then the most that may read it, then the first in file order.
     if file.is_none() {
-        let reach: Vec<usize> = declarations.iter().zip(&read.groups).map(|((_, held), group)| namesake_sites(held, paths, &landed, group).len()).collect();
-        let most = (0..reach.len()).fold(0, |best, at| if reach[at] > reach[best] { at } else { best });
+        let rank: Vec<(usize, usize)> = declarations.iter().zip(&read.groups).map(|((_, held), group)| {
+            let count = Counts::of(&namesake_sites(held, paths, &landed, group), "");
+            (count.certain, count.off + count.whole)
+        }).collect();
+        let most = (0..rank.len()).fold(0, |best, at| if rank[at] > rank[best] { at } else { best });
         let lead = declarations.remove(most);
         declarations.insert(0, lead);
         let lead = read.groups.remove(most);
@@ -86,9 +89,9 @@ pub(super) fn exported_uses(asking: &Asking<'_>, rows: &Rows, paths: &[PathSite<
     let mut lines = vec![headline(asking, &kinds, None, Some((&format!("{}{passed}", exported_at(primary)), member.as_deref())), home, &sites, !strays.dead.is_empty() || !strays.unresolved.is_empty())];
     // Asked for no file, each other declaration is one line; `--file` answers the ones a file declares, each in full.
     let folded = file.is_none();
-    let namesakes = others.iter().zip(&read.groups[1..]).map(|((_, held), group)| {
-        let count = if folded { imported(&namesake_sites(held, paths, &landed, group)) } else { String::new() };
-        format!("{}, exported without being published{count}", exported_at(held))
+    let namesakes = others.iter().enumerate().map(|(at, (_, held))| {
+        let count = if folded { imported(asking, &namesake_sites(held, paths, &landed, &read.groups[at + 1])) } else { String::new() };
+        exported_line(held, &count)
     }).collect();
     lines.extend(others_lines(name, namesakes, &beside.kept, &beside.members, !folded || others.is_empty()));
     primary_sites(&mut lines, asking, home, &in_file_of(&read.in_file, &own), sites, strays, &read.in_file);
@@ -99,6 +102,11 @@ pub(super) fn exported_uses(asking: &Asking<'_>, rows: &Rows, paths: &[PathSite<
     let declaring: HashSet<_> = exported.iter().filter(|held| held.export.bound.is_some()).map(|held| held.export.at).chain(beside.files).collect();
     if file.is_none() && declaring.len() > 1 { lines.push(narrow(asking.surface)); }
     Ok(lines.join("\n"))
+}
+
+/// The line naming a declaration exported without being published beside the one answered first, with its `count` of imports.
+pub(super) fn exported_line(held: &[&Unpublished<'_>], count: &str) -> String {
+    format!("{}, exported without being published{count}", exported_at(held))
 }
 
 /// The section of a declaration exported without being published, beside the one answered first: its imports and the lines of its files that use it.
