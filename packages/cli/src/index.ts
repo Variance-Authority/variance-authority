@@ -109,7 +109,7 @@ export { push } from './commands/push.js';
 export { formatPush } from './commands/push-progress.js';
 export type { PushDeps, PushOptions, PushResult, Withheld } from './commands/push.js';
 
-export { SERVED, serve } from './commands/serve.js';
+export { serve } from './commands/serve.js';
 export type { ServeOptions } from './commands/serve.js';
 
 export { DEFAULT_LIMITS, renderComment } from './commands/comment.js';

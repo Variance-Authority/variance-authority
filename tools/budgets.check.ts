@@ -1,5 +1,4 @@
 import { readFileSync } from 'node:fs';
-import { SERVED } from '@variance-authority/cli';
 import { HELP } from '@variance-authority/help/tools';
 import { EYES, handle, OBSERVABILITY, PRESENTATIONS, REPORTS, SCENARIOS, VANTAGE } from '@variance-authority/mcp/protocol';
 import type { Served } from '@variance-authority/mcp/tools';
@@ -16,6 +15,7 @@ import {
   surfacesOf,
 } from './budgets.mjs';
 import { MODULES, tracked } from './modules.js';
+import { SERVED } from '../packages/cli/dist/commands/serve.js';
 
 /**
  * Every written surface has a budget, and a breach is collapsed where it happens.
@@ -186,7 +186,7 @@ describe('an MCP tool definition is held in bytes, as `tools/list` sends it', ()
 });
 
 describe('the repository', () => {
-  // Reads the built packages: a source edit is measured after `yarn build`.
+  // Reads the built packages, `serve`'s set by module since it is no export: a source edit is measured after `yarn build`.
   it('lists every MCP definition within its budget', () => {
     const listed = (served: Served<never>) => {
       const response = handle({ jsonrpc: '2.0', id: 1, method: 'tools/list' }, () => undefined as never, served);
