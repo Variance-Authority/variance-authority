@@ -193,3 +193,23 @@ fn a_type_query_off_a_written_holder_reads_each_module_it_is_given() {
     // A type names the binding's declared type, which no write narrows.
     assert_eq!(members("let m = await import('./a');\nm = createStub();\nlet x: typeof m.foo;\n"), [read("./a", "foo", 3)]);
 }
+
+#[test]
+fn a_write_of_another_assignment_holds_what_that_assignment_evaluates_to() {
+    // `n = m` evaluates to what `m` holds, and `k ||= m` to what `k` held or
+    // to `m`: a write of either is a write of the module, not of something
+    // else. One that stores the module on a property still puts it on whole.
+    let source = concat!(
+        "let m = await import('./a');\n",
+        "let n, k;\n",
+        "m = (n = m);\n",
+        "m.foo();\n",
+        "m = (k ||= m);\n",
+        "m.bar();\n",
+        "m = n = await import('./b');\n",
+        "m.baz();\n",
+        "(n = await import('./c')).qux();\n",
+        "k = (o.x = m);\n",
+    );
+    assert_eq!(members(source), [read("./a", "bar", 6), read("./a", "foo", 4), read("./b", "*", 10), read("./b", "baz", 8), read("./c", "qux", 9)]);
+}

@@ -5,10 +5,11 @@
 
 use std::collections::{HashMap, HashSet};
 
-use oxc_ast::ast::{Argument, ArrayExpression, ArrayExpressionElement, CallExpression, Expression, JSXMemberExpressionObject, ModuleExportName, Program, Statement, TSTypeName};
+use oxc_ast::ast::{Argument, ArrayExpression, ArrayExpressionElement, AssignmentOperator, AssignmentTarget, CallExpression, Expression, JSXMemberExpressionObject, ModuleExportName, Program, Statement, TSTypeName};
 use oxc_semantic::Scoping;
 use oxc_syntax::symbol::SymbolId;
 
+use super::bind::takes;
 use super::Walker;
 
 /// The request a holder reads through: its index in the parse, its index in
@@ -130,8 +131,22 @@ impl Walker<'_, '_> {
     /// TypeScript's casts and `await`: an awaited `import()`, a `require`, a
     /// holder, the `default` of either, or else what a cast says it is. A
     /// holder the file writes again may hold several, and one may hold none.
+    /// An assignment to a name or a pattern evaluates to what it assigns, and
+    /// `??=`, `||=` and `&&=` on a name to that or to what the name held. One
+    /// onto a property is not followed: it puts the module on whole there.
     pub(super) fn held(&mut self, expression: &Expression) -> Vec<Held> {
         let held = match expression.get_inner_expression() {
+            Expression::AssignmentExpression(it) if it.operator == AssignmentOperator::Assign && takes(&it.left) => self.held(&it.right),
+            Expression::AssignmentExpression(it) if it.operator.is_logical() => match &it.left {
+                AssignmentTarget::AssignmentTargetIdentifier(target) => {
+                    let mut held = self.holder(target);
+                    held.extend(self.held(&it.right));
+                    held.sort_unstable();
+                    held.dedup();
+                    held
+                }
+                _ => Vec::new(),
+            },
             Expression::AwaitExpression(it) => match self.promised(&it.argument) {
                 Some(via) => vec![Held::whole(via)],
                 None => self.held(&it.argument),

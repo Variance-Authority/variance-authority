@@ -185,7 +185,7 @@ fn target_of<'e, 'a>(element: &'e AssignmentTargetMaybeDefault<'a>) -> Option<&'
 }
 
 /// A destructuring target that can take a module: a name, or a pattern.
-fn takes(target: &AssignmentTarget) -> bool {
+pub(super) fn takes(target: &AssignmentTarget) -> bool {
     matches!(
         target,
         AssignmentTarget::AssignmentTargetIdentifier(_) | AssignmentTarget::ObjectAssignmentTarget(_) | AssignmentTarget::ArrayAssignmentTarget(_)
