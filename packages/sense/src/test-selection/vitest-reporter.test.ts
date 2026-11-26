@@ -89,3 +89,14 @@ function written(directory: string) {
   expect(more).toEqual([]);
   return decodeStory(readFileSync(join(directory, only!)));
 }
+
+describe('the reporter as the run starts', () => {
+  it('names the workers the configuration resolved, and none where it resolved no count', () => {
+    for (const [maxWorkers, workers] of [[4, 4], ['50%', undefined], [undefined, undefined]] as const) {
+      const run = {} as SelectionRun;
+      const reporter = selectionReporter(run, async () => {}) as unknown as { onInit(context: unknown): void };
+      reporter.onInit({ config: { maxWorkers } });
+      expect(run.workers).toBe(workers);
+    }
+  });
+});
