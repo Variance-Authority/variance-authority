@@ -64,13 +64,13 @@ Not read, and not named where the answer says what is not counted: a `require`
 of a computed specifier, and another object's, such as `loader.require('./m')`.
 A variable the file writes again, `let m = await import('./m')` or
 `let m = require('./m')`, holds at each read the modules the writes that may
-reach it loaded, a write lower in a loop the next time round included. A write
-that may not run, in a branch or on the right of `&&`, adds its module beside
-the one held before. One inside a function or an instance field may run at any
-time, so it reaches every read, and a read inside one, `export { m }` and
-`typeof m.name` see every module the variable is given. A write of anything
-else on every path, `m = stub()`, leaves none held, so `m.name` after it is no
-use.
+reach it loaded. A write in a branch, on the right of `&&` or `??=`, or inside
+a loop, a `switch`, a label or a `try` adds its module beside the one held
+before. One inside a function stays held from there on, and a read inside a
+function or `typeof m.name` sees every module the variable was given above it.
+A write of anything else on every path, `m = stub()`, leaves none held, so
+`m.name` after it is no use. A write below a read does not reach it, round a
+loop or from a function that runs later.
 A package that passes a module on as `export * as ns`,
 or as `export { ns }` after `import * as ns`, passes each of its names as a
 member of `ns`: `import { ns } from 'pkg'` and

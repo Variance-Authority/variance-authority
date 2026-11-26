@@ -30,90 +30,29 @@ impl<'a> Visit<'a> for Walker<'_, '_> {
         self.assignment(it);
     }
 
+    // A `break`, a `continue` or a throw may leave these from anywhere in them.
+    fn visit_statement(&mut self, it: &Statement<'a>) {
+        match it {
+            Statement::WhileStatement(_)
+            | Statement::DoWhileStatement(_)
+            | Statement::ForStatement(_)
+            | Statement::ForInStatement(_)
+            | Statement::ForOfStatement(_)
+            | Statement::SwitchStatement(_)
+            | Statement::LabeledStatement(_)
+            | Statement::TryStatement(_) => self.leaving(|walker| walk::walk_statement(walker, it)),
+            _ => walk::walk_statement(self, it),
+        }
+    }
+
     fn visit_if_statement(&mut self, it: &IfStatement<'a>) {
         self.visit_expression(&it.test);
         self.either(|walker| walker.visit_statement(&it.consequent), |walker| it.alternate.iter().for_each(|it| walker.visit_statement(it)));
     }
 
-    fn visit_while_statement(&mut self, it: &WhileStatement<'a>) {
-        self.looping(it.span.start, false, |walker| walker.visit_expression(&it.test), |walker| walker.visit_statement(&it.body), |_| {});
-    }
-
-    fn visit_do_while_statement(&mut self, it: &DoWhileStatement<'a>) {
-        self.looping(it.span.start, true, |_| {}, |walker| walker.visit_statement(&it.body), |walker| walker.visit_expression(&it.test));
-    }
-
-    // The init runs once, before the loop; the update after each round's body.
-    fn visit_for_statement(&mut self, it: &ForStatement<'a>) {
-        if let Some(init) = &it.init {
-            if let Some(init) = init.as_expression() {
-                self.surely(init);
-            }
-            self.visit_for_statement_init(init);
-        }
-        let test = |walker: &mut Self| it.test.iter().for_each(|it| walker.visit_expression(it));
-        let update = |walker: &mut Self| it.update.iter().for_each(|it| walker.visit_expression(it));
-        self.looping(it.span.start, false, test, |walker| walker.visit_statement(&it.body), update);
-    }
-
-    // What a `for … in` or `for … of` goes through is read once; each round
-    // takes the next of it, then runs the body.
-    fn visit_for_in_statement(&mut self, it: &ForInStatement<'a>) {
-        self.visit_expression(&it.right);
-        self.looping(it.span.start, false, |_| {}, |walker| {
-            walker.visit_for_statement_left(&it.left);
-            walker.visit_statement(&it.body);
-        }, |_| {});
-    }
-
-    fn visit_for_of_statement(&mut self, it: &ForOfStatement<'a>) {
-        self.visit_expression(&it.right);
-        self.looping(it.span.start, false, |_| {}, |walker| {
-            walker.visit_for_statement_left(&it.left);
-            walker.visit_statement(&it.body);
-        }, |_| {});
-    }
-
-    fn visit_labeled_statement(&mut self, it: &LabeledStatement<'a>) {
-        self.labeled(&it.label.name, |walker| walker.visit_statement(&it.body));
-    }
-
-    fn visit_switch_statement(&mut self, it: &SwitchStatement<'a>) {
-        self.switching(it);
-    }
-
-    fn visit_break_statement(&mut self, it: &BreakStatement<'a>) {
-        self.jump(false, it.label.as_ref().map(|it| it.name.as_str()));
-    }
-
-    fn visit_continue_statement(&mut self, it: &ContinueStatement<'a>) {
-        self.jump(true, it.label.as_ref().map(|it| it.name.as_str()));
-    }
-
-    fn visit_try_statement(&mut self, it: &TryStatement<'a>) {
-        self.trying(it);
-    }
-
-    fn visit_class(&mut self, it: &Class<'a>) {
-        self.class(it.scope_id.get(), |walker| walk::walk_class(walker, it));
-    }
-
-    fn visit_property_definition(&mut self, it: &PropertyDefinition<'a>) {
-        self.member(!it.r#static, |walker| walk::walk_property_definition(walker, it));
-    }
-
-    fn visit_accessor_property(&mut self, it: &AccessorProperty<'a>) {
-        self.member(!it.r#static, |walker| walk::walk_accessor_property(walker, it));
-    }
-
     fn visit_conditional_expression(&mut self, it: &ConditionalExpression<'a>) {
         self.visit_expression(&it.test);
         self.either(|walker| walker.visit_expression(&it.consequent), |walker| walker.visit_expression(&it.alternate));
-    }
-
-    fn visit_logical_expression(&mut self, it: &LogicalExpression<'a>) {
-        self.visit_expression(&it.left);
-        self.may_skip(|walker| walker.visit_expression(&it.right));
     }
 
     // An exported holder is the module handed to every importer of this file,
@@ -130,19 +69,6 @@ impl<'a> Visit<'a> for Walker<'_, '_> {
                 self.add(held, WHOLE, binding.span.start);
             }
         }
-    }
-
-    // An importer reads `export { m }` at any time after the module ran,
-    // so the binding goes on whole with everything it is given.
-    fn visit_export_specifier(&mut self, it: &ExportSpecifier<'a>) {
-        if let ModuleExportName::IdentifierReference(local) = &it.local {
-            if let Some(symbol) = self.symbol_of(local).filter(|_| self.followed.insert(local.span.start)) {
-                for held in self.holding(symbol, None) {
-                    self.add(held, WHOLE, local.span.start);
-                }
-            }
-        }
-        walk::walk_export_specifier(self, it);
     }
 
     fn visit_expression_statement(&mut self, it: &ExpressionStatement<'a>) {

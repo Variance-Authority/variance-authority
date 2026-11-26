@@ -72,109 +72,52 @@ fn a_write_in_a_branch_holds_in_that_branch_and_joins_what_was_held_after_it() {
 }
 
 #[test]
-fn a_write_in_a_loop_reaches_the_reads_above_it_the_next_time_round() {
-    // The body of `while`, `for` and `for … of` may not run, and that of
-    // `do … while` runs once at least. A `for` update runs after the body.
-    let round = |head: &str, tail: &str| format!("let m = await import('./a');\n{head}\n  m.foo();\n  m = await import('./b');\n{tail}\nm.bar();\n");
-    let around = [read("./a", "bar", 6), read("./a", "foo", 3), read("./b", "bar", 6), read("./b", "foo", 3)];
-    assert_eq!(members(&round("while (more()) {", "}")), around);
-    assert_eq!(members(&round("for (const next of list) {", "}")), around);
-    assert_eq!(members(&round("do {", "} while (more());")), [read("./a", "foo", 3), read("./b", "bar", 6), read("./b", "foo", 3)]);
-    let source = concat!(
-        "let m = await import('./a');\n",
-        "for (let i = 0; i < 2; m = await import('./b'), i++) {\n",
-        "  m.foo();\n",
-        "}\n",
-    );
-    assert_eq!(members(source), [read("./a", "foo", 3), read("./b", "foo", 3)]);
-    let source = concat!(
-        "let m = await import('./a');\n",
-        "for (let i = 0; i < 3; m = other) {\n",
-        "  m.foo();\n",
-        "}\n",
-        "m.bar();\n",
-    );
-    assert_eq!(members(source), [read("./a", "bar", 5), read("./a", "foo", 3)]);
-    assert_eq!(members("let m = await import('./a');\nwhile (more()) m = other;\nm.foo();\n"), [read("./a", "foo", 3)]);
-}
-
-#[test]
 fn a_break_or_a_continue_carries_what_is_held_where_it_jumps() {
-    let source = concat!(
-        "let m = await import('./a');\n",
-        "found: {\n",
-        "  if (x) break found;\n",
-        "  m = other;\n",
-        "}\n",
-        "m.foo();\n",
-    );
-    assert_eq!(members(source), [read("./a", "foo", 6)]);
-    let source = concat!(
-        "let m = await import('./a');\n",
-        "while (more()) {\n",
-        "  m = await import('./b');\n",
-        "  if (done()) break;\n",
-        "  m = other;\n",
-        "}\n",
-        "m.foo();\n",
-    );
-    assert_eq!(members(source), [read("./a", "foo", 7), read("./b", "foo", 7)]);
-    let source = concat!(
-        "let m = await import('./a');\n",
-        "while (more()) {\n",
-        "  m.foo();\n",
-        "  m = await import('./b');\n",
-        "  if (skip()) continue;\n",
-        "  m = other;\n",
-        "}\n",
-    );
-    assert_eq!(members(source), [read("./a", "foo", 3), read("./b", "foo", 3)]);
-    // A case is entered from the `switch`, or from the case above it when
-    // that one does not break; with no `default`, none may run.
+    // Inside a loop, a `switch` or a label a write only adds: a jump from
+    // above a later write carries what was held there past it.
+    let jumped = |head: &str, tail: &str| format!("let m = await import('./a');\n{head}\n  m = await import('./b');\n  if (done()) break;\n  m = other;\n{tail}\nm.foo();\n");
+    let both = [read("./a", "foo", 7), read("./b", "foo", 7)];
+    assert_eq!(members(&jumped("while (more()) {", "}")), both);
+    assert_eq!(members(&jumped("for (const next of list) {", "}")), both);
+    assert_eq!(members(&jumped("for (const key in table) {", "}")), both);
     let source = concat!(
         "let m = await import('./a');\n",
         "switch (k) {\n",
         "  case 1:\n",
         "    m = await import('./b');\n",
-        "    break;\n",
-        "  case 2:\n",
-        "    m.foo();\n",
+        "    if (done()) break;\n",
+        "    m = other;\n",
         "}\n",
-        "m.bar();\n",
+        "m.foo();\n",
     );
-    assert_eq!(members(source), [read("./a", "bar", 9), read("./a", "foo", 7), read("./b", "bar", 9)]);
-    // A `break` leaves the innermost loop or `switch`, or the statement its
-    // label names, and a `continue` goes back to the innermost loop's head,
-    // or that of the loop its label names: no other.
+    assert_eq!(members(source), [read("./a", "foo", 8), read("./b", "foo", 8)]);
     let source = concat!(
         "let m = await import('./a');\n",
         "while (more()) {\n",
-        "  switch (k) {\n",
-        "    case 1:\n",
-        "      m = await import('./b');\n",
-        "      break;\n",
-        "  }\n",
+        "  m = await import('./b');\n",
+        "  if (skip()) continue;\n",
         "  m = other;\n",
         "}\n",
         "m.foo();\n",
     );
-    assert_eq!(members(source), [read("./a", "foo", 10)]);
+    assert_eq!(members(source), both);
     let source = concat!(
         "let m = await import('./a');\n",
-        "outer: while (more()) {\n",
-        "  m.foo();\n",
-        "  while (again()) {\n",
-        "    m = await import('./b');\n",
-        "    continue outer;\n",
-        "  }\n",
+        "found: {\n",
+        "  if (x) break found;\n",
+        "  m = await import('./b');\n",
+        "  if (y) break found;\n",
         "  m = other;\n",
         "}\n",
+        "m.foo();\n",
     );
-    assert_eq!(members(source), [read("./a", "foo", 3), read("./b", "foo", 3)]);
+    assert_eq!(members(source), [read("./a", "foo", 8), read("./b", "foo", 8)]);
+    assert_eq!(members("let m = await import('./a');\nwhile (more()) m = other;\nm.foo();\n"), [read("./a", "foo", 3)]);
 }
 
 #[test]
 fn a_catch_sees_what_the_try_held_anywhere_in_it() {
+    // A throw may leave a `try` anywhere, so a write inside one only adds.
     let source = concat!(
         "let m = await import('./a');\n",
         "try {\n",
@@ -186,6 +129,7 @@ fn a_catch_sees_what_the_try_held_anywhere_in_it() {
         "}\n",
     );
     assert_eq!(members(source), [read("./a", "foo", 7), read("./b", "foo", 7)]);
+    assert_eq!(members(&source.replace("catch", "finally")), [read("./a", "foo", 7), read("./b", "foo", 7)]);
     let source = concat!(
         "let m;\n",
         "try {\n",
@@ -200,64 +144,48 @@ fn a_catch_sees_what_the_try_held_anywhere_in_it() {
 }
 
 #[test]
-fn a_function_or_an_instance_field_may_run_at_any_time() {
-    // A read inside one sees every write of the binding, below it too, and a
-    // write inside one reaches every read, above it too.
+fn a_function_may_run_at_any_time() {
+    // A write inside one adds to what the binding holds from there on, which
+    // no later write takes away; a read inside one sees what it was given above.
     let source = concat!(
         "let m = await import('./a');\n",
-        "function later() {\n",
-        "  m.foo();\n",
+        "async function load() {\n",
+        "  m = await import('./b');\n",
         "}\n",
-        "m = await import('./b');\n",
-        "later();\n",
+        "m = other;\n",
+        "await load();\n",
+        "m.foo();\n",
     );
-    assert_eq!(members(source), [read("./a", "foo", 3), read("./b", "foo", 3)]);
+    assert_eq!(members(source), [read("./b", "foo", 7)]);
     let source = concat!(
         "let m = await import('./a');\n",
         "m = other;\n",
-        "later();\n",
-        "m.foo();\n",
         "function later() {\n",
-        "  m = await import('./b');\n",
+        "  m.foo();\n",
         "}\n",
     );
-    assert_eq!(members(source), [read("./b", "foo", 4)]);
-    // An instance field's value runs at `new`.
-    assert_eq!(members("let m = await import('./a');\nclass C { x = (m = other); }\nm.foo();\n"), [read("./a", "foo", 3)]);
-    let source = concat!(
-        "let m = await import('./a');\n",
-        "class C { x = m.foo(); }\n",
-        "m = await import('./b');\n",
-        "new C();\n",
-    );
-    assert_eq!(members(source), [read("./a", "foo", 2), read("./b", "foo", 2)]);
+    assert_eq!(members(source), [read("./a", "foo", 4)]);
 }
 
 #[test]
 fn a_write_inside_an_expression_that_may_not_run_only_adds() {
-    // Only a write that is a statement of its own, or a `for` init, surely
-    // runs where it stands: an optional call's argument and a default may not.
+    // Only a write that is a statement of its own, an element of one's
+    // sequence, or what a plain `=` there assigns surely runs where it stands:
+    // an optional call's argument, a default, the right of a logical
+    // assignment and an instance field's value may not.
     let source = concat!(
         "let m = await import('./a');\n",
         "maybe?.(m = other);\n",
         "const { y = (m = other) } = options;\n",
         "({ z = (m = other) } = options);\n",
         "[w = (m = other)] = list;\n",
+        "k ??= (m = other);\n",
+        "k ||= (m = other, 1);\n",
+        "k &&= (m = other);\n",
+        "class C { x = (m = other); }\n",
         "m.foo();\n",
     );
-    assert_eq!(members(source), [read("./a", "foo", 6)]);
-}
-
-#[test]
-fn an_exported_holder_goes_on_whole_with_every_module_it_is_given() {
-    // An importer reads the binding at any time after the module ran.
-    let source = concat!(
-        "let m = await import('./a');\n",
-        "export { m };\n",
-        "m = await import('./b');\n",
-    );
-    assert_eq!(members(source), [read("./a", "*", 2), read("./b", "*", 2)]);
-    assert_eq!(members("export let m = await import('./a');\nm = await import('./b');\n"), [read("./a", "*", 1), read("./b", "*", 1)]);
+    assert_eq!(members(source), [read("./a", "foo", 10)]);
 }
 
 #[test]
