@@ -4,8 +4,9 @@
  * each file declares at its top level.
  *
  * A line is answered by the declarations whose first and last lines enclose
- * it, outermost first, as an editor's breadcrumb names them; a line in none is
- * at the top level of the module. The parse answers it whether or not a case
+ * it, outermost first, as an editor's breadcrumb names them, with those that
+ * share a line side by side; a line in none is at the top level of the module,
+ * and a line of a file changed since its parse is not answered from it. The parse answers it whether or not a case
  * ran the line: the journeys part adds the cases that did.
  *
  * A reader handed a file wants its outline before its text: each name with the
@@ -18,10 +19,10 @@
 
 // compass: variance-authority.report.agent-surface
 
-import type { FileDeclaration, FileDeclarations, LineHeld } from '@variance-authority/sense';
+import type { FileDeclaration, FileDeclarations, LineHeld, LineHolder } from '@variance-authority/sense';
 import { memberLines } from './container.js';
 import { linesOf, plural } from './format.js';
-import { memberlessLanguageOf, membersNotReadIn } from './members.js';
+import { holdsMembers, memberlessLanguageOf, membersNotReadIn } from './members.js';
 
 /** The lines part, or nothing when no line asked about is in a file the index holds. */
 export function formatLines(lines: readonly LineHeld[] | undefined): readonly string[] {
@@ -34,14 +35,26 @@ export function formatLines(lines: readonly LineHeld[] | undefined): readonly st
 function heldBy(held: LineHeld): string {
   // Absent is not empty: the line of a file whose declarations were not read may be in any of them.
   if (!held.read) return 'the index holds no parse of its declarations';
-  const innermost = held.holders[held.holders.length - 1];
-  if (innermost !== undefined) return `in ${held.holders.map((holder) => `${holder.kind} ${holder.name}`).join(' > ')} (${linesOf(innermost)})`;
+  // A parse of other content numbers other lines, so it does not answer this one.
+  if (held.changed) return 'changed since the index parsed it, so its lines are not answered from that parse; `variance index` updates it';
   const language = memberlessLanguageOf(held.file);
-  // The line of a file whose members the scan does not record may be in one, so it is not called the top level.
-  return language === undefined
-    ? 'at the top level of the module'
-    : `in none of the declarations the index records; members are read from JavaScript and TypeScript only, so it may be in a member of this ${language} file`;
+  const innermost = held.holders.filter((holder) => holder.depth === held.holders.at(-1)?.depth);
+  if (innermost.length === 0) {
+    // The line of a file whose members the scan does not record may be in one, so it is not called the top level.
+    return language === undefined
+      ? 'at the top level of the module'
+      : `in none of the declarations the index records; members are read from JavaScript and TypeScript only, so it may be in a member of this ${language} file`;
+  }
+  const outer = held.holders.slice(0, -innermost.length);
+  const levels = [...new Set(outer.map((holder) => holder.depth))].map((depth) => outer.filter((holder) => holder.depth === depth).map(named).join(', '));
+  // Side by side, one span is said once when they share it, and each its own when they do not.
+  const shared = innermost.every((holder) => holder.line === innermost[0]!.line && holder.end === innermost[0]!.end);
+  const inner = shared ? `${innermost.map(named).join(', ')} (${linesOf(innermost[0]!)})` : innermost.map((holder) => `${named(holder)} (${linesOf(holder)})`).join(', ');
+  const may = language !== undefined && innermost.some((holder) => holdsMembers(holder.kind)) ? '; members are read from JavaScript and TypeScript only, so it may also be in a member of it' : '';
+  return `in ${[...levels, inner].join(' > ')}${may}`;
 }
+
+const named = (holder: LineHolder): string => `${holder.kind} ${holder.name}`;
 
 /** The declarations part, or nothing when no file asked about is in the index. */
 export function formatDeclarations(files: readonly FileDeclarations[] | undefined): readonly string[] {

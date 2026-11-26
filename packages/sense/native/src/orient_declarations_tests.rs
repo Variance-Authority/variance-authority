@@ -195,11 +195,22 @@ fn a_name_the_file_binds_and_declares_is_listed_at_the_declaration_and_not_count
 const CART: &str = "export interface Cart {\n  total: number;\n  add(item: string): void;\n}\n\nexport const limit = {\n  items: 10,\n};\n\nexport class Basket {\n  lines = [];\n  total() {\n    return this.lines.length;\n  }\n}\n\nfunction first() {\n  const inner = () => {\n    return 1;\n  };\n}\n\nfunction second() {}\n";
 
 /// What an asked line is in, outermost first, each as `kind name start-end`.
+/// Holders one deeper than the last are after ` > `, and those as deep beside it after `, `.
 fn held(found: &LineHeld) -> String {
     if !found.read { return "not read".to_owned() }
+    if found.changed { return "changed".to_owned() }
     if found.holders.is_empty() { return "top level".to_owned() }
-    let holders: Vec<String> = found.holders.iter().map(|holder| format!("{} {} {}-{}", holder.kind, holder.name, holder.line, holder.end)).collect();
-    holders.join(" > ")
+    let mut said = String::new();
+    for (at, holder) in found.holders.iter().enumerate() {
+        if at > 0 { said.push_str(if holder.depth == found.holders[at - 1].depth { ", " } else { " > " }) }
+        said.push_str(&format!("{} {} {}-{}", holder.kind, holder.name, holder.line, holder.end));
+    }
+    said
+}
+
+/// Every file current, as git lists it.
+fn current(_: &str, _: crate::chain_lookup::At) -> bool {
+    true
 }
 
 fn asked(file: &str, lines: &[u32]) -> Vec<AskedLine> {
@@ -212,7 +223,7 @@ fn a_line_is_in_every_declaration_whose_lines_enclose_it_outermost_first_and_in_
     let layers = [Layer::open(&records).unwrap(), Layer::open(&parses).unwrap()];
     let mut lines = asked("src/cart.ts", &[2, 4, 7, 13, 16, 19, 22]);
     lines.extend(asked("src/gone.ts", &[1]));
-    let found: Vec<String> = lines_held(&layers, &lines).iter().map(held).collect();
+    let found: Vec<String> = lines_held(&layers, &lines, current).iter().map(held).collect();
     assert_eq!(found, vec![
         "interface Cart 1-4 > property total 2-2",
         "interface Cart 1-4",
@@ -229,15 +240,30 @@ fn a_line_of_a_tree_sitter_language_is_in_the_items_whose_lines_enclose_it() {
     let source = "pub fn total() -> u32 {\n    1\n}\n\n#[cfg(test)]\nmod tests {\n    fn fixture() {\n        let _ = 1;\n    }\n}\n";
     let (records, parses) = chain(&[("src/total.rs", "git:o", source)]);
     let layers = [Layer::open(&records).unwrap(), Layer::open(&parses).unwrap()];
-    let found: Vec<String> = lines_held(&layers, &asked("src/total.rs", &[2, 4, 8])).iter().map(held).collect();
+    let found: Vec<String> = lines_held(&layers, &asked("src/total.rs", &[2, 4, 8]), current).iter().map(held).collect();
     assert_eq!(found, vec!["function total 1-3", "top level", "module tests 6-10 > function tests::fixture 7-9"]);
 }
 
 #[test]
-fn names_one_statement_declares_on_the_same_lines_are_one_holder() {
-    let source = "export const width = 1,\n  height = 2;\ninterface Box { a: string; b: string }\n";
+fn declarations_that_share_a_line_are_side_by_side_and_a_member_is_under_the_container_it_is_on() {
+    let source = "export const width = 1,\n  height = 2;\ninterface Props { name: string; onClick(): void }\nexport function a() {} export function b() {}\n\
+        function f() { function g() {} function h() {} }\nclass K { m() { function n() {} } }\n";
     let (records, parses) = chain(&[("src/size.ts", "git:p", source)]);
     let layers = [Layer::open(&records).unwrap(), Layer::open(&parses).unwrap()];
-    let found: Vec<String> = lines_held(&layers, &asked("src/size.ts", &[2, 3])).iter().map(held).collect();
-    assert_eq!(found, vec!["const width, height 1-2", "interface Box 3-3 > property a, b 3-3"]);
+    let found: Vec<String> = lines_held(&layers, &asked("src/size.ts", &[2, 3, 4, 5, 6]), current).iter().map(held).collect();
+    assert_eq!(found, vec![
+        "const width 1-2, const height 1-2",
+        "interface Props 3-3 > property name 3-3, method onClick 3-3",
+        "function a 4-4, function b 4-4",
+        "function f 5-5 > function g 5-5, function h 5-5",
+        "class K 6-6 > method m 6-6 > function n 6-6",
+    ]);
+}
+
+#[test]
+fn a_line_of_a_file_changed_since_its_parse_is_not_answered_from_that_parse() {
+    let (records, parses) = chain(&[("src/cart.ts", "git:n", CART)]);
+    let layers = [Layer::open(&records).unwrap(), Layer::open(&parses).unwrap()];
+    let found: Vec<String> = lines_held(&layers, &asked("src/cart.ts", &[2]), |_, _| false).iter().map(held).collect();
+    assert_eq!(found, vec!["changed"]);
 }

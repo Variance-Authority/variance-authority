@@ -101,6 +101,8 @@ export interface LineHolder {
   readonly line: number;
   /** Its last line. */
   readonly end: number;
+  /** How many of the line's other holders it is within: 0 for one the module holds. Holders as deep are side by side. */
+  readonly depth: number;
 }
 
 /** The declarations an asked line is in, from the file's parse in the source index. */
@@ -109,7 +111,9 @@ export interface LineHeld {
   readonly line: number;
   /** False when the index holds the file and no parse of its declarations: which declarations the line is in is unknown. */
   readonly read: boolean;
-  /** Outermost first; none when the line is at the top level of the module. Names one statement declares on the same lines are one holder, joined by `, `. */
+  /** True when git's tree holds the file at other content than the index parsed, or no longer holds it: no holder is read off that parse. */
+  readonly changed: boolean;
+  /** By depth, then by line; none when the line is at the top level of the module. */
   readonly holders: readonly LineHolder[];
 }
 

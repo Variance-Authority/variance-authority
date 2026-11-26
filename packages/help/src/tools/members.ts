@@ -232,6 +232,14 @@ export function memberlessLanguageOf(file: string): string | undefined {
   return unreadMemberLanguages([file])[0];
 }
 
+/** The kinds the index stores for a declaration that may hold members: a type, a class or a module. */
+const HOLDERS = new Set(['actor', 'annotation', 'class', 'enum', 'extension', 'interface', 'module', 'namespace', 'object', 'protocol', 'record', 'struct', 'trait', 'union']);
+
+/** Whether a declaration of `kind` may hold members, which a language whose members the scan does not read leaves out. */
+export function holdsMembers(kind: string): boolean {
+  return HOLDERS.has(kind);
+}
+
 /** Why no member of `file` is listed when its language's members are not read; nothing when they are. */
 export function membersNotReadIn(file: string): string | undefined {
   const language = memberlessLanguageOf(file);

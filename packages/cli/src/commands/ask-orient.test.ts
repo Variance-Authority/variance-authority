@@ -467,6 +467,31 @@ describe('variance ask orient', () => {
     ]);
   });
 
+  it('names declarations that share a line side by side, says a Python class line may be in a member, and leaves a changed file\'s lines unanswered', async () => {
+    const root = repository({
+      'package.json': JSON.stringify({ name: 'shop', private: true }),
+      'src/props.ts': 'interface Props { name: string; onClick(): void }\nexport function a() {} export function b() {}\n',
+      'src/cart.py': 'class Cart:\n    def total(self):\n        return 1\n',
+      'src/moved.ts': 'export function moved() {\n  return 1;\n}\n',
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+    writeFileSync(join(root, 'src/moved.ts'), '\n\nexport function moved() {\n  return 1;\n}\n');
+
+    const answered = await run(['ask', 'orient', '--files', 'src/props.ts:1,src/props.ts:2,src/cart.py:3,src/moved.ts:4']);
+
+    expect(answered.code).toBe(EXIT_CLEAN);
+    const lines = answered.out.split('\n');
+    const at = lines.indexOf('Lines asked about, from the source index:');
+    expect(lines.slice(at, at + 6)).toEqual([
+      'Lines asked about, from the source index:',
+      '  src/props.ts:1  in interface Props > property name, method onClick (line 1)',
+      '  src/props.ts:2  in function a, function b (line 2)',
+      '  src/cart.py:3   in class Cart (lines 1–3); members are read from JavaScript and TypeScript only, so it may also be in a member of it',
+      '  src/moved.ts:4  changed since the index parsed it, so its lines are not answered from that parse; `variance index` updates it',
+      '',
+    ]);
+  });
+
   it('shows a file\'s declarations up to the line budget and names how many it did not show', async () => {
     const consts = Array.from({ length: 45 }, (_, at) => `export const c${at} = ${at};`);
     repository({ 'package.json': JSON.stringify({ name: 'many', private: true }), 'src/many.ts': `${consts.join('\n')}\n` });

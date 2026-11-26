@@ -16,7 +16,7 @@ use crate::compact::Layer;
 use crate::index_chain::{read_chain, Chain};
 use crate::order::code_unit;
 use crate::orient_declarations::{declarations_of, lines_held, AskedLine, FileDeclarations, LineHeld};
-use crate::package_graph::{join_parses, names_object, opened, orientation_over, Crossing, Limits, Listed, Orientation};
+use crate::package_graph::{current, join_parses, opened, orientation_over, Crossing, Limits, Listed, Orientation};
 use crate::package_owners::{declared, Manifest, Owners, NO_OWNER};
 use crate::specifier::{package_of, request_of};
 
@@ -118,7 +118,7 @@ pub fn orient_around(
             || orientation_over(&chain, &layers, &owners, &listed, &files, limits),
             || inspect_over(&root, &chain, &layers, &owners, &listed, &files, external_rows as usize, external_sites as usize),
         ),
-        || (declarations_of(&layers, &files, declaration_lines as usize), lines_held(&layers, &lines)),
+        || (declarations_of(&layers, &files, declaration_lines as usize), lines_held(&layers, &lines, |file, at| current(&layers, &owners, &listed, file, at))),
     );
     let (declarations, lines) = declarations;
     Ok(Some(Around { packages, external, declarations, lines }))
@@ -198,11 +198,7 @@ fn inspect_over(
         let at = folded[file];
         let (layer, row) = at;
         let (stored, records) = (&layers[layer].stored, &layers[layer].records);
-        let current = owners.files.get(file).is_some_and(|&(_, listing)| {
-            stored.optional(records.digest.at(row))
-                .is_some_and(|digest| names_object(digest, &listed.oids[listing as usize]))
-        });
-        if !current {
+        if !current(layers, owners, listed, file, at) {
             stale += 1;
             continue;
         }
