@@ -13,7 +13,7 @@
 import { checkoutListing, checkoutPath, journeyMaps } from '@variance-authority/sense';
 import type { Tool } from '@variance-authority/mcp/tools';
 import { formatJourneyMap } from './journey-map-format.js';
-import { RECORDING } from './slowest-format.js';
+import { RECORDING } from './format.js';
 import { recordedOnce, refuseUnknownPath } from './unknown-path.js';
 
 /** The words of a task, from a string or a list, lowercase-insensitive and without blanks. */

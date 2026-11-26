@@ -168,7 +168,7 @@ export function intersectionOf<Subject>(operands: readonly Tool<Subject>[]): Too
           description: 'Two or more questions.',
         },
         limit: { type: 'integer', description: `Files to show, the rest counted; ${SHOWN} when not said.` },
-        offset: { type: 'integer', minimum: 0, description: 'Rows to skip; an answer with more names the next.' },
+        offset: { type: 'integer', minimum: 0, description: 'Rows to skip, 0 when not said; an answer with more names the next.' },
       },
       required: ['questions'],
       additionalProperties: false,

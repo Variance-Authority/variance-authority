@@ -13,7 +13,8 @@
 import type { Tool } from '@variance-authority/mcp/tools';
 import { recordedAttempts, type RecordedAttempts, type RetriedCase } from '@variance-authority/sense';
 import { limitOf, spellingOf } from '@variance-authority/mcp/tools';
-import { eachSuite, RECORDING, spent } from './slowest-format.js';
+import { RECORDING } from './format.js';
+import { eachSuite, spent } from './slowest-format.js';
 
 /** Cases listed per suite when the question names no limit. */
 export const RETRIED = 10;
@@ -73,7 +74,7 @@ function firstLine(message: string | undefined): string | undefined {
 export const retriedTests: Tool<unknown> = {
   name: 'docs_retried_tests',
   description:
-    'The test cases in the latest recorded run whose attempts ended differently, such as one that ' +
+    'The test cases in the latest run of each suite whose attempts ended differently, such as one that ' +
     'failed and then passed on retry, which its runner reported as passed. Each lists every attempt: ' +
     'how it ended, how long it ran, and for a failure its frame and the first line of the error. It ' +
     `speaks of one run, not of how often a case fails. ${RECORDING}; runs nothing.`,

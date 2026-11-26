@@ -351,7 +351,7 @@ export const discover: Tool<unknown> = {
     'set. A set is what a path imports (`from`) or what imports it (`to`), the files importing a ' +
     'module or name (`imports`), declaring a matching name (`declares`), or whose path matches ' +
     '(`path`); several values of one operand are several sets. `except…` operands take files out, and ' +
-    '`text` keeps the files with a ripgrep match. Use docs_intersection to cross whole questions ' +
+    '`text` keeps the files with a ripgrep match. `declares` and `imports` read the source index. Use docs_intersection to cross whole questions ' +
     'instead.',
   inputSchema: {
     type: 'object',

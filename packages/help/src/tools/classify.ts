@@ -151,9 +151,9 @@ export const classify: Tool<Help> = {
     'Which words of a request name something here, and where the rest point. A word counts only ' +
     'whole: a package or entrypoint name, a published name as spelled, an identifier-shaped word (a ' +
     'capital past its first letter, an underscore, a digit after a letter) that a file declares or ' +
-    'names, or a repo-relative path; a plain lowercase word is never looked up as a name. When words ' +
-    'remain unrecognized, or `from` or `to` is given, it ranks the folders of the code map those ' +
-    'words point to, and names the source files the request names. Ask it first when you hold a request in words; docs_symbol takes a ' +
+    'names, or a repo-relative path; a plain lowercase word is never looked up as a name. It names the ' +
+    'source files the request names, and when words remain unrecognized, or `from` or `to` is given, ' +
+    'ranks the folders of the code map those words point to. Ask it first when you hold a request in words; docs_symbol takes a ' +
     'name it found, docs_search the words it did not.',
   inputSchema: {
     type: 'object',

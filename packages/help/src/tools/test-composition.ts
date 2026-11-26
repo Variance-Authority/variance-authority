@@ -12,7 +12,7 @@
 import { testCompositions } from '@variance-authority/sense';
 import type { Tool } from '@variance-authority/mcp/tools';
 import { ASKED_TEST_INPUT, askedTest, suitesAnswer } from './asked-test.js';
-import { RECORDING } from './slowest-format.js';
+import { RECORDING } from './format.js';
 import { formatTestComposition } from './test-composition-format.js';
 
 /** Typed over nothing, like `docs_journey_map`: the checkout is the one the host names on the call. */

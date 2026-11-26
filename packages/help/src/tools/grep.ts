@@ -31,7 +31,8 @@ export const grep: Tool<unknown> = {
   name: 'docs_grep',
   description:
     'Ripgrep over the files a start point imports (`from`) or that import it (`to`), at any depth, ' +
-    'matching lines nearest first. A start point is required: the file or folder you are in, or a top ' +
+    `matching lines nearest first; past ${SHOWN}, with no \`limit\` or \`offset\`, the nearest few, then each path and its line count. ` +
+    'A start point is required: the file or folder you are in, or a top ' +
     'folder at the widest. One start point not found or holding no match, with no `limit` or `offset`, ' +
     'is answered from the nearest folder around it that has one. Or give `test` to search only the files that test ran, each line marked ' +
     'ran or not taken. Use it for text and patterns; docs_search and docs_uses answer names.',
@@ -54,12 +55,12 @@ export const grep: Tool<unknown> = {
       },
       limit: {
         type: 'integer',
-        description: `Optional. Matching lines to show, the rest counted; ${SHOWN} when not said.`,
+        description: 'Optional. Matching lines to show, the rest counted; given, the lines are shown however many.',
       },
       offset: {
         type: 'integer',
         minimum: 0,
-        description: 'Rows to skip; an answer with more names the next.',
+        description: 'Rows to skip, 0 when not said; an answer with more names the next.',
       },
     },
     required: ['query'],

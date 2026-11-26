@@ -45,9 +45,7 @@ export const entrypoint: Tool<Help> = {
   name: 'docs_entrypoint',
   description:
     'Every name one import specifier opens, most imported first, with its kind and documentation. Asked by a package name, it also counts ' +
-    'the imports that reach past the package\'s entry, one row per file; for a package that opens only ' +
-    'subpaths it lists them, and for one with no entry it counts what other packages import from it ' +
-    'by path. Use docs_symbol for one name\'s full signature and documentation.',
+    'the imports that reach past the package\'s entry, and lists the subpaths of a package that opens only those. Use docs_symbol for one name\'s full signature and documentation.',
   inputSchema: {
     type: 'object',
     properties: {

@@ -12,7 +12,8 @@
 import type { Tool } from '@variance-authority/mcp/tools';
 import { recordedDurations, type DurationScope } from '@variance-authority/sense';
 import { limitOf, spellingOf, type Spelling } from '@variance-authority/mcp/tools';
-import { formatSlowest, RECORDING } from './slowest-format.js';
+import { RECORDING } from './format.js';
+import { formatSlowest } from './slowest-format.js';
 import { recordedOnce, refuseUnknownPath } from './unknown-path.js';
 
 /** Files, and cases, listed per suite when the question names no limit. */
@@ -64,10 +65,9 @@ const PATHS = { type: 'array', items: { type: 'string' } } as const;
 export const slowestTests: Tool<unknown> = {
   name: 'docs_slowest_tests',
   description:
-    'The test files and cases that took longest in the latest recorded run, slowest first, as the ' +
+    'The test files and cases that took longest in the latest run of each suite, slowest first, as the ' +
     'runner timed them, after the cases closest to their timeout. A file\'s time includes its ' +
-    'environment, setup files and imports; a case\'s slowest statement is named when it held a ' +
-    `millisecond or more. ${RECORDING}; runs and times nothing.`,
+    `setup and imports. ${RECORDING}; runs and times nothing.`,
   inputSchema: {
     type: 'object',
     properties: {

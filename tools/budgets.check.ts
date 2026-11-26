@@ -174,14 +174,18 @@ describe('an MCP tool definition is held in bytes, as `tools/list` sends it', ()
     const bytes = Buffer.byteLength(JSON.stringify(long));
     expect(definitionsOver({ 'variance-authority-help': [long], 'variance serve': [long] })).toEqual([`long: ${bytes} B (budget ${DEFINITION_BYTES.tool})`]);
     const many = Array.from({ length: 20 }, (_, at) => entry(`t${at}`, 'x'.repeat(1000)));
-    expect(definitionsOver({ 'variance-authority-help': many })).toEqual([
+    expect(definitionsOver({ 'variance-authority-help': many, 'variance serve': [] })).toEqual([
       `variance-authority-help: ${many.reduce((sum, one) => sum + Buffer.byteLength(JSON.stringify(one)), 0)} B for 20 tools (budget 20000)`,
     ]);
   });
 
   it('holds a server with no total per tool only', () => {
     const many = Array.from({ length: 40 }, (_, at) => entry(`t${at}`, 'x'.repeat(1000)));
-    expect(definitionsOver({ other: many })).toEqual([]);
+    expect(definitionsOver({ 'variance-authority-help': [], 'variance serve': [], other: many })).toEqual([]);
+  });
+
+  it('names a total no list was measured for, so a renamed server cannot turn it off', () => {
+    expect(definitionsOver({ 'variance-authority-help': [] })).toEqual(['variance serve: not measured (budget 33000)']);
   });
 });
 

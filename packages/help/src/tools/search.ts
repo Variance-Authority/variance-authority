@@ -9,10 +9,10 @@ import { aliasLine, declaredLine, heldLine, unreadLine } from './declared.js';
 import { casesUnder, describedRow, exportedLine, isPublished, matchLine, publishedLine, testLine } from './search-rows.js';
 import { unreadStop } from './members.js';
 import { CAP, ELSEWHERE_CAP, LOOSE_CAP, NEAR_CAP, searched } from './search-answer.js';
-import { INSTALLED_CAP } from '../dependency-lexicon.js';
+import { LEXICON_INSTALLED_CAP } from '../dependency-lexicon.js';
 import type { ImportingOf } from './published-match.js';
 import type { DeclarationLookups } from './exported-matches.js';
-import { named } from './format.js';
+import { NAMED, named } from './format.js';
 import { orient } from './orient.js';
 import { symbol } from './symbol.js';
 import { searchReading, renderedFiles } from './search-reading.js';
@@ -372,7 +372,7 @@ export const search: Tool<Help> = {
       },
       limit: {
         type: 'integer',
-        description: `Optional. Rows per list, the rest counted. When not said: ${CAP} published, ${INSTALLED_CAP} installed, ${NEAR_CAP} near, ${LOOSE_CAP} loose or described, ${ELSEWHERE_CAP} of each other kind.`,
+        description: `Optional. Rows per list, the rest counted. When not said: ${CAP} published, ${NEAR_CAP} near, ${LOOSE_CAP} loose, ${ELSEWHERE_CAP} of each other own kind; installed and describing packages ${NAMED} beside own rows, ${LEXICON_INSTALLED_CAP} with none.`,
       },
     },
     required: ['query'],

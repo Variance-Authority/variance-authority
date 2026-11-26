@@ -28,8 +28,8 @@ export const BUDGET = { overview: 15, docblock: 10, block: 5, lead: 15 };
  * Bytes per MCP tool definition, and per server's list of them, as `tools/list`
  * sends them: a client puts every definition in the model's context at the start
  * of each session, asked or not. The per-tool limit holds every served set; the
- * totals hold the 19 `docs_*` tools `variance-authority-help` lists and the 34
- * `variance serve` lists, which adds the report, costs and review tools.
+ * totals hold the `docs_*` tools `variance-authority-help` lists and the larger
+ * set `variance serve` lists, which adds the report, costs and review tools.
  */
 // Totals 1–2% over the lists as #1848 left them, so growth displaces a sentence; one tool, ~600 tokens.
 export const DEFINITION_BYTES = { tool: 2400, lists: { 'variance-authority-help': 20000, 'variance serve': 33000 } };
@@ -37,10 +37,13 @@ export const DEFINITION_BYTES = { tool: 2400, lists: { 'variance-authority-help'
 /**
  * Each budgeted list over its total, and each listed tool over the per-tool
  * limit, named once. `lists` maps a server to the entries its `tools/list`
- * answered; a server with no total is held per tool only.
+ * answered; a server with no total is held per tool only, and a total no list
+ * was measured for is named, so a renamed server cannot turn its total off.
  */
 export function definitionsOver(lists) {
-  const over = [];
+  const over = Object.keys(DEFINITION_BYTES.lists)
+    .filter((server) => !(server in lists))
+    .map((server) => `${server}: not measured (budget ${DEFINITION_BYTES.lists[server]})`);
   const named = new Set();
   for (const [server, entries] of Object.entries(lists)) {
     const sizes = entries.map((entry) => [entry.name, Buffer.byteLength(JSON.stringify(entry))]);
