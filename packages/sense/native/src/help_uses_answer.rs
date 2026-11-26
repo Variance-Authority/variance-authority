@@ -340,6 +340,14 @@ fn places(count: usize) -> String {
     format!("{count} {}", if count == 1 { "place" } else { "places" })
 }
 
+/// How many places import a declaration named on one line beside the one answered first.
+fn imported(sites: &[Site<'_>]) -> String {
+    match Counts::of(sites, "").certain {
+        0 => ", imported nowhere".into(),
+        count => format!(", imported in {}", places(count)),
+    }
+}
+
 pub(crate) struct Counts {
     pub(super) certain: usize,
     inside: usize,

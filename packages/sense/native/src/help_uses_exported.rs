@@ -1,6 +1,6 @@
 //! Who imports a name files export and no entry publishes: the declaration
-//! answered first with its imports, then each other declaration of the name
-//! with its own.
+//! answered first with its imports, and each other declaration of the name on
+//! a line with how many places import it, answered alone by `--file`.
 
 // compass: variance-authority.report.agent-surface
 
@@ -12,22 +12,22 @@ use crate::help_origin::declaration_exported;
 use crate::help_symbol_published::joined_sites;
 use crate::help_path_landing::landing;
 use crate::help_unread::{Said, STORE};
-use crate::help_symbol_rows::{Export, PathSite, Rows};
+use crate::help_symbol_rows::{Export, PathSite, Rows, Site};
 use crate::help_unpublished::{exported_at, Unpublished};
 use crate::help_key::SLOT;
 use crate::help_usage::{Asked, Group, Namespace};
 use crate::order::code_unit;
 
 use super::kept::others_lines;
-use super::{headline, importers_of_every, list_kinds, list_own, narrow, places, primary_sites, Asking, Beside, Counts, Strays};
+use super::{headline, imported, importers_of_every, list_kinds, list_own, narrow, places, primary_sites, Asking, Beside, Counts, Strays};
 
 /// The exports of one declaration: the file declaring it, and every export of it, the declaring ones first.
 pub(super) type Declaration<'e, 'a> = (&'e str, Vec<&'e Unpublished<'a>>);
 
 /// `uses` for a name no entry publishes: each declaration its exports key,
-/// in file order, the first answered in full and each other one after it;
-/// `file` answers for the one it declares alone. `Err` says why the answer
-/// did not read.
+/// in file order, the first answered in full and each other one named on a
+/// line with its import count; `file` answers for the declarations it
+/// declares, each in full. `Err` says why the answer did not read.
 pub(super) fn exported_uses(asking: &Asking<'_>, rows: &Rows, paths: &[PathSite<'_>], exported: &[Unpublished<'_>], package: &PackageScope<'_>, beside: Beside<'_>) -> Result<String, String> {
     let &Asking { root, layers, name, file, .. } = asking;
     let chosen: Vec<_> = match file {
@@ -73,10 +73,17 @@ pub(super) fn exported_uses(asking: &Asking<'_>, rows: &Rows, paths: &[PathSite<
     let kinds: BTreeSet<_> = primary.iter().filter_map(|held| held.declaration).collect();
     let kinds = kinds.into_iter().collect::<Vec<_>>().join(", ");
     let mut lines = vec![headline(asking, &kinds, None, Some((&format!("{}{passed}", exported_at(primary)), member.as_deref())), home, &sites, !strays.dead.is_empty() || !strays.unresolved.is_empty())];
-    let namesakes = others.iter().map(|(_, held)| format!("{}, exported without being published", exported_at(held))).collect();
-    lines.extend(others_lines(name, namesakes, &beside.kept, &beside.members));
+    // Asked for no file, each other declaration is one line; `--file` answers the ones a file declares, each in full.
+    let folded = file.is_none();
+    let namesakes = others.iter().zip(&read.groups[1..]).map(|((_, held), group)| {
+        let count = if folded { imported(&namesake_sites(held, paths, &landed, group)) } else { String::new() };
+        format!("{}, exported without being published{count}", exported_at(held))
+    }).collect();
+    lines.extend(others_lines(name, namesakes, &beside.kept, &beside.members, !folded || others.is_empty()));
     primary_sites(&mut lines, asking, home, &in_file_of(&read.in_file, &own), sites, strays, &read.in_file);
-    for ((_, held), group) in others.iter().zip(&read.groups[1..]) { namesake(&mut lines, asking, held, paths, &landed, group, &read.in_file) }
+    if !folded {
+        for ((_, held), group) in others.iter().zip(&read.groups[1..]) { namesake(&mut lines, asking, held, paths, &landed, group, &read.in_file) }
+    }
     lines.extend(beside.after);
     let declaring: HashSet<_> = exported.iter().filter(|held| held.export.bound.is_some()).map(|held| held.export.at).chain(beside.files).collect();
     if file.is_none() && declaring.len() > 1 { lines.push(narrow(asking.surface)); }
@@ -87,9 +94,7 @@ pub(super) fn exported_uses(asking: &Asking<'_>, rows: &Rows, paths: &[PathSite<
 pub(super) fn namesake(lines: &mut Vec<String>, asking: &Asking<'_>, held: &[&Unpublished<'_>], paths: &[PathSite<'_>], landed: &[Option<&str>], group: &Group, in_file: &[InFile]) {
     let name = asking.name;
     lines.push(format!("\n`{name}` is exported, without being published, at {} as well, which is another declaration.", exported_at(held)));
-    let at = files(held);
-    let by_path = paths.iter().zip(landed).filter(|(_, to)| to.is_some_and(|to| at.contains(&to))).map(|(site, _)| site.site);
-    let sites = joined_sites(&[], by_path, &group.uses, &group.through);
+    let sites = namesake_sites(held, paths, landed, group);
     if sites.is_empty() {
         lines.push("Nothing in this workspace imports it.".into());
     } else {
@@ -99,7 +104,14 @@ pub(super) fn namesake(lines: &mut Vec<String>, asking: &Asking<'_>, held: &[&Un
         lines.push(format!("Imported in {}{split}.{}", places(count.certain), count.may_read(name)));
         list_kinds(lines, asking, home, sites);
     }
-    for at in in_file_of(in_file, &at) { list_own(lines, asking, at, "declares", in_file); }
+    for at in in_file_of(in_file, &files(held)) { list_own(lines, asking, at, "declares", in_file); }
+}
+
+/// The imports of a declaration exported without being published: those its group read, and the imports by path that land on its files.
+pub(super) fn namesake_sites<'s>(held: &[&Unpublished<'_>], paths: &[PathSite<'s>], landed: &[Option<&str>], group: &'s Group) -> Vec<Site<'s>> {
+    let at = files(held);
+    let by_path = paths.iter().zip(landed).filter(|(_, to)| to.is_some_and(|to| at.contains(&to))).map(|(site, _)| site.site);
+    joined_sites(&[], by_path, &group.uses, &group.through)
 }
 
 /// The imports to read for the exports of one declaration: out of each of their files, under every name its key spells it by.

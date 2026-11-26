@@ -43,7 +43,10 @@ describe('variance ask uses over a declaration published under another name', ()
     checkout(RENAMED);
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
 
-    const out = await uses('salute');
+    // Asked for no file, the other declaration is counted on its line; `--file` answers both, each with its own imports.
+    expect(await uses('salute')).toMatch(/^ {2}packages\/lib\/src\/greet\.ts:4, exported without being published, imported in 1 place$/m);
+    const { code, out } = await run(['ask', 'uses', '--name', 'salute', '--file', 'packages/lib/src/greet.ts']);
+    expect(code).toBe(EXIT_CLEAN);
     const [published, namesake] = out.split(/^`salute` is exported, without being published, at packages\/lib\/src\/greet\.ts:4 as well, which is another declaration\.$/m);
     expect(namesake).toBeDefined();
     expect(published).toMatch(/^apps\/app\/src\/hello\.ts:1 — @acme\/app; used on line 2$/m);

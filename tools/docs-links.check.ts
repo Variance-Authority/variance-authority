@@ -89,6 +89,7 @@ const FOREIGN: Readonly<Record<string, string>> = {
   'apps/app/src/total.ts': 'the workspace ask-packages-deep.test.ts builds, quoted from its answers',
   'packages/lib/src/internal/math.ts': 'the workspace ask-packages-deep.test.ts builds, quoted from its answers',
   'packages/lib/src/other.ts': 'the workspace ask-uses-namesakes.test.ts builds, quoted from its answers',
+  'packages/second/src/index.ts': 'the workspace ask-uses-namesakes.test.ts builds, quoted from its answers',
   'packages/kit/src/money/rates.ts': 'the workspace ask-passed-on.test.ts builds, quoted from its answers',
   'packages/kit/src/money/tax.ts': 'the workspace ask-packages.fixture.ts builds, quoted from an answer of ask-passed-on.test.ts',
   'apps/app/src/hello.ts': 'the workspace ask-packages.fixture.ts builds, quoted from an answer of ask-uses-in-package.test.ts',
