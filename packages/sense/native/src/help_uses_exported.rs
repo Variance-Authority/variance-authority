@@ -30,17 +30,19 @@ pub(super) type Declaration<'e, 'a> = (&'e str, Vec<&'e Unpublished<'a>>);
 /// did not read.
 pub(super) fn exported_uses(asking: &Asking<'_>, rows: &Rows, paths: &[PathSite<'_>], exported: &[Unpublished<'_>], package: &PackageScope<'_>, beside: Beside<'_>) -> Result<String, String> {
     let &Asking { root, layers, name, file, .. } = asking;
-    let chosen: Vec<_> = match file {
-        None => exported.iter().collect(),
-        Some(file) => {
-            if !exported.iter().any(|held| held.export.at == file && held.export.bound.is_some()) {
-                return Err(format!("{file} exports `{name}`, and the source index binds that export to no declaration"));
-            }
-            exported.iter().filter(|held| held.export.at == file || held.export.bound.is_none()).collect()
+    // The file named answers for the declaration it binds, or, a barrel, for those its exports reach in other files.
+    let binds = file.filter(|file| exported.iter().any(|held| held.export.at == *file && held.export.bound.is_some()));
+    let chosen: Vec<_> = match (file, binds) {
+        (None, _) => exported.iter().collect(),
+        (Some(_), Some(file)) => exported.iter().filter(|held| held.export.at == file || held.export.bound.is_none()).collect(),
+        (Some(file), None) => {
+            let passed: Vec<&str> = exported.iter().filter(|held| held.export.at == file && held.declared_at != file).map(|held| held.declared_at.as_str()).collect();
+            if passed.is_empty() { return Err(format!("{file} exports `{name}`, and the source index binds that export to no declaration")) }
+            exported.iter().filter(|held| passed.contains(&held.declared_at.as_str())).collect()
         }
     };
     let mut declarations = declarations(&chosen);
-    if let Some(file) = file { declarations.retain(|(at, _)| *at == file) }
+    if let Some(file) = binds { declarations.retain(|(at, _)| *at == file) }
     let exports: Vec<&Export<'_>> = declarations.iter().flat_map(|(_, held)| held.iter().map(|one| &one.export)).collect();
     let asked: Vec<_> = declarations.iter().map(|(_, held)| asked_of(held)).collect();
     let mut read = importers_of_every(root, layers, &asked);

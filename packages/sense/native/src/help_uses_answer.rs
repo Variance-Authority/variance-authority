@@ -191,7 +191,7 @@ pub(crate) fn uses(asking: &Asking<'_>, store: &mut (impl Read + Seek)) -> Resul
     }
     // A file named that exports a declaration of its own, which no entry publishes, is answered for that declaration alone.
     let unpublished_here = file.is_some_and(|file| !published.iter().any(|one| one.at == file)
-        && exported.iter().any(|held| held.export.at == file && held.export.bound.is_some()
+        && exported.iter().any(|held| held.export.at == file && held.declaration.is_some()
             && !published.iter().any(|one| one.at == held.key.at && one.declared == held.key.named)));
     if unpublished_here { return exported::exported_uses(asking, &rows, &paths, &exported, &package, beside).map(Ok) }
     // A file a door opens, or a barrel between it and the declaration, passes the published one on.
