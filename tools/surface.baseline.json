@@ -3674,6 +3674,7 @@
         "repinOwnLayer": "function",
         "repositoryLayers": "function",
         "repositoryRoot": "function",
+        "restateRecord": "function",
         "rootConfig": "function",
         "rootConfigOf": "function",
         "routesFromView": "function",

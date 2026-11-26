@@ -34,11 +34,18 @@ replaces it, and a partial one never replaces a whole one.**
   <artifact pattern>` asks GitHub for a green `merge_group` run of the running
   workflow whose head is `HEAD`, takes the latest, and downloads its artifacts
   that match. A push with no such run publishes nothing and says why.
+- **A queue's run that kept no record leaves the pull request's** (#1842).
+  The latest green `pull_request` run at the landed merge's second parent is
+  read when that head merged with the first parent is the landed tree, and its
+  records name the merge `carry merge` makes of the two, made again to
+  compare. The records are stated at the landed commit and published as the
+  queue's are; any other case publishes nothing and says why.
 - **The record folds over the mainline's**, so a test the queue did not run
   keeps the stand the mainline gave it. A whole run's publish lands alone
   (#1302).
 - **The whole-run gate stands for every other publish.** Only `--from-queue`
-  marks its entry `partial`, and only for a run GitHub reports as the queue's.
+  marks its entry `partial`, and only for a run GitHub reports as the queue's,
+  or the pull request's run of the same tree.
 - **The manifest holds `partial`.** A whole entry at a commit is kept against
   a partial one at the same commit, on any line, and the publish says so.
 - **A reader takes partiality from the manifest.** A checkout keeps the

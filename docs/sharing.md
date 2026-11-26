@@ -1245,12 +1245,23 @@ push to a mainline, `--from-queue` publishes it:
   that step's `if:`.
 - **The run is the latest green `merge_group` run of the same workflow** whose
   head is `HEAD`, found and downloaded with `gh`, which reads `GH_TOKEN`.
+- **When the queue's run kept no record, the pull request's run is read.** A
+  group that ran no shard, or failed and was retried, keeps none. `HEAD` then
+  merged the pull request's head into its first parent, and the latest green
+  `pull_request` run of the same workflow at that head ran on the head merged
+  with the record's commit, as [`carry merge`](#a-pull-request-that-runs-the-mainlines-changes-too)
+  makes it. Its records are published at `HEAD` only when the head merged with
+  `HEAD`'s first parent is `HEAD`'s own tree, and the records name the merge
+  `carry merge` makes of those two commits, made again to compare. The run
+  then tested the exact files that landed. A different tree, another merge, no
+  green run or no record publishes nothing, and the line says which.
 - **The entry is marked partial.** What the queue ran stands at this commit,
   and every other test keeps the stand the mainline's record gave it. The whole
   run's publish at the same commit replaces it. A test file no run has listed,
   such as one the group added, stands nowhere, so a checkout runs it. A suite the
-  queue ran none of is skipped with a line, and a group whose tests had already
-  run on the pull request's head may have run none, so it publishes nothing.
+  queue ran none of is skipped with a line. A group whose tests had already run
+  on the pull request's head may have run none, and keeps no record: then the
+  pull request's run is read, as above.
 - **A newer commit's entry wins.** When the next push's partial entry lands
   before this commit's whole run publishes, the whole one is kept off the line as
   older. A partial publish never replaces a whole entry at its own commit, and
@@ -1260,10 +1271,10 @@ push to a mainline, `--from-queue` publishes it:
 kept suite-v1/unit: the line holds the whole run at 3f1c…, and this run ran part of it.
 ```
 
-A push with no such run publishes nothing, exits 0, and says why:
+A push with neither run publishes nothing, exits 0, and says why:
 
 ```text
-nothing published from the merge queue: no green merge-queue run of .github/workflows/check.yml tested 3f1c…; the whole run at this commit publishes its record.
+nothing published from the merge queue: no green merge-queue run of .github/workflows/check.yml tested 3f1c…; no green pull_request run of .github/workflows/check.yml tested its head 9a7e…; the whole run at this commit publishes its record.
 ```
 
 Without `--publish` it reads the mainline's record the way `select` does, and
