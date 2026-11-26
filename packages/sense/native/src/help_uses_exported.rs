@@ -49,10 +49,12 @@ pub(super) fn exported_uses(asking: &Asking<'_>, rows: &Rows, paths: &[PathSite<
     let ((_, primary), others) = declarations.split_first()?;
     let home = primary[0].export.by;
     let own = files(primary);
+    // An import by path lands on the export file it names, or on the one whose declaration a barrel it names passes on.
+    let landed: Vec<Option<&str>> = paths.iter().map(|site| site.to.and_then(|to| landing(layers, name, &every, to))).collect();
     // An import by path that reaches no file exporting the name is no declaration's, and is listed apart.
     // An import by path of `default` is the declaration its file's default is named by, never a stray of the slot.
-    let strays: Vec<_> = paths.iter().filter(|site| file.is_none() && name != SLOT && site.to.is_none_or(|to| !every.contains(to))).map(|site| site.site).collect();
-    let by_path = paths.iter().filter(|site| site.to.is_some_and(|to| own.contains(&to))).map(|site| site.site);
+    let strays: Vec<_> = paths.iter().zip(&landed).filter(|(_, to)| file.is_none() && name != SLOT && to.is_none()).map(|(site, _)| site.site).collect();
+    let by_path = paths.iter().zip(&landed).filter(|(_, to)| to.is_some_and(|to| own.contains(&to))).map(|(site, _)| site.site);
     let group = &read.groups[0];
     let sites = joined_sites(&[], by_path, &group.uses, &group.through);
     let passed = match primary.as_slice() {
@@ -137,6 +139,16 @@ pub(super) fn declarations<'e, 'a>(exported: &[&'e Unpublished<'a>]) -> Vec<Decl
 }
 
 /// The files `held` are exported from, each once, in the order they come.
+/// The file of `every` that an import of `name` from `to` reaches: `to` itself
+/// when it exports the name, else the one whose declaration `to` passes on.
+fn landing<'e>(layers: &[crate::compact::Layer], name: &str, every: &HashSet<&'e str>, to: &str) -> Option<&'e str> {
+    if let Some(at) = every.get(to) { return Some(at) }
+    let reached = declaration_exported(layers, to, name)?;
+    let mut held: Vec<&'e str> = every.iter().copied().collect();
+    held.sort_unstable();
+    held.into_iter().find(|at| declaration_exported(layers, at, name).is_some_and(|one| one.at == reached.at && one.line == reached.line))
+}
+
 fn files<'a>(held: &[&Unpublished<'a>]) -> Vec<&'a str> {
     let mut files = Vec::new();
     for one in held {

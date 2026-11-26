@@ -141,6 +141,8 @@ export function nativeFiles(question: readonly string[]): Readonly<Record<string
       'apps/app/src/found.ts': "import { lost } from '@acme/kit/src/lost';\nexport const found = lost;\n",
       'apps/app/src/stray.ts': "import { lost } from '@acme/kit/src/gone';\nexport const stray = lost;\n",
       'apps/app/src/elsewhere.ts': "import { lost } from '@acme/kit/src/orphan';\nexport const elsewhere = lost;\n",
+      'packages/kit/src/barrel.ts': "export * from './lost';\n",
+      'apps/app/src/through.ts': "import { lost } from '@acme/kit/src/barrel';\nexport const through = lost;\n",
     } : {}),
     'packages/lib/src/session.ts': 'interface AgentSession { sessionToken: string }\ninterface SavedSession { sessionToken: number }\nexport function tokenOf(session: AgentSession) { return session.sessionToken; }\n',
     ...(question[2] === 'packages/lib/src/greet.ts,packages/lib/src/index.ts' ? {
