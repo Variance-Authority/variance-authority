@@ -29,22 +29,14 @@ const SHOWN = 20;
 export const packages: Tool<Help> = {
   name: 'docs_packages',
   description:
-    'What each package in this workspace is imported for, counted. Call this first: the specifiers it ' +
-    'returns are the arguments every other tool here takes. A package that publishes an entry ' +
-    'has a row per import specifier it opens, with how many names it opens, how many of those anything ' +
-    'imports and how many carry documentation. A package that declares no entry has a row with how many ' +
-    'of its names and files other packages import by path. Imports that reach past a published ' +
-    'entrypoint are counted per package. Every row names the argument of docs_entrypoint, which counts ' +
-    'the import sites behind the counts per file.',
+    'What each workspace package is imported for, counted per import specifier it opens (names ' +
+    'opened, imported, documented) or, with no entry, by path. Call it first: each row names ' +
+    'docs_entrypoint\'s argument.',
   inputSchema: {
     type: 'object',
     properties: {
-      limit: { type: 'integer', minimum: 1, description: `Rows to show in each list. ${SHOWN} when not said; the rest are counted.` },
-      offset: {
-        type: 'integer',
-        minimum: 0,
-        description: 'Rows to skip at the top of each list before the first shown; a list with more names the next. 0 when not said.',
-      },
+      limit: { type: 'integer', description: `Rows per list, the rest counted; ${SHOWN} when not said.` },
+      offset: { type: 'integer', minimum: 0, description: 'Rows to skip per list, 0 when not said; a list with more names the next.' },
     },
     additionalProperties: false,
   },

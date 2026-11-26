@@ -13,6 +13,7 @@
 import { checkoutListing, checkoutPath, journeyMaps } from '@variance-authority/sense';
 import type { Tool } from '@variance-authority/mcp/tools';
 import { formatJourneyMap } from './journey-map-format.js';
+import { RECORDING } from './format.js';
 import { recordedOnce, refuseUnknownPath } from './unknown-path.js';
 
 /** The words of a task, from a string or a list, lowercase-insensitive and without blanks. */
@@ -26,19 +27,17 @@ export function termsOf(input: Readonly<Record<string, unknown>>): readonly stri
 export const journeyMapTool: Tool<unknown> = {
   name: 'docs_journey_map',
   description:
-    'The code around one file, drawn from what tests ran: how many recorded tests entered it, which the ' +
-    'task kept, the paths through each of its functions, then the code beyond it that most kept tests ' +
-    'entered, nearest first, and the code only some entered, told by their smallest test. Code most of the ' +
-    'whole suite enters is counted, not drawn. `query` is the words of the task: a test is kept when the file it is declared ' +
-    'in or its name holds any of them; with none, every test that entered the file is kept. Reads the ' +
-    'recording a test run with test selection published; runs nothing and reads no source.',
+    'The code around one file, from what the recorded tests ran: how many tests ran it, the paths ' +
+    'through its functions, then the code beyond it most of those tests ran, nearest first, and the ' +
+    'code only some ran. Use it to work in one file; docs_orient answers what a file is and who calls it, ' +
+    `docs_test_composition one test's parts. ${RECORDING}; reads no source.`,
   inputSchema: {
     type: 'object',
     properties: {
-      file: { type: 'string', description: 'The path of the one file to map around, from the root of the checkout or of the file system.' },
+      file: { type: 'string', description: 'The file to map around, from the root of the checkout or of the file system.' },
       query: {
         type: 'string',
-        description: 'Optional. Words of the task; keeps the tests whose file or name holds any of them.',
+        description: 'Optional. Words of the task; keeps the tests whose file or name holds any. With none, every test that ran the file.',
       },
     },
     required: ['file'],

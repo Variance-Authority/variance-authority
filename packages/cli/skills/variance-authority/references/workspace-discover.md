@@ -20,6 +20,7 @@ of them:
   `module` alone is any import of it. A name out of a repo-relative file is
   answered as `uses` answers it: an import through a barrel that passes the name
   on counts, and so does the barrel, and the header says how many passed it on.
+  A name read off a module loaded with `require`, as `uses` lists it, counts too.
 - `--declares <regex>`: who declares a matching name, case-insensitive. An
   export of an imported name, with `export … from` or without, is declared where
   it comes from, not in the barrel; `export default function make()` declares

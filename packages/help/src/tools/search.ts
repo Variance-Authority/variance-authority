@@ -9,9 +9,10 @@ import { aliasLine, declaredLine, heldLine, unreadLine } from './declared.js';
 import { casesUnder, describedRow, exportedLine, isPublished, matchLine, publishedLine, testLine } from './search-rows.js';
 import { unreadStop } from './members.js';
 import { CAP, ELSEWHERE_CAP, LOOSE_CAP, NEAR_CAP, searched } from './search-answer.js';
+import { LEXICON_INSTALLED_CAP } from '../dependency-lexicon.js';
 import type { ImportingOf } from './published-match.js';
 import type { DeclarationLookups } from './exported-matches.js';
-import { named } from './format.js';
+import { NAMED, named } from './format.js';
 import { orient } from './orient.js';
 import { symbol } from './symbol.js';
 import { searchReading, renderedFiles } from './search-reading.js';
@@ -348,64 +349,30 @@ function spoken({ answer, area }: Searched, asked: SearchQuestion, root: string 
 export const search: Tool<Help> = {
   name: 'docs_search',
   description:
-    'Find candidate names, not every match; `git grep -i <word>` prints every tracked line that writes a word. ' +
-    'A name matches when its name or documentation contains a string, case-insensitive, or when its words ' +
-    'start with or share the stem of every word you typed. Published names come first, a name holding ' +
-    'your words before a doc opening with them before a doc saying them later, then by the other packages ' +
-    'that import them by a published path; the names on the page are then ordered by the packages, then the places, ' +
-    'that import them, each labelled with those places and packages as docs_uses counts them, and carrying the import specifier it ' +
-    'is published from so it can be passed straight to docs_symbol. Names the repository exports ' +
-    'but does not publish follow, with the file and line that exports them, then names a file ' +
-    'declares at its top level without exporting, by their names or their documentation, with the file and line that declare them, then members and ' +
-    'functions inside a function under what holds them, the recorded test cases whose names hold every word, as each suite\'s last run wrote them, so a case added since is not among them and one removed since still is, and the imports that bind the name as a local one. Installed third-party ' +
-    'names appear separately when the third-party API catalogue is published, followed by the installed ' +
-    'packages that describe your words — in their own description, keywords and README headings, or in ' +
-    'the words of their names — so a job reaches a package by what it does; when the repository answers, both stay on compact lines. `limit` controls how many identities each line names, five by default, and a wider-limit command appears only when names remain. Near matches follow, ' +
-    'headed as near, not exact: this repository\'s own names and files holding most of your words, the rarer ' +
-    'counting for more, read by stem, before any installed package, a file by its name and the doc it opens with, best ' +
-    'first by the words held, then by the words in the name, then by how much of your phrase its doc writes, ' +
-    `each labelled with the words it holds. After a question of two words or more answered as written, at most ${NEAR_CAP} ` +
-    'of them follow the answer, so you learn the repository\'s own wording; when nothing holds the question ' +
-    'as written they lead, and names that match loosely — your words apart, or within a ' +
-    'character of the ones written, exported or kept to their file — follow them. Neither is mixed into the sections above. An answer holding a row of this repository ends with `Next:` and the question to ask, spelled as you ask, about its first declaration, or on its first recorded case when no declaration answered. On a large ' +
-    'repository a substring alone matches everywhere a product says its own name, so say where ' +
-    'you are standing. Carry a path the editor, ticket or stack trace already supplied: `from` ' +
-    'answers with published names imported by the files that path reaches; `to` does the same ' +
-    'for files that reach a known dependency. Both traverse the resolved module graph at any ' +
-    'depth. Internal exports are filtered by their declaring file; third-party names are limited ' +
-    'to packages available to workspaces in that closure. An empty ' +
-    'answer is a fact about the area. Names match the words you typed and nothing else — no ' +
-    'synonyms, no model — so a repository that calls sign-in `CredentialGate` is not reached by ' +
-    '`auth`. Supplying the likely vocabulary is your half: when a query matches nothing, ask again ' +
-    'with another candidate word rather than a longer description of the same idea. A word under three ' +
-    'letters has no stem, so the reading of a description only keeps its place: ask `session store`, ' +
-    'not `session id store`. It still counts as written, so keep it when it spells a name or a phrase: ' +
-    '`node id` finds `NodeId`.',
+    'Find candidate names by words, when you do not know the exact name. A name matches when its name ' +
+    'or documentation contains your text, case-insensitive, or its words share the stem of every word ' +
+    'you typed: published names, with the specifier for docs_symbol, then unpublished and file-local ' +
+    'names, recorded test cases, installed names and packages, and near matches. Words only, no synonyms: `auth` does ' +
+    'not find `CredentialGate`, so when nothing matches, ask another candidate word, not a longer ' +
+    'phrase. A word under three letters has no stem but still counts as written: `node id` finds ' +
+    '`NodeId`. On a large repository give `from` or `to`; an empty answer there is a fact about that ' +
+    'area. A list holds candidates, not every match: `git grep -i <word>` prints every line.',
   inputSchema: {
     type: 'object',
     properties: {
       query: {
         type: 'string',
-        description:
-          'Substring to look for in names and docs, or a few words of what the name does. A name is ' +
-          'matched by the words you type, never by their synonyms, so `auth` finds nothing in a ' +
-          'repository that writes `login`, `session` or `credential`. Ask each candidate as its own query.',
+        description: 'A substring, or a few words of what the name does. Ask each candidate word as its own query.',
       },
-      from: {
-        ...START_POINT_SCHEMA.from,
-        description:
-          `${START_POINT_SCHEMA.from.description} These are the names in reach of where you ` +
-          'are working: pass the file you are editing, or the folder of the feature.',
-      },
+      from: START_POINT_SCHEMA.from,
       to: {
         ...START_POINT_SCHEMA.to,
         description:
-          `${START_POINT_SCHEMA.to.description} This is the direction that finds dependent files ` +
-          'when the dependency is what you have: `to` the helper, `query` the word you expect around it.',
+          `${START_POINT_SCHEMA.to.description} For dependents of what you hold: \`to\` the helper, \`query\` a word around it.`,
       },
       limit: {
         type: 'integer',
-        description: `Rows to show in each list of the answer. Each list's own cap when not said: ${CAP} published, 20 installed, ${ELSEWHERE_CAP} of each other kind, ${LOOSE_CAP} loose or described, ${NEAR_CAP} near after a direct answer; the rest are counted.`,
+        description: `Optional. Rows per list, the rest counted. When not said: ${CAP} published, ${NEAR_CAP} near, ${LOOSE_CAP} loose, ${ELSEWHERE_CAP} of each other own kind; installed and describing packages ${NAMED} beside own rows, ${LEXICON_INSTALLED_CAP} with none.`,
       },
     },
     required: ['query'],

@@ -48,6 +48,7 @@ import instruments from "../../../docs/instruments.md?raw";
 import journeys from "../../../docs/journeys.md?raw";
 import jvm from "../../../docs/jvm.md?raw";
 import rust from "../../../docs/rust.md?raw";
+import nodeTest from "../../../docs/node-test.md?raw";
 import lateContent from "../../../docs/late-content.md?raw";
 import testStories from "../../../docs/test-stories.md?raw";
 import lexicon from "../../../docs/lexicon.md?raw";
@@ -213,6 +214,7 @@ const documents = [
   ["journeys", journeys, "docs/journeys.md"],
   ["jvm", jvm, "docs/jvm.md"],
   ["rust", rust, "docs/rust.md"],
+  ["node-test", nodeTest, "docs/node-test.md"],
   ["across-dimensions", acrossDimensions, "docs/across-dimensions.md"],
   ["test-stories", testStories, "docs/test-stories.md"],
   ["locate", locate, "docs/locate.md"],

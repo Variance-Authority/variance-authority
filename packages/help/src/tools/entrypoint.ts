@@ -44,27 +44,19 @@ import { line, mostUsed, narrower, openingRow, plural } from './format.js';
 export const entrypoint: Tool<Help> = {
   name: 'docs_entrypoint',
   description:
-    'Every name one import specifier opens, ordered by how many packages import it, with its ' +
-    'kind and the first line of its documentation. Names marked UNDOCUMENTED have nothing ' +
-    'written above them — the source is the only thing that says what they do. Asked by a ' +
-    "package's name, it also counts the imports that reach past the package's entry, one row per file " +
-    'they reach; asked by one of those specifiers, it counts the files importing each name through it. For a ' +
-    'package that opens only subpaths, asked by its name, it lists the specifiers it opens. For a ' +
-    'package that declares no entry it counts what other packages import from it by path, the same way. ' +
-    'Use docs_symbol for the full ' +
-    'signature and documentation of one name.',
+    'Every name one import specifier opens, most imported first, with its kind and documentation. Asked by a package name, it also counts ' +
+    'the imports that reach past the package\'s entry, and lists the subpaths of a package that opens only those. Use docs_symbol for one name\'s full signature and documentation.',
   inputSchema: {
     type: 'object',
     properties: {
       package: {
         type: 'string',
         description:
-          'The specifier as docs_packages reports it, e.g. `@scope/name/file`, or the package ' +
-          'name alone with the subpath given separately.',
+          'The specifier as docs_packages lists it (`@scope/name/file`), or the package name with `subpath`.',
       },
       subpath: {
         type: 'string',
-        description: "Entrypoint subpath, e.g. './file'. Defaults to '.', the package's main entrypoint.",
+        description: "Optional. The entrypoint subpath, e.g. './file'; '.' when not said.",
       },
     },
     required: ['package'],
