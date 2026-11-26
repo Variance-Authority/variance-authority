@@ -273,7 +273,7 @@ function staleText(answer: Covering, paging: Paging): Paged {
  */
 function wholeFile(answer: Covering, ranges: readonly CoveringRange[], paging: Paging): Paged {
   const file = answer.file ?? '';
-  if (ranges.length === 0) return whole(`No line of ${file} is recorded in ${answer.from}.`);
+  if (ranges.length === 0) return whole(`No line of ${file} is recorded.`);
   const named = new Map(calledInto(ranges).map((test) => [test.id, test] as const));
   // A case that reached the file only while its own file imported the module is counted, not named: on a module
   // every test file imports, those are most of the suite, and say who imports the file rather than who runs it.
@@ -388,8 +388,7 @@ export function narrowedText(answer: Covering): readonly string[] {
  *
  * The words live in `@variance-authority/sense/test-selection` beside
  * `coveringChange`. All this adds is what only the CLI can state: the ref the
- * diff was taken against, the file the index was read from and the commit it
- * stands at.
+ * diff was taken against, that an index was read, and the commit it stands at.
  */
 function sinceText(answer: Covering, changed: readonly StatedChange[]): string {
   return formatCoveringChange(changed, {

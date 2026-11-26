@@ -192,7 +192,7 @@ export interface Covering {
   readonly frame?: 'recorded' | 'mapped' | 'stale';
   /** The asked file is not on disk and no `--text` was given, so nothing is framed, and any lines given are the record's. */
   readonly unheld?: true;
-  /** Where the index was read, so an empty answer can be checked against a path. */
+  /** Where the index was read, for a program to check an empty answer against; the text answers name no file. */
   readonly from: string;
   /** Present under `--cases`: the cases the answer was read from, which are not the suite. */
   readonly scope?: CoveringScope;

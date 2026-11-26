@@ -59,27 +59,27 @@ describe('variance ask slowest-tests', () => {
       code: EXIT_CLEAN,
       err: '',
       out: [
-        "Read this checkout's record, which names no commit.",
+        `Read this checkout's record, which names no commit, ${at}.`,
         '',
         'Slowest recorded test files, as their runner timed them:',
         '  2.4 s  test/slow.test.ts',
         '1 of 2 timed file(s) shown; 1 recorded file(s) have no duration.',
         '',
-        `Slowest recorded test cases: none read, no run kept its cases there.`,
+        `Slowest recorded test cases: none read from ${at}, no run kept its cases there.`,
         '',
       ].join('\n'),
     });
   });
 
-  it('says nothing was read when this checkout has recorded nothing', async () => {
-    checkout();
+  it('says where it looked when this checkout has recorded nothing', async () => {
+    const root = checkout();
 
     const answered = await run(['ask', 'slowest-tests']);
 
     expect(answered.code).toBe(EXIT_CLEAN);
     expect(answered.out).toBe(
-      `Slowest recorded test files: none read, nothing is recorded there.\n\n` +
-        `Slowest recorded test cases: none read, no run kept its cases there.\n`,
+      `Slowest recorded test files: none read from ${testCoverageFile(root)}, nothing is recorded there.\n\n` +
+        `Slowest recorded test cases: none read from ${testCoverageFile(root)}, no run kept its cases there.\n`,
     );
   });
 
@@ -134,13 +134,13 @@ async function twoModules(root: string): Promise<string> {
 describe('variance ask slowest-tests, somewhere', () => {
   it('keeps only the tests the recording says entered the path given with `--to`', async () => {
     const root = checkout();
-    await twoModules(root);
+    const at = await twoModules(root);
 
     expect(await run(['ask', 'slowest-tests', '--to', 'src/format.ts'])).toEqual({
       code: EXIT_CLEAN,
       err: '',
       out: [
-        "Read this checkout's record, which names no commit.",
+        `Read this checkout's record, which names no commit, ${at}.`,
         '',
         'Closest to their limit, that entered src/format.ts, each as run and limit:',
         '  250 ms of 300 ms  test/a.test.ts  writes',
@@ -161,7 +161,7 @@ describe('variance ask slowest-tests, somewhere', () => {
 
   it('combines `--from` with `--to`, and says which half matched nothing', async () => {
     const root = checkout();
-    await twoModules(root);
+    const at = await twoModules(root);
 
     const answered = await run(['ask', 'slowest-tests', '--from', 'test/a.test.ts', '--to', 'src/other,src/format.ts']);
 
@@ -172,7 +172,7 @@ describe('variance ask slowest-tests, somewhere', () => {
     const empty = await run(['ask', 'slowest-tests', '--from', 'test/b.test.ts', '--to', 'src/format.ts']);
     expect(empty.out).toContain(
       'Slowest recorded test files, under test/b.test.ts, that entered src/format.ts: ' +
-        'no recorded file under test/b.test.ts entered src/format.ts.',
+        `no recorded file under test/b.test.ts entered src/format.ts, in ${at}.`,
     );
   });
 

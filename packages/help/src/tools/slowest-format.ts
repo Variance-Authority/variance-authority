@@ -71,7 +71,7 @@ type RecordRead =
 export function recordLine(suite: RecordRead, now: number): string[] {
   if ('unread' in suite) return [];
   const named = suite.suite === undefined ? 'Read' : `Suite ${suite.suite} read`;
-  return [`${named} ${WHOSE[suite.origin]}${takenAt(suite, now)}.`];
+  return [`${named} ${WHOSE[suite.origin]}${takenAt(suite, now)}, ${suite.recording}.`];
 }
 
 /** One answer per suite: the record it read, then what `told` says of it under `title` and the suite's name. */
@@ -156,17 +156,17 @@ function section(
   label: (row: Row) => string,
   over?: number,
 ): string[] {
-  if ('unread' in read) return [`${named}: none read, ${read.unread}.`];
-  const unrecorded = unrecordedLine(read.scope);
+  if ('unread' in read) return [`${named}: none read from ${read.recording}, ${read.unread}.`];
+  const unrecorded = unrecordedLine(read.scope, read.recording);
   const faster = 'faster' in read ? read.faster : 0;
   const total = read.timed + read.untimed + faster;
   if (total === 0 && scope.from === undefined && scope.to === undefined) {
-    return [`${named}: its record holds no ${noun}.`];
+    return [`${named}: ${read.recording} holds no ${noun}.`];
   }
   if (total === 0) {
     // When no `to` path has a row, the first line already says so.
     const silent = scope.to !== undefined && read.scope.unrecorded.length === scope.to.length;
-    return [`${named}: ${emptyScope(read.scope, noun, scope)}`, ...(silent ? [] : unrecorded)];
+    return [`${named}: ${emptyScope(read.scope, noun, scope, read.recording)}`, ...(silent ? [] : unrecorded)];
   }
   if (read.timed === 0 && faster > 0) {
     return [
@@ -177,7 +177,7 @@ function section(
   }
   if (read.timed === 0) {
     return [
-      `${named}: none of the ${total} ${noun}(s) in its record has a recorded duration. ` +
+      `${named}: none of the ${total} ${noun}(s) in ${read.recording} has a recorded duration. ` +
         'The next recorded run stores what its runner reports.',
       ...unrecorded,
     ];
@@ -198,23 +198,23 @@ function section(
  * Which half of the scope matched nothing, since an empty table would say no
  * half did — that no test is slow here, which nobody measured.
  */
-function emptyScope(counts: ScopeCounts, noun: string, scope: DurationScope): string {
+function emptyScope(counts: ScopeCounts, noun: string, scope: DurationScope, recording: string): string {
   const from = scope.from?.join(' or ');
   const to = scope.to?.join(' or ');
   if (to !== undefined && counts.unrecorded.length === scope.to!.length) {
-    return `its record holds no row at ${to}, so it cannot say which ${noun}s entered it.`;
+    return `${recording} holds no row at ${to}, so it cannot say which ${noun}s entered it.`;
   }
-  if (from !== undefined && counts.declared === 0) return `no recorded ${noun} is declared under ${from}.`;
-  if (to !== undefined && counts.entered === 0) return `no recorded ${noun} entered ${to}.`;
-  return `no recorded ${noun} under ${from} entered ${to}.`;
+  if (from !== undefined && counts.declared === 0) return `no recorded ${noun} in ${recording} is declared under ${from}.`;
+  if (to !== undefined && counts.entered === 0) return `no recorded ${noun} in ${recording} entered ${to}.`;
+  return `no recorded ${noun} under ${from} entered ${to}, in ${recording}.`;
 }
 
 /** A `to` path the record holds no row for, named as unrecorded rather than as slow-free. */
-function unrecordedLine(counts: ScopeCounts): string[] {
+function unrecordedLine(counts: ScopeCounts, recording: string): string[] {
   if (counts.unrecorded.length === 0) return [];
   const paths = counts.unrecorded.map((path) => `\`${path}\``).join(', ');
   return [
-    `Unrecorded: ${paths} ${counts.unrecorded.length === 1 ? 'has' : 'have'} no row in the record, ` +
+    `Unrecorded: ${paths} ${counts.unrecorded.length === 1 ? 'has' : 'have'} no row in ${recording}, ` +
       'which says nothing about whether a test enters it.',
   ];
 }

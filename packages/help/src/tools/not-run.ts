@@ -23,10 +23,10 @@ export function formatNotRun(suites: readonly RecordedChecks[], now: number): st
 }
 
 function told(suite: RecordedChecks, named: string): string[] {
-  if ('unread' in suite) return [`${named}: none read, ${suite.unread}.`];
+  if ('unread' in suite) return [`${named}: none read from ${suite.recording}, ${suite.unread}.`];
   if ('unkept' in suite) {
     return [
-      `${named}: checks were not kept in its record, so it does not say whether a declared check ran. ` +
+      `${named}: checks were not kept in ${suite.recording}, so it does not say whether a declared check ran. ` +
         'A run keeps them when its runner reports the steps each case entered.',
     ];
   }

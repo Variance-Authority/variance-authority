@@ -6,9 +6,9 @@
 
 A text answer that says which record or report it read no longer prints the
 absolute path of the cache file. That covers the `record of "<suite>":` line of
-`covering` and `select`, the `report:` line of `ask`, the heading of
-`covering --since`, and what `ask orient --files`, `ask slowest-tests`,
-`ask retried-tests` and `ask not-run` say of the record and the source index.
-The text names the record by its line, its commit and whose it is. The path
-stays in the structured answers: `from` under `covering --format json`, and
+`covering` and `select`, the `report:` line of `ask`, the `--since` heading of
+`covering` in `text` and `refs`, the empty whole-file `covering` answer, and
+what `ask orient --files` says of its recorded cases and the source index. The
+text names the record by its line, its commit and whose it is. The path stays
+in the structured answers: `from` under `covering --format json`, and
 `journal.at` under `select --format json`.

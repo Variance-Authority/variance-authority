@@ -266,7 +266,7 @@ pub(crate) fn answer(request: Request<'_>) -> Option<(i32, String)> {
     let output = match request.format {
         Format::Refs => render::refs(&request.file, &body, &view),
         Format::Json => render::json(&request.file, from, unheld, &body, &view)?,
-        Format::Text => text::text(&request, from, unheld, &body, &view)?,
+        Format::Text => text::text(&request, unheld, &body, &view)?,
     };
     Some((0, output))
 }

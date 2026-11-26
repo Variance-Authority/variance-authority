@@ -33,10 +33,10 @@ export function formatRetried(suites: readonly RecordedAttempts[], now: number):
 }
 
 function told(suite: RecordedAttempts, named: string): string[] {
-  if ('unread' in suite) return [`${named}: none read, ${suite.unread}.`];
+  if ('unread' in suite) return [`${named}: none read from ${suite.recording}, ${suite.unread}.`];
   if ('unkept' in suite) {
     return [
-      `${named}: attempts were not kept in its record, so it does not say whether a case was retried. ` +
+      `${named}: attempts were not kept in ${suite.recording}, so it does not say whether a case was retried. ` +
         'A run keeps them when its runner reports each attempt, every shard of it kept them, and so did the record it carries cases from.',
     ];
   }
