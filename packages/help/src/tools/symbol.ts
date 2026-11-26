@@ -37,46 +37,37 @@ const INSTALLED_CAP = 100;
 export const symbol: Tool<Help> = {
   name: 'docs_symbol',
   description:
-    'Everything known about each name asked, in the order asked: what it is, the import line that reaches it, the ' +
-    'file and line that declares it, its full signature, its documentation — or, where nothing is ' +
-    'written above it, the README passage that names it — which packages import it, where an import ' +
-    'renames it, and the members an interface, a type alias or a class declares, one line each. An export ' +
-    'that only passes the name on with `export … from` is followed to the declaration it reaches. Names are ' +
-    'matched exactly, including a name exported and not published, answered with where it is declared, a ' +
-    'name a file declares and does not export, at its top level or inside a function, answered with where it is written and, inside a function, the function that holds it, a ' +
-    'name a file only binds to a value defined elsewhere, answered after the declarations as a binding, a ' +
-    'name an import binds with `as`, answered with that import and the original it names, a ' +
-    'member of an interface, a type literal or a class, answered with its container and where it is declared, and ' +
-    'installed third-party declarations when the API catalogue is ' +
-    'published, and, given `from`, as the workspace that owns that path resolves them; use docs_search ' +
-    'when the exact name is not known, docs_uses for local import sites.',
+    'Everything known about each name asked, matched exactly: what it is, the import line that ' +
+    'reaches it, where it is declared, its signature and documentation (or the README passage that ' +
+    'names it), which packages import it, where an import renames it, and the members an interface, ' +
+    'type or class declares. It answers exported, unpublished and file-local names, `as` bindings, ' +
+    'members as `Container.member`, and installed third-party declarations when the API catalogue is ' +
+    'published. Use docs_search when you do not know the exact name, docs_uses for where it is ' +
+    'imported.',
   inputSchema: {
     type: 'object',
     properties: {
       name: {
         type: ['array', 'string'],
         items: { type: 'string' },
-        description:
-          'The names, each matched exactly; `Container.member` asks for that container\'s member. Each is answered as one is, in the ' +
-          'order given, a blank line apart, and a name nothing declares is said in its place. One name may be given as a string.',
+        description: 'A name or an array of them, each matched exactly; `Container.member` for a member. Answered in the order given.',
       },
-      package: { type: 'string', description: 'Only answer from this package, by name or by specifier. Optional.' },
+      package: { type: 'string', description: 'Optional. Answer only from this package, by name or specifier.' },
       from: {
         ...START_POINT_SCHEMA.from,
         description:
-          'Optional. A path in the source tree. An installed third-party name is answered as the manifest that owns ' +
-          'that path resolves it: its version and signature there, whether the code already imports it, and where ' +
-          'else it is declared when it is not usable there.',
+          'Optional. A source path: an installed third-party name is answered as the manifest owning it ' +
+          'resolves it, with its version and whether the code already imports it.',
       },
       line: {
         type: 'string',
         description:
-          'Optional. `<file>:<line>`, a line that uses the name: its declarations are ordered by how closely the tests ' +
-          'that entered each match the recorded tests that ran the line. Overlap of tests, not proof of which one the line called.',
+          'Optional. `<file>:<line>` of a line using the name: declarations are ordered by how closely the tests ' +
+          'that ran each match the tests that ran the line.',
       },
       limit: {
         type: 'integer',
-        description: `Rows to show in each list of the answer. ${DECLARED_CAP} declarations of each kind and ${INSTALLED_CAP} installed ones when not said; the rest are counted.`,
+        description: `Optional. Rows per list, the rest counted; ${DECLARED_CAP} declarations of each kind when not said.`,
       },
     },
     required: ['name'],

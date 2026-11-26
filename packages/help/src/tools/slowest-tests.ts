@@ -64,41 +64,31 @@ const PATHS = { type: 'array', items: { type: 'string' } } as const;
 export const slowestTests: Tool<unknown> = {
   name: 'docs_slowest_tests',
   description:
-    'Which record it read, whose run, at which commit and how old; then the test cases closest to their limit, ' +
-    'each as its run and its limit; then the test files and the test cases that took longest in that run, slowest ' +
-    'first, with what each took as its test runner timed it, a file\'s time including its environment, setup files ' +
-    'and import before its first case; a case row names its file and its declaration path. ' +
-    'A case whose slowest statement held a millisecond or more carries it on one more line: the file line, its time on the real ' +
-    'clock, and its share of the case. ' +
-    'A run spans hooks and attempts and a limit one attempt, so a passing case can read above its limit. ' +
-    '`from` keeps the tests declared under the paths given, `to` the tests the recording says entered code ' +
-    'in them, and the two combine. `over` keeps only the cases that ran at least that long, and leaves the files ' +
-    'out. Counts are within that scope, a path the recording has no row for is named as unrecorded, and files and ' +
-    'cases whose runner reported no duration are counted, not ranked; a case with no limit is ranked by time alone. ' +
-    'Reads the recording a test run with test selection published; runs and times nothing itself.',
+    'The test files and cases that took longest in the latest recorded run, slowest first, as the ' +
+    'runner timed them, after the cases closest to their timeout. A file\'s time includes its ' +
+    'environment, setup files and imports; a case\'s slowest statement is named when it held a ' +
+    'millisecond or more. Reads the recording; runs and times nothing.',
   inputSchema: {
     type: 'object',
     properties: {
       from: {
         ...PATHS,
         description:
-          'Optional. Repo-relative paths; only tests declared in a file at or under one. A directory ' +
-          'matches on a `/` boundary, a file exactly.',
+          'Optional. Repo-relative paths; only tests declared in a file at or under one.',
       },
       to: {
         ...PATHS,
         description:
-          'Optional. Repo-relative paths; only tests the recording says entered code in a file at or ' +
-          'under one. Read from the recording, not from imports.',
+          'Optional. Repo-relative paths; only tests the recording says ran code in a file at or under one.',
       },
       over: {
         type: 'string',
-        description: 'Optional. A time such as `3s` or `500ms`; only the cases that ran at least that long.',
+        description: 'Optional. A time such as `3s`; only the cases that ran at least that long, and no files.',
       },
       limit: {
         type: 'integer',
         minimum: 1,
-        description: `How many files, and how many cases, to list per suite. Defaults to ${SLOWEST}.`,
+        description: `Files, and cases, per suite; ${SLOWEST} when not said.`,
       },
     },
     additionalProperties: false,

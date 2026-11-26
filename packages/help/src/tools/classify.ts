@@ -148,20 +148,14 @@ function reachTest(walks: Reach['walks'] | undefined): ((file: string) => boolea
 export const classify: Tool<Help> = {
   name: 'docs_classify',
   description:
-    'Which words of a request, as written, name a package on the code map or what this workspace publishes. A word is an entity when it is, ' +
-    'whole, the name of a package on the code map or that name without its scope, an entrypoint\'s specifier (both without case), or a ' +
-    'published exported name (as spelled). A word that is none of those and is shaped as an identifier (a capital past its first letter, an ' +
-    'underscore, or a digit after a letter) is then, as spelled, a name docs_symbol finds a file declaring, and the base name of an ' +
-    'indexed file before its first dot. A path from the workspace\'s root is the indexed file at it, and a word with a dot and no slash ' +
-    'the indexed files of that name. Files are listed ordinary source before tests, then the more imported file first, three of each and the rest ' +
-    'counted, each in the map package nearest at or above it, or in no package. A plain lowercase word is never looked up so, a path that names nothing is read as the words in it, and a word ' +
-    'that is only part of a name is not one. Each entity is listed with ' +
-    'what it names, its package\'s area and dependency layer on the code map as docs_orient numbers them, then the ' +
-    'words that name nothing on one line. When words remain unrecognized or `from` or `to` is supplied, it also ranks the areas the words point to, ten at most, best first: a directory of at ' +
-    'most 500 files held by the published source index, scored by the request\'s words, by stem, that its path, its files\' names and the top-level names its files ' +
-    'declare, exported or not, hold, a word held by fewer areas counting for more and every declared name counting once per file in an area\'s length whatever its export visibility; each with the package on the code map nearest at or above it, and that package\'s area and layer. With `from` or `to`, only the files that start point reaches along the ' +
-    'imports are ranked: a product\'s folder and the shared code it imports. It ends with the source files the request names, each with up to ' +
-    'eight functions and classes it declares, exported first: they are the answer. Ask it first when holding a request in words, with or without names and paths in them.',
+    'Which words of a request name something here, and where the rest point. A word counts only ' +
+    'whole: a package or entrypoint name, a published name as spelled, an identifier-shaped word (a ' +
+    'capital past its first letter, an underscore, a digit after a letter) that a file declares or ' +
+    'names, or a repo-relative path; a plain lowercase word is never looked up as a name. When words ' +
+    'remain unrecognized, or `from` or `to` is given, it ranks the folders of the code map those ' +
+    'words point to, ten at most. It ends with the source files the request names and the functions ' +
+    'and classes each declares. Ask it first when you hold a request in words; docs_symbol takes a ' +
+    'name it found, docs_search the words it did not.',
   inputSchema: {
     type: 'object',
     properties: {

@@ -347,29 +347,28 @@ function operandsOf(input: Readonly<Record<string, unknown>>, tree: Tree, invoca
 export const discover: Tool<unknown> = {
   name: 'docs_discover',
   description:
-    'Answer the files that are in every one of several sets, each read whole: what a path reaches ' +
-    '(`from`) or what reaches it (`to`), who imports a name (`imports`, `module#name` or `module`), ' +
-    'who declares a name matching a pattern (`declares`), whose path matches one (`path`). Several ' +
-    'values of one operand are several sets, crossed. `except…` operands take their files out, and ' +
-    '`text` keeps only the files with a line ripgrep matches. Nearest first, with the line that puts ' +
-    'each file in each set. `declares`, and `imports` of anything but `file#name`, are read from the ' +
-    'source index the tree came from.',
+    'The files in every one of several sets, nearest first, each with the line that puts it in each ' +
+    'set. A set is what a path imports (`from`) or what imports it (`to`), the files importing a ' +
+    'module or name (`imports`), declaring a matching name (`declares`), or whose path matches ' +
+    '(`path`); several values of one operand are several sets. `except…` operands take files out, and ' +
+    '`text` keeps the files with a ripgrep match. Use docs_intersection to cross whole questions ' +
+    'instead.',
   inputSchema: {
     type: 'object',
     properties: {
-      from: { type: 'array', items: { type: 'string' }, description: 'Paths; each is the set of files it reaches along the imports, itself included. Same path forms as `search --from`.' },
-      to: { type: 'array', items: { type: 'string' }, description: 'Paths; each is the set of files that reach it along the imports, every kind of import walked, itself included, and each file shown carries one shortest chain of imports to it. `file#name` for a repo-relative file starts at the imports of that name, as `docs_uses` reads them from the source index, so a file importing another name through the same barrel is not reached.' },
-      imports: { type: 'array', items: { type: 'string' }, description: '`module#name` or `module`, as written in the import or as the repo-relative file it resolved to; each is the set of files importing it. A subpath of a package matches the package; a relative specifier matches only as written. `file#name` for a repo-relative file is answered as `docs_uses` answers it, from the source index: an import through a barrel that passes the name on counts.' },
-      declares: { type: 'string', description: 'A regular expression in the syntax of Rust\'s `regex` crate (no lookaround or backreferences), case-insensitive; the set of files declaring a matching name. An export of an imported name, with `from` or without, is declared where it comes from; `export default function make()` declares `make`.' },
+      from: { type: 'array', items: { type: 'string' }, description: 'Paths; each the files it imports, itself included.' },
+      to: { type: 'array', items: { type: 'string' }, description: 'Paths; each the files importing it, itself included. `file#name` starts at that name\'s imports.' },
+      imports: { type: 'array', items: { type: 'string' }, description: '`module#name` or `module`, as written or as the file it resolves to; each the files importing it.' },
+      declares: { type: 'string', description: 'A Rust `regex` (no lookaround), case-insensitive; the files declaring a matching name.' },
       path: { type: 'string', description: 'A regular expression over repo-relative paths.' },
-      text: { type: 'string', description: 'A ripgrep pattern, run only over the files every other operand kept.' },
+      text: { type: 'string', description: 'A ripgrep pattern over the files the other operands kept.' },
       exceptFrom: { type: 'array', items: { type: 'string' }, description: 'As `from`, taken out.' },
       exceptTo: { type: 'array', items: { type: 'string' }, description: 'As `to`, taken out.' },
       exceptImports: { type: 'array', items: { type: 'string' }, description: 'As `imports`, taken out.' },
       exceptDeclares: { type: 'string', description: 'As `declares`, taken out.' },
       exceptPath: { type: 'string', description: 'As `path`, taken out.' },
-      limit: { type: 'integer', description: `Files to show. ${SHOWN} when not said; the rest are counted.` },
-      offset: { type: 'integer', minimum: 0, description: 'Rows to skip before the first shown; an answer with more names the next. 0 when not said.' },
+      limit: { type: 'integer', description: `Files to show, the rest counted; ${SHOWN} when not said.` },
+      offset: { type: 'integer', minimum: 0, description: 'Rows to skip; an answer with more names the next.' },
     },
     additionalProperties: false,
   },

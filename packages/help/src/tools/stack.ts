@@ -75,22 +75,20 @@ export function formatStack(stack: Stack, where: string, page: Page, spell: Spel
 export const stack: Tool<Help> = {
   name: 'docs_stack',
   description:
-    'Every third-party package a location can already use, with no query: for each, its role ' +
-    '(runtime, dev, types-only), how the owning manifest declares it, its version and how many ' +
-    'times the code imports it. Imported packages come first, then the declared and not imported, ' +
-    'then those whose imports were not read. Under a package that ships agent skills, each skill ' +
-    'is named with its SKILL.md and the first sentence of its description; read that file before using ' +
-    'the package. Paged in a stable order; `offset` takes the next page. ' +
-    'Reads only the published dependency lexicon; nothing is opened at question time.',
+    'The third-party packages a location can already use: for each, its role (runtime, dev, ' +
+    'types-only), how the owning manifest declares it, its version and how often the code imports it, ' +
+    'imported packages first. A package that ships agent skills names each skill\'s SKILL.md: read it ' +
+    'before using the package. Paged; `offset` takes the next page. Use docs_symbol with `from` for ' +
+    'one installed name\'s signature there.',
   inputSchema: {
     type: 'object',
     properties: {
       from: {
         ...START_POINT_SCHEMA.from,
-        description: `${START_POINT_SCHEMA.from.description} The packages usable there are the ones the manifest that owns it declares: pass the file you are editing, or the folder of the feature.`,
+        description: `${START_POINT_SCHEMA.from.description} The manifest owning it decides what is usable: pass the file you are editing.`,
       },
-      limit: { type: 'integer', minimum: 1, description: `Rows per page; ${SHOWN} when omitted.` },
-      offset: { type: 'integer', minimum: 0, description: 'Rows to skip before the first shown; an answer with more names the next. 0 when not said.' },
+      limit: { type: 'integer', minimum: 1, description: `Rows per page; ${SHOWN} when not said.` },
+      offset: { type: 'integer', minimum: 0, description: 'Rows to skip; an answer with more names the next.' },
     },
     required: ['from'],
     additionalProperties: false,

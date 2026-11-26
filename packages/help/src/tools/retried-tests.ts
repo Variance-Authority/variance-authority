@@ -73,22 +73,17 @@ function firstLine(message: string | undefined): string | undefined {
 export const retriedTests: Tool<unknown> = {
   name: 'docs_retried_tests',
   description:
-    'Which record it read, whose run, at which commit and how old; then the test cases whose attempts ended ' +
-    'differently in that run, such as one that failed and then passed on retry, which its runner reported as ' +
-    'passed. Each case names its file, its declaration path and its limit, then every attempt in order: how it ' +
-    'ended as its runner said it, how long it ran, and for one that did not pass the frame inside the checkout ' +
-    'and the first line of what it failed with. Retried cases that ended the same way every attempt are counted, ' +
-    'not listed, and a case that ran once has no attempts. An attempt whose process died before the runner said ' +
-    'how it ended reads `ended unreported`. A record whose run kept no attempts is said to be that, never that ' +
-    'no case was retried. It speaks of one recorded run, not of how often a case fails. ' +
-    'Reads the recording a test run with test selection published; runs and retries nothing itself.',
+    'The test cases in the latest recorded run whose attempts ended differently, such as one that ' +
+    'failed and then passed on retry, which its runner reported as passed. Each lists every attempt: ' +
+    'how it ended, how long it ran, and for a failure its frame and the first line of the error. It ' +
+    'speaks of one run, not of how often a case fails. Reads the recording; runs nothing.',
   inputSchema: {
     type: 'object',
     properties: {
       limit: {
         type: 'integer',
         minimum: 1,
-        description: `How many cases to list per suite. Defaults to ${RETRIED}.`,
+        description: `Cases per suite; ${RETRIED} when not said.`,
       },
     },
     additionalProperties: false,

@@ -108,15 +108,14 @@ export function formatContainment(figures: Containment): string {
 export const containment: Tool<unknown> = {
   name: 'docs_containment',
   description:
-    'How far the commits of a window reached across package boundaries, counted from `git log`: the share that ' +
-    'touched one package, the share that edited a test in another package or in a test-only tree, and the share ' +
-    'that edited a test in another package among commits that did and did not edit their own tests. Each is a ' +
-    'count over its denominator, and what was left out is counted by reason. They say what commits touched ' +
-    'together, not what caused it. Reads git and the workspace list; runs nothing and stores nothing.',
+    'How far the commits of a window crossed package boundaries, from `git log`: the share that ' +
+    'touched one package, and the share that edited a test in another package or a test-only tree, ' +
+    'split by whether the commit edited its own tests. Counts of what commits touched together, not ' +
+    'of what caused it. Reads git; runs nothing.',
   inputSchema: {
     type: 'object',
     properties: {
-      after: { type: 'string', description: 'Optional. The first day counted, as YYYY-MM-DD; two weeks ago when left out.' },
+      after: { type: 'string', description: 'Optional. The first day counted, YYYY-MM-DD; two weeks ago when not said.' },
     },
     additionalProperties: false,
   },

@@ -19,13 +19,11 @@ import { formatTestClaims } from './test-claims-format.js';
 export const testClaimsTool: Tool<unknown> = {
   name: 'docs_test_claims',
   description:
-    'One test held against what it says, from what the recorded tests ran: its claims — its name, and the ' +
-    'steps and assertions it made when the run kept an Eyes journal; the functions it ran, structure ' +
-    'counted apart; what it adds — the tests that ran the same regions, structure aside, its pieces and ' +
-    'wholes, and the regions only it enters; and the regions of the functions it entered that it did not ' +
-    'take — a branch, a case, a loop body, a handler — each with whether another test takes it. `file` is the test file; `name` chooses one of its tests, exactly ' +
-    'or by a word of its name. Reads the recording a test run with test selection published; runs nothing ' +
-    'and reads no source.',
+    'One recorded test held against what it says: its name and, when the run kept an Eyes journal, ' +
+    'its steps and assertions; the functions it ran; what only it covers beside the tests that ran ' +
+    'the same code; and the branches of its functions it did not take, each with whether another test ' +
+    'takes it. Use docs_test_composition for its pieces and wholes. Reads the recording; reads no ' +
+    'source.',
   inputSchema: ASKED_TEST_INPUT,
 
   run: (_subject, input, invocation) => {

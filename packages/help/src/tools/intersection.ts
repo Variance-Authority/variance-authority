@@ -146,11 +146,10 @@ export function intersectionOf<Subject>(operands: readonly Tool<Subject>[]): Too
   const tool: Tool<Subject> = {
     name: 'docs_intersection',
     description:
-      'Answer the files every one of two or more questions answers. Each question is one this server ' +
-      'answers alone whose answer is a set of files — `symbol`, `uses`, `search`, `grep`, `discover` — with ' +
-      'its own input, and each is read whole, never capped, so a file past the first page of either still ' +
-      'meets. Each common file says which lines put it in each question, or that the question answered the ' +
-      'whole file.',
+      'The files every one of two or more questions answers. Each question is one this server answers ' +
+      'alone with a set of files — `symbol`, `uses`, `search`, `grep`, `discover` — given its own input and ' +
+      'read whole, never capped. Each common file says which lines put it in each question. When the sets ' +
+      'are operands docs_discover takes, one docs_discover call is cheaper.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -160,16 +159,16 @@ export function intersectionOf<Subject>(operands: readonly Tool<Subject>[]): Too
           items: {
             type: 'object',
             properties: {
-              question: { type: 'string', description: 'The question, as its tool is named without `docs_`: `symbol`, `discover`.' },
-              input: { type: 'object', description: "That question's input, as it takes it alone." },
+              question: { type: 'string', description: 'The tool, named without `docs_`: `uses`.' },
+              input: { type: 'object', description: 'Its input, as it takes it alone.' },
             },
             required: ['question'],
             additionalProperties: false,
           },
-          description: 'Two or more questions, each a set of files.',
+          description: 'Two or more questions.',
         },
-        limit: { type: 'integer', description: `Files to show. ${SHOWN} when not said; the rest are counted.` },
-        offset: { type: 'integer', minimum: 0, description: 'Rows to skip before the first shown; an answer with more names the next. 0 when not said.' },
+        limit: { type: 'integer', description: `Files to show, the rest counted; ${SHOWN} when not said.` },
+        offset: { type: 'integer', minimum: 0, description: 'Rows to skip; an answer with more names the next.' },
       },
       required: ['questions'],
       additionalProperties: false,

@@ -18,13 +18,10 @@ import { formatTestComposition } from './test-composition-format.js';
 export const testCompositionTool: Tool<unknown> = {
   name: 'docs_test_composition',
   description:
-    'What one test is made of, from what the recorded tests ran: the smaller tests whose regions sit ' +
-    'inside its own (its pieces), the larger tests holding it (its wholes), and the regions no piece ' +
-    'entered, split into its own layer — modules no piece entered — and paths through a piece\'s modules ' +
-    'only it takes, which a test nearer that code would reach more cheaply. Regions more than half the ' +
-    'suite entered are structure and counted apart. `file` is the test file; `name` chooses one of its ' +
-    'tests, exactly or by a word of its name. Reads the recording a test run with test selection ' +
-    'published; runs nothing and reads no source.',
+    'What one recorded test is made of: the smaller tests whose code sits inside its own (its ' +
+    'pieces), the larger tests holding it (its wholes), and the code no piece ran, which a test ' +
+    'nearer that code would cover more cheaply. Use docs_test_claims to hold a test against its name ' +
+    'and steps. Reads the recording; reads no source.',
   inputSchema: ASKED_TEST_INPUT,
 
   run: (_subject, input, invocation) => {

@@ -70,14 +70,10 @@ function scopeOf({ projects, grep, grepInvert, shard, skipped }: ChecksScope): s
 export const notRun: Tool<unknown> = {
   name: 'docs_not_run',
   description:
-    'Which record it read, whose run, at which commit and how old; then each check a test case declared that ' +
-    'an attempt of it passed without executing, as `expected check <id> did not execute in case <name>`, with the ' +
-    'file and line declaring the case, its project, and the attempt when it ran more than once — ' +
-    'a case can pass without its check. Then how many declared checks were entered, the scope the run covered ' +
-    '(projects, grep, shard, files a selection skipped). A run stopped before its ' +
-    'runner ended it reads as incomplete and names no check missing. A record whose run kept no checks is said ' +
-    'to be that, never that every check ran. A case declares a check with the annotation `variance:check` and ' +
-    'executes it as a step of the same title. Reads the recording a test run with test selection published; runs nothing itself.',
+    'Each check a test case declared, with the annotation `variance:check` and a step of the same ' +
+    'title, that a passing attempt never executed in the latest recorded run, with the file and line ' +
+    'declaring the case: a case can pass without its check. It also counts the checks that ran and ' +
+    'the scope the run covered. Reads the recording; runs nothing.',
   inputSchema: { type: 'object', properties: {}, additionalProperties: false },
 
   run: (_subject, _input, invocation) => {
