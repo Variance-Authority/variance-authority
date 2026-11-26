@@ -156,7 +156,13 @@ export function nativeFiles(question: readonly string[]): Readonly<Record<string
       'packages/kit/src/barrel.ts': "export * from './lost';\n",
       'apps/app/src/through.ts': "import { lost } from '@acme/kit/src/barrel';\nexport const through = lost;\n",
     } : {}),
-    'packages/lib/src/session.ts': 'interface AgentSession { sessionToken: string }\ninterface SavedSession { sessionToken: number }\nexport function tokenOf(session: AgentSession) { return session.sessionToken; }\n',
+    // More imports by path of one file, and more that reach no file, than `--limit` lists.
+    ...(question[2] === 'crowdedPath' ? Object.fromEntries([
+      ['packages/kit/src/crowd.ts', 'export const crowdedPath = 1;\n'],
+      ...[1, 2, 3].map((at) => [`apps/app/src/crowd-${at}.ts`, `import { crowdedPath } from '@acme/kit/src/crowd';\nexport const crowd${at} = crowdedPath;\n`]),
+      ...[1, 2, 3].map((at) => [`apps/app/src/gone-${at}.ts`, `import { crowdedPath } from '@acme/kit/src/gone';\nexport const gone${at} = crowdedPath;\n`]),
+    ]) : {}),
+    'packages/lib/src/session.ts':'interface AgentSession { sessionToken: string }\ninterface SavedSession { sessionToken: number }\nexport function tokenOf(session: AgentSession) { return session.sessionToken; }\n',
     // A file that passes a name on from a file that is not there: an export the index binds to no declaration.
     ...(question[2] === 'unbound' ? {
       'packages/kit/src/relay.ts': "export { unbound } from './nowhere';\n",
