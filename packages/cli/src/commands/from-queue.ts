@@ -46,8 +46,30 @@ interface WorkflowRun {
 }
 
 /**
+ * A run that may have tested the landed tree: the event and commit it ran at,
+ * what to say when no green run did, and, when its records name a commit other
+ * than the landed one, the proof that the run's tree is the landed tree.
+ */
+/** The commit a run's records name, what it was made of, and the line that says where they came from. */
+interface Proof {
+  readonly tested: string;
+  readonly madeOf: string;
+  readonly from: string;
+}
+
+interface Witness {
+  readonly event: string;
+  readonly commit: string;
+  readonly missing: string;
+  readonly prove?: (id: string) => Promise<Proof | { readonly none: string }>;
+}
+
+/**
  * A directory holding the shards' records, which the caller removes, and where
- * they came from when it was not the queue; or why there is none.
+ * they came from when it was not the queue; or why there is none. The runs
+ * that may have tested the landed tree are read in turn: the merge queue's,
+ * which tested the landed commit itself, then the pull request's at the
+ * landed merge's head, whose records are stated at the landed commit.
  */
 export async function recordsFromQueue(
   request: QueueRequest,
@@ -60,45 +82,61 @@ export async function recordsFromQueue(
   }
   // `owner/repo/.github/workflows/check.yml@refs/heads/main`: the run's `path` is the part between.
   const asked = { ...request, repo, path: ref.slice(repo.length + 1).replace(/@.*$/u, '') };
-  const id = await greenRun(asked, request.commit, 'merge_group', exec);
-  const queued = id === undefined ? { none: `no green merge-queue run of ${asked.path} tested ${request.commit}` } : await downloaded(asked, id, exec);
-  if ('dir' in queued) return queued;
-  const head = await recordsFromHead(asked, exec);
-  return 'none' in head ? { none: `${queued.none}; ${head.none}` } : head;
+  const refused: string[] = [];
+  // The pull request's witness is made only once the queue's refused: it costs git work the queue's path never needs.
+  for (const witness of [async () => ({ event: 'merge_group', commit: asked.commit, missing: `no green merge-queue run of ${asked.path} tested ${asked.commit}` }), () => headWitness(asked)]) {
+    const made: Witness | { readonly none: string } = await witness();
+    const got = 'none' in made ? made : await witnessed(asked, made, exec);
+    if ('dir' in got) return got;
+    refused.push(got.none);
+  }
+  return { none: refused.join('; ') };
 }
 
 /**
- * The records the pull request's run kept, stated at the landed commit, with
- * the line that says where they came from; or why there are none. That run
- * tested the head, the landed merge's second parent, merged with the record's
- * commit (`carry merge`). The head merged with the first parent must be the
- * landed tree, and each record must name `carry merge`'s merge of the two,
- * made again here: the hash proves the run merged with that parent alone.
+ * The pull request's run as a witness, or why there is none. That run tested
+ * the head, the landed merge's second parent, merged with the record's commit
+ * (`carry merge`). The head merged with the first parent must be the landed
+ * tree, and each record must name `carry merge`'s merge of the two, made again
+ * here: the hash proves the run merged with that parent alone.
  */
-async function recordsFromHead(asked: Asked, exec: Gh): Promise<{ readonly dir: string; readonly from: string } | { readonly none: string }> {
+async function headWitness(asked: Asked): Promise<Witness | { readonly none: string }> {
   const inRoot = gitIn(asked.root, {});
   const git = (...args: string[]) => inRoot(args).then(({ stdout }) => stdout.trim());
   const parent = (n: number) => git('rev-parse', '--verify', '--quiet', `${asked.commit}^${n}`).catch(() => undefined);
   const [first, head] = await Promise.all([parent(1), parent(2)]);
   if (first === undefined || head === undefined) return { none: `${short(asked.commit)} is not a merge, so no pull request's run tested its change` };
-  const id = await greenRun(asked, head, 'pull_request', exec);
-  if (id === undefined) return { none: `no green pull_request run of ${asked.path} tested its head ${short(head)}` };
+  return {
+    event: 'pull_request',
+    commit: head,
+    missing: `no green pull_request run of ${asked.path} tested its head ${short(head)}`,
+    prove: async (id) => {
+      const landed = await git('rev-parse', `${asked.commit}^{tree}`);
+      // A conflict exits non-zero and names no tree that could have landed.
+      const merged = await git('merge-tree', '--write-tree', first, head).then((out) => out.split('\n')[0], () => undefined);
+      if (merged !== landed) return { none: `${short(head)} merged with ${short(first)} is not the tree ${short(asked.commit)} landed, so run ${id} tested another change` };
+      // `carry merge`'s merge made again without a checkout: every clone makes the same one.
+      const spelled = await spelling(inRoot, first, head);
+      const tested = (await inRoot(['-c', 'commit.gpgsign=false', 'commit-tree', landed, '-p', first, '-p', head, '-m', spelled.message], spelled.env)).stdout.trim();
+      const madeOf = `${short(head)} merged with ${short(first)}`;
+      return { tested, madeOf, from: `read from pull request run ${id}, which tested ${madeOf}, the tree ${short(asked.commit)} landed` };
+    },
+  };
+}
 
-  const landed = await git('rev-parse', `${asked.commit}^{tree}`);
-  // A conflict exits non-zero and names no tree that could have landed.
-  const merged = await git('merge-tree', '--write-tree', first, head).then((out) => out.split('\n')[0], () => undefined);
-  if (merged !== landed) return { none: `${short(head)} merged with ${short(first)} is not the tree ${short(asked.commit)} landed, so run ${id} tested another change` };
-  // `carry merge`'s merge made again without a checkout: every clone makes the same one.
-  const spelled = await spelling(inRoot, first, head);
-  const tested = (await inRoot(['-c', 'commit.gpgsign=false', 'commit-tree', landed, '-p', first, '-p', head, '-m', spelled.message], spelled.env)).stdout.trim();
-
+/** The records `witness`'s latest green run kept, stated at the landed commit, or why there are none. */
+async function witnessed(asked: Asked, witness: Witness, exec: Gh): Promise<{ readonly dir: string; readonly from?: string } | { readonly none: string }> {
+  const id = await greenRun(asked, witness.commit, witness.event, exec);
+  if (id === undefined) return { none: witness.missing };
+  const proof = witness.prove === undefined ? undefined : await witness.prove(id);
+  if (proof !== undefined && 'none' in proof) return proof;
   const got = await downloaded(asked, id, exec);
-  if ('none' in got) return got;
+  if ('none' in got || proof === undefined) return got;
   try {
-    const refused = await restated(got.dir, tested, asked.commit);
-    if (refused === undefined) return { dir: got.dir, from: `read from pull request run ${id}, which tested ${short(head)} merged with ${short(first)}, the tree ${short(asked.commit)} landed` };
+    const refused = await restated(got.dir, proof.tested, asked.commit);
+    if (refused === undefined) return { dir: got.dir, from: proof.from };
     await rm(got.dir, { recursive: true, force: true });
-    return { none: `run ${id} did not test ${short(head)} merged with ${short(first)}: ${refused}` };
+    return { none: `run ${id} did not test ${proof.madeOf}: ${refused}` };
   } catch (error) {
     await rm(got.dir, { recursive: true, force: true });
     throw error;
