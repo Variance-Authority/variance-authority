@@ -16,8 +16,6 @@
  * mainline record a suite's `fetched.json` names, always
  * stays. A shared report names no commit, so it is aged out after
  * {@link STORY_AGE_MS}; the share still holds it, and the next read fetches it.
- * A History summary at `history/<digest>.json` is aged out after the same 14
- * days, the default window of `variance view`.
  *
  * `scans/` has no writer: the source index replaced it, and it is removed whole.
  */
@@ -136,8 +134,9 @@ export async function planCachePrune(
     if (written !== undefined && owners.now - written > STORY_AGE_MS) await drop(path, 'old-report');
   }
 
-  // `view` marks a summary as opened each time it reads one, so one not opened
-  // for 14 days serves no window still being read.
+  // A History summary, `history/<digest>.json`: `view` marks one as opened each
+  // time it reads it, so one not opened for 14 days, its default window, serves
+  // no window still being read.
   const summaries = join(root, 'history');
   for (const name of await namesIn(summaries)) {
     const path = join(summaries, name);

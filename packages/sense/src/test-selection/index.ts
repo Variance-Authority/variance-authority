@@ -201,7 +201,7 @@ export { openTestCoverage, type TestCoverageView } from './format-view.js';
 export { landedCoverage, recordedRun, type RecordedRun } from './fold-landing.js';
 export { BLOCK_KINDS, NO_BLOB, NO_DURATION, PHASE_NAMES } from './format-layout.js';
 export type { FilePhases } from './reported-time.js';
-export { costs, timeBeforeCases } from './file-cost.js';
+export { timeBeforeCases } from './file-cost.js';
 export { pool } from './pool.js';
 export { findModules, sharedPreconditions, testsGovernedBy } from './lookup.js';
 // The runs that wrote the case index and the snapshot, and what they were laid over.

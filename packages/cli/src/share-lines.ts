@@ -365,6 +365,20 @@ export async function* keptBehind(base: string, kept: ReadonlySet<string>, cwd: 
   }
 }
 
+/**
+ * The commits of `kept` on `mainline`'s first-parent history as this clone
+ * last fetched it, oldest first. One the fetch does not reach is left out:
+ * git cannot say what came before it.
+ */
+export async function keptInOrder(config: Pick<Config, 'share'>, mainline: string, kept: ReadonlySet<string>, cwd: string): Promise<readonly string[]> {
+  const found: string[] = [];
+  for await (const commit of keptBehind(`refs/remotes/${remoteOf(config)}/${mainline}`, kept, cwd)) {
+    found.push(commit);
+    if (found.length === kept.size) break;
+  }
+  return found.reverse();
+}
+
 /** `HEAD`'s merge base with `mainline` as this clone last fetched it. */
 export async function mergeBase(config: Pick<Config, 'share'>, mainline: string, cwd: string): Promise<string | undefined> {
   const base = (await git(['merge-base', 'HEAD', `refs/remotes/${remoteOf(config)}/${mainline}`], cwd))?.trim();

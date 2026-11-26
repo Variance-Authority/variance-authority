@@ -12,8 +12,8 @@ import { readFile, utimes } from 'node:fs/promises';
 import { join } from 'node:path';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import { atCommit, readLine, type KeptAt, type LineCell, type ShareMiss } from '@variance-authority/core/share';
-import { retriedIn } from '@variance-authority/sense';
-import { caseSectionsOf, costs, openTestCoverage, pool, rawRecord } from '@variance-authority/sense/test-selection';
+import { fileTimes, retriedIn } from '@variance-authority/sense';
+import { caseSectionsOf, openTestCoverage, pool, rawRecord } from '@variance-authority/sense/test-selection';
 import { settle } from '../settle.js';
 import { readSuiteEntry, suiteOfEntry } from '../share-entries.js';
 import { describeMiss } from './share.js';
@@ -22,7 +22,7 @@ import type { FileRuns, History, HistoryPoint, Moved, RecordSummary, RetriedCase
 
 const DAY = 86_400_000;
 /** Bumped when a summary's shape changes, so an older one is read again. */
-const SUMMARY_VERSION = 3;
+const SUMMARY_VERSION = 4;
 /** Records read at once: a share answers each over the network. */
 const READING = 8;
 const MOVERS = 3;
@@ -31,8 +31,7 @@ const PARTIAL = 'a partial run: it holds only the tests it ran';
 /** What one record, `coverage.bin` as a suite entry carries it, says of its run. */
 export function summaryOf(bytes: Uint8Array): RecordSummary {
   const view = openTestCoverage(rawRecord(bytes));
-  const cost = costs(view);
-  const files = Array.from(view.testPath.all(), (id, test): [string, number | null] => [view.string(id), cost(test) ?? null]);
+  const files = fileTimes(view).map(([file, took]): [string, number | null] => [file, took ?? null]);
   const sections = caseSectionsOf(bytes);
   const retried = retriedIn(bytes);
   const index = sections.index === undefined ? undefined : openCases(sections.index, '', '');
@@ -53,16 +52,16 @@ export function summaryOf(bytes: Uint8Array): RecordSummary {
     ...(timed.length === 0 ? {} : { total: timed.reduce((sum, [, took]) => sum + took!, 0) }),
     reached,
     ...(index === undefined ? {} : { cases: index.count }),
-    ...(retried === undefined ? {} : { retried: retried.map(lostTo).sort((a, b) => b.lost - a.lost || codeUnitOrder(a.file, b.file) || codeUnitOrder(a.name, b.name)) }),
+    ...(retried === undefined ? {} : { retried: retried.map(lostTo).sort((a, b) => (b.lost ?? -1) - (a.lost ?? -1) || codeUnitOrder(a.file, b.file) || codeUnitOrder(a.name, b.name)) }),
   };
 }
 
 /** A retried case and the summed time of every attempt before its last, the one its runner reported. */
-const lostTo = ({ file, name, attempts }: { readonly file: string; readonly name: string; readonly attempts: readonly { readonly duration?: number }[] }): RetriedCase => ({
-  name,
-  file,
-  lost: attempts.slice(0, -1).reduce((sum, one) => sum + (one.duration ?? 0), 0),
-});
+function lostTo({ file, name, attempts }: { readonly file: string; readonly name: string; readonly attempts: readonly { readonly duration?: number }[] }): RetriedCase {
+  const earlier = attempts.slice(0, -1);
+  // An attempt the runner kept no time for cost something unknown, not nothing.
+  return earlier.some((one) => one.duration === undefined) ? { name, file } : { name, file, lost: earlier.reduce((sum, one) => sum + one.duration!, 0) };
+}
 
 /** One record's summary, and where the share kept it. */
 export interface Summarised extends RecordSummary {
@@ -73,17 +72,29 @@ export interface Summarised extends RecordSummary {
 
 /**
  * The summaries as a series: one point per commit and suite, each carrying its
- * move from the suite's point before, and each test file across the window.
- * A move is summed over the files both runs timed, so a file added, dropped
- * or untimed in either moves nothing.
+ * move from the suite's point at the commit before it on `order`, the
+ * mainline's first-parent history oldest first, and each test file across the
+ * window. A commit `order` does not hold is drawn and moves nothing: the share
+ * wrote it, but git cannot say what came before it. A move is summed over the
+ * files both runs timed, so a file added, dropped or untimed in either moves
+ * nothing.
  */
-export function seriesOf(summarised: readonly Summarised[]): { readonly points: readonly HistoryPoint[]; readonly files: readonly FileRuns[] } {
+export function seriesOf(
+  summarised: readonly Summarised[],
+  order: readonly string[],
+): { readonly points: readonly HistoryPoint[]; readonly files: readonly FileRuns[]; readonly unplaced: number } {
   const ordered = [...summarised].sort((a, b) => a.written - b.written || codeUnitOrder(a.suite, b.suite) || codeUnitOrder(a.commit, b.commit));
+  const place = new Map(order.map((commit, at) => [commit, at]));
+  const moves = new Map<Summarised, Moved>();
   const last = new Map<string, Summarised>();
-  const runs = new Map<string, { suite: string; file: string; runs: number; timed: number; took: number }>();
-  const points = ordered.map((one): HistoryPoint => {
+  for (const one of ordered.filter((held) => place.has(held.commit)).sort((a, b) => place.get(a.commit)! - place.get(b.commit)! || codeUnitOrder(a.suite, b.suite))) {
     const before = last.get(one.suite);
     last.set(one.suite, one);
+    const moved = before === undefined ? undefined : movedFrom(before, one);
+    if (moved !== undefined) moves.set(one, moved);
+  }
+  const runs = new Map<string, { suite: string; file: string; runs: number; timed: number; took: number }>();
+  const points = ordered.map((one): HistoryPoint => {
     for (const [file, took] of one.files) {
       const key = `${one.suite}\u0000${file}`;
       const held = runs.get(key) ?? { suite: one.suite, file, runs: 0, timed: 0, took: 0 };
@@ -94,7 +105,7 @@ export function seriesOf(summarised: readonly Summarised[]): { readonly points: 
       }
       runs.set(key, held);
     }
-    const moved = before === undefined ? undefined : movedFrom(before, one);
+    const moved = moves.get(one);
     return {
       commit: one.commit,
       written: one.written,
@@ -108,7 +119,7 @@ export function seriesOf(summarised: readonly Summarised[]): { readonly points: 
     };
   });
   const files = [...runs.values()].sort((a, b) => codeUnitOrder(a.suite, b.suite) || codeUnitOrder(a.file, b.file));
-  return { points, files };
+  return { points, files, unplaced: new Set(ordered.filter((one) => !place.has(one.commit)).map((one) => one.commit)).size };
 }
 
 function movedFrom(before: Summarised, now: Summarised): Moved | undefined {
@@ -131,6 +142,8 @@ export interface HistoryOptions {
   readonly now: number;
   /** The cache root; summaries are kept in its `history/`. */
   readonly cacheDir: string;
+  /** The kept commits on the mainline's first-parent history, oldest first: what a move is measured from. */
+  readonly order: (kept: ReadonlySet<string>) => Promise<readonly string[]>;
   /** A line for a person waiting on a cold read. */
   readonly progress?: (line: string) => void;
 }
@@ -184,7 +197,8 @@ export async function historyOf(cell: LineCell, mainline: string, options: Histo
     options.progress?.(`read ${done} of ${cold.length}`);
   });
   skipped.sort((a, b) => codeUnitOrder(a.commit, b.commit) || codeUnitOrder(a.suite ?? '', b.suite ?? ''));
-  return { ...seriesOf(summarised), since: options.since, skipped };
+  const order = await options.order(new Set(summarised.map((one) => one.commit)));
+  return { ...seriesOf(summarised, order), since: options.since, skipped };
 
   async function readCommit(one: KeptAt): Promise<void> {
     const held = await readLine(cell, atCommit(line, one.commit));

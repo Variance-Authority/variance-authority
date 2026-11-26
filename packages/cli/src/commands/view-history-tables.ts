@@ -15,13 +15,13 @@ import type { Tab } from './view-panes.js';
 export interface RetriedCase {
   readonly name: string;
   readonly file: string;
-  /** The summed duration of every attempt before the last, in ms. */
-  readonly lost: number;
+  /** The summed duration of every attempt before the last, in ms; absent where one of them kept no time. */
+  readonly lost?: number;
 }
 
 /** What one record says of its run. */
 export interface RecordSummary {
-  /** Each test file and what running it cost in ms, as sense's `costs` reads it; null where the record keeps no time. */
+  /** Each test file and what running it cost in ms, as sense's `fileTimes` reads it; null where the record keeps no time. */
   readonly files: readonly (readonly [string, number | null])[];
   /** The sum of the known costs, in ms; absent where the runner timed no file. */
   readonly total?: number;
@@ -77,7 +77,14 @@ export interface Skipped {
 
 /** The series, or why there is none. */
 export type History =
-  | { readonly points: readonly HistoryPoint[]; readonly files: readonly FileRuns[]; readonly since: number; readonly skipped: readonly Skipped[] }
+  | {
+      readonly points: readonly HistoryPoint[];
+      readonly files: readonly FileRuns[];
+      /** The commits drawn that git did not place on the mainline's first-parent history, so none moves. */
+      readonly unplaced: number;
+      readonly since: number;
+      readonly skipped: readonly Skipped[];
+    }
   | { readonly unread: string };
 
 const DAY = 86_400_000;
@@ -97,6 +104,7 @@ export function historyTab(history: History): Tab {
       ['records', points.length],
       ['suites', [...new Set(points.map((point) => point.suite))].join(', ')],
       ...(points.some((point) => point.retried === undefined) ? [['retries', 'some records kept no attempts, so their retries are not known'] as const] : []),
+      ...(history.unplaced === 0 ? [] : [['not placed', `${history.unplaced} of ${commits} ${commits === 1 ? 'commit' : 'commits'} ${history.unplaced === 1 ? 'is' : 'are'} not on the mainline this clone last fetched, so nothing moves by ${history.unplaced === 1 ? 'it' : 'them'}`] as const]),
       ...(skipped.length === 0 ? [] : [['not read', `${skipped.length} of ${skipped.length + points.length} records are not drawn; Not read says why`] as const]),
     ],
     tables: () => [commitsTable(points), filesTable(history.files), retriedTable(points), movedTable(points), ...(skipped.length === 0 ? [] : [skippedTable(skipped)])],
@@ -109,7 +117,7 @@ function commitsTable(points: readonly HistoryPoint[]): Table {
     ['commit', 'suite', 'ran', 'took', 'test files', 'files reached', 'cases', 'retried', 'lost'],
     [...points]
       .sort((a, b) => b.written - a.written || codeUnitOrder(a.suite, b.suite))
-      .map((point) => [point.commit, point.suite, point.written, point.total, point.testFiles, point.reached, point.cases, point.retried?.length, point.retried === undefined ? undefined : sum(point.retried.map((one) => one.lost))]),
+      .map((point) => [point.commit, point.suite, point.written, point.total, point.testFiles, point.reached, point.cases, point.retried?.length, point.retried === undefined ? undefined : known(point.retried.map((one) => one.lost))]),
   );
   return typed(table, { ran: 'time', took: 'ms', lost: 'ms' });
 }
@@ -129,20 +137,20 @@ function filesTable(files: readonly FileRuns[]): Table {
 }
 
 function retriedTable(points: readonly HistoryPoint[]): Table {
-  const cases = new Map<string, { suite: string; name: string; file: string; commits: number; lost: number }>();
+  const cases = new Map<string, { suite: string; name: string; file: string; commits: number; lost: number | undefined }>();
   for (const point of points) {
     for (const one of point.retried ?? []) {
       const key = `${point.suite}\u0000${one.file}\u0000${one.name}`;
       const held = cases.get(key) ?? { suite: point.suite, name: one.name, file: one.file, commits: 0, lost: 0 };
       held.commits += 1;
-      held.lost += one.lost;
+      held.lost = held.lost === undefined || one.lost === undefined ? undefined : held.lost + one.lost;
       cases.set(key, held);
     }
   }
-  const rows = [...cases.values()].sort((a, b) => b.lost - a.lost || b.commits - a.commits || codeUnitOrder(a.name, b.name));
+  const rows = [...cases.values()].sort((a, b) => (b.lost ?? -1) - (a.lost ?? -1) || b.commits - a.commits || codeUnitOrder(a.name, b.name));
   return typed(
     listed(
-      { id: 'history-retried', label: 'Retried cases', hint: 'each case retried in the window, most time lost first' },
+      { id: 'history-retried', label: 'Retried cases', hint: 'each case retried in the window, most time lost first, then those whose time is not known' },
       ['suite', 'case', 'test file', 'commits', 'lost'],
       rows.map((one) => [one.suite, one.name, one.file, one.commits, one.lost]),
     ),
@@ -181,4 +189,6 @@ function typed(table: Table, as: Readonly<Record<string, 'ms' | 'time'>>): Table
   };
 }
 
-const sum = (values: readonly number[]): number => values.reduce((total, value) => total + value, 0);
+/** The sum, or nothing where a value is not known: an untimed attempt is not a free one. */
+const known = (values: readonly (number | undefined)[]): number | undefined =>
+  values.reduce<number | undefined>((total, value) => (total === undefined || value === undefined ? undefined : total + value), 0);

@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url';
 import { gzipSync } from 'node:zlib';
 import { cacheRootFor, declaredSuites, nearestRecord, rawRecord } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
-import { lineCellOf, READ_REUSE_MS } from '../share-lines.js';
+import { keptInOrder, lineCellOf, READ_REUSE_MS } from '../share-lines.js';
 import { VIEW_SINCE_DEFAULT, type ParsedView } from '../view-args.js';
 import { selectMainline } from './mainline-selected.js';
 import { describeMiss } from './share.js';
@@ -50,10 +50,13 @@ async function historyFor(cwd: string, since: number, here: ViewHere): Promise<H
     const cell = await lineCellOf({ share: selected.share, cacheRoot: selected.cacheRoot }, { cwd, reuseMs: READ_REUSE_MS });
     if (cell === undefined) return NO_SHARE;
     if ('kind' in cell) return { unread: `the share could not be opened: ${describeMiss(cell)}` };
-    return await historyOf(cell, selected.named.name, {
+    const mainline = selected.named.name;
+    const share = selected.share;
+    return await historyOf(cell, mainline, {
       since,
       now: here.now ?? Date.now(),
       cacheDir: selected.cacheRoot,
+      order: (kept) => keptInOrder({ share }, mainline, kept, cwd),
       ...(here.progress === undefined ? {} : { progress: here.progress }),
     });
   } catch (error) {

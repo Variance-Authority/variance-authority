@@ -121,6 +121,7 @@ export {
 export { recordedCaseNames, type RecordedCaseName, type RecordedCaseNames } from './recorded-case-names.js';
 export {
   fileCases,
+  fileTimes,
   recordedDurations,
   recordedPaths,
   recordedTimes,

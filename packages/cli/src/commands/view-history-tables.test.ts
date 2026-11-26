@@ -16,11 +16,14 @@ function point(commit: string, written: number, files: readonly (readonly [strin
   return { commit, written, suite: 'unit', files, total: files.reduce((sum, [, took]) => sum + (took ?? 0), 0), reached: 1, cases: 3, retried };
 }
 
-const SERIES = seriesOf([
+const SERIES = seriesOf(
+  [
   point(C1, 1 * DAY, [['test/a.test.ts', 10], ['test/pay.test.ts', 30]]),
   point(C2, 2 * DAY, [['test/a.test.ts', 10], ['test/pay.test.ts', 90]], [{ name: 'checkout > pays', file: 'test/pay.test.ts', lost: 31 }]),
   point(C3, 3 * DAY, [['test/a.test.ts', 14], ['test/pay.test.ts', null]]),
-]);
+  ],
+  [C1, C2, C3],
+);
 const HISTORY = { ...SERIES, since: 14 * DAY, skipped: [] };
 
 const column = (table: Table, name: string): unknown[] => {
@@ -55,6 +58,15 @@ describe('the History tab', () => {
     expect(column(retried, 'lost')).toEqual([31]);
   });
 
+  it('says the time lost is not known where an earlier attempt kept none, rather than counting it as none', () => {
+    const unknown = { name: 'checkout > refunds', file: 'test/pay.test.ts' };
+    const history = { ...seriesOf([point(C1, DAY, [['test/a.test.ts', 10]], [unknown, { name: 'checkout > pays', file: 'test/pay.test.ts', lost: 31 }])], [C1]), since: 14 * DAY, skipped: [] };
+    const held = new Map(historyTab(history).tables().map((table) => [table.id, table]));
+    expect(column(held.get('history-commits')!, 'lost')).toEqual([undefined]);
+    expect(column(held.get('history-retried')!, 'case')).toEqual(['checkout > pays', 'checkout > refunds']);
+    expect(column(held.get('history-retried')!, 'lost')).toEqual([31, undefined]);
+  });
+
   it('names the commit whose suite time moved most from the one before, and the file that moved it', () => {
     const [most, next] = movedOf(HISTORY.points);
     expect(most).toMatchObject({ commit: C2, moved: { before: C1, delta: 60, files: [['test/pay.test.ts', 60]] } });
@@ -63,6 +75,11 @@ describe('the History tab', () => {
 
   it('moves a commit only by the test files both runs timed', () => {
     expect(movedOf(HISTORY.points)[1]!.moved.files).toEqual([['test/a.test.ts', 4]]);
+  });
+
+  it('says how many commits git did not place on the mainline, which move nothing', () => {
+    const tab = historyTab({ ...seriesOf([point(C1, DAY, [['test/a.test.ts', 10]]), point(C2, 2 * DAY, [['test/a.test.ts', 12]])], [C2]), since: 14 * DAY, skipped: [] });
+    expect(new Map(tab.facts()).get('not placed')).toBe('1 of 2 commits is not on the mainline this clone last fetched, so nothing moves by it');
   });
 
   it('names each kept record it does not draw, and why', () => {
@@ -75,7 +92,7 @@ describe('the History tab', () => {
   });
 
   it('says retries are not known, and draws none, where a record kept no attempts', () => {
-    const tab = historyTab({ ...seriesOf([{ commit: C1, written: DAY, suite: 'unit', files: [['test/a.test.ts', 10]], total: 10, reached: 1 }]), since: 14 * DAY, skipped: [] });
+    const tab = historyTab({ ...seriesOf([{ commit: C1, written: DAY, suite: 'unit', files: [['test/a.test.ts', 10]], total: 10, reached: 1 }], [C1]), since: 14 * DAY, skipped: [] });
     expect(new Map(tab.facts()).get('retries')).toBe('some records kept no attempts, so their retries are not known');
     expect(column(new Map(tab.tables().map((one) => [one.id, one])).get('history-commits')!, 'retried')).toEqual([undefined]);
   });

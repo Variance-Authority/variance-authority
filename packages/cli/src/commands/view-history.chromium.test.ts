@@ -23,7 +23,9 @@ const BROWSER_AVAILABLE = ((): boolean => {
 })();
 
 if (!BROWSER_AVAILABLE) {
-  console.warn('\npackages/cli History tab in a browser: skipped.' + '\n  no browser — npx playwright install chromium\n');
+  console.warn(
+    '\npackages/cli History tab in a browser: skipped.' + '\n  no browser — npx playwright install chromium\n',
+  );
 }
 
 let home: string | undefined;
@@ -42,6 +44,8 @@ beforeAll(async () => {
   await mkdir(dirname(at), { recursive: true });
   await writeFile(at, published.record);
   const path = (await viewOutput({ command: 'view' }, clone)).out.trim();
+  // The page is a file `variance view` wrote, opened once; the harness's
+  // leased pages serve story subjects, not a written file, as in view-page.
   browser = await chromium.launch();
   page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
   await page.goto(`file://${path}#history`);

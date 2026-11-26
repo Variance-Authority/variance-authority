@@ -16,6 +16,7 @@ import { keepsCases } from './test-selection/case-record.js';
 import { commitRunsFile } from './test-selection/commit-runs.js';
 import { commitRunsIn } from './test-selection/commit-runs-text.js';
 import { askCoverageFile } from './test-selection/coverage-file.js';
+import type { TestCoverageView } from './test-selection/format-view.js';
 import { decodeExecutionIndex, decodeExecutionTests } from './test-selection/execution-format.js';
 import { costs } from './test-selection/file-cost.js';
 import { recordDigestAt } from './test-selection/record-base.js';
@@ -164,6 +165,15 @@ function landedAt(runs: string, commit: string | undefined): { readonly landed?:
 }
 
 /**
+ * Each test file an open record holds, in its order, and what running it cost
+ * in ms: absent where the runner reported no time, never zero.
+ */
+export function fileTimes(view: TestCoverageView): readonly (readonly [file: string, ms: number | undefined])[] {
+  const costOf = costs(view);
+  return Array.from(view.testPath.all(), (path, test) => [view.string(path), costOf(test)] as const);
+}
+
+/**
  * Every test file the snapshot at `recording` holds a duration for, those it
  * holds none for, and the commit it was taken at: what a sharded run places its files by. A file whose
  * runner reported none is absent rather than zero, so the placement prices it
@@ -176,15 +186,12 @@ function landedAt(runs: string, commit: string | undefined): { readonly landed?:
 export function recordedTimes(recording: string): SuiteTimes {
   if (!existsSync(recording)) return { recording, unread: 'nothing is recorded there' };
   const placed = askCoverageFile(recording, (view) => {
-    const paths = view.testPath.all();
-    const costOf = costs(view);
     const times = new Map<string, number>();
     const untimed: string[] = [];
-    paths.forEach((path, test) => {
-      const duration = costOf(test);
-      if (duration === undefined) untimed.push(view.string(path));
-      else times.set(view.string(path), duration);
-    });
+    for (const [file, duration] of fileTimes(view)) {
+      if (duration === undefined) untimed.push(file);
+      else times.set(file, duration);
+    }
     return { times, untimed, ...(view.commit === undefined ? {} : { commit: view.commit }) };
   });
   // The record read, which a shard's record names (`record-base.ts`).

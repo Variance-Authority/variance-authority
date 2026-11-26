@@ -22,9 +22,11 @@ const DAY = 86_400_000;
 const NOW = 1_900_000_000_000;
 const [C0, C1, C2, C3] = ['0', '1', '2', '3'].map((digit) => digit.repeat(40)) as [string, string, string, string];
 const MAIN = { kind: 'mainline', name: 'main' } as const;
+/** The mainline's first-parent history as git walks it, oldest first. */
+const IN_GIT = async (kept: ReadonlySet<string>) => [C0, C1, C2, C3].filter((commit) => kept.has(commit));
 
 /** A record of two test files, the second's cases with one retried once. */
-function record(durations: readonly [number, number], options: { readonly retried?: boolean; readonly stray?: boolean } = {}): Uint8Array {
+function record(durations: readonly [number, number], options: { readonly retried?: boolean; readonly stray?: boolean; readonly untimed?: boolean } = {}): Uint8Array {
   const coverage = encodeTestCoverage({
     version: 3,
     instrumentation: 'fixture',
@@ -49,7 +51,7 @@ function record(durations: readonly [number, number], options: { readonly retrie
     }),
     ...(options.retried === true
       ? { attempts: encodeRecordedAttempts([
-          { case: 'p', attempt: 1, ended: 'failed', duration: 31 },
+          options.untimed === true ? { case: 'p', attempt: 1, ended: 'failed' } as const : { case: 'p', attempt: 1, ended: 'failed', duration: 31 } as const,
           { case: 'p', attempt: 2, ended: 'passed', duration: 8 },
           ...(options.stray === true ? [{ case: 'gone', attempt: 1, ended: 'failed', duration: 5 } as const, { case: 'gone', attempt: 2, ended: 'passed', duration: 5 } as const] : []),
         ]) }
@@ -95,6 +97,10 @@ describe('one record, summarised', () => {
     expect(() => summaryOf(record([12, 30], { retried: true, stray: true }))).toThrow(/a case the record does not hold: gone/u);
   });
 
+  it('says nothing of the time lost where an earlier attempt kept no time, rather than counting it as none', () => {
+    expect(summaryOf(record([12, 30], { retried: true, untimed: true })).retried).toEqual([{ name: 'checkout > pays', file: 'test/pay.test.ts' }]);
+  });
+
   it('says nothing of retries where the record kept no attempts', () => {
     expect(summaryOf(record([12, 30]))).not.toHaveProperty('retried');
   });
@@ -109,7 +115,7 @@ describe('the kept commits, as a series', () => {
       { commit: C3, ago: 1, entries: [entry(C3, record([12, 30]))] },
     ]);
 
-    const history = await historyOf(cell, 'main', { since: 14 * DAY, now: NOW, cacheDir: cache() });
+    const history = await historyOf(cell, 'main', { since: 14 * DAY, now: NOW, cacheDir: cache(), order: IN_GIT });
 
     expect('points' in history && history.points.map(({ commit, suite, total, written }) => [commit, suite, total, written])).toEqual([
       [C1, 'chromium', 10, NOW - 3 * DAY],
@@ -125,10 +131,10 @@ describe('the kept commits, as a series', () => {
       { commit: C2, ago: 1, entries: [entry(C2, record([10, 90]))] },
     ]);
     const cacheDir = cache();
-    const first = await historyOf(cell, 'main', { since: 14 * DAY, now: NOW, cacheDir });
+    const first = await historyOf(cell, 'main', { since: 14 * DAY, now: NOW, cacheDir, order: IN_GIT });
     const before = reads();
 
-    const second = await historyOf(cell, 'main', { since: 14 * DAY, now: NOW, cacheDir });
+    const second = await historyOf(cell, 'main', { since: 14 * DAY, now: NOW, cacheDir, order: IN_GIT });
 
     expect(second).toEqual(first);
     expect(before).toBeGreaterThan(0);
@@ -138,12 +144,12 @@ describe('the kept commits, as a series', () => {
   it('marks what it held as opened, so a cache sweep by age keeps what a window still reads', async () => {
     const { cell } = await kept([{ commit: C1, ago: 2, entries: [entry(C1, record([10, 30]))] }]);
     const cacheDir = cache();
-    await historyOf(cell, 'main', { since: 14 * DAY, now: NOW, cacheDir });
+    await historyOf(cell, 'main', { since: 14 * DAY, now: NOW, cacheDir, order: IN_GIT });
     const held = readdirSync(join(cacheDir, 'history')).map((name) => join(cacheDir, 'history', name));
     const old = new Date(Date.now() - 30 * DAY);
     for (const path of held) utimesSync(path, old, old);
 
-    await historyOf(cell, 'main', { since: 14 * DAY, now: NOW, cacheDir });
+    await historyOf(cell, 'main', { since: 14 * DAY, now: NOW, cacheDir, order: IN_GIT });
 
     expect(held.length).toBeGreaterThan(0);
     expect(held.filter((path) => statSync(path).mtimeMs < Date.now() - DAY)).toEqual([]);
@@ -157,9 +163,9 @@ describe('the kept commits, as a series', () => {
     const cacheDir = cache();
     const said: string[] = [];
 
-    await historyOf(cell, 'main', { since: 14 * DAY, now: NOW, cacheDir, progress: (line) => said.push(line) });
+    await historyOf(cell, 'main', { since: 14 * DAY, now: NOW, cacheDir, order: IN_GIT, progress: (line) => said.push(line) });
     const warm: string[] = [];
-    await historyOf(cell, 'main', { since: 14 * DAY, now: NOW, cacheDir, progress: (line) => warm.push(line) });
+    await historyOf(cell, 'main', { since: 14 * DAY, now: NOW, cacheDir, order: IN_GIT, progress: (line) => warm.push(line) });
 
     expect(said).toEqual(['reading 2 commits kept on main in the last 14 days', 'read 1 of 2', 'read 2 of 2']);
     expect(warm).toEqual([]);
@@ -168,10 +174,10 @@ describe('the kept commits, as a series', () => {
   it('says why where the share keeps no commit in the window, and where it cannot list them', async () => {
     const { cell } = await kept([{ commit: C0, ago: 20, entries: [entry(C0, record([1, 1]))] }]);
 
-    expect(await historyOf(cell, 'main', { since: 14 * DAY, now: NOW, cacheDir: cache() })).toEqual({ unread: 'the share keeps no record of main from the last 14 days' });
-    expect(await historyOf({ ...cell, commits: undefined }, 'main', { since: 14 * DAY, now: NOW, cacheDir: cache() })).toEqual({ unread: 'the share keeps only the latest record of each line, so it holds no series' });
+    expect(await historyOf(cell, 'main', { since: 14 * DAY, now: NOW, cacheDir: cache(), order: IN_GIT })).toEqual({ unread: 'the share keeps no record of main from the last 14 days' });
+    expect(await historyOf({ ...cell, commits: undefined }, 'main', { since: 14 * DAY, now: NOW, cacheDir: cache(), order: IN_GIT })).toEqual({ unread: 'the share keeps only the latest record of each line, so it holds no series' });
     const unlisted: LineCell = { ...cell, commits: async () => ({ kind: 'unreachable', detail: 'timed out' }) };
-    expect(await historyOf(unlisted, 'main', { since: 14 * DAY, now: NOW, cacheDir: cache() })).toMatchObject({ unread: expect.stringMatching(/^the share could not list the commits it keeps: /u) });
+    expect(await historyOf(unlisted, 'main', { since: 14 * DAY, now: NOW, cacheDir: cache(), order: IN_GIT })).toMatchObject({ unread: expect.stringMatching(/^the share could not list the commits it keeps: /u) });
   });
 
   it('names a record it cannot open, and why, and draws the rest', async () => {
@@ -180,7 +186,7 @@ describe('the kept commits, as a series', () => {
       { commit: C2, ago: 1, entries: [entry(C2, new Uint8Array([1, 2, 3]))] },
     ]);
 
-    const history = await historyOf(cell, 'main', { since: 14 * DAY, now: NOW, cacheDir: cache() });
+    const history = await historyOf(cell, 'main', { since: 14 * DAY, now: NOW, cacheDir: cache(), order: IN_GIT });
 
     expect(history).toMatchObject({ skipped: [{ commit: C2, suite: 'unit', why: expect.any(String) }] });
     expect('points' in history && history.points.map(({ commit }) => commit)).toEqual([C1]);
@@ -189,10 +195,10 @@ describe('the kept commits, as a series', () => {
   it('reads a commit again where a record it names could not be read, and where the share wrote it again', async () => {
     const { cell, reads } = await kept([{ commit: C1, ago: 2, entries: [entry(C1, new Uint8Array([1, 2, 3]))] }]);
     const cacheDir = cache();
-    await historyOf(cell, 'main', { since: 14 * DAY, now: NOW, cacheDir });
+    await historyOf(cell, 'main', { since: 14 * DAY, now: NOW, cacheDir, order: IN_GIT });
     const before = reads();
 
-    await historyOf(cell, 'main', { since: 14 * DAY, now: NOW, cacheDir });
+    await historyOf(cell, 'main', { since: 14 * DAY, now: NOW, cacheDir, order: IN_GIT });
 
     expect(reads()).toBeGreaterThan(before);
   });
@@ -207,7 +213,7 @@ describe('the kept commits, as a series', () => {
       { commit: C2, ago: 1, entries: [entry(C2, record([10, 90]))] },
     ]);
 
-    const history = await historyOf(cell, 'main', { since: 14 * DAY, now: NOW, cacheDir: cache() });
+    const history = await historyOf(cell, 'main', { since: 14 * DAY, now: NOW, cacheDir: cache(), order: IN_GIT });
 
     expect('points' in history && history.files).toEqual([
       { suite: 'unit', file: 'test/a.test.ts', runs: 2, timed: 2, took: 20 },
@@ -219,13 +225,44 @@ describe('the kept commits, as a series', () => {
     ]);
   });
 
+  it('moves each commit from the one git puts before it, not the one the share wrote before it', async () => {
+    const { cell } = await kept([
+      { commit: C1, ago: 3, entries: [entry(C1, record([10, 30]))] },
+      { commit: C3, ago: 2, entries: [entry(C3, record([10, 50]))] },
+      { commit: C2, ago: 1, entries: [entry(C2, record([10, 90]))] },
+    ]);
+
+    const history = await historyOf(cell, 'main', { since: 14 * DAY, now: NOW, cacheDir: cache(), order: IN_GIT });
+
+    expect('points' in history && history.points.map((point) => [point.commit, point.moved?.before, point.moved?.delta])).toEqual([
+      [C1, undefined, undefined],
+      [C3, C2, -40],
+      [C2, C1, 60],
+    ]);
+  });
+
+  it('draws a commit git does not place on the mainline, moves nothing by it, and counts it', async () => {
+    const { cell } = await kept([
+      { commit: C1, ago: 3, entries: [entry(C1, record([10, 30]))] },
+      { commit: C2, ago: 2, entries: [entry(C2, record([10, 90]))] },
+      { commit: C3, ago: 1, entries: [entry(C3, record([10, 50]))] },
+    ]);
+
+    const history = await historyOf(cell, 'main', { since: 14 * DAY, now: NOW, cacheDir: cache(), order: async () => [C1, C3] });
+
+    expect('points' in history && [history.points.map((point) => [point.commit, point.moved?.before]), history.unplaced]).toEqual([
+      [[C1, undefined], [C2, undefined], [C3, C1]],
+      1,
+    ]);
+  });
+
   it('names a partial run as not read, and draws none of it', async () => {
     const { cell } = await kept([
       { commit: C1, ago: 2, entries: [entry(C1, record([10, 30]))] },
       { commit: C2, ago: 1, entries: [{ ...entry(C2, record([10, 90])), partial: true }] },
     ]);
 
-    const history = await historyOf(cell, 'main', { since: 14 * DAY, now: NOW, cacheDir: cache() });
+    const history = await historyOf(cell, 'main', { since: 14 * DAY, now: NOW, cacheDir: cache(), order: IN_GIT });
 
     expect('points' in history && [history.points.map(({ commit }) => commit), history.skipped]).toEqual([
       [C1],
