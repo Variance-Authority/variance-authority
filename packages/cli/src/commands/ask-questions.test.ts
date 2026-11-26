@@ -27,6 +27,12 @@ describe('the list of questions', () => {
     expect(signatures).toContain(lines[summary + 2]);
   });
 
+  it('ends a first sentence where the next opens with a tool name, quoted as code', () => {
+    const lines = questions().split('\n');
+    const claims = lines.findIndex((line) => line.startsWith('test-claims'));
+    expect(lines[claims + 1]).toMatch(/its pieces and wholes\.$/);
+  });
+
   it('leaves the rest of each description to the MCP tool it mirrors, and says so', () => {
     expect(toolByName('variance_summary')!.description).toContain('Start here.');
     expect(questions()).not.toContain('Start here.');
