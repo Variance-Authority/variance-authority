@@ -158,6 +158,37 @@ it.each(([
   }
 });
 
+it.each([
+  {
+    question: ['uses', '--name', 'splitFoo', '--file', 'packages/lib-exports/src/split.ts'],
+    out: /^packages\/lib-exports\/src\/split-use\.ts:1/m,
+  },
+  {
+    question: ['uses', '--name', 'hiddenFoo', '--file', 'packages/lib/src/index.ts'],
+    out: /^`hiddenFoo` is not declared in packages\/lib\/src\/index\.ts; it is declared in packages\/lib\/src\/hidden\.ts\.$/m,
+  },
+])('answers $question for the file it names, not with a store read error', async ({ question, out }) => {
+  const previous = process.cwd();
+  const root = checkout(nativeFiles(question));
+  try {
+    expect((await run(['index', '--wait'])).code).toBe(0);
+    const empty = join(root, 'empty-path');
+    mkdirSync(empty);
+    const env = { ...process.env, npm_config_user_agent: '' };
+    const answers = [
+      spawnSync(process.execPath, [nodeEntry, 'ask', ...question], { cwd: root, env, encoding: 'utf8' }),
+      spawnSync(executable, ['ask', ...question], { cwd: root, env: { ...env, PATH: empty }, encoding: 'utf8' }),
+    ];
+    for (const answer of answers) {
+      expect([answer.status, steady(root, answer.stderr)]).toEqual([0, '']);
+      expect(answer.stdout).toMatch(out);
+    }
+  } finally {
+    process.chdir(previous);
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 it('refuses a name question with GIT_DIR set, saying why, rather than handing it to Node', async () => {
   const previous = process.cwd();
   const root = checkout(nativeFiles(['symbol', '--name', 'greet']));

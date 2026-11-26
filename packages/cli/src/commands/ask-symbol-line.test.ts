@@ -39,6 +39,16 @@ async function run(argv: readonly string[]): Promise<{ code: number; out: string
   return { code, out, err };
 }
 
+/** Whether `file` still opens for reading, as it does for root whatever its mode. */
+function opens(file: string): boolean {
+  try {
+    readFileSync(file);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 describe('variance ask symbol --line', () => {
   it('names the declaration the line called first, those its tests never entered as not run with it, in place order, and a constant as not in the recording', async () => {
     await recorded();
@@ -127,9 +137,11 @@ describe('variance ask symbol --line', () => {
     expect(answered.out.split('\n')[0]).toBe(`No recording under ${root} holds a suite, so nothing tells the declarations of \`useSessionId\` apart:`);
   });
 
-  it('says the recording does not open, and names the declarations as it would without the line', async () => {
+  it('says the recording does not open, and names the declarations as it would without the line', async (context) => {
     const root = await recorded();
     chmodSync(testCoverageFile(root), 0);
+    // A mode of 0 does not stop root, as CI runs: there the file still opens and the case has nothing to say.
+    if (opens(testCoverageFile(root))) context.skip();
 
     const answered = await run(['ask', 'symbol', '--name', 'useSessionId', '--line', 'src/page.ts:3']);
 
