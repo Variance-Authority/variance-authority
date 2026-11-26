@@ -22,10 +22,6 @@ const SHOWN = 20;
  * The first is printed with its argument. In a
  * repository whose packages declare no entry, every import between packages is
  * by path, and listing them all is the whole import graph.
- *
- * Every list is a page: one `offset` skips the first rows of each list alike,
- * `limit` rows follow in each, and a list cut short ends with how many rows it
- * left and the `offset` that shows the next.
  */
 export const packages: Tool<Help> = {
   name: 'docs_packages',
@@ -122,7 +118,11 @@ export const packages: Tool<Help> = {
   },
 };
 
-/** One list's page: which of its rows it shows when it does not start at the first, those rows, and the offset of the next page; nothing for a list with no rows. */
+/**
+ * One list's page. The one `offset` skips the first rows of every list alike and
+ * `limit` rows follow in each; a list cut short ends with how many rows it left
+ * and the `offset` that shows the next. A list with no rows prints nothing.
+ */
 function listed(all: readonly string[], page: Page, spell: Spelling): readonly string[] {
   if (all.length === 0) return [];
   return [...pageAt(page, all.length, spell), ...paged(all, page), ...nextPage(page, all.length, spell)];
