@@ -9,6 +9,10 @@ const collectors = createRequire(import.meta.url)(
   '../../dist/test-selection/collectors.cjs',
 ) as typeof import('./collectors.cjs');
 /** The engine as that worker loads it, which is how a test reaches the realm's own. */
+/** The cut's statement timer as that worker loads it. */
+const probeCuts = createRequire(import.meta.url)(
+  '../../dist/instrument/probe-cuts.cjs',
+) as typeof import('../instrument/probe-cuts.cjs');
 const probeLog = createRequire(import.meta.url)(
   '../../dist/instrument/probe-log.cjs',
 ) as typeof import('../instrument/probe-log.cjs');
@@ -285,5 +289,30 @@ describe('how a case times its statements', () => {
     }, undefined, { document, MutationObserver: window.MutationObserver });
 
     expect(times.renders?.map(({ line, added }) => [line, added])).toEqual([[3, 31], [4, 1], [5, 0], [6, 0], [7, 2]]);
+  });
+
+  it('counts a node two concurrent cases were running beside for the statement that ended first, never for both', () => {
+    const { window } = new JSDOM('<main></main>');
+    const { document } = window;
+    const cuts = probeCuts.createCuts({ document, MutationObserver: window.MutationObserver });
+    const first = { cuts: [] as number[] };
+    const second = { cuts: [] as number[] };
+    cuts.time(first);
+    cuts.time(second);
+    cuts.cut(first, 3, 0);
+    cuts.cut(second, 3, 0);
+    document.querySelector('main')!.append(document.createElement('p'));
+    cuts.cut(first, 4, 0);
+    cuts.cut(second, 4, 0);
+
+    expect([cuts.times(first)?.[0]?.added, cuts.times(second)?.[0]?.added]).toEqual([1, 0]);
+  });
+
+  it('charges the time spent reading what surrounded a statement to neither it nor the next', () => {
+    // A page whose changes take 20 ms to read, so the reading would outweigh both statements.
+    class Slow { observe(): void {} takeRecords(): [] { spin(20); return []; } }
+    const times = timed({ quick: (cut) => { cut(3); cut(4); } }, undefined, { document: {}, MutationObserver: Slow });
+
+    expect(times.quick?.map(({ line, time }) => [line, time < 10_000])).toEqual([[3, true], [4, true]]);
   });
 });

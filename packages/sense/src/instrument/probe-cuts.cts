@@ -39,8 +39,6 @@ interface Timer {
   readonly added: Map<number, number>;
   line: number;
   at: number;
-  /** The page's count of added nodes as the statement running now started. */
-  page: number;
   on: boolean;
 }
 
@@ -131,25 +129,34 @@ function createCuts(realm?: object) {
   // The machine as last read, and when.
   let reading: Machine = {};
   let readAt = -Infinity;
+  // The page's count as the last statement to end took it: a node goes to the
+  // statement that ends next, in whichever case, and to no other.
+  let counted = 0;
   /**
    * Adds the time since the last cut to the statement that was running, with
-   * what surrounded it as it ended, and starts `line`.
+   * what surrounded it as it ended, and starts `line` once that is read, so
+   * the reading is charged to neither.
    */
   const lap = (timer: Timer, line: number): void => {
     const now = clock();
-    const added = page?.();
+    let read = false;
     if (timer.line !== 0) {
       timer.times.set(timer.line, (timer.times.get(timer.line) ?? 0) + now - timer.at);
       if (now - readAt >= READING_MS) {
         reading = machine();
         readAt = now;
+        read = true;
       }
       timer.machine.set(timer.line, reading);
-      if (added !== undefined) timer.added.set(timer.line, (timer.added.get(timer.line) ?? 0) + added - timer.page);
+    }
+    if (page) {
+      const added = page();
+      if (timer.line !== 0) timer.added.set(timer.line, (timer.added.get(timer.line) ?? 0) + added - counted);
+      counted = added;
+      read = true;
     }
     timer.line = line;
-    timer.at = now;
-    timer.page = added ?? 0;
+    timer.at = read ? clock() : now;
   };
   /** Closes the statement in flight, if one is: between two there is no clock to read. */
   const stop = (timer: Timer): void => {
@@ -209,7 +216,7 @@ function createCuts(realm?: object) {
       if (bucket.cuts === null) return;
       if (page === null) page = pageCount(realm as Realm | undefined);
       const timer = timers.get(bucket);
-      if (timer === undefined) timers.set(bucket, { times: new Map(), machine: new Map(), added: new Map(), line: 0, at: 0, page: 0, on: true });
+      if (timer === undefined) timers.set(bucket, { times: new Map(), machine: new Map(), added: new Map(), line: 0, at: 0, on: true });
       else { stop(timer); timer.on = true; }
     },
     /**
