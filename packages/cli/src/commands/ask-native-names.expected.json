@@ -538,5 +538,20 @@
     2,
     "",
     "`variance ask uses --name unbound --file packages/kit/src/relay.ts` could not be answered from the published source index: packages/kit/src/relay.ts exports `unbound`, and the source index binds that export to no declaration.\n\nSnapshot <time> may miss later changes: run `variance index`.\n\nSee the skill at <repo>/packages/cli/skills/variance-authority/SKILL.md\n"
+  ],
+  "symbol --name crowdedPath --limit 2": [
+    0,
+    "crowdedPath [const]\nimport { crowdedPath } from '@acme/kit/src/crowd';\ndeclared at packages/kit/src/crowd.ts:1\nnot published: @acme/kit declares no entry, so every import of it names a file.\nconst crowdedPath\n\nImported by path in 3 places:\n  apps/app/src/crowd-1.ts:1 — @acme/app, by path from @acme/kit/src/crowd\n  apps/app/src/crowd-2.ts:1 — @acme/app, by path from @acme/kit/src/crowd\n1 more import of `crowdedPath` not shown; `variance ask uses --name crowdedPath --file packages/kit/src/crowd.ts` lists them a page of `--limit` at a time, nearest to a file you name first.\n\n3 more import `crowdedPath` by a path the source index resolved to no file, so none is credited with them:\n  apps/app/src/gone-1.ts:1 — @acme/app, by path from @acme/kit/src/gone\n  apps/app/src/gone-2.ts:1 — @acme/app, by path from @acme/kit/src/gone\n1 more import of `crowdedPath` not shown; `variance ask uses --name crowdedPath` lists them a page of `--limit` at a time, nearest to a file you name first.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "uses --name crowdedPath --file packages/kit/src/crowd.ts": [
+    0,
+    "`crowdedPath` [const] is imported in 3 places, all from other packages, and no entry publishes it; it is exported at packages/kit/src/crowd.ts:1.\nPath order; `--from` sorts nearest first.\n\nSource, from other packages:\n\napps/app/src/crowd-1.ts:1 — @acme/app, by path from @acme/kit/src/crowd; used on line 2\napps/app/src/crowd-2.ts:1 — @acme/app, by path from @acme/kit/src/crowd; used on line 2\napps/app/src/crowd-3.ts:1 — @acme/app, by path from @acme/kit/src/crowd; used on line 2\n\nA namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "symbol --name ghost --limit 2": [
+    0,
+    "ghost\nimport { ghost } from '@acme/kit/src/crowd';\nnot published: @acme/kit declares no entry, so every import of it names a file.\n\nImported by path in 3 places:\n  apps/app/src/ghost-1.ts:1 — @acme/app, by path from @acme/kit/src/crowd\n  apps/app/src/ghost-2.ts:1 — @acme/app, by path from @acme/kit/src/crowd\n1 more import of `ghost` not shown; `variance ask uses --name ghost` lists them a page of `--limit` at a time, nearest to a file you name first.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
   ]
 }

@@ -61,8 +61,8 @@ sentence about other languages as well, saying the member may be declared
 
 A name no entry publishes, but that another package imports by the path of its
 file, is answered rather than refused: where it is declared, why nothing
-publishes it, and each import of it. A name a file exports and no entry
-publishes is answered too: the file and line that export it, the line as the
+publishes it, and how many imports name its file, the first listed. A name a
+file exports and no entry publishes is answered too: the file and line that export it, the line as the
 checkout holds it, and how many imports the source index resolved to that file,
 within its package as well as across. Two files that export one name are told
 apart, each with its own count, and an installed name it matches, which a file
@@ -122,8 +122,11 @@ the source index holds no export list of and that does not declare the name.
 
 `--limit <n>` sets how many rows of each list are shown: 5 declarations a file
 keeps to itself, 5 member declarations, 5 containers named when a member is
-not found, and 100 installed declarations when not said. The rest are counted,
-and the line that counts them names `--limit`. The files that import the name
+not found, 5 imports by path of each file and of each kind that reaches no
+declaration, and 100 installed declarations when not said. The rest are
+counted, and the line that counts them names `--limit`, or, for imports by
+path, the `uses` question that lists them nearest first: `--file` with the
+declaring file, where there is one. The files that import the name
 under another name are a list in one sentence, cut at 12, which `--limit` does
 not reach. Under `--line` the ranked list is
 never cut; `--limit` reaches the answer given without the line.

@@ -15,7 +15,7 @@ use crate::help_declared::{declared, DeclaredName, Matching};
 use crate::help_members::{indexed_extensions, member_sites};
 use crate::help_name_scope::{owner_of, PackageScope};
 use crate::help_origin::declaration_exported;
-use crate::help_surface::Surface;
+use crate::help_surface::{Surface, Value};
 use crate::help_symbol_published::{published_declarations, published_symbols};
 use crate::help_declared_in::{heads, joined, publishing, rows_of, Readings};
 use crate::help_path_landing::landing;
@@ -160,7 +160,7 @@ fn exact_symbol(asking: &Asking<'_>, rows: &Rows, name: &str, binds: Vec<Alias>,
         through = passing;
         if !paired.is_empty() { blocks.push(exported_only(&keys, layers, name, &paired, false, surface).said(STORE)?); }
     } else if !paths.is_empty() {
-        let ByPath { blocks: landed, covered, strays } = by_path(layers, rows, name, &in_package, paths).said(STORE)?;
+        let ByPath { blocks: landed, covered, strays } = by_path(layers, rows, name, &in_package, paths, said_limit.unwrap_or(DECLARED_CAP), surface).said(STORE)?;
         blocks.extend(landed);
         let rest: Vec<_> = paired.iter().copied().filter(|(held, _)| !covered.contains(held.export.at)).collect();
         if !rest.is_empty() { blocks.push(exported_only(&keys, layers, name, &rest, !strays.is_empty(), surface).said(STORE)?); }
@@ -366,8 +366,8 @@ struct ByPath<'a> {
     strays: Vec<String>,
 }
 
-/// The imports by path of `name`, as `ByPath` holds them.
-fn by_path<'a>(layers: &[crate::compact::Layer], rows: &Rows, name: &str, exports: &[Export<'a>], sites: Vec<PathSite<'a>>) -> Option<ByPath<'a>> {
+/// The imports by path of `name`, as `ByPath` holds them: the first `limit` of each file's, and a count of the rest.
+fn by_path<'a>(layers: &[crate::compact::Layer], rows: &Rows, name: &str, exports: &[Export<'a>], sites: Vec<PathSite<'a>>, limit: usize, surface: Surface<'_>) -> Option<ByPath<'a>> {
     let mut groups: Vec<(&str, Vec<PathSite<'_>>)> = Vec::new();
     let mut positions = HashMap::new();
     for site in sites {
@@ -396,6 +396,8 @@ fn by_path<'a>(layers: &[crate::compact::Layer], rows: &Rows, name: &str, export
         }
         if let Some(held) = export { covered.insert(held.at); }
         let bound = export.and_then(|held| declaration_exported(layers, held.at, held.name));
+        // The question under a cut list names `--file` only for a declaration this answer reached; without one it asks by name alone.
+        let declaring = bound.as_ref().map(|held| held.at.clone());
         let mut lines = vec![bound.as_ref().map_or_else(|| name.to_owned(), |held| format!("{name} [{}]", held.kind))];
         // The slot names nothing an import can bind by.
         if name != SLOT { lines.push(format!("import {{ {name} }} from '{specifier}';")) }
@@ -413,13 +415,27 @@ fn by_path<'a>(layers: &[crate::compact::Layer], rows: &Rows, name: &str, export
         if let Some(held) = bound { lines.extend(held.signature.into_iter().chain(held.doc)); }
         let noun = if group.len() == 1 { "place" } else { "places" };
         lines.push(format!("\nImported by path in {} {noun}:", group.len()));
-        lines.extend(group.iter().map(path_line));
+        lines.extend(group.iter().take(limit).map(path_line));
+        if group.len() > limit {
+            let mut asked = vec![("name", Value::Text(name))];
+            if let Some(at) = &declaring { asked.push(("file", Value::Text(at))) }
+            lines.push(more_imports(name, group.len() - limit, &surface.question("uses", &asked)));
+        }
         covered.insert(file);
         blocks.push(lines.join("\n"));
     }
-    let strays = [(dead, DEAD), (unresolved, UNRESOLVED)].into_iter().filter(|(sites, _)| !sites.is_empty())
-        .map(|(sites, how)| format!("{}\n{}", stray_heading(name, sites.len(), how), sites.join("\n"))).collect();
+    let strays = [(dead, DEAD), (unresolved, UNRESOLVED)].into_iter().filter(|(sites, _)| !sites.is_empty()).map(|(sites, how)| {
+        let mut said = vec![stray_heading(name, sites.len(), how)];
+        said.extend(sites.iter().take(limit).cloned());
+        if sites.len() > limit { said.push(more_imports(name, sites.len() - limit, &surface.question("uses", &[("name", Value::Text(name))]))) }
+        said.join("\n")
+    }).collect();
     Some(ByPath { blocks, covered, strays })
+}
+
+/// The line under a list of imports by path cut at the limit: how many more, and the question, `ask`, that lists them.
+fn more_imports(name: &str, more: usize, ask: &str) -> String {
+    format!("{more} more import{} of `{name}` not shown; {ask} lists them a page of `--limit` at a time, nearest to a file you name first.", if more == 1 { "" } else { "s" })
 }
 
 /// One import by path, with its package and how it names the file.
