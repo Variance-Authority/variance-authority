@@ -71,15 +71,12 @@ const MIB = 1024 * 1024;
 const READING_MS = 1;
 
 /** The part of a realm's DOM a node count reads. */
-interface PageNode {
-  readonly firstChild: PageNode | null;
-  readonly nextSibling: PageNode | null;
-}
+type Changes = readonly { readonly addedNodes: ArrayLike<unknown> }[];
 type Realm = {
   readonly document?: object;
-  readonly MutationObserver?: new (seen: (changes: { readonly addedNodes: ArrayLike<PageNode> }[]) => void) => {
+  readonly MutationObserver?: new (seen: (changes: Changes) => void) => {
     observe(target: object, options: object): void;
-    takeRecords(): { readonly addedNodes: ArrayLike<PageNode> }[];
+    takeRecords(): Changes;
   };
 };
 
@@ -87,22 +84,18 @@ type Realm = {
 // (`documents.ts` in playwright-test) times no statement, so a page case
 // records neither its statements' times nor the nodes each added (#1869).
 /**
- * How many nodes the realm's page has had added, each with every node under
- * it, as a running count; undefined where the realm has no page. The watch
- * counts what is added as it is added, so a read costs what changed since the
- * last one, and a page that does not grow costs nothing.
+ * How many nodes the realm's page has had added, as a running count, each once
+ * where it was inserted, as a story's page watch counts them; undefined where
+ * the realm has no page. A node filled after it was attached counts its
+ * children where they were inserted, so a read costs the changes since the
+ * last one, never a walk of what they hold.
  */
 function pageCount(realm: Realm | undefined): (() => number) | undefined {
   const { document, MutationObserver: Watch } = realm ?? {};
   if (document === undefined || typeof Watch !== 'function') return undefined;
-  const size = (node: PageNode): number => {
-    let count = 1;
-    for (let child = node.firstChild; child !== null; child = child.nextSibling) count += size(child);
-    return count;
-  };
   let added = 0;
-  const count = (changes: readonly { readonly addedNodes: ArrayLike<PageNode> }[]): void => {
-    for (const change of changes) for (let at = 0; at < change.addedNodes.length; at += 1) added += size(change.addedNodes[at]!);
+  const count = (changes: Changes): void => {
+    for (const change of changes) added += change.addedNodes.length;
   };
   const watch = new Watch(count);
   watch.observe(document, { childList: true, subtree: true });

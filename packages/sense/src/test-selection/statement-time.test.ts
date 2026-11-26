@@ -260,26 +260,30 @@ describe('how a case times its statements', () => {
     }
   });
 
-  it('counts the nodes each statement added to the realm\'s page, each with every node under it', () => {
+  it('counts each node a statement added to the realm\'s page once, as a render attaches a container and then fills it', () => {
     const { window } = new JSDOM('<main></main>');
     const { document } = window;
     const main = document.querySelector('main')!;
     const times = timed({
       renders: (cut) => {
         cut(3);
-        const list = document.createElement('ul');
-        for (let item = 0; item < 30; item += 1) list.append(document.createElement('li'));
-        main.append(list);
+        const container = document.createElement('ul');
+        main.append(container);
+        for (let item = 0; item < 30; item += 1) container.append(document.createElement('li'));
         cut(4);
-        main.append('text alone');
+        // Built apart and attached whole: one node added, whatever it holds.
+        const built = document.createElement('ol');
+        for (let item = 0; item < 5; item += 1) built.append(document.createElement('li'));
+        main.append(built);
         cut(5);
+        cut(6);
         for (let turn = 0; turn < 2; turn += 1) {
-          cut(6);
+          cut(7);
           main.append(document.createElement('p'));
         }
       },
     }, undefined, { document, MutationObserver: window.MutationObserver });
 
-    expect(times.renders?.map(({ line, added }) => [line, added])).toEqual([[3, 31], [4, 1], [5, 0], [6, 2]]);
+    expect(times.renders?.map(({ line, added }) => [line, added])).toEqual([[3, 31], [4, 1], [5, 0], [6, 0], [7, 2]]);
   });
 });
