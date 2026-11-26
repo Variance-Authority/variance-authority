@@ -152,7 +152,7 @@ export async function recordedOrMainline(
   const mainline = base.missed?.mainline === undefined ? {} : { mainline: base.missed.mainline };
   if (base.from === 'primary') {
     const missed = base.missed === undefined ? {} : { missed: base.missed };
-    return { at: base.file, held: true, source: { from: 'checkout', ...mainline, says: primaryRead(suite, base.file, base.missed) }, ...missed };
+    return { at: base.file, held: true, source: { from: 'checkout', ...mainline, says: primaryRead(suite, base.missed) }, ...missed };
   }
   if (base.missed === undefined) return { at: base.file, held: false };
   return { at: base.file, held: false, source: { ...mainline, says: mainlineMissed(base.missed) }, missed: base.missed };

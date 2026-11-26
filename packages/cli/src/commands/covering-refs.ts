@@ -52,7 +52,7 @@ function bodyOf(answer: Covering, table: Table): readonly string[] {
   if (answer.changed !== undefined) {
     const lines = [`${answer.changed.length} changed file${answer.changed.length === 1 ? '' : 's'}${
       answer.since === undefined ? '' : ` since ${answer.since}`
-    }, read from ${answer.from}${answer.at === undefined ? '' : ` at ${answer.at.slice(0, 12)}`}`];
+    }, read from ${answer.at === undefined ? 'a record that names no commit' : `the record, recorded at ${answer.at.slice(0, 12)}`}`];
     for (const file of answer.changed) {
       lines.push(file.file);
       if (file.cases.length > 0) lines.push(`  declares ${table.refs(file.cases)}`);

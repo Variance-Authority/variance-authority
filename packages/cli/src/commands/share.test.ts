@@ -13,6 +13,7 @@ import { parseShare } from '../config-share.js';
 import { type Env, mainlinesOf } from '../share-lines.js';
 import { ask, type AskRequest } from './ask.js';
 import { reportsFor } from './report-read.js';
+import { sharedReport } from './report-source.js';
 import { mainlineIndex, mainlineSuite, publishedLine, publishRun, shareLines } from './share.js';
 import { publishSuite } from './suite-share.js';
 
@@ -301,25 +302,25 @@ describe('`variance ask` in a checkout with no report', () => {
 
     const fromMainline = await asked(config, repository.dir);
     expect(fromMainline).toMatch(new RegExp(
-      `^report: read from mainline main, evaluated at ${repository.commits[1]!}, at the merge base with this checkout; ` +
-        'kept at (.+)/report/[0-9a-f]{64}/run\\.json\\.\nbranch feat/x: nothing is published there\\.\n\n',
+      `^report: read from mainline main, evaluated at ${repository.commits[1]!}, at the merge base with this checkout\\.\nbranch feat/x: nothing is published there\\.\n\n`,
     ));
 
     await publishRun(config, await reportAt(head), { env: await pullRequest(head), cwd: repository.dir });
     const fromBranch = await asked(config, repository.dir);
     expect(fromBranch).toMatch(new RegExp(
-      `^report: read from branch feat/x, evaluated at ${head} for pull request head ${head}, which is HEAD; kept at (.+)\\.\n\n`,
+      `^report: read from branch feat/x, evaluated at ${head} for pull request head ${head}, which is HEAD\\.\n\n`,
     ));
 
     // What was read is kept under the cache, and the question asked is recorded
     // beside it. The configured report is where this checkout's own run writes,
     // and nothing is ever written there.
-    const kept = /kept at (.+)\.\n\n/.exec(fromBranch)![1]!;
+    const kept = (await sharedReport(config, { env: LOCAL, cwd: repository.dir })).path;
+    expect(kept).toMatch(/\/report\/[0-9a-f]{64}\/run\.json$/);
     await expect(stat(join(dirname(kept), 'asked.json'))).resolves.toBeDefined();
     await expect(stat(config.report)).rejects.toMatchObject({ code: 'ENOENT' });
 
     await git(repository.dir, 'commit', '--quiet', '--allow-empty', '-m', 'one more');
-    expect(await asked(config, repository.dir)).toContain(`for pull request head ${head}, 1 commit(s) before HEAD; kept at`);
+    expect(await asked(config, repository.dir)).toContain(`for pull request head ${head}, 1 commit(s) before HEAD.\n`);
   });
 
   it('says a branch record HEAD does not contain is another run of the branch', async () => {
@@ -332,13 +333,13 @@ describe('`variance ask` in a checkout with no report', () => {
     await git(repository.dir, 'checkout', '--quiet', '-B', 'feat/x', 'main');
     await git(repository.dir, 'commit', '--quiet', '--allow-empty', '-m', 'rebased');
     expect(await asked(config, repository.dir)).toContain(
-      `evaluated at ${head} for pull request head ${head}, which this checkout does not contain: another run of feat/x, not this checkout's;`,
+      `evaluated at ${head} for pull request head ${head}, which this checkout does not contain: another run of feat/x, not this checkout's.\n`,
     );
 
     const elsewhere = 'e'.repeat(40);
     await publishRun(config, await reportAt(elsewhere), { env: await pullRequest(elsewhere), cwd: repository.dir });
     expect(await asked(config, repository.dir)).toContain(
-      `evaluated at ${elsewhere} for pull request head ${elsewhere}, which this clone does not hold: read as another run of feat/x, not this checkout's;`,
+      `evaluated at ${elsewhere} for pull request head ${elsewhere}, which this clone does not hold: read as another run of feat/x, not this checkout's.\n`,
     );
   });
 
@@ -356,7 +357,7 @@ describe('`variance ask` in a checkout with no report', () => {
     const answer = await asked(config, repository.dir, { question: 'describe', subject: 'page/footer' });
     // On a mainline the branch is not asked, and an answer from it says nothing about one.
     expect(answer.split('\n').slice(0, 2)).toEqual([expect.stringMatching(/^report: read from mainline main, /), '']);
-    const kept = /kept at (.+)\.\n/.exec(answer)![1]!;
+    const kept = (await sharedReport(config, { env: LOCAL, cwd: repository.dir })).path;
     expect(await readFile(join(dirname(kept), 'images', 'footer.png'), 'utf8')).toBe('pixels');
   });
 

@@ -127,7 +127,7 @@ function packages(reading: OrientReading): readonly string[] {
   const { around } = reading;
   const orientation = around.orientation;
   if (orientation === undefined) {
-    return [`Packages: no source index is published at ${around.index}. \`variance index\` publishes one.`];
+    return [`Packages: no source index is published. \`variance index\` publishes one.`];
   }
   const state = [
     `${plural(orientation.records, 'file')} indexed`,
@@ -136,7 +136,7 @@ function packages(reading: OrientReading): readonly string[] {
     ...(orientation.dropped > 0 ? [`${plural(orientation.dropped, 'segment')} dropped for a failed digest`] : []),
   ];
   const lines = [
-    `Packages, from the source index at ${around.index} (${state.join('; ')}).`,
+    `Packages, from the source index (${state.join('; ')}).`,
     'Observed in source: a use is one file importing one name from another package. A package\'s share is of the uses on that side; ' +
       'a name\'s share is of every use the package exporting it gets from outside. Each share has its count beside it, ' +
       `and a denominator under ${SHARE_FLOOR} is given as the count alone.`,
@@ -231,11 +231,11 @@ function cases(reading: OrientReading): readonly string[] {
   for (const suite of reading.recorded) {
     const named = suite.suite === undefined ? 'Recorded cases' : `Recorded cases, suite ${suite.suite}`;
     if ('unread' in suite) {
-      lines.push('', `${named}: none read from ${suite.recording}, ${suite.unread}. A run with \`withTestSelection\` records them.`);
+      lines.push('', `${named}: none read, ${suite.unread}. A run with \`withTestSelection\` records them.`);
       continue;
     }
     const wide = Math.max(...suite.files.map((entered) => entered.file.length));
-    lines.push('', `${named}, from ${suite.recording}:`, ...suite.files.flatMap((entered) => row(entered, wide)));
+    lines.push('', `${named}:`, ...suite.files.flatMap((entered) => row(entered, wide)));
   }
   return lines;
 }

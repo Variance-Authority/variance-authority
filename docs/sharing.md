@@ -513,7 +513,7 @@ Every answer read from the share opens with a sentence starting `report:` that
 says which line it came from. From a branch line:
 
 ```text
-report: read from branch feat/cart, evaluated at 51ab09e… for pull request head 9c4e1d2…, 2 commit(s) before HEAD; kept at <cache>/report/<digest>/.variance/report.json.
+report: read from branch feat/cart, evaluated at 51ab09e… for pull request head 9c4e1d2…, 2 commit(s) before HEAD.
 ```
 
 The commit the run report was published at is compared with your `HEAD`, the
@@ -533,7 +533,7 @@ a lookup prints, and when your branch's line did not answer, the reason follows
 underneath:
 
 ```text
-report: read from mainline main, evaluated at 3f1c9a2…, 2 commit(s) behind the merge base with this checkout; kept at <cache>/report/<digest>/.variance/report.json.
+report: read from mainline main, evaluated at 3f1c9a2…, 2 commit(s) behind the merge base with this checkout.
 branch feat/cart: https://variance.example.com/share/branch/feat/cart/manifest.json: HTTP 403.
 ```
 
@@ -630,7 +630,7 @@ Records are read in this order:
 The answer prints which one it read:
 
 ```text
-record of "stories": read from mainline main, published at 3f1c9a2…, 2 commit(s) behind the merge base with this checkout; kept at <cache>/share/read/stories/3f1c9a2…/coverage.bin
+record of "stories": read from mainline main, published at 3f1c9a2…, 2 commit(s) behind the merge base with this checkout
 ```
 
 `variance share --suite <name>` queries the remote now, whenever the last fetch

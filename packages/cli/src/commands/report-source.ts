@@ -89,7 +89,7 @@ export async function sharedReport(config: Config, here: Here = {}): Promise<Sha
     const kept = 'miss' in found ? describeMiss(found.miss, found.holds) : await keep(config, found);
     if (typeof kept === 'string') asked.push(`branch ${branch.line.name}: ${kept}`);
     else {
-      const says = `report: read from branch ${branch.line.name}, ${await standing(kept.entry, branch.line.name, cwd)}; kept at ${kept.path}.`;
+      const says = `report: read from branch ${branch.line.name}, ${await standing(kept.entry, branch.line.name, cwd)}.`;
       const { path, entryDir, images, image, entry } = kept;
       return { path, entryDir, images, image, line: branch.line, commit: entry.commit, ...headOf(entry), says };
     }
@@ -108,7 +108,7 @@ export async function sharedReport(config: Config, here: Here = {}): Promise<Sha
       // there is a credential to fix, and an answer from the mainline alone
       // would hide it.
       const says = [
-        `report: read from ${line}, evaluated at ${main.at.commit}, ${describeDistance(main.at.distance)}; kept at ${kept.path}.`,
+        `report: read from ${line}, evaluated at ${main.at.commit}, ${describeDistance(main.at.distance)}.`,
         ...asked.filter((one) => one.startsWith('branch ')).map((one) => `${one}.`),
       ];
       const at = { kind: 'mainline', name: main.at.mainline } as const;
