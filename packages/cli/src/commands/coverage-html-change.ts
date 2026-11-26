@@ -10,7 +10,7 @@
  */
 
 import { codeUnitOrder } from '@variance-authority/core/segment';
-import type { MovedRegion, TestFileMotion } from '@variance-authority/sense/test-selection';
+import type { FileChange, TestFileMotion } from '@variance-authority/sense/test-selection';
 import { files, grouped, paired, ratio, short, startedStopped } from './coverage-summary.js';
 import { section, text } from './report-html-elements.js';
 import type { Coverage } from './coverage.js';
@@ -51,9 +51,10 @@ export function changeSection(answer: Coverage): string {
           `<span class="moves"><span class="up">${text(`+${grouped(started)} started`)}</span> <span class="down">${text(`−${grouped(stopped)} stopped`)}</span></span></div>`)
     );
   });
-  if (compared.length > 0 || suites.length > 1) body.push(`<div class="suites">${rows.join('')}</div>`);
+  body.push(`<div class="suites">${rows.join('')}</div>`);
   const motions = compared.flatMap(({ suite }) => suite.base!.change.testFiles.map((motion) => ({ suite: suite.suite, motion })));
-  body.push(movedTests(motions), touchedFiles(motions.map(({ motion }) => motion)), alert(answer));
+  const files = compared.flatMap(({ suite }) => suite.base!.change.files.map((change) => ({ suite: suite.suite, change })));
+  body.push(movedTests(motions), touchedFiles(files), alert(answer));
   return section('This change', hint, body.join(''));
 }
 
@@ -77,25 +78,14 @@ function movedTests(motions: readonly { readonly suite: string | undefined; read
   return listed('Test files whose reach moved', 'regions each began and stopped calling into', rows);
 }
 
-/** The source files whose regions some test file began or stopped calling into, each region counted once. */
-function touchedFiles(motions: readonly TestFileMotion[]): string {
-  const byFile = new Map<string, { entered: Set<string>; left: Set<string> }>();
-  const add = (regions: readonly MovedRegion[], side: 'entered' | 'left') => {
-    for (const region of regions) {
-      const held = byFile.get(region.file) ?? { entered: new Set<string>(), left: new Set<string>() };
-      held[side].add(`${region.name}:${region.startLine}-${region.endLine}`);
-      byFile.set(region.file, held);
-    }
-  };
-  for (const motion of motions) {
-    add(motion.entered, 'entered');
-    add(motion.left, 'left');
-  }
-  if (byFile.size === 0) return '';
-  const rows = [...byFile]
-    .sort(([a, x], [b, y]) => y.entered.size + y.left.size - (x.entered.size + x.left.size) || codeUnitOrder(a, b))
-    .map(([file, { entered, left }]) => line(`touched:${file}`, file, entered.size, left.size));
-  return listed('Source files whose regions moved', 'regions a test file began and stopped calling into', rows);
+/** The source files where regions started or stopped running, as each suite's change counts them, most moved first. */
+function touchedFiles(files: readonly { readonly suite: string | undefined; readonly change: FileChange }[]): string {
+  if (files.length === 0) return '';
+  const moved = (change: FileChange) => change.started + change.stopped;
+  const rows = [...files]
+    .sort((a, b) => moved(b.change) - moved(a.change) || codeUnitOrder(a.change.file, b.change.file))
+    .map(({ suite, change }) => line(`touched:${suite ?? ''}:${change.file}`, change.file, change.started, change.stopped, suite));
+  return listed('Source files whose regions moved', 'regions that started and stopped running in each', rows);
 }
 
 function line(row: string, file: string, entered: number, left: number, suite?: string | undefined): string {

@@ -9,7 +9,7 @@ import type { Coverage } from './coverage.js';
 const CHANGE: SuiteChange = {
   gained: 2, lost: 0, hidden: 0, unmeasured: 0, thinned: 0,
   written: { regions: 0, run: 0 }, deleted: { regions: 0, run: 0 },
-  arrived: { regions: 0, run: 0, files: [] }, departed: { regions: 0, run: 0, files: [], ran: [] }, testFiles: [],
+  arrived: { regions: 0, run: 0, files: [] }, departed: { regions: 0, run: 0, files: [], ran: [] }, testFiles: [], files: [],
 };
 
 function source(regions: number, ran: number): CoverageSource {
@@ -280,6 +280,12 @@ describe('the coverage page of a change', () => {
         left: [region('packages/core/src/c.ts', 'four', 20)],
       },
     ],
+    // What started and stopped running per file, which reach alone does not say.
+    files: [
+      { file: 'packages/cli/src/a.ts', started: 30, stopped: 0 },
+      { file: 'packages/cli/src/old.ts', started: 0, stopped: 2 },
+      { file: 'packages/core/src/c.ts', started: 3, stopped: 8 },
+    ],
   };
   const answer: Coverage = {
     ...ANSWER,
@@ -310,14 +316,18 @@ describe('the coverage page of a change', () => {
     expect(row(html, 'moved:unit:test/wide.test.ts')).toContain('+3');
     expect(row(html, 'moved:unit:test/wide.test.ts')).toContain('−1');
     expect(html.indexOf('data-row="moved:unit:test/wide.test.ts"')).toBeLessThan(html.indexOf('data-row="moved:unit:test/small.test.ts"'));
-    expect(row(html, 'touched:packages/cli/src/a.ts')).toContain('+2');
-    expect(row(html, 'touched:packages/core/src/c.ts')).toContain('+1');
-    expect(row(html, 'touched:packages/core/src/c.ts')).toContain('−1');
+    expect(row(html, 'touched:unit:packages/cli/src/a.ts')).toContain('+30');
+    expect(row(html, 'touched:unit:packages/core/src/c.ts')).toContain('+3');
+    expect(row(html, 'touched:unit:packages/core/src/c.ts')).toContain('−8');
+    expect(row(html, 'touched:unit:packages/cli/src/old.ts')).toContain('−2');
+    expect(html.indexOf('data-row="touched:unit:packages/cli/src/a.ts"')).toBeLessThan(html.indexOf('data-row="touched:unit:packages/core/src/c.ts"'));
   });
 
   it('says there is no change to draw when no suite has a base', () => {
     const bare = formatCoverage({ ...ANSWER, suites: [ANSWER.suites[1]!, ANSWER.suites[2]!] }, 'html');
     expect(row(bare, 'change:none')).toContain('no suite has a base to compare with');
+    const alone = formatCoverage({ ...ANSWER, suites: [ANSWER.suites[1]!] }, 'html');
+    expect(row(alone, 'change:integration')).toContain('no base: integration is not given to the share');
   });
 
   it('names what no suite loads before the packages, folds the kinds, and orders packages by regions not run', () => {

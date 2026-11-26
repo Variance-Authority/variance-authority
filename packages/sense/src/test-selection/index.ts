@@ -240,6 +240,7 @@ export {
   textAsks,
   type CountedSuite,
   type CoverageCount,
+  type FileChange,
   type KindOverlap,
   type RegionRun,
   type RegionTally,

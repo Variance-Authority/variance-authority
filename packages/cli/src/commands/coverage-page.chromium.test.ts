@@ -33,6 +33,7 @@ const CHANGE: SuiteChange = {
   written: { regions: 0, run: 0 }, deleted: { regions: 0, run: 0 },
   arrived: { regions: 0, run: 0, files: [] }, departed: { regions: 0, run: 0, files: [], ran: [] },
   testFiles: [{ file: 'packages/cli/src/side-job.chromium.test.ts', entered: [region('one', 1)], left: [region('two', 9)] }],
+  files: [{ file: LONG, started: 406, stopped: 50 }],
 };
 const own = (regions: number, ran: number) => ({ seeds: 'entrypoints', files: 4, ran, regions }) as unknown as CoverageSource;
 const ANSWER: Coverage = {

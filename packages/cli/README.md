@@ -1452,8 +1452,8 @@ publishes this file on every push to your default branch.
 `--format html` writes the same answer as one page to open in a browser, on a
 desktop or a phone. It opens on what changed since the base: the ratio before
 and after, each suite's regions that started and stopped running, the test
-files whose reach moved and the source files whose regions moved, and a line
-for what no suite loads. Then it shows each suite's regions run, run only at
+files whose reach moved and the source files where regions started and
+stopped running, and a line for what no suite loads. Then it shows each suite's regions run, run only at
 load and loaded. With `--packages` it lists every package with its files, the
 packages with the most regions not run first, and with `--fan-in` the test
 files that cover each file, by kind. Folded under them is what each kind of
