@@ -30,8 +30,8 @@ export function askedTest(question: string, input: Record<string, unknown>, invo
 export const ASKED_TEST_INPUT = {
   type: 'object',
   properties: {
-    file: { type: 'string', description: 'The test file that declares the test, from the root of the checkout or of the file system.' },
-    name: { type: 'string', description: 'Optional when the file declares one recorded test. The test\'s name, or a word of it.' },
+    file: { type: 'string', description: 'The test file, from the root of the checkout or of the file system.' },
+    name: { type: 'string', description: 'The test\'s name or a word of it; optional when the file has one recorded test.' },
   },
   required: ['file'],
   additionalProperties: false,

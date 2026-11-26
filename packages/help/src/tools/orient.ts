@@ -69,21 +69,11 @@ export function asksOf(files: readonly string[]): readonly JourneysAsk[] {
 export const orient: Tool<unknown> = {
   name: 'docs_orient',
   description:
-    'With no files, prints the code map: the packages folded into a dozen or so areas per page, each with its size, ' +
-    'its dependency layers, the packages most imports into it land on and the areas it imports from most; `area` ' +
-    'opens one of those areas by its id. ' +
-    'For files you already have — from a stack trace, a ticket, or docs_search, docs_symbol and docs_grep, ' +
-    'which find them. Says which package each file is in, what each declares at its top level with its line and ' +
-    'whether an export binds it, a class\'s or an interface\'s members under it, within a line budget that counts what it left out, ' +
-    'what that package imports from other packages and ' +
-    'what other packages import from it, as each package\'s share of that side with the names it takes, ' +
-    'each name weighed against all the outside use of the package that exports it, ' +
-    'which external packages the local imports from those files request, ' +
-    'which recorded test cases ran each file or a test file declares, which functions in other files call into it and ' +
-    'which it calls, as the recorded cases were walked over the static call graph, with how each call is known, the package ' +
-    'flows those cases take through it, and the narrower questions to ask next. Reads the source index `variance index` ' +
-    'publishes, the latest recorded run and the journeys `variance index` prepares from it; does not scan source text or ' +
-    'run tests.',
+    'With no files, the code map: packages grouped into areas and dependency layers; `area` opens one. With files you already hold, for each: its package, its top-level ' +
+    'declarations and members, what crosses its package\'s edges, the external packages it requests, ' +
+    'the recorded tests that ran it, its callers and callees as those tests walked them, and the ' +
+    'narrower questions to ask next. It finds nothing itself and is the widest answer here. Reads ' +
+    'what `variance index` and the latest recorded run published.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -91,16 +81,15 @@ export const orient: Tool<unknown> = {
         type: 'array',
         items: { type: 'string' },
         description:
-          'Paths from the root, as git lists them, each with an optional `:<line>`. Every one is answered, in the order given; ' +
-          'a line narrows the journeys to the function holding it.',
+          'Paths from the root, as git lists them, each with an optional `:<line>` that narrows to the function holding it.',
       },
       area: {
         type: 'string',
-        description: 'The id of an area on the code map, as a page lists it (`4.1`). Without files or area, the top page.',
+        description: 'An area id, as the code map lists it (`4.1`).',
       },
       declarations: {
         type: 'boolean',
-        description: 'With files, print every declaration entry for each listed external dependency; otherwise the first three and a remaining count.',
+        description: 'With files: every declaration entry of each external dependency, not the first three.',
       },
     },
     additionalProperties: false,

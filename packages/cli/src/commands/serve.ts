@@ -163,7 +163,8 @@ const bench = (help: Served<Help>): Served<Bench> => ({
     'as suspect and why; both are read with the share token, which never decides.',
 });
 
-const BENCH = bench(HELP);
+/** The set `variance serve` lists: the report tools, costs, review, then the source questions. */
+export const SERVED: Served<Bench> = bench(HELP);
 const UNCOMPARED_BENCH = bench(UNCOMPARED_HELP);
 
 export interface ServeOptions {
@@ -217,7 +218,7 @@ export async function serve(config: Config, options: ServeOptions = {}): Promise
   return serveTools<Bench>({
     input: process.stdin,
     output: process.stdout,
-    served: options.justAnswer === true ? UNCOMPARED_BENCH : BENCH,
+    served: options.justAnswer === true ? UNCOMPARED_BENCH : SERVED,
     tree: () => tree,
     // The index the reading opened, so a question that names a name reads the generation it answers from.
     sourceIndex: (subject: Bench) => subject.help === undefined ? undefined : generationSourceIndex(subject.help, root, index),
