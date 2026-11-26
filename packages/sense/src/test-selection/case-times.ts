@@ -5,27 +5,12 @@ import type { ExecutionTest } from './reverse.js';
 import { put, varints } from './varints.js';
 
 /**
- * How long each statement of a cut case took, as the case index stores it
- * beside the case's lines.
- *
- * A case's row is every line of the test file its body cut at, in the order
- * it first reached them, each with the whole microseconds it held on the real
+ * How long each statement of a cut case took, and what surrounded it, as the
+ * case index stores it beside the case's lines: every line its body cut at, in
+ * the order it first reached them, each with its whole microseconds on the real
  * clock, a loop's runs summed. Nothing is left out or ranked: a reader that
- * wants the slowest statement reads it off the row.
- *
- * The bytes of one case are varint pairs: the line as its zigzagged distance
- * from the line before it, the first from 0, then its microseconds. No bytes
- * at all is a case whose statements were not timed, which a record of uncut
- * files holds for every case; a timed case has at least one statement.
- *
- * A row that read what surrounded its statements ({@link FIGURES}) starts with
- * a 0, which no pairs row does, as its first line is at least 1. Each pair is
- * then followed by one varint, a digit in base 3 per figure in their order: 0
- * absent, 1 held, 2 moved, its value following. A level held is the value
- * the statement before it last read, from 0, and one that moved is its
- * zigzagged step from there; a count of added nodes held is 0, and one that
- * moved is the count. So a statement whose surroundings stood still costs one
- * byte, and a figure no statement read costs nothing.
+ * wants the slowest statement reads it off the row. No bytes is a case whose
+ * statements were not timed; a timed case has at least one.
  */
 
 /**
@@ -88,7 +73,14 @@ export const TIMES_COLUMN = LAYOUT.cases.times;
 /** Where each case's bytes begin in {@link TIMES_COLUMN}, and one past the last case's. */
 export const TIMES_OFFSETS = LAYOUT.cases.timesOffsets;
 
-/** One case's bytes, none for a case whose statements were not timed. */
+/**
+ * One case's bytes: varint pairs, the line as its zigzagged step from the line
+ * before, the first from 0, then its microseconds. A row that read a figure
+ * starts with 0, which no first line is, and follows each pair with a digit in
+ * base 3 a figure — absent, held, moved — and each moved value: a level's
+ * zigzagged step from the last it read, from 0, or the count of added nodes,
+ * held at 0. A statement whose surroundings stood still costs one byte.
+ */
 export function encodeCaseTimes(times: readonly CaseTime[] | undefined): Uint8Array {
   if (times === undefined) return new Uint8Array(0);
   const around = times.some((time) => FIGURES.some((figure) => time[figure] !== undefined));

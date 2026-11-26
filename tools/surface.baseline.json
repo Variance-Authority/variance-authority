@@ -3492,6 +3492,7 @@
         "ago": "function",
         "anyStopped": "function",
         "applyPrune": "function",
+        "aroundText": "function",
         "askCoverageFile": "function",
         "askPerStand": "function",
         "askedSelection": "function",
