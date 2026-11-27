@@ -1,9 +1,16 @@
 import type { Tool } from '@variance-authority/mcp/tools';
-import { NO_ARGS, shellWord } from '@variance-authority/mcp/tools';
+import type { Page, Spelling } from '@variance-authority/mcp/tools';
+import { nextPage, pageAt, pageOf, paged, shellWord, spellingOf } from '@variance-authority/mcp/tools';
 import type { Documented, Help } from '@variance-authority/package/help';
 import { REACHING, UNFOLLOWED, counted, countsByPath, unfollowedEntry } from './by-path.js';
 import { NOTHING_PUBLISHED, specifierOf } from './find.js';
 import { mostUsed, narrower, openingRow, plural, section } from './format.js';
+
+/** The heading of the first list, so its paging lines say what they count. */
+const ENTRIES = 'Published entries, one row per import specifier:';
+
+/** Rows of each list shown when `limit` is not said: the first page answers where to start, and the rest are counted. */
+const SHOWN = 20;
 
 /**
  * `docs_packages` — what each package in this workspace is imported for, counted.
@@ -22,17 +29,27 @@ import { mostUsed, narrower, openingRow, plural, section } from './format.js';
 export const packages: Tool<Help> = {
   name: 'docs_packages',
   description:
-    'What each package in this workspace is imported for, counted: a row per import specifier a ' +
-    'package opens, with how many names it opens, how many of those anything imports and how many ' +
-    'carry documentation, or, for a package with no entry, the names and files other packages import ' +
-    'from it by path. Call it first: each row names the argument docs_entrypoint takes.',
-  inputSchema: NO_ARGS,
+    'What each workspace package is imported for, counted per import specifier it opens (names ' +
+    'opened, imported, documented) or, with no entry, by path. Call it first: each row names ' +
+    'docs_entrypoint\'s argument.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      limit: { type: 'integer', description: `Rows per list, the rest counted; ${SHOWN} when not said.` },
+      offset: { type: 'integer', minimum: 0, description: 'Rows to skip per list; 0 when not said.' },
+    },
+    additionalProperties: false,
+  },
 
-  run(help) {
+  run(help, input, invocation) {
+    const spell = spellingOf(invocation);
+    const page = pageOf(input, SHOWN, spell);
+    const rows = (all: readonly string[]): readonly string[] => listed(all, page, spell);
     const lines: string[] =
       help.packages.length === 0 ? [`${NOTHING_PUBLISHED.charAt(0).toUpperCase()}${NOTHING_PUBLISHED.slice(1)}.`] : [];
     const opened = help.packages.flatMap((published) => published.openings.map((held) => [published, held] as const));
-    lines.push(...opened.map(([published, held]) => openingRow(published, held)));
+    const entries = rows(opened.map(([published, held]) => openingRow(published, held)));
+    if (entries.length > 0) lines.push(ENTRIES, ...entries);
 
     // A package that declares no entry opens nothing to list. What other
     // packages import from it is its surface, and nothing else is.
@@ -42,7 +59,7 @@ export const packages: Tool<Help> = {
         lines,
         `${plural(counts.unentered.length, 'package that declares no entry is', 'packages that declare no entry are')} ` +
           'imported by path, most names first:',
-        ...counts.unentered.map(([owner, surface]) => `  ${owner} — ${counted(surface)}`),
+        ...rows(counts.unentered.map(([owner, surface]) => `  ${owner} — ${counted(surface)}`)),
       );
     }
     if (counts.deep.length > 0) {
@@ -50,7 +67,7 @@ export const packages: Tool<Help> = {
       section(
         lines,
         `${plural(reaching, 'import reaches', 'imports reach')} past a published entrypoint. ${REACHING}:`,
-        ...counts.deep.map(([owner, imports]) => `  ${owner} — ${plural(imports, 'import')}`),
+        ...rows(counts.deep.map(([owner, imports]) => `  ${owner} — ${plural(imports, 'import')}`)),
       );
     }
     // An entry this reading could not follow opens nothing, so the package has
@@ -73,7 +90,7 @@ export const packages: Tool<Help> = {
       section(
         lines,
         [...packaged, ...imported].join(' '),
-        ...counts.unfollowed.map(([owner, imports]) => `  ${owner} — ${plural(imports, 'import')}`),
+        ...rows(counts.unfollowed.map(([owner, imports]) => `  ${owner} — ${plural(imports, 'import')}`)),
       );
     }
 
@@ -83,7 +100,7 @@ export const packages: Tool<Help> = {
       section(
         lines,
         `${plural(help.unreadable.length, 'file')} could not be read, so the usage counts above are floors:`,
-        ...help.unreadable.map((at) => `  ${at}`),
+        ...rows(help.unreadable.map((at) => `  ${at}`)),
       );
     }
 
@@ -96,6 +113,16 @@ export const packages: Tool<Help> = {
     return [...lines, ...narrower(asks)].join('\n');
   },
 };
+
+/**
+ * One list's page. The one `offset` skips the first rows of every list alike and
+ * `limit` rows follow in each; a list cut short ends with how many rows it left
+ * and the `offset` that shows the next. A list with no rows prints nothing.
+ */
+function listed(all: readonly string[], page: Page, spell: Spelling): readonly string[] {
+  if (all.length === 0) return [];
+  return [...pageAt(page, all.length, spell), ...paged(all, page), ...nextPage(page, all.length, spell)];
+}
 
 /**
  * Of the packages whose entry this reading could not follow, the one with the

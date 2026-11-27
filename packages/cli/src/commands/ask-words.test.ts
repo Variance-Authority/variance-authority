@@ -31,40 +31,40 @@ async function run(argv: readonly string[]): Promise<{ code: number; out: string
 describe('a word a question about the code does not take', () => {
   it('is refused after a question that takes nothing, naming the word and saying it takes none', async () => {
     for (const word of ['bogus', '@kbn/does-not-exist']) {
-      const { code, out, err } = await run(['ask', 'packages', word]);
+      const { code, out, err } = await run(['ask', 'gaps', word]);
 
       expect(code).toBe(EXIT_OPERATOR);
       expect(out).toBe('');
-      expect(err).toContain(`\`${word}\` is not an argument \`variance ask packages\` takes; it takes none`);
+      expect(err).toContain(`\`${word}\` is not an argument \`variance ask gaps\` takes; it takes none`);
     }
   });
 
   it('is refused where the flag is answered past, each naming what the question takes', async () => {
-    const flag = await run(['ask', 'packages', '--package', '@kbn/does-not-exist']);
-    const word = await run(['ask', 'packages', '@kbn/does-not-exist']);
+    const flag = await run(['ask', 'gaps', '--package', '@kbn/does-not-exist']);
+    const word = await run(['ask', 'gaps', '@kbn/does-not-exist']);
 
     // The flag is named and passed over before the checkout is read; with no
     // index here, what follows is the answer's own failure, not a refusal of it.
     expect(word.code).toBe(EXIT_OPERATOR);
     expect(flag.err).not.toContain('takes; it takes none');
     expect(flag.err).toContain(
-      '`--package` is not an argument `variance ask packages` takes, so the answer is what it is without it; it takes none.',
+      '`--package` is not an argument `variance ask gaps` takes, so the answer is what it is without it; it takes none.',
     );
-    expect(word.err).toContain('`@kbn/does-not-exist` is not an argument `variance ask packages` takes; it takes none.');
+    expect(word.err).toContain('`@kbn/does-not-exist` is not an argument `variance ask gaps` takes; it takes none.');
   });
 
   it('is taken as the value of an unknown flag before it, which is named with it', async () => {
-    const { err } = await run(['ask', 'packages', '--limt', '5']);
+    const { err } = await run(['ask', 'gaps', '--limt', '5']);
 
     expect(err).not.toContain('`5` is not an argument');
-    expect(err).toContain('`--limt 5` is not an argument `variance ask packages` takes, so the answer is what it is without it; it takes none.');
+    expect(err).toContain('`--limt 5` is not an argument `variance ask gaps` takes, so the answer is what it is without it; it takes none.');
   });
 
   it('names `--claims` at a question about the source, and never opens its file', async () => {
-    const { err } = await run(['ask', 'packages', '--claims', 'missing.json']);
+    const { err } = await run(['ask', 'gaps', '--claims', 'missing.json']);
 
     expect(err).not.toContain('missing.json');
-    expect(err).toContain('`--claims` is not an argument `variance ask packages` takes, so the answer is what it is without it; it takes none.');
+    expect(err).toContain('`--claims` is not an argument `variance ask gaps` takes, so the answer is what it is without it; it takes none.');
   });
 
   it('is not the value of an unknown flag when it asks for help', () => {

@@ -2,7 +2,7 @@
 
 Ask it when you have no exact specifier. A published specifier is each subpath a
 `package.json` `exports` field opens, or, with no `exports`, the bare name its
-`types` or `main` opens. It takes no argument and counts, one row per specifier:
+`types` or `main` opens. It needs no argument and counts, one row per specifier:
 the names it opens, how many anything imports, how many are documented. A
 package that declares no entry gets an indented row with how many of its names
 and files other packages import by path, and imports past a declared entry, deep
@@ -21,6 +21,11 @@ packages whose entry this reading could not follow, the one with the most
 imports past it, those the repository has. Asked by the name of a package whose
 `exports` opens only subpaths, `entrypoint` lists the specifiers it opens in
 place of the names of a main entry.
+
+Each list shows 20 rows; a heading above one still counts all of it. `--limit` sets
+the rows of every list, and `--offset` skips the same number of rows at the top
+of each. A list cut short ends with how many rows it left and the `--offset`
+that shows the next page; a list the offset is past says so in one line.
 
 `packages` and `entrypoint` answer for the JavaScript half of a mixed
 repository. The other verbs read the source and answer for every language: ask

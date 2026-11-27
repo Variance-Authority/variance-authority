@@ -17,9 +17,8 @@ pub(super) fn answer(
     };
     let mut lines = vec![heading];
     lines.extend(headers.iter().map(|line| format!("- {line}")));
-    let end = page.offset.saturating_add(page.limit).min(files.len());
     if !files.is_empty() {
-        let shown = &files[page.offset.min(end)..end];
+        let shown = &files[page.rows(files.len())];
         let chains: Vec<Vec<_>> = reaches
             .iter()
             .map(|(set, reach)| shown.iter().map(|&file| reach.chain(file, set.files[file], &set.evidence)).collect())
@@ -39,11 +38,7 @@ pub(super) fn answer(
             let which = if chained.len() > 1 { format!("{} ", reaches[at].1.said) } else { String::new() };
             lines.push(format!("chains {which}end: {}", suffix.join(" → ")));
         }
-        if page.offset >= files.len() {
-            lines.push(format!("`--offset` {} is past the last of {} rows.", page.offset, files.len()));
-        } else if page.offset != 0 {
-            lines.push(format!("Rows {}–{end} of {}.", page.offset + 1, files.len()));
-        }
+        lines.extend(page.above(files.len(), "--offset"));
         for (row, &file) in shown.iter().enumerate() {
             let mut lead = String::new();
             for (set, _) in &reaches {
@@ -77,10 +72,7 @@ pub(super) fn answer(
         }
     }
     lines.extend(notes.iter().map(|note| format!("note: {note}")));
-    if end < files.len() {
-        let more = files.len() - end;
-        lines.push(format!("{more} more not shown; `--offset` {end} shows the next {}.", more.min(page.limit)));
-    }
+    lines.extend(page.below(files.len(), "--offset"));
     lines.join("\n")
 }
 
