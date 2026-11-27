@@ -122,6 +122,7 @@ case from the next.
 | Storybook | the story | the story, which is already the unit the preview shows |
 | [A JVM on the JUnit Platform](jvm.md) | the test class's source file | the top-level test class, which the listener closes as the next one starts |
 | [Cargo](rust.md) | the `.rs` file the tests are declared in | the test, which runs alone in its own process |
+| [pytest](python.md) | the `.py` file the tests are declared in | the test, by its pytest node id |
 | [Any other runner](../packages/sense/README.md#record-a-runner-this-package-has-no-seam-for) | the test file it observes | the body it hands to `observer.case` |
 
 None of the Node seams asks you to change a runner option to record cases, and the

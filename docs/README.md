@@ -173,7 +173,7 @@ Each path needs different evidence:
   that suite is cheaper to run and less work to keep here than as screenshots.
 - Source discovery needs only a readable TypeScript checkout.
 - Test selection and reduction need an [execution record](execution-record.md), which a
-  Node runner, a [`node:test` suite](node-test.md), a [JVM test suite](jvm.md) or a [Cargo suite](rust.md) writes.
+  Node runner, a [`node:test` suite](node-test.md), a [JVM test suite](jvm.md) or a [Cargo suite](rust.md) or a [pytest suite](python.md) writes.
 - A [trace](trace.md) of a run needs a Playwright run recorded, and opens in any
   OpenTelemetry viewer.
 - Live investigation needs a watcher running before the suite starts.

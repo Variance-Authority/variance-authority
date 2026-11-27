@@ -47,6 +47,7 @@ import information from "../../../docs/information.md?raw";
 import instruments from "../../../docs/instruments.md?raw";
 import journeys from "../../../docs/journeys.md?raw";
 import jvm from "../../../docs/jvm.md?raw";
+import python from "../../../docs/python.md?raw";
 import rust from "../../../docs/rust.md?raw";
 import nodeTest from "../../../docs/node-test.md?raw";
 import lateContent from "../../../docs/late-content.md?raw";
@@ -214,6 +215,7 @@ const documents = [
   ["observability", observability, "docs/observability.md"],
   ["journeys", journeys, "docs/journeys.md"],
   ["jvm", jvm, "docs/jvm.md"],
+  ["python", python, "docs/python.md"],
   ["rust", rust, "docs/rust.md"],
   ["node-test", nodeTest, "docs/node-test.md"],
   ["across-dimensions", acrossDimensions, "docs/across-dimensions.md"],
