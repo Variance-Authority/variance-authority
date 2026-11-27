@@ -11,7 +11,6 @@
  * stands is {@link reuseOf}'s to say.
  */
 
-import { existsSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import {
@@ -270,7 +269,7 @@ async function readMainline(root: string, suite: string, chosen: MainlineSelecti
   const pointer: FetchedMainline = { mainline: found.mainline, commit: found.commit, fetched, ...(base === undefined ? {} : { base }), ...(found.partial === true ? { partial: true as const } : {}) };
   // This checkout's own pointer names what it stands on, which no sibling's fetch moves.
   await selection.writeFetchedMainline(cacheRoot, suite, pointer);
-  await nameShared(root, suite, here.cacheRoot, pointer);
+  if (store === shared) await nameShared(root, store, suite, pointer);
   await rm(join(readRoot, MISSED), { force: true });
   // Each fetch of a new commit adds a directory here, and a fetch is where
   // they are made, so it is where they are taken back: once a day, by the rule
@@ -330,20 +329,16 @@ async function earlier(
 }
 
 /**
- * Name `pointer` in the shared cache too, so a checkout that has fetched
- * nothing reads it, unless that cache already names a record ahead of it on
- * the line: a fetch at an older merge base never takes the newest answer away.
- * Best effort: a cache it may not write keeps the answer it named.
+ * Name `pointer` in the shared cache `store`, which this fetch just kept its
+ * record in, so a checkout that has fetched nothing reads it, unless that cache
+ * already names a record ahead of it on the line: a fetch at an older merge
+ * base never takes the newest answer away.
  */
-async function nameShared(root: string, suite: string, named: string | undefined, pointer: FetchedMainline): Promise<void> {
+async function nameShared(root: string, store: string, suite: string, pointer: FetchedMainline): Promise<void> {
   const selection = await import('@variance-authority/sense/test-selection');
-  const store = selection.sharedMainlineStore(root, suite, named);
-  if (store === undefined) return;
-  const readRoot = selection.mainlineReadRoot(store, suite);
-  if (!existsSync(join(readRoot, pointer.commit, 'coverage.bin'))) return;
-  const there = selection.readFetchedMainline(readRoot, selection.SHARED_MAINLINE);
+  const there = selection.readFetchedMainline(selection.mainlineReadRoot(store, suite), selection.SHARED_MAINLINE);
   if (there !== undefined && there.commit !== pointer.commit && there.mainline === pointer.mainline && succeeds(root, 'merge-base', '--is-ancestor', pointer.commit, there.commit)) return;
-  await selection.writeFetchedMainline(store, suite, pointer, selection.SHARED_MAINLINE).catch(() => undefined);
+  await selection.writeFetchedMainline(store, suite, pointer, selection.SHARED_MAINLINE);
 }
 
 /** Pin a record this checkout reused from another's cache as its own, so a sibling's later fetch does not move it. Best effort. */

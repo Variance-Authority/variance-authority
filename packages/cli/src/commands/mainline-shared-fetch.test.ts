@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { cp, mkdtemp, readdir, readFile, realpath, rm, stat, utimes, writeFile } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readdir, readFile, realpath, rm, stat, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -179,6 +179,15 @@ describe('a mainline record one worktree fetched', () => {
     expect(existsSync(own)).toBe(true);
     // What the fetch kept is what the runner seams read, not the other build's bytes.
     expect(lastFetchedMainline(two, 'unit')).toMatchObject({ commit: next, coverage: own });
+  });
+
+  it('is read by a sibling whose own cache takes no pointer', async () => {
+    const { next, one, two, base } = await laptop();
+    expect(await base(one)).toMatchObject({ commit: next });
+    // Where its own pointer would go, something it cannot replace.
+    await mkdir(join(mainlineReadRoot(cacheRootFor(two), 'unit'), 'fetched.json'), { recursive: true });
+
+    expect(await base(two)).toMatchObject({ commit: next, distance: 0 });
   });
 
   it('is not taken from a fresh worktree when the primary checkout fetches at its older merge base', async () => {
