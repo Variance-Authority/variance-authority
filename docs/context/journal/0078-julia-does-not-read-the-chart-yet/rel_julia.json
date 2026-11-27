@@ -1,0 +1,2550 @@
+{
+ "cases": [
+  "0002-history-store.md",
+  "0008-locale-runs.md",
+  "0011-storage-and-cache-primitives.md",
+  "0013-a-real-agent.md",
+  "0014-hosted-who-the-caller-is-and-what-the-bill-counts.md",
+  "0022-evidence-from-code-this-project-did-not-write.md",
+  "0028-the-instrument.md",
+  "0029-what-a-run-remembers.md",
+  "0031-a-contract-is-a-subject.md",
+  "0036-a-journey-crosses-processes.md",
+  "0042-a-start-point-is-a-path-sense-holds.md",
+  "0043-a-record-costs-what-the-run-cost.md",
+  "0044-many-writers-one-record.md",
+  "0045-a-snapshot-states-its-own-age.md",
+  "0046-the-safety-rule-lives-in-one-place.md",
+  "0047-a-skip-list-is-worth-what-it-skips.md",
+  "0048-a-worker-that-dies-says-so.md",
+  "0051-a-sensitivity-is-scoped-by-id-and-nothing-else.md",
+  "0055-a-workspace-import-resolves-to-its-source.md",
+  "0056-a-session-daemon-keeps-the-index-current.md",
+  "0059-a-change-runs-the-cases-that-ran-it.md",
+  "0061-a-depends-directive-takes-a-glob.md",
+  "0062-a-suite-says-which-files-reach-it.md",
+  "0063-an-editor-asks-about-the-text-it-holds.md",
+  "0067-a-case-carries-its-outcome.md",
+  "0068-an-edit-runs-what-it-reaches-from-the-editor.md",
+  "0070-a-change-says-what-its-tests-moved.md",
+  "0071-a-test-is-read-alone.md",
+  "0072-a-case-read-two-ways-is-compared-with-itself.md",
+  "0074-what-ci-derived-is-reachable-from-a-checkout.md",
+  "0079-shards-steal-from-each-other.md",
+  "0080-coverage-is-counted-per-kind.md",
+  "0087-every-suite-is-compared-with-its-own-base.md",
+  "0088-a-suite-is-carried-alone.md",
+  "0089-this-repository-reports-every-kind-it-runs.md"
+ ],
+ "gold": {
+  "0002-history-store.md": [
+   "retention"
+  ],
+  "0008-locale-runs.md": [
+   "adjudication"
+  ],
+  "0011-storage-and-cache-primitives.md": [
+   "acquisition",
+   "adjudication",
+   "materialization",
+   "normalization",
+   "retention",
+   "stability"
+  ],
+  "0013-a-real-agent.md": [
+   "adjudication",
+   "report"
+  ],
+  "0014-hosted-who-the-caller-is-and-what-the-bill-counts.md": [
+   "review"
+  ],
+  "0022-evidence-from-code-this-project-did-not-write.md": [
+   "acquisition"
+  ],
+  "0028-the-instrument.md": [
+   "reach"
+  ],
+  "0029-what-a-run-remembers.md": [
+   "reach"
+  ],
+  "0031-a-contract-is-a-subject.md": [
+   "acquisition",
+   "materialization"
+  ],
+  "0036-a-journey-crosses-processes.md": [
+   "reach"
+  ],
+  "0042-a-start-point-is-a-path-sense-holds.md": [
+   "adjudication",
+   "reach",
+   "report"
+  ],
+  "0043-a-record-costs-what-the-run-cost.md": [
+   "reach"
+  ],
+  "0044-many-writers-one-record.md": [
+   "adjudication",
+   "reach"
+  ],
+  "0045-a-snapshot-states-its-own-age.md": [
+   "reach"
+  ],
+  "0046-the-safety-rule-lives-in-one-place.md": [
+   "reach"
+  ],
+  "0047-a-skip-list-is-worth-what-it-skips.md": [
+   "adjudication",
+   "reach"
+  ],
+  "0048-a-worker-that-dies-says-so.md": [
+   "reach"
+  ],
+  "0051-a-sensitivity-is-scoped-by-id-and-nothing-else.md": [
+   "adjudication",
+   "normalization"
+  ],
+  "0055-a-workspace-import-resolves-to-its-source.md": [
+   "acquisition",
+   "normalization",
+   "reach"
+  ],
+  "0056-a-session-daemon-keeps-the-index-current.md": [
+   "reach"
+  ],
+  "0059-a-change-runs-the-cases-that-ran-it.md": [
+   "reach"
+  ],
+  "0061-a-depends-directive-takes-a-glob.md": [
+   "reach"
+  ],
+  "0062-a-suite-says-which-files-reach-it.md": [
+   "reach"
+  ],
+  "0063-an-editor-asks-about-the-text-it-holds.md": [
+   "adjudication",
+   "reach"
+  ],
+  "0067-a-case-carries-its-outcome.md": [
+   "reach"
+  ],
+  "0068-an-edit-runs-what-it-reaches-from-the-editor.md": [
+   "reach"
+  ],
+  "0070-a-change-says-what-its-tests-moved.md": [
+   "reach"
+  ],
+  "0071-a-test-is-read-alone.md": [
+   "reach"
+  ],
+  "0072-a-case-read-two-ways-is-compared-with-itself.md": [
+   "reach"
+  ],
+  "0074-what-ci-derived-is-reachable-from-a-checkout.md": [
+   "adjudication",
+   "reach"
+  ],
+  "0079-shards-steal-from-each-other.md": [
+   "adjudication",
+   "reach"
+  ],
+  "0080-coverage-is-counted-per-kind.md": [
+   "adjudication",
+   "reach"
+  ],
+  "0087-every-suite-is-compared-with-its-own-base.md": [
+   "adjudication",
+   "reach"
+  ],
+  "0088-a-suite-is-carried-alone.md": [
+   "adjudication",
+   "reach"
+  ],
+  "0089-this-repository-reports-every-kind-it-runs.md": [
+   "acquisition"
+  ]
+ },
+ "bm": {
+  "0002-history-store.md": [
+   "retention",
+   "review"
+  ],
+  "0008-locale-runs.md": [
+   "adjudication",
+   "acquisition"
+  ],
+  "0011-storage-and-cache-primitives.md": [
+   "retention",
+   "reach"
+  ],
+  "0013-a-real-agent.md": [
+   "report",
+   "acquisition"
+  ],
+  "0014-hosted-who-the-caller-is-and-what-the-bill-counts.md": [
+   "review",
+   "retention"
+  ],
+  "0022-evidence-from-code-this-project-did-not-write.md": [
+   "acquisition",
+   "retention"
+  ],
+  "0028-the-instrument.md": [
+   "reach",
+   "acquisition"
+  ],
+  "0029-what-a-run-remembers.md": [
+   "reach",
+   "retention"
+  ],
+  "0031-a-contract-is-a-subject.md": [
+   "review",
+   "acquisition"
+  ],
+  "0036-a-journey-crosses-processes.md": [
+   "reach",
+   "runtime"
+  ],
+  "0042-a-start-point-is-a-path-sense-holds.md": [
+   "reach",
+   "retention"
+  ],
+  "0043-a-record-costs-what-the-run-cost.md": [
+   "retention",
+   "reach"
+  ],
+  "0044-many-writers-one-record.md": [
+   "reach",
+   "stability"
+  ],
+  "0045-a-snapshot-states-its-own-age.md": [
+   "reach",
+   "retention"
+  ],
+  "0046-the-safety-rule-lives-in-one-place.md": [
+   "reach",
+   "retention"
+  ],
+  "0047-a-skip-list-is-worth-what-it-skips.md": [
+   "reach",
+   "stability"
+  ],
+  "0048-a-worker-that-dies-says-so.md": [
+   "runtime",
+   "reach"
+  ],
+  "0051-a-sensitivity-is-scoped-by-id-and-nothing-else.md": [
+   "adjudication",
+   "retention"
+  ],
+  "0055-a-workspace-import-resolves-to-its-source.md": [
+   "reach",
+   "retention"
+  ],
+  "0056-a-session-daemon-keeps-the-index-current.md": [
+   "reach",
+   "runtime"
+  ],
+  "0059-a-change-runs-the-cases-that-ran-it.md": [
+   "reach",
+   "runtime"
+  ],
+  "0061-a-depends-directive-takes-a-glob.md": [
+   "reach",
+   "acquisition"
+  ],
+  "0062-a-suite-says-which-files-reach-it.md": [
+   "reach",
+   "adjudication"
+  ],
+  "0063-an-editor-asks-about-the-text-it-holds.md": [
+   "reach",
+   "acquisition"
+  ],
+  "0067-a-case-carries-its-outcome.md": [
+   "reach",
+   "retention"
+  ],
+  "0068-an-edit-runs-what-it-reaches-from-the-editor.md": [
+   "reach",
+   "runtime"
+  ],
+  "0070-a-change-says-what-its-tests-moved.md": [
+   "reach",
+   "acquisition"
+  ],
+  "0071-a-test-is-read-alone.md": [
+   "reach",
+   "runtime"
+  ],
+  "0072-a-case-read-two-ways-is-compared-with-itself.md": [
+   "reach",
+   "stability"
+  ],
+  "0074-what-ci-derived-is-reachable-from-a-checkout.md": [
+   "report",
+   "reach"
+  ],
+  "0079-shards-steal-from-each-other.md": [
+   "acquisition",
+   "reach"
+  ],
+  "0080-coverage-is-counted-per-kind.md": [
+   "reach",
+   "retention"
+  ],
+  "0087-every-suite-is-compared-with-its-own-base.md": [
+   "reach",
+   "report"
+  ],
+  "0088-a-suite-is-carried-alone.md": [
+   "reach",
+   "review"
+  ],
+  "0089-this-repository-reports-every-kind-it-runs.md": [
+   "reach",
+   "acquisition"
+  ]
+ },
+ "out": {
+  "0002-history-store.md": {
+   "retention": {
+    "choice": [
+     {
+      "PRIMARY": 0.0020598814929262627,
+      "SUPPLIER": 0.0021500279198107953,
+      "CONSUMER": 0.023866428033017726,
+      "CONSEQUENCE": 0.9696820328997398,
+      "UNRELATED": 0.0022416296545055
+     },
+     {
+      "PRIMARY": 0.06320824120826044,
+      "SUPPLIER": 0.02287520168111741,
+      "CONSUMER": 0.35160560668822893,
+      "CONSEQUENCE": 0.5351741479849568,
+      "UNRELATED": 0.027136802437436467
+     },
+     {
+      "PRIMARY": 0.0030311242066674944,
+      "SUPPLIER": 0.0006047298622771039,
+      "CONSUMER": 0.0781204369159532,
+      "CONSEQUENCE": 0.9176522249927122,
+      "UNRELATED": 0.0005914840223900398
+     }
+    ],
+    "noul": [
+     0.0007648743585782647,
+     0.00571508942849671,
+     0.029559950880662565,
+     0.0006897264859424189
+    ]
+   },
+   "review": {
+    "choice": [
+     {
+      "PRIMARY": 0.004992616913156006,
+      "SUPPLIER": 0.06330069252573894,
+      "CONSUMER": 0.5852609957818947,
+      "CONSEQUENCE": 0.3447148753908516,
+      "UNRELATED": 0.0017308193883586957
+     },
+     {
+      "PRIMARY": 0.00019146863925436795,
+      "SUPPLIER": 0.00030094880881453596,
+      "CONSUMER": 0.0006775805693649865,
+      "CONSEQUENCE": 0.9987785721474169,
+      "UNRELATED": 5.142983514916382e-05
+     },
+     {
+      "PRIMARY": 0.0032720719876924453,
+      "SUPPLIER": 0.018495584216888208,
+      "CONSUMER": 0.5599660385559428,
+      "CONSEQUENCE": 0.4175934175001371,
+      "UNRELATED": 0.0006728877393393214
+     }
+    ],
+    "noul": [
+     0.17483039788922794,
+     0.0014848538829405006,
+     0.0007096203536182547,
+     0.0001626293336971487
+    ]
+   }
+  },
+  "0008-locale-runs.md": {
+   "acquisition": {
+    "choice": [
+     {
+      "PRIMARY": 0.003818900795937078,
+      "SUPPLIER": 0.004671203718586631,
+      "CONSUMER": 0.027387974831116272,
+      "CONSEQUENCE": 0.961222522037749,
+      "UNRELATED": 0.0028993986166109035
+     },
+     {
+      "PRIMARY": 0.00029872766340309633,
+      "SUPPLIER": 0.0025805972276582057,
+      "CONSUMER": 0.12024042055250932,
+      "CONSEQUENCE": 0.8763692431836276,
+      "UNRELATED": 0.0005110113728017111
+     },
+     {
+      "PRIMARY": 0.0015407940864279428,
+      "SUPPLIER": 0.0066686139900103015,
+      "CONSUMER": 0.026876322054742635,
+      "CONSEQUENCE": 0.9627790167560185,
+      "UNRELATED": 0.002135253112800529
+     }
+    ],
+    "noul": [
+     0.6802063384825788,
+     0.8227000918906895,
+     0.7733456074848546,
+     0.9937139190645945
+    ]
+   },
+   "adjudication": {
+    "choice": [
+     {
+      "PRIMARY": 0.0017735189224848094,
+      "SUPPLIER": 0.0003213644386792457,
+      "CONSUMER": 0.7612128454022508,
+      "CONSEQUENCE": 0.23622408099775644,
+      "UNRELATED": 0.00046819023882875837
+     },
+     {
+      "PRIMARY": 0.00014889733385208795,
+      "SUPPLIER": 0.00015865282710219694,
+      "CONSUMER": 0.809511239522913,
+      "CONSEQUENCE": 0.18992745934756125,
+      "UNRELATED": 0.0002537509685714027
+     },
+     {
+      "PRIMARY": 0.00035238361121444636,
+      "SUPPLIER": 0.00019781978092860817,
+      "CONSUMER": 0.21427819293451456,
+      "CONSEQUENCE": 0.7849739291039368,
+      "UNRELATED": 0.00019767456940551748
+     }
+    ],
+    "noul": [
+     0.25391746135665555,
+     0.006287352178464914,
+     0.004372751550612535,
+     0.005879992504445534
+    ]
+   }
+  },
+  "0011-storage-and-cache-primitives.md": {
+   "retention": {
+    "choice": [
+     {
+      "PRIMARY": 0.012348522301027481,
+      "SUPPLIER": 0.03502451847806369,
+      "CONSUMER": 0.1503050135566974,
+      "CONSEQUENCE": 0.7239797901552587,
+      "UNRELATED": 0.07834215550895277
+     },
+     {
+      "PRIMARY": 0.016560419077631085,
+      "SUPPLIER": 0.616944442045695,
+      "CONSUMER": 0.24310236893605333,
+      "CONSEQUENCE": 0.1130895483203674,
+      "UNRELATED": 0.01030322162025331
+     },
+     {
+      "PRIMARY": 0.0943773548503211,
+      "SUPPLIER": 0.34821904012297733,
+      "CONSUMER": 0.30531815114726135,
+      "CONSEQUENCE": 0.23229816851949706,
+      "UNRELATED": 0.019787285359943212
+     }
+    ],
+    "noul": [
+     0.04334890834348196,
+     0.05378867288823983,
+     0.010719321417386053,
+     0.010174907742591121
+    ]
+   },
+   "reach": {
+    "choice": [
+     {
+      "PRIMARY": 0.0001774782817597516,
+      "SUPPLIER": 0.00010030105465613968,
+      "CONSUMER": 0.9990580264806815,
+      "CONSEQUENCE": 0.0006312758419789262,
+      "UNRELATED": 3.2918340923685095e-05
+     },
+     {
+      "PRIMARY": 0.0035552856006076344,
+      "SUPPLIER": 0.0053332972353532775,
+      "CONSUMER": 0.9768306150527792,
+      "CONSEQUENCE": 0.012663596936305989,
+      "UNRELATED": 0.0016172051749538529
+     },
+     {
+      "PRIMARY": 0.03186515789300695,
+      "SUPPLIER": 0.0037256221156244163,
+      "CONSUMER": 0.9581807078686242,
+      "CONSEQUENCE": 0.005615050922224133,
+      "UNRELATED": 0.0006134612005202664
+     }
+    ],
+    "noul": [
+     0.7323690318660229,
+     0.8704500531269583,
+     0.9907280797460086,
+     0.6337137423281435
+    ]
+   }
+  },
+  "0013-a-real-agent.md": {
+   "acquisition": {
+    "choice": [
+     {
+      "PRIMARY": 0.010959917305097572,
+      "SUPPLIER": 0.01027758366198356,
+      "CONSUMER": 0.6931530118838386,
+      "CONSEQUENCE": 0.28132878773854303,
+      "UNRELATED": 0.004280699410537187
+     },
+     {
+      "PRIMARY": 0.03489798348209043,
+      "SUPPLIER": 0.014590117705399351,
+      "CONSUMER": 0.6117326721370576,
+      "CONSEQUENCE": 0.32572641052737605,
+      "UNRELATED": 0.013052816148076612
+     },
+     {
+      "PRIMARY": 0.013347233936564007,
+      "SUPPLIER": 0.009079213323590494,
+      "CONSUMER": 0.8122403523771722,
+      "CONSEQUENCE": 0.16308309169980972,
+      "UNRELATED": 0.0022501086628637004
+     }
+    ],
+    "noul": [
+     0.8156327230469116,
+     0.9838644601039728,
+     0.8052198800961701,
+     0.8363945315394121
+    ]
+   },
+   "report": {
+    "choice": [
+     {
+      "PRIMARY": 0.1990969068232,
+      "SUPPLIER": 0.4243185886925934,
+      "CONSUMER": 0.01344409814757824,
+      "CONSEQUENCE": 0.3517832008188766,
+      "UNRELATED": 0.011357205517751753
+     },
+     {
+      "PRIMARY": 0.14882483866475546,
+      "SUPPLIER": 0.3635795396118374,
+      "CONSUMER": 0.021173091890868155,
+      "CONSEQUENCE": 0.43044678984273393,
+      "UNRELATED": 0.03597573998980504
+     },
+     {
+      "PRIMARY": 0.5284744408015074,
+      "SUPPLIER": 0.0644668098234751,
+      "CONSUMER": 0.010084593621676269,
+      "CONSEQUENCE": 0.38882846679429034,
+      "UNRELATED": 0.008145688959050913
+     }
+    ],
+    "noul": [
+     0.9468072425810488,
+     0.9385723861222044,
+     0.8070808007741398,
+     0.4971746507004391
+    ]
+   }
+  },
+  "0014-hosted-who-the-caller-is-and-what-the-bill-counts.md": {
+   "retention": {
+    "choice": [
+     {
+      "PRIMARY": 0.007197127808089377,
+      "SUPPLIER": 0.0035054146107766668,
+      "CONSUMER": 0.0012034543265664048,
+      "CONSEQUENCE": 0.9815098729419236,
+      "UNRELATED": 0.006584130312643883
+     },
+     {
+      "PRIMARY": 0.0009235443000520066,
+      "SUPPLIER": 0.0012418559829646364,
+      "CONSUMER": 0.001474708121576924,
+      "CONSEQUENCE": 0.9938778927536139,
+      "UNRELATED": 0.0024819988417926044
+     },
+     {
+      "PRIMARY": 0.00167552376146326,
+      "SUPPLIER": 0.0013974994084307551,
+      "CONSUMER": 0.009207172085425324,
+      "CONSEQUENCE": 0.9798332456626146,
+      "UNRELATED": 0.007886559082066086
+     }
+    ],
+    "noul": [
+     0.04384647636798304,
+     0.24920993656687626,
+     0.2442861474768694,
+     0.0004152396595610369
+    ]
+   },
+   "review": {
+    "choice": [
+     {
+      "PRIMARY": 0.012061155029110086,
+      "SUPPLIER": 0.09888302637026672,
+      "CONSUMER": 0.006644687262708512,
+      "CONSEQUENCE": 0.8421320613702972,
+      "UNRELATED": 0.0402790699676175
+     },
+     {
+      "PRIMARY": 0.05997018759616146,
+      "SUPPLIER": 0.08181532190368955,
+      "CONSUMER": 0.0111737402303523,
+      "CONSEQUENCE": 0.8148116376209817,
+      "UNRELATED": 0.03222911264881495
+     },
+     {
+      "PRIMARY": 0.032908839770622596,
+      "SUPPLIER": 0.15083708360920725,
+      "CONSUMER": 0.0668480050294946,
+      "CONSEQUENCE": 0.6579138696797926,
+      "UNRELATED": 0.09149220191088289
+     }
+    ],
+    "noul": [
+     0.7623617869981439,
+     0.8297329343535369,
+     0.22787108276369,
+     0.0744101127778063
+    ]
+   }
+  },
+  "0022-evidence-from-code-this-project-did-not-write.md": {
+   "retention": {
+    "choice": [
+     {
+      "PRIMARY": 0.00886457269824484,
+      "SUPPLIER": 0.009330088782187928,
+      "CONSUMER": 0.04990059171323715,
+      "CONSEQUENCE": 0.916496439723872,
+      "UNRELATED": 0.015408307082458078
+     },
+     {
+      "PRIMARY": 0.1718315169544901,
+      "SUPPLIER": 0.059637525458941146,
+      "CONSUMER": 0.15850526661385259,
+      "CONSEQUENCE": 0.5014830741784906,
+      "UNRELATED": 0.10854261679422557
+     },
+     {
+      "PRIMARY": 0.04642072644028708,
+      "SUPPLIER": 0.022404928786264055,
+      "CONSUMER": 0.1652952314142775,
+      "CONSEQUENCE": 0.7114607518826278,
+      "UNRELATED": 0.05441836147654359
+     }
+    ],
+    "noul": [
+     0.07402455377357572,
+     0.03274143517333603,
+     0.0011187293229725766,
+     0.12565054810987775
+    ]
+   },
+   "acquisition": {
+    "choice": [
+     {
+      "PRIMARY": 0.004379663811402385,
+      "SUPPLIER": 0.004330654169983562,
+      "CONSUMER": 0.29128869041233046,
+      "CONSEQUENCE": 0.697430731096013,
+      "UNRELATED": 0.0025702605102706625
+     },
+     {
+      "PRIMARY": 0.012124081964590881,
+      "SUPPLIER": 0.02486099201956913,
+      "CONSUMER": 0.3789050558879552,
+      "CONSEQUENCE": 0.5752903380803587,
+      "UNRELATED": 0.00881953204752609
+     },
+     {
+      "PRIMARY": 0.0037825297770263627,
+      "SUPPLIER": 0.004218067279478666,
+      "CONSUMER": 0.7163730637651282,
+      "CONSEQUENCE": 0.2729440855585525,
+      "UNRELATED": 0.0026822536198143152
+     }
+    ],
+    "noul": [
+     0.005301643401679324,
+     0.006461984997734091,
+     0.00024343971964920972,
+     0.0004414250899882249
+    ]
+   }
+  },
+  "0028-the-instrument.md": {
+   "reach": {
+    "choice": [
+     {
+      "PRIMARY": 0.018668267788433435,
+      "SUPPLIER": 0.12283888696536793,
+      "CONSUMER": 0.046447837941822605,
+      "CONSEQUENCE": 0.28489745243690917,
+      "UNRELATED": 0.5271475548674668
+     },
+     {
+      "PRIMARY": 0.02525534571898828,
+      "SUPPLIER": 0.2259486406148199,
+      "CONSUMER": 0.28521292186376757,
+      "CONSEQUENCE": 0.32929648980875903,
+      "UNRELATED": 0.13428660199366527
+     },
+     {
+      "PRIMARY": 0.004509709770652753,
+      "SUPPLIER": 0.008333938189444817,
+      "CONSUMER": 0.4729372837172801,
+      "CONSEQUENCE": 0.4994136732076861,
+      "UNRELATED": 0.014805395114936094
+     }
+    ],
+    "noul": [
+     0.5495696188462187,
+     0.8646611943369954,
+     0.015418172668245108,
+     0.5093686045301294
+    ]
+   },
+   "acquisition": {
+    "choice": [
+     {
+      "PRIMARY": 0.06916070141822754,
+      "SUPPLIER": 0.043685299293104524,
+      "CONSUMER": 0.17450155843786133,
+      "CONSEQUENCE": 0.6683547976295422,
+      "UNRELATED": 0.04429764322126445
+     },
+     {
+      "PRIMARY": 0.03696630457501823,
+      "SUPPLIER": 0.0885430222528627,
+      "CONSUMER": 0.07377761993379983,
+      "CONSEQUENCE": 0.7755352896002196,
+      "UNRELATED": 0.025177763638099617
+     },
+     {
+      "PRIMARY": 0.008189959989762245,
+      "SUPPLIER": 0.010417138454041436,
+      "CONSUMER": 0.06735226571985267,
+      "CONSEQUENCE": 0.9057280630200676,
+      "UNRELATED": 0.008312572816276126
+     }
+    ],
+    "noul": [
+     0.8170382713127775,
+     0.968603768398344,
+     0.8880236946104154,
+     0.9842061245429509
+    ]
+   }
+  },
+  "0029-what-a-run-remembers.md": {
+   "retention": {
+    "choice": [
+     {
+      "PRIMARY": 0.05436688624019524,
+      "SUPPLIER": 0.0698255089211777,
+      "CONSUMER": 0.2298284523032485,
+      "CONSEQUENCE": 0.6139042488085448,
+      "UNRELATED": 0.03207490372683375
+     },
+     {
+      "PRIMARY": 0.36230731466249116,
+      "SUPPLIER": 0.09552169243984346,
+      "CONSUMER": 0.12877111603873004,
+      "CONSEQUENCE": 0.36079157423935043,
+      "UNRELATED": 0.05260830261958501
+     },
+     {
+      "PRIMARY": 0.18326817792581762,
+      "SUPPLIER": 0.11187702004064679,
+      "CONSUMER": 0.25595793371546227,
+      "CONSEQUENCE": 0.403388269498498,
+      "UNRELATED": 0.04550859881957534
+     }
+    ],
+    "noul": [
+     0.037639687682697764,
+     0.5961186231456719,
+     0.21070432525054766,
+     0.566609015792263
+    ]
+   },
+   "reach": {
+    "choice": [
+     {
+      "PRIMARY": 0.0018605057953080839,
+      "SUPPLIER": 0.2697767336320753,
+      "CONSUMER": 0.7071938210627498,
+      "CONSEQUENCE": 0.017506018593765906,
+      "UNRELATED": 0.0036629209161009903
+     },
+     {
+      "PRIMARY": 0.00042146755603578005,
+      "SUPPLIER": 0.005550684820154838,
+      "CONSUMER": 0.9387483013401632,
+      "CONSEQUENCE": 0.052331772723011295,
+      "UNRELATED": 0.0029477735606347802
+     },
+     {
+      "PRIMARY": 0.0033760151078364715,
+      "SUPPLIER": 0.003915993946295998,
+      "CONSUMER": 0.9623121688789957,
+      "CONSEQUENCE": 0.029365740898890356,
+      "UNRELATED": 0.0010300811679815223
+     }
+    ],
+    "noul": [
+     0.7282203699344356,
+     0.917048972389432,
+     0.5518050614976951,
+     0.28400561296765986
+    ]
+   }
+  },
+  "0031-a-contract-is-a-subject.md": {
+   "acquisition": {
+    "choice": [
+     {
+      "PRIMARY": 2.9967053496701406e-05,
+      "SUPPLIER": 6.829565828750827e-05,
+      "CONSUMER": 0.9996874346985686,
+      "CONSEQUENCE": 9.256692790433259e-05,
+      "UNRELATED": 0.00012173566174286599
+     },
+     {
+      "PRIMARY": 2.4642929138688364e-05,
+      "SUPPLIER": 0.00010029410446167259,
+      "CONSUMER": 0.999686902272158,
+      "CONSEQUENCE": 0.00015085938626375147,
+      "UNRELATED": 3.730130797786607e-05
+     },
+     {
+      "PRIMARY": 0.00011113942505537312,
+      "SUPPLIER": 0.00033671098131635624,
+      "CONSUMER": 0.9990833428871738,
+      "CONSEQUENCE": 0.00035224369271979333,
+      "UNRELATED": 0.00011656301373468617
+     }
+    ],
+    "noul": [
+     0.2847511698338724,
+     0.40736206390707663,
+     0.8467586538722071,
+     0.05986674062338684
+    ]
+   },
+   "review": {
+    "choice": [
+     {
+      "PRIMARY": 0.04260161032915986,
+      "SUPPLIER": 0.0021214563613604666,
+      "CONSUMER": 0.9431449678740519,
+      "CONSEQUENCE": 0.008932951188799826,
+      "UNRELATED": 0.003199014246628036
+     },
+     {
+      "PRIMARY": 0.0357416811929005,
+      "SUPPLIER": 0.0019129528117561047,
+      "CONSUMER": 0.9356110771708056,
+      "CONSEQUENCE": 0.018830995282396585,
+      "UNRELATED": 0.007903293542141192
+     },
+     {
+      "PRIMARY": 0.4028301962085627,
+      "SUPPLIER": 0.016537534009615787,
+      "CONSUMER": 0.5137576547950082,
+      "CONSEQUENCE": 0.055026735681721076,
+      "UNRELATED": 0.01184787930509223
+     }
+    ],
+    "noul": [
+     0.1333725456724036,
+     0.0039024885157134966,
+     0.0021116434497928716,
+     0.03358270728186118
+    ]
+   }
+  },
+  "0036-a-journey-crosses-processes.md": {
+   "runtime": {
+    "choice": [
+     {
+      "PRIMARY": 0.011507286451884804,
+      "SUPPLIER": 0.014141453759215092,
+      "CONSUMER": 0.08511560638129607,
+      "CONSEQUENCE": 0.7542141187902281,
+      "UNRELATED": 0.13502153461737587
+     },
+     {
+      "PRIMARY": 0.008920214893146802,
+      "SUPPLIER": 0.01132015850627714,
+      "CONSUMER": 0.349165448789781,
+      "CONSEQUENCE": 0.5683666035628321,
+      "UNRELATED": 0.06222757424796288
+     },
+     {
+      "PRIMARY": 0.009878357127574382,
+      "SUPPLIER": 0.018576564606042616,
+      "CONSUMER": 0.4177784548471596,
+      "CONSEQUENCE": 0.3978577560173954,
+      "UNRELATED": 0.15590886740182794
+     }
+    ],
+    "noul": [
+     0.06684188356991728,
+     0.3480206410526209,
+     0.19157314236253867,
+     0.038708879830053416
+    ]
+   },
+   "reach": {
+    "choice": [
+     {
+      "PRIMARY": 0.0012556885189983985,
+      "SUPPLIER": 0.0170379227771609,
+      "CONSUMER": 0.9310467164920615,
+      "CONSEQUENCE": 0.012469520643327134,
+      "UNRELATED": 0.038190151568451985
+     },
+     {
+      "PRIMARY": 0.0003437064342731584,
+      "SUPPLIER": 0.0009684894709836327,
+      "CONSUMER": 0.9965669736516028,
+      "CONSEQUENCE": 0.0014107910611939594,
+      "UNRELATED": 0.00071003938194651
+     },
+     {
+      "PRIMARY": 2.9786969435874406e-06,
+      "SUPPLIER": 4.925379620688037e-05,
+      "CONSUMER": 0.9998861947108449,
+      "CONSEQUENCE": 3.1161910978907755e-05,
+      "UNRELATED": 3.0410885025813345e-05
+     }
+    ],
+    "noul": [
+     0.9260644139530679,
+     0.9091668421536302,
+     0.7883545311349646,
+     0.926606234742782
+    ]
+   }
+  },
+  "0042-a-start-point-is-a-path-sense-holds.md": {
+   "retention": {
+    "choice": [
+     {
+      "PRIMARY": 0.03409250001307144,
+      "SUPPLIER": 0.08865923740796512,
+      "CONSUMER": 0.38576217991301914,
+      "CONSEQUENCE": 0.4283535090659674,
+      "UNRELATED": 0.06313257359997691
+     },
+     {
+      "PRIMARY": 0.02963642269068059,
+      "SUPPLIER": 0.06327087074366008,
+      "CONSUMER": 0.8453237908542891,
+      "CONSEQUENCE": 0.03370998225789594,
+      "UNRELATED": 0.028058933453474304
+     },
+     {
+      "PRIMARY": 0.17029896612773882,
+      "SUPPLIER": 0.22756573241464134,
+      "CONSUMER": 0.3325045077519174,
+      "CONSEQUENCE": 0.16673900128416663,
+      "UNRELATED": 0.1028917924215358
+     }
+    ],
+    "noul": [
+     0.13934982230260728,
+     0.056288881973480254,
+     0.05405957195211349,
+     0.2519874724975627
+    ]
+   },
+   "reach": {
+    "choice": [
+     {
+      "PRIMARY": 0.0014757392597331968,
+      "SUPPLIER": 0.035756003499009675,
+      "CONSUMER": 0.528756956330105,
+      "CONSEQUENCE": 0.4232657322326261,
+      "UNRELATED": 0.010745568678526109
+     },
+     {
+      "PRIMARY": 0.050204458729359934,
+      "SUPPLIER": 0.05353388049725261,
+      "CONSUMER": 0.8390879620446576,
+      "CONSEQUENCE": 0.04065266115470971,
+      "UNRELATED": 0.016521037574019987
+     },
+     {
+      "PRIMARY": 0.0018836608609529852,
+      "SUPPLIER": 0.006217293577618386,
+      "CONSUMER": 0.9224969945743888,
+      "CONSEQUENCE": 0.06741967156090838,
+      "UNRELATED": 0.001982379426131412
+     }
+    ],
+    "noul": [
+     0.3657420167703367,
+     0.2753608703086702,
+     0.09041033481378816,
+     0.023820161179823943
+    ]
+   }
+  },
+  "0043-a-record-costs-what-the-run-cost.md": {
+   "retention": {
+    "choice": [
+     {
+      "PRIMARY": 0.00020102742073671177,
+      "SUPPLIER": 0.00023780977882949142,
+      "CONSUMER": 0.9970079090190573,
+      "CONSEQUENCE": 0.0024179075417546086,
+      "UNRELATED": 0.00013534623962177932
+     },
+     {
+      "PRIMARY": 0.026765275455569164,
+      "SUPPLIER": 0.012284540284191162,
+      "CONSUMER": 0.687536353010408,
+      "CONSEQUENCE": 0.2629294795805363,
+      "UNRELATED": 0.010484351669295277
+     },
+     {
+      "PRIMARY": 0.004659636679077393,
+      "SUPPLIER": 0.0015243336092607331,
+      "CONSUMER": 0.9657280537779315,
+      "CONSEQUENCE": 0.026555330647151466,
+      "UNRELATED": 0.0015326452865789503
+     }
+    ],
+    "noul": [
+     0.04750837139839609,
+     0.005582320908923167,
+     0.028691458242470037,
+     0.00758440623224427
+    ]
+   },
+   "reach": {
+    "choice": [
+     {
+      "PRIMARY": 0.03252123121713068,
+      "SUPPLIER": 0.44059150691454274,
+      "CONSUMER": 0.22494661756451642,
+      "CONSEQUENCE": 0.2896159741124712,
+      "UNRELATED": 0.012324670191338913
+     },
+     {
+      "PRIMARY": 0.03959735852441958,
+      "SUPPLIER": 0.133295767074329,
+      "CONSUMER": 0.0725557433170787,
+      "CONSEQUENCE": 0.7396187625518892,
+      "UNRELATED": 0.014932368532283472
+     },
+     {
+      "PRIMARY": 0.025325747286612684,
+      "SUPPLIER": 0.07239335593388771,
+      "CONSUMER": 0.4332972698779325,
+      "CONSEQUENCE": 0.44553554925935673,
+      "UNRELATED": 0.02344807764221045
+     }
+    ],
+    "noul": [
+     0.23810445465497382,
+     0.02029014639990264,
+     0.0465746909094411,
+     0.006983894658080095
+    ]
+   }
+  },
+  "0044-many-writers-one-record.md": {
+   "reach": {
+    "choice": [
+     {
+      "PRIMARY": 0.13637567818889115,
+      "SUPPLIER": 0.06793408147275269,
+      "CONSUMER": 0.180741144666079,
+      "CONSEQUENCE": 0.5472247938370481,
+      "UNRELATED": 0.06772430183522911
+     },
+     {
+      "PRIMARY": 0.03348297339121782,
+      "SUPPLIER": 0.02255402564584104,
+      "CONSUMER": 0.46798968863848306,
+      "CONSEQUENCE": 0.4429472666476682,
+      "UNRELATED": 0.03302604567678985
+     },
+     {
+      "PRIMARY": 0.010958877743719626,
+      "SUPPLIER": 0.02827004313151592,
+      "CONSUMER": 0.6457671937075291,
+      "CONSEQUENCE": 0.28540543184634737,
+      "UNRELATED": 0.02959845357088797
+     }
+    ],
+    "noul": [
+     0.09384029738078513,
+     0.06567622524447012,
+     0.5214799081795861,
+     0.001219465123746017
+    ]
+   },
+   "stability": {
+    "choice": [
+     {
+      "PRIMARY": 0.01667093636447317,
+      "SUPPLIER": 0.014534160805718633,
+      "CONSUMER": 0.6191524010156901,
+      "CONSEQUENCE": 0.3014493464441578,
+      "UNRELATED": 0.04819315536996031
+     },
+     {
+      "PRIMARY": 0.0038111792931796056,
+      "SUPPLIER": 0.0008716736433362635,
+      "CONSUMER": 0.9743835970972345,
+      "CONSEQUENCE": 0.016373609594175505,
+      "UNRELATED": 0.004559940372074146
+     },
+     {
+      "PRIMARY": 0.003955769995809675,
+      "SUPPLIER": 0.0029010889315434097,
+      "CONSUMER": 0.7969163272032178,
+      "CONSEQUENCE": 0.1875175064972265,
+      "UNRELATED": 0.008709307372202595
+     }
+    ],
+    "noul": [
+     0.054742876971713816,
+     0.009220427226430213,
+     0.2091167888140205,
+     0.07273547308952272
+    ]
+   }
+  },
+  "0045-a-snapshot-states-its-own-age.md": {
+   "retention": {
+    "choice": [
+     {
+      "PRIMARY": 0.006516249122031879,
+      "SUPPLIER": 0.004604787952149136,
+      "CONSUMER": 0.9281657634849877,
+      "CONSEQUENCE": 0.05736052411605667,
+      "UNRELATED": 0.003352675324774582
+     },
+     {
+      "PRIMARY": 0.6377936890186979,
+      "SUPPLIER": 0.007711524674311417,
+      "CONSUMER": 0.29098647714297715,
+      "CONSEQUENCE": 0.055701417615720006,
+      "UNRELATED": 0.007806891548293487
+     },
+     {
+      "PRIMARY": 0.00013417422439414048,
+      "SUPPLIER": 1.2885510197482269e-05,
+      "CONSUMER": 0.9995681230773876,
+      "CONSEQUENCE": 0.000258903361005455,
+      "UNRELATED": 2.591382701528205e-05
+     }
+    ],
+    "noul": [
+     0.0006952486318750283,
+     0.18639692958011295,
+     0.01951069795538813,
+     0.006687736816959806
+    ]
+   },
+   "reach": {
+    "choice": [
+     {
+      "PRIMARY": 0.007580148085483861,
+      "SUPPLIER": 0.0012561292722031582,
+      "CONSUMER": 0.8554712549757114,
+      "CONSEQUENCE": 0.12529922821172393,
+      "UNRELATED": 0.010393239454877667
+     },
+     {
+      "PRIMARY": 0.00980947129630272,
+      "SUPPLIER": 0.0033381395665294856,
+      "CONSUMER": 0.43290830571119293,
+      "CONSEQUENCE": 0.37667076604027605,
+      "UNRELATED": 0.17727331738569885
+     },
+     {
+      "PRIMARY": 0.00481170439066749,
+      "SUPPLIER": 0.00020455525250553445,
+      "CONSUMER": 0.02504586174235182,
+      "CONSEQUENCE": 0.9678957068739629,
+      "UNRELATED": 0.0020421717405122775
+     }
+    ],
+    "noul": [
+     0.2258424252579981,
+     0.07350511669110624,
+     0.3125043211875382,
+     0.6150335831903812
+    ]
+   }
+  },
+  "0046-the-safety-rule-lives-in-one-place.md": {
+   "retention": {
+    "choice": [
+     {
+      "PRIMARY": 0.0028082643005673687,
+      "SUPPLIER": 0.0032875236249449978,
+      "CONSUMER": 0.6291569940659727,
+      "CONSEQUENCE": 0.36329930052490855,
+      "UNRELATED": 0.0014479174836063789
+     },
+     {
+      "PRIMARY": 0.0020405599386453524,
+      "SUPPLIER": 0.002198901646382664,
+      "CONSUMER": 0.9885656890411432,
+      "CONSEQUENCE": 0.00476071535072432,
+      "UNRELATED": 0.002434134023104475
+     },
+     {
+      "PRIMARY": 0.0017579412838419994,
+      "SUPPLIER": 0.00014173121444060208,
+      "CONSUMER": 0.9967781625740831,
+      "CONSEQUENCE": 0.0011857156051474338,
+      "UNRELATED": 0.00013644932248682194
+     }
+    ],
+    "noul": [
+     0.027991023248955506,
+     0.004148338116460278,
+     0.02398112122640926,
+     0.0038342156580523992
+    ]
+   },
+   "reach": {
+    "choice": [
+     {
+      "PRIMARY": 2.0313189650061023e-05,
+      "SUPPLIER": 1.0701001922622529e-05,
+      "CONSUMER": 0.9972643994173294,
+      "CONSEQUENCE": 0.0004058347462524457,
+      "UNRELATED": 0.0022987516448455645
+     },
+     {
+      "PRIMARY": 4.376986579089215e-06,
+      "SUPPLIER": 1.0401099137303006e-05,
+      "CONSUMER": 0.9999045230661263,
+      "CONSEQUENCE": 7.310445885894621e-05,
+      "UNRELATED": 7.594389298483878e-06
+     },
+     {
+      "PRIMARY": 2.865711506952507e-06,
+      "SUPPLIER": 3.194378405774924e-05,
+      "CONSUMER": 0.9998724420409968,
+      "CONSEQUENCE": 6.5484127880058e-05,
+      "UNRELATED": 2.7264335558327505e-05
+     }
+    ],
+    "noul": [
+     0.009262310644732659,
+     0.007135960623165166,
+     0.006695057633696439,
+     0.006246753690525281
+    ]
+   }
+  },
+  "0047-a-skip-list-is-worth-what-it-skips.md": {
+   "stability": {
+    "choice": [
+     {
+      "PRIMARY": 0.0012613051718561436,
+      "SUPPLIER": 0.0016404648997491173,
+      "CONSUMER": 0.3121200084335102,
+      "CONSEQUENCE": 0.6827189545339493,
+      "UNRELATED": 0.002259266960935372
+     },
+     {
+      "PRIMARY": 0.004901306263033186,
+      "SUPPLIER": 0.012390274862476212,
+      "CONSUMER": 0.6887005936159959,
+      "CONSEQUENCE": 0.28832013885790175,
+      "UNRELATED": 0.005687686400592984
+     },
+     {
+      "PRIMARY": 0.0008773168947626273,
+      "SUPPLIER": 0.00042863937155731397,
+      "CONSUMER": 0.22643273815825232,
+      "CONSEQUENCE": 0.7697704202326962,
+      "UNRELATED": 0.002490885342731646
+     }
+    ],
+    "noul": [
+     0.002772762586980081,
+     0.0022265819765011096,
+     0.015275944127439637,
+     0.1055881423717029
+    ]
+   },
+   "reach": {
+    "choice": [
+     {
+      "PRIMARY": 0.00025712691937198966,
+      "SUPPLIER": 0.018296215537428585,
+      "CONSUMER": 0.8885136497794275,
+      "CONSEQUENCE": 0.09207235419345394,
+      "UNRELATED": 0.0008606535703179709
+     },
+     {
+      "PRIMARY": 0.000165694052995298,
+      "SUPPLIER": 0.04053721271739118,
+      "CONSUMER": 0.2216614822897034,
+      "CONSEQUENCE": 0.7373807771335645,
+      "UNRELATED": 0.0002548338063455326
+     },
+     {
+      "PRIMARY": 0.00048054666495778067,
+      "SUPPLIER": 0.570891347778119,
+      "CONSUMER": 0.10147060593761095,
+      "CONSEQUENCE": 0.3267615331997251,
+      "UNRELATED": 0.0003959664195871844
+     }
+    ],
+    "noul": [
+     0.041349131522682,
+     0.027461908445410903,
+     0.1710650457769538,
+     0.3013618440466071
+    ]
+   }
+  },
+  "0048-a-worker-that-dies-says-so.md": {
+   "runtime": {
+    "choice": [
+     {
+      "PRIMARY": 0.003441678542665081,
+      "SUPPLIER": 0.0029125864472862462,
+      "CONSUMER": 0.013975869150878124,
+      "CONSEQUENCE": 0.9779760506430364,
+      "UNRELATED": 0.0016938152161340091
+     },
+     {
+      "PRIMARY": 0.011192073666354765,
+      "SUPPLIER": 0.02682957620568191,
+      "CONSUMER": 0.30028923000550206,
+      "CONSEQUENCE": 0.653309353843194,
+      "UNRELATED": 0.008379766279267382
+     },
+     {
+      "PRIMARY": 0.0009063621661231666,
+      "SUPPLIER": 0.0010050805695332346,
+      "CONSUMER": 0.23936225392171892,
+      "CONSEQUENCE": 0.7577298077811846,
+      "UNRELATED": 0.0009964955614401433
+     }
+    ],
+    "noul": [
+     0.6195323134211883,
+     0.09948042278210746,
+     0.85730416889929,
+     0.796446078226083
+    ]
+   },
+   "reach": {
+    "choice": [
+     {
+      "PRIMARY": 0.0032510526102934954,
+      "SUPPLIER": 0.006886082813444785,
+      "CONSUMER": 0.13071908007388813,
+      "CONSEQUENCE": 0.825980360510632,
+      "UNRELATED": 0.033163423991741686
+     },
+     {
+      "PRIMARY": 1.4147491546880595e-06,
+      "SUPPLIER": 2.043217921686946e-06,
+      "CONSUMER": 0.9993138214782806,
+      "CONSEQUENCE": 0.0006741181300112321,
+      "UNRELATED": 8.602424631778655e-06
+     },
+     {
+      "PRIMARY": 0.0008702979154363727,
+      "SUPPLIER": 0.00027880344415921087,
+      "CONSUMER": 0.7161735541231444,
+      "CONSEQUENCE": 0.2815129859874501,
+      "UNRELATED": 0.001164358529809972
+     }
+    ],
+    "noul": [
+     0.7342188703944185,
+     0.12469047448475264,
+     0.010309714708962857,
+     0.0322324210513457
+    ]
+   }
+  },
+  "0051-a-sensitivity-is-scoped-by-id-and-nothing-else.md": {
+   "retention": {
+    "choice": [
+     {
+      "PRIMARY": 0.04238647125607151,
+      "SUPPLIER": 0.0562469592544473,
+      "CONSUMER": 0.18213902925682957,
+      "CONSEQUENCE": 0.6784649469390199,
+      "UNRELATED": 0.040762593293631744
+     },
+     {
+      "PRIMARY": 0.08769703541855699,
+      "SUPPLIER": 0.05289804178326608,
+      "CONSUMER": 0.13286586674662906,
+      "CONSEQUENCE": 0.6960983212294886,
+      "UNRELATED": 0.030440734822059272
+     },
+     {
+      "PRIMARY": 0.023655509258847664,
+      "SUPPLIER": 0.2658187213137128,
+      "CONSUMER": 0.10910088712831131,
+      "CONSEQUENCE": 0.5873224550191771,
+      "UNRELATED": 0.014102427279951068
+     }
+    ],
+    "noul": [
+     0.0399879956071669,
+     0.05504038011150221,
+     0.027935447902215447,
+     0.8812107299819464
+    ]
+   },
+   "adjudication": {
+    "choice": [
+     {
+      "PRIMARY": 0.0013833406666555062,
+      "SUPPLIER": 0.0009478093453353634,
+      "CONSUMER": 0.12347013935409701,
+      "CONSEQUENCE": 0.8723366843213941,
+      "UNRELATED": 0.0018620263125179132
+     },
+     {
+      "PRIMARY": 0.002222424930414936,
+      "SUPPLIER": 0.0020076538319471547,
+      "CONSUMER": 0.12990145622266835,
+      "CONSEQUENCE": 0.8611028082100571,
+      "UNRELATED": 0.004765656804912378
+     },
+     {
+      "PRIMARY": 0.0023584568394315617,
+      "SUPPLIER": 0.0018686773510730567,
+      "CONSUMER": 0.0345281633196885,
+      "CONSEQUENCE": 0.9588756235729112,
+      "UNRELATED": 0.002369078916895592
+     }
+    ],
+    "noul": [
+     0.24836839985269682,
+     0.09856348289292627,
+     0.4873609055752319,
+     0.25101905132861835
+    ]
+   }
+  },
+  "0055-a-workspace-import-resolves-to-its-source.md": {
+   "retention": {
+    "choice": [
+     {
+      "PRIMARY": 0.02721032868155834,
+      "SUPPLIER": 0.1382777307235321,
+      "CONSUMER": 0.6255702402995967,
+      "CONSEQUENCE": 0.17882585765171186,
+      "UNRELATED": 0.030115842643600964
+     },
+     {
+      "PRIMARY": 0.3284804064990077,
+      "SUPPLIER": 0.15909463608452692,
+      "CONSUMER": 0.4395446657848637,
+      "CONSEQUENCE": 0.04493547107433832,
+      "UNRELATED": 0.02794482055726341
+     },
+     {
+      "PRIMARY": 0.4263228172222244,
+      "SUPPLIER": 0.012888513482762544,
+      "CONSUMER": 0.5313491400246944,
+      "CONSEQUENCE": 0.017640146457039582,
+      "UNRELATED": 0.011799382813279071
+     }
+    ],
+    "noul": [
+     0.8785443111294722,
+     0.8811858328475867,
+     0.9408157745853251,
+     0.901634867926507
+    ]
+   },
+   "reach": {
+    "choice": [
+     {
+      "PRIMARY": 0.015570561134961417,
+      "SUPPLIER": 0.15483160190752315,
+      "CONSUMER": 0.21114346356838373,
+      "CONSEQUENCE": 0.615873176124569,
+      "UNRELATED": 0.0025811972645627384
+     },
+     {
+      "PRIMARY": 0.004433346258933126,
+      "SUPPLIER": 0.0326443516395906,
+      "CONSUMER": 0.7334602459554933,
+      "CONSEQUENCE": 0.22506716043914599,
+      "UNRELATED": 0.004394895706836957
+     },
+     {
+      "PRIMARY": 0.004134587569256908,
+      "SUPPLIER": 0.01704604464555789,
+      "CONSUMER": 0.671731275535704,
+      "CONSEQUENCE": 0.3034484162104381,
+      "UNRELATED": 0.0036396760390430103
+     }
+    ],
+    "noul": [
+     0.8555862804783931,
+     0.9342459732538705,
+     0.8130283616477484,
+     0.4890648876766007
+    ]
+   }
+  },
+  "0056-a-session-daemon-keeps-the-index-current.md": {
+   "runtime": {
+    "choice": [
+     {
+      "PRIMARY": 8.463441777554822e-05,
+      "SUPPLIER": 0.00022116519660995095,
+      "CONSUMER": 0.00023138325702996005,
+      "CONSEQUENCE": 0.9992119249365596,
+      "UNRELATED": 0.0002508921920247854
+     },
+     {
+      "PRIMARY": 0.00010365531130369269,
+      "SUPPLIER": 8.042476784433838e-05,
+      "CONSUMER": 6.023192130715224e-05,
+      "CONSEQUENCE": 0.9986733186929475,
+      "UNRELATED": 0.0010823693065973483
+     },
+     {
+      "PRIMARY": 1.5283371415313286e-05,
+      "SUPPLIER": 4.7870229754700014e-05,
+      "CONSUMER": 0.00010384662157385431,
+      "CONSEQUENCE": 0.9992254007620096,
+      "UNRELATED": 0.0006075990152466023
+     }
+    ],
+    "noul": [
+     0.6199734260861064,
+     0.840403218427302,
+     0.9192534005109433,
+     0.9674415161719431
+    ]
+   },
+   "reach": {
+    "choice": [
+     {
+      "PRIMARY": 0.00286330610181495,
+      "SUPPLIER": 0.002331866398553956,
+      "CONSUMER": 0.06124276808665607,
+      "CONSEQUENCE": 0.933181151194868,
+      "UNRELATED": 0.00038090821810711213
+     },
+     {
+      "PRIMARY": 0.0031624814283815255,
+      "SUPPLIER": 0.0024272179802158323,
+      "CONSUMER": 0.009171033236696324,
+      "CONSEQUENCE": 0.9846124190743291,
+      "UNRELATED": 0.0006268482803773706
+     },
+     {
+      "PRIMARY": 0.009972568685338985,
+      "SUPPLIER": 0.0003135630366167028,
+      "CONSUMER": 0.025645502175826153,
+      "CONSEQUENCE": 0.9639741617208656,
+      "UNRELATED": 9.420438135252632e-05
+     }
+    ],
+    "noul": [
+     0.2657176622132787,
+     0.9596773579116512,
+     0.3330518465354336,
+     0.16419760344532025
+    ]
+   }
+  },
+  "0059-a-change-runs-the-cases-that-ran-it.md": {
+   "runtime": {
+    "choice": [
+     {
+      "PRIMARY": 0.022372814113103517,
+      "SUPPLIER": 0.004502940062490818,
+      "CONSUMER": 0.46627883003675963,
+      "CONSEQUENCE": 0.49629514119988555,
+      "UNRELATED": 0.010550274587760517
+     },
+     {
+      "PRIMARY": 0.0005185315495365112,
+      "SUPPLIER": 0.0004555924741464068,
+      "CONSUMER": 0.45475863262301386,
+      "CONSEQUENCE": 0.5436061600967271,
+      "UNRELATED": 0.0006610832565760492
+     },
+     {
+      "PRIMARY": 0.0008052848014458691,
+      "SUPPLIER": 0.0014669949266144277,
+      "CONSUMER": 0.6710283403067291,
+      "CONSEQUENCE": 0.32551549491680093,
+      "UNRELATED": 0.0011838850484096957
+     }
+    ],
+    "noul": [
+     0.3801037023856616,
+     0.020403501712750412,
+     0.08994232055622903,
+     0.04807289360931628
+    ]
+   },
+   "reach": {
+    "choice": [
+     {
+      "PRIMARY": 0.00023128310286003818,
+      "SUPPLIER": 3.902304962703573e-06,
+      "CONSUMER": 6.0515264201960594e-05,
+      "CONSEQUENCE": 0.9767345063793298,
+      "UNRELATED": 0.022969792948645446
+     },
+     {
+      "PRIMARY": 0.0018967994396829543,
+      "SUPPLIER": 6.158185105800684e-05,
+      "CONSUMER": 7.702306466637089e-05,
+      "CONSEQUENCE": 0.768354699304446,
+      "UNRELATED": 0.22960989634014672
+     },
+     {
+      "PRIMARY": 0.007954831712882745,
+      "SUPPLIER": 3.787492678938075e-05,
+      "CONSUMER": 0.00044629103681666845,
+      "CONSEQUENCE": 0.9597159852967424,
+      "UNRELATED": 0.03184501702676882
+     }
+    ],
+    "noul": [
+     0.828201882554107,
+     0.5240196925737621,
+     0.018729767275423796,
+     0.5073132067559872
+    ]
+   }
+  },
+  "0061-a-depends-directive-takes-a-glob.md": {
+   "reach": {
+    "choice": [
+     {
+      "PRIMARY": 0.006270601183316499,
+      "SUPPLIER": 0.015401489535001747,
+      "CONSUMER": 0.10294637912006711,
+      "CONSEQUENCE": 0.8197295105561321,
+      "UNRELATED": 0.05565201960548258
+     },
+     {
+      "PRIMARY": 0.011437985823521539,
+      "SUPPLIER": 0.03226529068399355,
+      "CONSUMER": 0.2445180732805844,
+      "CONSEQUENCE": 0.580319876637436,
+      "UNRELATED": 0.13145877357446442
+     },
+     {
+      "PRIMARY": 0.007888126996530085,
+      "SUPPLIER": 0.017759054633951273,
+      "CONSUMER": 0.13581473000932331,
+      "CONSEQUENCE": 0.7827226791356168,
+      "UNRELATED": 0.05581540922457863
+     }
+    ],
+    "noul": [
+     0.9032714614886408,
+     0.18796766806235557,
+     0.24628205718104582,
+     0.5197667520821632
+    ]
+   },
+   "acquisition": {
+    "choice": [
+     {
+      "PRIMARY": 2.688118652806865e-05,
+      "SUPPLIER": 2.1957346787517363e-05,
+      "CONSUMER": 0.9630604748937731,
+      "CONSEQUENCE": 0.03541183267674129,
+      "UNRELATED": 0.001478853896169989
+     },
+     {
+      "PRIMARY": 0.00013065882098050848,
+      "SUPPLIER": 3.755756842489715e-05,
+      "CONSUMER": 0.7460205621398155,
+      "CONSEQUENCE": 0.253440742300088,
+      "UNRELATED": 0.0003704791706911412
+     },
+     {
+      "PRIMARY": 1.4006031215339425e-05,
+      "SUPPLIER": 4.070083246707618e-06,
+      "CONSUMER": 0.9966776941655827,
+      "CONSEQUENCE": 0.0032874173366586805,
+      "UNRELATED": 1.681238329640611e-05
+     }
+    ],
+    "noul": [
+     0.8330317849574095,
+     0.4304039246582357,
+     0.5002167224748311,
+     0.05842856398303055
+    ]
+   }
+  },
+  "0062-a-suite-says-which-files-reach-it.md": {
+   "adjudication": {
+    "choice": [
+     {
+      "PRIMARY": 0.00048218388547079734,
+      "SUPPLIER": 0.00022107378645452164,
+      "CONSUMER": 0.0016345956464981857,
+      "CONSEQUENCE": 0.9969683102651851,
+      "UNRELATED": 0.0006938364163914212
+     },
+     {
+      "PRIMARY": 0.00019341835924021177,
+      "SUPPLIER": 0.00020945826478613238,
+      "CONSUMER": 0.0005089906397716738,
+      "CONSEQUENCE": 0.998952655957917,
+      "UNRELATED": 0.00013547677828499555
+     },
+     {
+      "PRIMARY": 0.0006270808176584405,
+      "SUPPLIER": 4.573283248269225e-05,
+      "CONSUMER": 0.0007011398012939887,
+      "CONSEQUENCE": 0.9985028963590832,
+      "UNRELATED": 0.00012315018948168106
+     }
+    ],
+    "noul": [
+     0.824340919035449,
+     0.9336658023120433,
+     0.8616250453258913,
+     0.2878133607186908
+    ]
+   },
+   "reach": {
+    "choice": [
+     {
+      "PRIMARY": 0.035975292985082986,
+      "SUPPLIER": 0.3979165678358592,
+      "CONSUMER": 0.0170564081466818,
+      "CONSEQUENCE": 0.5026473081792445,
+      "UNRELATED": 0.0464044228531315
+     },
+     {
+      "PRIMARY": 0.0037865899997774517,
+      "SUPPLIER": 0.007138998596539321,
+      "CONSUMER": 0.001650466180376329,
+      "CONSEQUENCE": 0.9860642343089921,
+      "UNRELATED": 0.0013597109143147412
+     },
+     {
+      "PRIMARY": 0.0012027444285475407,
+      "SUPPLIER": 0.0016981039403841016,
+      "CONSUMER": 0.0006388373207086235,
+      "CONSEQUENCE": 0.993921579650722,
+      "UNRELATED": 0.002538734659637563
+     }
+    ],
+    "noul": [
+     0.9560601563594298,
+     0.9874095167840352,
+     0.03645122406558889,
+     0.04297709999739754
+    ]
+   }
+  },
+  "0063-an-editor-asks-about-the-text-it-holds.md": {
+   "acquisition": {
+    "choice": [
+     {
+      "PRIMARY": 0.006933134903090102,
+      "SUPPLIER": 0.04083606016916062,
+      "CONSUMER": 0.6524205731721712,
+      "CONSEQUENCE": 0.28708818732472413,
+      "UNRELATED": 0.012722044430853926
+     },
+     {
+      "PRIMARY": 0.019490114951947985,
+      "SUPPLIER": 0.032552696794880216,
+      "CONSUMER": 0.29519439899639754,
+      "CONSEQUENCE": 0.6387089939429021,
+      "UNRELATED": 0.014053795313872141
+     },
+     {
+      "PRIMARY": 0.004867699789017922,
+      "SUPPLIER": 0.002358377731964799,
+      "CONSUMER": 0.821316728042428,
+      "CONSEQUENCE": 0.17069741849853423,
+      "UNRELATED": 0.0007597759380551223
+     }
+    ],
+    "noul": [
+     0.7649881524332324,
+     0.7491670598214805,
+     0.9990490666282604,
+     0.3220193059050816
+    ]
+   },
+   "reach": {
+    "choice": [
+     {
+      "PRIMARY": 0.001877977738785751,
+      "SUPPLIER": 0.13805435715031292,
+      "CONSUMER": 0.7271000079607652,
+      "CONSEQUENCE": 0.12971282598586845,
+      "UNRELATED": 0.003254831164267647
+     },
+     {
+      "PRIMARY": 0.005782852917725082,
+      "SUPPLIER": 0.37970404393449575,
+      "CONSUMER": 0.30605284144771444,
+      "CONSEQUENCE": 0.27880463722598,
+      "UNRELATED": 0.02965562447408473
+     },
+     {
+      "PRIMARY": 0.019701346199418317,
+      "SUPPLIER": 0.05402384300074444,
+      "CONSUMER": 0.5386243870623635,
+      "CONSEQUENCE": 0.37230479020369045,
+      "UNRELATED": 0.01534563353378338
+     }
+    ],
+    "noul": [
+     0.8494381445567647,
+     0.0017617472303979352,
+     0.00035114606250319564,
+     0.005011862373720167
+    ]
+   }
+  },
+  "0067-a-case-carries-its-outcome.md": {
+   "retention": {
+    "choice": [
+     {
+      "PRIMARY": 0.21329953297366555,
+      "SUPPLIER": 0.2414111576911727,
+      "CONSUMER": 0.16723720778336976,
+      "CONSEQUENCE": 0.266447762130444,
+      "UNRELATED": 0.11160433942134795
+     },
+     {
+      "PRIMARY": 0.4665231758763207,
+      "SUPPLIER": 0.1853923252604954,
+      "CONSUMER": 0.09642824699881013,
+      "CONSEQUENCE": 0.18256177866155843,
+      "UNRELATED": 0.0690944732028154
+     },
+     {
+      "PRIMARY": 0.4574643275844518,
+      "SUPPLIER": 0.14387960023983365,
+      "CONSUMER": 0.10976285358565632,
+      "CONSEQUENCE": 0.2083052146981463,
+      "UNRELATED": 0.08058800389191195
+     }
+    ],
+    "noul": [
+     0.8725915383412955,
+     0.8865801756060112,
+     0.5825520395514056,
+     0.5005636808868383
+    ]
+   },
+   "reach": {
+    "choice": [
+     {
+      "PRIMARY": 0.0018400277199184564,
+      "SUPPLIER": 0.0010898768015804026,
+      "CONSUMER": 0.9803818733096697,
+      "CONSEQUENCE": 0.010269194798835583,
+      "UNRELATED": 0.0064190273699959
+     },
+     {
+      "PRIMARY": 0.00140081817456958,
+      "SUPPLIER": 0.002974822960301823,
+      "CONSUMER": 0.9334567991703271,
+      "CONSEQUENCE": 0.05778069767420434,
+      "UNRELATED": 0.004386862020597115
+     },
+     {
+      "PRIMARY": 0.0007550747138722576,
+      "SUPPLIER": 0.0006742990695741748,
+      "CONSUMER": 0.9930261565397365,
+      "CONSEQUENCE": 0.005256615070833062,
+      "UNRELATED": 0.00028785460598411666
+     }
+    ],
+    "noul": [
+     0.9183378192583084,
+     0.653999214662907,
+     0.498231984593207,
+     0.2907444251813267
+    ]
+   }
+  },
+  "0068-an-edit-runs-what-it-reaches-from-the-editor.md": {
+   "runtime": {
+    "choice": [
+     {
+      "PRIMARY": 0.20346457966581719,
+      "SUPPLIER": 0.03727895524308018,
+      "CONSUMER": 0.009120506078083124,
+      "CONSEQUENCE": 0.7161007351961928,
+      "UNRELATED": 0.03403522381682679
+     },
+     {
+      "PRIMARY": 0.17384457471100936,
+      "SUPPLIER": 0.10908181006832818,
+      "CONSUMER": 0.051859608027468675,
+      "CONSEQUENCE": 0.47895769485933654,
+      "UNRELATED": 0.18625631233385728
+     },
+     {
+      "PRIMARY": 0.952955954406673,
+      "SUPPLIER": 0.005499048903599316,
+      "CONSUMER": 0.0048825387236636755,
+      "CONSEQUENCE": 0.02357303348910338,
+      "UNRELATED": 0.013089424476960708
+     }
+    ],
+    "noul": [
+     0.998693353809787,
+     0.9966209757621873,
+     0.9416874483866261,
+     0.5356352703551827
+    ]
+   },
+   "reach": {
+    "choice": [
+     {
+      "PRIMARY": 0.009438331241859787,
+      "SUPPLIER": 0.0061079364841059485,
+      "CONSUMER": 0.04755323708636702,
+      "CONSEQUENCE": 0.6991278401001242,
+      "UNRELATED": 0.23777265508754306
+     },
+     {
+      "PRIMARY": 0.013826441963625095,
+      "SUPPLIER": 0.0046746533468205375,
+      "CONSUMER": 0.06358228607392467,
+      "CONSEQUENCE": 0.41007614441112517,
+      "UNRELATED": 0.5078404742045045
+     },
+     {
+      "PRIMARY": 0.2099664502923911,
+      "SUPPLIER": 0.013709451312838537,
+      "CONSUMER": 0.16687806642516853,
+      "CONSEQUENCE": 0.21978813137937758,
+      "UNRELATED": 0.38965790059022426
+     }
+    ],
+    "noul": [
+     0.9994673234884688,
+     0.9995605779294219,
+     0.9987555121375479,
+     0.9746341236290303
+    ]
+   }
+  },
+  "0070-a-change-says-what-its-tests-moved.md": {
+   "reach": {
+    "choice": [
+     {
+      "PRIMARY": 0.0002448747834127027,
+      "SUPPLIER": 0.0001012666471087181,
+      "CONSUMER": 0.0014474816408613978,
+      "CONSEQUENCE": 0.9965611749227838,
+      "UNRELATED": 0.0016452020058333875
+     },
+     {
+      "PRIMARY": 0.0028301603907516836,
+      "SUPPLIER": 0.005134929295386637,
+      "CONSUMER": 0.03943063365348918,
+      "CONSEQUENCE": 0.9442034600688467,
+      "UNRELATED": 0.008400816591525823
+     },
+     {
+      "PRIMARY": 0.0013490633974246136,
+      "SUPPLIER": 0.0022823542185507655,
+      "CONSUMER": 0.03177115454133247,
+      "CONSEQUENCE": 0.9522068416306746,
+      "UNRELATED": 0.012390586212017576
+     }
+    ],
+    "noul": [
+     0.8259168940221837,
+     0.48939674641582437,
+     0.3357987475664427,
+     0.010713140247296655
+    ]
+   },
+   "acquisition": {
+    "choice": [
+     {
+      "PRIMARY": 0.009940901743504968,
+      "SUPPLIER": 0.1297093965176375,
+      "CONSUMER": 0.23128029922058416,
+      "CONSEQUENCE": 0.5016804642622139,
+      "UNRELATED": 0.12738893825605938
+     },
+     {
+      "PRIMARY": 0.0365803917248372,
+      "SUPPLIER": 0.25510344850612615,
+      "CONSUMER": 0.46193134783747064,
+      "CONSEQUENCE": 0.20011520510926584,
+      "UNRELATED": 0.046269606822300274
+     },
+     {
+      "PRIMARY": 0.023519652266928603,
+      "SUPPLIER": 0.37389994818812633,
+      "CONSUMER": 0.160286654463383,
+      "CONSEQUENCE": 0.34898152843669256,
+      "UNRELATED": 0.09331221664486954
+     }
+    ],
+    "noul": [
+     0.5503863049266097,
+     0.6027575744968808,
+     0.7366590904674175,
+     0.261788244510457
+    ]
+   }
+  },
+  "0071-a-test-is-read-alone.md": {
+   "reach": {
+    "choice": [
+     {
+      "PRIMARY": 0.0033197973508408427,
+      "SUPPLIER": 0.002695177096520982,
+      "CONSUMER": 0.04375582682950975,
+      "CONSEQUENCE": 0.943835599665584,
+      "UNRELATED": 0.006393599057544501
+     },
+     {
+      "PRIMARY": 0.00025977147645243084,
+      "SUPPLIER": 0.0004708463082536587,
+      "CONSUMER": 0.009013158071523118,
+      "CONSEQUENCE": 0.9860186981298086,
+      "UNRELATED": 0.004237526013962099
+     },
+     {
+      "PRIMARY": 0.005497160448244824,
+      "SUPPLIER": 0.0018593523502421316,
+      "CONSUMER": 0.009165722664074729,
+      "CONSEQUENCE": 0.9696999364328432,
+      "UNRELATED": 0.013777828104594976
+     }
+    ],
+    "noul": [
+     0.46381314734183876,
+     0.038163297456925205,
+     0.010144711518475406,
+     0.005192326426660623
+    ]
+   },
+   "runtime": {
+    "choice": [
+     {
+      "PRIMARY": 0.002151159473498868,
+      "SUPPLIER": 0.008088946399172419,
+      "CONSUMER": 0.01352982605183693,
+      "CONSEQUENCE": 0.9701976940328322,
+      "UNRELATED": 0.006032374042659513
+     },
+     {
+      "PRIMARY": 0.0009982166066391182,
+      "SUPPLIER": 0.11707567688115086,
+      "CONSUMER": 0.07269439148399769,
+      "CONSEQUENCE": 0.806236132545611,
+      "UNRELATED": 0.002995582482601372
+     },
+     {
+      "PRIMARY": 0.004068766234970973,
+      "SUPPLIER": 0.013855570252147599,
+      "CONSUMER": 0.063098569398084,
+      "CONSEQUENCE": 0.9071488085147981,
+      "UNRELATED": 0.011828285599999384
+     }
+    ],
+    "noul": [
+     0.0070270682908974615,
+     0.9134373829493104,
+     0.041196985177091555,
+     0.08828286146325968
+    ]
+   }
+  },
+  "0072-a-case-read-two-ways-is-compared-with-itself.md": {
+   "stability": {
+    "choice": [
+     {
+      "PRIMARY": 0.0019286698599538445,
+      "SUPPLIER": 0.011886894294057017,
+      "CONSUMER": 0.10546818900320637,
+      "CONSEQUENCE": 0.88037018520197,
+      "UNRELATED": 0.00034606164081277675
+     },
+     {
+      "PRIMARY": 0.005143865278902519,
+      "SUPPLIER": 0.0022078973482098758,
+      "CONSUMER": 0.04511575722861525,
+      "CONSEQUENCE": 0.9453240142068136,
+      "UNRELATED": 0.0022084659374587918
+     },
+     {
+      "PRIMARY": 0.0009629358490478678,
+      "SUPPLIER": 0.008454269388893834,
+      "CONSUMER": 0.024203830809529352,
+      "CONSEQUENCE": 0.9657176620292868,
+      "UNRELATED": 0.0006613019232422279
+     }
+    ],
+    "noul": [
+     0.6627538365926652,
+     0.20801823359026866,
+     0.2383267098329157,
+     0.6085290877347821
+    ]
+   },
+   "reach": {
+    "choice": [
+     {
+      "PRIMARY": 0.012918013649033187,
+      "SUPPLIER": 0.01962043189789358,
+      "CONSUMER": 0.09456872357589532,
+      "CONSEQUENCE": 0.8684644388719028,
+      "UNRELATED": 0.004428392005275057
+     },
+     {
+      "PRIMARY": 0.004184390481591523,
+      "SUPPLIER": 0.0009423120208173878,
+      "CONSUMER": 0.006386825849328431,
+      "CONSEQUENCE": 0.9868353494806533,
+      "UNRELATED": 0.0016511221676094037
+     },
+     {
+      "PRIMARY": 0.009572786021008433,
+      "SUPPLIER": 0.0033985419768922604,
+      "CONSUMER": 0.13847101151702496,
+      "CONSEQUENCE": 0.8448744136329563,
+      "UNRELATED": 0.003683246852118104
+     }
+    ],
+    "noul": [
+     0.24496328495473244,
+     0.3955772490072631,
+     0.8470060465823634,
+     0.03611706978934623
+    ]
+   }
+  },
+  "0074-what-ci-derived-is-reachable-from-a-checkout.md": {
+   "reach": {
+    "choice": [
+     {
+      "PRIMARY": 0.0009954225011723906,
+      "SUPPLIER": 0.0006035677408280168,
+      "CONSUMER": 0.47224447652436224,
+      "CONSEQUENCE": 0.18211873531429248,
+      "UNRELATED": 0.34403779791934475
+     },
+     {
+      "PRIMARY": 0.0007324073955743992,
+      "SUPPLIER": 0.00024174792659107755,
+      "CONSUMER": 0.21571941124435898,
+      "CONSEQUENCE": 0.37903387195081084,
+      "UNRELATED": 0.40427256148266477
+     },
+     {
+      "PRIMARY": 0.0005995543428142445,
+      "SUPPLIER": 0.0001634700650307804,
+      "CONSUMER": 0.578337364696416,
+      "CONSEQUENCE": 0.0861629936063073,
+      "UNRELATED": 0.3347366172894317
+     }
+    ],
+    "noul": [
+     0.9534847433416332,
+     0.9080573310857956,
+     0.5690717609211727,
+     0.21623658378642485
+    ]
+   },
+   "report": {
+    "choice": [
+     {
+      "PRIMARY": 0.0156177984129272,
+      "SUPPLIER": 0.03147195050257549,
+      "CONSUMER": 0.035674161535021225,
+      "CONSEQUENCE": 0.9044756767644612,
+      "UNRELATED": 0.012760412785014828
+     },
+     {
+      "PRIMARY": 0.015326822801913383,
+      "SUPPLIER": 0.05344275953910166,
+      "CONSUMER": 0.18191933724694617,
+      "CONSEQUENCE": 0.7381011321001288,
+      "UNRELATED": 0.0112099483119099
+     },
+     {
+      "PRIMARY": 0.016437890928758282,
+      "SUPPLIER": 0.00935114987766915,
+      "CONSUMER": 0.03810300142644036,
+      "CONSEQUENCE": 0.9281000999208557,
+      "UNRELATED": 0.008007857846276379
+     }
+    ],
+    "noul": [
+     0.9270182781917763,
+     0.9130801439372837,
+     0.7944733462600495,
+     0.5840910590787838
+    ]
+   }
+  },
+  "0079-shards-steal-from-each-other.md": {
+   "acquisition": {
+    "choice": [
+     {
+      "PRIMARY": 9.8243672844969e-06,
+      "SUPPLIER": 1.3002145718685807e-05,
+      "CONSUMER": 0.9999617081810435,
+      "CONSEQUENCE": 1.1875847977436886e-05,
+      "UNRELATED": 3.5894579757916427e-06
+     },
+     {
+      "PRIMARY": 3.314562668377223e-06,
+      "SUPPLIER": 4.285594777646384e-07,
+      "CONSUMER": 0.9999954793487745,
+      "CONSEQUENCE": 6.819879412445876e-07,
+      "UNRELATED": 9.554113817756662e-08
+     },
+     {
+      "PRIMARY": 1.1360128287668799e-06,
+      "SUPPLIER": 6.880803696454537e-07,
+      "CONSUMER": 0.9999975680808874,
+      "CONSEQUENCE": 4.937502617637178e-07,
+      "UNRELATED": 1.1407565254377836e-07
+     }
+    ],
+    "noul": [
+     0.778413268690932,
+     0.822696196850737,
+     0.649827245389607,
+     0.8440076369970078
+    ]
+   },
+   "reach": {
+    "choice": [
+     {
+      "PRIMARY": 0.04360640257308937,
+      "SUPPLIER": 0.04839491828005307,
+      "CONSUMER": 0.05681690066747314,
+      "CONSEQUENCE": 0.8268403222044828,
+      "UNRELATED": 0.02434145627490166
+     },
+     {
+      "PRIMARY": 0.055107191568054624,
+      "SUPPLIER": 0.07013343283077447,
+      "CONSUMER": 0.1963675798455575,
+      "CONSEQUENCE": 0.6539876808720986,
+      "UNRELATED": 0.024404114883514908
+     },
+     {
+      "PRIMARY": 0.0457062200233363,
+      "SUPPLIER": 0.03826801615997333,
+      "CONSUMER": 0.17907708999113434,
+      "CONSEQUENCE": 0.7110177263737114,
+      "UNRELATED": 0.02593094745184455
+     }
+    ],
+    "noul": [
+     0.1185991400567255,
+     0.5540109021894991,
+     0.06273257868300679,
+     0.05453787396582323
+    ]
+   }
+  },
+  "0080-coverage-is-counted-per-kind.md": {
+   "retention": {
+    "choice": [
+     {
+      "PRIMARY": 0.10323808622511445,
+      "SUPPLIER": 0.20891353522319675,
+      "CONSUMER": 0.4642126737783159,
+      "CONSEQUENCE": 0.10717447461618658,
+      "UNRELATED": 0.1164612301571863
+     },
+     {
+      "PRIMARY": 0.07975355668589014,
+      "SUPPLIER": 0.10445345074734945,
+      "CONSUMER": 0.6036320789247718,
+      "CONSEQUENCE": 0.16377981636579964,
+      "UNRELATED": 0.04838109727618901
+     },
+     {
+      "PRIMARY": 0.07129930306246497,
+      "SUPPLIER": 0.6663268736949787,
+      "CONSUMER": 0.17529276072408903,
+      "CONSEQUENCE": 0.07508590972999878,
+      "UNRELATED": 0.011995152788468596
+     }
+    ],
+    "noul": [
+     0.710073291860729,
+     0.23306206736364599,
+     0.5462441653094972,
+     0.024188694452653998
+    ]
+   },
+   "reach": {
+    "choice": [
+     {
+      "PRIMARY": 0.0024651020177323753,
+      "SUPPLIER": 0.0009115047712423851,
+      "CONSUMER": 0.4875004380192216,
+      "CONSEQUENCE": 0.4877130675130964,
+      "UNRELATED": 0.021409887678707214
+     },
+     {
+      "PRIMARY": 0.0009727842245953587,
+      "SUPPLIER": 0.000523409983805899,
+      "CONSUMER": 0.6248785508993717,
+      "CONSEQUENCE": 0.26065119644996987,
+      "UNRELATED": 0.11297405844225707
+     },
+     {
+      "PRIMARY": 0.5023154702749594,
+      "SUPPLIER": 0.014225539636932145,
+      "CONSUMER": 0.2617027519798205,
+      "CONSEQUENCE": 0.16764923956910785,
+      "UNRELATED": 0.054106998539180155
+     }
+    ],
+    "noul": [
+     0.8259319689395358,
+     0.8924792505821536,
+     0.6434824581071373,
+     0.13001690635029262
+    ]
+   }
+  },
+  "0087-every-suite-is-compared-with-its-own-base.md": {
+   "report": {
+    "choice": [
+     {
+      "PRIMARY": 0.11651704076212772,
+      "SUPPLIER": 0.5277792747888881,
+      "CONSUMER": 0.011479476462332565,
+      "CONSEQUENCE": 0.33357710084457454,
+      "UNRELATED": 0.010647107142077124
+     },
+     {
+      "PRIMARY": 0.0028042355963818727,
+      "SUPPLIER": 0.6617870419196463,
+      "CONSUMER": 0.04115631516457174,
+      "CONSEQUENCE": 0.2811299533770466,
+      "UNRELATED": 0.01312245394235342
+     },
+     {
+      "PRIMARY": 0.010923637605793644,
+      "SUPPLIER": 0.6594539921580234,
+      "CONSUMER": 0.05514516331391056,
+      "CONSEQUENCE": 0.27059569286916063,
+      "UNRELATED": 0.0038815140531117992
+     }
+    ],
+    "noul": [
+     0.9170335731685999,
+     0.8112139112962092,
+     0.8166429019382611,
+     0.3249989748935596
+    ]
+   },
+   "reach": {
+    "choice": [
+     {
+      "PRIMARY": 0.022124881357584992,
+      "SUPPLIER": 0.017582943399092457,
+      "CONSUMER": 0.42301732055285357,
+      "CONSEQUENCE": 0.5200627192118878,
+      "UNRELATED": 0.017212135478581147
+     },
+     {
+      "PRIMARY": 0.0288597689283792,
+      "SUPPLIER": 0.02877731846973432,
+      "CONSUMER": 0.7270184960842763,
+      "CONSEQUENCE": 0.19814808805986675,
+      "UNRELATED": 0.017196328457743455
+     },
+     {
+      "PRIMARY": 0.02536610083603821,
+      "SUPPLIER": 0.08641264985569572,
+      "CONSUMER": 0.07404607048391221,
+      "CONSEQUENCE": 0.800079002739691,
+      "UNRELATED": 0.014096176084662832
+     }
+    ],
+    "noul": [
+     0.3856480209410543,
+     0.11923446648140834,
+     0.06001285064938959,
+     0.010216783450346306
+    ]
+   }
+  },
+  "0088-a-suite-is-carried-alone.md": {
+   "review": {
+    "choice": [
+     {
+      "PRIMARY": 3.832648513423508e-05,
+      "SUPPLIER": 1.6636179756633472e-05,
+      "CONSUMER": 0.0001939543981811388,
+      "CONSEQUENCE": 0.9996751644985491,
+      "UNRELATED": 7.59184383789201e-05
+     },
+     {
+      "PRIMARY": 0.00041574334870770696,
+      "SUPPLIER": 0.0001943322103650106,
+      "CONSUMER": 0.00524522142025369,
+      "CONSEQUENCE": 0.9887175838578789,
+      "UNRELATED": 0.005427119162794743
+     },
+     {
+      "PRIMARY": 0.0008584670035101701,
+      "SUPPLIER": 0.00010008523687650043,
+      "CONSUMER": 0.002915678695447945,
+      "CONSEQUENCE": 0.9959590156058887,
+      "UNRELATED": 0.0001667534582766392
+     }
+    ],
+    "noul": [
+     0.5331634840692819,
+     0.33139628391998593,
+     0.05782237668215281,
+     0.00014048346553474834
+    ]
+   },
+   "reach": {
+    "choice": [
+     {
+      "PRIMARY": 0.09076995383941266,
+      "SUPPLIER": 0.48391877807537664,
+      "CONSUMER": 0.017004286585518967,
+      "CONSEQUENCE": 0.21371695980463865,
+      "UNRELATED": 0.19459002169505307
+     },
+     {
+      "PRIMARY": 0.021303492900941638,
+      "SUPPLIER": 0.947785881730131,
+      "CONSUMER": 0.003018807811791978,
+      "CONSEQUENCE": 0.021918908533654042,
+      "UNRELATED": 0.005972909023481275
+     },
+     {
+      "PRIMARY": 0.11169978845204147,
+      "SUPPLIER": 0.7870759049527709,
+      "CONSUMER": 0.003949028401874554,
+      "CONSEQUENCE": 0.08042058658650601,
+      "UNRELATED": 0.01685469160680716
+     }
+    ],
+    "noul": [
+     0.3037062903867069,
+     0.0006906881582153984,
+     0.25642900835892346,
+     0.02511914184045352
+    ]
+   }
+  },
+  "0089-this-repository-reports-every-kind-it-runs.md": {
+   "reach": {
+    "choice": [
+     {
+      "PRIMARY": 0.5730580837510449,
+      "SUPPLIER": 0.0016950136109561288,
+      "CONSUMER": 0.0014933897613899371,
+      "CONSEQUENCE": 0.04164265099309173,
+      "UNRELATED": 0.3821108618835172
+     },
+     {
+      "PRIMARY": 0.9632608342247845,
+      "SUPPLIER": 0.00021424426924834434,
+      "CONSUMER": 0.0006851417654377273,
+      "CONSEQUENCE": 0.03157923686709695,
+      "UNRELATED": 0.004260542873432493
+     },
+     {
+      "PRIMARY": 0.24466454431771212,
+      "SUPPLIER": 0.005448148933367722,
+      "CONSUMER": 0.011590224833547874,
+      "CONSEQUENCE": 0.7240515509474695,
+      "UNRELATED": 0.014245530967902804
+     }
+    ],
+    "noul": [
+     0.9180662521242098,
+     0.5360849867404734,
+     0.015125723137900646,
+     0.7811881819408266
+    ]
+   },
+   "acquisition": {
+    "choice": [
+     {
+      "PRIMARY": 0.0022319641384895843,
+      "SUPPLIER": 0.002427307040552668,
+      "CONSUMER": 0.01722162595070625,
+      "CONSEQUENCE": 0.8958855958110891,
+      "UNRELATED": 0.08223350705916235
+     },
+     {
+      "PRIMARY": 0.002279935430582015,
+      "SUPPLIER": 0.0009422949906453292,
+      "CONSUMER": 0.018080231477885206,
+      "CONSEQUENCE": 0.9760160359610353,
+      "UNRELATED": 0.0026815021398521916
+     },
+     {
+      "PRIMARY": 0.005843048068944549,
+      "SUPPLIER": 0.002217923182937813,
+      "CONSUMER": 0.08969637871237256,
+      "CONSEQUENCE": 0.894455414348015,
+      "UNRELATED": 0.007787235687730117
+     }
+    ],
+    "noul": [
+     0.3024557654133191,
+     0.23022506840817977,
+     0.6836633217876852,
+     0.06703175525029063
+    ]
+   }
+  }
+ }
+}
