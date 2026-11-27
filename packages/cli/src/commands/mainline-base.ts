@@ -226,20 +226,18 @@ async function readMainline(root: string, suite: string, chosen: MainlineSelecti
   const casesUnread = index === undefined ? undefined : decodes(index);
   const record = casesUnread === undefined ? selection.sharedRecord(found.coverage) : selection.withCaseSections(found.coverage, {});
   // Kept where every checkout of the repository reads it, or in this
-  // checkout's own cache where it may not write that one. In the shared cache
-  // a record is linked into place, never over one another checkout kept, which
-  // is its build's: this build's copy goes to the checkout's own cache, and a
-  // primary checkout, with no other, reads the one there.
+  // checkout's own cache where it may not write that one. A worktree links a
+  // record into the shared cache, never over one another checkout kept, which
+  // is its build's: this build's copy goes to its own cache. The primary
+  // checkout owns that cache, and replaces a record there, a partial one too.
   const shared = selection.sharedMainlineStore(root, suite, here.cacheRoot);
   let store = cacheRoot;
   let coverage = '';
   let kept: string | undefined;
-  let ours = true;
   for (store of selection.fetchStores(root, suite, here.cacheRoot)) {
     coverage = join(selection.mainlineReadRoot(store, suite), found.commit, 'coverage.bin');
-    if (store !== shared) kept = await keep(selection.writeCoverageBytes, coverage, record);
+    if (store !== shared || store === cacheRoot) kept = await keep(selection.writeCoverageBytes, coverage, record);
     else if (await selection.writeCoverageOnce(coverage, record).catch(() => false)) kept = undefined;
-    else if (store === cacheRoot && existsSync(coverage)) [kept, ours] = [undefined, false];
     else kept = `another checkout keeps a record at ${found.commit} there, or this file system links no file`;
     if (kept === undefined) break;
   }
@@ -251,7 +249,7 @@ async function readMainline(root: string, suite: string, chosen: MainlineSelecti
   // reader measures a diff from it: each says it holds no coverage.
   const refused = selection.withoutCoverage(coverage) ? undefined : refusal(selection.askCoverageFile, coverage, found.commit);
   if (refused !== undefined) {
-    if (ours) await rm(layer, { recursive: true, force: true });
+    await rm(layer, { recursive: true, force: true });
     return await unread(refused);
   }
 
@@ -279,7 +277,7 @@ async function readMainline(root: string, suite: string, chosen: MainlineSelecti
   // `planCachePrune` states, never the one just named.
   // In another checkout's cache, only the mainline records every checkout shares are this fetch's to judge.
   const owners = checkoutOwners(root, now);
-  const sharedPrune = store === cacheRoot ? undefined : await pruneCacheWhenDue({ cacheRoot: store }, owners, { reads: true });
+  const sharedPrune = store === cacheRoot ? undefined : await pruneCacheWhenDue({ cacheRoot: store }, owners, { reads: true, pinned: await selection.pinnedMainlines(root) });
   const pruned = [await pruneCacheWhenDue({ cacheRoot }, owners), sharedPrune]
     .map((one) => selection.prunedLine(one, CACHE_PRUNE_REASONS))
     .filter((line) => line !== '')

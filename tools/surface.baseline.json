@@ -3637,6 +3637,7 @@
         "parseNameGrammar": "function",
         "parseSuites": "function",
         "pendingJourneyDirectory": "function",
+        "pinnedMainlines": "function",
         "placeAcross": "function",
         "placeInText": "function",
         "placeInTexts": "function",

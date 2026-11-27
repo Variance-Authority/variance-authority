@@ -93,6 +93,20 @@ describe('planCachePrune', () => {
     expect(plan.remove.map((entry) => [entry.path, entry.reason])).toEqual([[other, 'off-line']]);
   });
 
+  test('in the shared cache, a mainline record another checkout stands on stays, and only the reads are judged', async () => {
+    const cacheRoot = await mkdtemp(resolve(tmpdir(), 'va-prune-cache-'));
+    const read = join(cacheRoot, 'share', 'read', 'unit');
+    const pinned = await put(join(read, commit(1), 'coverage.bin'), 15 * DAY).then(dirname);
+    await utimes(pinned, (NOW - 15 * DAY) / 1000, (NOW - 15 * DAY) / 1000);
+    const other = await put(join(read, commit(2), 'coverage.bin'), 15 * DAY).then(dirname);
+    await utimes(other, (NOW - 15 * DAY) / 1000, (NOW - 15 * DAY) / 1000);
+    await put(join(read, commit(3), 'coverage.bin'), 0);
+
+    const plan = await planCachePrune({ cacheRoot }, owners({ [commit(1)]: false, [commit(2)]: false, [commit(3)]: 0 }), { reads: true, pinned: [commit(1)] });
+
+    expect(plan.remove.map((entry) => [entry.path, entry.reason])).toEqual([[other, 'off-line']]);
+  });
+
   test('a commit git cannot answer for is kept, and said, until it is 30 days old', async () => {
     const cacheRoot = await mkdtemp(resolve(tmpdir(), 'va-prune-cache-'));
     const young = await put(join(cacheRoot, 'suite', 'other', `${commit(1)}.bin`), 29 * DAY);

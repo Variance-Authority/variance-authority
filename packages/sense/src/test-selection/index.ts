@@ -126,6 +126,7 @@ export {
 export {
   FETCHED_MAINLINE,
   fetchStores,
+  pinnedMainlines,
   sharedMainlineStore,
   SHARED_MAINLINE,
   lastFetchedMainline,

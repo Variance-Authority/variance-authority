@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { chmod, cp, mkdtemp, readFile, realpath, rm, stat, utimes, writeFile } from 'node:fs/promises';
+import { chmod, cp, mkdtemp, readdir, readFile, realpath, rm, stat, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -8,12 +8,15 @@ import {
   declaredSuites,
   lastFetchedMainline,
   mainlineReadRoot,
+  pinnedMainlines,
   readFetchedMainline,
   SHARED_MAINLINE,
+  writeTestCoverage,
 } from '@variance-authority/sense/test-selection';
 import type { Env } from '../share-lines.js';
 import { mainlineBase, standOnHanded } from './mainline-base.js';
-import { git, gitPublished, publishedAt } from './mainline-fixture.js';
+import { git, gitPublished, publishedAt, totalCoverage, totalModule } from './mainline-fixture.js';
+import { publishedPartialNext, publishedWhole } from './milestone-pin.fixture.js';
 
 /**
  * Where a fetch keeps the mainline's record when the checkouts of one
@@ -143,6 +146,8 @@ describe('a mainline record one worktree fetched', () => {
     expect(await base(behind)).toMatchObject({ commit: first, distance: 0 });
     // The runner seams lay what the share reads.
     expect(lastFetchedMainline(behind, 'unit')).toMatchObject({ commit: first });
+    // Its record lives in the shared cache alone, so a prune there keeps it.
+    expect(await pinnedMainlines(one)).toEqual(expect.arrayContaining([first, next]));
   });
 
   it('is not taken from a fresh worktree by a later fetch at an older merge base', async () => {
@@ -200,6 +205,35 @@ describe('a mainline record one worktree fetched', () => {
     expect(existsSync(join(mainlineReadRoot(cacheRootFor(one), 'unit'), next, 'coverage.bin'))).toBe(true);
     expect(lastFetchedMainline(one, 'unit')).toMatchObject({ commit: next });
     expect(readFetchedMainline(shared)).toMatchObject({ commit: first });
+  });
+});
+
+describe('a partial mainline record the primary checkout fetched', () => {
+  it('is replaced by the whole one published later at the same commit', async () => {
+    const { ci, origin, first } = await gitPublished(home);
+    const primary = join(home, 'clone');
+    await git(home, 'clone', '--quiet', origin, primary);
+    ownCaches();
+    const next = await publishedPartialNext(home, ci, first);
+    await git(primary, 'pull', '--quiet', 'origin', 'main');
+    const base = () => mainlineBase(primary, declaredSuites(primary)?.find((one) => one.name === 'unit'), { env: LOCAL, now: Date.now(), fetch: 'always' });
+    expect(await base()).toMatchObject({ commit: next });
+    expect(lastFetchedMainline(primary, 'unit')).toMatchObject({ commit: next, partial: true });
+    const partial = await readFile(lastFetchedMainline(primary, 'unit')!.coverage);
+    // The whole run entered the module from one test file, not two.
+    const one = ['test/total.test.ts'];
+    await publishedWhole(home, ci, next, (record) => writeTestCoverage(record, totalCoverage(next, one, [totalModule(one)])));
+    ownCaches();
+    // The line was read a moment ago: age that read, so the fetch asks it again.
+    const cache = cacheRootFor(primary);
+    for (const path of (await readdir(cache, { recursive: true })).filter((one) => one.includes('variance-fetched'))) await utimes(join(cache, path), 0, 0);
+
+    expect(await base()).toMatchObject({ commit: next });
+
+    const read = lastFetchedMainline(primary, 'unit');
+    expect(read?.partial).toBeUndefined();
+    expect(await readFile(read!.coverage)).not.toEqual(partial);
+    expect(JSON.parse(await readFile(read!.runs!, 'utf8'))).toMatchObject({ standing: [] });
   });
 });
 

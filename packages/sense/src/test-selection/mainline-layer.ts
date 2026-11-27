@@ -20,7 +20,7 @@ import { randomUUID } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import { cacheRootFor, primaryCacheRoot } from './cache-layers.js';
+import { cacheRootFor, directoriesIn, listWorktrees, primaryCacheRoot, primaryCheckout } from './cache-layers.js';
 import { commitRunsIn, commitRunsText } from './commit-runs-text.js';
 import { commitRunsFile, type CommitRuns } from './commit-runs.js';
 import { caseSectionsOf } from './case-record.js';
@@ -175,6 +175,22 @@ export function fetchStores(root: string, suite: string, cacheRoot?: string): re
 export function sharedMainlineStore(root: string, suite: string, cacheRoot?: string): string | undefined {
   if (cacheRoot !== undefined || mainlineHanded(root, suite)) return undefined;
   return primaryCacheRoot(repositoryRoot(root));
+}
+
+/**
+ * The commits every checkout of `root`'s repository stands on, by its own
+ * pointer in its own cache: the shared records a prune of the shared cache keeps.
+ */
+export async function pinnedMainlines(root: string): Promise<readonly string[]> {
+  const pinned: string[] = [];
+  for (const checkout of (await listWorktrees(primaryCheckout(repositoryRoot(root)))) ?? []) {
+    const reads = join(cacheRootFor(checkout), 'share', 'read');
+    for (const suite of await directoriesIn(reads)) {
+      const commit = readFetchedMainline(join(reads, suite))?.commit;
+      if (commit !== undefined) pinned.push(commit);
+    }
+  }
+  return pinned;
 }
 
 /**

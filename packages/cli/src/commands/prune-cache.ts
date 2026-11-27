@@ -117,7 +117,7 @@ export async function planCachePrune(
   const suites = suiteIndexRoot(config);
   const read = join(shareRoot(config), 'read');
   if (options.reads === true) {
-    await mainlineReads(read, commits);
+    await mainlineReads(read, commits, options.pinned);
     return { root, remove, kept };
   }
   for (const project of await directoriesIn(suites)) {
@@ -158,19 +158,21 @@ export async function planCachePrune(
  * Which of a cache's directories a prune judges. `reads` is the mainline
  * records under `share/read/` alone: in another checkout's cache, the one
  * part every checkout of the repository shares, so a worktree judges no
- * record that checkout ran by its own `HEAD`.
+ * record that checkout ran by its own `HEAD`. `pinned` names the records
+ * other checkouts stand on there, which no prune takes.
  */
 export interface PruneScope {
   readonly reads?: boolean;
+  readonly pinned?: readonly string[];
 }
 
 /** The mainline records under `read`, offered to `commits` one suite at a time. */
-async function mainlineReads(read: string, commits: (entries: readonly CommitEntry[]) => Promise<void>): Promise<void> {
+async function mainlineReads(read: string, commits: (entries: readonly CommitEntry[]) => Promise<void>, pinned: readonly string[] = []): Promise<void> {
   for (const suite of await directoriesIn(read)) {
     const directory = join(read, suite);
     // The records `fetched.json` and `shared.json` name are the base every checkout of this
     // machine lays its first run on, however far behind it falls.
-    const named = [readFetchedMainline(directory)?.commit, readFetchedMainline(directory, SHARED_MAINLINE)?.commit];
+    const named = [readFetchedMainline(directory)?.commit, readFetchedMainline(directory, SHARED_MAINLINE)?.commit, ...pinned];
     await commits(await commitEntries(directory, (name) => (named.includes(name) ? undefined : /^[0-9a-f]{7,64}$/u.exec(name)?.[0])));
   }
 }
