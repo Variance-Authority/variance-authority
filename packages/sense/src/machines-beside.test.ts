@@ -1,4 +1,4 @@
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { beforeEach, describe, expect, it } from 'vitest';
@@ -39,5 +39,11 @@ describe('the machines the runs beside a record name', () => {
       writeFileSync(commitRunsFile(recording), text);
       expect(machinesBeside(recording, commit)).toEqual({ unread: expect.stringMatching(why) });
     }
+  });
+
+  it('says why none is named where the runs record is there and cannot be read as a file', () => {
+    mkdirSync(commitRunsFile(recording));
+
+    expect(machinesBeside(recording, commit)).toEqual({ unread: expect.stringMatching(/EISDIR/u) });
   });
 });
