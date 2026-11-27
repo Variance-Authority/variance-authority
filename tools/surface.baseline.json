@@ -2854,6 +2854,7 @@
         "native/instrument/Cargo.toml",
         "native/instrument/build.rs",
         "native/instrument/src/*.rs",
+        "python/variance_pytest.py",
         "record-layout.json",
         "scripts/probe-write.mjs"
       ],
@@ -3410,6 +3411,7 @@
         "PrunePlan": "interface",
         "PruneReason": "type",
         "Pruned": "interface",
+        "PythonRun": "interface",
         "RanOver": "type",
         "RanOverEvidence": "interface",
         "RangeState": "type",
@@ -3677,6 +3679,7 @@
         "recordFileFor": "function",
         "recordJob": "function",
         "recordOfCases": "function",
+        "recordPython": "function",
         "recordStorageAt": "function",
         "recordedAttemptsAt": "function",
         "recordedCases": "function",

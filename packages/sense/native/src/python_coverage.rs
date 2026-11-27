@@ -41,6 +41,7 @@ pub struct PythonEntered {
 /// checkout's; one the cut cannot parse is entered at its root alone, as a
 /// module the reader cannot parse is, so an edit to it selects every test that
 /// entered it.
+/// bound: the tests of one test file and the files they entered
 #[napi(js_name = "pythonCoverage", catch_unwind)]
 pub fn python_coverage(cases: Vec<Vec<PythonLines>>, root: String) -> Vec<Vec<PythonEntered>> {
     let root = Path::new(&root);

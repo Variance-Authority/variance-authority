@@ -7,6 +7,9 @@
 import { randomUUID } from 'node:crypto';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import caseOwner from './case-owner.cjs';
+import { recordFileFor } from './record-location.js';
+import { foldRun } from './selection-fold.js';
+import { newRun } from './selection-run.js';
 import journalFormat from './journal-format.cjs';
 
 /**
@@ -44,4 +47,16 @@ function counters(modules: ReadonlyMap<string, ReadonlySet<number>>): Map<string
     out.set(id, entered);
   }
   return out;
+}
+
+/**
+ * Open a recorded run for a suite: the record file it lands in, the run its
+ * journals are written under, and the fold that reads them once they are.
+ * `unreached` is what the fold says when no file of the checkout was entered.
+ */
+export function openRun(root: string, run: { cwd: string; suite?: string | undefined; coverageFile?: string | undefined }, unreached: string) {
+  const coverageFile = recordFileFor(root, run.cwd, { suite: run.suite, coverageFile: run.coverageFile });
+  const selection = newRun(coverageFile, root, 'presence');
+  const fold = foldRun(selection, { coverageFile, shims: [], derive: true, unreached });
+  return { selection, fold };
 }

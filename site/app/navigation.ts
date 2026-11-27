@@ -88,6 +88,7 @@ export const NAVIGATION = [
       { href: "/docs/changes-before-and-beyond", label: "Changes before and beyond", cluster: "Run less of the suite", theory: true, description: "Changes before execution begins, and dependencies beyond the code being tested." },
       { href: "/docs/distance", label: "Measure test distance", cluster: "Run less of the suite" },
       { href: "/docs/jvm", label: "Select Java tests from the methods each one ran", cluster: "Run less of the suite" },
+      { href: "/docs/python", label: "Select Python tests from the functions each one ran", cluster: "Run less of the suite" },
       { href: "/docs/rust", label: "Select Rust tests from the functions each one ran", cluster: "Run less of the suite" },
       { href: "/docs/node-test", label: "Record and select tests under node:test", cluster: "Run less of the suite" },
       { href: "/docs/optimize-a-test", label: "Make one test cost less", cluster: "Make one test cost less" },

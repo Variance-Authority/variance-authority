@@ -14,13 +14,10 @@ import { mkdirSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { delimiter, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { native } from '../addon.js';
-import { writeJournals } from './case-journals.js';
+import { openRun, writeJournals } from './case-journals.js';
 import { finishedCase } from './case-durations.js';
 import { whyAbsent } from './native-modules.js';
-import { recordFileFor } from './record-location.js';
 import { repositoryRoot } from './repository-root.js';
-import { foldRun } from './selection-fold.js';
-import { newRun } from './selection-run.js';
 
 export interface PythonRun {
   /** Where pytest runs. */
@@ -51,14 +48,7 @@ export async function recordPython(run: PythonRun): Promise<number> {
   const pythonCoverage = native()?.pythonCoverage;
   if (pythonCoverage === undefined) throw new Error(`recording a pytest suite requires the Sense native addon: ${whyAbsent('pythonCoverage')}`);
   const root = repositoryRoot(run.cwd);
-  const coverageFile = recordFileFor(root, run.cwd, { suite: run.suite, coverageFile: run.coverageFile });
-  const selection = newRun(coverageFile, root, 'presence');
-  const fold = foldRun(selection, {
-    coverageFile,
-    shims: [],
-    derive: true,
-    unreached: 'No Python file of the checkout was entered: check that the tests run code under the repository root.',
-  });
+  const { selection, fold } = openRun(root, run, 'No Python file of the checkout was entered: check that the tests run code under the repository root.');
   const written = `${selection.runDirectory}-python`;
   rmSync(written, { recursive: true, force: true });
   mkdirSync(written, { recursive: true });

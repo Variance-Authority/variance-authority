@@ -20,14 +20,11 @@ import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:pat
 import { fileURLToPath } from 'node:url';
 import { native } from '../addon.js';
 import { digestString } from '../digest.js';
-import { writeJournals } from './case-journals.js';
+import { openRun, writeJournals } from './case-journals.js';
 import { finishedCase } from './case-durations.js';
 import { whyAbsent } from './native-modules.js';
 import { pool } from './pool.js';
-import { recordFileFor } from './record-location.js';
 import { repositoryRoot } from './repository-root.js';
-import { foldRun } from './selection-fold.js';
-import { newRun } from './selection-run.js';
 
 export interface CargoRun {
   /** Where the Cargo command runs. */
@@ -82,14 +79,7 @@ export async function recordCargo(run: CargoRun): Promise<number | undefined> {
   const workspace = await metadata(run);
   // The checkout is the workspace's, which `--manifest-path` may place outside the directory Cargo runs in.
   const root = repositoryRoot(workspace.root);
-  const coverageFile = recordFileFor(root, run.cwd, { suite: run.suite, coverageFile: run.coverageFile });
-  const selection = newRun(coverageFile, root, 'presence');
-  const fold = foldRun(selection, {
-    coverageFile,
-    shims: [],
-    derive: true,
-    unreached: 'No Rust file of the checkout was entered: check that the tests run code under the repository root.',
-  });
+  const { selection, fold } = openRun(root, run, 'No Rust file of the checkout was entered: check that the tests run code under the repository root.');
   const profiles = `${selection.runDirectory}-profiles`;
   mkdirSync(profiles, { recursive: true });
   try {
