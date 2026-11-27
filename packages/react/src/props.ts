@@ -1,4 +1,5 @@
 import { propsDigest, type Digest } from '@variance-authority/core/format';
+import { inputPropNames } from './inputs.js';
 
 /**
  * The props digest at one composite boundary, computed once for both readers.
@@ -86,12 +87,8 @@ export function digestPass(): DigestPass {
  * component rather than to the prop provider.
  */
 function digestableProps(props: Readonly<Record<string, unknown>> | null): Record<string, unknown> {
-  if (props === null || typeof props !== 'object') return {};
-
   const shaped: Record<string, unknown> = {};
-  for (const key of Object.keys(props)) {
-    if (key === 'children') continue;
-    shaped[key] = props[key];
-  }
+  if (props === null) return shaped;
+  for (const key of inputPropNames(props)) shaped[key] = props[key];
   return shaped;
 }

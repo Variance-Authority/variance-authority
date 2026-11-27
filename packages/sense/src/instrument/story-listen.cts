@@ -21,7 +21,8 @@ const NOTE = Symbol.for('variance-authority.story.note');
 /** The console methods a case prints with; each line is a note, and still printed. */
 const PRINTS = ['log', 'info', 'warn', 'error', 'debug'] as const;
 
-type Channel = (text: string) => void;
+/** A line of text, or a template's strings and the values between them. */
+type Channel = (text: string | readonly string[], ...values: unknown[]) => void;
 
 /** The part of a DOM node a change line names. */
 interface Seen {
@@ -247,7 +248,8 @@ function watchPage(tap: Pick<Tap, 'note' | 'notePage' | 'drainWith'>, global: Re
  */
 function listen(tap: Pick<Tap, 'note' | 'notePage' | 'nameIn' | 'drainWith'>, scope: object): void {
   const global = scope as Realm;
-  global[NOTE] = (text: string): void => tap.note(String(text));
+  global[NOTE] = (text: string | readonly string[], ...values: unknown[]): void =>
+    tap.note(Array.isArray(text) ? text : String(text), values);
   tap.nameIn(scope);
   watchPage(tap, global);
   const printer = global.console as (Console & { [NOTE]?: true }) | undefined;

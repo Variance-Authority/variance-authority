@@ -125,8 +125,8 @@ interface Tap {
    * `taped` is a tape that stopped, never one that was empty.
    */
   read(): Tape;
-  /** Put `text` on the tape where the realm is now, in the case running now. */
-  note(text: string): void;
+  /** Put `text` on the tape where the realm is now, in the case running now; a template's `values` go between its strings, each shown as a region shows it. */
+  note(text: string | readonly string[], values?: readonly unknown[]): void;
   /** Put what a test line changed on its page on the tape as {@link note} does, kept apart so a page never crowds out what the code said. */
   notePage(text: string): void;
   /** Have the tape keep when each turn of the realm began, read off `clock`. */
@@ -423,7 +423,8 @@ function createTap(engine: Engine, limit: number, live = false): Tap {
     read() {
       return { tape, taped, visits, at, keys, notes, lines, unnoted, held, rows: { ids: rowIds, counts: rowCounts, bases: rowBases } };
     },
-    note(text: string): void {
+    note(strings: string | readonly string[], values: readonly unknown[] = []): void {
+      const text = typeof strings === 'string' ? strings : strings.slice(1).reduce((line, part, index) => line + shown(values[index]) + part, String(strings[0] ?? ''));
       if (parts !== undefined) {
         const into = parts.here();
         if (into !== undefined && parts.room(into, 'spoken')) put(text);
