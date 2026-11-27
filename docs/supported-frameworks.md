@@ -31,9 +31,10 @@ leave out.
 ## When you can rely on what was left out
 
 Every runner keeps one rule: a test file is left out only when its last whole
-run covered none of the code you changed. When the record cannot answer, CI runs
-every test file, and a local run keeps only the tests that import a changed
-file. [What a skipped test promises](selection-safety.md) states the
+run covered none of the code you changed. When the record cannot answer, the run
+skips nothing, unless you ask for
+[`--local`](selection-safety.md#ask-for-a-local-answer-with---local), which keeps
+only the tests that import a changed file. [What a skipped test promises](selection-safety.md) states the
 rule and every case where it runs more.
 
 What differs between runners is what the recorder can see, and that depends on
