@@ -3566,6 +3566,7 @@
         "encodeAsSetExecutionIndex": "function",
         "encodeExecutionIndex": "function",
         "encodeTestCoverage": "function",
+        "fetchStores": "function",
         "finalizeJestJourneys": "function",
         "findModules": "function",
         "followRows": "function",
