@@ -70,8 +70,8 @@ All tests share one pytest process, so what pytest runs once for many tests is
 charged to the first test that ran it. A fixture with `session` or `package`
 scope, and a function cached across test files, such as one under
 `functools.cache`, run under the first test that needs them, and only that test
-is charged: an edit to one can leave out the other test files that use it. Run
-the whole suite for such an edit.
+is charged: an edit to one can leave out the other test files that use it. Name the file that
+holds one in the suite's `before`, below, so an edit to it runs every test.
 
 No test reads `pyproject.toml`, `requirements.txt`, a lockfile or `pytest.ini`,
 and the record holds none of them, so a change to one keeps no test in the run.
@@ -93,7 +93,8 @@ any function of a file is charged the root too: import-time code runs once, whil
 pytest collects the test files, so an edit to it selects every test
 that ran the file. A test that ran none of the file's functions and only read a
 value its top level set, such as a constant, is not charged, and an edit to that
-value can leave it out.
+value can leave it out. Name a module that tests read that way in the suite's
+`before`.
 
 A file pytest imports from outside the repository root, or from `site-packages`,
 is not recorded.
