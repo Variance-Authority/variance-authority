@@ -14,7 +14,8 @@ import {
 } from '@variance-authority/sense/test-selection';
 import type { Env } from '../share-lines.js';
 import { mainlineBase, standOnHanded } from './mainline-base.js';
-import { git, gitPublished, publishedAt, totalCoverage, totalModule } from './mainline-fixture.js';
+import { DISCOUNTS, git, gitPublished, published, publishedAt, publishTo, PUSH, recordIn, totalCoverage, totalModule } from './mainline-fixture.js';
+import { checkoutOwners, planCachePrune } from './prune-cache.js';
 import { publishedPartialNext, publishedWhole } from './milestone-pin.fixture.js';
 
 /**
@@ -192,6 +193,23 @@ describe('a mainline record one worktree fetched', () => {
     expect(lastFetchedMainline(await tree('fresh'), 'unit')).toMatchObject({ commit: next });
   });
 
+  it('is kept by a prune the primary checkout runs, while a worktree reads it', async () => {
+    const { primary, first, next, one, tree, base } = await laptop();
+    const behind = await tree('behind', first);
+    expect(await base(behind)).toMatchObject({ commit: first });
+    expect(await base(one)).toMatchObject({ commit: next });
+    const reads = mainlineReadRoot(cacheRootFor(primary), 'unit');
+    // A newer record no checkout reads, so `first` is not the newest the prune keeps anyway.
+    await cp(join(reads, first), join(reads, 'e'.repeat(40)), { recursive: true });
+    const week = (Date.now() - 7 * 24 * 60 * 60_000) / 1000;
+    await utimes(join(reads, first), week, week);
+
+    // Every kept commit falls far behind the primary's HEAD, as on a busy mainline.
+    const plan = await planCachePrune({ cacheRoot: cacheRootFor(primary) }, { ...checkoutOwners(primary), past: async () => 500 });
+
+    expect(plan.remove.map((entry) => entry.path)).not.toContain(join(reads, first));
+  });
+
   it('keeps it in its own when it cannot write the primary checkout\'s', async () => {
     const { primary, first, next, one, base } = await laptop();
     const shared = mainlineReadRoot(cacheRootFor(primary), 'unit');
@@ -232,6 +250,53 @@ describe('a partial mainline record the primary checkout fetched', () => {
     expect(read?.partial).toBeUndefined();
     expect(await readFile(read!.coverage)).not.toEqual(partial);
     expect(JSON.parse(await readFile(read!.runs!, 'utf8'))).toMatchObject({ standing: [] });
+  });
+});
+
+describe('a mainline record a run handed on to the primary checkout', () => {
+  it('is no sibling worktree\'s read', async () => {
+    const { primary, first, tree } = await laptop();
+    const pointer = readFetchedMainline(mainlineReadRoot(cacheRootFor(primary), 'unit'))!;
+    const behind = await tree('behind', first);
+
+    await standOnHanded(primary, 'unit', { ...pointer, fetched: new Date().toISOString() }, 'not handed');
+
+    expect(lastFetchedMainline(primary, 'unit')).toMatchObject({ commit: first, handed: true });
+    const read = lastFetchedMainline(behind, 'unit');
+    expect(read).toMatchObject({ commit: first });
+    expect(read?.handed).toBeUndefined();
+  });
+});
+
+describe('a mainline record a share that keeps only its latest gave', () => {
+  it('is read by a worktree whose merge base it is past, over an older record kept behind it', async () => {
+    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'ci-cache'));
+    const ci = await published(home);
+    const primary = join(home, 'clone');
+    await git(home, 'clone', '--quiet', ci.origin, primary);
+    ownCaches();
+    const base = (dir: string) => mainlineBase(dir, declaredSuites(dir)?.find((one) => one.name === 'unit'), { env: LOCAL, now: Date.now() });
+    expect(await base(primary)).toMatchObject({ commit: ci.first });
+    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'ci-cache'));
+    await git(ci.dir, 'commit', '--quiet', '--allow-empty', '-m', 'unpublished');
+    await git(ci.dir, 'commit', '--quiet', '--allow-empty', '-m', 'latest');
+    const latest = await git(ci.dir, 'rev-parse', 'HEAD');
+    await git(ci.dir, 'push', '--quiet', 'origin', 'main');
+    await recordIn(ci.dir, latest, ['test/total.test.ts'], [DISCOUNTS]);
+    await publishTo(home, ci.dir, latest, PUSH, 'mainline main');
+    ownCaches();
+    await git(primary, 'fetch', '--quiet', 'origin');
+    const worktree = async (name: string, at: string) => {
+      const dir = join(home, name);
+      await git(primary, 'worktree', 'add', '--quiet', '--detach', dir, at);
+      return dir;
+    };
+    const behind = await worktree('behind', 'origin/main~1');
+
+    expect(await base(await worktree('ahead', 'origin/main'))).toMatchObject({ commit: latest });
+
+    // The share holds nothing nearer, so the record past the merge base stands, as it does for the worktree that fetched it.
+    expect(lastFetchedMainline(behind, 'unit')).toMatchObject({ commit: latest });
   });
 });
 

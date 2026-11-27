@@ -74,6 +74,8 @@ export interface MainlineRecord {
   readonly earlier?: { readonly reused: 'nearest' | 'asked' | 'offline' | 'handed' } | { readonly unanswered: MainlineMiss; readonly asked?: string };
   /** What the fetch's daily prune of this cache took, when it took something. */
   readonly pruned?: string;
+  /** Why the fetch kept the record where only this checkout reads it, when the shared cache took no write. */
+  readonly unshared?: string;
 }
 
 /** Why the mainline gave no record: which mainline was asked, when one was known, and the share's answer. */
@@ -225,10 +227,12 @@ async function readMainline(root: string, suite: string, chosen: MainlineSelecti
   let store = cacheRoot;
   let coverage = '';
   let kept: string | undefined;
+  let unshared: string | undefined;
   for (store of selection.fetchStores(root, suite, here.cacheRoot)) {
     coverage = join(selection.mainlineReadRoot(store, suite), found.commit, 'coverage.bin');
     kept = await keep(selection.writeCoverageBytes, coverage, record);
     if (kept === undefined) break;
+    unshared ??= `kept in this checkout's own cache, which no other checkout reads, as ${coverage} could not be written: ${kept}`;
   }
   const layer = dirname(coverage);
   if (kept !== undefined) return await unread(`the record published at ${found.commit} could not be kept at ${coverage}: ${kept}`);
@@ -238,7 +242,8 @@ async function readMainline(root: string, suite: string, chosen: MainlineSelecti
   // reader measures a diff from it: each says it holds no coverage.
   const refused = selection.withoutCoverage(coverage) ? undefined : refusal(selection.askCoverageFile, coverage, found.commit);
   if (refused !== undefined) {
-    await rm(layer, { recursive: true, force: true });
+    // In the shared cache these are the published bytes another build may read and name.
+    if (store === cacheRoot) await rm(layer, { recursive: true, force: true });
     return await unread(refused);
   }
 
@@ -256,7 +261,7 @@ async function readMainline(root: string, suite: string, chosen: MainlineSelecti
   // name finds them.
   const fetched = asked;
   const base = baseOf(found.mainline);
-  const pointer: FetchedMainline = { mainline: found.mainline, commit: found.commit, fetched, ...(base === undefined ? {} : { base }), ...(found.partial === true ? { partial: true as const } : {}) };
+  const pointer: FetchedMainline = { mainline: found.mainline, commit: found.commit, fetched, ...(base === undefined ? {} : { base }), ...(found.partial === true ? { partial: true as const } : {}), ...(keepsByCommit(share) ? {} : { latest: true as const }) };
   await selection.writeFetchedMainline(store, suite, pointer);
   await rm(join(readRoot, MISSED), { force: true });
   // Each fetch of a new commit adds a directory here, and a fetch is where
@@ -264,7 +269,7 @@ async function readMainline(root: string, suite: string, chosen: MainlineSelecti
   // `planCachePrune` states, never the one just named.
   // In another checkout's cache, only the mainline records every checkout shares are this fetch's to judge.
   const owners = checkoutOwners(root, now);
-  const sharedPrune = store === cacheRoot ? undefined : await pruneCacheWhenDue({ cacheRoot: store }, owners, { reads: true, pinned: await selection.pinnedMainlines(root) });
+  const sharedPrune = store === cacheRoot ? undefined : await pruneCacheWhenDue({ cacheRoot: store }, owners, { reads: true });
   const pruned = [await pruneCacheWhenDue({ cacheRoot }, owners), sharedPrune]
     .map((one) => selection.prunedLine(one, CACHE_PRUNE_REASONS))
     .filter((line) => line !== '')
@@ -281,6 +286,7 @@ async function readMainline(root: string, suite: string, chosen: MainlineSelecti
     fetched,
     ...(found.partial === true ? { partial: true } : {}),
     ...(pruned === '' ? {} : { pruned }),
+    ...(unshared === undefined ? {} : { unshared }),
   };
 }
 
@@ -395,7 +401,8 @@ export function mainlineRead(read: MainlineRecord): string {
   return `record of "${read.suite}": read from mainline ${read.mainline}, published at ${read.commit}${when}, ` +
     describeDistance(read.distance) +
     (read.casesUnread === undefined ? '' : `; ${read.casesUnread}`) +
-    (read.pruned === undefined ? '' : `; ${read.pruned}`);
+    (read.pruned === undefined ? '' : `; ${read.pruned}`) +
+    (read.unshared === undefined ? '' : `; ${read.unshared}`);
 }
 
 /**

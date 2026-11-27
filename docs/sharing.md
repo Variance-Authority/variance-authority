@@ -615,12 +615,14 @@ Records are read in this order:
    checkout reads the nearest kept record its `HEAD` contains, so a sibling's
    fetch of a newer commit never changes what an older checkout reads, and a
    checkout that merges the mainline reads the newer record without fetching
-   again. A worktree that cannot write there, as in a sandbox, keeps it in its
-   own.
+   again. A record from a directory or HTTP share, which keeps only the newest,
+   is read by every checkout ahead of those, since that share has nothing
+   nearer to give. A worktree that cannot write there, as in a sandbox, keeps
+   it in its own, and the answer says why.
 
-   The record read is the one kept at your `HEAD`'s merge base with the
-   mainline when the share keeps one there. Until it does, because that commit's CI has not published
-   yet, it is the newest kept behind your merge base that holds your suite's
+   The record fetched is the one at your `HEAD`'s merge base with the mainline
+   when the share keeps one there. Until it does, because that commit's CI has
+   not published yet, it is the newest kept behind your merge base that holds your suite's
    record, and the remote is asked again on each read, at most once a minute,
    until your merge base's record is there. With nothing kept at or behind
    your merge base, it is the mainline's newest. A record fetched at your merge

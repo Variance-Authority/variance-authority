@@ -53,6 +53,8 @@ export interface FetchedMainline {
   readonly handed?: true;
   /** The mainline's entry was marked partial: the run behind it ran part of the suite, and a whole one at the same commit replaces it. */
   readonly partial?: true;
+  /** The share keeps only its latest record, which runs ahead of a merge base: the newest such fetch answers every checkout. */
+  readonly latest?: true;
 }
 
 /** The mainline's record of one suite, as a fetch on this machine kept it. */
@@ -73,13 +75,15 @@ export function mainlineReadRoot(cacheRoot: string, suite: string): string {
  * Record that the mainline's record of `suite` was fetched into
  * `<readRoot>/<commit>/`: in that directory, which says what it holds to every
  * reader that picks it, and beside it, as the last fetch into this cache.
- * Called by the fetch once every file it keeps is in place, so a seam that
- * reads this finds them. Replaced whole, so no reader meets a half-written one.
+ * A handed read is named beside them alone: it is that checkout's, and the
+ * directory may be one every checkout picks from. Called by the fetch once
+ * every file it keeps is in place, so a seam that reads this finds them.
+ * Replaced whole, so no reader meets a half-written one.
  */
 export async function writeFetchedMainline(cacheRoot: string, suite: string, fetched: FetchedMainline): Promise<void> {
   const readRoot = mainlineReadRoot(cacheRoot, suite);
   const text = Buffer.from(`${JSON.stringify(fetched)}\n`);
-  await place(join(readRoot, fetched.commit, FETCHED_MAINLINE), text);
+  if (fetched.handed !== true) await place(join(readRoot, fetched.commit, FETCHED_MAINLINE), text);
   await place(join(readRoot, FETCHED_MAINLINE), text);
 }
 
@@ -88,7 +92,7 @@ export function readFetchedMainline(readRoot: string): FetchedMainline | undefin
   try {
     const value = JSON.parse(readFileSync(join(readRoot, FETCHED_MAINLINE), 'utf8')) as Partial<FetchedMainline>;
     if (typeof value.mainline !== 'string' || typeof value.commit !== 'string' || typeof value.fetched !== 'string') return undefined;
-    const { mainline, commit, fetched, base, handed, partial } = value;
+    const { mainline, commit, fetched, base, handed, partial, latest } = value;
     return {
       mainline,
       commit,
@@ -96,6 +100,7 @@ export function readFetchedMainline(readRoot: string): FetchedMainline | undefin
       ...(typeof base === 'string' ? { base } : {}),
       ...(handed === true ? { handed } : {}),
       ...(partial === true ? { partial } : {}),
+      ...(latest === true ? { latest } : {}),
     };
   } catch {
     return undefined;
@@ -103,15 +108,10 @@ export function readFetchedMainline(readRoot: string): FetchedMainline | undefin
 }
 
 /**
- * The mainline record of `suite` for `root`'s `HEAD`: the nearest kept commit
- * that is an ancestor of `HEAD`, which is at or behind its merge base with any
- * mainline, so no selection is needed to find it. A whole record beats a
- * partial one at the same commit. When no kept commit is an ancestor (a share
- * that keeps only its latest record, which runs ahead), the newest fetch
- * answers. A checkout a run handed its read takes that read alone. Only a
- * record this build reads, of `selected` (`null` answers none), and the
- * shared cache and this checkout's own are both asked ({@link fetchStores}).
- * Synchronous, as {@link nearestTestCoverage} cannot wait.
+ * The mainline record of `suite` for `root`'s `HEAD`: the first of
+ * {@link keptMainlines} this build reads. A checkout a run handed its read
+ * takes that read alone. Synchronous, as {@link nearestTestCoverage} cannot
+ * wait.
  */
 export function lastFetchedMainline(root: string, suite: string | undefined, cacheRoot?: string, selected?: string | null): LastFetched | undefined {
   if (selected === null) return undefined;
@@ -119,37 +119,77 @@ export function lastFetchedMainline(root: string, suite: string | undefined, cac
   const name = suite ?? onlySuite(declared);
   if (name === undefined || declared?.find((one) => one.name === name)?.carry !== 'share') return undefined;
   // FIXME: a runner seam and a sense reader have no selection, so they take a record fetched for another mainline; moving the selection below the CLI closes it (#962).
-  const of = (pointer: FetchedMainline | undefined) => pointer !== undefined && (selected === undefined || pointer.mainline === selected);
   if (mainlineHanded(root, name, cacheRoot)) {
     const own = mainlineReadRoot(cacheRoot ?? cacheRootFor(repositoryRoot(root)), name);
     const pointer = readFetchedMainline(own);
-    return of(pointer) ? fetchedRecord(own, pointer!, name) : undefined;
+    return pointer !== undefined && (selected === undefined || pointer.mainline === selected) ? fetchedRecord(own, pointer, name) : undefined;
   }
+  for (const one of keptMainlines(root, name, cacheRoot, selected)) {
+    const found = fetchedRecord(one.readRoot, one.pointer, name);
+    if (found !== undefined) return found;
+  }
+  return undefined;
+}
+
+/** How far back from `HEAD` one walk looks for a kept commit before each is asked alone. */
+const WALK = 1000;
+
+/**
+ * The mainline records of `suite` kept for `root`, of `selected` when it is
+ * named, across the shared cache and this checkout's own ({@link fetchStores}),
+ * in the order a reader takes them. From a share that keeps only its latest,
+ * the newest fetch first: that record runs ahead of every merge base. Then the
+ * kept commits `HEAD` contains, nearest first, which are at or behind its
+ * merge base with any mainline, so no selection is needed to find them, a
+ * whole record before a partial one at the same commit. Then the rest, newest
+ * fetch first. A handed read is no other checkout's, and is passed over.
+ */
+function keptMainlines(root: string, name: string, cacheRoot?: string, selected?: string): readonly { readonly readRoot: string; readonly pointer: FetchedMainline }[] {
   const kept: { readonly readRoot: string; readonly pointer: FetchedMainline }[] = [];
+  const usable = (pointer: FetchedMainline | undefined): pointer is FetchedMainline => pointer !== undefined && pointer.handed !== true && (selected === undefined || pointer.mainline === selected);
   for (const cache of fetchStores(root, name, cacheRoot)) {
     const readRoot = mainlineReadRoot(cache, name);
     // A record kept before each directory named itself is named only beside them.
     const last = readFetchedMainline(readRoot);
     for (const commit of commitDirectories(readRoot)) {
       const pointer = readFetchedMainline(join(readRoot, commit)) ?? (last?.commit === commit ? last : undefined);
-      if (of(pointer)) kept.push({ readRoot, pointer: pointer! });
+      if (usable(pointer)) kept.push({ readRoot, pointer });
     }
   }
-  const checkout = repositoryRoot(root);
-  const behind = new Map<string, number | undefined>();
-  const distance = (commit: string) => {
-    if (!behind.has(commit)) behind.set(commit, ancestor(checkout, commit, 'HEAD') === true ? count(checkout, `${commit}..HEAD`) : undefined);
-    return behind.get(commit);
-  };
-  const order = (one: (typeof kept)[number]) => [distance(one.pointer.commit) ?? Infinity, one.pointer.partial === true ? 1 : 0] as const;
-  const ranked = kept
-    .map((one) => ({ one, at: order(one) }))
-    .sort((a, b) => a.at[0] - b.at[0] || a.at[1] - b.at[1] || (a.at[0] === Infinity ? codeUnitOrder(b.one.pointer.fetched, a.one.pointer.fetched) : 0));
-  for (const { one } of ranked) {
-    const found = fetchedRecord(one.readRoot, one.pointer, name);
-    if (found !== undefined) return found;
+  const behind = behindHead(repositoryRoot(root), new Set(kept.filter((one) => one.pointer.latest !== true).map((one) => one.pointer.commit)));
+  const rank = (one: (typeof kept)[number]) => (one.pointer.latest === true ? -1 : behind.get(one.pointer.commit) ?? Infinity);
+  const newest = (a: (typeof kept)[number], b: (typeof kept)[number]) => codeUnitOrder(b.pointer.fetched, a.pointer.fetched);
+  return kept.sort((a, b) => {
+    const [at, bt] = [rank(a), rank(b)];
+    if (at !== bt) return at - bt;
+    if (Number.isFinite(at) && at >= 0) return (a.pointer.partial === true ? 1 : 0) - (b.pointer.partial === true ? 1 : 0);
+    return newest(a, b);
+  });
+}
+
+/**
+ * How many commits behind `HEAD` each of `commits` is, for those `HEAD`
+ * contains: one walk of its last {@link WALK} commits, and only when that
+ * meets none, each asked alone. Absent for one git cannot place.
+ */
+function behindHead(checkout: string, commits: ReadonlySet<string>): ReadonlyMap<string, number> {
+  const found = new Map<string, number>();
+  if (commits.size === 0) return found;
+  try {
+    const walked = execFileSync('git', ['rev-list', `--max-count=${WALK}`, 'HEAD'], { cwd: checkout, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).split('\n');
+    walked.forEach((commit, at) => {
+      if (commits.has(commit)) found.set(commit, at);
+    });
+  } catch {
+    return found;
   }
-  return undefined;
+  if (found.size > 0) return found;
+  for (const commit of commits) {
+    if (ancestor(checkout, commit, 'HEAD') !== true) continue;
+    const far = count(checkout, `${commit}..HEAD`);
+    if (far !== undefined) found.set(commit, far);
+  }
+  return found;
 }
 
 /** The commit directories under `readRoot`, or none when it cannot be read. */
@@ -211,15 +251,22 @@ export function fetchStores(root: string, suite: string, cacheRoot?: string): re
 
 /**
  * The commits the checkouts of `root`'s repository read of each shared suite,
- * each by its own `HEAD`: the records a prune of the shared cache keeps.
+ * each by its own `HEAD`: the records a prune of the shared cache keeps. For
+ * each, every record it ranks up to the first this build reads, so a pick
+ * another build of a sibling reads is kept too. Absent when git cannot list
+ * the checkouts, so a prune takes none of them.
  */
-export async function pinnedMainlines(root: string): Promise<readonly string[]> {
+export async function pinnedMainlines(root: string): Promise<readonly string[] | undefined> {
+  const checkouts = await listWorktrees(primaryCheckout(repositoryRoot(root)));
+  if (checkouts === undefined) return undefined;
   const pinned = new Set<string>();
   const shared = (declaredSuites(root) ?? []).filter((one) => one.carry === 'share');
-  for (const checkout of (await listWorktrees(primaryCheckout(repositoryRoot(root)))) ?? []) {
+  for (const checkout of checkouts) {
     for (const { name } of shared) {
-      const commit = lastFetchedMainline(checkout, name)?.commit;
-      if (commit !== undefined) pinned.add(commit);
+      for (const one of keptMainlines(checkout, name)) {
+        pinned.add(one.pointer.commit);
+        if (fetchedRecord(one.readRoot, one.pointer, name) !== undefined) break;
+      }
     }
   }
   return [...pinned];
