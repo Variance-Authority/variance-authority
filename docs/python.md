@@ -64,8 +64,24 @@ rest.
 
 Record the whole suite. A run narrowed with `-k` or `-m` records only the tests
 it ran, yet takes their files as finished, so the tests it left out stop being
-selected. Code that runs at import time, and a fixture shared across files, is
-charged to the test that first runs it.
+selected.
+
+All tests share one pytest process, so what pytest runs once for many tests is
+charged to the first test that ran it. A fixture with `session` or `package`
+scope, and a function cached across test files, such as one under
+`functools.cache`, run under the first test that needs them, and only that test
+is charged: an edit to one can leave out the other test files that use it. Run
+the whole suite for such an edit.
+
+No test reads `pyproject.toml`, `requirements.txt`, a lockfile or `pytest.ini`,
+and the record holds none of them, so a change to one keeps no test in the run.
+Name them in the suite's
+[`before`](changes-before-and-beyond.md#how-a-change-before-reach-is-declared)
+to run every test when one changes:
+
+```json
+{ "suites": { "unit": { "kind": "unit", "before": ["pyproject.toml", "requirements.txt"] } } }
+```
 
 ## What a function is
 
@@ -73,9 +89,11 @@ A function, method or nested function is a region of its own, named by its
 scope, such as `Calc/twice/inner`. A class adds a scope and is not a region; a
 lambda and a decorator belong to the function they are written in. The code a
 module runs as it is imported belongs to the module's root, and a test that ran
-any function of a file is charged the root too: import-time code runs once,
-under whichever test imported the file first, so an edit to it selects every test
-that ran the file.
+any function of a file is charged the root too: import-time code runs once, while
+pytest collects the test files, so an edit to it selects every test
+that ran the file. A test that ran none of the file's functions and only read a
+value its top level set, such as a constant, is not charged, and an edit to that
+value can leave it out.
 
 A file pytest imports from outside the repository root, or from `site-packages`,
 is not recorded.
