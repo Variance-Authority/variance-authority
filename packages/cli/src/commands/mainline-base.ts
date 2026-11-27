@@ -239,10 +239,8 @@ async function readMainline(root: string, suite: string, chosen: MainlineSelecti
     coverage = join(selection.mainlineReadRoot(store, suite), found.commit, 'coverage.bin');
     if (store !== shared) kept = await keep(selection.writeCoverageBytes, coverage, record);
     else if (await selection.writeCoverageOnce(coverage, record).catch(() => false)) kept = undefined;
-    // No hard links on this file system: written whole, as anywhere else.
-    else if (!existsSync(coverage)) kept = await keep(selection.writeCoverageBytes, coverage, record);
-    else if (store === cacheRoot) [kept, ours] = [undefined, false];
-    else kept = `another checkout keeps a record at ${found.commit} there`;
+    else if (store === cacheRoot && existsSync(coverage)) [kept, ours] = [undefined, false];
+    else kept = `another checkout keeps a record at ${found.commit} there, or this file system links no file`;
     if (kept === undefined) break;
   }
   const layer = dirname(coverage);
