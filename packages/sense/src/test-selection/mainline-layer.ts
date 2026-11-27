@@ -36,7 +36,14 @@ import { declaredSuites, onlySuite } from './suites.js';
 /** The file a fetch names the mainline's record in, beside the commit directories it keeps. */
 export const FETCHED_MAINLINE = 'fetched.json';
 
-/** What {@link FETCHED_MAINLINE} holds. */
+/**
+ * The file the shared cache names the newest record any checkout kept there
+ * in, beside a checkout's own {@link FETCHED_MAINLINE}: moved only forward
+ * along the line, so a fetch at an older merge base never takes it back.
+ */
+export const SHARED_MAINLINE = 'shared.json';
+
+/** What {@link FETCHED_MAINLINE} and {@link SHARED_MAINLINE} hold. */
 export interface FetchedMainline {
   /** The mainline the record was read from. */
   readonly mainline: string;
@@ -76,15 +83,16 @@ export async function writeFetchedMainline(
   cacheRoot: string,
   suite: string,
   fetched: FetchedMainline,
+  file: typeof FETCHED_MAINLINE | typeof SHARED_MAINLINE = FETCHED_MAINLINE,
 ): Promise<void> {
   const readRoot = mainlineReadRoot(cacheRoot, suite);
-  await place(join(readRoot, FETCHED_MAINLINE), Buffer.from(`${JSON.stringify(fetched)}\n`));
+  await place(join(readRoot, file), Buffer.from(`${JSON.stringify(fetched)}\n`));
 }
 
 /** The pointer in one read root, or in one commit's directory under it, or undefined when there is none or it does not read. */
-export function readFetchedMainline(readRoot: string): FetchedMainline | undefined {
+export function readFetchedMainline(readRoot: string, file: typeof FETCHED_MAINLINE | typeof SHARED_MAINLINE = FETCHED_MAINLINE): FetchedMainline | undefined {
   try {
-    const value = JSON.parse(readFileSync(join(readRoot, FETCHED_MAINLINE), 'utf8')) as Partial<FetchedMainline>;
+    const value = JSON.parse(readFileSync(join(readRoot, file), 'utf8')) as Partial<FetchedMainline>;
     if (typeof value.mainline !== 'string' || typeof value.commit !== 'string' || typeof value.fetched !== 'string') return undefined;
     const { mainline, commit, fetched, base, handed, partial } = value;
     return {
@@ -102,9 +110,10 @@ export function readFetchedMainline(readRoot: string): FetchedMainline | undefin
 
 /**
  * The mainline record of `suite` this checkout stands on: the one its own
- * pointer names, else the one the shared cache {@link fetchStores} names, from
- * whichever keeps it, and only one this build reads, of `selected` (`null`
- * answers none). Synchronous, as {@link nearestTestCoverage} cannot wait.
+ * pointer names, else the newest any checkout kept ({@link SHARED_MAINLINE}),
+ * else the shared cache's own, each read first where its pointer lives, and
+ * only one this build reads, of `selected` (`null` answers none).
+ * Synchronous, as {@link nearestTestCoverage} cannot wait.
  */
 export function lastFetchedMainline(root: string, suite: string | undefined, cacheRoot?: string, selected?: string | null): LastFetched | undefined {
   if (selected === null) return undefined;
@@ -112,15 +121,18 @@ export function lastFetchedMainline(root: string, suite: string | undefined, cac
   const name = suite ?? onlySuite(declared);
   if (name === undefined || declared?.find((one) => one.name === name)?.carry !== 'share') return undefined;
   const readRoots = fetchStores(root, name, cacheRoot).map((cache) => mainlineReadRoot(cache, name));
-  // FIXME: a runner seam and a sense reader have no selection, so they take a record fetched for another mainline; moving the selection below the CLI closes it (#962).
-  const pointerIn = (readRoot: string) => {
-    const pointer = readFetchedMainline(readRoot);
-    return pointer !== undefined && (selected === undefined || pointer.mainline === selected) ? [pointer] : [];
-  };
-  // The checkout's own cache is the last a fetch tries, and its pointer is read first.
-  const order = [...readRoots].reverse().flatMap(pointerIn);
-  for (const pointer of order) {
-    for (const readRoot of readRoots) {
+  const own = readRoots.at(-1)!;
+  const sharedStore = sharedMainlineStore(root, name, cacheRoot);
+  const shared = sharedStore === undefined ? undefined : mainlineReadRoot(sharedStore, name);
+  // This checkout's own pointer first, then the shared cache's newest, then what the primary checkout itself fetched.
+  const pointers: (readonly [string, FetchedMainline | undefined])[] = [[own, readFetchedMainline(own)]];
+  if (shared !== undefined) pointers.push([shared, readFetchedMainline(shared, SHARED_MAINLINE)]);
+  if (shared !== undefined && shared !== own) pointers.push([shared, readFetchedMainline(shared)]);
+  for (const [where, pointer] of pointers) {
+    // FIXME: a runner seam and a sense reader have no selection, so they take a record fetched for another mainline; moving the selection below the CLI closes it (#962).
+    if (pointer === undefined || (selected !== undefined && pointer.mainline !== selected)) continue;
+    // From the cache that named it first: a checkout's own copy is its build's.
+    for (const readRoot of [where, ...readRoots.filter((one) => one !== where)]) {
       const found = fetchedRecord(readRoot, pointer, name);
       if (found !== undefined) return found;
     }
@@ -150,11 +162,19 @@ function fetchedRecord(readRoot: string, pointer: FetchedMainline, suite: string
  */
 export function fetchStores(root: string, suite: string, cacheRoot?: string): readonly string[] {
   if (cacheRoot !== undefined) return [cacheRoot];
-  const here = repositoryRoot(root);
-  const own = cacheRootFor(here);
-  if (mainlineHanded(root, suite)) return [own];
-  const primary = primaryCacheRoot(here);
-  return primary === own ? [own] : [primary, own];
+  const own = cacheRootFor(repositoryRoot(root));
+  const shared = sharedMainlineStore(root, suite);
+  return shared === undefined || shared === own ? [own] : [shared, own];
+}
+
+/**
+ * The cache every checkout of the repository shares mainline records in, the
+ * primary checkout's, or undefined where none is shared: a cache the caller
+ * named, or a checkout a run handed its read.
+ */
+export function sharedMainlineStore(root: string, suite: string, cacheRoot?: string): string | undefined {
+  if (cacheRoot !== undefined || mainlineHanded(root, suite)) return undefined;
+  return primaryCacheRoot(repositoryRoot(root));
 }
 
 /**

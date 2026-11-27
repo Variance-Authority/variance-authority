@@ -226,16 +226,23 @@ async function readMainline(root: string, suite: string, chosen: MainlineSelecti
   const casesUnread = index === undefined ? undefined : decodes(index);
   const record = casesUnread === undefined ? selection.sharedRecord(found.coverage) : selection.withCaseSections(found.coverage, {});
   // Kept where every checkout of the repository reads it, or in this
-  // checkout's own cache where it may not write that one. A record another
-  // checkout kept there is its build's, and is never written over: this
-  // build's copy goes to the checkout's own cache.
+  // checkout's own cache where it may not write that one. In the shared cache
+  // a record is linked into place, never over one another checkout kept, which
+  // is its build's: this build's copy goes to the checkout's own cache, and a
+  // primary checkout, with no other, reads the one there.
+  const shared = selection.sharedMainlineStore(root, suite, here.cacheRoot);
   let store = cacheRoot;
   let coverage = '';
   let kept: string | undefined;
+  let ours = true;
   for (store of selection.fetchStores(root, suite, here.cacheRoot)) {
     coverage = join(selection.mainlineReadRoot(store, suite), found.commit, 'coverage.bin');
-    if (store !== cacheRoot && existsSync(coverage)) continue;
-    kept = await keep(selection.writeCoverageBytes, coverage, record);
+    if (store !== shared) kept = await keep(selection.writeCoverageBytes, coverage, record);
+    else if (await selection.writeCoverageOnce(coverage, record).catch(() => false)) kept = undefined;
+    // No hard links on this file system: written whole, as anywhere else.
+    else if (!existsSync(coverage)) kept = await keep(selection.writeCoverageBytes, coverage, record);
+    else if (store === cacheRoot) [kept, ours] = [undefined, false];
+    else kept = `another checkout keeps a record at ${found.commit} there`;
     if (kept === undefined) break;
   }
   const layer = dirname(coverage);
@@ -246,7 +253,7 @@ async function readMainline(root: string, suite: string, chosen: MainlineSelecti
   // reader measures a diff from it: each says it holds no coverage.
   const refused = selection.withoutCoverage(coverage) ? undefined : refusal(selection.askCoverageFile, coverage, found.commit);
   if (refused !== undefined) {
-    await rm(layer, { recursive: true, force: true });
+    if (ours) await rm(layer, { recursive: true, force: true });
     return await unread(refused);
   }
 
@@ -267,15 +274,15 @@ async function readMainline(root: string, suite: string, chosen: MainlineSelecti
   const pointer: FetchedMainline = { mainline: found.mainline, commit: found.commit, fetched, ...(base === undefined ? {} : { base }), ...(found.partial === true ? { partial: true as const } : {}) };
   // This checkout's own pointer names what it stands on, which no sibling's fetch moves.
   await selection.writeFetchedMainline(cacheRoot, suite, pointer);
-  await nameShared(root, suite, here.cacheRoot, cacheRoot, pointer);
+  await nameShared(root, suite, here.cacheRoot, pointer);
   await rm(join(readRoot, MISSED), { force: true });
   // Each fetch of a new commit adds a directory here, and a fetch is where
   // they are made, so it is where they are taken back: once a day, by the rule
   // `planCachePrune` states, never the one just named.
   // In another checkout's cache, only the mainline records every checkout shares are this fetch's to judge.
   const owners = checkoutOwners(root, now);
-  const shared = store === cacheRoot ? undefined : await pruneCacheWhenDue({ cacheRoot: store }, owners, { reads: true });
-  const pruned = [await pruneCacheWhenDue({ cacheRoot }, owners), shared]
+  const sharedPrune = store === cacheRoot ? undefined : await pruneCacheWhenDue({ cacheRoot: store }, owners, { reads: true });
+  const pruned = [await pruneCacheWhenDue({ cacheRoot }, owners), sharedPrune]
     .map((one) => selection.prunedLine(one, CACHE_PRUNE_REASONS))
     .filter((line) => line !== '')
     .join('\n');
@@ -332,16 +339,15 @@ async function earlier(
  * the line: a fetch at an older merge base never takes the newest answer away.
  * Best effort: a cache it may not write keeps the answer it named.
  */
-async function nameShared(root: string, suite: string, named: string | undefined, own: string, pointer: FetchedMainline): Promise<void> {
+async function nameShared(root: string, suite: string, named: string | undefined, pointer: FetchedMainline): Promise<void> {
   const selection = await import('@variance-authority/sense/test-selection');
-  for (const store of selection.fetchStores(root, suite, named)) {
-    if (store === own) continue;
-    const readRoot = selection.mainlineReadRoot(store, suite);
-    if (!existsSync(join(readRoot, pointer.commit, 'coverage.bin'))) continue;
-    const there = selection.readFetchedMainline(readRoot);
-    if (there !== undefined && there.commit !== pointer.commit && there.mainline === pointer.mainline && succeeds(root, 'merge-base', '--is-ancestor', pointer.commit, there.commit)) continue;
-    await selection.writeFetchedMainline(store, suite, pointer).catch(() => undefined);
-  }
+  const store = selection.sharedMainlineStore(root, suite, named);
+  if (store === undefined) return;
+  const readRoot = selection.mainlineReadRoot(store, suite);
+  if (!existsSync(join(readRoot, pointer.commit, 'coverage.bin'))) return;
+  const there = selection.readFetchedMainline(readRoot, selection.SHARED_MAINLINE);
+  if (there !== undefined && there.commit !== pointer.commit && there.mainline === pointer.mainline && succeeds(root, 'merge-base', '--is-ancestor', pointer.commit, there.commit)) return;
+  await selection.writeFetchedMainline(store, suite, pointer, selection.SHARED_MAINLINE).catch(() => undefined);
 }
 
 /** Pin a record this checkout reused from another's cache as its own, so a sibling's later fetch does not move it. Best effort. */

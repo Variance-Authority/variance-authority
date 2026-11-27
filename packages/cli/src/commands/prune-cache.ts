@@ -31,6 +31,7 @@ import {
   directoriesIn,
   prunedLine,
   readFetchedMainline,
+  SHARED_MAINLINE,
   pruneSelection,
   pruneWhenDue,
   PRUNE_EVERY_MS,
@@ -167,10 +168,10 @@ export interface PruneScope {
 async function mainlineReads(read: string, commits: (entries: readonly CommitEntry[]) => Promise<void>): Promise<void> {
   for (const suite of await directoriesIn(read)) {
     const directory = join(read, suite);
-    // The record `fetched.json` names is the base every checkout of this
+    // The records `fetched.json` and `shared.json` name are the base every checkout of this
     // machine lays its first run on, however far behind it falls.
-    const named = readFetchedMainline(directory)?.commit;
-    await commits(await commitEntries(directory, (name) => (name === named ? undefined : /^[0-9a-f]{7,64}$/u.exec(name)?.[0])));
+    const named = [readFetchedMainline(directory)?.commit, readFetchedMainline(directory, SHARED_MAINLINE)?.commit];
+    await commits(await commitEntries(directory, (name) => (named.includes(name) ? undefined : /^[0-9a-f]{7,64}$/u.exec(name)?.[0])));
   }
 }
 

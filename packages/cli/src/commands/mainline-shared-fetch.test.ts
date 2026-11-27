@@ -9,6 +9,7 @@ import {
   lastFetchedMainline,
   mainlineReadRoot,
   readFetchedMainline,
+  SHARED_MAINLINE,
 } from '@variance-authority/sense/test-selection';
 import type { Env } from '../share-lines.js';
 import { mainlineBase, standOnHanded } from './mainline-base.js';
@@ -70,12 +71,13 @@ async function laptop() {
 
 describe('a mainline record one worktree fetched', () => {
   it('is read by a sibling worktree that fetched nothing, not the older one the primary checkout fetched', async () => {
-    const { primary, next, one, two, base } = await laptop();
+    const { primary, first, next, one, two, base } = await laptop();
 
     expect(await base(one)).toMatchObject({ commit: next });
 
     expect(lastFetchedMainline(two, 'unit')).toMatchObject({ commit: next });
-    expect(lastFetchedMainline(primary, 'unit')).toMatchObject({ commit: next });
+    // The primary checkout fetched, so it stands on its own until it fetches again.
+    expect(lastFetchedMainline(primary, 'unit')).toMatchObject({ commit: first });
     // Kept once, where every checkout's reader asks.
     expect(existsSync(join(mainlineReadRoot(cacheRootFor(one), 'unit'), next))).toBe(false);
   });
@@ -112,6 +114,9 @@ describe('a mainline record one worktree fetched', () => {
     const gone = join(reads, 'f'.repeat(40));
     await cp(join(reads, readFetchedMainline(reads)!.commit), gone, { recursive: true });
     await utimes(gone, month, month);
+    // A newer one, which the prune keeps as the newest no pointer names.
+    const newest = join(reads, 'e'.repeat(40));
+    await cp(gone, newest, { recursive: true });
     // The primary's own whole prune ran two days ago, and is its own to run again.
     const whole = join(shared, '.pruned');
     await writeFile(whole, '');
@@ -121,8 +126,9 @@ describe('a mainline record one worktree fetched', () => {
     await base(one);
 
     expect(existsSync(gone)).toBe(false);
+    expect(existsSync(newest)).toBe(true);
     expect((await stat(whole)).mtimeMs).toBe(old * 1000);
-    expect(readFetchedMainline(reads)).toMatchObject({ commit: next });
+    expect(readFetchedMainline(reads, SHARED_MAINLINE)).toMatchObject({ commit: next });
     expect(lastFetchedMainline(two, 'unit')).toMatchObject({ commit: next });
   });
 
@@ -164,7 +170,20 @@ describe('a mainline record one worktree fetched', () => {
     expect(await base(two, { fetch: 'always' })).toMatchObject({ commit: next });
 
     expect(await readFile(shared)).toEqual(before);
-    expect(existsSync(join(mainlineReadRoot(cacheRootFor(two), 'unit'), next, 'coverage.bin'))).toBe(true);
+    const own = join(mainlineReadRoot(cacheRootFor(two), 'unit'), next, 'coverage.bin');
+    expect(existsSync(own)).toBe(true);
+    // What the fetch kept is what the runner seams read, not the other build's bytes.
+    expect(lastFetchedMainline(two, 'unit')).toMatchObject({ commit: next, coverage: own });
+  });
+
+  it('is not taken from a fresh worktree when the primary checkout fetches at its older merge base', async () => {
+    const { primary, first, next, one, tree, base } = await laptop();
+    expect(await base(one)).toMatchObject({ commit: next });
+
+    expect(await base(primary, { fetch: 'always' })).toMatchObject({ commit: first });
+
+    expect(lastFetchedMainline(primary, 'unit')).toMatchObject({ commit: first });
+    expect(lastFetchedMainline(await tree('fresh'), 'unit')).toMatchObject({ commit: next });
   });
 
   it('keeps it in its own when it cannot write the primary checkout\'s', async () => {

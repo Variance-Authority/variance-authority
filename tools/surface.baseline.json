@@ -3435,6 +3435,7 @@
         "Route": "type",
         "RunOver": "interface",
         "RunsAsBefore": "type",
+        "SHARED_MAINLINE": "const",
         "STORY_AGE_MS": "const",
         "SUITE_KINDS": "const",
         "Said": "type",
@@ -3711,6 +3712,7 @@
         "shardsMachines": "function",
         "shardsTexts": "function",
         "shareOf": "function",
+        "sharedMainlineStore": "function",
         "sharedPreconditions": "function",
         "sharedRecord": "function",
         "snapshotTree": "function",
@@ -3752,6 +3754,7 @@
         "withoutTests": "function",
         "writeCommitRuns": "function",
         "writeCoverageBytes": "function",
+        "writeCoverageOnce": "function",
         "writeFetchedMainline": "function",
         "writeTestCoverage": "function",
         "writesBase": "function"
