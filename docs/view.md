@@ -28,7 +28,9 @@ Where the runs record beside it
 ([`coverage.runs.json`](information.md#sense-runtime-information), written by
 the same run) names machines, a **Machines** table lists each
 machine with how many test files it ran, so a run sharded across machines says
-so; a file whose runs name no one machine is counted as `(none named)`. A row
+so; a file whose runs name no one machine is counted as `(none named)`. Where
+that runs record is there but names none, cannot be read or stands at another
+commit, the Overview says which instead. A row
 of tabs sits above it, one for each part of the record that is present, and
 **Record** last. A tab holds one or more tables. Each table has a filter box
 that keeps the rows with a cell containing what you type, and each column header
