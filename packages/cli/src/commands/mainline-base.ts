@@ -229,6 +229,12 @@ async function readMainline(root: string, suite: string, chosen: MainlineSelecti
   let kept: string | undefined;
   let unshared: string | undefined;
   for (store of selection.fetchStores(root, suite, here.cacheRoot)) {
+    const handed = store === cacheRoot ? undefined : selection.readFetchedMainline(selection.mainlineReadRoot(store, suite));
+    if (handed?.handed === true && handed.commit === found.commit) {
+      // Those bytes are the read a run handed the primary checkout, which it stands on as handed.
+      unshared ??= `kept in this checkout's own cache, as the shared one holds the record at ${found.commit} a run handed the primary checkout`;
+      continue;
+    }
     coverage = join(selection.mainlineReadRoot(store, suite), found.commit, 'coverage.bin');
     kept = await keep(selection.writeCoverageBytes, coverage, record);
     if (kept === undefined) break;

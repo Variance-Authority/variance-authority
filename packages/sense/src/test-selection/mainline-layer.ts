@@ -170,9 +170,10 @@ function keptMainlines(root: string, name: string, cacheRoot?: string, selected?
 
 /**
  * How many commits behind `HEAD` each of `commits` is, for those `HEAD`
- * contains: one walk of its last {@link WALK} commits, and only when that
- * meets none, one ask for those it lacks and a count for each of the rest.
- * Absent for one git cannot place.
+ * contains: one walk of its last {@link WALK} commits, then one ask for those
+ * it lacks among the rest. Those it holds past the walk stand at {@link WALK}
+ * when the walk met any, a reader's next pick should those fail, and are each
+ * counted when it met none. Absent for one git cannot place.
  */
 function behindHead(checkout: string, commits: ReadonlySet<string>): ReadonlyMap<string, number> {
   const found = new Map<string, number>();
@@ -185,16 +186,18 @@ function behindHead(checkout: string, commits: ReadonlySet<string>): ReadonlyMap
   } catch {
     return found;
   }
-  if (found.size > 0) return found;
+  const rest = [...commits].filter((commit) => !found.has(commit));
+  if (rest.length === 0) return found;
   let lacked: ReadonlySet<string>;
   try {
-    lacked = new Set(execFileSync('git', ['rev-list', '--ignore-missing', '--stdin', '^HEAD'], { cwd: checkout, encoding: 'utf8', input: `${[...commits].join('\n')}\n`, stdio: ['pipe', 'pipe', 'ignore'] }).split('\n'));
+    lacked = new Set(execFileSync('git', ['rev-list', '--ignore-missing', '--stdin', '^HEAD'], { cwd: checkout, encoding: 'utf8', input: `${rest.join('\n')}\n`, stdio: ['pipe', 'pipe', 'ignore'] }).split('\n'));
   } catch {
     return found;
   }
-  for (const commit of commits) {
+  const walkedAny = found.size > 0;
+  for (const commit of rest) {
     if (lacked.has(commit)) continue;
-    const far = count(checkout, `${commit}..HEAD`);
+    const far = walkedAny ? WALK : count(checkout, `${commit}..HEAD`);
     if (far !== undefined) found.set(commit, far);
   }
   return found;
@@ -268,9 +271,9 @@ export async function pinnedMainlines(root: string): Promise<readonly string[] |
   const checkouts = await listWorktrees(primaryCheckout(repositoryRoot(root)));
   if (checkouts === undefined) return undefined;
   const pinned = new Set<string>();
-  const shared = (declaredSuites(root) ?? []).filter((one) => one.carry === 'share');
   for (const checkout of checkouts) {
-    for (const { name } of shared) {
+    // Each checkout's own suites: a sibling may still carry one this checkout renamed.
+    for (const { name } of (declaredSuites(checkout) ?? []).filter((one) => one.carry === 'share')) {
       for (const one of keptMainlines(checkout, name)) {
         pinned.add(one.pointer.commit);
         if (fetchedRecord(one.readRoot, one.pointer, name) !== undefined) break;

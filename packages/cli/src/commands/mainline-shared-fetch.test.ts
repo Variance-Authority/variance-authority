@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { cp, mkdtemp, readdir, readFile, realpath, rm, stat, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -266,6 +267,56 @@ describe('a mainline record a run handed on to the primary checkout', () => {
     const read = lastFetchedMainline(behind, 'unit');
     expect(read).toMatchObject({ commit: first });
     expect(read?.handed).toBeUndefined();
+  });
+});
+
+describe('a mainline record a sibling fetches at the commit a run handed the primary checkout', () => {
+  it('is kept in the sibling\'s own cache, and the bytes the primary checkout stands on stay', async () => {
+    const { primary, first, tree, base } = await laptop();
+    const shared = mainlineReadRoot(cacheRootFor(primary), 'unit');
+    const pointer = readFetchedMainline(shared)!;
+    await standOnHanded(primary, 'unit', { ...pointer, fetched: new Date().toISOString() }, 'not handed');
+    const handed = (await stat(join(shared, first, 'coverage.bin'))).mtimeMs;
+    const behind = await tree('behind', first);
+
+    const read = await base(behind, { fetch: 'always' });
+
+    expect(read).toMatchObject({ commit: first });
+    expect(read.coverage).toBe(join(mainlineReadRoot(cacheRootFor(behind), 'unit'), first, 'coverage.bin'));
+    expect((await stat(join(shared, first, 'coverage.bin'))).mtimeMs).toBe(handed);
+  });
+});
+
+describe('a mainline record a sibling worktree reads under a suite another checkout renamed', () => {
+  it('is pinned by that checkout\'s prune', async () => {
+    const { next, one, tree, base } = await laptop();
+    await base(one);
+    const renamed = await tree('renamed');
+    await writeFile(join(renamed, 'variance.config.json'), JSON.stringify({ ...JSON.parse(await readFile(join(renamed, 'variance.config.json'), 'utf8')), suites: { renamed: { kind: 'unit', carry: 'share' } } }));
+
+    expect(await pinnedMainlines(renamed)).toContain(next);
+  });
+});
+
+describe('a mainline record kept more than a walk behind HEAD', () => {
+  it('is read when every kept record within the walk does not read, over a newer one HEAD lacks', async () => {
+    const { first, next, tree, one, base } = await laptop();
+    await base(one);
+    const deep = await tree('deep', first);
+    // 1001 commits on `first`, so the walk from HEAD stops short of it; dated after it, as git's ancestry walk trusts commit dates.
+    const after = Number(await git(deep, 'log', '-1', '--format=%ct', first)) + 1;
+    const stream = Array.from({ length: 1001 }, (_, at) =>
+      `commit refs/heads/deep\nmark :${at + 1}\ncommitter a <a@example.com> ${after + at} +0000\ndata 0\nfrom ${at === 0 ? first : `:${at}`}\n`).join('');
+    execFileSync('git', ['fast-import', '--quiet'], { cwd: deep, input: stream });
+    await git(deep, 'checkout', '--quiet', 'deep');
+    // A record within the walk that this build does not read: its pointer, without its bytes.
+    const near = await git(deep, 'rev-parse', 'HEAD~5');
+    const shared = mainlineReadRoot(cacheRootFor(join(home, 'clone')), 'unit');
+    await cp(join(shared, first, 'fetched.json'), join(shared, near, 'fetched.json'));
+    await writeFile(join(shared, near, 'fetched.json'), JSON.stringify({ ...readFetchedMainline(join(shared, first))!, commit: near }));
+
+    expect(lastFetchedMainline(deep, 'unit')).toMatchObject({ commit: first });
+    expect(lastFetchedMainline(one, 'unit')).toMatchObject({ commit: next });
   });
 });
 
