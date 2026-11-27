@@ -185,6 +185,7 @@ variance doctor  [--config <path>] [--baselines]
 variance prune
 variance job     --suite <name> [--complete-on <exit>] -- <command>...
 variance cargo   [--suite <name>] [-- <cargo test argument>...]
+variance python  [--suite <name>] [-- <pytest argument>...]
 variance janus   --since <ref> --file <path>... -- <command>...
 variance share   [--config <path>] [--mainline <branch>] [--publish] [<report>...] | [--suite <name>] [--publish [--collected <path>] [--from-queue <artifact pattern>] | --format text|github] [<record>...] | --purge-older-than <days> [--mainline <branch>]
 variance collect [--config <path>] [--subjects <glob>] [--shard <k>/<n>] [--workers <n>] --out <part.json> | merge <part.json>... --out <suite.index>
@@ -2729,6 +2730,23 @@ variance covering --file src/lib.rs --function add
 What follows `--` goes to `cargo test`. It exits `0` when every test passed and
 `101` when a test or the build failed. [Rust tests](https://variance-authority.dev/docs/rust) covers
 the build directory, the regions and the cost.
+
+### `python`: record a pytest suite
+
+`variance python` runs pytest with a recorder that reads CPython's own line
+events, and writes the suite's record: one row per file that declares tests, one
+case per node id, and the functions each one ran. `variance select` and
+`variance covering` then answer a Python change as they answer a Node one. It
+needs CPython 3.12 or newer.
+
+```bash
+variance python --suite unit -- tests/ -q
+variance covering --file pkg/calc.py --function add
+```
+
+What follows `--` goes to `pytest`. It exits `0` when every test passed and `1`
+when one failed. [Python tests](https://variance-authority.dev/docs/python) covers
+what a function is and what is not recorded.
 
 ### `janus`: the old tests on the new code
 

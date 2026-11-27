@@ -9,39 +9,14 @@
 //! it is the region an edit to it changes.
 
 use tree_sitter::Node;
-use variance_sense_instrument::digest;
-use variance_sense_instrument::native::{own_digests, Block, Cut, Kind, Utf16};
+use variance_sense_instrument::native::{Block, Cut, Kind};
 
-use crate::grammar::{parse, Grammar};
-use crate::languages::text_of;
+use crate::grammar::Grammar;
+use crate::languages::{cut_with, text_of};
 
 /// The cut of one Rust file, or nothing when it does not parse.
 pub fn cut(source: &str) -> Option<Cut> {
-    let tree = parse(Grammar::Rust, source)?;
-    let root = tree.root_node();
-    if root.has_error() {
-        return None;
-    }
-    let mut blocks =
-        vec![Block { kind: Kind::Module, owner: None, name: String::new(), path: "module".into(), start: 0, end: source.len() as u32 }];
-    items(root, source, 0, "", &mut blocks);
-    let digests = own_digests(source, &blocks);
-    if !source.is_ascii() {
-        let table = Utf16::new(source);
-        for block in &mut blocks {
-            block.start = table.at(block.start);
-            block.end = table.at(block.end);
-        }
-    }
-    Some(Cut {
-        code: source.to_owned(),
-        header_at: 0,
-        header_byte: 0,
-        source_digest: digest::of_string(source),
-        blocks,
-        digests,
-        module: false,
-    })
+    cut_with(Grammar::Rust, source, |root, source, blocks| items(root, source, 0, "", blocks))
 }
 
 /// Every function under `node`, each owned by the innermost function around

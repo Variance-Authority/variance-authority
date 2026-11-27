@@ -4,6 +4,7 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 
 use super::render::{case_set, files, part_name, ran, span_list, state, FileRow};
 use super::{Body, Range, Request, Span, View};
+use crate::help_page::Page;
 
 pub(super) fn text(
     request: &Request<'_>,
@@ -176,15 +177,9 @@ fn file_page(
         });
         cases.push((row, true));
     }
-    let start = request.offset.min(rows.len());
-    let end = start.saturating_add(request.limit).min(rows.len());
-    if request.offset != 0 {
-        lines.push(if start >= rows.len() {
-            format!("`--offset` {} is past the last of {} rows.", request.offset, rows.len())
-        } else {
-            format!("Rows {}–{end} of {}.", start + 1, rows.len())
-        });
-    }
+    let page = Page { offset: request.offset, limit: request.limit };
+    let std::ops::Range { start, end } = page.rows(rows.len());
+    lines.extend(page.above(rows.len(), "--offset"));
     let mut cut = end - start < rows.len();
     for (file, counts) in &rows[start..end] {
         let suffix = counts.map_or_else(String::new, |row| format!(" — {}/{}", row.cases, row.of));

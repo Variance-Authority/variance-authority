@@ -42,6 +42,7 @@ export const COMMANDS = [
   'prune',
   'job',
   'cargo',
+  'python',
   'janus',
   'share',
   'collect',
@@ -161,6 +162,7 @@ export const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> =
   prune: [],
   job: ['--suite', '--complete-on'],
   cargo: ['--suite'],
+  python: ['--suite'],
   janus: ['--since', '--file'],
   share: ['--mainline', '--publish', '--suite', '--collected', '--from-queue', '--format', '--purge-older-than'],
   // `--config` by name: `carry` reads a project only when one is named, so it
@@ -197,6 +199,7 @@ export const USAGE = [
   'variance prune',
   'variance job     --suite <name> [--complete-on <exit>] -- <command>...',
   'variance cargo   [--suite <name>] [-- <cargo test argument>...]',
+  'variance python  [--suite <name>] [-- <pytest argument>...]',
   'variance janus   --since <ref> --file <path>... -- <command>...',
   'variance share   [--config <path>] [--mainline <branch>] [--publish] [<report>...] | [--suite <name>] [--publish [--collected <path>] [--from-queue <artifact pattern>] | --format text|github] [<record>...] | --purge-older-than <days> [--mainline <branch>]',
   'variance collect [--config <path>] [--subjects <glob>] [--shard <k>/<n>] [--workers <n>] --out <part.json> | merge <part.json>... --out <suite.index>',
@@ -215,7 +218,7 @@ export const USAGE = [
  * the repository root, as `prune`, `job`, `cargo` and `carry` do. `carry` still names
  * `--config`, and reads a project only when one is named.
  */
-const CONFIGLESS: readonly string[] = ['watch', 'distill', 'covering', 'coverage', 'layers', 'restrictions', 'review', 'story', 'index', 'select', 'shards', 'reach', 'trace', 'view', 'prune', 'job', 'cargo', 'janus', 'carry'];
+const CONFIGLESS: readonly string[] = ['watch', 'distill', 'covering', 'coverage', 'layers', 'restrictions', 'review', 'story', 'index', 'select', 'shards', 'reach', 'trace', 'view', 'prune', 'job', 'cargo', 'python', 'janus', 'carry'];
 
 export function flagsFor(command: (typeof COMMANDS)[number]): readonly string[] {
   return CONFIGLESS.includes(command)

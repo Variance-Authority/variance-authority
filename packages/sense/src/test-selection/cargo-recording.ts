@@ -20,15 +20,11 @@ import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:pat
 import { fileURLToPath } from 'node:url';
 import { native } from '../addon.js';
 import { digestString } from '../digest.js';
-import caseOwner from './case-owner.cjs';
+import { openRun, writeJournals } from './case-journals.js';
 import { finishedCase } from './case-durations.js';
-import journalFormat from './journal-format.cjs';
 import { whyAbsent } from './native-modules.js';
 import { pool } from './pool.js';
-import { recordFileFor } from './record-location.js';
 import { repositoryRoot } from './repository-root.js';
-import { foldRun } from './selection-fold.js';
-import { newRun } from './selection-run.js';
 
 export interface CargoRun {
   /** Where the Cargo command runs. */
@@ -83,14 +79,7 @@ export async function recordCargo(run: CargoRun): Promise<number | undefined> {
   const workspace = await metadata(run);
   // The checkout is the workspace's, which `--manifest-path` may place outside the directory Cargo runs in.
   const root = repositoryRoot(workspace.root);
-  const coverageFile = recordFileFor(root, run.cwd, { suite: run.suite, coverageFile: run.coverageFile });
-  const selection = newRun(coverageFile, root, 'presence');
-  const fold = foldRun(selection, {
-    coverageFile,
-    shims: [],
-    derive: true,
-    unreached: 'No Rust file of the checkout was entered: check that the tests run code under the repository root.',
-  });
+  const { selection, fold } = openRun(root, run, 'No Rust file of the checkout was entered: check that the tests run code under the repository root.');
   const profiles = `${selection.runDirectory}-profiles`;
   mkdirSync(profiles, { recursive: true });
   try {
@@ -443,43 +432,6 @@ async function alone(binary: Binary, name: string, directory: string): Promise<R
 /** What a test process starts with: what `cargo test` gives it, and where its counters go. */
 function running(binary: Binary, profile: string): NodeJS.ProcessEnv {
   return { ...process.env, CARGO_MANIFEST_DIR: binary.cwd, LLVM_PROFILE_FILE: profile };
-}
-
-/**
- * The frames: the file's journal is the union of its tests, and each test is a
- * case frame of its own.
- */
-function writeJournals(
-  selection: { readonly runDirectory: string; readonly caseDirectory: string },
-  testFile: string,
-  ran: readonly Ran[],
-  entered: readonly (readonly { readonly id: string; readonly ordinals: Uint32Array }[] | null)[],
-): void {
-  const stamp = `${process.pid}-${randomUUID()}`;
-  const union = new Map<string, Set<number>>();
-  const frames = ran.map((test, at) => {
-    const modules = new Map<string, Set<number>>();
-    for (const { id, ordinals } of entered[at] ?? []) {
-      modules.set(id, new Set(ordinals));
-      for (const ordinal of ordinals) union.set(id, (union.get(id) ?? new Set()).add(ordinal));
-    }
-    return journalFormat.encodeJournal(caseOwner.packCase(testFile, test.name, String(at)), counters(modules));
-  });
-  mkdirSync(selection.runDirectory, { recursive: true });
-  writeFileSync(`${selection.runDirectory}/${stamp}.va`, journalFormat.encodeJournal(testFile, counters(union)));
-  mkdirSync(selection.caseDirectory, { recursive: true });
-  writeFileSync(`${selection.caseDirectory}/${stamp}.vac`, journalFormat.packFrames(frames));
-}
-
-/** Ordinals as the counters a journal reads: one at each entered region. */
-function counters(modules: ReadonlyMap<string, ReadonlySet<number>>): Map<string, Uint32Array> {
-  const out = new Map<string, Uint32Array>();
-  for (const [id, ordinals] of modules) {
-    const entered = new Uint32Array(Math.max(...ordinals) + 1);
-    for (const ordinal of ordinals) entered[ordinal] = 1;
-    out.set(id, entered);
-  }
-  return out;
 }
 
 /** A process's exit and its standard output; its standard error goes to ours. */

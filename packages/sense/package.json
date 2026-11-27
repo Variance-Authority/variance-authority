@@ -144,6 +144,7 @@
     "native/instrument/Cargo.toml",
     "native/instrument/build.rs",
     "native/instrument/src/*.rs",
+    "python/variance_pytest.py",
     "record-layout.json",
     "scripts/probe-write.mjs"
   ],

@@ -34,6 +34,7 @@ it.each([
   { flags: [], runState: true, contains: 'ran it only while their file imported it' },
   { flags: ['--line', '5', '--format', 'refs'], runState: true, mocks: 'one', contains: 'line 5 loaded: 1*' },
   { flags: ['--line', '5', '--format', 'refs'], runState: true, mocks: 'both', contains: 'line 5: none' },
+  { flags: ['--offset', '1'], runState: true, mocks: 'one', contains: '`--offset` 1 is past the last of 1 row.' },
 ])('covers $flags from $recording with run state $runState and mocks $mocks through the package bin with Node absent from PATH', async ({ flags, contains, recording: kind, runState, mocks }) => {
   const previous = process.cwd();
   const file = 'packages/lib/src/greet.ts';

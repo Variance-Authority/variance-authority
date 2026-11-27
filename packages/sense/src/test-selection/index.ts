@@ -227,6 +227,7 @@ export { restateRecord } from './record-restate.js';
 export { readJobWrites, type JobWrites } from './job-record.js';
 export { recordJob, type JobRun } from './job-recording.js';
 export { recordCargo, type CargoRun } from './cargo-recording.js';
+export { recordPython, type PythonRun } from './python-recording.js';
 export { serveBase } from '../janus/serve-base.js';
 export { askPerStand, readingFrom, standChange, standDiff, standsAt, wholeEntry, withoutFiles, type Git, type Stand, type StandAnswer, type StandQuestion, type StandReading } from './stands.js';
 export { assumedOf, lastRunsOf, testPlaces, type CasesLastRan, type TestPlace } from './test-places.js';

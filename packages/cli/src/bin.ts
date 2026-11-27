@@ -74,6 +74,10 @@ export async function main(
       const { runCargo } = await import('./commands/cargo.js');
       return await runCargo(parsed);
     }
+    if (parsed.command === 'python') {
+      const { runPython } = await import('./commands/python.js');
+      return await runPython(parsed);
+    }
     if (parsed.command === 'janus') {
       const { runJanus } = await import('./commands/janus.js');
       return await runJanus(parsed, streams);

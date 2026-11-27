@@ -9,6 +9,7 @@ use std::path::Path;
 
 use crate::help_grep::{match_lines, Grepped};
 use crate::help_grep_collapse::{collapsed, plural, Held, Start};
+use crate::help_page::Page;
 use crate::help_surface::{Surface, Value};
 use crate::order::code_unit;
 use crate::source_query::SourceTree;
@@ -20,11 +21,6 @@ pub(crate) struct Scope {
     pub entries: usize,
     pub unresolved: usize,
     pub files: Vec<(String, u32)>,
-}
-
-pub(crate) struct Page {
-    pub offset: usize,
-    pub limit: usize,
 }
 
 /// The page a question said; an answer it would not all fit is collapsed when neither is said.
@@ -262,19 +258,10 @@ fn written(roots: &Roots, query: &str, found: Found, said: &Said, around: Option
     let page = Page { offset: said.offset.unwrap_or(0), limit: said.limit.unwrap_or(SHOWN) };
     let offset_flag = surface.input("offset");
     let mut lines = vec![format!("{heading}, nearest first:")];
-    let start = page.offset.min(total);
-    let end = start.saturating_add(page.limit).min(total);
-    if page.offset >= total {
-        lines.push(format!("`{offset_flag}` {} is past the last of {total} rows.", page.offset));
-    } else if page.offset != 0 {
-        lines.push(format!("Rows {}–{end} of {total}.", start + 1));
-    }
-    lines.extend(listed(&found, start..end, &files, &distances));
+    lines.extend(page.above(total, &offset_flag));
+    lines.extend(listed(&found, page.rows(total), &files, &distances));
     lines.extend(notes);
-    if end < total {
-        let rest = total - end;
-        lines.push(format!("{rest} more not shown; `{offset_flag}` {end} shows the next {}.", rest.min(page.limit)));
-    }
+    lines.extend(page.below(total, &offset_flag));
     lines.join("\n")
 }
 
