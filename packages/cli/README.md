@@ -2523,8 +2523,10 @@ stderr names it. The first line names the doubt; stderr names the test files
 the importers left, which stay on the skip list, and `--format json` carries no
 `widened` and gives them under `fell`, with its `rung`, `importers`, `left`, and
 `only`, the test files that run: a runner's seam runs none outside it.
-A diff that moves what the suite rests on still runs every test file, and with
-no diff from any base `--local` exits non-zero. It is for a laptop's edit loop,
+A diff that moves what the suite rests on still runs every test file, unless
+`VARIANCE_AUTHORITY_BUDGET` sets a ceiling on the seam: then only the test files
+the diff edited run, the timed ones as many as fit and a new one besides, and
+the rest is left for CI. With no diff from any base `--local` exits non-zero. It is for a laptop's edit loop,
 never a gate, and `VARIANCE_AUTHORITY_LOCAL=1` asks the same of a runner's
 seam.
 

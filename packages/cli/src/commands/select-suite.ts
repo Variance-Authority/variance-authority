@@ -89,6 +89,12 @@ function placingOf(span: TestSelection): NonNullable<SuiteSelection['placing']> 
 /** The selection, with the whole reading it was cut from, for a caller that prints it. */
 export interface SuiteReading extends SuiteSelection {
   readonly reading: TestSelection;
+  /**
+   * The changed files a local seam read a `before` reading from, which runs
+   * the suite whole: a budget takes the edited test files among them
+   * (`select-budget.ts`). Absent off a local seam, and for every other reading.
+   */
+  readonly changed?: readonly string[];
 }
 
 /** The reading, fallen to `fell` when it widened and one is given, cut to the leg asked for, as sets. */

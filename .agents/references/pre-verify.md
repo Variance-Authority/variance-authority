@@ -134,11 +134,12 @@ be sure is the time this loop exists to save.
 config> <file>`, never by re-running the wave. One file re-run under a quiet
 machine says whether it was the change; a wave re-run says it again slower.
 
-**A slice the reading runs whole is not a wave.** Read `yarn variance select
---suite <slice>` first: when it skips nothing, or the runner prints
-`declined:`, the near wave is the whole slice and the distance is never
-consulted. Run the test files you edited by
-path, wave 2, and push — CI runs the whole suite on its own runners.
+**A slice the reading runs whole is not a wave.** When a change moves what a
+slice declares in `before`, the budget cuts near's run of that slice to the
+test files you edited, and its note says the rest is CI's, which runs the whole
+suite on its own runners. Any other reading that prints `declined:` runs whole:
+read `yarn variance select --suite <slice>` first, run the test files you edited
+by path, wave 2, and push.
 
 **The gate is CI's.** `verify` is `yarn lint && yarn check && yarn measure &&
 yarn test`, and the check workflow runs every part of it on the pull request:

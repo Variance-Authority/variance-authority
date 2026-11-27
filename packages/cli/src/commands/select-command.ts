@@ -154,10 +154,11 @@ async function untested(request: SuiteRequest): Promise<SuiteReading> {
     : request.atDistance;
   const fall = async (input: SelectInput, held?: Held, record?: string): Promise<SuiteReading> => {
     const narrowed = suiteOf(input, leg);
-    if (request.local !== true || narrowed.declined === undefined || input.ground.kind === 'before') return narrowed;
+    if (request.local !== true || narrowed.declined === undefined) return narrowed;
+    if (input.ground.kind === 'before') return held === undefined ? narrowed : { ...narrowed, changed: held.changed };
     const answer = await localAnswer(request, input.ground, narrowed.declined, held, record);
     return 'whole' in answer
-      ? suiteOf({ ...input, ground: { kind: 'before', whole: answer.whole.says, rests: answer.whole.rests } }, leg)
+      ? { ...suiteOf({ ...input, ground: { kind: 'before', whole: answer.whole.says, rests: answer.whole.rests } }, leg), changed: answer.changed }
       : suiteOf(input, leg, answer);
   };
   if (

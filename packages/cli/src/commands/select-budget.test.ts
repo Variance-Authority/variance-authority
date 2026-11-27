@@ -112,6 +112,76 @@ describe('the edit loop under a budget', () => {
     expect(cut.notes[0]).toMatch(/^`VARIANCE_AUTHORITY_BUDGET=15` cuts nothing: /u);
   });
 
+  describe('a suite a local change runs whole, because it moved a `before` entry', () => {
+    const SETUP = 'packages/a/vitest.setup.ts';
+    const before: SelectInput = { at: '/cache/coverage.bin', ground: { kind: 'before', whole: `the suite rests on ${SETUP}`, rests: [SETUP] } };
+    const local = (changed: readonly string[]) => ({ ...suiteOf(before, leg(0, 2)), changed });
+
+    it('runs the test files the change edited, and leaves every other test file of the suite to CI', () => {
+      const cut = withinBudget(local([SETUP, OWN, EDITED]), TIMES, { seconds: 20, asked: true }, home);
+
+      expect(runs(cut)).toEqual([EDITED, OWN]);
+      expect(cut.declined).toBeUndefined();
+      expect(cut.notes[0]).toBe(
+        `\`VARIANCE_AUTHORITY_BUDGET=20\` ran 2 of the 2 timed test files the change edited, 7.0 s recorded; ` +
+          `every other test file of the suite is left for CI, which runs it whole: the suite rests on ${SETUP}`,
+      );
+    });
+
+    it('takes the edited test files shortest first, as many as fit', () => {
+      const cut = withinBudget(local([SETUP, OWN, EDITED]), TIMES, { seconds: 5, asked: false }, home);
+
+      expect(runs(cut)).toEqual([EDITED]);
+      expect(cut.notes).toContain(`  ${OWN}, 4.0 s`);
+    });
+
+    it('hands on an edited test file the record does not time, for the runner to collect or not, and names it', () => {
+      const cut = withinBudget(local([SETUP, OWN, UNTIMED, 'packages/b/src/elsewhere.test.ts']), TIMES, { seconds: 20, asked: true }, home);
+
+      expect(runs(cut)).toEqual([OWN, UNTIMED]);
+      expect(cut.notes[0]).toMatch(/ ran 1 of the 1 timed test file the change edited, 4\.0 s recorded, and 2 it does not time; /u);
+      expect(cut.notes).toContain(`  ${UNTIMED}`);
+    });
+
+    it('drops a shard placement, whose waves would run the suite whole again', () => {
+      const placed = { ...local([SETUP, OWN]), placing: { skip: new Set<string>(), only: new Set(WHOLE) } };
+      const cut = withinBudget(placed, TIMES, { seconds: 20, asked: true }, home);
+
+      expect(cut.placing).toBeUndefined();
+      expect(runs(cut)).toEqual([OWN]);
+    });
+
+    it('runs none of the edited test files in a wave past 0 hops, which are the first wave\'s', () => {
+      const cut = withinBudget(local([SETUP, OWN, EDITED]), TIMES, { seconds: 20, asked: true, from: 3 }, home);
+
+      expect(runs(cut)).toEqual([]);
+      expect(cut.notes[0]).toMatch(/ runs none of the 2 test files the change edited, which are the wave from 0 hops'; /u);
+    });
+
+    it('cuts nothing when the record\'s times could not be read, or hold none', () => {
+      for (const times of [{ unread: 'nothing is recorded there' }, { recording: '/cache/coverage.bin', times: new Map<string, number>() }] satisfies SuiteTimes[]) {
+        const cut = withinBudget(local([SETUP, OWN]), times, { seconds: 20, asked: true }, home);
+
+        expect(runs(cut)).toEqual(WHOLE);
+        expect(cut.notes[0]).toMatch(/^`VARIANCE_AUTHORITY_BUDGET=20` cuts nothing: /u);
+      }
+    });
+
+    it('runs no test when the change edited none', () => {
+      const cut = withinBudget(local([SETUP]), TIMES, { seconds: 20, asked: true }, home);
+
+      expect(runs(cut)).toEqual([]);
+    });
+
+    it('cuts nothing from the same reading off a local seam, which carries no change', () => {
+      const whole = suiteOf(before, leg(0, 2));
+      const cut = withinBudget(whole, TIMES, { seconds: 20, asked: true }, home);
+
+      expect(runs(cut)).toEqual(WHOLE);
+      expect(cut.notes[0]).toMatch(/^`VARIANCE_AUTHORITY_BUDGET=20` cuts nothing: /u);
+    });
+  });
+
   it('cuts nothing from a selection `--local` fell to, which holds no hops, and says why', () => {
     const whole = suiteOf(input(), undefined);
     const fell = { ...whole, reading: { ...whole.reading, fell: { rung: 'importers' as const, from: 'no journal', left: [] } } };

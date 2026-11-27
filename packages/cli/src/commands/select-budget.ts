@@ -7,9 +7,12 @@
  * those in its package that enter it — shortest first, then its importers in
  * its package, then those in other packages, nearest first.
  * It only adds to `skip`, and a selection that declined to narrow skips
- * nothing (ADR-0062), so it cuts nothing there either.
+ * nothing (ADR-0062), so it cuts nothing there either, with one exception: a
+ * local seam's suite run whole because the change moved a `before` entry is
+ * cut to the test files the change edited, and the rest of the suite is CI's.
  */
 
+import { isTestPath } from '@variance-authority/sense';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import { durationText } from '@variance-authority/core/shard';
 import type { SuiteTimes, TestDistance } from '@variance-authority/sense/test-selection';
@@ -24,6 +27,8 @@ export interface Budget {
   readonly seconds: number;
   /** A leg was asked: its importers are taken in order after the own tests, not left. */
   readonly asked: boolean;
+  /** The asked leg's first hop: a wave past 0 takes none of the edited test files, which are the first wave's. */
+  readonly from?: number;
 }
 
 /** How many left files the note names before it counts the rest. */
@@ -55,7 +60,15 @@ export function withinBudget(
     notes: [`${variable} cuts nothing: ${why}`, ...selection.notes],
     reading: { ...selection.reading, notes: [`${variable} cuts nothing: ${why}`, ...selection.reading.notes] },
   });
-  if (selection.declined !== undefined) return unchanged('the selection did not narrow, and a selection that does not narrow skips nothing');
+  if (selection.declined !== undefined) {
+    // Only a local seam hands the change on, and only with a `before` reading: its suite runs whole by declaration, not by doubt.
+    if (selection.reading.ground !== 'before' || selection.changed === undefined) {
+      return unchanged('the selection did not narrow, and a selection that does not narrow skips nothing');
+    }
+    if ('unread' in times) return unchanged(times.unread);
+    if (times.times.size === 0) return unchanged(`${times.recording} holds no test durations to price by`);
+    return editedOnly({ ...selection, declined: selection.declined, changed: selection.changed }, times.times, budget);
+  }
   // A selection `--local` fell to holds no hops to rank by, and its rung already chose by containment.
   if (selection.reading.fell !== undefined) return unchanged(`the selection fell to the ${selection.reading.fell.rung} \`--local\` chose, which holds no hops to rank by`);
   // The leg leaves a selection on a stale, widened or unread graph uncut and measures no hops; the budget would rank all of it last.
@@ -103,6 +116,65 @@ export function withinBudget(
       ...(only === undefined ? {} : { only: [...only].sort() }),
       notes: [...notes, ...selection.reading.notes],
     },
+  };
+}
+
+/**
+ * A suite run whole because a local change moved a `before` entry, cut to the
+ * test files the change edited: those the record times, shortest first, as
+ * many as fit, and every test by its name the record does not time, which the
+ * runner collects or not, as the local ladder hands one on. Every other test
+ * file of the suite is left for CI, which runs it whole (ADR-0102).
+ */
+function editedOnly(
+  selection: SuiteReading & { readonly declined: string; readonly changed: readonly string[] },
+  times: ReadonlyMap<string, number>,
+  budget: Budget,
+): SuiteReading {
+  const variable = `\`VARIANCE_AUTHORITY_BUDGET=${budget.seconds}\``;
+  const changed = [...new Set(selection.changed)];
+  if ((budget.from ?? 0) > 0) {
+    const edited = changed.filter((file) => times.has(file) || isTestPath(file)).length;
+    const none = `${variable} runs none of the ${edited} test file${edited === 1 ? '' : 's'} the change edited, which are the wave from 0 hops'; every other test file of the suite is left for CI, which runs it whole: ${selection.declined}`;
+    const { declined: _declined, placing: _placing, ...narrowed } = selection;
+    return { ...narrowed, only: new Set(), notes: [none, ...selection.notes], reading: { ...selection.reading, only: [], notes: [none, ...selection.reading.notes] } };
+  }
+  const timed = changed
+    .filter((file) => times.has(file))
+    .map((test) => ({ test, price: times.get(test)! }))
+    .sort((a, b) => a.price - b.price || codeUnitOrder(a.test, b.test));
+  // Untimed, a test may be new or another suite's: the runner's discovery says which, and it costs no budget it can be charged.
+  const untimed = changed.filter((file) => !times.has(file) && isTestPath(file)).sort(codeUnitOrder);
+  const taken: string[] = [];
+  let spent = 0;
+  // A prefix, as the own tier is taken: the first that would pass the ceiling ends it.
+  for (const { test, price: ms } of timed) {
+    if (spent + ms > budget.seconds * 1000) break;
+    taken.push(test);
+    spent += ms;
+  }
+  const cut = timed.slice(taken.length);
+  const ran =
+    `${variable} ran ${taken.length} of the ${timed.length} timed test file${timed.length === 1 ? '' : 's'} the change edited, ${durationText(spent)} recorded` +
+    (untimed.length === 0 ? '' : `, and ${untimed.length} it does not time`) +
+    `; every other test file of the suite is left for CI, which runs it whole: ${selection.declined}`;
+  const notes = [
+    ran,
+    ...(cut.length === 0 ? [] : [`${cut.length} edited ${cut.length === 1 ? 'is' : 'are'} left for CI too:`]),
+    ...cut.slice(0, NAMED).map((candidate) => `  ${candidate.test}, ${durationText(candidate.price)}`),
+    ...(cut.length > NAMED ? [`  and ${cut.length - NAMED} more`] : []),
+    ...(untimed.length === 0 ? [] : ['untimed, run if this suite collects them:']),
+    ...untimed.slice(0, NAMED).map((test) => `  ${test}`),
+    ...(untimed.length > NAMED ? [`  and ${untimed.length - NAMED} more`] : []),
+  ];
+  // A shard placement would add its waves back, and the suite would run whole again.
+  const { declined: _declined, placing: _placing, ...narrowed } = selection;
+  const only = new Set([...taken, ...untimed]);
+  return {
+    ...narrowed,
+    only,
+    notes: [...notes, ...selection.notes],
+    reading: { ...selection.reading, only: [...only].sort(codeUnitOrder), notes: [...notes, ...selection.reading.notes] },
   };
 }
 
@@ -163,7 +235,8 @@ export async function budgetedSuite(
   const selection = await select(asked ? unbudgeted : { ...unbudgeted, atDistance: { from: 0, to: Number.MAX_SAFE_INTEGER, by: 'environment' } });
   const times = await timesOf(unbudgeted);
   const top = (await topLevel(unbudgeted.root)) ?? unbudgeted.root;
-  return withinBudget(selection, times, { seconds: budget, asked }, (file) => packageOf(top, file));
+  const from = unbudgeted.atDistance?.from;
+  return withinBudget(selection, times, { seconds: budget, asked, ...(from === undefined ? {} : { from }) }, (file) => packageOf(top, file));
 }
 
 /** The record's times, or why there are none: a share that did not answer leaves the loop uncut, and `explain` unpriced, rather than failed. */
