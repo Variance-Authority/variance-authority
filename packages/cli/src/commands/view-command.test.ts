@@ -1,11 +1,14 @@
 // compass: variance-authority.reach.crossings
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { gunzipSync } from 'node:zlib';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cacheRootFor, commitRunsFile, decodeTestCoverage, encodeTestCoverage, testCoverageFile } from '@variance-authority/sense/test-selection';
+import { cacheRootFor, commitRunsFile, decodeTestCoverage, encodeTestCoverage, recordOfCases, testCoverageFile } from '@variance-authority/sense/test-selection';
+// Sense publishes the case index's readers and not its writer, which only a
+// recording run calls, so this writes a record the way that run does.
+import { encodeAsSetExecutionIndex } from '../../../sense/src/test-selection/execution-set-format.js';
 import { OperatorError } from '../exit.js';
 import { viewOutput } from './view-command.js';
 
@@ -101,4 +104,12 @@ describe('variance view', () => {
     expect(JSON.parse(ran(html)!)).toEqual({ files: { 'a.test.ts': 'x64, 2 cores' } });
   });
 
+  it('writes the page of a record that holds cases and no coverage, with the runs beside it', async () => {
+    const at = testCoverageFile(root, {});
+    mkdirSync(dirname(at), { recursive: true });
+    writeFileSync(at, recordOfCases({ index: encodeAsSetExecutionIndex({ tests: [{ id: 'a', file: 'a.test.ts', name: 'waits', duration: 3 }], modules: [] }) }));
+    writeFileSync(commitRunsFile(at), JSON.stringify({ latest: '2026-11-27T05:13:00.000Z', runs: 1, landings: [{ files: ['a.test.ts'], machine: { arch: 'x64', cores: 2 } }] }));
+
+    expect(existsSync((await viewOutput({ command: 'view' }, root)).out.trim())).toBe(true);
+  });
 });

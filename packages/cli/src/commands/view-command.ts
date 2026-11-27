@@ -11,7 +11,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { gzipSync } from 'node:zlib';
 import { machinesBeside } from '@variance-authority/sense';
-import { askCoverageFile, cacheRootFor, declaredSuites, nearestRecord, rawRecord } from '@variance-authority/sense/test-selection';
+import { cacheRootFor, declaredSuites, nearestRecord, rawRecord, recordedCommit } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
 import { keptInOrder, lineCellOf, READ_REUSE_MS } from '../share-lines.js';
 import { VIEW_SINCE_DEFAULT, type ParsedView } from '../view-args.js';
@@ -33,7 +33,7 @@ export async function viewOutput(parsed: ParsedView, cwd: string, here: ViewHere
   const { suite, recording } = chosen(cwd, parsed.suite);
   const record = readFileSync(recording);
   const history = await historyFor(cwd, parsed.since ?? VIEW_SINCE_DEFAULT, here);
-  const ran = machinesBeside(recording, askCoverageFile(recording, (view) => view.commit));
+  const ran = machinesBeside(recording, await recordedCommit(recording));
   const path = resolve(cwd, `${cacheRootFor(cwd)}/variance-view.html`);
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, viewPage({ ...(suite === undefined ? {} : { suite }), recording, size: record.length, packed: gzipSync(rawRecord(record)), history, ...(ran === undefined ? {} : { ran }), code: code() }));
