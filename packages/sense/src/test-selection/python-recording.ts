@@ -10,7 +10,7 @@
  */
 
 import { spawn } from 'node:child_process';
-import { mkdirSync, readdirSync, readFileSync, rmSync } from 'node:fs';
+import { mkdirSync, readdirSync, readFileSync, realpathSync, rmSync } from 'node:fs';
 import { delimiter, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { native } from '../addon.js';
@@ -47,7 +47,8 @@ interface Written {
 export async function recordPython(run: PythonRun): Promise<number> {
   const pythonCoverage = native()?.pythonCoverage;
   if (pythonCoverage === undefined) throw new Error(`recording a pytest suite requires the Sense native addon: ${whyAbsent('pythonCoverage')}`);
-  const root = repositoryRoot(run.cwd);
+  // The plugin writes real paths, so the root is spelled the same way.
+  const root = realpathSync(repositoryRoot(run.cwd));
   const { selection, fold } = openRun(root, run, 'No Python file of the checkout was entered: check that the tests run code under the repository root.');
   const written = `${selection.runDirectory}-python`;
   rmSync(written, { recursive: true, force: true });
