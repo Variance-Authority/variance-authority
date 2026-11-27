@@ -356,15 +356,13 @@ function spoken({ answer, area }: Searched, asked: SearchQuestion, root: string 
 export const search: Tool<Help> = {
   name: 'docs_search',
   description:
-    'Find candidate names by words, when you do not know the exact name. A name matches when its name ' +
+    'Find candidate names by words, for a name you do not know. A name matches when its name ' +
     'or documentation contains your text, case-insensitive, or its words share the stem of every word ' +
-    'you typed: published names, with the specifier for docs_symbol, then unpublished and file-local ' +
-    'names, recorded test cases, installed names and packages, and near matches. Words only, no synonyms: `auth` does ' +
+    'you typed. Words only, no synonyms: `auth` does ' +
     'not find `CredentialGate`, so when nothing matches, ask another candidate word, not a longer ' +
     'phrase. A word under three letters has no stem but still counts as written: `node id` finds ' +
     '`NodeId`. On a large repository give `from` or `to`; an empty answer there is a fact about that ' +
-    'area. A list holds candidates, not every match: `git grep -i <word>` prints every line. ' +
-    '`map` `root` groups every candidate file by code-map area and dependency layer, with emitted drills.',
+    'area. A list holds candidates, not every match: `git grep -i <word>` prints every line.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -372,8 +370,8 @@ export const search: Tool<Help> = {
         type: 'string',
         description: 'A substring, or a few words of what the name does. Ask each candidate word as its own query.',
       },
-      map: { type: 'string', description: `Optional. \`root\` maps every candidate file by code-map area and dependency layer; an emitted drill id opens that exact group. With a map, \`limit\` is groups per page (${MAP_GROUPS} when not said) and \`offset\` the groups to skip.` },
-      offset: { type: 'integer', description: 'Optional, with `map`. Map groups to skip, for the next page an answer names.' },
+      map: { type: 'string', description: '`root` or a printed drill: files by area and layer; `limit` groups a page.' },
+      offset: { type: 'integer', description: 'Groups to skip.' },
       from: START_POINT_SCHEMA.from,
       to: {
         ...START_POINT_SCHEMA.to,
