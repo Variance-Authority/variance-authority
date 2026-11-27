@@ -8,19 +8,22 @@
  * a fresh worktree gets the primary checkout's record. A seam never fetches.
  *
  * They meet here. A fetch keeps the record at
- * `<cache>/share/read/<suite>/<commit>/` and names it in `fetched.json`. A
- * record fetched for one mainline answers nothing about another, and only the
- * CLI can say which is selected, so {@link lastFetchedMainline} takes that from
- * a reader that worked it out.
+ * `<cache>/share/read/<suite>/<commit>/`, in the cache every checkout of the
+ * repository shares, and names it in `fetched.json` there. Each reader picks
+ * the kept record its own `HEAD` holds. A record fetched for one mainline
+ * answers nothing about another, and only the CLI can say which is selected,
+ * so {@link lastFetchedMainline} takes that from a reader that worked it out.
  */
 
 // compass: variance-authority.reach
 
+import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import { cacheRootFor, directoriesIn, listWorktrees, primaryCacheRoot, primaryCheckout } from './cache-layers.js';
+import { codeUnitOrder } from '@variance-authority/core/segment';
+import { cacheRootFor, listWorktrees, primaryCacheRoot, primaryCheckout } from './cache-layers.js';
 import { commitRunsIn, commitRunsText } from './commit-runs-text.js';
 import { commitRunsFile, type CommitRuns } from './commit-runs.js';
 import { caseSectionsOf } from './case-record.js';
@@ -33,17 +36,10 @@ import { pinOf, writeOwnLayer } from './own-layer.js';
 import { repositoryRoot } from './repository-root.js';
 import { declaredSuites, onlySuite } from './suites.js';
 
-/** The file a fetch names the mainline's record in, beside the commit directories it keeps. */
+/** The file a fetch names the mainline's record in, beside the commit directories it keeps, and in each of them. */
 export const FETCHED_MAINLINE = 'fetched.json';
 
-/**
- * The file the shared cache names the newest record any checkout kept there
- * in, beside a checkout's own {@link FETCHED_MAINLINE}: moved only forward
- * along the line, so a fetch at an older merge base never takes it back.
- */
-export const SHARED_MAINLINE = 'shared.json';
-
-/** What {@link FETCHED_MAINLINE} and {@link SHARED_MAINLINE} hold. */
+/** What {@link FETCHED_MAINLINE} holds. */
 export interface FetchedMainline {
   /** The mainline the record was read from. */
   readonly mainline: string;
@@ -59,7 +55,7 @@ export interface FetchedMainline {
   readonly partial?: true;
 }
 
-/** The mainline's record of one suite, as the last fetch on this machine kept it. */
+/** The mainline's record of one suite, as a fetch on this machine kept it. */
 export interface LastFetched extends FetchedMainline {
   readonly suite: string;
   /** The record: its coverage, and its cases when the publishing run kept them. */
@@ -75,24 +71,22 @@ export function mainlineReadRoot(cacheRoot: string, suite: string): string {
 
 /**
  * Record that the mainline's record of `suite` was fetched into
- * `<readRoot>/<commit>/`. Called by the fetch once every file it keeps is in
- * place, so a seam that reads this finds them. Replaced whole, so no reader
- * meets a half-written one.
+ * `<readRoot>/<commit>/`: in that directory, which says what it holds to every
+ * reader that picks it, and beside it, as the last fetch into this cache.
+ * Called by the fetch once every file it keeps is in place, so a seam that
+ * reads this finds them. Replaced whole, so no reader meets a half-written one.
  */
-export async function writeFetchedMainline(
-  cacheRoot: string,
-  suite: string,
-  fetched: FetchedMainline,
-  file: typeof FETCHED_MAINLINE | typeof SHARED_MAINLINE = FETCHED_MAINLINE,
-): Promise<void> {
+export async function writeFetchedMainline(cacheRoot: string, suite: string, fetched: FetchedMainline): Promise<void> {
   const readRoot = mainlineReadRoot(cacheRoot, suite);
-  await place(join(readRoot, file), Buffer.from(`${JSON.stringify(fetched)}\n`));
+  const text = Buffer.from(`${JSON.stringify(fetched)}\n`);
+  await place(join(readRoot, fetched.commit, FETCHED_MAINLINE), text);
+  await place(join(readRoot, FETCHED_MAINLINE), text);
 }
 
 /** The pointer in one read root, or in one commit's directory under it, or undefined when there is none or it does not read. */
-export function readFetchedMainline(readRoot: string, file: typeof FETCHED_MAINLINE | typeof SHARED_MAINLINE = FETCHED_MAINLINE): FetchedMainline | undefined {
+export function readFetchedMainline(readRoot: string): FetchedMainline | undefined {
   try {
-    const value = JSON.parse(readFileSync(join(readRoot, file), 'utf8')) as Partial<FetchedMainline>;
+    const value = JSON.parse(readFileSync(join(readRoot, FETCHED_MAINLINE), 'utf8')) as Partial<FetchedMainline>;
     if (typeof value.mainline !== 'string' || typeof value.commit !== 'string' || typeof value.fetched !== 'string') return undefined;
     const { mainline, commit, fetched, base, handed, partial } = value;
     return {
@@ -109,10 +103,14 @@ export function readFetchedMainline(readRoot: string, file: typeof FETCHED_MAINL
 }
 
 /**
- * The mainline record of `suite` this checkout stands on: the one its own
- * pointer names, else the newest any checkout kept ({@link SHARED_MAINLINE}),
- * else the shared cache's own, each read first where its pointer lives, and
- * only one this build reads, of `selected` (`null` answers none).
+ * The mainline record of `suite` for `root`'s `HEAD`: the nearest kept commit
+ * that is an ancestor of `HEAD`, which is at or behind its merge base with any
+ * mainline, so no selection is needed to find it. A whole record beats a
+ * partial one at the same commit. When no kept commit is an ancestor (a share
+ * that keeps only its latest record, which runs ahead), the newest fetch
+ * answers. A checkout a run handed its read takes that read alone. Only a
+ * record this build reads, of `selected` (`null` answers none), and the
+ * shared cache and this checkout's own are both asked ({@link fetchStores}).
  * Synchronous, as {@link nearestTestCoverage} cannot wait.
  */
 export function lastFetchedMainline(root: string, suite: string | undefined, cacheRoot?: string, selected?: string | null): LastFetched | undefined {
@@ -120,24 +118,66 @@ export function lastFetchedMainline(root: string, suite: string | undefined, cac
   const declared = declaredSuites(root);
   const name = suite ?? onlySuite(declared);
   if (name === undefined || declared?.find((one) => one.name === name)?.carry !== 'share') return undefined;
-  const readRoots = fetchStores(root, name, cacheRoot).map((cache) => mainlineReadRoot(cache, name));
-  const own = readRoots.at(-1)!;
-  const sharedStore = sharedMainlineStore(root, name, cacheRoot);
-  const shared = sharedStore === undefined ? undefined : mainlineReadRoot(sharedStore, name);
-  // This checkout's own pointer first, then the shared cache's newest, then what the primary checkout itself fetched.
-  const pointers: (readonly [string, FetchedMainline | undefined])[] = [[own, readFetchedMainline(own)]];
-  if (shared !== undefined) pointers.push([shared, readFetchedMainline(shared, SHARED_MAINLINE)]);
-  if (shared !== undefined && shared !== own) pointers.push([shared, readFetchedMainline(shared)]);
-  for (const [where, pointer] of pointers) {
-    // FIXME: a runner seam and a sense reader have no selection, so they take a record fetched for another mainline; moving the selection below the CLI closes it (#962).
-    if (pointer === undefined || (selected !== undefined && pointer.mainline !== selected)) continue;
-    // From the cache that named it first: a checkout's own copy is its build's.
-    for (const readRoot of [where, ...readRoots.filter((one) => one !== where)]) {
-      const found = fetchedRecord(readRoot, pointer, name);
-      if (found !== undefined) return found;
+  // FIXME: a runner seam and a sense reader have no selection, so they take a record fetched for another mainline; moving the selection below the CLI closes it (#962).
+  const of = (pointer: FetchedMainline | undefined) => pointer !== undefined && (selected === undefined || pointer.mainline === selected);
+  if (mainlineHanded(root, name, cacheRoot)) {
+    const own = mainlineReadRoot(cacheRoot ?? cacheRootFor(repositoryRoot(root)), name);
+    const pointer = readFetchedMainline(own);
+    return of(pointer) ? fetchedRecord(own, pointer!, name) : undefined;
+  }
+  const kept: { readonly readRoot: string; readonly pointer: FetchedMainline }[] = [];
+  for (const cache of fetchStores(root, name, cacheRoot)) {
+    const readRoot = mainlineReadRoot(cache, name);
+    // A record kept before each directory named itself is named only beside them.
+    const last = readFetchedMainline(readRoot);
+    for (const commit of commitDirectories(readRoot)) {
+      const pointer = readFetchedMainline(join(readRoot, commit)) ?? (last?.commit === commit ? last : undefined);
+      if (of(pointer)) kept.push({ readRoot, pointer: pointer! });
     }
   }
+  const checkout = repositoryRoot(root);
+  const behind = new Map<string, number | undefined>();
+  const distance = (commit: string) => {
+    if (!behind.has(commit)) behind.set(commit, ancestor(checkout, commit, 'HEAD') === true ? count(checkout, `${commit}..HEAD`) : undefined);
+    return behind.get(commit);
+  };
+  const order = (one: (typeof kept)[number]) => [distance(one.pointer.commit) ?? Infinity, one.pointer.partial === true ? 1 : 0] as const;
+  const ranked = kept
+    .map((one) => ({ one, at: order(one) }))
+    .sort((a, b) => a.at[0] - b.at[0] || a.at[1] - b.at[1] || (a.at[0] === Infinity ? codeUnitOrder(b.one.pointer.fetched, a.one.pointer.fetched) : 0));
+  for (const { one } of ranked) {
+    const found = fetchedRecord(one.readRoot, one.pointer, name);
+    if (found !== undefined) return found;
+  }
   return undefined;
+}
+
+/** The commit directories under `readRoot`, or none when it cannot be read. */
+function commitDirectories(readRoot: string): readonly string[] {
+  try {
+    return readdirSync(readRoot, { withFileTypes: true }).filter((entry) => entry.isDirectory() && /^[0-9a-f]{7,64}$/u.test(entry.name)).map((entry) => entry.name);
+  } catch {
+    return [];
+  }
+}
+
+/** Whether `older` is an ancestor of `newer` in `root`, or `undefined` when git cannot say. */
+export function ancestor(root: string, older: string, newer: string): boolean | undefined {
+  try {
+    execFileSync('git', ['merge-base', '--is-ancestor', older, newer], { cwd: root, stdio: 'ignore' });
+    return true;
+  } catch (error) {
+    return (error as { status?: number }).status === 1 ? false : undefined;
+  }
+}
+
+/** How many commits `range` holds, or `undefined` when git cannot say. */
+function count(root: string, range: string): number | undefined {
+  try {
+    return Number(execFileSync('git', ['rev-list', '--count', range], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim());
+  } catch {
+    return undefined;
+  }
 }
 
 /** The record `pointer` names under `readRoot`, when it is there and reads in this build. */
@@ -157,40 +197,32 @@ function fetchedRecord(readRoot: string, pointer: FetchedMainline, suite: string
  * own when a run handed it its read, which is that job's alone; else the
  * primary checkout's, so every checkout of the repository reads what one
  * fetched, then this checkout's own, for a worktree that may not write its
- * primary's. A record is keyed by the commit it was published at and never
- * written again, so two checkouts keeping one write the same bytes.
+ * primary's. A record is keyed by the commit it was published at, so two
+ * checkouts keeping one write the same bytes.
  */
 export function fetchStores(root: string, suite: string, cacheRoot?: string): readonly string[] {
   if (cacheRoot !== undefined) return [cacheRoot];
-  const own = cacheRootFor(repositoryRoot(root));
-  const shared = sharedMainlineStore(root, suite);
-  return shared === undefined || shared === own ? [own] : [shared, own];
+  const here = repositoryRoot(root);
+  const own = cacheRootFor(here);
+  if (mainlineHanded(root, suite)) return [own];
+  const shared = primaryCacheRoot(here);
+  return shared === own ? [own] : [shared, own];
 }
 
 /**
- * The cache every checkout of the repository shares mainline records in, the
- * primary checkout's, or undefined where none is shared: a cache the caller
- * named, or a checkout a run handed its read.
- */
-export function sharedMainlineStore(root: string, suite: string, cacheRoot?: string): string | undefined {
-  if (cacheRoot !== undefined || mainlineHanded(root, suite)) return undefined;
-  return primaryCacheRoot(repositoryRoot(root));
-}
-
-/**
- * The commits every checkout of `root`'s repository stands on, by its own
- * pointer in its own cache: the shared records a prune of the shared cache keeps.
+ * The commits the checkouts of `root`'s repository read of each shared suite,
+ * each by its own `HEAD`: the records a prune of the shared cache keeps.
  */
 export async function pinnedMainlines(root: string): Promise<readonly string[]> {
-  const pinned: string[] = [];
+  const pinned = new Set<string>();
+  const shared = (declaredSuites(root) ?? []).filter((one) => one.carry === 'share');
   for (const checkout of (await listWorktrees(primaryCheckout(repositoryRoot(root)))) ?? []) {
-    const reads = join(cacheRootFor(checkout), 'share', 'read');
-    for (const suite of await directoriesIn(reads)) {
-      const commit = readFetchedMainline(join(reads, suite))?.commit;
-      if (commit !== undefined) pinned.push(commit);
+    for (const { name } of shared) {
+      const commit = lastFetchedMainline(checkout, name)?.commit;
+      if (commit !== undefined) pinned.add(commit);
     }
   }
-  return pinned;
+  return [...pinned];
 }
 
 /**

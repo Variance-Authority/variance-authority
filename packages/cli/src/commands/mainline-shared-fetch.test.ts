@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { cp, mkdir, mkdtemp, readdir, readFile, realpath, rm, stat, utimes, writeFile } from 'node:fs/promises';
+import { cp, mkdtemp, readdir, readFile, realpath, rm, stat, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -10,7 +10,6 @@ import {
   mainlineReadRoot,
   pinnedMainlines,
   readFetchedMainline,
-  SHARED_MAINLINE,
   writeTestCoverage,
 } from '@variance-authority/sense/test-selection';
 import type { Env } from '../share-lines.js';
@@ -79,7 +78,7 @@ describe('a mainline record one worktree fetched', () => {
     expect(await base(one)).toMatchObject({ commit: next });
 
     expect(lastFetchedMainline(two, 'unit')).toMatchObject({ commit: next });
-    // The primary checkout fetched, so it stands on its own until it fetches again.
+    // The primary checkout's HEAD is still at the commit it fetched, so it reads that one.
     expect(lastFetchedMainline(primary, 'unit')).toMatchObject({ commit: first });
     // Kept once, where every checkout's reader asks.
     expect(existsSync(join(mainlineReadRoot(cacheRootFor(one), 'unit'), next))).toBe(false);
@@ -117,7 +116,7 @@ describe('a mainline record one worktree fetched', () => {
     const gone = join(reads, 'f'.repeat(40));
     await cp(join(reads, readFetchedMainline(reads)!.commit), gone, { recursive: true });
     await utimes(gone, month, month);
-    // A newer one, which the prune keeps as the newest no pointer names.
+    // A newer one, which the prune keeps as the newest no checkout reads.
     const newest = join(reads, 'e'.repeat(40));
     await cp(gone, newest, { recursive: true });
     // The primary's own whole prune ran two days ago, and is its own to run again.
@@ -131,7 +130,7 @@ describe('a mainline record one worktree fetched', () => {
     expect(existsSync(gone)).toBe(false);
     expect(existsSync(newest)).toBe(true);
     expect((await stat(whole)).mtimeMs).toBe(old * 1000);
-    expect(readFetchedMainline(reads, SHARED_MAINLINE)).toMatchObject({ commit: next });
+    expect(existsSync(join(reads, next))).toBe(true);
     expect(lastFetchedMainline(two, 'unit')).toMatchObject({ commit: next });
   });
 
@@ -150,6 +149,26 @@ describe('a mainline record one worktree fetched', () => {
     expect(await pinnedMainlines(one)).toEqual(expect.arrayContaining([first, next]));
   });
 
+  it('is not read by a worktree whose HEAD it is ahead of, which reads the nearest kept record behind it', async () => {
+    const { first, next, one, tree, base } = await laptop();
+    expect(await base(one)).toMatchObject({ commit: next });
+
+    const behind = await tree('behind', first);
+
+    expect(lastFetchedMainline(behind, 'unit')).toMatchObject({ commit: first });
+  });
+
+  it('is read by a worktree whose HEAD moved past it, with no share run', async () => {
+    const { first, next, one, tree, base } = await laptop();
+    const behind = await tree('behind', first);
+    expect(await base(behind)).toMatchObject({ commit: first });
+    expect(await base(one)).toMatchObject({ commit: next });
+
+    await git(behind, 'checkout', '--quiet', '--detach', next);
+
+    expect(lastFetchedMainline(behind, 'unit')).toMatchObject({ commit: next });
+  });
+
   it('is not taken from a fresh worktree by a later fetch at an older merge base', async () => {
     const { primary, first, next, one, tree, base } = await laptop();
     expect(await base(one)).toMatchObject({ commit: next });
@@ -161,33 +180,6 @@ describe('a mainline record one worktree fetched', () => {
 
     expect(lastFetchedMainline(behind, 'unit')).toMatchObject({ commit: first });
     expect(lastFetchedMainline(await tree('fresh'), 'unit')).toMatchObject({ commit: next });
-  });
-
-  it('is never written over by another checkout\'s fetch of the same commit, which keeps its copy in its own cache', async () => {
-    const { primary, first, next, one, two, base } = await laptop();
-    expect(await base(one)).toMatchObject({ commit: next });
-    const reads = mainlineReadRoot(cacheRootFor(primary), 'unit');
-    const shared = join(reads, next, 'coverage.bin');
-    // Bytes another build kept: not the ones this build would write.
-    await cp(join(reads, first, 'coverage.bin'), shared);
-    const before = await readFile(shared);
-
-    expect(await base(two, { fetch: 'always' })).toMatchObject({ commit: next });
-
-    expect(await readFile(shared)).toEqual(before);
-    const own = join(mainlineReadRoot(cacheRootFor(two), 'unit'), next, 'coverage.bin');
-    expect(existsSync(own)).toBe(true);
-    // What the fetch kept is what the runner seams read, not the other build's bytes.
-    expect(lastFetchedMainline(two, 'unit')).toMatchObject({ commit: next, coverage: own });
-  });
-
-  it('is read by a sibling whose own cache takes no pointer', async () => {
-    const { next, one, two, base } = await laptop();
-    expect(await base(one)).toMatchObject({ commit: next });
-    // Where its own pointer would go, something it cannot replace.
-    await mkdir(join(mainlineReadRoot(cacheRootFor(two), 'unit'), 'fetched.json'), { recursive: true });
-
-    expect(await base(two)).toMatchObject({ commit: next, distance: 0 });
   });
 
   it('is not taken from a fresh worktree when the primary checkout fetches at its older merge base', async () => {

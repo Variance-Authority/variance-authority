@@ -127,8 +127,6 @@ export {
   FETCHED_MAINLINE,
   fetchStores,
   pinnedMainlines,
-  sharedMainlineStore,
-  SHARED_MAINLINE,
   lastFetchedMainline,
   layFetchedMainline,
   mainlineHanded, mainlineReadRoot,
@@ -149,7 +147,6 @@ export {
   type Seeded,
   testCoverageFile,
   writeCoverageBytes,
-  writeCoverageOnce,
   type RecordLocationOptions,
   type RecordOrigin,
 } from './record-location.js';

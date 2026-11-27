@@ -172,7 +172,7 @@ describe('a line that gave no record a moment ago', () => {
       // No record fetched before it, so only the note could stop the ask.
       const now = NOW + step;
       await rm(join(readRoot, 'fetched.json'), { force: true });
-      await rm(join(readRoot, 'shared.json'), { force: true });
+      await rm(join(readRoot, first), { recursive: true, force: true });
       await writeFile(join(readRoot, 'missed.json'), note.replace(at(NOW), at(now)));
 
       const read = await base(now);

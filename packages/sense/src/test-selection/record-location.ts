@@ -483,16 +483,14 @@ export async function writeCoverageBytes(file: string, bytes: Uint8Array): Promi
  *
  * Only for a file that may go unwritten. A link that fails for any reason is
  * not an error: the path is already somebody's, or the file system has no hard
- * links (FAT, exFAT, SMB, some FUSE mounts): it answers false, and a reader
- * finding no file says so.
+ * links (FAT, exFAT, SMB, some FUSE mounts). A reader finding no file says so.
  */
-export async function writeCoverageOnce(file: string, bytes: Uint8Array): Promise<boolean> {
+async function writeCoverageOnce(file: string, bytes: Uint8Array): Promise<void> {
   await mkdir(dirname(file), { recursive: true });
   const temporary = `${file}.${process.pid}-${randomUUID()}.tmp`;
   await writeFile(temporary, bytes);
-  const linked = (await link(temporary, file).catch(() => false)) !== false;
+  await link(temporary, file).catch(() => {});
   await unlink(temporary).catch(() => {});
-  return linked;
 }
 
 function missing(error: unknown): boolean {
