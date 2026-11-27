@@ -27,11 +27,11 @@ pub(crate) struct Taken {
 
 /// What `importers_from` walked: every use, every file that passes a wanted
 /// name on with the origin it passed it on for, and every namespace a file passes
-/// one on inside.
+/// one on inside, with the origin it passed it on for.
 pub(crate) struct Walked {
     pub(crate) taken: Vec<Taken>,
     pub(crate) through: HashSet<(usize, String)>,
-    pub(crate) namespaces: Vec<Namespace>,
+    pub(crate) namespaces: HashSet<(usize, Namespace)>,
 }
 
 /// A name wanted out of a file: an export of it, and the names read off that
@@ -140,7 +140,7 @@ pub(crate) fn importers_from(root: &str, layers: &[Layer], asked: HashMap<String
         for (file, want, origin, typed) in passed {
             if let Within::Path(path) = &want.within {
                 if !path.is_empty() {
-                    namespaces.insert(Namespace { at: file.clone(), name: want.export.clone(), members: path.clone() });
+                    namespaces.insert((origin, Namespace { at: file.clone(), name: want.export.clone(), members: path.clone() }));
                 }
             }
             let key = (file.clone(), want.clone(), origin);
@@ -156,7 +156,7 @@ pub(crate) fn importers_from(root: &str, layers: &[Layer], asked: HashMap<String
             }
         }
     }
-    Walked { taken: found.into_values().collect(), through, namespaces: namespaces.into_iter().collect() }
+    Walked { taken: found.into_values().collect(), through, namespaces }
 }
 
 /// One step of `importers_from`: the uses of each wanted name out of its

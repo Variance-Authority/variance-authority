@@ -1,12 +1,13 @@
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { encodeRecordedAttempts } from './attempts-record.js';
-import { caseSectionsOf, keepsCases, keepsEyes, recordedAttemptsAt, recordedCases, recordedEyesOf, sharedRecord, withCaseSections } from './case-record.js';
+import { caseSectionsOf, keepsCases, keepsEyes, recordOfCases, recordedAttemptsAt, recordedCases, recordedEyesOf, sharedRecord, withCaseSections, withoutCoverage } from './case-record.js';
 import { decodeExecutionIndex, encodeExecutionIndex } from './execution-format.js';
 import { decodeRecordedEyes, encodeRecordedEyes } from './eyes-record.js';
 import { decodeTestCoverage, encodeTestCoverage } from './format.js';
+import { sections } from './format-layout.js';
 import { openTestCoverage } from './format-view.js';
 import { selectTestFilesFromView } from './select.js';
 import type { ExecutionIndex } from './execution-format.js';
@@ -34,15 +35,17 @@ const INDEX: ExecutionIndex = {
 const LAST = Buffer.from('{"files":["test/total.test.ts"]}\n');
 
 let dir: string | undefined;
+let written = 0;
 
 afterEach(() => {
   if (dir !== undefined) rmSync(dir, { recursive: true, force: true });
   dir = undefined;
 });
 
+/** `bytes` in a file of its own, in the one folder each test removes after it. */
 function at(bytes: Uint8Array): string {
-  dir = mkdtempSync(join(tmpdir(), 'case-record-'));
-  const file = join(dir, 'coverage.bin');
+  dir ??= mkdtempSync(join(tmpdir(), 'case-record-'));
+  const file = join(dir, `coverage-${written++}.bin`);
   writeFileSync(file, bytes);
   return file;
 }
@@ -132,9 +135,34 @@ describe('a record that kept no cases', () => {
     expect(keepsCases(join(dir ?? tmpdir(), 'absent.bin'))).toBe(false);
   });
 
-  it('says so when it is cut short of the length its header opens with', () => {
-    expect(keepsCases(at(Buffer.from([1, 0])))).toBe(false);
-    expect(keepsEyes(at(Buffer.alloc(0)))).toBe(false);
+  it('is not told from a file whose header does not read, whose cases are unknown, not none', () => {
+    expect(keepsCases(at(Buffer.from([1, 0])))).toBeUndefined();
+    expect(keepsCases(at(Buffer.from('not a record')))).toBeUndefined();
+  });
+
+  it('is not told from a header that parses but lays out sections its reader refuses', () => {
+    const header = Buffer.from(record).readUInt32LE(0);
+    for (const refused of [sections({}), record.subarray(0, 4 + header)]) {
+      expect(() => caseSectionsOf(refused)).toThrow(/not a variance-authority test coverage artifact/u);
+      expect(keepsCases(at(refused))).toBeUndefined();
+    }
+  });
+
+  it('keeps neither Eyes nor cases alone where its header lays out sections its reader refuses', () => {
+    const kept = recordOfCases({ index: encodeExecutionIndex(INDEX), eyes: Buffer.from('{}') });
+    const cut = kept.subarray(0, 4 + kept.readUInt32LE(0));
+    expect(keepsEyes(at(kept))).toBe(true);
+    expect(withoutCoverage(at(kept))).toBe(true);
+    expect(keepsEyes(at(cut))).toBe(false);
+    expect(withoutCoverage(at(cut))).toBe(false);
+    expect(keepsCases(at(cut))).toBeUndefined();
+  });
+
+  it('keeps no Eyes where no record is there, nor where its header does not read', () => {
+    const empty = at(Buffer.alloc(0));
+    expect(keepsEyes(join(dirname(empty), 'absent.bin'))).toBe(false);
+    expect(keepsEyes(empty)).toBe(false);
+    expect(keepsEyes(at(Buffer.from('not a record')))).toBe(false);
   });
 
   it('is handed to the index reader as it is, which refuses it on its own terms', () => {

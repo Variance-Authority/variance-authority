@@ -425,8 +425,9 @@ const KEPT = {
 
 /**
  * The note that says the mainline's record was read: which mainline, which
- * commit, how far off, and where it is kept, and for the record fetched
- * earlier, when that was and why it stands.
+ * commit, how far off, and for the record fetched earlier, when that was and
+ * why it stands. Where it is kept is {@link MainlineRecord.coverage}, which a
+ * program reads; the note names the record, not its file.
  */
 export function mainlineRead(read: MainlineRecord): string {
   const when = read.earlier === undefined
@@ -436,7 +437,7 @@ export function mainlineRead(read: MainlineRecord): string {
       : `, fetched at ${read.fetched}, because the mainline was not read now: ${describeMiss(read.earlier.unanswered)}` +
         answeredAt(read.earlier.asked);
   return `record of "${read.suite}": read from mainline ${read.mainline}, published at ${read.commit}${when}, ` +
-    `${describeDistance(read.distance)}; kept at ${read.coverage}` +
+    describeDistance(read.distance) +
     (read.casesUnread === undefined ? '' : `; ${read.casesUnread}`) +
     (read.pruned === undefined ? '' : `; ${read.pruned}`);
 }
@@ -466,12 +467,12 @@ function answeredAt(asked: string | undefined): string {
 /**
  * The note a reader gives when it fell back to the primary checkout's record:
  * this worktree has recorded none, the mainline's was not read now and none was
- * fetched earlier on this machine. It names the file and why the mainline's is
- * not it.
+ * fetched earlier on this machine. It names whose record it is and why the
+ * mainline's is not it.
  */
-export function primaryRead(suite: string, file: string, missed: MainlineMissed | undefined): string {
+export function primaryRead(suite: string, missed: MainlineMissed | undefined): string {
   const why = missed === undefined ? '' : `; ${mainlineMissed(missed).slice(`record of "${suite}": `.length)}`;
-  return `record of "${suite}": read from the primary checkout's, at ${file}, as the offline fallback: ` +
+  return `record of "${suite}": read from the primary checkout's, as the offline fallback: ` +
     `this worktree has recorded none, and no mainline record of it was fetched on this machine${why}`;
 }
 

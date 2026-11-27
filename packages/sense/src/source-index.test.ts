@@ -61,6 +61,7 @@ const PARSED: Parsed = {
       name: 'Card',
       kind: 'class',
       line: 3,
+      endLine: 51,
       signature: { start: 18, end: 42 },
       doc: { start: 2, end: 15 },
     },
@@ -73,8 +74,8 @@ const PARSED: Parsed = {
   // column holds, so a cache, a fold or a decoder that dropped one of the four
   // columns, or read one in place of another, fails here.
   memberDeclarations: [
-    { name: 'resolveThings', line: 21, on: 'NativeScanner', doc: { start: 71, end: 83 } },
-    { name: 'Card', line: 24, on: 'a type literal' },
+    { name: 'resolveThings', kind: 'method', line: 21, endLine: 23, on: 'NativeScanner', doc: { start: 71, end: 83 } },
+    { name: 'Card', kind: 'property', line: 24, endLine: 25, on: 'a type literal' },
   ],
   // A member, a type and lines no other column holds, and every kind of use,
   // so a column dropped or read in place of another fails here.

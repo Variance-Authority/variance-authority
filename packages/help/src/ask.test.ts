@@ -6,6 +6,7 @@ import { readHelp } from './walk.js';
 import { spellingOf, verbOf } from '@variance-authority/mcp/tools';
 import { ask, inputFrom, invocationOf, toolNamed, verbs } from './ask.js';
 import { HELP_TOOLS } from './tools.js';
+import { indexedCopy } from './__fixtures__/indexed-copy.js';
 
 const WORKSPACE = join(dirname(fileURLToPath(import.meta.url)), './__fixtures__/workspace');
 const READING = readHelp(WORKSPACE);
@@ -25,10 +26,15 @@ describe('a verb is a tool, not a second implementation of one', () => {
     expect(ask(READING, 'search', ['deep'])).toBe(tool.run(READING, { query: 'deep' }, invocationOf({})));
   });
 
-  it('spells the inputs and the questions an answer names as this binary takes them', () => {
-    const text = ask(READING, 'uses', ['behind']);
-    expect(text).toContain('Path order; `--from` sorts nearest first.');
-    expect(() => ask(READING, 'uses', ['nope'])).toThrow(/ask `variance-authority-help search` with it as the `--query`|ask `variance-authority-help search` with a word/);
+  it('spells the inputs and the questions an answer names as this binary takes them', async () => {
+    const indexed = await indexedCopy(WORKSPACE);
+    try {
+      const text = ask(indexed.help, 'uses', ['behind'], undefined, indexed.root);
+      expect(text).toContain('Path order; `--from` sorts nearest first.');
+      expect(() => ask(indexed.help, 'uses', ['nope'], undefined, indexed.root)).toThrow(/ask `variance-authority-help search` with it as the `--query`|ask `variance-authority-help search` with a word/);
+    } finally {
+      await indexed.remove();
+    }
   });
 
   it('names what it answers when a verb is not one of them', () => {

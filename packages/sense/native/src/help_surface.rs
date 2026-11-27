@@ -14,6 +14,7 @@ pub(crate) enum Value<'a> {
 }
 
 /// The words that ask a question from the shell `variance` runs in.
+#[cfg(any(test, feature = "standalone-cli"))]
 pub(crate) const CLI: &str = "variance ask";
 
 #[derive(Clone, Copy)]
@@ -22,6 +23,11 @@ pub(crate) struct Surface<'a>(pub Option<&'a str>);
 impl Surface<'_> {
     pub(crate) fn input(self, property: &str) -> String {
         if self.0.is_some() { flag(property) } else { property.to_owned() }
+    }
+
+    /// A tool, unquoted: `docs_{verb}` on the wire, the shell's words and `verb` from a shell.
+    pub(crate) fn tool(self, verb: &str) -> String {
+        self.0.map_or_else(|| format!("docs_{verb}"), |asked| format!("{asked} {verb}"))
     }
 
     /// A question in backticks: `verb` with its inputs, in order.

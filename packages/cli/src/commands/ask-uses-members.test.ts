@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { sourceIndexPath } from '@variance-authority/sense';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { EXIT_CLEAN } from '../exit.js';
+import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
 import { checkout, run } from './ask-packages.fixture.js';
 
 /**
@@ -193,15 +193,14 @@ describe('variance ask uses over a member', () => {
     expect(out).not.toContain('Members are read');
   });
 
-  it('answers a name nothing publishes, saying the member declarations went unread, when the source index is gone and the generation answers as it is', async () => {
+  it('refuses a name nothing publishes, saying no source index is published, when the source index is gone', async () => {
     const root = checkout(SCANNER);
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
     rmSync(sourceIndexPath(root));
 
     const { code, out, err } = await run(['ask', 'uses', '--name', 'resolveThings']);
-    expect(code).toBe(EXIT_CLEAN);
-    expect(err).toBe('');
-    expect(out).toContain('`resolveThings` is not published by this workspace, and no published name contains it');
-    expect(out).toContain('Which files declare `resolveThings` is not known: no source index is published; run `variance index`.');
+    expect(code).toBe(EXIT_OPERATOR);
+    expect(out).toBe('');
+    expect(err).toMatch(/^`docs_uses` reads the source index, and no source index is published; run `variance index`$/m);
   });
 });

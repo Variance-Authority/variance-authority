@@ -21,3 +21,10 @@ fn a_question_is_spelled_as_the_wire_and_the_shell_take_it() {
         assert_eq!(Surface(None).question(&case.verb, &inputs), case.wire);
     }
 }
+
+#[test]
+fn a_tool_is_named_as_the_wire_and_the_shell_take_it() {
+    assert_eq!(Surface(Some(CLI)).tool("uses"), "variance ask uses");
+    assert_eq!(Surface(Some("variance-authority-help")).tool("search"), "variance-authority-help search");
+    assert_eq!(Surface(None).tool("symbol"), "docs_symbol");
+}

@@ -420,9 +420,6 @@
   "packages/cli/src/commands/alone.ts docblock": [
     22
   ],
-  "packages/cli/src/commands/ask-questions.ts docblock": [
-    14
-  ],
   "packages/cli/src/commands/ask.ts block": [
     6
   ],
@@ -1445,9 +1442,6 @@
   ],
   "packages/help/src/tools/members.ts overview": [
     19
-  ],
-  "packages/help/src/tools/orient.ts overview": [
-    21
   ],
   "packages/help/src/tools/search-answer.ts docblock": [
     12

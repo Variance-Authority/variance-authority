@@ -7,6 +7,10 @@
 
 import util = require('node:util');
 import jestConsole = require('./jest-console.cjs');
+import probeCuts = require('./probe-cuts.cjs');
+
+// A bare name, so `watchPage`'s source calls what a page tape defines beside it.
+const addedNodes = probeCuts.addedNodes;
 import type storyTap = require('./story-tap.cjs');
 
 type Tap = ReturnType<typeof storyTap.createTap>;
@@ -157,6 +161,8 @@ function watchPage(tap: Pick<Tap, 'note' | 'notePage' | 'drainWith'>, global: Re
         told.push(`dom ${sign} ${described(inner)!}${owner(inner)}`);
       }
     };
+    // An attribute's or a text's change adds no node, so all of `changes` is counted at once.
+    counts[0] += addedNodes(changes);
     for (const change of changes) {
       if (change.type === 'attributes' || change.type === 'characterData') {
         counts[change.type === 'attributes' ? 2 : 3] += 1;
@@ -168,7 +174,6 @@ function watchPage(tap: Pick<Tap, 'note' | 'notePage' | 'drainWith'>, global: Re
         }
         continue;
       }
-      counts[0] += change.addedNodes.length;
       counts[1] += change.removedNodes.length;
       for (const node of Array.from(change.removedNodes)) tell('−', node, change.target);
       for (const node of Array.from(change.addedNodes)) tell('+', node, change.target);

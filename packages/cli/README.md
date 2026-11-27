@@ -320,7 +320,7 @@ the base repository. CI publishes the report when its config sets
 that run was evaluated at, and where that commit is relative to your `HEAD`:
 
 ```text
-report: read from branch feat/cart, evaluated at 51ab09e… for pull request head 9c4e1d2…, 2 commit(s) before HEAD; kept at <cache>/report/<digest>/.variance/report.json.
+report: read from branch feat/cart, evaluated at 51ab09e… for pull request head 9c4e1d2…, 2 commit(s) before HEAD.
 ```
 
 - **A branch record your `HEAD` does not contain is not yours.** After a
@@ -523,9 +523,10 @@ base, fetched when this machine does not hold it. No step comes before it, so a
 worktree you cut a minute ago answers from the mainline's record. For a suite
 given to the share, the answer opens with the `record of "<suite>":` line that
 names the record and how far it stands behind your merge base, and carries the
-same as `source` under `--format json`. When the share cannot be reached, the
-record held here answers and the line says why; with none held, the answer names
-what the share said. A suite not given to the share has the nearest record this
+same as `source` under `--format json`. The line names no file: where the record
+is kept on this machine is `from` under `--format json`. When the share cannot be
+reached, the record held here answers and the line says why; with none held, the
+answer names what the share said. A suite not given to the share has the nearest record this
 machine holds, and no such line. `--execution <path>` reads that record and asks
 the share nothing.
 
@@ -947,7 +948,7 @@ variance covering --since main
 
 ```text
 2 changed files since main, 5 changed regions: 1 nothing covered, 2 covered by one case.
-Read from <cache>/test-selection/<digest>/coverage.bin, recorded at 8a72c74.
+Read from the record, recorded at 8a72c74.
 
 src/checkout/total.ts
   41-60 function applyDiscount — 3 cases
@@ -1448,12 +1449,16 @@ exits `2` with the reason. The review action's
 [`badge` input](https://github.com/Variance-Authority/action#publishing-a-badge)
 publishes this file on every push to your default branch.
 
-`--format html` writes the same answer as one page to open in a browser. It
-shows each suite's regions run, run only at load and loaded, with what changed
-them since the base. It shows what each kind of test runs alone and what
-several share. With `--packages` it lists every package with its files, and
-with `--fan-in` the test files that cover each file, by kind. Last, it lists
-every directory no suite loads. The page draws what the flags count and counts
+`--format html` writes the same answer as one page to open in a browser, on a
+desktop or a phone. It opens on what changed since the base: the ratio before
+and after, each suite's regions that started and stopped running, the test
+files whose reach moved and the source files where regions started and
+stopped running, and a line for what no suite loads. Then it shows each suite's regions run, run only at
+load and loaded. With `--packages` it lists every package with its files, the
+packages with the most regions not run first, and with `--fan-in` the test
+files that cover each file, by kind. Folded under them is what each kind of
+test runs alone and what several share, and last, every directory no suite
+loads. The page draws what the flags count and counts
 nothing more, and it refuses `--session`, which it does not draw. It fetches
 nothing, so it opens from an artifact as it is. With
 `coverage-page: 'true'`, the review
@@ -2421,7 +2426,7 @@ kept in [the cache](https://variance-authority.dev/docs/cache), never where the 
 stderr names which of the two `select` read:
 
 ```text
-record of "unit": read from mainline main, published at 51ab09e…, 3 commit(s) behind the merge base with this checkout; kept at <cache>/share/read/unit/51ab09e…/coverage.bin.
+record of "unit": read from mainline main, published at 51ab09e…, 3 commit(s) behind the merge base with this checkout.
 ```
 
 Once the suite runs in your checkout, its own recording is read instead. The

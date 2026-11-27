@@ -8,29 +8,42 @@
  * the addon's, and this only chooses the words and the order.
  *
  * The answer is for an agent at a terminal. It is five parts, each one a
- * narrower reading of the one above it — the files asked about and what each
- * declares at its top level, which packages they belong to and what crosses their edges, which recorded cases ran
- * those files, the calls those cases took into and out of them, and the
- * commands that ask about one name or one file — and a
- * part that could not be read is left out with one line saying why, so an
- * absent part is never mistaken for an empty one.
+ * narrower reading of the one above it — the files asked about, the
+ * declarations each line asked about is in and what each file declares at its
+ * top level, which packages they belong to and what crosses their edges, which
+ * recorded cases ran those files, the calls those cases took into and out of
+ * them, and the commands that ask about one name or one file — and a part that
+ * could not be read is left out with one line saying why, so an absent part is
+ * never mistaken for an empty one.
  */
 
 // compass: variance-authority.report.agent-surface
 
 import { shellWord } from '@variance-authority/mcp/tools';
-import type { CasesEntered, ExternalOrientation, FileDeclarations, JourneysAround, OrientFlows, PackagesAround, RecordedCases } from '@variance-authority/sense';
+import type {
+  CasesEntered,
+  ExternalOrientation,
+  FileDeclarations,
+  JourneysAround,
+  JourneysAsk,
+  LineHeld,
+  OrientFlows,
+  PackagesAround,
+  RecordedCases,
+} from '@variance-authority/sense';
 import { narrower, plural } from './format.js';
-import { formatDeclarations } from './orient-declarations-format.js';
+import { formatDeclarations, formatLines } from './orient-declarations-format.js';
 import { formatJourneys } from './orient-journeys-format.js';
 
 /** Everything an orientation answer is made of. */
 export interface OrientReading {
-  /** The files asked about, in the order asked. */
-  readonly files: readonly string[];
+  /** What was asked about, in the order asked: a file, or a line of it. */
+  readonly asks: readonly JourneysAsk[];
   /** Print every reached declaration entry, rather than the initial three. */
   readonly declarations?: boolean;
   readonly around: PackagesAround;
+  /** The declarations each line asked about is in, for a file the index holds; absent when no index is published. */
+  readonly lines?: readonly LineHeld[];
   /** What each file the index holds declares at its top level; absent when no index is published. */
   readonly declared?: readonly FileDeclarations[];
   readonly external?: {
@@ -67,11 +80,14 @@ export function percent(share: number): string {
 const nameOf = (name: string): string => (name === '*' ? 'the whole module' : name);
 
 function named(reading: OrientReading): readonly string[] {
-  const { files } = reading;
+  // The owners are in the order of the files, each once, that the index was asked about.
+  const files = [...new Set(reading.asks.map((ask) => ask.file))];
   const owners = reading.around.orientation?.owners;
-  const wide = Math.max(...files.map((file) => file.length));
-  const rows = files.map((file, at) => {
-    const owner = owners?.[at];
+  const said = reading.asks.map((ask) => (ask.line == null ? ask.file : `${ask.file}:${ask.line}`));
+  const wide = Math.max(...said.map((spelled) => spelled.length));
+  const rows = reading.asks.map((ask, at) => {
+    const owner = owners?.[files.indexOf(ask.file)];
+    const file = said[at]!;
     if (owner === undefined) return `  ${file}`;
     // Absent is not empty: no package comes back both for a path git does not list and for a file outside every package, so only a package found is named.
     const where = owner.indexed
@@ -111,7 +127,7 @@ function packages(reading: OrientReading): readonly string[] {
   const { around } = reading;
   const orientation = around.orientation;
   if (orientation === undefined) {
-    return [`Packages: no source index is published at ${around.index}. \`variance index\` publishes one.`];
+    return [`Packages: no source index is published. \`variance index\` publishes one.`];
   }
   const state = [
     `${plural(orientation.records, 'file')} indexed`,
@@ -120,7 +136,7 @@ function packages(reading: OrientReading): readonly string[] {
     ...(orientation.dropped > 0 ? [`${plural(orientation.dropped, 'segment')} dropped for a failed digest`] : []),
   ];
   const lines = [
-    `Packages, from the source index at ${around.index} (${state.join('; ')}).`,
+    `Packages, from the source index (${state.join('; ')}).`,
     'Observed in source: a use is one file importing one name from another package. A package\'s share is of the uses on that side; ' +
       'a name\'s share is of every use the package exporting it gets from outside. Each share has its count beside it, ' +
       `and a denominator under ${SHARE_FLOOR} is given as the count alone.`,
@@ -215,11 +231,11 @@ function cases(reading: OrientReading): readonly string[] {
   for (const suite of reading.recorded) {
     const named = suite.suite === undefined ? 'Recorded cases' : `Recorded cases, suite ${suite.suite}`;
     if ('unread' in suite) {
-      lines.push('', `${named}: none read from ${suite.recording}, ${suite.unread}. A run with \`withTestSelection\` records them.`);
+      lines.push('', `${named}: none read, ${suite.unread}. A run with \`withTestSelection\` records them.`);
       continue;
     }
     const wide = Math.max(...suite.files.map((entered) => entered.file.length));
-    lines.push('', `${named}, from ${suite.recording}:`, ...suite.files.flatMap((entered) => row(entered, wide)));
+    lines.push('', `${named}:`, ...suite.files.flatMap((entered) => row(entered, wide)));
   }
   return lines;
 }
@@ -268,6 +284,7 @@ export function formatOrientation(reading: OrientReading): string {
   const asks = followUps(reading);
   return [
     ...named(reading),
+    ...formatLines(reading.lines),
     ...formatDeclarations(reading.declared),
     '',
     ...packages(reading),

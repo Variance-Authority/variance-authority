@@ -1,0 +1,557 @@
+{
+  "symbol --limit=1 --name=unknownExactName,anotherMissingName": [
+    0,
+    "`unknownExactName` is not published by this workspace, and no published name contains it; ask `variance ask search` with a word from its documentation. No file in this workspace declares `unknownExactName`, at its top level or as a member. No installed dependency publishes it either. A name written only as text, in a string or a comment, declares nothing: a text search such as `rg` finds it.\n\n`anotherMissingName` is not published by this workspace, and no published name contains it; ask `variance ask search` with a word from its documentation. No file in this workspace declares `anotherMissingName`, at its top level or as a member. No installed dependency publishes it either. A name written only as text, in a string or a comment, declares nothing: a text search such as `rg` finds it.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "symbol --name AgentSession.sessionToken": [
+    0,
+    "AgentSession.sessionToken\na member of `AgentSession`, declared at packages/lib/src/session.ts:1\n`variance ask uses` names the lines that use it through a value written as its container, and the declaration to ask its language's find-references about for the rest.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "symbol --name CabinetLedger": [
+    0,
+    "readme-kit · readme-kit@1.0.0 — the project resolver found no declarations for `readme-kit` from __variance_dependency__.ts\nREADME: node_modules/readme-kit/README.md (3 lines)\nnode_modules/readme-kit/README.md:1 names `CabinetLedger`:\n\n## CabinetLedger\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "symbol --name KitBox": [
+    0,
+    "KitBox [class]\nexported, without being published, at packages/lib/src/shape.ts:2 by @acme/lib\nclass KitBox\nImported in 1 place; `variance ask uses` lists them, nearest to a file you name first.\n\nMembers:\npackages/lib/src/shape.ts\n  3: open(): void {}\n  4: size = 2;\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "symbol --name KitBox.nothing": [
+    0,
+    "`KitBox.nothing` is not published by this workspace, and no published name contains it; ask `variance ask search` with a word from its documentation. `KitBox` is declared at packages/lib/src/shape.ts:2, and no interface, type alias or class body read here declares `nothing` on `KitBox`. An inherited member is a type checker's answer, and none runs here; the source index reads no enum, namespace or object literal body: TypeScript's language service's go-to-definition on `KitBox.nothing` where a line writes it names the declaration. No installed dependency publishes it either. A name written only as text, in a string or a comment, declares nothing: a text search such as `rg` finds it.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "symbol --name KitShape": [
+    0,
+    "KitShape [type]\nexported, without being published, at packages/lib/src/shape.ts:1 by @acme/lib (type only)\ntype KitShape = { width: number }\nImported in 1 place; `variance ask uses` lists them, nearest to a file you name first.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "symbol --name Panel": [
+    0,
+    "Panel [function]\nimport { Panel } from '@acme/lib';\ndeclared at packages/lib/src/index.ts:3\nused by 1 package: @acme/app — 1 import by published path\n\nfunction Panel(): string\n\nNothing is written above this declaration.\n\n`variance ask uses` names the 1 place that imports this, from another package, nearest to a file you name first.\n\nPanel [function]\ndeclared, not exported, at packages/lib-exports/src/panel.ts:1 by @acme/lib-exports\nfunction Panel(): number\nNothing outside packages/lib-exports/src/panel.ts can import it: no export of that file names it.\n\nPanel\na member of `Camera`, declared at packages/lib-exports/src/camera.ts:3\n`variance ask uses` names the lines that use it through a value written as its container, and the declaration to ask its language's find-references about for the rest.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "symbol --name PutRequest": [
+    0,
+    "PutRequest [type]\nexported, without being published, at packages/lib-exports/src/api.ts:1 by @acme/lib-exports (type only)\ntype PutRequest = { name: string }\nNothing in this workspace imports it; a namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted.\n\nPutRequest [type]\nexported, without being published, at packages/lib/src/api.ts:1 by @acme/lib (type only)\ntype PutRequest = { id: string }\nImported in 1 place; `variance ask uses` lists them, nearest to a file you name first.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "symbol --name absentIndex": [
+    2,
+    "",
+    "no readable workspace snapshot at <cache>/source-index.bin.help.bin: ENOENT: no such file or directory, open '<cache>/source-index.bin.help.bin'. Run `variance index` to publish one.\n\nSee the skill at <repo>/packages/cli/skills/variance-authority/SKILL.md\n"
+  ],
+  "symbol --name addTax --package @acme/lib/src/internal/math": [
+    0,
+    "addTax [function]\nimport { addTax } from '@acme/lib/src/internal/math';\ndeclared at packages/lib/src/internal/math.ts:1\nnot published: @acme/lib declares an entry, and this file is not behind it.\nfunction addTax(amount: number): number\n\nImported by path in 1 place:\n  apps/app/src/total.ts:1 — @acme/app, deep import of @acme/lib/src/internal/math\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "symbol --name boundExport": [
+    0,
+    "boundExport [const]\nimport { boundExport } from '@acme/bound';\ndeclared at packages/bound/src/index.ts:1\nused by 1 package: @acme/lib — 1 import by published path\n\nconst boundExport\n\nNothing is written above this declaration.\n\n`variance ask uses` names the 1 place that imports this, from another package, nearest to a file you name first.\n\nboundExport [binding]\nbound, not declared, at packages/lib/src/bound-b.js:2 by @acme/lib\nconst { boundExport }\nWho can reach it is not recorded: its reader cannot tell how this file hands it out.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "symbol --name boundModule --package @acme/lib": [
+    0,
+    "`boundModule` is not published by `@acme/lib`, and no published name contains it; ask `variance ask search` with a word from its documentation. No file in `@acme/lib` declares `boundModule`, at its top level or as a member. No installed dependency named `@acme/lib` publishes it either. A name written only as text, in a string or a comment, declares nothing: a text search such as `rg` finds it.\n\nboundModule [binding]\nbound, not declared, at packages/lib/src/bound-a.js:3 by @acme/lib\nconst boundModule\nWho can reach it is not recorded: its reader cannot tell how this file hands it out.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "symbol --name boundOnly": [
+    0,
+    "`boundOnly` is not published by this workspace, and no published name contains it; ask `variance ask search` with a word from its documentation. No file in this workspace declares `boundOnly`, at its top level or as a member. No installed dependency publishes it either. A name written only as text, in a string or a comment, declares nothing: a text search such as `rg` finds it.\n\nboundOnly [binding]\nbound, not declared, at packages/lib/src/bound-a.js:1 by @acme/lib\nconst { boundOnly }\nWho can reach it is not recorded: its reader cannot tell how this file hands it out.\n\nboundOnly [binding]\nbound, not declared, at packages/lib/src/bound-b.js:1 by @acme/lib\nconst { boundOnly }\nWho can reach it is not recorded: its reader cannot tell how this file hands it out.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "symbol --name boundOnly --limit 1": [
+    0,
+    "`boundOnly` is not published by this workspace, and no published name contains it; ask `variance ask search` with a word from its documentation. No file in this workspace declares `boundOnly`, at its top level or as a member. No installed dependency publishes it either. A name written only as text, in a string or a comment, declares nothing: a text search such as `rg` finds it.\n\nboundOnly [binding]\nbound, not declared, at packages/lib/src/bound-a.js:1 by @acme/lib\nconst { boundOnly }\nWho can reach it is not recorded: its reader cannot tell how this file hands it out.\n\n1 more binding of `boundOnly` not shown; a higher `--limit` shows them.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "symbol --name boundToo": [
+    0,
+    "boundToo [function]\ndeclared, not exported, at packages/lib/src/bound-b.js:3 by @acme/lib\nfunction boundToo()\nWho can reach it is not recorded: its reader cannot tell how this file hands it out.\n\nboundToo [binding]\nbound, not declared, at packages/lib/src/bound-a.js:2 by @acme/lib\nconst { boundToo }\nWho can reach it is not recorded: its reader cannot tell how this file hands it out.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "symbol --name default": [
+    0,
+    "`default` is not published by this workspace, and no published name contains it; ask `variance ask search` with a word from its documentation. No file in this workspace declares `default`, at its top level or as a member. No installed dependency publishes it either. A name written only as text, in a string or a comment, declares nothing: a text search such as `rg` finds it.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "symbol --name dualExport --package @acme/dual/tools": [
+    0,
+    "dualExport [const]\nimport { dualExport } from '@acme/dual/tools';\ndeclared at packages/dual/src/index.ts:1\nused by 1 package: @acme/app — 1 import by published path\n\nconst dualExport\n\nNothing is written above this declaration.\n\n`variance ask uses` names the 1 place that imports this, from another package, nearest to a file you name first.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "symbol --name externalOnly": [
+    0,
+    "search-kit · externalOnly [const] · search-kit@1.0.0 · declarations: search-kit@1.0.0\n@1.0.0 · dependency in package.json · not imported\nnode_modules/search-kit/index.d.ts:1\ndeclare const externalOnly: true\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "symbol --name externalOnly --package search-kit": [
+    0,
+    "search-kit · externalOnly [const] · search-kit@1.0.0 · declarations: search-kit@1.0.0\n@1.0.0 · dependency in package.json · not imported\nnode_modules/search-kit/index.d.ts:1\ndeclare const externalOnly: true\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "symbol --name greet": [
+    0,
+    "greet [function]\nimport { greet } from '@acme/lib';\ndeclared at packages/lib/src/greet.ts:1\nused by 1 package: @acme/app — 1 import by published path\n\nfunction greet(name: string): string\n\nNothing is written above this declaration.\n\nImported under another name: packages/lib/src/also.ts:1 as `hello`.\n\n`variance ask uses` names the 2 places that import this: 1 from another package and 1 inside @acme/lib, nearest to a file you name first.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "symbol --name greet --from apps/app/src/hello.ts": [
+    0,
+    "greet [function]\nimport { greet } from '@acme/lib';\ndeclared at packages/lib/src/greet.ts:1\nused by 1 package: @acme/app — 1 import by published path\n\nfunction greet(name: string): string\n\nNothing is written above this declaration.\n\nImported under another name: packages/lib/src/also.ts:1 as `hello`.\n\n`variance ask uses` names the 2 places that import this: 1 from another package and 1 inside @acme/lib, nearest to a file you name first.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "symbol --name greet --line apps/app/src/hello.ts:2": [
+    0,
+    "No recording under <root> holds a suite, so nothing tells the declarations of `greet` apart:\n\ngreet [function]\nimport { greet } from '@acme/lib';\ndeclared at packages/lib/src/greet.ts:1\nused by 1 package: @acme/app — 1 import by published path\n\nfunction greet(name: string): string\n\nNothing is written above this declaration.\n\nImported under another name: packages/lib/src/also.ts:1 as `hello`.\n\n`variance ask uses` names the 2 places that import this: 1 from another package and 1 inside @acme/lib, nearest to a file you name first.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "symbol --name greet --package @acme/kit": [
+    0,
+    "`greet` is not published by `@acme/kit`; it is exported, without being published, at packages/lib/src/greet.ts:1 and 1 more. No file in `@acme/kit` declares `greet`, at its top level or as a member. No installed dependency named `@acme/kit` publishes it either. A name written only as text, in a string or a comment, declares nothing: a text search such as `rg` finds it.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "symbol --name greet --package @acme/lib": [
+    0,
+    "greet [function]\nimport { greet } from '@acme/lib';\ndeclared at packages/lib/src/greet.ts:1\nused by 1 package: @acme/app — 1 import by published path\n\nfunction greet(name: string): string\n\nNothing is written above this declaration.\n\nImported under another name: packages/lib/src/also.ts:1 as `hello`.\n\n`variance ask uses` names the 2 places that import this: 1 from another package and 1 inside @acme/lib, nearest to a file you name first.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "symbol --name greet --package @acme/lib-exports": [
+    0,
+    "greet [const]\nexported, without being published, at packages/lib-exports/src/greet.ts:1 by @acme/lib-exports\nconst greet\nImported in 1 place; `variance ask uses` lists them, nearest to a file you name first.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "symbol --name hello": [
+    0,
+    "hello [const]\nexported, without being published, at apps/app/src/hello.ts:2 by @acme/app\nconst hello\nNothing in this workspace imports it; a namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted.\n\n`hello` is a local name: packages/lib/src/also.ts:1 imports `greet` as `hello` from './greet.js'.\n\ngreet [function]\nimport { greet } from '@acme/lib';\ndeclared at packages/lib/src/greet.ts:1\nused by 1 package: @acme/app — 1 import by published path\n\nfunction greet(name: string): string\n\nNothing is written above this declaration.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "symbol --name keptOf": [
+    0,
+    "`keptOf` is not published by this workspace, and no published name contains it; ask `variance ask search` with a word from its documentation. No file in this workspace declares `keptOf`, at its top level or as a member. No installed dependency publishes it either. A name written only as text, in a string or a comment, declares nothing: a text search such as `rg` finds it.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "symbol --name ledgerCode --limit 1": [
+    0,
+    "ledgerCode [const]\nexported, without being published, at packages/kit/src/ledger.ts:1 by @acme/kit\nconst ledgerCode\nNothing in this workspace imports it; a namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted.\n\nledgerCode [const]\nexported, without being published, at packages/lib/src/ledger.ts:1 by @acme/lib\nconst ledgerCode\nNothing in this workspace imports it; a namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "symbol --name loose": [
+    0,
+    "loose [const]\nexported, without being published, at tools/loose.ts:1\nconst loose\nImported in 1 place; `variance ask uses` lists them, nearest to a file you name first.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "symbol --name lost": [
+    0,
+    "lost [const]\nimport { lost } from '@acme/kit/src/lost';\ndeclared at packages/kit/src/lost.ts:1\nnot published: @acme/kit declares no entry, so every import of it names a file.\nconst lost\n\nImported by path in 1 place:\n  apps/app/src/found.ts:1 — @acme/app, by path from @acme/kit/src/lost\n\nlost [const]\nimport { lost } from '@acme/kit/src/barrel';\ndeclared at packages/kit/src/lost.ts:1\nnot published: @acme/kit declares no entry, so every import of it names a file.\nconst lost\n\nImported by path in 1 place:\n  apps/app/src/through.ts:1 — @acme/app, by path from @acme/kit/src/barrel\n\n1 more imports `lost` by a path that reaches no one declaration read here, so none is credited with them:\n  apps/app/src/elsewhere.ts:1 — @acme/app, by path from @acme/kit/src/orphan\n\n1 more imports `lost` by a path the source index resolved to no file, so none is credited with them:\n  apps/app/src/stray.ts:1 — @acme/app, by path from @acme/kit/src/gone\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "symbol --name mockOnly": [
+    0,
+    "`mockOnly` is not published by this workspace, and no published name contains it; ask `variance ask search` with a word from its documentation. No file in this workspace declares `mockOnly`, at its top level or as a member. No installed dependency publishes it either. A name written only as text, in a string or a comment, declares nothing: a text search such as `rg` finds it.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "symbol --name orphan": [
+    0,
+    "orphan [const]\nexported, without being published, at packages/kit/src/orphan.ts:1 by @acme/kit\nconst orphan\nNothing in this workspace imports it; a namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "symbol --name relayed": [
+    0,
+    "relayed [function]\nexported, without being published, at packages/lib/src/origin.ts:2 by @acme/lib\nfunction relayed(): number\nRelayed onwards.\nImported in 1 place; `variance ask uses` lists them, nearest to a file you name first.\nImported under another name: packages/lib/src/relayed.ts:1 as `passed`.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "symbol --name sessionToken --limit 1": [
+    0,
+    "sessionToken\na member of `AgentSession`, declared at packages/lib/src/session.ts:1\n`variance ask uses` names the lines that use it through a value written as its container, and the declaration to ask its language's find-references about for the rest.\n\n1 more member declaration of `sessionToken` not shown; a higher `--limit` shows them.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "symbol --name shared": [
+    0,
+    "shared [const]\nimport { shared } from '@acme/lib';\ndeclared at packages/lib/src/index.ts:2\nno other package imports it by its published path\n\nconst shared\n\nNothing is written above this declaration.\n\nshared [const]\nimport { shared } from '@acme/lib-exports';\ndeclared at packages/lib-exports/src/index.ts:2\nno other package imports it by its published path\n\nconst shared\n\nNothing is written above this declaration.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "symbol --name shared --package @acme/lib-exports": [
+    0,
+    "shared [const]\nimport { shared } from '@acme/lib-exports';\ndeclared at packages/lib-exports/src/index.ts:2\nno other package imports it by its published path\n\nconst shared\n\nNothing is written above this declaration.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "symbol --name size": [
+    0,
+    "size\na member of `KitBox`, declared at packages/lib/src/shape.ts:4\n`variance ask uses` names the lines that use it through a value written as its container, and the declaration to ask its language's find-references about for the rest.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "symbol --name taxOf": [
+    0,
+    "taxOf [function]\nimport { taxOf } from '@acme/kit/src/money/tax';\ndeclared at packages/kit/src/money/tax.ts:2\nnot published: @acme/kit declares no entry, so every import of it names a file.\nfunction taxOf(amount: number)\nThe levy on an amount.\n\nImported by path in 1 place:\n  apps/app/src/checkout.ts:1 — @acme/app, by path from @acme/kit/src/money/tax\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "symbol --name taxOf, unknownExactName, greet, taxOf": [
+    0,
+    "taxOf [function]\nimport { taxOf } from '@acme/kit/src/money/tax';\ndeclared at packages/kit/src/money/tax.ts:2\nnot published: @acme/kit declares no entry, so every import of it names a file.\nfunction taxOf(amount: number)\nThe levy on an amount.\n\nImported by path in 1 place:\n  apps/app/src/checkout.ts:1 — @acme/app, by path from @acme/kit/src/money/tax\n\n`unknownExactName` is not published by this workspace, and no published name contains it; ask `variance ask search` with a word from its documentation. No file in this workspace declares `unknownExactName`, at its top level or as a member. No installed dependency publishes it either. A name written only as text, in a string or a comment, declares nothing: a text search such as `rg` finds it.\n\ngreet [function]\nimport { greet } from '@acme/lib';\ndeclared at packages/lib/src/greet.ts:1\nused by 1 package: @acme/app — 1 import by published path\n\nfunction greet(name: string): string\n\nNothing is written above this declaration.\n\nImported under another name: packages/lib/src/also.ts:1 as `hello`.\n\n`variance ask uses` names the 2 places that import this: 1 from another package and 1 inside @acme/lib, nearest to a file you name first.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "symbol --name twinName": [
+    0,
+    "twinName [function]\nexported, without being published, at packages/lib-exports/src/twin.ts:1 by @acme/lib-exports\nfunction twinName(): string\nImported in 1 place; `variance ask uses` lists them, nearest to a file you name first.\nImported under another name: packages/lib-exports/src/twins.ts:1 as `other`.\n\ntwinName [const]\nexported, without being published, at packages/lib/src/twin.ts:1 by @acme/lib\nconst twinName\nImported in 1 place; `variance ask uses` lists them, nearest to a file you name first.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "symbol --name twinName --limit 1": [
+    0,
+    "twinName [function]\nexported, without being published, at packages/lib-exports/src/twin.ts:1 by @acme/lib-exports\nfunction twinName(): string\nImported in 1 place; `variance ask uses` lists them, nearest to a file you name first.\nImported under another name: packages/lib-exports/src/twins.ts:1 as `other`.\n\ntwinName [const]\nexported, without being published, at packages/lib/src/twin.ts:1 by @acme/lib\nconst twinName\nImported in 1 place; `variance ask uses` lists them, nearest to a file you name first.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "symbol --name unknownExactName": [
+    0,
+    "`unknownExactName` is not published by this workspace, and no published name contains it; ask `variance ask search` with a word from its documentation. No file in this workspace declares `unknownExactName`, at its top level or as a member. No installed dependency publishes it either. A name written only as text, in a string or a comment, declares nothing: a text search such as `rg` finds it.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "symbol --name unusedRate": [
+    0,
+    "unusedRate [const]\nexported, without being published, at packages/kit/src/money/tax.ts:3 by @acme/kit\nconst unusedRate\nNothing in this workspace imports it; a namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "symbol --name wave": [
+    0,
+    "wave [function]\nimport { wave } from '@acme/sea';\ndeclared at packages/sea/src/wave.ts:1\nused by 1 package: @acme/app — 1 import by published path\n\nfunction wave(): number\n\nNothing is written above this declaration.\n\n`variance ask uses` names the 2 places that import this, all from other packages, nearest to a file you name first.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "symbol --name wholeExport --package @acme/whole": [
+    0,
+    "wholeExport [const]\nimport { wholeExport } from '@acme/whole';\ndeclared at packages/whole/src/index.ts:1\nno other package imports it by name through its published path; it may be read in 1 place: 1 passing the module on whole, so whether it is used is unknown\n\nconst wholeExport\n\nNothing is written above this declaration.\n\n`variance ask uses` names no place that imports this, and lists the ones that may read it.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "symbol --name 値": [
+    0,
+    "値 [function]\ndeclared, not exported, at packages/lib/src/private.ts:2 by @acme/lib\nfunction 値()\nNothing outside packages/lib/src/private.ts can import it: no export of that file names it.\n\n値 [function]\ndeclared, not exported, at packages/lib/src/private.test.ts:2 by @acme/lib\nfunction 値()\nNothing outside packages/lib/src/private.test.ts can import it: no export of that file names it.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "symbol --name 値 --from packages/lib/src/private.ts": [
+    0,
+    "値 [function]\ndeclared, not exported, at packages/lib/src/private.ts:2 by @acme/lib\nfunction 値()\nNothing outside packages/lib/src/private.ts can import it: no export of that file names it.\n\n値 [function]\ndeclared, not exported, at packages/lib/src/private.test.ts:2 by @acme/lib\nfunction 値()\nNothing outside packages/lib/src/private.test.ts can import it: no export of that file names it.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "symbol --name 値 --limit 1": [
+    0,
+    "値 [function]\ndeclared, not exported, at packages/lib/src/private.ts:2 by @acme/lib\nfunction 値()\nNothing outside packages/lib/src/private.ts can import it: no export of that file names it.\n\n1 more declaration of `値` not shown; a higher `--limit` shows them.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "symbol --name 値 --package @acme/lib": [
+    0,
+    "値 [function]\ndeclared, not exported, at packages/lib/src/private.ts:2 by @acme/lib\nfunction 値()\nNothing outside packages/lib/src/private.ts can import it: no export of that file names it.\n\n値 [function]\ndeclared, not exported, at packages/lib/src/private.test.ts:2 by @acme/lib\nfunction 値()\nNothing outside packages/lib/src/private.test.ts can import it: no export of that file names it.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "uses --name AgentSession.sessionToken --from packages/lib/src/session.ts": [
+    0,
+    "`AgentSession.sessionToken` is no exported name; it is a member, declared in 1 place:\nNearest to packages/lib/src/session.ts first.\n\nMember declarations:\n\npackages/lib/src/session.ts:1 — AgentSession\n\n`AgentSession.sessionToken`, declared at packages/lib/src/session.ts:1, is used in 1 place:\n\npackages/lib/src/session.ts:3 — @acme/lib, read\n\nAn implementation of `AgentSession.sessionToken` that takes its type from where it goes — an argument, a property, a returned value — writes no type on its line and is not listed: TypeScript's language service's go-to-implementation on packages/lib/src/session.ts:1 names it.\nA use is listed here only where its line writes the value's type. A use through an inferred value, a generic, a subtype by `extends`, a JSX attribute, a utility type or an inline type literal is not: which type a value has is a type checker's answer, and none runs here.\nAsk TypeScript for those: its language service's find-references on `AgentSession.sessionToken` at packages/lib/src/session.ts:1.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "uses --name DeleteRequest": [
+    0,
+    "`DeleteRequest` [type] is published as `Api.DeleteRequest` by @acme/lib-exports, and exported at packages/lib-exports/src/api.ts:1, and nothing in this workspace imports it; a namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "uses --name Frame": [
+    0,
+    "`Frame` [const] is imported in 1 place, inside @acme/lib, and no entry publishes it; it is exported at packages/lib/src/frame.ts:1.\nIt is declared once more, as another thing, answered below:\n  packages/lib-exports/src/frame.ts:1, not exported\nPath order; `--from` sorts nearest first.\n\nSource, inside @acme/lib:\n\npackages/lib/src/frames.ts:1; used on line 2\n\nA namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted.\n\n`Frame` [const] is declared, not exported, at packages/lib-exports/src/frame.ts:1, so nothing outside that file can import it.\n\nUsed in packages/lib-exports/src/frame.ts — @acme/lib-exports, which declares it:\n\n  2\n\n`--file`, the file one of them is declared in, answers for that declaration alone.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "uses --name Frame --file packages/lib-exports/src/frame.ts": [
+    0,
+    "`Frame` [const] is declared, not exported, at packages/lib-exports/src/frame.ts:1, so nothing outside that file can import it.\n\nUsed in packages/lib-exports/src/frame.ts — @acme/lib-exports, which declares it:\n\n  2\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "uses --name KitBox.nothing": [
+    0,
+    "`KitBox.nothing` is not published by this workspace, and no published name contains it; ask `variance ask search` with a word from its documentation. `KitBox` is declared at packages/lib/src/shape.ts:2, and no interface, type alias or class body read here declares `nothing` on `KitBox`. An inherited member is a type checker's answer, and none runs here; the source index reads no enum, namespace or object literal body: TypeScript's language service's go-to-definition on `KitBox.nothing` where a line writes it names the declaration. A name written only as text, in a string or a comment, declares nothing: a text search such as `rg` finds it.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "uses --name MetricsRequest": [
+    0,
+    "`MetricsRequest` [type] is imported in 1 place, inside @acme/lib, and no entry publishes it; it is exported at packages/lib/src/metrics/types.ts:1.\nPath order; `--from` sorts nearest first.\n\nSource, inside @acme/lib:\n\npackages/lib/src/metrics/read.ts:2 (namespace, line 1)\n\nA namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "uses --name Panel": [
+    0,
+    "`Panel` [function] is imported in 1 place, from another package, published by @acme/lib, declared at packages/lib/src/index.ts:3.\nIt is declared 2 more times, each another thing, answered below:\n  packages/lib-exports/src/panel.ts:1, not exported\n  packages/lib-exports/src/camera.ts:3, a member of `Camera`\nPath order; `--from` sorts nearest first.\n\nSource, from other packages:\n\napps/app/src/panel.ts:1 — @acme/app; used on line 2\n\nA namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted.\n\n`Panel` [function] is declared, not exported, at packages/lib-exports/src/panel.ts:1, so nothing outside that file can import it.\n\nUsed in packages/lib-exports/src/panel.ts — @acme/lib-exports, which declares it:\n\n  2\n\n`Panel` is a member too, declared in 1 place:\n\nMember declarations:\n\npackages/lib-exports/src/camera.ts:3 — Camera\n\nNo line uses `Panel` through a value whose type is written as `Camera` at packages/lib-exports/src/camera.ts:3.\n\nAn implementation of `Camera.Panel` that takes its type from where it goes — an argument, a property, a returned value — writes no type on its line and is not listed: TypeScript's language service's go-to-implementation on packages/lib-exports/src/camera.ts:3 names it.\nA use is listed here only where its line writes the value's type. A use through an inferred value, a generic, a subtype by `extends`, a JSX attribute, a utility type or an inline type literal is not: which type a value has is a type checker's answer, and none runs here.\nAsk TypeScript for those: its language service's find-references on `Camera.Panel` at packages/lib-exports/src/camera.ts:3.\n\n`--file`, the file one of them is declared in, answers for that declaration alone.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "uses --name Panel --limit 1": [
+    0,
+    "`Panel` [function] is imported in 1 place, from another package, published by @acme/lib, declared at packages/lib/src/index.ts:3.\nIt is declared 2 more times, each another thing, answered below:\n  packages/lib-exports/src/panel.ts:1, not exported\n  packages/lib-exports/src/camera.ts:3, a member of `Camera`\nPath order; `--from` sorts nearest first.\n\nSource, from other packages:\n\napps/app/src/panel.ts:1 — @acme/app; used on line 2\n\nA namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted.\n\n`Panel` [function] is declared, not exported, at packages/lib-exports/src/panel.ts:1, so nothing outside that file can import it.\n\nUsed in packages/lib-exports/src/panel.ts — @acme/lib-exports, which declares it:\n\n  2\n\n`Panel` is a member too, declared in 1 place:\n\nMember declarations:\n\npackages/lib-exports/src/camera.ts:3 — Camera\n\nNo line uses `Panel` through a value whose type is written as `Camera` at packages/lib-exports/src/camera.ts:3.\n\nAn implementation of `Camera.Panel` that takes its type from where it goes — an argument, a property, a returned value — writes no type on its line and is not listed: TypeScript's language service's go-to-implementation on packages/lib-exports/src/camera.ts:3 names it.\nA use is listed here only where its line writes the value's type. A use through an inferred value, a generic, a subtype by `extends`, a JSX attribute, a utility type or an inline type literal is not: which type a value has is a type checker's answer, and none runs here.\nAsk TypeScript for those: its language service's find-references on `Camera.Panel` at packages/lib-exports/src/camera.ts:3.\n\n`--file`, the file one of them is declared in, answers for that declaration alone.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "uses --name PutRequest": [
+    0,
+    "`PutRequest` [type] is imported in 1 place, from another package, published as `Api.PutRequest` by @acme/lib; it is exported at packages/lib/src/api.ts:1.\nIt is declared once more, as another thing:\n  packages/lib-exports/src/api.ts:1, exported without being published, imported nowhere\nPath order; `--from` sorts nearest first.\n\nSource, from other packages:\n\napps/app/src/put.ts:3 — @acme/app (namespace, line 2)\n\nA namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted.\n\n`--file`, the file one of them is declared in, answers for that declaration alone.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "uses --name absentIndex": [
+    2,
+    "",
+    "no readable workspace snapshot at <cache>/source-index.bin.help.bin: ENOENT: no such file or directory, open '<cache>/source-index.bin.help.bin'. Run `variance index` to publish one.\n\nSee the skill at <repo>/packages/cli/skills/variance-authority/SKILL.md\n"
+  ],
+  "uses --name addTax --package @acme/lib/src/internal/math": [
+    0,
+    "`addTax` [function] is imported in 1 place, from another package, and no entry publishes it; it is exported at packages/lib/src/internal/math.ts:1.\nPath order; `--from` sorts nearest first.\n\nSource, from other packages:\n\napps/app/src/total.ts:1 — @acme/app, deep import of @acme/lib/src/internal/math; used on line 2\n\nA namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "uses --name boundModule": [
+    0,
+    "`boundModule` is not published by this workspace, and no published name contains it; ask `variance ask search` with a word from its documentation. No file in this workspace declares `boundModule`, at its top level or as a member. A name written only as text, in a string or a comment, declares nothing: a text search such as `rg` finds it.\n\n`boundModule` [binding] is bound, not declared, at packages/lib/src/bound-a.js:3; who can reach it is not recorded.\n\nUsed in packages/lib/src/bound-a.js — @acme/lib, which binds it:\n\n  4\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "uses --name boundOnly": [
+    0,
+    "`boundOnly` is not published by this workspace, and no published name contains it; ask `variance ask search` with a word from its documentation. No file in this workspace declares `boundOnly`, at its top level or as a member. A name written only as text, in a string or a comment, declares nothing: a text search such as `rg` finds it.\n\n`boundOnly` is bound, not declared, in 2 files:\n  packages/lib/src/bound-a.js:1 [binding]; who can reach it is not recorded\n  packages/lib/src/bound-b.js:1 [binding]; who can reach it is not recorded\n\nImported in 0 places. 1 place passes the module on whole, where this reading does not follow it, and may read `boundOnly`.\n\nSource, inside @acme/lib:\n\npackages/lib/src/bound-a.js:4 (namespace, line 3, passed on whole: may read it)\n\nUsed in packages/lib/src/bound-a.js — @acme/lib, which binds it:\n\n  4\n\nUsed in packages/lib/src/bound-b.js — @acme/lib, which binds it:\n\n  4\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "uses --name boundToo": [
+    0,
+    "`boundToo` [function] is declared, not exported, at packages/lib/src/bound-b.js:3; who can reach it is not recorded.\n`boundToo` [binding] is bound, not declared, at packages/lib/src/bound-a.js:2; who can reach it is not recorded.\n\nImported in 0 places. 1 place passes the module on whole, where this reading does not follow it, and may read `boundToo`.\n\nSource, inside @acme/lib:\n\npackages/lib/src/bound-a.js:4 (namespace, line 3, passed on whole: may read it)\n\nUsed in packages/lib/src/bound-a.js — @acme/lib, which binds it:\n\n  4\n\nUsed in packages/lib/src/bound-b.js — @acme/lib, which declares it:\n\n  4\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "uses --name boundToo --file packages/lib/src/bound-a.js": [
+    0,
+    "`boundToo` [binding] is bound, not declared, at packages/lib/src/bound-a.js:2; who can reach it is not recorded.\n\nUsed in packages/lib/src/bound-a.js — @acme/lib, which binds it:\n\n  4\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "uses --name default": [
+    0,
+    "`default` is not published by this workspace, and no published name contains it; ask `variance ask search` with a word from its documentation. No file in this workspace declares `default`, at its top level or as a member. A name written only as text, in a string or a comment, declares nothing: a text search such as `rg` finds it.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "uses --name dualExport --package @acme/dual/tools": [
+    0,
+    "`dualExport` [const] is imported in 1 place, from another package.\nPath order; `--from` sorts nearest first.\n\nSource, from other packages:\n\napps/app/src/dual-tools.ts:1 — @acme/app; used on line 2\n\nA namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "uses --name greet": [
+    0,
+    "`greet` [function] is imported in 2 places: 1 from another package and 1 inside @acme/lib.\nPath order; `--from` sorts nearest first.\n\nSource, from other packages:\n\napps/app/src/hello.ts:1 — @acme/app; used on line 2\n\nSource, inside @acme/lib:\n\npackages/lib/src/also.ts:1 (as hello); used on line 2\n\nA namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "uses --name greet --file packages/lib/src/index.ts": [
+    0,
+    "`greet` [function] is imported in 2 places: 1 from another package and 1 inside @acme/lib.\nPath order; `--from` sorts nearest first.\n\nSource, from other packages:\n\napps/app/src/hello.ts:1 — @acme/app; used on line 2\n\nSource, inside @acme/lib:\n\npackages/lib/src/also.ts:1 (as hello); used on line 2\n\nA namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "uses --name greet --limit 1": [
+    0,
+    "`greet` [function] is imported in 2 places: 1 from another package and 1 inside @acme/lib.\nPath order; `--from` sorts nearest first.\n\nSource, from other packages:\n\napps/app/src/hello.ts:1 — @acme/app; used on line 2\n\nSource, inside @acme/lib:\n\npackages/lib/src/also.ts:1 (as hello); used on line 2\n\nA namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "uses --name greet --package @acme/kit": [
+    0,
+    "`greet` is not published by `@acme/kit`; it is exported, without being published, at packages/lib/src/greet.ts:1 and 1 more. No file in `@acme/kit` declares `greet`, at its top level or as a member. A name written only as text, in a string or a comment, declares nothing: a text search such as `rg` finds it.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "uses --name greet --package @acme/lib": [
+    0,
+    "`greet` [function] is imported in 2 places: 1 from another package and 1 inside @acme/lib.\nPath order; `--from` sorts nearest first.\n\nSource, from other packages:\n\napps/app/src/hello.ts:1 — @acme/app; used on line 2\n\nSource, inside @acme/lib:\n\npackages/lib/src/also.ts:1 (as hello); used on line 2\n\nA namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "uses --name greet --package @acme/lib-exports": [
+    0,
+    "`greet` [const] is imported in 1 place, inside @acme/lib-exports, and no entry publishes it; it is exported at packages/lib-exports/src/greet.ts:1.\nPath order; `--from` sorts nearest first.\n\nSource, inside @acme/lib-exports:\n\npackages/lib-exports/src/greeted.ts:1; used on line 2\n\nA namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "uses --name heldFoo --file packages/lib/src/held.ts": [
+    0,
+    "`heldFoo` [binding] is bound, not declared, at packages/lib/src/held.ts:1, so nothing outside that file can import it.\n\nUsed in packages/lib/src/held.ts — @acme/lib, which binds it:\n\n  2\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "uses --name hello": [
+    0,
+    "`hello` [const] is exported, without being published, at apps/app/src/hello.ts:2, and nothing in this workspace imports it; a namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "uses --name keptOf": [
+    0,
+    "`keptOf` is not published by this workspace, and no published name contains it; ask `variance ask search` with a word from its documentation. No file in this workspace declares `keptOf`, at its top level or as a member. A name written only as text, in a string or a comment, declares nothing: a text search such as `rg` finds it.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "uses --name loose": [
+    0,
+    "`loose` [const] is imported in 1 place, and no entry publishes it; it is exported at tools/loose.ts:1.\nPath order; `--from` sorts nearest first.\n\nSource:\n\ntools/use-loose.ts:1; used on line 2\n\nA namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "uses --name lost": [
+    0,
+    "`lost` [const] is imported in 2 places, all from other packages, and no entry publishes it; it is exported at packages/kit/src/lost.ts:1.\nPath order; `--from` sorts nearest first.\n\nSource, from other packages:\n\napps/app/src/found.ts:1 — @acme/app, by path from @acme/kit/src/lost; used on line 2\napps/app/src/through.ts:1 — @acme/app, by path from @acme/kit/src/barrel; used on line 2\n\n1 more imports `lost` by a path that reaches no one declaration read here, so none is credited with them:\n\napps/app/src/elsewhere.ts:1 — @acme/app, by path from @acme/kit/src/orphan\n\n1 more imports `lost` by a path the source index resolved to no file, so none is credited with them:\n\napps/app/src/stray.ts:1 — @acme/app, by path from @acme/kit/src/gone\n\nA namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "uses --name lost --file packages/kit/src/lost.ts": [
+    0,
+    "`lost` [const] is imported in 2 places, all from other packages, and no entry publishes it; it is exported at packages/kit/src/lost.ts:1.\nPath order; `--from` sorts nearest first.\n\nSource, from other packages:\n\napps/app/src/found.ts:1 — @acme/app, by path from @acme/kit/src/lost; used on line 2\napps/app/src/through.ts:1 — @acme/app, by path from @acme/kit/src/barrel; used on line 2\n\nA namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "uses --name mockOnly": [
+    0,
+    "`mockOnly` is not published by this workspace, and no published name contains it; ask `variance ask search` with a word from its documentation. No file in this workspace declares `mockOnly`, at its top level or as a member. A name written only as text, in a string or a comment, declares nothing: a text search such as `rg` finds it.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "uses --name open": [
+    0,
+    "`open` is no exported name; it is a member, declared in 1 place:\nPath order; `--from` sorts nearest first.\n\nMember declarations:\n\npackages/lib/src/shape.ts:3 — KitBox\n\nNo line uses `open` through a value whose type is written as `KitBox` at packages/lib/src/shape.ts:3.\n\nAn implementation of `KitBox.open` that takes its type from where it goes — an argument, a property, a returned value — writes no type on its line and is not listed: TypeScript's language service's go-to-implementation on packages/lib/src/shape.ts:3 names it.\nA use is listed here only where its line writes the value's type. A use through an inferred value, a generic, a subtype by `extends`, a JSX attribute, a utility type or an inline type literal is not: which type a value has is a type checker's answer, and none runs here.\nAsk TypeScript for those: its language service's find-references on `KitBox.open` at packages/lib/src/shape.ts:3.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "uses --name orphan": [
+    0,
+    "`orphan` [const] is exported, without being published, at packages/kit/src/orphan.ts:1, and nothing in this workspace imports it; a namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "uses --name relayed": [
+    0,
+    "`relayed` [function] is imported in 1 place, inside @acme/lib, and no entry publishes it; it is exported at packages/lib/src/origin.ts:2 and 1 more.\nPath order; `--from` sorts nearest first.\n\nSource, inside @acme/lib:\n\npackages/lib/src/relayed.ts:1 (as passed); used on line 2\n\nA namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "uses --name relayed --package @acme/lib": [
+    0,
+    "`relayed` [function] is imported in 1 place, inside @acme/lib, and no entry publishes it; it is exported at packages/lib/src/origin.ts:2 and 1 more.\nPath order; `--from` sorts nearest first.\n\nSource, inside @acme/lib:\n\npackages/lib/src/relayed.ts:1 (as passed); used on line 2\n\nA namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "uses --name runJob": [
+    0,
+    "`runJob` [function] is imported in 1 place, inside @acme/lib, and no entry publishes it; it is exported at packages/lib/src/run.ts:1.\nIt is declared once more, as another thing, answered below:\n  packages/lib-exports/src/runner.ts:2, a member of `Runner`\nPath order; `--from` sorts nearest first.\n\nSource, inside @acme/lib:\n\npackages/lib/src/runs.ts:1; used on line 2\n\nA namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted.\n\n`runJob` is a member too, declared in 1 place:\n\nMember declarations:\n\npackages/lib-exports/src/runner.ts:2 — Runner\n\nNo line uses `runJob` through a value whose type is written as `Runner` at packages/lib-exports/src/runner.ts:2.\n\nAn implementation of `Runner.runJob` that takes its type from where it goes — an argument, a property, a returned value — writes no type on its line and is not listed: TypeScript's language service's go-to-implementation on packages/lib-exports/src/runner.ts:2 names it.\nA use is listed here only where its line writes the value's type. A use through an inferred value, a generic, a subtype by `extends`, a JSX attribute, a utility type or an inline type literal is not: which type a value has is a type checker's answer, and none runs here.\nAsk TypeScript for those: its language service's find-references on `Runner.runJob` at packages/lib-exports/src/runner.ts:2.\n\n`--file`, the file one of them is declared in, answers for that declaration alone.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "uses --name sessionToken": [
+    0,
+    "`sessionToken` is no exported name; it is a member, declared in 2 places:\nPath order; `--from` sorts nearest first.\n\nMember declarations:\n\npackages/lib/src/session.ts:1 — AgentSession\npackages/lib/src/session.ts:2 — SavedSession\n\n`AgentSession.sessionToken`, declared at packages/lib/src/session.ts:1, is used in 1 place:\n\npackages/lib/src/session.ts:3 — @acme/lib, read\n\nNo line uses `sessionToken` through a value whose type is written as `SavedSession` at packages/lib/src/session.ts:2.\n\nAn implementation of `sessionToken` that takes its type from where it goes — an argument, a property, a returned value — writes no type on its line and is not listed: TypeScript's language service's go-to-implementation on the declaration you mean names it.\nA use is listed here only where its line writes the value's type. A use through an inferred value, a generic, a subtype by `extends`, a JSX attribute, a utility type or an inline type literal is not: which type a value has is a type checker's answer, and none runs here.\nAsk TypeScript for those: its language service's find-references on the declaration you mean, each listed above with its file and line (`--package` narrows the declarations to one package).\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "uses --name shared": [
+    0,
+    "`shared` [const] is published by @acme/lib, declared at packages/lib/src/index.ts:2, and nothing in this workspace imports it; a namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted. `variance ask symbol` has its signature and what is written above it.\nIt is declared once more, as another thing:\n  packages/lib-exports/src/index.ts:2, published by @acme/lib-exports, imported nowhere\n\n`--file`, the file one of them is declared in, answers for that declaration alone.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "uses --name shared --file packages/lib-exports/src/index.ts": [
+    0,
+    "`shared` [const] is published and nothing in this workspace imports it; a namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted. `variance ask symbol` has its signature and what is written above it.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "uses --name shared --package @acme/lib-exports": [
+    0,
+    "`shared` [const] is published and nothing in this workspace imports it; a namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted. `variance ask symbol` has its signature and what is written above it.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "uses --name size": [
+    0,
+    "`size` is no exported name; it is a member, declared in 1 place:\nPath order; `--from` sorts nearest first.\n\nMember declarations:\n\npackages/lib/src/shape.ts:4 — KitBox\n\nNo line uses `size` through a value whose type is written as `KitBox` at packages/lib/src/shape.ts:4.\n\nAn implementation of `KitBox.size` that takes its type from where it goes — an argument, a property, a returned value — writes no type on its line and is not listed: TypeScript's language service's go-to-implementation on packages/lib/src/shape.ts:4 names it.\nA use is listed here only where its line writes the value's type. A use through an inferred value, a generic, a subtype by `extends`, a JSX attribute, a utility type or an inline type literal is not: which type a value has is a type checker's answer, and none runs here.\nAsk TypeScript for those: its language service's find-references on `KitBox.size` at packages/lib/src/shape.ts:4.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "uses --name size --file nope.ts": [
+    0,
+    "`size` is not declared in nope.ts; it is declared in packages/lib/src/shape.ts.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "uses --name stepAll": [
+    0,
+    "`stepAll` [function] is imported in 1 place, inside @acme/lib, and no entry publishes it; it is exported at packages/lib/src/step.ts:1.\nIt is declared 2 more times, each another thing, answered below:\n  packages/lib-exports/src/kept.ts:1, not exported\n  packages/lib-exports/src/stepper.ts:2, a member of `Stepper`\nPath order; `--from` sorts nearest first.\n\nSource, inside @acme/lib:\n\npackages/lib/src/steps.ts:1; used on line 2\n\nA namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted.\n\n`stepAll` [function] is declared, not exported, at packages/lib-exports/src/kept.ts:1, so nothing outside that file can import it.\n\nUsed in packages/lib-exports/src/kept.ts — @acme/lib-exports, which declares it:\n\n  2\n\n`stepAll` is a member too, declared in 1 place:\n\nMember declarations:\n\npackages/lib-exports/src/stepper.ts:2 — Stepper\n\nNo line uses `stepAll` through a value whose type is written as `Stepper` at packages/lib-exports/src/stepper.ts:2.\n\nAn implementation of `Stepper.stepAll` that takes its type from where it goes — an argument, a property, a returned value — writes no type on its line and is not listed: TypeScript's language service's go-to-implementation on packages/lib-exports/src/stepper.ts:2 names it.\nA use is listed here only where its line writes the value's type. A use through an inferred value, a generic, a subtype by `extends`, a JSX attribute, a utility type or an inline type literal is not: which type a value has is a type checker's answer, and none runs here.\nAsk TypeScript for those: its language service's find-references on `Stepper.stepAll` at packages/lib-exports/src/stepper.ts:2.\n\n`--file`, the file one of them is declared in, answers for that declaration alone.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "uses --name taxOf": [
+    0,
+    "`taxOf` [function] is imported in 1 place, from another package, and no entry publishes it; it is exported at packages/kit/src/money/tax.ts:2.\nPath order; `--from` sorts nearest first.\n\nSource, from other packages:\n\napps/app/src/checkout.ts:1 — @acme/app, by path from @acme/kit/src/money/tax; used on line 3\n\nA namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "uses --name twinName": [
+    0,
+    "`twinName` [function] is imported in 1 place, inside @acme/lib-exports, and no entry publishes it; it is exported at packages/lib-exports/src/twin.ts:1.\nIt is declared once more, as another thing:\n  packages/lib/src/twin.ts:1, exported without being published, imported in 1 place\nPath order; `--from` sorts nearest first.\n\nSource, inside @acme/lib-exports:\n\npackages/lib-exports/src/twins.ts:1 (as other); used on line 2\n\nA namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted.\n\n`--file`, the file one of them is declared in, answers for that declaration alone.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "uses --name twinName --file packages/lib-exports/src/twin.ts": [
+    0,
+    "`twinName` [function] is imported in 1 place, inside @acme/lib-exports, and no entry publishes it; it is exported at packages/lib-exports/src/twin.ts:1.\nPath order; `--from` sorts nearest first.\n\nSource, inside @acme/lib-exports:\n\npackages/lib-exports/src/twins.ts:1 (as other); used on line 2\n\nA namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "uses --name twinName --file packages/lib/src/twins.ts": [
+    0,
+    "`twinName` is not declared in packages/lib/src/twins.ts; it is declared in packages/lib-exports/src/twin.ts and packages/lib/src/twin.ts.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "uses --name twinName --from packages/lib-exports/src": [
+    0,
+    "`twinName` [function] is imported in 1 place, inside @acme/lib-exports, and no entry publishes it; it is exported at packages/lib-exports/src/twin.ts:1.\nIt is declared once more, as another thing:\n  packages/lib/src/twin.ts:1, exported without being published, imported in 1 place\nNearest to packages/lib-exports/src first.\n\nSource, inside @acme/lib-exports:\n\npackages/lib-exports/src/twins.ts:1 (as other); used on line 2\n\nA namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted.\n\n`--file`, the file one of them is declared in, answers for that declaration alone.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "uses --name twinName --limit 1": [
+    0,
+    "`twinName` [function] is imported in 1 place, inside @acme/lib-exports, and no entry publishes it; it is exported at packages/lib-exports/src/twin.ts:1.\nIt is declared once more, as another thing:\n  packages/lib/src/twin.ts:1, exported without being published, imported in 1 place\nPath order; `--from` sorts nearest first.\n\nSource, inside @acme/lib-exports:\n\npackages/lib-exports/src/twins.ts:1 (as other); used on line 2\n\nA namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted.\n\n`--file`, the file one of them is declared in, answers for that declaration alone.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "uses --name unknownExactName": [
+    0,
+    "`unknownExactName` is not published by this workspace, and no published name contains it; ask `variance ask search` with a word from its documentation. No file in this workspace declares `unknownExactName`, at its top level or as a member. A name written only as text, in a string or a comment, declares nothing: a text search such as `rg` finds it.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "uses --name wave": [
+    0,
+    "`wave` [function] is imported in 2 places, all from other packages.\nPath order; `--from` sorts nearest first.\n\nSource, from other packages:\n\napps/app/src/beach.ts:1 — @acme/app; used on line 2\napps/app/src/surf.ts:1 — @acme/app, deep import of @acme/sea/src/wave; used on line 2\n\nA namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "uses --name wave --package @acme/sea": [
+    0,
+    "`wave` [function] is imported in 2 places, all from other packages.\nPath order; `--from` sorts nearest first.\n\nSource, from other packages:\n\napps/app/src/beach.ts:1 — @acme/app; used on line 2\napps/app/src/surf.ts:1 — @acme/app, deep import of @acme/sea/src/wave; used on line 2\n\nA namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "uses --name zoomIn": [
+    0,
+    "`zoomIn` [function] is declared, not exported, at packages/lib/src/zoom.ts:1, so nothing outside that file can import it.\nIt is declared once more, as another thing, answered below:\n  packages/lib-exports/src/camera.ts:2, a member of `Camera`\n\nUsed in packages/lib/src/zoom.ts — @acme/lib, which declares it:\n\n  2\n\n`zoomIn` is a member too, declared in 1 place:\nPath order; `--from` sorts nearest first.\n\nMember declarations:\n\npackages/lib-exports/src/camera.ts:2 — Camera\n\nNo line uses `zoomIn` through a value whose type is written as `Camera` at packages/lib-exports/src/camera.ts:2.\n\nAn implementation of `Camera.zoomIn` that takes its type from where it goes — an argument, a property, a returned value — writes no type on its line and is not listed: TypeScript's language service's go-to-implementation on packages/lib-exports/src/camera.ts:2 names it.\nA use is listed here only where its line writes the value's type. A use through an inferred value, a generic, a subtype by `extends`, a JSX attribute, a utility type or an inline type literal is not: which type a value has is a type checker's answer, and none runs here.\nAsk TypeScript for those: its language service's find-references on `Camera.zoomIn` at packages/lib-exports/src/camera.ts:2.\n\n`--file`, the file one of them is declared in, answers for that declaration alone.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "uses --name 値": [
+    0,
+    "`値` is declared, not exported, in 2 files:\n  packages/lib/src/private.ts:2 [function], so nothing outside that file can import it\n  packages/lib/src/private.test.ts:2 [function], so nothing outside that file can import it\n\nUsed in packages/lib/src/private.test.ts — @acme/lib, which declares it:\n\n  3\n\nUsed in packages/lib/src/private.ts — @acme/lib, which declares it:\n\n  3\n\n`--file`, the file one of them is declared in, answers for that declaration alone.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "uses --name 値 --file packages/lib/src/private.ts": [
+    0,
+    "`値` [function] is declared, not exported, at packages/lib/src/private.ts:2, so nothing outside that file can import it.\n\nUsed in packages/lib/src/private.ts — @acme/lib, which declares it:\n\n  3\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "uses --name=greet --from=packages/lib/src --limit=1": [
+    0,
+    "`greet` [function] is imported in 2 places: 1 from another package and 1 inside @acme/lib.\nNearest to packages/lib/src first.\n\nSource, from other packages:\n\napps/app/src/hello.ts:1 — @acme/app; used on line 2\n\nSource, inside @acme/lib:\n\npackages/lib/src/also.ts:1 (as hello); used on line 2\n\nA namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "symbol --name Schedule": [
+    0,
+    "Schedule [enum]\nexported, without being published, at packages/reporting/server/constants.ts:1 by @acme/reporting-server\nenum Schedule\nNo import read here is credited with it; a namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted.\n\n1 more imports `Schedule` by a path the source index resolved to no file, so none is credited with them:\n  apps/app/src/schedule.ts:1 — @acme/app, by path from @acme/reporting-server\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "uses --name Schedule": [
+    0,
+    "`Schedule` [enum] is exported, without being published, at packages/reporting/server/constants.ts:1, and no import read here is credited with it; a namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted.\nPath order; `--from` sorts nearest first.\n\n1 more imports `Schedule` by a path the source index resolved to no file, so none is credited with them:\n\napps/app/src/schedule.ts:1 — @acme/app, by path from @acme/reporting-server\n\nA namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "symbol --name Cadence": [
+    0,
+    "Cadence [const]\nexported, without being published, at packages/reporting/server/cadence.ts:1 by @acme/reporting-server\nconst Cadence\nImported in 1 place; `variance ask uses` lists them, nearest to a file you name first.\n\n1 more imports `Cadence` by a path the source index resolved to no file, so none is credited with them:\n  apps/app/src/cadence.ts:1 — @acme/app, by path from @acme/reporting-server\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "uses --name unbound --file packages/kit/src/relay.ts": [
+    2,
+    "",
+    "`variance ask uses --name unbound --file packages/kit/src/relay.ts` could not be answered from the published source index: packages/kit/src/relay.ts exports `unbound`, and the source index binds that export to no declaration.\n\nSnapshot <time> may miss later changes: run `variance index`.\n\nSee the skill at <repo>/packages/cli/skills/variance-authority/SKILL.md\n"
+  ],
+  "symbol --name crowdedPath --limit 2": [
+    0,
+    "crowdedPath [const]\nimport { crowdedPath } from '@acme/kit/src/crowd';\ndeclared at packages/kit/src/crowd.ts:1\nnot published: @acme/kit declares no entry, so every import of it names a file.\nconst crowdedPath\n\nImported by path in 3 places:\n  apps/app/src/crowd-1.ts:1 — @acme/app, by path from @acme/kit/src/crowd\n  apps/app/src/crowd-2.ts:1 — @acme/app, by path from @acme/kit/src/crowd\n1 more import of `crowdedPath` not shown; `variance ask uses --name crowdedPath --file packages/kit/src/crowd.ts` lists them, nearest to a file you name first, and a higher `--limit` shows more of them.\n\n3 more import `crowdedPath` by a path the source index resolved to no file, so none is credited with them:\n  apps/app/src/gone-1.ts:1 — @acme/app, by path from @acme/kit/src/gone\n  apps/app/src/gone-2.ts:1 — @acme/app, by path from @acme/kit/src/gone\n1 more import of `crowdedPath` not shown; `variance ask uses --name crowdedPath` lists them, nearest to a file you name first, and a higher `--limit` shows more of them.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "uses --name crowdedPath --file packages/kit/src/crowd.ts": [
+    0,
+    "`crowdedPath` [const] is imported in 3 places, all from other packages, and no entry publishes it; it is exported at packages/kit/src/crowd.ts:1.\nPath order; `--from` sorts nearest first.\n\nSource, from other packages:\n\napps/app/src/crowd-1.ts:1 — @acme/app, by path from @acme/kit/src/crowd; used on line 2\napps/app/src/crowd-2.ts:1 — @acme/app, by path from @acme/kit/src/crowd; used on line 2\napps/app/src/crowd-3.ts:1 — @acme/app, by path from @acme/kit/src/crowd; used on line 2\n\nA namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ],
+  "symbol --name ghost --limit 2": [
+    0,
+    "ghost\nimport { ghost } from '@acme/kit/src/crowd';\nnot published: @acme/kit declares no entry, so every import of it names a file.\n\nImported by path in 3 places:\n  apps/app/src/ghost-1.ts:1 — @acme/app, by path from @acme/kit/src/crowd\n  apps/app/src/ghost-2.ts:1 — @acme/app, by path from @acme/kit/src/crowd\n1 more import of `ghost` not shown; `variance ask uses --name ghost` lists them, nearest to a file you name first, and a higher `--limit` shows more of them.\nSnapshot <time> may miss later changes: run `variance index`.\n",
+    ""
+  ]
+}

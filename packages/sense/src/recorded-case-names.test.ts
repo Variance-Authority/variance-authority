@@ -77,16 +77,24 @@ describe('the case names a record holds', () => {
     const [site, unit] = recordedCaseNames(root);
 
     expect(unit).toMatchObject({ suite: 'unit', cases: [{ file: 'a.test.ts', name: 'reads' }] });
-    expect(site).toMatchObject({ suite: 'site', unread: expect.stringContaining('EISDIR') });
+    expect(site).toMatchObject({ suite: 'site', unread: expect.stringContaining('EISDIR'), unreadable: true });
   });
 
   it('says so when nothing is recorded', () => {
     expect(recordedCaseNames(root)).toEqual([{ recording: testCoverageFile(root), unread: 'no run kept its cases there' }]);
   });
 
-  it('says what the index would not read', () => {
+  it('says what the index would not read, as cases unknown rather than none', () => {
     const recording = record(Buffer.from('not an index'));
 
-    expect(recordedCaseNames(root)).toEqual([{ recording, unread: expect.any(String) }]);
+    expect(recordedCaseNames(root)).toEqual([{ recording, unread: expect.any(String), unreadable: true }]);
+  });
+
+  it('says why a record whose header does not read was not read, not that no run kept its cases', () => {
+    const recording = testCoverageFile(root);
+    mkdirSync(dirname(recording), { recursive: true });
+    writeFileSync(recording, 'not a record');
+
+    expect(recordedCaseNames(root)).toEqual([{ recording, unread: expect.not.stringMatching(/kept its cases/u), unreadable: true }]);
   });
 });

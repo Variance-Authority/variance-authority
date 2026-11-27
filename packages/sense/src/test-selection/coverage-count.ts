@@ -13,6 +13,7 @@
  * one as input, and none is written into the record.
  */
 
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import { caseMotion, matchedThrough, regionAddresses, type CaseMotionOptions, type TestFileMotion } from './case-motion.js';
 import type { ExecutionBlock, ExecutionCrossing, ExecutionIndex } from './reverse.js';
 import { SUITE_KINDS, type SuiteKind } from './suites.js';
@@ -330,6 +331,19 @@ export interface SuiteChange {
   readonly departed: RegionTally & { readonly files: readonly string[]; readonly ran: readonly string[] };
   /** Every test file whose reach changed, as the motion names them. */
   readonly testFiles: readonly TestFileMotion[];
+  /**
+   * Every source file where a region started or stopped running, by file. Each
+   * side sums what the suite's own parts sum: started is gained, written and
+   * arrived run; stopped is lost, hidden, unmeasured, deleted and departed run.
+   */
+  readonly files: readonly FileChange[];
+}
+
+/** One source file's part of a suite's change: regions that started and stopped running in it. */
+export interface FileChange {
+  readonly file: string;
+  readonly started: number;
+  readonly stopped: number;
 }
 
 /**
@@ -345,20 +359,34 @@ export function coverageChange(base: ExecutionIndex, now: ExecutionIndex, option
   const deleted = { regions: 0, run: 0 };
   const arrived = { regions: 0, run: 0, files: [] as string[] };
   const departed = { regions: 0, run: 0, files: [] as string[], ran: [] as string[] };
-  const tally = (into: { regions: number; run: number }, blocks: Iterable<ExecutionBlock>) => {
+  const byFile = new Map<string, { started: number; stopped: number }>();
+  const mark = (file: string, side: 'started' | 'stopped') => {
+    const held = byFile.get(file) ?? { started: 0, stopped: 0 };
+    held[side] += 1;
+    byFile.set(file, held);
+  };
+  const tally = (into: { regions: number; run: number }, blocks: Iterable<ExecutionBlock>, file: string, side: 'started' | 'stopped') => {
     for (const block of blocks) {
       if (!block.source) continue;
       into.regions += 1;
-      if (regionRun(block) === 'run') into.run += 1;
+      if (regionRun(block) !== 'run') continue;
+      into.run += 1;
+      mark(file, side);
     }
   };
+  for (const region of motion.regions) {
+    if (region.motion === 'gained') mark(region.file, 'started');
+    else if (region.motion !== 'thinned') mark(region.file, 'stopped');
+  }
+  const unmeasured = (motion.unmeasured ?? []).filter((region) => region.now.length === 0);
+  for (const region of unmeasured) mark(region.file, 'stopped');
 
   for (const was of base.modules) {
     const module = current.get(was.file);
     if (module === undefined) {
       departed.files.push(was.file);
       const before = departed.run;
-      tally(departed, was.blocks);
+      tally(departed, was.blocks, was.file, 'stopped');
       if (departed.run > before) departed.ran.push(was.file);
       continue;
     }
@@ -366,13 +394,13 @@ export function coverageChange(base: ExecutionIndex, now: ExecutionIndex, option
     const { pairs, mismatched } = matchedThrough(was, module, options.diff.get(module.file) ?? []);
     const compared = [...pairs, ...mismatched];
     const paired = { base: new Set(compared.map(([row]) => row)), now: new Set(compared.map(([, block]) => block)) };
-    tally(deleted, was.blocks.filter((block) => !paired.base.has(block)));
-    tally(written, module.blocks.filter((block) => !paired.now.has(block)));
+    tally(deleted, was.blocks.filter((block) => !paired.base.has(block)), was.file, 'stopped');
+    tally(written, module.blocks.filter((block) => !paired.now.has(block)), module.file, 'started');
   }
   for (const module of now.modules) {
     if (held.has(module.file)) continue;
     arrived.files.push(module.file);
-    tally(arrived, module.blocks);
+    tally(arrived, module.blocks, module.file, 'started');
   }
 
   return {
@@ -380,11 +408,12 @@ export function coverageChange(base: ExecutionIndex, now: ExecutionIndex, option
     lost: motion.counts.lost,
     hidden: motion.counts.hidden,
     thinned: motion.counts.thinned,
-    unmeasured: (motion.unmeasured ?? []).filter((region) => region.now.length === 0).length,
+    unmeasured: unmeasured.length,
     written,
     deleted,
     arrived: { ...arrived, files: arrived.files.sort() },
     departed: { ...departed, files: departed.files.sort(), ran: departed.ran.sort() },
     testFiles: motion.testFiles,
+    files: [...byFile].map(([file, sides]) => ({ file, ...sides })).sort((a, b) => codeUnitOrder(a.file, b.file)),
   };
 }

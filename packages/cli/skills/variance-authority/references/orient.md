@@ -45,10 +45,27 @@ prints that and names `variance index`.
 
 With `--files` it reads no file's text and finds nothing itself; use `search`,
 `symbol` or `grep` in the [workspace API](workspace-api.md) to find the files.
-Each file is answered in the order you gave. A `:<line>` after a path narrows
-the call journeys to the function that contains that line. The answer prints its
-own definitions. What you decide from it:
+Each file is answered in the order you gave. A `:<line>` after a path is
+answered from the source index for every file it parsed, whether or not a case
+ran the line. The recording adds the cases: the call journeys narrow to the
+function the line is in. The answer prints its own definitions. What you decide
+from it:
 
+- **`Lines asked about`** names, for each `:<line>`, the declarations whose
+  first and last lines enclose it, outermost first, such as
+  `in class Basket > method total (lines 12–14)`; the lines are the innermost
+  declaration's. Declarations that share the line are side by side, such as
+  `in function a, function b (line 2)`: one is within another only as the parse
+  records it, a member on its container and a function in the function it is
+  written in. A member counts from the line of its name. `at the top level of
+  the module` means no declaration the index records encloses the line, such as
+  a blank line between two functions; a function written inside a top-level
+  block, such as an `if`, is not recorded. Members are read from JavaScript and
+  TypeScript only, so in another language a line in a class or a type, or in no
+  declaration, may be in a member, and the answer says so. `the index holds no
+  parse of its declarations` means the line may be in any declaration. A file
+  changed since `variance index` parsed it is not answered from that parse, as
+  its lines may have moved; `variance index` updates it.
 - **`Declared at the top level`** lists each file's own declarations from the
   source index, by line: the kind, the name, and `exported` when an export
   binds it. A class's, an interface's or a type's members follow it, one row
@@ -230,7 +247,13 @@ A listed case whose slowest statement held a millisecond or more carries one
 more line:
 `slowest statement <file>:<line>, <time>, <share>% of the case`. The time is
 that statement's on the real clock, summed over a loop's runs, and never a
-hook's. Read that line of the test before the rest of the case. Vitest, Jest
+hook's. Read that line of the test before the rest of the case. After it,
+`; as it ended: load 16.25, RSS 300 MiB, 0 MiB free, 31 nodes added` says what
+surrounded the statement as it ended: the machine's 1-minute load average, the
+test process's resident memory, the machine's free memory and the nodes it added
+to a jsdom or happy-dom page, each named only where it was read. Each is one
+reading of a figure that moves on its own: it says whether the machine or the
+page was under pressure on that run, not that the test is slow or flaky. Vitest, Jest
 and Rstest time a case's statements unless `cadence: false`; a case without times lists on one
 line, and says nothing about where its time went.
 

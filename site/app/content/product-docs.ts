@@ -83,6 +83,7 @@ import selectionTanstackQuery from "../../../docs/selection-tanstack-query.md?ra
 import selectionZod from "../../../docs/selection-zod.md?raw";
 import sharding from "../../../docs/sharding.md?raw";
 import sharing from "../../../docs/sharing.md?raw";
+import recordLifecycle from "../../../docs/record-lifecycle.md?raw";
 import sourceIndex from "../../../docs/source-index.md?raw";
 import supportedFrameworks from "../../../docs/supported-frameworks.md?raw";
 import sourceStructures from "../../../docs/source-structures.md?raw";
@@ -237,6 +238,7 @@ const documents = [
   ["performance", performance, "docs/performance.md"],
   ["sharding", sharding, "docs/sharding.md"],
   ["sharing", sharing, "docs/sharing.md"],
+  ["record-lifecycle", recordLifecycle, "docs/record-lifecycle.md"],
   ["cache", cache, "docs/cache.md"],
   ["on-dependencies", onDependencies, "docs/on-dependencies.md"],
   ["on-testing", onTesting, "docs/on-testing.md"],

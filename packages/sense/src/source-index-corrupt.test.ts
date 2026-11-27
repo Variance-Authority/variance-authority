@@ -12,7 +12,7 @@ const PARSED: Parsed = {
   symbols: [],
   declares: [],
   bindingMembers: [{ request: 0, binding: 'Props', within: ['tint'], name: 'tintDeep', line: 9 }],
-  nested: [{ name: 'inner', kind: 'function', line: 12, signature: { start: 40, end: 60 }, holder: 'outer', holderLine: 11 }],
+  nested: [{ name: 'inner', kind: 'function', line: 12, endLine: 14, signature: { start: 40, end: 60 }, holder: 'outer', holderLine: 11 }],
 };
 
 /** The index of `PARSED`, and the `count` numbers its column `name` holds, to write over. */

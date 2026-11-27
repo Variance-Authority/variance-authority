@@ -2,291 +2,326 @@
 
 // compass: variance-authority.report.agent-surface
 
-use std::collections::BTreeSet;
-use std::fs::File;
-use std::path::Path;
+use std::cell::RefCell;
+use std::io::{Read, Seek};
 
 use crate::compact::Layer;
-use crate::help_surface::{CLI, Value, typed};
 use crate::harvest::is_bound;
 use crate::help_aliases::aliases;
 use crate::help_declared::{declared, DeclaredName, Matching};
 use crate::help_in_file::InFile;
+use crate::help_key::{can_keep, nearest, Keys, SLOT};
 use crate::help_members::{member_declarations, MemberSite};
 use crate::help_name_scope::{owner_of, PackageScope};
-use crate::help_origin::declaration_exported;
-use crate::help_symbol_answer::{declaration_kind_order, kept_as, member_name, member_stop, nowhere, unread_line};
-use crate::help_symbol_published::{joined_sites, published_imports, PublicationScope};
-use crate::help_symbol_rows::{Entry, Export, PathSite, Rows, Site};
-use crate::help_usage::{importers, kind_of, Asked};
-use crate::index_chain::OpenedChain;
+use crate::help_symbol_answer::{container_absence, DECLARED_CAP, member_name, member_stop, nowhere, unread_line};
+use crate::help_declared_in::{joined, publishing, rows_of, Readings};
+use crate::help_symbol_published::published_declarations;
+use crate::help_surface::Surface;
+use crate::help_symbol_rows::{Rows, Site};
+use crate::help_usage::{importers, Asked, Importers, NameUse};
+use crate::help_unpublished::{exports_named, UNCOUNTED};
+use crate::help_unread::{Said, STORE};
 use crate::order::code_unit;
 
-const UNCOUNTED: &str = "a namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted";
-const NARROW: &str = "\n`--file`, the file one of them is declared in, answers for that declaration alone.";
+#[path = "help_uses_exported.rs"]
+mod exported;
+#[path = "help_uses_kept.rs"]
+mod kept;
+#[path = "help_uses_published.rs"]
+mod published;
 
-pub(crate) fn uses(root: &str, index: &Path, store: &mut File, name: &str, wanted: Option<&str>, from: Option<&str>, file: Option<&str>, limit: usize) -> Option<String> {
-    let mut rows = Rows::read(store)?;
-    let published = rows.published(name)?;
-    let path_rows = rows.path_uses(name)?;
-    if !published.is_empty() { rows.read_entries(store)?; }
-    if !path_rows.is_empty() {
-        rows.read_paths(store)?;
-    } else if wanted.is_some_and(|wanted| owner_of(wanted) != wanted) {
-        rows.read_path_targets(store)?;
+/// What an exported name's answer says beside its imports: the kept and member declarations it names under the headline, what follows the imports, and their files.
+struct Beside<'a> {
+    kept: Vec<&'a DeclaredName>,
+    members: Vec<&'a MemberSite>,
+    after: Vec<String>,
+    files: Vec<&'a str>,
+}
+
+/// One `uses` question: the checkout and index it reads, the name, how its
+/// answer is ordered and cut, and the surface whose spelling it is said in.
+pub(crate) struct Asking<'q> {
+    pub root: &'q str,
+    pub layers: &'q [Layer<'q>],
+    pub name: &'q str,
+    pub wanted: Option<&'q str>,
+    pub from: Option<&'q str>,
+    pub file: Option<&'q str>,
+    /// Rows of each kind shown, [`SHOWN`] when the question says none.
+    pub limit: Option<usize>,
+    pub surface: Surface<'q>,
+    /// What the answer read, collected as it is said: [`Listed`].
+    pub listed: RefCell<Listed>,
+}
+
+/// Sites of one kind shown when the question says no limit: how many are worth naming before the list stops being read.
+const SHOWN: usize = 12;
+
+impl Asking<'_> {
+    /// Rows of each kind this answer shows.
+    pub(crate) fn shown(&self) -> usize { self.limit.unwrap_or(SHOWN) }
+}
+
+/// The files a `uses` answer lists and rests on, every row and not only those shown.
+#[derive(Default)]
+pub(crate) struct Listed {
+    /// Every site, line of a declaring file, member declaration and use, and kept declaration, at its line.
+    pub sites: Vec<(String, u32)>,
+    /// Each file that passes a published declaration on between its entry and its file.
+    pub through: Vec<String>,
+    /// The files that declare, bind and publish the name; none when no file of the checkout does.
+    pub rests: Option<Vec<String>>,
+    pub unread: Vec<String>,
+}
+
+impl Listed {
+    /// The files the answer lists, each with its lines, ascending, once.
+    pub(crate) fn files(&self) -> Vec<(String, Vec<u32>)> {
+        let mut files: Vec<(String, Vec<u32>)> = Vec::new();
+        let mut at = std::collections::HashMap::new();
+        for (file, line) in &self.sites {
+            let held = *at.entry(file.as_str()).or_insert_with(|| { files.push((file.clone(), Vec::new())); files.len() - 1 });
+            files[held].1.push(*line);
+        }
+        for (_, lines) in &mut files { lines.sort_unstable(); lines.dedup(); }
+        files
     }
-    if published.is_empty() || wanted.is_some() { rows.read_export_lines(store)?; }
-    let package = PackageScope::read(&rows, wanted)?;
-    let mut entries = published.into_iter().map(|row| rows.entry(row)).collect::<Option<Vec<_>>>()?;
-    entries.retain(|entry| package.entry(entry));
-    let mut paths = path_rows.into_iter().map(|row| rows.path_site(row)).collect::<Option<Vec<_>>>()?;
+
+    /// The files the answer rests on: those that declare and publish the name, then each it lists.
+    pub(crate) fn printed(&self) -> Vec<String> {
+        let listed = self.files().into_iter().map(|(file, _)| file);
+        match &self.rests {
+            Some(rests) => rests.iter().cloned().chain(self.through.iter().cloned()).chain(listed).collect(),
+            None => listed.collect(),
+        }
+    }
+}
+
+/// The line that says how to narrow an answer naming several declaring files to one.
+fn narrow(surface: Surface<'_>) -> String {
+    format!("\n`{}`, the file one of them is declared in, answers for that declaration alone.", surface.input("file"))
+}
+
+/// Who uses the name `asking` names, read from the help store `store` and the
+/// index layers it carries: `Err` inside when the answer is that nothing
+/// declares it, and `Err` outside, saying why, when the answer did not read.
+pub(crate) fn uses(asking: &Asking<'_>, store: &mut (impl Read + Seek)) -> Result<Result<String, String>, String> {
+    let &Asking { root, layers, name, wanted, from, file, .. } = asking;
+    let mut rows = Rows::read(store).said(STORE)?;
+    let published = rows.published(name).said(STORE)?;
+    // The entries are read for a name published, bound by an import, or published under another name of its declaration.
+    let entries = !published.is_empty() || !aliases(root, layers, name).is_empty() || rows.publishes_declared(&rows.exported_beside(name).said(STORE)?).said(STORE)?;
+    let path_rows = rows.path_uses(name).said(STORE)?;
+    // A declaration published under another name is imported by path by the name it is declared by.
+    let mut by_declared = false;
+    for &row in &published { let declared = rows.string("pub.declared", row).said(STORE)?; by_declared |= declared != name && !rows.path_uses(declared).said(STORE)?.is_empty(); }
+    if entries { rows.read_entries(store).said(STORE)?; }
+    if !path_rows.is_empty() || by_declared {
+        rows.read_paths(store).said(STORE)?;
+    } else if wanted.is_some_and(|wanted| owner_of(wanted) != wanted) {
+        rows.read_path_targets(store).said(STORE)?;
+    }
+    // Which declaration an export is, and the name it is keyed by, is read off the export list.
+    rows.read_exported(store).said(STORE)?;
+    let package = PackageScope::read(&rows, wanted).said(STORE)?;
+    let mut paths = path_rows.into_iter().map(|row| rows.path_site(row)).collect::<Option<Vec<_>>>().said(STORE)?;
     paths.retain(|path| package.path(path.specifier));
-    let exports = rows.exports(name)?;
-    let in_package = exports.iter().filter(|export| package.export(export)).cloned().collect::<Vec<_>>();
-    let chain = OpenedChain::read(index.to_str()?).ok()??;
-    let layers = chain.layers();
+    let exports = rows.exports(name).said(STORE)?;
     let mut kept = declared(root, layers, name, Matching::Exact, None);
-    kept.names.retain(|held| package.declared(&held.by));
+    kept.names.retain(|held| package.declared(&held.by) && can_keep(held));
     let (container, member) = member_name(name);
     let mut members = member_declarations(root, layers, member);
     members.retain(|site| package.member(&site.by) && container.is_none_or(|on| site.on == on));
-    if entries.is_empty() && paths.is_empty() && in_package.is_empty() {
-        if !aliases(root, layers, name).is_empty() { return None }
+    let keys = Keys::new(root, layers, &rows);
+    let published = if entries { published_declarations(&keys, name, &package)? } else { Vec::new() };
+    let exported = exports_named(&keys, name, &package).said(STORE)?;
+    // Asked for the slot, a file imported by path answers only when its default is one nothing names.
+    if name == SLOT && published.is_empty() {
+        let mut answering = Vec::with_capacity(paths.len());
+        for site in paths { if site.to.map_or(Some(true), |to| keys.answers(to, SLOT, SLOT)).said(STORE)? { answering.push(site) } }
+        paths = answering;
+    }
+    {
+        let every: Vec<_> = exported.iter().collect();
+        let read = Readings { name, member, published: &published, paths: &paths, exports: &exports, declared: &kept.names, members: &members };
+        let resting = rows_of(&read, &rows, layers, &every, true, &[]).said(STORE)?;
+        let mut listed = asking.listed.borrow_mut();
+        listed.rests = (!resting.is_empty()).then(|| joined(resting).0.into_iter().map(|(file, _)| file).chain(publishing(&published, &[])).collect());
+        listed.unread.extend(unread_line(&kept.unread));
+        listed.unread.extend(member_stop(layers, member, if members.is_empty() { "there" } else { "there too" }));
+    }
+    let kept_here: Vec<&DeclaredName> = kept.names.iter().filter(|held| file.is_none_or(|file| held.at == file)).collect();
+    // A file named that declares nothing by the name, and passes no declaration of it on, is answered by the files that do.
+    let undeclared = file.filter(|file| !published.iter().any(|one| one.at == *file)
+        && !exported.iter().any(|held| held.export.at == *file)
+        && kept_here.is_empty() && !members.iter().any(|site| site.at == *file))
+        .and_then(|file| not_declared_in(name, file, &published, &exported, &kept.names, &members));
+    // A name nothing declares anywhere is answered as one before the files that bind it, whichever file was asked.
+    let nothing = published.is_empty() && paths.is_empty() && exported.is_empty() && members.is_empty();
+    members.retain(|site| file.is_none_or(|file| site.at == file));
+    // A file that keeps the name, or declares it as a member, answers for that declaration and not for an export's.
+    let elsewhere = file.is_some_and(|file| (!kept_here.is_empty() || !members.is_empty())
+        && !published.iter().any(|one| one.at == file) && !exported.iter().any(|held| held.export.at == file && held.export.bound.is_some()));
+    if (published.is_empty() && paths.is_empty() && exported.is_empty()) || elsewhere {
+        // A file named that declares nothing by the name is answered by the files that do, before any of theirs is read.
+        if let Some(undeclared) = undeclared { return Ok(Err(undeclared)) }
         if !members.is_empty() {
-            if !kept.names.is_empty() { return None }
-            members.retain(|site| file.is_none_or(|file| site.at == file));
-            return member_uses(name, member, &members, from, file, limit, layers, &kept.unread);
+            return kept::member_uses(asking, member, &members, &kept_here, &kept.unread).said(STORE).map(Ok);
         }
-        if container.is_some() { return None }
         if kept.names.iter().any(|held| !is_bound(&held.kind)) {
-            return private_uses(root, layers, name, from, file, limit, &kept.names, &kept.unread);
+            return kept::private_uses(asking, &kept.names, &kept.unread).said(STORE).map(Ok);
         }
-        let absent = nowhere(name, &rows.published_names()?, layers, &kept.unread, None, wanted, package.export_hint(&rows, name, &exports)?.as_deref());
-        if kept.names.is_empty() { return Some(absent) }
+        let absence = container_absence(&keys, root, layers, name, &package, asking.limit.unwrap_or(DECLARED_CAP), asking.surface).said(STORE)?;
+        let absent = nowhere(name, &rows.published_names().said(STORE)?, layers, &kept.unread, None, wanted, package.export_hint(&rows, name, &exports).said(STORE)?.as_deref(), absence, asking.surface);
+        if kept.names.is_empty() { return Ok(Err(absent)) }
+        if !nothing { return kept::private_uses(asking, &kept.names, &kept.unread).said(STORE).map(Ok) }
         // What was read is said with the absence, so the files it could not read are not said again.
-        return Some(format!("{absent}\n\n{}", private_uses(root, layers, name, from, file, limit, &kept.names, &[])?));
+        return Ok(Ok(format!("{absent}\n\n{}", kept::private_uses(asking, &kept.names, &[]).said(STORE)?)));
     }
-    if !members.is_empty() || !kept.names.is_empty() || !kept.unread.is_empty() { return None }
-    if entries.is_empty() {
-        return unpublished(root, layers, &rows, name, from, file, limit, &paths, &in_package, &package);
-    }
-    let (declarations, read) = published_imports(root, layers, name, entries, &exports, PublicationScope::Asked(&package))?;
-    let mut selected: Vec<_> = declarations.iter().zip(&read.groups).collect();
-    if let Some(file) = file {
-        let at = selected.iter().position(|((entries, _), _)| entries[0].at == file)
-            .or_else(|| selected.iter().position(|(_, group)| group.through.iter().any(|at| at == file)))?;
-        selected = vec![selected[at]];
-    }
-    let mut answers = selected.into_iter();
-    let ((lead, owner), group) = answers.next()?;
-    let for_file = |at| paths.iter().filter(move |path| path.to == Some(at)).map(|path| path.site);
-    let sites = joined_sites(lead, for_file(lead[0].at), &group.uses, &group.through);
-    let kinds: BTreeSet<_> = lead.iter().map(|entry| entry.kind).collect();
-    let kinds = kinds.into_iter().collect::<Vec<_>>().join(", ");
-    let many = answers.len() > 0;
-    let which = many.then(|| published_at(lead));
-    let mut lines = vec![headline(name, &kinds, which.as_deref(), None, owner, &sites)];
-    if many {
-        let count = declarations.len() - 1;
-        let times = if count == 1 { "once more, as another thing".to_owned() } else { format!("{count} more times, each another thing") };
-        lines.push(format!("It is declared {times}, answered below:"));
-        lines.extend(declarations[1..].iter().map(|(entries, _)| format!("  {}:{}, published by {}", entries[0].at, entries[0].line, publishers(entries))));
-    }
-    primary_sites(&mut lines, name, owner, lead[0].at, sites, &read.in_file, from, limit);
-    for ((entries, owner), group) in answers {
-        lines.push(format!("\n`{name}` is {} as well, which is another declaration.", published_at(entries)));
-        let sites = joined_sites(entries, for_file(entries[0].at), &group.uses, &group.through);
-        if sites.is_empty() {
-            lines.push("Nothing in this workspace imports it.".into());
-        } else {
-            let count = Counts::of(&sites, owner);
-            lines.push(format!("Imported in {}{}.{}", places(count.certain), count.split(owner), count.may_read(name)));
-            list_kinds(&mut lines, name, Some(owner), sites, from, limit);
-        }
-        list_own(&mut lines, entries[0].at, "declares", &read.in_file, limit);
-    }
-    if many {
-        lines.push(NARROW.into());
-    }
-    Some(lines.join("\n"))
-}
-
-fn member_uses(name: &str, member: &str, members: &[MemberSite], from: Option<&str>, file: Option<&str>, limit: usize, layers: &[Layer], unread: &[String]) -> Option<String> {
-    if members.is_empty() { return None }
-    let mut lines = vec![
-        format!("`{name}` is no exported name; it is a member, declared in {}:", places(members.len())),
-        from.map_or_else(|| "Path order; `--from` sorts nearest first.".into(), |from| format!("Nearest to {from} first.")),
-    ];
-    let mut ordered: Vec<_> = members.iter().collect();
-    ordered.sort_by(|a, b| nearest(from, &a.at, a.line, &b.at, b.line));
-    member_list(&mut lines, "Member declarations:", ordered.len(), limit, ordered.iter().map(|site| format!("{}:{} — {}", site.at, site.line, site.on)));
-    let mut unused = Vec::new();
-    for site in members {
-        let Some(uses) = &site.uses else { continue };
-        if uses.is_empty() {
-            unused.push(format!("`{}` at {}:{}", site.on, site.at, site.line));
-            continue;
-        }
-        let heading = format!("`{}.{member}`, declared at {}:{}, is used in {}:", site.on, site.at, site.line, places(uses.len()));
-        let mut uses: Vec<_> = uses.iter().collect();
-        uses.sort_by(|a, b| nearest(from, &a.at, a.line, &b.at, b.line));
-        member_list(&mut lines, &heading, uses.len(), limit, uses.iter().map(|site| {
-            let by = if site.by.is_empty() { String::new() } else { format!("{}, ", site.by) };
-            format!("{}:{} — {by}{}", site.at, site.line, site.how)
-        }));
-    }
-    if !unused.is_empty() {
-        lines.extend([String::new(), format!("No line uses `{member}` through a value whose type is written as {}.", unused.join(", "))]);
-    }
-    let (named, where_, reference) = match members {
-        [site] => {
-            let named = site.uses.as_ref().map_or_else(|| member.to_owned(), |_| format!("{}.{member}", site.on));
-            let where_ = format!("{}:{}", site.at, site.line);
-            let reference = format!("`{named}` at {where_}");
-            (named, where_, reference)
-        }
-        _ => (member.to_owned(), "the declaration you mean".into(), "the declaration you mean, each listed above with its file and line (`--package` narrows the declarations to one package)".into()),
+    let beside = Beside {
+        kept: if file.is_none() { kept_here.clone() } else { Vec::new() },
+        members: if file.is_none() { kept::ordered(&members, from) } else { Vec::new() },
+        after: kept::beside(asking, member, &members, &kept_here, &kept.unread).said(STORE)?,
+        files: kept::declaring(&kept_here).chain(members.iter().map(|site| site.at.as_str())).collect(),
     };
-    lines.extend([
-        String::new(),
-        format!("An implementation of `{named}` that takes its type from where it goes — an argument, a property, a returned value — writes no type on its line and is not listed: TypeScript's language service's go-to-implementation on {where_} names it."),
-        "A use is listed here only where its line writes the value's type. A use through an inferred value, a generic, a subtype by `extends`, a JSX attribute, a utility type or an inline type literal is not: which type a value has is a type checker's answer, and none runs here.".into(),
-        format!("Ask TypeScript for those: its language service's find-references on {reference}."),
-    ]);
-    lines.extend(member_stop(layers, member, "there too"));
-    lines.extend(unread_line(unread));
-    if file.is_none() && members.iter().any(|site| site.at != members[0].at) { lines.push(NARROW.into()); }
-    Some(lines.join("\n"))
-}
-
-fn member_list(lines: &mut Vec<String>, heading: &str, count: usize, limit: usize, rows: impl Iterator<Item = String>) {
-    lines.extend([String::new(), heading.to_owned(), String::new()]);
-    lines.extend(rows.take(limit));
-    if count > limit { lines.push(format!("… {} more not shown; a higher `--limit` shows them.", count - limit)); }
-}
-
-fn private_uses(root: &str, layers: &[Layer], name: &str, from: Option<&str>, file: Option<&str>, limit: usize, declarations: &[DeclaredName], unread: &[String]) -> Option<String> {
-    let mut selected: Vec<_> = declarations.iter().filter(|held| file.is_none_or(|file| held.at == file)).collect();
-    selected.sort_by_key(|held| declaration_kind_order(held));
-    let first = selected.first()?;
-    let files = files_of(&selected);
-    let (bound, declaring): (Vec<_>, Vec<_>) = selected.iter().copied().partition(|held| is_bound(&held.kind));
-    let mut lines = kept_lines(name, &declaring);
-    lines.extend(kept_lines(name, &bound));
-    let declaring = files_of(&declaring);
-    let asked = files.iter().map(|&file| Asked { file: file.to_owned(), name: name.to_owned() }).collect();
-    let read = importers(root, layers, &[asked]);
-    let group = read.groups.first()?;
-    if !group.uses.is_empty() {
-        let home = (!first.by.is_empty()).then_some(first.by.as_str());
-        let sites = joined_sites(&[], [], &group.uses, &group.through);
-        let count = Counts::of(&sites, home.unwrap_or(""));
-        let split = home.map_or_else(String::new, |home| count.split(home));
-        lines.push(format!("\nImported in {}{split}.{}", places(count.certain), count.may_read(name)));
-        list_kinds(&mut lines, name, home, sites, from, limit);
+    if published.is_empty() {
+        if let Some(undeclared) = undeclared { return Ok(Err(undeclared)) }
+        if exported.is_empty() { return Ok(Ok(path_uses(asking, &paths))) }
+        return exported::exported_uses(asking, &rows, &paths, &exported, &package, beside).map(Ok);
     }
-    let mut at = None;
-    for site in &read.in_file {
-        if at == Some(site.at.as_str()) { continue }
-        list_own(&mut lines, &site.at, if declaring.contains(site.at.as_str()) { "declares" } else { "binds" }, &read.in_file, limit);
-        at = Some(&site.at);
+    // A file named that exports a declaration of its own, which no entry publishes, is answered for that declaration alone.
+    let unpublished_here = file.is_some_and(|file| !published.iter().any(|one| one.at == file)
+        && exported.iter().any(|held| held.export.at == file && held.declaration.is_some()
+            && !published.iter().any(|one| one.at == held.key.at && one.declared == held.key.named)));
+    if unpublished_here { return exported::exported_uses(asking, &rows, &paths, &exported, &package, beside).map(Ok) }
+    // A file a door opens, or a barrel between it and the declaration, passes the published one on.
+    match published::published_uses(asking, &keys, &paths, published, &exported, &package, beside) {
+        None => undeclared.map(Err).said(STORE),
+        Some(answered) => Ok(Ok(answered)),
     }
-    lines.extend(unread_line(unread));
-    if file.is_none() && declaring.len() > 1 { lines.push(NARROW.into()); }
-    Some(lines.join("\n"))
 }
 
-fn files_of<'d>(rows: &[&'d DeclaredName]) -> BTreeSet<&'d str> {
-    rows.iter().map(|held| held.at.as_str()).collect()
+/// The answer for a `file` that declares no thing by the name: the files that
+/// do, or the ones that only bind it when none does; `None` when no file does either.
+fn not_declared_in(name: &str, file: &str, published: &[crate::help_symbol_published::Declaration<'_>], exported: &[crate::help_unpublished::Unpublished<'_>], kept: &[DeclaredName], members: &[MemberSite]) -> Option<String> {
+    let mut files: Vec<&str> = published.iter().map(|one| one.at)
+        .chain(exported.iter().filter(|held| held.export.bound.is_some()).map(|held| held.export.at))
+        .chain(kept.iter().filter(|held| !is_bound(&held.kind)).map(|held| held.at.as_str()))
+        .chain(members.iter().map(|site| site.at.as_str())).collect();
+    let declared = !files.is_empty();
+    if !declared { files = kept.iter().map(|held| held.at.as_str()).collect() }
+    files.sort_by(|a, b| code_unit(a, b));
+    files.dedup();
+    let (last, earlier) = files.split_last()?;
+    let all = if earlier.is_empty() { (*last).to_owned() } else { format!("{} and {last}", earlier.join(", ")) };
+    Some(format!("`{name}` is not declared in {file}; it is {} in {all}.", if declared { "declared" } else { "bound" }))
 }
 
-/// What each row is, where it is written and who can reach it there; every row is declared, or every one is bound.
-fn kept_lines(name: &str, rows: &[&DeclaredName]) -> Vec<String> {
-    match rows {
-        [] => Vec::new(),
-        [only] => vec![format!("`{name}` [{}] is {}, at {}:{}{}{}.", only.kind, kept_as(only), only.at, only.line, spelled(only, name), private_reach(only))],
-        [first, ..] => {
-            let files = files_of(rows).len();
-            let count = if files == rows.len() { format!("{files} files") } else { places(rows.len()) };
-            let mut lines = vec![format!("`{name}` is {}, in {count}:", kept_as(first))];
-            lines.extend(rows.iter().map(|held| format!("  {}:{}{} [{}]{}", held.at, held.line, spelled(held, name), held.kind, private_reach(held))));
-            lines
+/// Who imports each group of `asked`, a line two names of one group reach
+/// being one use with the lines of each: `import greet, { greet as g2 }`
+/// imports one declaration under two of its names.
+fn importers_of_every(root: &str, layers: &[Layer], asked: &[Vec<Asked>]) -> Importers {
+    let mut read = importers(root, layers, asked);
+    let mut joined = false;
+    for (group, names) in read.groups.iter_mut().zip(asked) {
+        if names.iter().all(|one| one.name == names[0].name) { continue }
+        joined = true;
+        let mut uses: Vec<NameUse> = Vec::with_capacity(group.uses.len());
+        for one in group.uses.drain(..) {
+            match uses.last_mut().filter(|held| held.at == one.at && held.line == one.line) {
+                Some(held) => if let Some(lines) = one.lines {
+                    let mut all = held.lines.take().unwrap_or_default();
+                    all.extend(lines);
+                    all.sort_unstable();
+                    all.dedup();
+                    held.lines = Some(all);
+                },
+                None => uses.push(one),
+            }
         }
+        group.uses = uses;
     }
+    if joined { read.in_file.dedup_by(|a, b| a.at == b.at && a.line == b.line) }
+    read
 }
 
-fn spelled(held: &DeclaredName, name: &str) -> String {
-    if held.name == name { String::new() } else { format!(" as `{}`", held.name) }
+/// How the sites below are ordered: by path, or nearest the file `from` names.
+fn order_line(asking: &Asking<'_>) -> String {
+    asking.from.map_or_else(|| format!("Path order; `{}` sorts nearest first.", asking.surface.input("from")), |from| format!("Nearest to {from} first."))
 }
 
-fn private_reach(held: &DeclaredName) -> String {
-    if let Some(line) = held.holder_line {
-        let holder = held.holder.as_ref().map(|name| format!("`{name}`"));
-        let who = holder.clone().unwrap_or_else(|| format!("the function written at {}:{line}", held.at));
-        let inside = holder.as_deref().unwrap_or("that function");
-        return format!(", so only {who} can name it: it is declared inside {inside}");
-    }
-    match held.reach.as_deref() {
-        Some("file") => ", so nothing outside that file can import it".into(),
-        Some("module") => ", so only its module and the modules inside it can name it".into(),
-        Some("underscore" | "all") => {
-            let file = &held.at;
-            let query = format!(r"\b{}\b", held.name);
-            let ask = typed(CLI, "grep", &[("query", Value::Text(&query)), ("to", Value::Text(file))]);
-            format!("; another module can still import it by name, which `{ask}` finds")
-        }
-        _ => "; who can reach it is not recorded".into(),
-    }
-}
-
-fn unpublished(root: &str, layers: &[Layer], rows: &Rows, name: &str, from: Option<&str>, file: Option<&str>, limit: usize, paths: &[PathSite<'_>], exports: &[Export<'_>], package: &PackageScope<'_>) -> Option<String> {
-    let [export] = exports else { return None };
-    if export.name != name || export.bound != Some(name) || kind_of(export.at) != "source" || export.by.is_empty() || file.is_some_and(|file| file != export.at)
-        || paths.iter().any(|site| site.to != Some(export.at)) {
-        return None;
-    }
-    let declared = declaration_exported(layers, export.at, name)?;
-    let mut imports = importers(root, layers, &[vec![Asked { file: export.at.to_owned(), name: name.to_owned() }]]);
-    if !imports.namespaces.is_empty() { return None }
-    let group = imports.groups.first_mut()?;
-    group.uses.retain(|site| package.through(&site.key));
-    let sites = joined_sites(&[], paths.iter().map(|site| site.site), &group.uses, &group.through);
-    let exported_at = format!("{}:{}", export.at, rows.export_line(export)?);
-    let mut lines = vec![headline(name, &declared.kind, None, Some(&exported_at), export.by, &sites)];
-    primary_sites(&mut lines, name, export.by, export.at, sites, &imports.in_file, from, limit);
-    Some(lines.join("\n"))
-}
-
-fn primary_sites(lines: &mut Vec<String>, name: &str, owner: &str, at: &str, sites: Vec<Site<'_>>, own: &[InFile], from: Option<&str>, limit: usize) {
-    let imported = !sites.is_empty();
+/// The imports of the declaration answered first, then the lines of each of `files` that use it.
+fn primary_sites(lines: &mut Vec<String>, asking: &Asking<'_>, owner: &str, files: &[&str], sites: Vec<Site<'_>>, strays: Strays<'_>, own: &[InFile]) {
+    let imported = !sites.is_empty() || !strays.dead.is_empty() || !strays.unresolved.is_empty();
     if imported {
-        lines.push(from.map_or_else(|| "Path order; `--from` sorts nearest first.".into(), |from| format!("Nearest to {from} first.")));
-        list_kinds(lines, name, Some(owner), sites, from, limit);
+        lines.push(order_line(asking));
+        // An export no package owns has no inside to set apart: every site lists with its owner.
+        list_kinds(lines, asking, (!owner.is_empty()).then_some(owner), sites);
+        stray_sites(lines, asking, strays.dead, DEAD);
+        stray_sites(lines, asking, strays.unresolved, UNRESOLVED);
     }
-    list_own(lines, at, "declares", own, limit);
+    for at in files { list_own(lines, asking, at, "declares", own); }
     if imported { lines.push(format!("\nA{}.", &UNCOUNTED[1..])); }
 }
 
-fn publishers(entries: &[Entry<'_>]) -> String {
-    entries.iter().map(|entry| entry.specifier).collect::<Vec<_>>().join(", ")
+/// The imports by path no declaration read here is credited with, listed apart.
+#[derive(Default)]
+pub(super) struct Strays<'a> {
+    /// Each reaching a file that exports no declaration of the name read here.
+    pub dead: Vec<Site<'a>>,
+    /// Each naming a package the source index resolved to no file: where it leads is not known.
+    pub unresolved: Vec<Site<'a>>,
 }
 
-fn published_at(entries: &[Entry<'_>]) -> String {
-    format!("published by {}, declared at {}:{}", publishers(entries), entries[0].at, entries[0].line)
+/// How a dead import by path reaches no declaration: its file exports none of the name read here.
+pub(crate) const DEAD: &str = "a path that reaches no one declaration read here";
+/// How an unresolved import by path reaches no declaration: where it leads is not known.
+pub(crate) const UNRESOLVED: &str = "a path the source index resolved to no file";
+
+/// The sentence over `count` imports of `name` by path, `how` they reach no declaration, that `symbol` and `uses` list apart.
+pub(crate) fn stray_heading(name: &str, count: usize, how: &str) -> String {
+    let import = if count == 1 { "imports" } else { "import" };
+    format!("{count} more {import} `{name}` by {how}, so none is credited with them:")
 }
 
-fn headline(name: &str, kinds: &str, published: Option<&str>, exported: Option<&str>, home: &str, sites: &[Site<'_>]) -> String {
-    let named = format!("`{name}` [{kinds}]");
+/// One kind of import by path that reaches no declaration of the name read
+/// here, `how` it reaches none, listed apart, each with its package, since none
+/// is credited with them.
+fn stray_sites(lines: &mut Vec<String>, asking: &Asking<'_>, mut sites: Vec<Site<'_>>, how: &str) {
+    if sites.is_empty() { return }
+    let &Asking { name, from, .. } = asking;
+    let limit = asking.shown();
+    asking.listed.borrow_mut().sites.extend(sites.iter().map(|site| (site.at.to_owned(), site.line)));
+    sites.sort_by(|a, b| nearest(from, a.at, a.line, b.at, b.line));
+    let heading = stray_heading(name, sites.len(), how);
+    list(lines, asking, &heading, sites.iter().map(|site| site_line(site, name, false, limit)));
+}
+
+/// `uses` for a name only imports by path name, which no file here exports:
+/// each import, with its package.
+fn path_uses(asking: &Asking<'_>, paths: &[crate::help_symbol_rows::PathSite<'_>]) -> String {
+    let sites: Vec<_> = paths.iter().map(|path| path.site).collect();
+    let mut lines = vec![format!("`{}` is imported in {}, and no entry publishes it.", asking.name, places(sites.len())), order_line(asking)];
+    list_kinds(&mut lines, asking, None, sites);
+    lines.join("\n")
+}
+
+/// `strayed`: imports by path are listed apart below, so an export no site is credited to is still imported.
+fn headline(asking: &Asking<'_>, kinds: &str, published: Option<&str>, exported: Option<(&str, Option<&str>)>, home: &str, sites: &[Site<'_>], strayed: bool) -> String {
+    let name = asking.name;
+    let named = if kinds.is_empty() { format!("`{name}`") } else { format!("`{name}` [{kinds}]") };
     if sites.is_empty() {
-        if let Some(at) = exported {
-            return format!("{named} is exported, without being published, at {at}, and nothing in this workspace imports it; {UNCOUNTED}.");
+        if let Some((at, member)) = exported {
+            let how = member.map_or_else(|| format!("exported, without being published, at {at}"), |member| format!("{member}, and exported at {at}"));
+            let taken = if strayed { "no import read here is credited with it" } else { "nothing in this workspace imports it" };
+            return format!("{named} is {how}, and {taken}; {UNCOUNTED}.");
         }
         let published = published.map_or_else(|| "published".into(), |at| format!("{at},"));
-        return format!("{named} is {published} and nothing in this workspace imports it; {UNCOUNTED}. `variance ask symbol` has its signature and what is written above it.");
+        return format!("{named} is {published} and nothing in this workspace imports it; {UNCOUNTED}. `{}` has its signature and what is written above it.", asking.surface.tool("symbol"));
     }
     let which = match (published, exported) {
         (Some(at), _) => format!(", {at}"),
-        (_, Some(at)) => format!(", and no entry publishes it; it is exported at {at}"),
+        (_, Some((at, member))) => format!(", {}; it is exported at {at}", member.unwrap_or("and no entry publishes it")),
         _ => String::new(),
     };
     let count = Counts::of(sites, home);
@@ -296,7 +331,7 @@ fn headline(name: &str, kinds: &str, published: Option<&str>, exported: Option<&
         let loaded = if count.dynamic == 0 { ".".into() } else {
             format!(", {} through import(), which loads the module when the call runs.", count.dynamic)
         };
-        format!("{named} is imported in {}{}{which}{loaded}", places(count.certain), count.split(home))
+        format!("{named} is imported in {}{}{which}{loaded}", places(count.certain), if home.is_empty() { String::new() } else { count.split(home) })
     };
     format!("{taken}{}", count.may_read(name))
 }
@@ -305,7 +340,22 @@ fn places(count: usize) -> String {
     format!("{count} {}", if count == 1 { "place" } else { "places" })
 }
 
-pub(super) struct Counts {
+/// How many places import a declaration named on one line beside the one answered first.
+/// A place that reads the name off `default` or passes the module on whole is counted apart, as one that may read it.
+/// Each place counted is listed with the answer, so what reads its files, and when they change, sees every one.
+fn imported(asking: &Asking<'_>, sites: &[Site<'_>]) -> String {
+    asking.listed.borrow_mut().sites.extend(sites.iter().map(|site| (site.at.to_owned(), site.line)));
+    let count = Counts::of(sites, "");
+    let may = count.off + count.whole;
+    match (count.certain, may) {
+        (0, 0) => ", imported nowhere".into(),
+        (0, may) => format!(", imported by name nowhere, and {} may read it", places(may)),
+        (certain, 0) => format!(", imported in {}", places(certain)),
+        (certain, may) => format!(", imported in {}, and {may} more may read it", places(certain)),
+    }
+}
+
+pub(crate) struct Counts {
     pub(super) certain: usize,
     inside: usize,
     pub(super) off: usize,
@@ -358,49 +408,54 @@ impl Counts {
     }
 }
 
-fn nearest(from: Option<&str>, at: &str, line: u32, other_at: &str, other_line: u32) -> std::cmp::Ordering {
-    let shared = |at: &str| from.map_or(0, |from| from.split('/').zip(at.split('/')).take_while(|(a, b)| a == b).count());
-    shared(other_at).cmp(&shared(at)).then_with(|| code_unit(at, other_at)).then(line.cmp(&other_line))
-}
-
-fn list_kinds(lines: &mut Vec<String>, name: &str, home: Option<&str>, mut sites: Vec<Site<'_>>, from: Option<&str>, limit: usize) {
+fn list_kinds(lines: &mut Vec<String>, asking: &Asking<'_>, home: Option<&str>, mut sites: Vec<Site<'_>>) {
+    let &Asking { name, from, .. } = asking;
+    let limit = asking.shown();
+    asking.listed.borrow_mut().sites.extend(sites.iter().map(|site| (site.at.to_owned(), site.line)));
     sites.sort_by(|a, b| nearest(from, a.at, a.line, b.at, b.line));
     for (kind, heading) in [("story", "Stories"), ("test", "Tests"), ("source", "Source")] {
         let of = sites.iter().filter(|site| site.kind == kind);
         let Some(home) = home else {
             let rows: Vec<_> = of.collect();
-            list(lines, &format!("{heading}:"), rows.iter().map(|site| site_line(site, name, false, limit)), limit);
+            list(lines, asking, &format!("{heading}:"), rows.iter().map(|site| site_line(site, name, false, limit)));
             continue;
         };
         let (outside, inside): (Vec<_>, Vec<_>) = of.partition(|site| site.by != home);
-        list(lines, &format!("{heading}, from other packages:"), outside.iter().map(|site| site_line(site, name, false, limit)), limit);
-        list(lines, &format!("{heading}, inside {home}:"), inside.iter().map(|site| site_line(site, name, true, limit)), limit);
+        list(lines, asking, &format!("{heading}, from other packages:"), outside.iter().map(|site| site_line(site, name, false, limit)));
+        list(lines, asking, &format!("{heading}, inside {home}:"), inside.iter().map(|site| site_line(site, name, true, limit)));
     }
 }
 
-fn list_own(lines: &mut Vec<String>, at: &str, does: &str, uses: &[InFile], limit: usize) {
+fn list_own(lines: &mut Vec<String>, asking: &Asking<'_>, at: &str, does: &str, uses: &[InFile]) {
     let start = uses.partition_point(|site| code_unit(&site.at, at).is_lt());
     let group = &uses[start..];
     let end = group.partition_point(|site| site.at == at);
     if end == 0 { return }
+    asking.listed.borrow_mut().sites.extend(group[..end].iter().map(|site| (site.at.clone(), site.line)));
     let by = &group[0].by;
     let who = if by.is_empty() { String::new() } else { format!(" — {by}") };
-    list(lines, &format!("Used in {at}{who}, which {does} it:"), group[..end].iter().map(|site| format!("  {}", site.line)), limit);
+    list(lines, asking, &format!("Used in {at}{who}, which {does} it:"), group[..end].iter().map(|site| format!("  {}", site.line)));
 }
 
-fn list(lines: &mut Vec<String>, heading: &str, rows: impl ExactSizeIterator<Item = String>, limit: usize) {
+fn list(lines: &mut Vec<String>, asking: &Asking<'_>, heading: &str, rows: impl ExactSizeIterator<Item = String>) {
+    let limit = asking.shown();
     let count = rows.len();
     if count == 0 { return }
     lines.extend([String::new(), heading.to_owned(), String::new()]);
     lines.extend(rows.take(limit));
     if count > limit {
-        lines.push(format!("… {} more not shown; a higher `--limit` shows them.", count - limit));
+        lines.push(more_line(asking, count - limit));
     }
+}
+
+/// The line counting the `more` rows a list did not show.
+fn more_line(asking: &Asking<'_>, more: usize) -> String {
+    format!("… {more} more not shown; a higher `{}` shows them.", asking.surface.input("limit"))
 }
 
 fn site_line(site: &Site<'_>, name: &str, inside: bool, limit: usize) -> String {
     let mut text = format!("{}:{}", site.at, site.line);
-    if !inside { text.push_str(&format!(" — {}", site.by)); }
+    if !inside && !site.by.is_empty() { text.push_str(&format!(" — {}", site.by)); }
     if let Some((kind, specifier)) = site.path { text.push_str(&kind.how(specifier)); }
     if let Some(local) = site.local.filter(|local| *local != name) {
         text.push_str(&format!(" (as {local})"));

@@ -224,7 +224,7 @@ describe('`variance serve` in a checkout with no report', () => {
     const { checkout, commit } = await checkoutWithShare();
     try {
       const result = await ask<Answer>('tools/call', { name: 'variance_summary' }, checkout);
-      expect(result.content[0]!.text).toMatch(new RegExp(`^report: read from mainline main, evaluated at ${commit}, .*; kept at .+report\\.json\\.\n\n`));
+      expect(result.content[0]!.text).toMatch(new RegExp(`^report: read from mainline main, evaluated at ${commit}, [^;\n]*\\.\n\n`));
     } finally {
       await rm(checkout, { recursive: true, force: true });
     }

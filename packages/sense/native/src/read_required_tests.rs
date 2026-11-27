@@ -138,3 +138,16 @@ fn a_required_module_that_goes_on_whole_is_read_whole_as_an_import_is() {
         assert_eq!(members_of("a.mjs", source), [read("./m", "*", 2)], "{source}");
     }
 }
+
+#[test]
+fn a_required_holder_written_with_another_value_reads_nothing_of_the_module_after_the_write() {
+    let source = concat!(
+        "let m = require('./a');\n",
+        "m.before();\n",
+        "if (x) m = other;\n",
+        "m.maybe();\n",
+        "m = other;\n",
+        "m.after();\n",
+    );
+    assert_eq!(members(source), [read("./a", "before", 2), read("./a", "maybe", 4)]);
+}

@@ -20,6 +20,10 @@ const WHOLE_FILE: Covering = {
 };
 
 describe('an answer with every case named once', () => {
+  it('says a file with no recorded line holds none, and names no file it was read from', () => {
+    expect(formatCovering({ file: 'src/a.ts', from: '/cache/coverage.bin', ranges: [] }, 'text', Date.now()).split('\n')[0]).toBe('No line of src/a.ts is recorded.');
+  });
+
   it('numbers each case once and names every range by those numbers, runs collapsed', () => {
     expect(formatCovering(WHOLE_FILE, 'refs', Date.now())).toBe([
       'packages/ioc/src/reset/index.ts — 5 recorded ranges',
@@ -57,7 +61,7 @@ describe('an answer with every case named once', () => {
       }],
     };
     expect(formatCovering(changed, 'refs', Date.now()).split('\n').slice(0, 5)).toEqual([
-      '1 changed file since origin/main, read from coverage.bin',
+      '1 changed file since origin/main, read from a record that names no commit',
       'packages/ioc/src/reset/index.ts',
       '  1-90 the top level walked: 1-3; carried 1',
       '  59-61 function reset alone: 3',
@@ -95,7 +99,7 @@ describe('an answer with every case named once', () => {
       }],
     };
     expect(formatCovering(changed, 'refs', Date.now()).split('\n').slice(0, 3)).toEqual([
-      '1 changed file since origin/main, read from coverage.bin',
+      '1 changed file since origin/main, read from a record that names no commit',
       file,
       '  6-10 function beta: none; which case ran it not known',
     ]);

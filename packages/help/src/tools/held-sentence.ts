@@ -22,6 +22,11 @@ function sentencesOf(doc: string): readonly string[] {
     .filter((sentence) => sentence !== '');
 }
 
+/** A doc's first sentence, on one line, or the empty string when it has none. */
+export function firstSentence(doc: string): string {
+  return sentencesOf(doc)[0] ?? '';
+}
+
 /**
  * What a row prints of its doc for `query`: the sentence holding the most of the
  * question's distinct stems, the earliest of those that hold as many, read by the

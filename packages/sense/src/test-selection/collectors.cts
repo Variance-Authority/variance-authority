@@ -118,7 +118,7 @@ function attach(holder: Holder, continuations: boolean, story = false): Engine {
     }
     return found;
   }
-  const engine = probeLog.createEngine(continuations, probeSet.probeSet, probeCuts.createCuts());
+  const engine = probeLog.createEngine(continuations, probeSet.probeSet, probeCuts.createCuts(holder));
   holder.__VA__ = story ? storyTap.createTap(engine, storyTap.TAPE_LIMIT).root : engine.root;
   return engine;
 }

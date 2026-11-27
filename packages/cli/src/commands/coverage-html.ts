@@ -13,6 +13,7 @@
 import type { FanInFile, OwnedFile } from '@variance-authority/sense/test-selection';
 import { kindRows } from './coverage-fan-in-text.js';
 import { banded, coverageParts, files, grouped, leading, paired, ratio, short, sourceWhere, unparsed } from './coverage-summary.js';
+import { CHANGE_STYLE, changeSection } from './coverage-html-change.js';
 import { census, chip, section, text } from './report-html-elements.js';
 import { MARK, PAGE } from './report-html-style.js';
 import type { CoverageSource, Unloaded } from './coverage-source.js';
@@ -26,13 +27,14 @@ export function coverageHtml(answer: Coverage): string {
     '<html lang="en"><head><meta charset="utf-8">',
     '<meta name="viewport" content="width=device-width,initial-scale=1">',
     `<title>${text(`variance ${title}`)}</title>`,
-    `<style>${PAGE}${STYLE}</style>`,
+    `<style>${PAGE}${STYLE}${CHANGE_STYLE}${NARROW}</style>`,
     '</head><body>',
     masthead(answer),
     '<main>',
+    changeSection(answer),
     suites(answer),
-    kinds(answer),
     flatFiles(answer),
+    kinds(answer),
     unloaded(answer),
     '</main>',
     `<script>${SCRIPT}</script>`,
@@ -147,7 +149,8 @@ function kinds(answer: Coverage): string {
         table(['kind', ...head!.slice(1).map((name) => (name === '' ? 'share' : name))], rows, [1, 2, 3, 4, 5, 6, 7]),
     );
   }
-  return section('Kinds', 'what each kind of test runs alone, and what several share', parts.join(''));
+  // Folded: the census of kinds answers the repository, not the change, so it waits a tap away.
+  return `<section id="Kinds"><details class="fold"><summary>Kinds<span class="hint">what each kind of test runs alone, and what several share</span></summary>${parts.join('')}</details></section>`;
 }
 
 /* --- packages and files ----------------------------------------------------- */
@@ -163,7 +166,7 @@ function flatFiles(answer: Coverage): string {
     for (const file of owned) byOwner.set(file.owner, [...(byOwner.get(file.owner) ?? []), file]);
     // Without `--packages` no file has an owner, so a package is its figure alone.
     const listOf = (from: string): readonly OwnedFile[] | undefined => (answer.ownership === undefined ? undefined : byOwner.get(from) ?? []);
-    const blocks = answer.entries.map((entry) => {
+    const blocks = [...answer.entries].sort((a, b) => unrun(b) - unrun(a)).map((entry) => {
       const block = pack(entry.from, 'missed' in entry ? `<span class="nil">${text(entry.missed)}</span>` : figure(entry.own), listOf(entry.from), entered);
       byOwner.delete(entry.from);
       return block;
@@ -178,6 +181,11 @@ function flatFiles(answer: Coverage): string {
     drawn.push(section('Files', `${files(listed.length)} a suite loaded`, search + fileTable(rows, false)));
   }
   return drawn.join('');
+}
+
+/** The regions a package holds that no case ran; a package that could not be counted goes last. */
+function unrun(entry: NonNullable<Coverage['entries']>[number]): number {
+  return 'missed' in entry ? -1 : entry.own.regions - entry.own.ran;
 }
 
 function figure(own: CoverageSource): string {
@@ -252,7 +260,21 @@ function notLoaded(none: Unloaded): string {
 
 function table(head: readonly string[], rows: readonly string[], numbers: readonly number[]): string {
   const ths = head.map((name, at) => `<th${numbers.includes(at) ? ' class="num"' : ''}>${text(name)}</th>`).join('');
-  return `<table><thead><tr>${ths}</tr></thead><tbody>${rows.join('')}</tbody></table>`;
+  return `<table><thead><tr>${ths}</tr></thead><tbody>${rows.map((row) => labelled(row, head, numbers)).join('')}</tbody></table>`;
+}
+
+/**
+ * Each count cell named by its column, for a phone that stacks the cells and
+ * hides the header. A cell spanning columns takes the first one's name.
+ */
+function labelled(row: string, head: readonly string[], numbers: readonly number[]): string {
+  let at = 0;
+  return row.replace(/<td(?<attributes>[^>]*)>/gu, (cell, attributes: string) => {
+    const column = at;
+    at += Number(/colspan="(?<span>\d+)"/u.exec(attributes)?.groups?.span ?? 1);
+    const name = head[column];
+    return numbers.includes(column) && name !== undefined ? `<td data-label="${text(name)}"${attributes}>` : cell;
+  });
 }
 
 /** A ratio drawn as a short bar; nothing when there is nothing to divide. */
@@ -293,6 +315,35 @@ border-radius:5px;color:var(--ivory);font:12px/1.6 var(--mono);padding:.35rem .5
 .package summary code,.package.flat code{flex:1;font-size:12px}
 .package summary b,.package.flat b{color:var(--ivory)}
 .package table{margin:0 0 1rem}
+details.fold>summary{display:flex;align-items:baseline;cursor:pointer;list-style:none;font-size:11px;letter-spacing:.18em;
+text-transform:uppercase;color:var(--warm);margin:2.25rem 0 .5rem}
+details.fold>summary::-webkit-details-marker{display:none}
+details.fold>summary::before{content:'▸';margin-right:.5rem}
+details.fold[open]>summary::before{content:'▾'}
+`;
+
+/** The phone's layout, last so it overrides every section's own rules. */
+const NARROW = `
+@media (max-width:700px){
+header{position:static}
+main{padding:1rem 1rem 3rem}
+table,thead,tbody,tr,td{display:block}
+thead{display:none}
+tr{padding:.45rem 0;border-bottom:1px solid var(--hairline)}
+td{border:0;padding:.1rem 0;text-align:left}
+td:empty{display:none}
+td[data-label]::before{content:attr(data-label) ' ';color:var(--quiet)}
+.package summary,.package.flat{flex-wrap:wrap;gap:.25rem .75rem}
+.package summary code,.package.flat code{flex-basis:100%}
+.file,code{overflow-wrap:anywhere}
+.brand,.chip,.key,.mark,.hint,.file,.note,th,td,table,h2,h1 .more,h1 span,code,#filter,.package summary,details.fold>summary{font-size:12px}
+.hint{display:block;margin:.2rem 0 0;letter-spacing:0;text-transform:none}
+.suites .suite{grid-template-columns:1fr auto;row-gap:.3rem}
+.suites .suite b{white-space:nowrap}
+.suites .suite .diverge,.suites .suite .moves{grid-column:1/3}
+.moves{white-space:normal}
+h2,h3,details.fold>summary{flex-wrap:wrap}
+}
 `;
 
 /** Filtering by path opens each package that holds a match, and shuts the rest again. */

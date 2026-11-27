@@ -23,8 +23,7 @@ import type { Said } from './held-sentence.js';
 import type { AliasMatch, DeclaredMatch, DeclaredRead, HeldMatch, Matches, MatchingFiles } from './search-matches.js';
 import { boundOf, SLOT } from './declaration-key.js';
 import { isUnnamedContainer } from './members.js';
-import { sharedSegments } from './shared-segments.js';
-import { notShownPast, type Spelling } from '@variance-authority/mcp/tools';
+import type { Spelling } from '@variance-authority/mcp/tools';
 import type { Help } from '@variance-authority/package/help';
 import { askedOnce } from './asked-once.js';
 import { grep } from './grep.js';
@@ -33,7 +32,7 @@ import { grep } from './grep.js';
 export const DECLARED_CAP = 5;
 
 /** What the source index says about declarations, or why it says nothing. */
-export type Declarations =
+type Declarations =
   | { readonly names: readonly DeclaredName[]; readonly unread: readonly string[] }
   | { readonly refused: string };
 
@@ -65,35 +64,10 @@ export function declarations(
 }
 
 /** The declarations of exactly `name`, read once for a generation's answer and the look at it. */
-export const declarationsNamed = askedOnce((_help: Help, root: string | undefined, name: string): Declarations => declarations(root, name));
+const declarationsNamed = askedOnce((_help: Help, root: string | undefined, name: string): Declarations => declarations(root, name));
 
 /** Whether a row only binds the name to a value defined elsewhere, which declares nothing. */
 export const isBound = (one: Pick<DeclaredName, 'kind'>): boolean => one.kind === BINDING;
-
-/** What a file does with a name it does not export, as every answer about the name says it. */
-export const keptAs = (one: Pick<DeclaredName, 'kind'>): string => (isBound(one) ? 'bound, not declared' : 'declared, not exported');
-
-/**
- * One declaration or binding, as `symbol` writes it: the name and its kind, where it is
- * declared, its signature and its documentation as the index recorded them,
- * and who can reach it.
- */
-function declaredBlock(held: DeclaredName, spell: Spelling): string {
-  return [
-    `${held.name} [${held.kind}]`,
-    `${keptAs(held)}, at ${held.at}:${held.line}${held.by === '' ? '' : ` by ${held.by}`}`,
-    ...textRows(held),
-    reachSentences(held, spell).block,
-  ].join('\n');
-}
-
-/**
- * A declaration's signature and documentation, as the index recorded them from
- * the text its read saw; either is left out when the index kept none.
- */
-export function textRows(held: { readonly signature?: string | null; readonly doc?: string | null }): readonly string[] {
-  return [held.signature, held.doc].filter((text): text is string => text !== undefined && text !== null);
-}
 
 /**
  * Who can reach a name its file declares and does not export, as its reader
@@ -162,7 +136,7 @@ export function aliasLine(alias: AliasMatch): string {
 }
 
 /** One import, saying the export as `named`, with its own spelling when that differs. */
-export function importLine(alias: Pick<AliasMatch, 'at' | 'line' | 'imported' | 'specifier' | 'type'>, named: string, local: string): string {
+function importLine(alias: Pick<AliasMatch, 'at' | 'line' | 'imported' | 'specifier' | 'type'>, named: string, local: string): string {
   return `${alias.at}:${alias.line} imports \`${named}\`${named === alias.imported ? '' : ` (its \`${alias.imported}\`)`} as \`${local}\` from '${alias.specifier}'${alias.type ? ' (type only)' : ''}`;
 }
 
@@ -188,64 +162,8 @@ export function unreadLine(unread: readonly string[] | undefined): readonly stri
   return [`The declarations of ${files} were not read into the source index, so a name declared there is not known: ${firstNamed(unread)}.`];
 }
 
-/**
- * The blocks `symbol` answers a name's file-private declarations with — alone
- * when no file exports it, after the exports when another file does: one per
- * declaration, source first and nearest a path in `from` first, the first
- * `limit` of them, a count of the rest, and the files whose
- * declarations were not read; nothing when the
- * source index is not at hand, since a name nothing exports is then unknown.
- */
-export function declaredBlocks(
-  help: Help,
-  root: string | undefined,
-  name: string,
-  wanted: string | undefined,
-  spell: Spelling,
-  limit: number,
-  from: readonly string[] = [],
-): { readonly blocks: readonly string[] } {
-  const read = declarationsNamed(help, root, name);
-  if (root === undefined || 'refused' in read) return { blocks: [] };
-  const held = nearestFirst(
-    read.names.filter((one) => !isBound(one) && (wanted === undefined || one.by === wanted)),
-    from,
-  );
-  if (held.length === 0) return { blocks: [] };
-  const blocks = [
-    ...held.slice(0, limit).map((one) => declaredBlock(one, spell)),
-    ...notShownPast(held.length, limit, spell, { one: `declaration of \`${name}\``, many: `declarations of \`${name}\`` }),
-    ...unreadLine(read.unread),
-  ];
-  return { blocks };
-}
-
-/**
- * The blocks `symbol` answers the files that only bind a name with, after every
- * declaration of it: the order and the `limit` are those of `declaredBlocks`.
- */
-export function boundBlocks(help: Help, root: string | undefined, name: string, wanted: string | undefined, spell: Spelling, limit: number, from: readonly string[] = []): readonly string[] {
-  if (root === undefined) return [];
-  const held = nearestFirst(declaredAt(help, root, name, wanted).filter(isBound), from);
-  return [
-    ...held.slice(0, limit).map((one) => declaredBlock(one, spell)),
-    ...notShownPast(held.length, limit, spell, { one: `binding of \`${name}\``, many: `bindings of \`${name}\`` }),
-  ];
-}
-
 /** Whether a function's body declares it, rather than its file's top level. */
 export const isNested = (one: Pick<DeclaredName, 'holderLine'>): boolean => one.holderLine !== undefined && one.holderLine !== null;
-
-/**
- * The declarations, those in a file nearest one of `from` first: the more
- * leading path segments they share, as `uses` orders its sites. Stable, so the
- * source-first order holds among equals; no `from` leaves the order as it is.
- */
-function nearestFirst(held: readonly DeclaredName[], from: readonly string[]): readonly DeclaredName[] {
-  if (from.length === 0) return held;
-  const near = (at: string): number => Math.max(...from.map((one) => sharedSegments(one, at)));
-  return held.map((one) => [one, near(one.at)] as const).sort((left, right) => right[1] - left[1]).map(([one]) => one);
-}
 
 /**
  * The file-private declarations and bindings of the name, source first, top-level or

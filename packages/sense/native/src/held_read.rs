@@ -78,6 +78,7 @@ impl HeldParse {
                 name: text(columns.symbol_name, at),
                 kind: text(columns.symbol_kind, at),
                 line: columns.symbol_line.at(at),
+                end_line: columns.symbol_end_line.at(at),
                 signature: spanned(columns.symbol_signature, at),
                 doc: spanned(columns.symbol_doc, at),
                 reach: reach_of(columns.symbol_reach[at]).map(str::to_owned),
@@ -103,7 +104,9 @@ impl HeldParse {
             .range(row)
             .map(|at| HeldMemberDeclaration {
                 name: text(columns.member_declaration_name, at),
+                kind: text(columns.member_declaration_kind, at),
                 line: columns.member_declaration_line.at(at),
+                end_line: columns.member_declaration_end_line.at(at),
                 on: text(columns.member_declaration_on, at),
                 doc: spanned(columns.member_declaration_doc, at),
                 line_text: kept(columns.member_declaration_line_text, at),
@@ -131,6 +134,7 @@ impl HeldParse {
                 name: text(columns.nested_name, at),
                 kind: text(columns.nested_kind, at),
                 line: columns.nested_line.at(at),
+                end_line: columns.nested_end_line.at(at),
                 signature: spanned(columns.nested_signature, at),
                 doc: spanned(columns.nested_doc, at),
                 holder: optional(columns.nested_holder, at),

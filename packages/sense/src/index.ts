@@ -103,8 +103,11 @@ export {
   dependenciesAround,
   orientAround,
   recordedCases,
+  type AskedLine,
   type FileDeclaration,
   type FileDeclarations,
+  type LineHeld,
+  type LineHolder,
   type OrientLimits,
   type PackagesAround,
   type RecordedCases,
@@ -194,18 +197,15 @@ export {
   linesThen,
   pathsThrough,
   prepareJourneys,
-  resonance,
   testCompositions,
   testsRan,
   type SuiteJourneyMap,
   type JourneysAround,
   type PreparedJourneys,
-  type SuiteResonance,
   type SuiteTestComposition,
   type SuiteTestRan,
 } from './journeys.js';
 export {
-  type NativeDeclaration as Declaration,
   type NativeForksBetween as ForksBetween,
   type NativeJourneyBlock as JourneyBlock,
   type NativeJourneyCase as JourneyCase,
@@ -233,8 +233,6 @@ export {
   type NativeJourneysPrepared as JourneysPrepared,
   type NativeJourneysRegion as JourneysRegion,
   type NativeLinesThen as LinesThen,
-  type NativeResonance as Resonance,
-  type NativeResonant as Resonant,
   type NativeRanModule as RanModule,
   type NativeRanRegion as RanRegion,
   type NativeTestComposition as TestComposition,
@@ -291,6 +289,7 @@ export {
   type StorePackage,
   type StoreUse,
 } from './help-reading.js';
+export { answerSymbol, answerUses, type NameAnswer, type NameAsked } from './native-names.js';
 export {
   openSourceTree,
   sourceTreeOf,

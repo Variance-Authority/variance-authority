@@ -337,6 +337,12 @@ A case whose slowest statement held a millisecond or more carries it on the
 next line in each list that names it, as
 `slowest statement <file>:<line>, 1.2 s, 86% of the case`: the file and line,
 the time that statement took on the real clock, and its share of the case.
+After it, `; as it ended: load 16.25, RSS 300 MiB, 0 MiB free, 31 nodes added`
+gives what surrounded the statement as it ended: the machine's 1-minute load
+average, the test process's resident memory, the machine's free memory, and the
+nodes it added to a jsdom or happy-dom page. A figure that was not read is left
+out, never printed as 0. Each is one reading on one run, so it can tell you the
+machine was busy, but not that the test is slow or flaky.
 
 Vitest, Jest and Rstest time every statement of the case's own body, unless
 `cadence: false`. A case without times lists on one line.
@@ -465,7 +471,9 @@ reading and the skill's counterfactual verification loop are described in
 
 ## Arguments are per-question
 
-Bare `variance ask` lists the questions, and `variance ask --help` prints help.
+Bare `variance ask` lists the questions, each with its arguments and the first
+sentence of what it answers, and `variance ask --help` prints help. A question's
+whole description is the one its MCP tool carries at `tools/list`.
 Question arguments such as `--query` and `--to` require a question first:
 `variance ask <question> ...`. Without it, the command prints a short diagnostic
 and exits `2`.

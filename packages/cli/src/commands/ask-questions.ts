@@ -1,26 +1,13 @@
-import { HELP_TOOLS, type Help } from '@variance-authority/help/tools';
+import { firstSentence, HELP_TOOLS, type Help } from '@variance-authority/help/tools';
 import { COSTS_TOOLS, REVIEW_TOOLS, TOOLS, VANTAGE_TOOLS, verbOf, type Tool } from '@variance-authority/mcp/tools';
 import { VANTAGE_VARIABLE } from '@variance-authority/vantage';
-import { takes, wrap, type Asked } from './asking.js';
+import { takes, type Asked } from './asking.js';
 
 /**
- * The questions, each with what it takes and what it answers.
- *
- * The tool descriptions, unedited. They are the same paragraphs an MCP client
- * puts in front of a model at `tools/list`, and a shorter gloss written here for
- * a human would be a second opinion about when to reach for each one.
- *
- * Split by subject rather than listed flat, because the parts are not
- * alternatives a reader chooses between on taste: one needs a file that already
- * exists, one needs a process that has to have been started first, one needs
- * only a checkout, and one needs a build to have published its times — and a
- * reader who does not know which part they are in asks the right question of
- * the wrong thing.
- *
- * Each half is printed straight off the set it mirrors rather than off
- * {@link QUESTIONS}, so a section is in the order that set chose — `self` leads
- * the live half because a reader who has just found a watcher should ask what it
- * is holding before asking anything of it.
+ * The questions, split by what each needs: a run's report, a live watcher, a
+ * checkout, the share's times or the review deployment. A section keeps the
+ * order its set chose, and each entry is what the question takes and the first
+ * sentence of its MCP tool's description, unedited; the rest is `tools/list`'s.
  */
 export function questions(): string {
   return [
@@ -29,18 +16,24 @@ export function questions(): string {
     'ABOUT THE LAST RUN',
     '',
     ...TOOLS.flatMap(entry),
+    '',
     'ABOUT A SUITE THAT IS STILL RUNNING',
     '',
     ...VANTAGE_TOOLS.flatMap(entry),
+    '',
     'ABOUT THE WORKSPACE SOURCE',
     '',
     ...(HELP_TOOLS as readonly Tool<Help>[]).flatMap(entry),
+    '',
     'ABOUT WHAT THE SUITE COSTS',
     '',
     ...COSTS_TOOLS.flatMap(entry),
+    '',
     'ABOUT WHAT REVIEW DECIDED AND SUSPECTS',
     '',
     ...REVIEW_TOOLS.flatMap(entry),
+    '',
+    'Each question\'s whole description is its MCP tool\'s, as `variance serve` sends it at `tools/list`.',
     'The report is the configured one unless report paths are named.',
     'With no configured report on disk, it is read from the share: your branch\'s line, then the mainline\'s.',
     '`--config` and sharded reports work as they do on `variance report`.',
@@ -53,10 +46,7 @@ export function questions(): string {
   ].join('\n');
 }
 
+/** Two lines: what the question takes, and the first sentence of its description. */
 function entry(tool: Asked): readonly string[] {
-  return [
-    `${verbOf(tool)}${takes(tool)}`,
-    ...wrap(tool.description, 76).map((line) => `    ${line}`),
-    '',
-  ];
+  return [`${verbOf(tool)}${takes(tool)}`, `    ${firstSentence(tool.description)}`];
 }

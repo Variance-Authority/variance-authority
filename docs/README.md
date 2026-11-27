@@ -87,6 +87,12 @@ step to a page.
 <p>Set one variable and the test run you already call leaves out every test file that never executed the code you changed.</p>
 <em>Focus the next run →</em>
 </a>
+<a class="doc-link-card doc-link-card--compact" href="record-lifecycle.md">
+<span>Selection</span>
+<strong>Where each checkout's record comes from</strong>
+<p>See how old the record each laptop, pull request and shard selects from is, what that costs, and which transport keeps it recent: none, your CI cache, or a share.</p>
+<em>Choose how the record travels →</em>
+</a>
 <a class="doc-link-card doc-link-card--compact" href="sharding.md">
 <span>Sharding</span>
 <strong>Split the suite across CI jobs</strong>

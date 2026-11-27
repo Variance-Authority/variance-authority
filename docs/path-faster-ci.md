@@ -23,8 +23,9 @@ yet: this step only removes the wait for the slowest shard.
 The wrap is also what records: every wrapped run writes the record, and your
 mainline publishes its shards' records to the share that every later run reads.
 
-[Split a suite across CI jobs](sharding.md), and [the share](sharing.md) for
-where main's record is kept.
+[Split a suite across CI jobs](sharding.md), [the share](sharing.md) for
+where main's record is kept, and [where each checkout's
+record comes from](record-lifecycle.md) for how old it is on every machine.
 
 ## 2. Run only the tests a change reached
 

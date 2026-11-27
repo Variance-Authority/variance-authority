@@ -144,7 +144,7 @@ describe('a fetched record this build does not read', () => {
     await rm(own, { force: true });
     await writeFile(join(worktree, 'src/total.ts'), 'export const changed = true;\n');
     const { err } = await selectedIn(worktree);
-    expect(err).toContain(`record of "unit": read from the primary checkout's, at ${primary}`);
+    expect(err).toContain(`record of "unit": read from the primary checkout's, as the offline fallback`);
   });
 });
 

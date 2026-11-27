@@ -14,44 +14,8 @@
 
 // compass: variance-authority.report.agent-surface
 
-import type { Help, Named, Taken, Use } from '@variance-authority/package/help';
+import type { Taken, Use } from '@variance-authority/package/help';
 import { importersOf } from '@variance-authority/sense';
-import { answering as answersTo, says } from './declaration-key.js';
-import { pathsWritten } from './rows.js';
-
-/** What an import count leaves out: a use that names the export without importing it. */
-export const UNCOUNTED = 'a namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted';
-
-/**
- * Every export of `name` from ordinary source, in `within` when one is named,
- * and every default export its declaration is named `name` by.
- */
-export function exportsNamed(help: Help, root: string | undefined, name: string, within: string | undefined): readonly Named[] {
-  const answering = answersTo(help, root, name).filter((held) => held.kind === 'source');
-  // A file that exports the binding by the name is answered by that export, not by its other names.
-  const spelled = answering.filter((held) => says(held.name, name));
-  const keyed = answering.filter((held) => !says(held.name, name) && !spelled.some((other) => other.at === held.at));
-  return [...spelled, ...keyed].filter((held) => within === undefined || held.by === within || fileOf(help, held, within));
-}
-
-/**
- * Whether `within`, a specifier past `held`'s package name, names `held`'s file:
- * whether an import of exactly `within` resolved to it. Which file a specifier
- * names is the resolver's answer for an importer, so a specifier nothing
- * imports names no file.
- */
-function fileOf(help: Help, held: Named, within: string): boolean {
-  if (!within.startsWith(`${held.by}/`)) return false;
-  return pathsWritten(help, within).some(([deep]) => deep.to === held.at);
-}
-
-/** `at:line`, and how many more exports there are past the first. */
-export function exportedAt(exported: readonly Named[]): string {
-  const [first] = exported;
-  if (first === undefined) return '';
-  const more = exported.length > 1 ? ` and ${exported.length - 1} more` : '';
-  return `${first.at}:${first.line}${more}`;
-}
 
 /** One use the source index resolved, with the specifier its file wrote. */
 export type IndexedUse = Taken & {
@@ -97,7 +61,7 @@ export function importsOf(root: string | undefined, files: readonly string[], na
   const inFile = read.inFile.map((use): Use => ({ at: use.at, line: use.line, by: use.by, kind: use.kind, type: false }));
   const [asked] = read.groups;
   if (asked === undefined) return { unread: 'the source index answered no group for the one asked' };
-  return { uses: asked.uses.map(indexedUse), through: asked.through, namespaces: read.namespaces, inFile };
+  return { uses: asked.uses.map(indexedUse), through: asked.through, namespaces: asked.namespaces, inFile };
 }
 
 /** The native answer to who imports each asked name out of its file, one question per group, or why the index says nothing. */
@@ -134,19 +98,3 @@ export type Asked = { readonly file: string; readonly name: string };
 
 /** What the source index says one file asked about answers alone: its uses and the files passing it on, or why it could not be read. */
 export type Apart = { readonly uses: readonly IndexedUse[]; readonly through: readonly string[] } | { readonly unread: string };
-
-/**
- * `importsOf` for each asked file and name apart, in the order asked, read in
- * one walk: the imports of the name out of that file, or a file passing it on
- * from it, and the files passing it on, that file left out.
- */
-export function importsApart(root: string | undefined, asked: readonly Asked[]): readonly Apart[] {
-  const read = importers(root, asked.map((one) => [one]));
-  if ('unread' in read) return asked.map(() => read);
-  return read.groups.map((one) => ({ uses: one.uses.map(indexedUse), through: one.through }));
-}
-
-/** The refusal when the imports cannot be read: the export is known, the index that holds its importers is not. */
-export function indexMissing(name: string, exported: readonly Named[], unread: string): string {
-  return `\`${name}\` is exported, without being published, at ${exportedAt(exported)}; who imports it is read from the source index, and ${unread}.`;
-}

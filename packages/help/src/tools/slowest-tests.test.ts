@@ -297,6 +297,20 @@ describe('the slowest statement of a listed case', () => {
     ]);
     expect(answer).toContain('   3.0 s  test/b.test.ts  long\n          slowest statement test/b.test.ts:9, 1.5 s, 50% of the case');
   });
+
+  it('says beside it what surrounded the statement as it ended, naming only the figures read', () => {
+    const slowest = [
+      { file: 'test/a.test.ts', name: 'renders', duration: 1_400, times: [{ line: 12, time: 1_204_000, load: 16.25, rss: 300, free: 0, added: 30_000 }] },
+      { file: 'test/b.test.ts', name: 'node', duration: 200, times: [{ line: 7, time: 190_000, rss: 90, free: 2_048 }] },
+    ];
+
+    expect(printed([suite(read({ slowest, timed: 2 }))]).split('\n').slice(-5, -1)).toEqual([
+      '   1.4 s  test/a.test.ts  renders',
+      '          slowest statement test/a.test.ts:12, 1.2 s, 86% of the case; as it ended: load 16.25, RSS 300 MiB, 0 MiB free, 30000 nodes added',
+      '  200 ms  test/b.test.ts  node',
+      '          slowest statement test/b.test.ts:7, 190 ms, 95% of the case; as it ended: RSS 90 MiB, 2048 MiB free',
+    ]);
+  });
 });
 
 describe('where it looks', () => {

@@ -3,8 +3,8 @@
 // compass: variance-authority.report.agent-surface
 
 use std::cmp::Ordering;
-use std::collections::{BTreeSet, HashMap};
-use std::fs::File;
+use std::collections::{BTreeSet, HashMap, HashSet};
+use std::io::{Read, Seek};
 use std::ops::Range;
 
 use crate::help_store::{FORMAT, NONE, VERSION};
@@ -18,14 +18,14 @@ const NAME_COLUMNS: [(&str, u8); 15] = [
     ("deep.namesOff", 4), ("use.name", 4),
 ];
 
-const ENTRY_COLUMNS: [(&str, u8); 25] = [
+const ENTRY_COLUMNS: [(&str, u8); 26] = [
     ("pub.spec", 4), ("pub.at", 4),
     ("pub.kind", 4), ("pub.line", 4), ("pub.signature", 4), ("pub.doc", 4),
     ("pub.mentionAt", 4), ("pub.mentionLine", 4), ("pub.mentionText", 4),
     ("pub.usedByOff", 4), ("pub.usedByList", 4), ("pub.uses", 4),
     ("pub.sitesOff", 4), ("pub.tdOff", 4), ("open.wholeOff", 4), ("open.entryOff", 4),
     ("use.at", 4), ("use.by", 4), ("use.line", 4), ("use.local", 4), ("use.flags", 1), ("use.throughLine", 4),
-    ("pkg.name", 4), ("pkg.openOff", 4), ("open.subpath", 4),
+    ("pkg.name", 4), ("pkg.openOff", 4), ("open.subpath", 4), ("open.source", 4),
 ];
 
 const PATH_COLUMNS: [(&str, u8); 9] = [
@@ -33,6 +33,7 @@ const PATH_COLUMNS: [(&str, u8); 9] = [
     ("use.at", 4), ("use.by", 4), ("use.line", 4), ("use.local", 4), ("use.flags", 1), ("use.throughLine", 4),
 ];
 
+#[cfg(feature = "standalone-cli")]
 const SEARCH_COLUMNS: [(&str, u8); 22] = [
     ("names.lower", 1), ("names.lowerOff", 4),
     ("pub.docLower", 1), ("pub.docLowerOff", 4),
@@ -40,6 +41,11 @@ const SEARCH_COLUMNS: [(&str, u8); 22] = [
     ("terms.blob", 1), ("terms.off", 4), ("terms.nameOff", 4), ("terms.name", 4),
     ("pub.doc", 4), ("terms.pubOff", 4), ("terms.pub", 4), ("terms.expOff", 4), ("terms.exp", 4),
     ("terms.pubSigOff", 4), ("terms.pubSig", 4), ("terms.expSigOff", 4), ("terms.expSig", 4),
+];
+
+const EXPORTED_COLUMNS: [(&str, u8); 9] = [
+    ("exp.line", 4), ("exp.type", 1), ("exp.kind", 1), ("exp.declaration", 4),
+    ("pkg.name", 4), ("pkg.entry", 1), ("pkg.openOff", 4), ("open.source", 4), ("open.subpath", 4),
 ];
 
 pub(crate) struct Rows(HashMap<&'static str, Vec<u8>>);
@@ -83,6 +89,8 @@ pub(crate) struct Entry<'a> {
     pub at: &'a str,
     pub kind: &'a str,
     pub line: u32,
+    /// The source file the entry's opening resolves to, when the reading followed it to one.
+    pub source: Option<&'a str>,
     pub signature: Option<&'a str>,
     pub doc: Option<&'a str>,
     pub mention: Option<(&'a str, u32, &'a str)>,
@@ -106,6 +114,13 @@ pub(crate) struct Site<'a> {
     pub path: Option<(PathKind, &'a str)>,
 }
 
+impl Export<'_> {
+    /// The row of the export list this export is on.
+    pub(crate) fn row(&self) -> usize {
+        self.row
+    }
+}
+
 impl Rows {
     pub(crate) fn paths_written(&self, specifier: &str) -> Option<BTreeSet<&str>> {
         let mut paths = BTreeSet::new();
@@ -116,44 +131,67 @@ impl Rows {
         Some(paths)
     }
 
-    pub(crate) fn columns<const N: usize>(file: &mut File, wanted: [(&'static str, u8); N]) -> Option<Self> {
+    pub(crate) fn columns<const N: usize>(file: &mut (impl Read + Seek), wanted: [(&'static str, u8); N]) -> Option<Self> {
         let columns = read_sections(file, FORMAT, VERSION, wanted).ok()?;
         Some(Self(wanted.into_iter().map(|(name, _)| name).zip(columns).collect()))
     }
 
-    pub(crate) fn read(file: &mut File) -> Option<Self> {
+    pub(crate) fn read(file: &mut (impl Read + Seek)) -> Option<Self> {
         Self::columns(file, NAME_COLUMNS)
     }
 
-    pub(crate) fn read_entries(&mut self, file: &mut File) -> Option<()> {
+    pub(crate) fn read_entries(&mut self, file: &mut (impl Read + Seek)) -> Option<()> {
         let columns = read_sections(file, FORMAT, VERSION, ENTRY_COLUMNS).ok()?;
         self.0.extend(ENTRY_COLUMNS.into_iter().map(|(name, _)| name).zip(columns));
         Some(())
     }
 
-    pub(crate) fn read_paths(&mut self, file: &mut File) -> Option<()> {
+    pub(crate) fn read_paths(&mut self, file: &mut (impl Read + Seek)) -> Option<()> {
         let columns = read_sections(file, FORMAT, VERSION, PATH_COLUMNS).ok()?;
         self.0.extend(PATH_COLUMNS.into_iter().map(|(name, _)| name).zip(columns));
         Some(())
     }
 
-    pub(crate) fn read_path_targets(&mut self, file: &mut File) -> Option<()> {
+    pub(crate) fn read_path_targets(&mut self, file: &mut (impl Read + Seek)) -> Option<()> {
         let [specifiers, targets] = read_sections(file, FORMAT, VERSION, [("deep.specifier", 4), ("deep.to", 4)]).ok()?;
         self.0.insert("deep.specifier", specifiers);
         self.0.insert("deep.to", targets);
         Some(())
     }
 
-    pub(crate) fn read_export_lines(&mut self, file: &mut File) -> Option<()> {
-        let [lines] = read_sections(file, FORMAT, VERSION, [("exp.line", 4)]).ok()?;
-        self.0.insert("exp.line", lines);
+    /// What an answer about an unpublished export says of it: its line, kind and type-only flag, its declaration's kind, whether its package's entry was followed, and the doors of the entries that publish it inside a namespace.
+    pub(crate) fn read_exported(&mut self, file: &mut (impl Read + Seek)) -> Option<()> {
+        let columns = read_sections(file, FORMAT, VERSION, EXPORTED_COLUMNS).ok()?;
+        self.0.extend(EXPORTED_COLUMNS.into_iter().map(|(name, _)| name).zip(columns));
         Some(())
     }
 
-    pub(crate) fn read_search(&mut self, file: &mut File) -> Option<()> {
+    /// The doors of the entry openings whose source is one of `files`, in row order: the source and the door's specifier.
+    pub(crate) fn openings_in(&self, files: &HashSet<&str>) -> Option<Vec<(&str, String)>> {
+        let packages = self.column("pkg.openOff");
+        let mut doors = Vec::new();
+        let mut package = 0;
+        for row in 0..self.column("open.source").len() {
+            while packages.at(package + 1) as usize <= row { package += 1 }
+            let Some(source) = self.optional("open.source", row)? else { continue };
+            if !files.contains(source) { continue }
+            let subpath = self.string("open.subpath", row)?;
+            let name = self.string("pkg.name", package)?;
+            doors.push((source, if subpath == "." { name.to_owned() } else { format!("{name}{}", &subpath[1..]) }));
+        }
+        Some(doors)
+    }
+
+    #[cfg(feature = "standalone-cli")]
+    pub(crate) fn read_search(&mut self, file: &mut (impl Read + Seek)) -> Option<()> {
         let columns = read_sections(file, FORMAT, VERSION, SEARCH_COLUMNS).ok()?;
         self.0.extend(SEARCH_COLUMNS.into_iter().map(|(name, _)| name).zip(columns));
         Some(())
+    }
+
+    /// Whether the column `key` was read.
+    pub(crate) fn holds(&self, key: &str) -> bool {
+        self.0.contains_key(key)
     }
 
     pub(crate) fn bytes(&self, key: &str) -> &[u8] {
@@ -246,6 +284,35 @@ impl Rows {
         self.candidates(name, "names.pubOff", "names.pub", "pub.declared")
     }
 
+    /// The rows publishing a declaration of `declaring`, each a file and the name it exports it under.
+    pub(crate) fn published_declaring(&self, declaring: &HashSet<(&str, &str)>) -> Option<BTreeSet<usize>> {
+        let mut found = BTreeSet::new();
+        for row in 0..self.column("pub.declared").len() {
+            if declaring.contains(&(self.string("pub.at", row)?, self.string("pub.declared", row)?)) { found.insert(row); }
+        }
+        Some(found)
+    }
+
+    /// Whether an entry publishes a declaration its file exports under one of `names`.
+    pub(crate) fn publishes_declared(&self, names: &HashSet<&str>) -> Option<bool> {
+        for row in 0..self.column("pub.declared").len() {
+            if names.contains(self.string("pub.declared", row)?) { return Some(true) }
+        }
+        Some(false)
+    }
+
+    /// Every name a file exporting `name` exports the same binding under.
+    pub(crate) fn exported_beside(&self, name: &str) -> Option<HashSet<&str>> {
+        let mut beside = HashSet::new();
+        for held in self.exports(name)? {
+            let Some(bound) = held.bound else { continue };
+            for other in self.exports_in(held.at)? {
+                if other.bound == Some(bound) { beside.insert(other.name); }
+            }
+        }
+        Some(beside)
+    }
+
     pub(crate) fn published_names(&self) -> Option<Vec<&str>> {
         let column = self.column("pub.name");
         let mut seen = BTreeSet::new();
@@ -254,15 +321,45 @@ impl Rows {
     }
 
     pub(crate) fn exports(&self, name: &str) -> Option<Vec<Export<'_>>> {
-        self.candidates(name, "names.expOff", "names.exp", "exp.bound")?.into_iter().map(|row| {
-            Some(Export {
-                name: self.string("names.name", self.number("exp.name", row)? as usize)?,
-                at: self.string("exp.at", row)?,
-                by: self.string("exp.by", row)?,
-                bound: self.optional("exp.bound", row)?,
-                row,
-            })
-        }).collect()
+        self.candidates(name, "names.expOff", "names.exp", "exp.bound")?.into_iter().map(|row| self.export(row)).collect()
+    }
+
+    /// The export on row `row` of the export list.
+    pub(crate) fn export(&self, row: usize) -> Option<Export<'_>> {
+        Some(Export {
+            name: self.string("names.name", self.number("exp.name", row)? as usize)?,
+            at: self.string("exp.at", row)?,
+            by: self.string("exp.by", row)?,
+            bound: self.optional("exp.bound", row)?,
+            row,
+        })
+    }
+
+    /// The rows exporting `name` under that name, in row order.
+    pub(crate) fn exports_spelled(&self, name: &str) -> Option<BTreeSet<usize>> {
+        self.spelled(name, "names.expOff", "names.exp")
+    }
+
+    /// The rows publishing `name` under that name, in row order.
+    pub(crate) fn published_spelled(&self, name: &str) -> Option<BTreeSet<usize>> {
+        self.spelled(name, "names.pubOff", "names.pub")
+    }
+
+    fn spelled(&self, name: &str, offsets: &str, rows: &str) -> Option<BTreeSet<usize>> {
+        let mut found = BTreeSet::new();
+        if let Some(id) = self.name_row(name)? {
+            for row in self.range(offsets, id)? { found.insert(self.number(rows, row)? as usize); }
+        }
+        Some(found)
+    }
+
+    /// The rows of every export `at` writes, in row order.
+    pub(crate) fn exports_in(&self, at: &str) -> Option<Vec<Export<'_>>> {
+        let mut found = Vec::new();
+        for row in 0..self.column("exp.at").len() {
+            if self.string("exp.at", row)? == at { found.push(self.export(row)?) }
+        }
+        Some(found)
     }
 
     pub(crate) fn path_uses(&self, name: &str) -> Option<Vec<usize>> {
@@ -299,6 +396,31 @@ impl Rows {
         self.number("exp.line", export.row)
     }
 
+    /// Whether `export` is written `export type`, as `read_exported` reads it.
+    pub(crate) fn export_type(&self, export: &Export<'_>) -> Option<bool> {
+        Some(*self.bytes("exp.type").get(export.row)? != 0)
+    }
+
+    /// Whether the file `export` is in is a story, a test, or ordinary source.
+    pub(crate) fn export_kind(&self, export: &Export<'_>) -> Option<&'static str> {
+        crate::help_store::USE_KINDS.get(*self.bytes("exp.kind").get(export.row)? as usize).copied()
+    }
+
+    /// The kind of the declaration `export` binds in its own file; `None` for `export … from`.
+    pub(crate) fn export_declaration(&self, export: &Export<'_>) -> Option<Option<&str>> {
+        self.optional("exp.declaration", export.row)
+    }
+
+    /// The packages that declare an entry this reading followed to no source file.
+    pub(crate) fn unfollowed(&self) -> Option<HashSet<&str>> {
+        let entry = self.bytes("pkg.entry");
+        let mut unfollowed = HashSet::new();
+        for row in 0..self.column("pkg.name").len() {
+            if *entry.get(row)? != 0 && self.range("pkg.openOff", row)?.is_empty() { unfollowed.insert(self.string("pkg.name", row)?); }
+        }
+        Some(unfollowed)
+    }
+
     pub(crate) fn entry(&self, row: usize) -> Option<Entry<'_>> {
         let opening = self.column("open.entryOff");
         let parent = partition(opening.len(), |at| opening.at(at) as usize <= row).checked_sub(1)?;
@@ -319,6 +441,7 @@ impl Rows {
             at: self.string("pub.at", row)?,
             kind: self.string("pub.kind", row)?,
             line: self.number("pub.line", row)?,
+            source: self.optional("open.source", parent)?,
             signature: self.optional("pub.signature", row)?,
             doc: self.optional("pub.doc", row)?,
             mention,

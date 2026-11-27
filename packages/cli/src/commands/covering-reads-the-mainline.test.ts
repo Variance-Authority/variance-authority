@@ -73,8 +73,13 @@ describe('a checkout that never ran the suite', () => {
 
     expect(answer.at).toBe(second);
     const said = formatCovering(answer, 'text', Date.now());
-    expect(said).toContain(`record of "unit": read from mainline main, published at ${second}`);
-    expect(JSON.parse(formatCovering(answer, 'json', Date.now()))).toMatchObject({ source: { from: 'mainline' } });
+    expect(said).toContain(`record of "unit": read from mainline main, published at ${second}, at the merge base with this checkout\n`);
+    // The provenance line names the record by its line and commit; where it is kept on this machine is the JSON's.
+    expect(said.split('\n').filter((line) => line.startsWith('record of')).join('\n')).not.toContain(home);
+    const json = JSON.parse(formatCovering(answer, 'json', Date.now())) as { readonly from: string; readonly source: { readonly says: string } };
+    expect(json).toMatchObject({ source: { from: 'mainline' } });
+    expect(json.from).toBe(join(home, 'clone-cache', 'share', 'read', 'unit', second, 'coverage.bin'));
+    expect(json.source.says).not.toContain(home);
     expect(formatCovering(answer, 'refs', Date.now())).not.toContain('record of');
   });
 

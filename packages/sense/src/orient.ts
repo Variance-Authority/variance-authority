@@ -86,13 +86,46 @@ export interface FileDeclarations {
   readonly exportsKept: boolean;
 }
 
+/** A line of a file, asked about as `<path>:<line>`; lines count from one. */
+export interface AskedLine {
+  readonly file: string;
+  readonly line: number;
+}
+
+/** A declaration whose first and last lines enclose an asked line. */
+export interface LineHolder {
+  readonly name: string;
+  /** `function`, `class`, `const`, … for a declaration; `property`, `method`, `getter`, `setter` or `accessor` for a member. */
+  readonly kind: string;
+  /** Its first line: a member's is the line of its name. */
+  readonly line: number;
+  /** Its last line. */
+  readonly end: number;
+  /** How many of the line's other holders it is within: 0 for one the module holds. Holders as deep are side by side. */
+  readonly depth: number;
+}
+
+/** The declarations an asked line is in, from the file's parse in the source index. */
+export interface LineHeld {
+  readonly file: string;
+  readonly line: number;
+  /** False when the index holds the file and no parse of its declarations: which declarations the line is in is unknown. */
+  readonly read: boolean;
+  /** True when git's tree holds the file at other content than the index parsed, or no longer holds it: no holder is read off that parse. */
+  readonly changed: boolean;
+  /** By depth, then by line; none when the line is at the top level of the module. */
+  readonly holders: readonly LineHolder[];
+}
+
 /**
  * `packagesAround` and `dependenciesAround` over one read of the chain and one listing of the tree, which is
  * what either costs: where the repository leaves `core.fsmonitor` off, `git status` is 2.2 s on seven copies
  * of Material UI, and a question that made it twice paid 4.4 s. The same read gives what each file the index
  * holds declares at its top level, in the order asked, each within `declarationLines` lines: top-level
  * declarations first, then the members of a class, an interface or a type alias while lines are left. A name
- * the file only binds is counted, unless an export binds it.
+ * the file only binds is counted, unless an export binds it. For each of `lines`, it gives the declarations
+ * whose first and last lines enclose the line, whether or not any case ran it; a line of a file the index does
+ * not hold is left out.
  */
 export function orientAround(
   root: string,
@@ -100,17 +133,26 @@ export function orientAround(
   packages: OrientLimits,
   external: OrientLimits,
   declarationLines: number,
+  lines: readonly AskedLine[],
 ): {
   readonly packages: PackagesAround;
   readonly external: DependenciesAround;
   /** Absent when no source index was ever published. */
   readonly declarations?: readonly FileDeclarations[];
+  /** Absent when no source index was ever published. */
+  readonly lines?: readonly LineHeld[];
 } {
   const index = sourceIndexPath(root);
-  const all = entry('orientAround')(root, index, [...files], packages.rows, packages.names, external.rows, external.names, declarationLines);
+  const asked = lines.map(({ file, line }) => ({ file, line }));
+  const all = entry('orientAround')(root, index, [...files], packages.rows, packages.names, external.rows, external.names, declarationLines, asked);
   return all === null
     ? { packages: { index }, external: { index } }
-    : { packages: { index, orientation: all.packages }, external: { index, orientation: all.external }, declarations: all.declarations };
+    : {
+        packages: { index, orientation: all.packages },
+        external: { index, orientation: all.external },
+        declarations: all.declarations,
+        lines: all.lines,
+      };
 }
 
 /** The external requests part of an answer. */
@@ -130,7 +172,13 @@ export function dependenciesAround(root: string, files: readonly string[], limit
 /** One suite's recording, or why there is none to read. */
 export type RecordedCases =
   | { readonly suite?: string; readonly recording: string; readonly files: readonly NativeCasesEntered[] }
-  | { readonly suite?: string; readonly recording: string; readonly unread: string };
+  | {
+      readonly suite?: string;
+      readonly recording: string;
+      readonly unread: string;
+      /** Set where the recording is there and could not be read, so its cases are unknown; one that kept none has none. */
+      readonly unreadable?: true;
+    };
 
 /**
  * For each suite the root config declares, or the one record of a repository

@@ -16,7 +16,7 @@ import type { NativeScanner } from './native.js';
  * was never asked for them.
  */
 /** The format version the addon writes and reads (`VERSION` in `native/src/segment.rs`). */
-export const SOURCE_INDEX_VERSION = 52;
+export const SOURCE_INDEX_VERSION = 54;
 const WHAT = 'source index';
 /** Rows per document: a few megabytes of JSON, far under any string limit. */
 const ROWS = 4096;

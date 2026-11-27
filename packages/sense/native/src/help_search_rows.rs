@@ -9,7 +9,7 @@ use crate::compact::Layer;
 use crate::help_origin::declaration_exported;
 use crate::help_search_answer::{plural, sentence, summary};
 use crate::help_search_matches::postings;
-use crate::help_symbol_published::{joined_sites, published_imports, PublicationScope};
+use crate::help_symbol_published::{joined_sites, published_imports};
 use crate::help_symbol_rows::Rows;
 use crate::help_usage::{importers, requested, Asked};
 use crate::order::code_unit;
@@ -26,7 +26,7 @@ pub(crate) fn count_published<'a>(root: &str, layers: &[Layer], rows: &'a Rows, 
             continue;
         }
         let group = rows.published(name)?.into_iter().map(|row| rows.entry(row)).collect::<Option<_>>()?;
-        let (declarations, read) = published_imports(root, layers, name, group, &rows.exports(name)?, PublicationScope::PublishedOnly)?;
+        let (declarations, read) = published_imports(root, layers, name, group, &rows.exports(name)?)?;
         let paths = rows.path_uses(name)?.into_iter().map(|row| rows.path_site(row)).collect::<Option<Vec<_>>>()?;
         for ((entries, _), group) in declarations.iter().zip(&read.groups) {
             let paths = paths.iter().filter(|site| site.to == Some(entries[0].at)).map(|site| site.site);
