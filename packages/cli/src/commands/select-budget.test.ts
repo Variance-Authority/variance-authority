@@ -123,7 +123,7 @@ describe('the edit loop under a budget', () => {
       expect(runs(cut)).toEqual([EDITED, OWN]);
       expect(cut.declined).toBeUndefined();
       expect(cut.notes[0]).toBe(
-        `\`VARIANCE_AUTHORITY_BUDGET=20\` ran 2 of the 2 test files the change edited, 7.0 s recorded; ` +
+        `\`VARIANCE_AUTHORITY_BUDGET=20\` ran 2 of the 2 timed test files the change edited, 7.0 s recorded; ` +
           `every other test file of the suite is left for CI, which runs it whole: the suite rests on ${SETUP}`,
       );
     });
@@ -135,11 +135,12 @@ describe('the edit loop under a budget', () => {
       expect(cut.notes).toContain(`  ${OWN}, 4.0 s`);
     });
 
-    it('counts only the edited test files the suite holds, and leaves another suite\'s to that suite', () => {
-      const cut = withinBudget(local([SETUP, OWN, 'packages/b/src/elsewhere.test.ts']), TIMES, { seconds: 20, asked: true }, home);
+    it('hands on an edited test file the record does not time, for the runner to collect or not, and names it', () => {
+      const cut = withinBudget(local([SETUP, OWN, UNTIMED, 'packages/b/src/elsewhere.test.ts']), TIMES, { seconds: 20, asked: true }, home);
 
-      expect(runs(cut)).toEqual([OWN]);
-      expect(cut.notes[0]).toMatch(/ ran 1 of the 1 test file the change edited, 4\.0 s recorded; /u);
+      expect(runs(cut)).toEqual([OWN, UNTIMED]);
+      expect(cut.notes[0]).toMatch(/ ran 1 of the 1 timed test file the change edited, 4\.0 s recorded, and 2 it does not time; /u);
+      expect(cut.notes).toContain(`  ${UNTIMED}`);
     });
 
     it('runs no test when the change edited none', () => {

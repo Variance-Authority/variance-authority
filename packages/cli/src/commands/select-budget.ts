@@ -12,6 +12,7 @@
  * cut to the test files the change edited, and the rest of the suite is CI's.
  */
 
+import { isTestPath } from '@variance-authority/sense';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import { durationText } from '@variance-authority/core/shard';
 import type { SuiteTimes, TestDistance } from '@variance-authority/sense/test-selection';
@@ -64,7 +65,7 @@ export function withinBudget(
     }
     if ('unread' in times) return unchanged(times.unread);
     if (times.times.size === 0) return unchanged(`${times.recording} holds no test durations to price by`);
-    return editedOnly({ ...selection, declined: selection.declined, changed: selection.changed }, times.times, budget, home);
+    return editedOnly({ ...selection, declined: selection.declined, changed: selection.changed }, times.times, budget);
   }
   // A selection `--local` fell to holds no hops to rank by, and its rung already chose by containment.
   if (selection.reading.fell !== undefined) return unchanged(`the selection fell to the ${selection.reading.fell.rung} \`--local\` chose, which holds no hops to rank by`);
@@ -130,48 +131,54 @@ function pricing(times: ReadonlyMap<string, number>, home: (file: string) => str
 
 /**
  * A suite run whole because a local change moved a `before` entry, cut to the
- * test files the change edited — a test by the record or by its name, as the
- * local ladder decides one — shortest first, as many as fit. Every other test
+ * test files the change edited: those the record times, shortest first, as
+ * many as fit, and every test by its name the record does not time, which the
+ * runner collects or not, as the local ladder hands one on. Every other test
  * file of the suite is left for CI, which runs it whole (ADR-0102).
  */
 function editedOnly(
   selection: SuiteReading & { readonly declined: string; readonly changed: readonly string[] },
   times: ReadonlyMap<string, number>,
   budget: Budget,
-  home: (file: string) => string | undefined,
 ): SuiteReading {
   const variable = `\`VARIANCE_AUTHORITY_BUDGET=${budget.seconds}\``;
-  const price = pricing(times, home);
-  const edited = [...new Set(selection.changed)]
-    // The suite's own test files are the ones its record holds: an edited test of another suite is that suite's to run.
-    .filter((file) => selection.whole.has(file) || times.has(file))
-    .map((test) => ({ test, price: price(test) }))
+  const changed = [...new Set(selection.changed)];
+  const timed = changed
+    .filter((file) => times.has(file))
+    .map((test) => ({ test, price: times.get(test)! }))
     .sort((a, b) => a.price - b.price || codeUnitOrder(a.test, b.test));
+  // Untimed, a test may be new or another suite's: the runner's discovery says which, and it costs no budget it can be charged.
+  const untimed = changed.filter((file) => !times.has(file) && isTestPath(file)).sort(codeUnitOrder);
   const taken: string[] = [];
   let spent = 0;
   // A prefix, as the own tier is taken: the first that would pass the ceiling ends it.
-  for (const { test, price: ms } of edited) {
+  for (const { test, price: ms } of timed) {
     if (spent + ms > budget.seconds * 1000) break;
     taken.push(test);
     spent += ms;
   }
-  const cut = edited.slice(taken.length);
+  const cut = timed.slice(taken.length);
   const ran =
-    `${variable} ran ${taken.length} of the ${edited.length} test file${edited.length === 1 ? '' : 's'} the change edited, ${durationText(spent)} recorded; ` +
-    `every other test file of the suite is left for CI, which runs it whole: ${selection.declined}`;
+    `${variable} ran ${taken.length} of the ${timed.length} timed test file${timed.length === 1 ? '' : 's'} the change edited, ${durationText(spent)} recorded` +
+    (untimed.length === 0 ? '' : `, and ${untimed.length} it does not time`) +
+    `; every other test file of the suite is left for CI, which runs it whole: ${selection.declined}`;
   const notes = [
     ran,
     ...(cut.length === 0 ? [] : [`${cut.length} edited ${cut.length === 1 ? 'is' : 'are'} left for CI too:`]),
     ...cut.slice(0, NAMED).map((candidate) => `  ${candidate.test}, ${durationText(candidate.price)}`),
     ...(cut.length > NAMED ? [`  and ${cut.length - NAMED} more`] : []),
+    ...(untimed.length === 0 ? [] : ['untimed, run if this suite collects them:']),
+    ...untimed.slice(0, NAMED).map((test) => `  ${test}`),
+    ...(untimed.length > NAMED ? [`  and ${untimed.length - NAMED} more`] : []),
   ];
-  const { declined: _declined, ...narrowed } = selection;
-  const only = new Set(taken);
+  // A shard placement would add its waves back, and the suite would run whole again.
+  const { declined: _declined, placing: _placing, ...narrowed } = selection;
+  const only = new Set([...taken, ...untimed]);
   return {
     ...narrowed,
     only,
     notes: [...notes, ...selection.notes],
-    reading: { ...selection.reading, only: [...only].sort(), notes: [...notes, ...selection.reading.notes] },
+    reading: { ...selection.reading, only: [...only].sort(codeUnitOrder), notes: [...notes, ...selection.reading.notes] },
   };
 }
 
