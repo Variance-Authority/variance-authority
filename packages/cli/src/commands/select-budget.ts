@@ -27,6 +27,8 @@ export interface Budget {
   readonly seconds: number;
   /** A leg was asked: its importers are taken in order after the own tests, not left. */
   readonly asked: boolean;
+  /** The asked leg's first hop: a wave past 0 takes none of the edited test files, which are the first wave's. */
+  readonly from?: number;
 }
 
 /** How many left files the note names before it counts the rest. */
@@ -131,6 +133,12 @@ function editedOnly(
 ): SuiteReading {
   const variable = `\`VARIANCE_AUTHORITY_BUDGET=${budget.seconds}\``;
   const changed = [...new Set(selection.changed)];
+  if ((budget.from ?? 0) > 0) {
+    const edited = changed.filter((file) => times.has(file) || isTestPath(file)).length;
+    const none = `${variable} runs none of the ${edited} test file${edited === 1 ? '' : 's'} the change edited, which are the wave from 0 hops'; every other test file of the suite is left for CI, which runs it whole: ${selection.declined}`;
+    const { declined: _declined, placing: _placing, ...narrowed } = selection;
+    return { ...narrowed, only: new Set(), notes: [none, ...selection.notes], reading: { ...selection.reading, only: [], notes: [none, ...selection.reading.notes] } };
+  }
   const timed = changed
     .filter((file) => times.has(file))
     .map((test) => ({ test, price: times.get(test)! }))
@@ -227,7 +235,8 @@ export async function budgetedSuite(
   const selection = await select(asked ? unbudgeted : { ...unbudgeted, atDistance: { from: 0, to: Number.MAX_SAFE_INTEGER, by: 'environment' } });
   const times = await timesOf(unbudgeted);
   const top = (await topLevel(unbudgeted.root)) ?? unbudgeted.root;
-  return withinBudget(selection, times, { seconds: budget, asked }, (file) => packageOf(top, file));
+  const from = unbudgeted.atDistance?.from;
+  return withinBudget(selection, times, { seconds: budget, asked, ...(from === undefined ? {} : { from }) }, (file) => packageOf(top, file));
 }
 
 /** The record's times, or why there are none: a share that did not answer leaves the loop uncut, and `explain` unpriced, rather than failed. */

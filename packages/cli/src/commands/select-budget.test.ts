@@ -151,6 +151,13 @@ describe('the edit loop under a budget', () => {
       expect(runs(cut)).toEqual([OWN]);
     });
 
+    it('runs none of the edited test files in a wave past 0 hops, which are the first wave\'s', () => {
+      const cut = withinBudget(local([SETUP, OWN, EDITED]), TIMES, { seconds: 20, asked: true, from: 3 }, home);
+
+      expect(runs(cut)).toEqual([]);
+      expect(cut.notes[0]).toMatch(/ runs none of the 2 test files the change edited, which are the wave from 0 hops'; /u);
+    });
+
     it('runs no test when the change edited none', () => {
       const cut = withinBudget(local([SETUP]), TIMES, { seconds: 20, asked: true }, home);
 
