@@ -613,12 +613,12 @@ Records are read in this order:
    `<cache>` is the primary checkout's, so every checkout of the repository
    reads the record any of them fetched, and removing a worktree keeps it. Each
    checkout reads the nearest kept record its `HEAD` contains, so a sibling's
-   fetch of a newer commit never changes what an older checkout reads, and a
+   fetch of a newer commit does not change what an older checkout reads, and a
    checkout that merges the mainline reads the newer record without fetching
-   again. A record from a directory or HTTP share, which keeps only the newest,
-   is read by every checkout ahead of those, since that share has nothing
-   nearer to give. A worktree that cannot write there, as in a sandbox, keeps
-   it in its own, and the answer says why.
+   again. A directory or HTTP share is the exception: it keeps only its newest
+   record, which every checkout reads, since that share has nothing nearer to
+   give. A worktree that cannot write there, as in a sandbox, keeps the record
+   in its own cache, and the answer says why.
 
    The record fetched is the one at your `HEAD`'s merge base with the mainline
    when the share keeps one there. Until it does, because that commit's CI has

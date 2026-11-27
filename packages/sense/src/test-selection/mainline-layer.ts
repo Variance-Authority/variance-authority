@@ -75,16 +75,17 @@ export function mainlineReadRoot(cacheRoot: string, suite: string): string {
  * Record that the mainline's record of `suite` was fetched into
  * `<readRoot>/<commit>/`: in that directory, which says what it holds to every
  * reader that picks it, and beside it, as the last fetch into this cache.
- * A handed read is named beside them alone: it is that checkout's, and the
+ * A fetch into another checkout's cache, `shared`, leaves a read handed to that
+ * checkout standing there. A handed read is named beside them alone: it is that checkout's, and the
  * directory may be one every checkout picks from. Called by the fetch once
  * every file it keeps is in place, so a seam that reads this finds them.
  * Replaced whole, so no reader meets a half-written one.
  */
-export async function writeFetchedMainline(cacheRoot: string, suite: string, fetched: FetchedMainline): Promise<void> {
+export async function writeFetchedMainline(cacheRoot: string, suite: string, fetched: FetchedMainline, shared = false): Promise<void> {
   const readRoot = mainlineReadRoot(cacheRoot, suite);
   const text = Buffer.from(`${JSON.stringify(fetched)}\n`);
   if (fetched.handed !== true) await place(join(readRoot, fetched.commit, FETCHED_MAINLINE), text);
-  await place(join(readRoot, FETCHED_MAINLINE), text);
+  if (!shared || readFetchedMainline(readRoot)?.handed !== true) await place(join(readRoot, FETCHED_MAINLINE), text);
 }
 
 /** The pointer in one read root, or in one commit's directory under it, or undefined when there is none or it does not read. */
@@ -170,7 +171,8 @@ function keptMainlines(root: string, name: string, cacheRoot?: string, selected?
 /**
  * How many commits behind `HEAD` each of `commits` is, for those `HEAD`
  * contains: one walk of its last {@link WALK} commits, and only when that
- * meets none, each asked alone. Absent for one git cannot place.
+ * meets none, one ask for those it lacks and a count for each of the rest.
+ * Absent for one git cannot place.
  */
 function behindHead(checkout: string, commits: ReadonlySet<string>): ReadonlyMap<string, number> {
   const found = new Map<string, number>();
@@ -184,8 +186,14 @@ function behindHead(checkout: string, commits: ReadonlySet<string>): ReadonlyMap
     return found;
   }
   if (found.size > 0) return found;
+  let lacked: ReadonlySet<string>;
+  try {
+    lacked = new Set(execFileSync('git', ['rev-list', '--ignore-missing', '--stdin', '^HEAD'], { cwd: checkout, encoding: 'utf8', input: `${[...commits].join('\n')}\n`, stdio: ['pipe', 'pipe', 'ignore'] }).split('\n'));
+  } catch {
+    return found;
+  }
   for (const commit of commits) {
-    if (ancestor(checkout, commit, 'HEAD') !== true) continue;
+    if (lacked.has(commit)) continue;
     const far = count(checkout, `${commit}..HEAD`);
     if (far !== undefined) found.set(commit, far);
   }

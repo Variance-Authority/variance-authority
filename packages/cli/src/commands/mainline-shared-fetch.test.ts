@@ -254,12 +254,13 @@ describe('a partial mainline record the primary checkout fetched', () => {
 });
 
 describe('a mainline record a run handed on to the primary checkout', () => {
-  it('is no sibling worktree\'s read', async () => {
-    const { primary, first, tree } = await laptop();
+  it('is no sibling worktree\'s read, and stays the primary\'s after a sibling fetches', async () => {
+    const { primary, first, next, one, tree, base } = await laptop();
     const pointer = readFetchedMainline(mainlineReadRoot(cacheRootFor(primary), 'unit'))!;
     const behind = await tree('behind', first);
 
     await standOnHanded(primary, 'unit', { ...pointer, fetched: new Date().toISOString() }, 'not handed');
+    expect(await base(one)).toMatchObject({ commit: next });
 
     expect(lastFetchedMainline(primary, 'unit')).toMatchObject({ commit: first, handed: true });
     const read = lastFetchedMainline(behind, 'unit');

@@ -102,7 +102,7 @@ describe('planCachePrune', () => {
     await utimes(other, (NOW - 15 * DAY) / 1000, (NOW - 15 * DAY) / 1000);
     await put(join(read, commit(3), 'coverage.bin'), 0);
 
-    const plan = await planCachePrune({ cacheRoot }, owners({ [commit(1)]: false, [commit(2)]: false, [commit(3)]: 0 }), { reads: true, pinned: [commit(1)] });
+    const plan = await planCachePrune({ cacheRoot }, { ...owners({ [commit(1)]: false, [commit(2)]: false, [commit(3)]: 0 }), pinned: async () => [commit(1)] }, { reads: true });
 
     expect(plan.remove.map((entry) => [entry.path, entry.reason])).toEqual([[other, 'off-line']]);
   });

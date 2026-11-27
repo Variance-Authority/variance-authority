@@ -4,11 +4,11 @@
  * runner seam on this machine finds it, and reused until a nearer one can exist.
  *
  * The bytes go into a read layer of their own, `share/read/<suite>/<commit>/` in
- * the cache, beneath every layer a run writes, and `fetched.json` names the one
- * fetched last, which is how the runner seams in
- * `@variance-authority/sense/test-selection` lay it under a checkout's first run.
- * A record its run handed on stands without asking; when any other fetched last
- * stands is {@link reuseOf}'s to say.
+ * the cache, beneath every layer a run writes, and each commit's `fetched.json`
+ * names its fetch. The runner seams in `@variance-authority/sense/test-selection`
+ * lay the kept record a checkout's `HEAD` holds under its first run. A record its
+ * run handed on stands without asking; when any other stands is
+ * {@link reuseOf}'s to say.
  */
 
 import { rm } from 'node:fs/promises';
@@ -262,7 +262,7 @@ async function readMainline(root: string, suite: string, chosen: MainlineSelecti
   const fetched = asked;
   const base = baseOf(found.mainline);
   const pointer: FetchedMainline = { mainline: found.mainline, commit: found.commit, fetched, ...(base === undefined ? {} : { base }), ...(found.partial === true ? { partial: true as const } : {}), ...(keepsByCommit(share) ? {} : { latest: true as const }) };
-  await selection.writeFetchedMainline(store, suite, pointer);
+  await selection.writeFetchedMainline(store, suite, pointer, store !== cacheRoot);
   await rm(join(readRoot, MISSED), { force: true });
   // Each fetch of a new commit adds a directory here, and a fetch is where
   // they are made, so it is where they are taken back: once a day, by the rule
