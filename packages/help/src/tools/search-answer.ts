@@ -213,6 +213,8 @@ function matched(index: SearchIndex, question: SearchQuestion, tree: Tree | unde
 /** Matching facts shared by the uncapped file set and the enriched text view. */
 export interface PreparedSearch {
   readonly files: () => FileSet;
+  /** The files of `files` the source generation holds a match in; a recorded case rests on the last run, not the generation. */
+  readonly generationFiles: () => ReadonlySet<string>;
   readonly read: (importingOf?: ImportingOf, declarations?: DeclarationLookups) => Searched;
 }
 
@@ -222,10 +224,12 @@ export function preparedSearch(index: SearchIndex, question: SearchQuestion, tre
   let coverage: Searched = { answer: { query: question.query }, area: undefined };
   const render = searchedBy(index, question, tree, root, (visit) => visits.push(visit), (found) => { coverage = found; });
   let membership: FileSet | undefined;
+  const generation = new Set<string>();
   const files = (): FileSet => {
       if (membership !== undefined) return membership;
       const files = new Map<string, { lines: Set<number>; kinds: Set<MatchKind> }>();
-      const file: MatchingFile = (at, line, kind = 'query') => {
+      const file: MatchingFile = (at, line, kind = 'query', recorded = false) => {
+        if (!recorded) generation.add(at);
         const one = files.get(at) ?? { lines: new Set<number>(), kinds: new Set<MatchKind>() };
         if (line !== undefined) one.lines.add(line);
         one.kinds.add(kind);
@@ -236,6 +240,7 @@ export function preparedSearch(index: SearchIndex, question: SearchQuestion, tre
   };
   return {
     files,
+    generationFiles: () => { files(); return generation; },
     read: (importingOf, declarations) => {
       if (question.map !== undefined && coverage.answer.refused === undefined) return { answer: { query: question.query.toLowerCase(), candidateMap: candidateFileMap(root, files(), question.map, index.generation?.indexDigest) }, area: coverage.area };
       const count = importingOf === undefined ? undefined : counting(importingOf);
@@ -271,7 +276,7 @@ function matchingFiles(files: ReadonlyMap<string, { lines: Set<number>; kinds: S
 }
 
 type MatchKind = 'query' | 'near' | 'loose';
-type MatchingFile = (at: string, line?: number, kind?: MatchKind) => void;
+type MatchingFile = (at: string, line?: number, kind?: MatchKind, recorded?: boolean) => void;
 
 /** Matched index rows as file coordinates, without decoding hidden signatures or docs. */
 function indexedFiles(index: SearchIndex, published: Iterable<number>, exported: Iterable<number>, file: MatchingFile): void {
@@ -319,7 +324,7 @@ function searchedBy(
   const read = declaredMatches(root, question.query, area?.files, cap(ELSEWHERE_CAP), told, filesOf);
   const declared = read?.declared;
   const aliases = aliasMatches(root, question.query, area?.files);
-  const tests = root === undefined ? undefined : recordedTests(suiteCaseNames(root), question.query, area?.files, cap(ELSEWHERE_CAP), filesOf);
+  const tests = root === undefined ? undefined : recordedTests(suiteCaseNames(root), question.query, area?.files, cap(ELSEWHERE_CAP), (visit) => filesOf((file) => visit((at, line, kind) => file(at, line, kind, true))));
   const membersUnread = root === undefined ? [] : membersUnreadOf(root, question.query, area?.files);
   const others = hits.length > 0 || rest.total > 0 || (declared?.total ?? 0) > 0 || (thirdParty?.total ?? 0) > 0;
   // A row that holds the words adds nothing to an answer; the row that is the question does.

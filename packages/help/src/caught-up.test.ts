@@ -123,7 +123,7 @@ describe('outlived', () => {
     expect(await outlived('docs_search', help, { query: 'deepOf' }, { root }, after(help))).toBe(false);
   });
 
-  it('leaves a `docs_search` answer as it is when a recorded case names a test file gone since the run', async () => {
+  it.each([[{}], [{ map: 'root' }]])('leaves a `docs_search` answer as it is when a recorded case names a test file gone since the run, asked %o', async (view) => {
     const root = await fixture.published(BARRELS);
     const at = testCoverageFile(root);
     mkdirSync(dirname(at), { recursive: true });
@@ -131,8 +131,9 @@ describe('outlived', () => {
     await writeTestCoverage(at, { version: 3, instrumentation: 'fixture-instrumentation', tests: [], modules: [] }, { index: encodeExecutionIndex({ tests: [{ id: `${file} > ${name}`, file, name }], modules: [] }) });
     const help = await readWorkspace(root);
 
-    expect(search.run(help, { query: 'deepOf' }, { root })).toContain(`deepOf reads [test] — ${file}`);
-    expect(await outlived('docs_search', help, { query: 'deepOf' }, { root }, after(help))).toBe(false);
+    if (!('map' in view)) expect(search.run(help, { query: 'deepOf' }, { root })).toContain(`deepOf reads [test] — ${file}`);
+    else expect(search.run(help, { query: 'deepOf', ...view }, { root })).toContain('Candidate file map');
+    expect(await outlived('docs_search', help, { query: 'deepOf', ...view }, { root }, after(help))).toBe(false);
   });
 
   it('says so of a file saved while its generation was being read, which is stamped later than the file', async () => {
