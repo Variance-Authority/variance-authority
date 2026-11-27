@@ -85,6 +85,13 @@ describe('the machine each test file ran on', () => {
     expect(column(machines, 'test files')).toEqual([1, 1, 1]);
   });
 
+  it('puts the machines ahead of what the last run named on the overview', () => {
+    const last = new TextEncoder().encode(JSON.stringify({ files: ['src/a.test.ts'] }));
+    const record = rawRecord(withCaseSections(encodeTestCoverage(COVERAGE), { index: encodeAsSetExecutionIndex(CASES), last }));
+
+    expect(tab(panesOf(openRecord(record, ran), 'unit'), 'overview').tables().map(({ id }) => id)).toEqual(['machines', 'cases.last-files']);
+  });
+
   it('names no machine where none were read, and says why where the runs gave a reason', () => {
     for (const [other, why] of [
       [{ unread: 'the runs record beside it stands at another commit' }, 'the runs record beside it stands at another commit'],
