@@ -101,4 +101,14 @@ describe('variance view', () => {
 
     expect(JSON.parse(ran(html)!)).toEqual({ commit, files: { 'a.test.ts': 'x64, 2 cores' } });
   });
+
+  it('carries why no machine is named where the runs beside the record cannot be read', async () => {
+    record();
+    writeFileSync(commitRunsFile(testCoverageFile(root, {})), 'not json');
+
+    const html = readFileSync((await viewOutput({ command: 'view' }, root)).out.trim(), 'utf8');
+
+    const ran = /<script id="ran" type="application\/json">([^<]*)<\/script>/u.exec(html)![1]!;
+    expect(JSON.parse(ran)).toEqual({ unread: expect.stringMatching(/^the runs record at .* is not JSON/u) });
+  });
 });
