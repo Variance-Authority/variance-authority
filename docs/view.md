@@ -24,7 +24,9 @@ starts no browser. With no record yet, [make one first](#if-you-have-no-record-y
 
 The **Overview** opens first: the suite, the commit, how the run was recorded,
 and how many test files, cases, source files and regions the record holds.
-Where the runs record beside it names machines, a **Machines** table lists each
+Where the runs record beside it
+([`coverage.runs.json`](information.md#sense-runtime-information), written by
+the same run) names machines, a **Machines** table lists each
 machine with how many test files it ran, so a run sharded across machines says
 so; a file whose runs name no one machine is counted as `(none named)`. A row
 of tabs sits above it, one for each part of the record that is present, and
@@ -43,7 +45,7 @@ sorts it, the first click largest first.
   memory its timed lines ended at. Present when the record has a case index.
   Opening a case lists the time each of its lines took, with the machine's
   1-minute load average, the test process's resident memory, the machine's free
-  memory and the page nodes the line added as it ended, each blank where it was
+  memory and the page nodes the line added, each read as the line ended and blank where it was
   not read.
 - **Timeline**: each test file by worker, placed on the run's clock. A file
   whose runner gave no start is counted and not placed. Only Playwright records
