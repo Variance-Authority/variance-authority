@@ -11,8 +11,12 @@ use crate::help_store::{FORMAT, NONE, VERSION};
 use crate::order::code_unit;
 use crate::stored::{partition, read_sections, U32s};
 
-const NAME_COLUMNS: [(&str, u8); 15] = [
+#[path = "help_export_rows.rs"]
+mod files;
+
+const NAME_COLUMNS: [(&str, u8); 16] = [
     ("strings.blob", 1), ("strings.off", 4), ("names.name", 4),
+    ("files", 4),
     ("names.pubOff", 4), ("names.pub", 4), ("names.expOff", 4), ("names.exp", 4),
     ("pub.name", 4), ("pub.declared", 4), ("exp.name", 4), ("exp.at", 4), ("exp.by", 4), ("exp.bound", 4),
     ("deep.namesOff", 4), ("use.name", 4),
@@ -48,7 +52,13 @@ const EXPORTED_COLUMNS: [(&str, u8); 9] = [
     ("pkg.name", 4), ("pkg.entry", 1), ("pkg.openOff", 4), ("open.source", 4), ("open.subpath", 4),
 ];
 
-pub(crate) struct Rows(HashMap<&'static str, Vec<u8>>);
+#[derive(Default)]
+pub(crate) struct Rows {
+    columns: HashMap<&'static str, Vec<u8>>,
+    exports: files::ByFile,
+    #[cfg(test)]
+    file_rows_read: std::cell::Cell<usize>,
+}
 
 #[derive(Clone, Copy)]
 pub(crate) enum PathKind { Deep, ByPath, Unfollowed }
@@ -133,7 +143,7 @@ impl Rows {
 
     pub(crate) fn columns<const N: usize>(file: &mut (impl Read + Seek), wanted: [(&'static str, u8); N]) -> Option<Self> {
         let columns = read_sections(file, FORMAT, VERSION, wanted).ok()?;
-        Some(Self(wanted.into_iter().map(|(name, _)| name).zip(columns).collect()))
+        Some(Self { columns: wanted.into_iter().map(|(name, _)| name).zip(columns).collect(), ..Self::default() })
     }
 
     pub(crate) fn read(file: &mut (impl Read + Seek)) -> Option<Self> {
@@ -142,27 +152,27 @@ impl Rows {
 
     pub(crate) fn read_entries(&mut self, file: &mut (impl Read + Seek)) -> Option<()> {
         let columns = read_sections(file, FORMAT, VERSION, ENTRY_COLUMNS).ok()?;
-        self.0.extend(ENTRY_COLUMNS.into_iter().map(|(name, _)| name).zip(columns));
+        self.columns.extend(ENTRY_COLUMNS.into_iter().map(|(name, _)| name).zip(columns));
         Some(())
     }
 
     pub(crate) fn read_paths(&mut self, file: &mut (impl Read + Seek)) -> Option<()> {
         let columns = read_sections(file, FORMAT, VERSION, PATH_COLUMNS).ok()?;
-        self.0.extend(PATH_COLUMNS.into_iter().map(|(name, _)| name).zip(columns));
+        self.columns.extend(PATH_COLUMNS.into_iter().map(|(name, _)| name).zip(columns));
         Some(())
     }
 
     pub(crate) fn read_path_targets(&mut self, file: &mut (impl Read + Seek)) -> Option<()> {
         let [specifiers, targets] = read_sections(file, FORMAT, VERSION, [("deep.specifier", 4), ("deep.to", 4)]).ok()?;
-        self.0.insert("deep.specifier", specifiers);
-        self.0.insert("deep.to", targets);
+        self.columns.insert("deep.specifier", specifiers);
+        self.columns.insert("deep.to", targets);
         Some(())
     }
 
     /// What an answer about an unpublished export says of it: its line, kind and type-only flag, its declaration's kind, whether its package's entry was followed, and the doors of the entries that publish it inside a namespace.
     pub(crate) fn read_exported(&mut self, file: &mut (impl Read + Seek)) -> Option<()> {
         let columns = read_sections(file, FORMAT, VERSION, EXPORTED_COLUMNS).ok()?;
-        self.0.extend(EXPORTED_COLUMNS.into_iter().map(|(name, _)| name).zip(columns));
+        self.columns.extend(EXPORTED_COLUMNS.into_iter().map(|(name, _)| name).zip(columns));
         Some(())
     }
 
@@ -185,21 +195,21 @@ impl Rows {
     #[cfg(feature = "standalone-cli")]
     pub(crate) fn read_search(&mut self, file: &mut (impl Read + Seek)) -> Option<()> {
         let columns = read_sections(file, FORMAT, VERSION, SEARCH_COLUMNS).ok()?;
-        self.0.extend(SEARCH_COLUMNS.into_iter().map(|(name, _)| name).zip(columns));
+        self.columns.extend(SEARCH_COLUMNS.into_iter().map(|(name, _)| name).zip(columns));
         Some(())
     }
 
     /// Whether the column `key` was read.
     pub(crate) fn holds(&self, key: &str) -> bool {
-        self.0.contains_key(key)
+        self.columns.contains_key(key)
     }
 
     pub(crate) fn bytes(&self, key: &str) -> &[u8] {
-        &self.0[key]
+        &self.columns[key]
     }
 
     pub(crate) fn column(&self, key: &str) -> U32s<'_> {
-        U32s::from_column(&self.0[key])
+        U32s::from_column(&self.columns[key])
     }
 
     pub(crate) fn number(&self, key: &str, row: usize) -> Option<u32> {
@@ -211,7 +221,7 @@ impl Rows {
         let at = id as usize;
         let off = self.column("strings.off");
         if at >= off.len().saturating_sub(1) { return None }
-        std::str::from_utf8(self.0["strings.blob"].get(off.range(at))?).ok()
+        std::str::from_utf8(self.columns["strings.blob"].get(off.range(at))?).ok()
     }
 
     pub(crate) fn string(&self, key: &str, row: usize) -> Option<&str> {
@@ -355,11 +365,7 @@ impl Rows {
 
     /// The rows of every export `at` writes, in row order.
     pub(crate) fn exports_in(&self, at: &str) -> Option<Vec<Export<'_>>> {
-        let mut found = Vec::new();
-        for row in 0..self.column("exp.at").len() {
-            if self.string("exp.at", row)? == at { found.push(self.export(row)?) }
-        }
-        Some(found)
+        self.exports.get(self, at)?.iter().map(|&row| self.export(row as usize)).collect()
     }
 
     pub(crate) fn path_uses(&self, name: &str) -> Option<Vec<usize>> {
@@ -452,7 +458,7 @@ impl Rows {
     }
 
     fn site(&self, row: usize) -> Option<Site<'_>> {
-        let flags = *self.0["use.flags"].get(row)?;
+        let flags = *self.columns["use.flags"].get(row)?;
         let through = match (flags >> 3) & 3 {
             1 => Some(("dynamic", self.number("use.throughLine", row)?)),
             2 => Some(("namespace", self.number("use.throughLine", row)?)),
