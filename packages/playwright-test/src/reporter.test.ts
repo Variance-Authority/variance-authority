@@ -8,7 +8,7 @@ import {
   stagingDirectory,
   type ExecutionJournal,
 } from '@variance-authority/sense/journal';
-import { readTestCoverage } from '@variance-authority/sense/test-selection';
+import { readCommitRuns, readTestCoverage } from '@variance-authority/sense/test-selection';
 import type { FullConfig, Suite } from '@playwright/test/reporter';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SkippedFiles, fileSelection, selectFiles } from './file-selection.js';
@@ -77,6 +77,20 @@ describe('the reporter that folds what the workers recorded', () => {
       // behind is evidence of executions that did not happen.
       expect(stagingDirectory()).toBeUndefined();
       await expect(readFile(resolve(directory, 'anything'), 'utf8')).rejects.toThrow();
+    });
+  });
+
+  it('names the machine the run ran on, with the workers Playwright ran it in', async () => {
+    await inRoot(async (root) => {
+      const coverageFile = resolve(root, 'coverage.bin');
+      const reporter = new ExecutionReporter({ root, cacheRoot: await instrumented(root), coverageFile });
+
+      reporter.onBegin({ projects: [], shard: null, workers: 3 } as unknown as FullConfig, nothing);
+      await stageExecution(stagingDirectory()!, { subjects: [{ owner: 'tests/checkout.spec.ts', journal: journal(0), complete: true }] });
+      await reporter.onEnd();
+
+      const runs = await readCommitRuns(coverageFile);
+      expect(runs?.landings.map((landing) => landing.machine)).toEqual([expect.objectContaining({ node: process.version, workers: 3 })]);
     });
   });
 

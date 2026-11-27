@@ -33,6 +33,7 @@ main questions; pick the one that fits what you hold, each is one command:
 | Two questions | [the files both answer](references/workspace-intersection.md) | `variance ask intersection 'symbol --name PaymentRetry' 'discover --from src/checkout/'` |
 | A file or directory and text to find only there | [the matching lines](references/workspace-discover.md) | `variance ask discover --path '^src/billing/' --text retryCount` |
 | A string or a pattern | [the source lines that hold it](references/workspace-grep.md) | `variance ask grep --query 'retryCount' --from src/billing/` |
+| A CLI command or CI invocation | [its package script, binary and registration](references/workspace-entrypoint.md#trace-an-executable-command) | `rg -n --fixed-strings 'billing:sync' package.json .github/` |
 | Text nothing in the source imports: YAML, JSON, Markdown, shell, workflows, logs | not `variance`: `rg` or `git grep` | `rg 'retryCount' .github/` |
 
 ## Fill a gap with a run of what it names
@@ -52,8 +53,10 @@ CLI's output, and `yarn -s variance` fails before the CLI starts. If the
 package is missing, add it as a devDependency with the project's
 package manager.
 
-Bare `variance ask` prints every question and what each one needs. It reads no
-config and no run, so it is the whole install check. Question arguments such as
+Bare `variance ask` prints every question in two lines: what it takes, and the
+first sentence of what it answers. It reads no config and no run, so it is the
+whole install check. A question's whole description is its MCP tool's, at
+`tools/list`. Question arguments such as
 `--query` and `--to` require a question first: `variance ask <question> ...`.
 Without it, the command prints a short diagnostic and exits `2`. Explicit
 `variance ask --help` still prints help.

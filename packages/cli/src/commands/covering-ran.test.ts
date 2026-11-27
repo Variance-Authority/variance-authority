@@ -293,7 +293,9 @@ describe('a covering answer says when the test files it names last ran, and over
     const { text, json } = await ask(at, '--since', 'HEAD').finally(() => process.chdir(cwd));
 
     expect(json).toMatchObject({ at: commit, ran: { stands: [{ commit, text: 'other', other: ['src/pay.ts'] }] } });
-    expect(text).toContain(`Read from ${String(json['from'])}, recorded at ${commit!}.\n`);
+    expect(text).toContain(`Read from the record, recorded at ${commit!}.\n`);
+    expect(json['from']).toEqual(expect.stringMatching(/coverage\.bin$/u));
+    expect(text).not.toContain(String(json['from']));
     expect(text).toContain('src/pay.test.ts ran over another text of src/pay.ts, in a run that landed 6 minutes ago.\n');
   });
 
@@ -432,7 +434,7 @@ describe('a covering answer says when the test files it names last ran, and over
     const { text, json } = await ask(at, '--since', 'HEAD').finally(() => process.chdir(cwd));
 
     expect(json).not.toHaveProperty('at');
-    expect(text).toContain(`Read from ${String(json['from'])}; the record names no commit.\n`);
+    expect(text).toContain('Read from a record that names no commit.\n');
   });
 });
 

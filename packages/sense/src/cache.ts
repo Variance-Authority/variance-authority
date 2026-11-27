@@ -149,7 +149,12 @@ export interface Member {
 /** One member a file declares, on the interface, type alias or class that holds it. */
 export interface MemberDeclaration {
   readonly name: string;
+  /** What it is, in TypeScript's words: a constructor is a `method`, and an `accessor` field is an `accessor`. */
+  readonly kind: 'property' | 'method' | 'getter' | 'setter' | 'accessor';
+  /** The line of its name. */
   readonly line: number;
+  /** The line it ends on. */
+  readonly endLine: number;
   /** The container's name, or `a type literal` or `a class` when it has none. */
   readonly on: string;
   /** The doc comment's span, inside its marks, when one is written above it. */
@@ -173,6 +178,8 @@ export interface NestedDeclaration {
   /** `function`, or the variable keyword. */
   readonly kind: string;
   readonly line: number;
+  /** The line it ends on. */
+  readonly endLine: number;
   /** The declaration up to its body, in UTF-16 units of its file. */
   readonly signature: TextSpan;
   readonly doc?: TextSpan;

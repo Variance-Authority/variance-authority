@@ -14,6 +14,7 @@ import type { Tool } from '@variance-authority/mcp/tools';
 import { START_POINT_SCHEMA, nextPage, pageAt, pageOf, spellingOf, startPointArg, type Page, type Spelling } from '@variance-authority/mcp/tools';
 import type { Help } from '@variance-authority/package/help';
 import { dependencyStack, type DependencySkill, type Stack, type StackRow } from '../dependency-lexicon.js';
+import { firstSentence } from './held-sentence.js';
 
 /** Rows shown when the question names no limit. */
 const SHOWN = 40;
@@ -39,7 +40,7 @@ const SAYS = 160;
 
 /** One skill a package ships, indented under the package: the file to read and the first sentence of what it is for. */
 function skillLine(skill: DependencySkill): string {
-  const first = skill.description?.split(/(?<=[.!?])\s/)[0];
+  const first = skill.description === undefined ? undefined : firstSentence(skill.description);
   const says =
     skill.unreadable !== undefined ? `unreadable: ${skill.unreadable}`
     : first === undefined ? 'no description'

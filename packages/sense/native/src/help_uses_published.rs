@@ -1,6 +1,7 @@
 //! Who imports a name entries publish: the declaration answered first with
-//! its imports, then each other published declaration of the name, and each
-//! declaration exported by it and published by no entry, with their own.
+//! its imports, and each other published declaration of the name, and each
+//! declaration exported by it and published by no entry, on a line with how
+//! many places import it, answered alone by `--file`.
 //!
 //! A declaration is the file declaring it and the name it is keyed by, so a
 //! door that publishes it under another name, `export { clamp as ceiling }`,
@@ -15,12 +16,12 @@ use crate::help_key::Keys;
 use crate::help_name_scope::PackageScope;
 use crate::help_symbol_published::{joined_sites, Declaration};
 use crate::help_symbol_rows::{PathSite, Rows, Site};
-use crate::help_unpublished::{exported_at, Unpublished};
+use crate::help_unpublished::Unpublished;
 use crate::help_usage::{Asked, NameUse};
 
-use super::exported::{asked_of, declarations, landed, namesake};
+use super::exported::{asked_of, declarations, exported_line, landed, namesake, namesake_sites};
 use super::kept::{others_lines, spelled_as};
-use super::{headline, importers_of_every, list_kinds, list_own, narrow, places, primary_sites, Asking, Beside, Counts, Strays};
+use super::{headline, imported, importers_of_every, narrow, primary_sites, Asking, Beside, Counts, Strays};
 
 /// `uses` for a name entries publish: `published` from `published_declarations`,
 /// `exported` every export that answers to the name. `file` answers for the
@@ -47,40 +48,38 @@ pub(super) fn published_uses(asking: &Asking<'_>, keys: &Keys<'_>, paths: &[Path
             .or_else(|| chosen.iter().position(|(_, group)| group.through.iter().any(|at| at == file)))?;
         chosen = vec![chosen[at]];
     }
-    let mut answers = chosen.into_iter();
-    let (lead, group) = answers.next()?;
-    let sites = sites_of(rows, name, paths, package, lead, &group.uses, &group.through)?;
+    // The lead is the published declaration most places import by name, then the most that may read it, then the first in order.
+    let mut answers = chosen.into_iter().map(|(one, group)| Some((one, sites_of(rows, name, paths, package, one, &group.uses, &group.through)?))).collect::<Option<Vec<_>>>()?;
+    let rank = |sites: &[Site<'_>]| { let count = Counts::of(sites, ""); (count.certain, count.off + count.whole) };
+    let most = (0..answers.len()).fold(0, |best, at| if rank(&answers[at].1) > rank(&answers[best].1) { at } else { best });
+    if answers.is_empty() { return None }
+    let (lead, sites) = answers.remove(most);
     let owner = home(keys, lead)?;
     let kinds: BTreeSet<_> = lead.doors.iter().map(|entry| entry.kind).collect();
     let kinds = kinds.into_iter().collect::<Vec<_>>().join(", ");
-    let rest: Vec<_> = answers.collect();
-    let namesakes = if file.is_some() { Vec::new() } else {
-        rest.iter().map(|(one, _)| format!("{}:{}{}, published by {}", one.at, one.doors[0].line, spelled_as(&one.declared, name), publishers(one, name)))
-            .chain(groups.iter().map(|(_, held)| format!("{}, exported without being published", exported_at(held)))).collect()
-    };
-    let others = others_lines(name, namesakes, &beside.kept, &beside.members);
+    let exports: Vec<_> = groups.iter().flat_map(|(_, held)| held.iter().map(|one| &one.export)).collect();
+    let landed = landed(asking, paths, &exports);
+    // Asked for no file, each other declaration is one line with its import count; `--file` answers one.
+    let mut namesakes = Vec::new();
+    if file.is_none() {
+        for (one, sites) in &answers {
+            namesakes.push(format!("{}:{}{}, published by {}{}", one.at, one.doors[0].line, spelled_as(&one.declared, name), publishers(one, name), imported(asking, sites)));
+        }
+        namesakes.extend(groups.iter().zip(apart).map(|((_, held), group)| exported_line(held, &imported(asking, &namesake_sites(held, paths, &landed, group)))));
+    }
+    // Only the kept and member declarations left are answered below.
+    let below = namesakes.is_empty();
+    let others = others_lines(name, namesakes, &beside.kept, &beside.members, below);
     // An answer covering more than one declaration says which it counts first, and so does one a door or its file spells by another name.
     let renamed = lead.declared != name || lead.doors.iter().any(|entry| entry.name != name);
     let which = (!others.is_empty() || renamed).then(|| published_at(lead, name));
     let mut lines = vec![headline(asking, &kinds, which.as_deref(), None, owner, &sites, false)];
     lines.extend(others);
     primary_sites(&mut lines, asking, owner, &[lead.at], sites, Strays::default(), &read.in_file);
-    for (one, group) in rest {
-        lines.push(format!("\n`{name}` is {} as well, which is another declaration.", published_at(one, name)));
-        let sites = sites_of(rows, name, paths, package, one, &group.uses, &group.through)?;
-        if sites.is_empty() {
-            lines.push("Nothing in this workspace imports it.".into());
-        } else {
-            let owner = home(keys, one)?;
-            let count = Counts::of(&sites, owner);
-            lines.push(format!("Imported in {}{}.{}", places(count.certain), count.split(owner), count.may_read(name)));
-            list_kinds(&mut lines, asking, Some(owner), sites);
-        }
-        list_own(&mut lines, asking, one.at, "declares", &read.in_file);
+    // A file named answers each declaration it holds that no entry publishes after the published one.
+    if file.is_some() {
+        for ((_, held), group) in groups.iter().zip(apart) { namesake(&mut lines, asking, held, paths, &landed, group, &read.in_file) }
     }
-    let exports: Vec<_> = groups.iter().flat_map(|(_, held)| held.iter().map(|one| &one.export)).collect();
-    let landed = landed(asking, paths, &exports);
-    for ((_, held), group) in groups.iter().zip(apart) { namesake(&mut lines, asking, held, paths, &landed, group, &read.in_file) }
     lines.extend(beside.after);
     if file.is_none() && every.len() > 1 { lines.push(narrow(asking.surface)); }
     Some(lines.join("\n"))

@@ -19,7 +19,7 @@ Every selection prints which record it read, and how far that record is from
 your branch, before the first test starts:
 
 ```text
-record of "unit": read from mainline main, published at 3f1c9a2…, 2 commit(s) behind the merge base with this checkout; kept at <cache>/share/read/unit/3f1c9a2…/coverage.bin
+record of "unit": read from mainline main, published at 3f1c9a2…, 2 commit(s) behind the merge base with this checkout.
 ```
 
 The [execution record](execution-record.md) names the commit it was measured

@@ -21,6 +21,7 @@ import {
 import { native, nativeRefusal } from '../addon.js';
 import type { NativeCoverageRows } from '../native-record.js';
 import type { NativeRunCrossed } from '../native-run-crossings.js';
+import type { Machine } from './machine.js';
 import { openTestCoverage } from './format-view.js';
 import { stringTable } from './native-modules.js';
 import { NO_LINE, writtenLines } from './written-lines.js';
@@ -56,9 +57,11 @@ export function encodeTestCoverage(coverage: RunCoverage): Buffer {
  * Coverage as a run holds it before it is written: a region's crossers either
  * named in its `testFiles` and `loadedBy`, or, with `crossed`, left in the
  * columns the run's fold answered, which the addon reads in their place — every
- * region's `testFiles` is then empty and none has `loadedBy`.
+ * region's `testFiles` is then empty and none has `loadedBy`. `machine` is the
+ * one its seam read (`readMachine`), which the runs record names and the
+ * snapshot does not hold.
  */
-export type RunCoverage = TestCoverage & { readonly crossed?: NativeRunCrossed };
+export type RunCoverage = TestCoverage & { readonly crossed?: NativeRunCrossed; readonly machine?: Machine };
 
 /** `coverage` as the columns the addon reads it from. */
 export function coverageRows(coverage: RunCoverage): NativeCoverageRows {

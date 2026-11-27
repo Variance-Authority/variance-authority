@@ -14,12 +14,13 @@ import { existsSync, readFileSync } from 'node:fs';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import { keepsCases } from './test-selection/case-record.js';
 import type { CaseTime } from './test-selection/case-times.js';
-import { commitRunsFile } from './test-selection/commit-runs.js';
+import { commitRunsFile, type CommitRuns } from './test-selection/commit-runs.js';
 import { commitRunsIn } from './test-selection/commit-runs-text.js';
 import { askCoverageFile } from './test-selection/coverage-file.js';
 import type { TestCoverageView } from './test-selection/format-view.js';
 import { decodeExecutionIndex, decodeExecutionTests } from './test-selection/execution-format.js';
 import { costs } from './test-selection/file-cost.js';
+import { classKey, describeMachine, filesMachines, type Machine } from './test-selection/machine.js';
 import { recordDigestAt } from './test-selection/record-base.js';
 import { nearestRecord, nearestTestCoverage, type RecordOrigin } from './test-selection/record-location.js';
 import { declaredSuites } from './test-selection/suites.js';
@@ -82,6 +83,16 @@ export type RecordedCaseDurations =
     }
   | { readonly recording: string; readonly unread: string };
 
+/** The slowest recorded files of one class of machine, ranked only against each other. */
+export interface MachineDurations {
+  /** The machine the files last ran on; absent for the files whose run named none. */
+  readonly machine?: Machine;
+  /** The slowest first, at most the limit asked for. */
+  readonly slowest: readonly TimedTestFile[];
+  /** The files of this class the recording holds a duration for. */
+  readonly timed: number;
+}
+
 /** One suite's slowest recorded files and cases, or why there is no recording to read. */
 export type RecordedDurations = (
   | {
@@ -96,6 +107,12 @@ export type RecordedDurations = (
       readonly slowest: readonly TimedTestFile[];
       /** Every file the recording holds a duration for. */
       readonly timed: number;
+      /**
+       * The timed files grouped by the class of machine each last ran on, the
+       * class with the slowest file first; absent where no run beside the
+       * record names a machine. A figure is compared within its class only.
+       */
+      readonly machines?: readonly MachineDurations[];
       /** Recorded files whose runner reported no duration, or that a recording older than durations holds. */
       readonly untimed: number;
       /** What each half of the scope matched in the snapshot. */
@@ -135,10 +152,13 @@ export function recordedDurations(
           else timed.push({ file: view.string(paths[test]!), duration });
         });
         timed.sort((left, right) => right.duration - left.duration || codeUnitOrder(left.file, right.file));
+        const { runs, ...taken } = runsTakenAt(recording, view.commit);
+        const machines = runs === undefined ? undefined : byMachine(timed, filesMachines(runs), limit);
         return {
-          ...takenAt(recording, view.commit),
+          ...taken,
           slowest: timed.slice(0, limit),
           timed: timed.length,
+          ...(machines === undefined ? {} : { machines }),
           untimed,
           scope: counts,
         };
@@ -151,18 +171,95 @@ export function recordedDurations(
 
 /** The commit the record at `recording` names, and when its latest run landed if the runs beside it stand at that commit. */
 export function takenAt(recording: string, commit: string | undefined): { readonly commit?: string; readonly landed?: string } {
-  return { ...(commit === undefined ? {} : { commit }), ...landedAt(commitRunsFile(recording), commit) };
+  const { runs: _runs, ...taken } = runsTakenAt(recording, commit);
+  return taken;
 }
 
-function landedAt(runs: string, commit: string | undefined): { readonly landed?: string } {
+/** {@link takenAt}, with the runs record it read the landing from. */
+function runsTakenAt(recording: string, commit: string | undefined): { readonly commit?: string; readonly landed?: string; readonly runs?: CommitRuns } {
+  const runs = runsAt(recording, commit);
+  return { ...(commit === undefined ? {} : { commit }), ...(runs === undefined ? {} : { landed: runs.latest, runs }) };
+}
+
+/** The runs record beside `recording`, where it stands at `commit`. */
+function runsAt(recording: string, commit: string | undefined): CommitRuns | undefined {
+  const beside = runsBeside(recording, commit);
+  // The durations stand without their age or machine, and the reader says the record does not hold them.
+  return beside !== undefined && 'runs' in beside ? beside.runs : undefined;
+}
+
+/** The runs record beside `recording` where it stands at `commit`, why not where one is there, undefined where none is. */
+function runsBeside(recording: string, commit: string | undefined): { readonly runs: CommitRuns } | { readonly unread: string } | undefined {
+  const path = commitRunsFile(recording);
+  if (!existsSync(path)) return undefined;
+  let text: string;
   try {
-    const held = commitRunsIn(readFileSync(runs, 'utf8'), `the runs record at ${runs}`);
-    // A landing that died between its two writes leaves a snapshot beside the runs of the commit before it.
-    return held.commit === commit ? { landed: held.latest } : {};
-  } catch {
-    // The durations stand without their age, and the reader says the record does not hold it.
-    return {};
+    text = readFileSync(path, 'utf8');
+  } catch (error) {
+    return { unread: messageOf(error) };
   }
+  return runsIn(text, `the runs record at ${path}`, commit);
+}
+
+/** The runs record `text`, read as `where`, where it stands at `commit`; why not where it does not. */
+function runsIn(text: string, where: string, commit: string | undefined): { readonly runs: CommitRuns } | { readonly unread: string } {
+  let held: CommitRuns;
+  try {
+    held = commitRunsIn(text, where);
+  } catch (error) {
+    return { unread: messageOf(error) };
+  }
+  // A landing that died between its two writes leaves a snapshot beside the runs of the commit before it.
+  if (held.commit === commit) return { runs: held };
+  return { unread: held.commit === undefined || commit === undefined ? "the runs record beside it carries no commit to match the record's" : 'the runs record beside it stands at another commit' };
+}
+
+/** The machine each test file ran on, as a reader says it, or why none is named. */
+export type MachinesBeside = { readonly files: Readonly<Record<string, string>> } | { readonly unread: string };
+
+/**
+ * The machine each test file of the record at `recording` ran on, as the runs
+ * beside it name it where they stand at the record's `commit`; why none is
+ * named where a runs record is there; undefined where none is. A file the runs
+ * name no one machine for is absent.
+ */
+export function machinesBeside(recording: string, commit: string | undefined): MachinesBeside | undefined {
+  const beside = runsBeside(recording, commit);
+  return beside === undefined ? undefined : machinesOf(beside);
+}
+
+/**
+ * {@link machinesBeside} of the runs record `text` a share kept beside a
+ * record at `commit`, read as `where`.
+ */
+export function machinesIn(text: string, where: string, commit: string | undefined): MachinesBeside {
+  return machinesOf(runsIn(text, where, commit));
+}
+
+function machinesOf(beside: { readonly runs: CommitRuns } | { readonly unread: string }): MachinesBeside {
+  if ('unread' in beside) return beside;
+  const files: Record<string, string> = {};
+  for (const [file, machine] of filesMachines(beside.runs)) if (machine !== undefined) files[file] = describeMachine(machine);
+  return Object.keys(files).length === 0 ? { unread: 'the runs record beside it names no machine' } : { files };
+}
+
+/** `timed`, slowest first, grouped by the class of machine `machines` names each on; absent where it names none. */
+function byMachine(
+  timed: readonly TimedTestFile[],
+  machines: ReadonlyMap<string, Machine | undefined>,
+  limit: number,
+): readonly MachineDurations[] | undefined {
+  const classes = new Map<string, { machine?: Machine; files: TimedTestFile[] }>();
+  for (const file of timed) {
+    const machine = machines.get(file.file);
+    const key = classKey(machine);
+    const held = classes.get(key) ?? { ...(machine === undefined ? {} : { machine }), files: [] };
+    held.files.push(file);
+    classes.set(key, held);
+  }
+  if (![...classes.keys()].some((key) => key !== '')) return undefined;
+  // `timed` is slowest first, so each class's first file is its slowest and the classes arrive in that order.
+  return [...classes.values()].map(({ files, ...machine }) => ({ ...machine, slowest: files.slice(0, limit), timed: files.length }));
 }
 
 /**

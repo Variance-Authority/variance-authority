@@ -38,13 +38,14 @@ describe('formatCoveringChange', () => {
     );
   });
 
-  it('says where it read and the commit the record names, or that it names none, and nothing when the caller cannot honestly say', () => {
+  it('says it read a record and the commit the record names, or that it names none, naming no path, and nothing when the caller cannot honestly say', () => {
     const changed = [file()];
 
     expect(formatCoveringChange(changed, { since: 'main', from: '.variance/index', at: 'abc1234' }))
-      .toContain('Read from .variance/index, recorded at abc1234.');
+      .toContain('Read from the record, recorded at abc1234.');
     expect(formatCoveringChange(changed, { from: '.variance/index' }))
-      .toContain('Read from .variance/index; the record names no commit.');
+      .toContain('Read from a record that names no commit.');
+    expect(formatCoveringChange(changed, { from: '.variance/index' })).not.toContain('.variance/index');
     expect(formatCoveringChange(changed)).not.toContain('Read from');
   });
 

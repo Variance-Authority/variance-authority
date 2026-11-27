@@ -45,10 +45,27 @@ prints that and names `variance index`.
 
 With `--files` it reads no file's text and finds nothing itself; use `search`,
 `symbol` or `grep` in the [workspace API](workspace-api.md) to find the files.
-Each file is answered in the order you gave. A `:<line>` after a path narrows
-the call journeys to the function that contains that line. The answer prints its
-own definitions. What you decide from it:
+Each file is answered in the order you gave. A `:<line>` after a path is
+answered from the source index for every file it parsed, whether or not a case
+ran the line. The recording adds the cases: the call journeys narrow to the
+function the line is in. The answer prints its own definitions. What you decide
+from it:
 
+- **`Lines asked about`** names, for each `:<line>`, the declarations whose
+  first and last lines enclose it, outermost first, such as
+  `in class Basket > method total (lines 12–14)`; the lines are the innermost
+  declaration's. Declarations that share the line are side by side, such as
+  `in function a, function b (line 2)`: one is within another only as the parse
+  records it, a member on its container and a function in the function it is
+  written in. A member counts from the line of its name. `at the top level of
+  the module` means no declaration the index records encloses the line, such as
+  a blank line between two functions; a function written inside a top-level
+  block, such as an `if`, is not recorded. Members are read from JavaScript and
+  TypeScript only, so in another language a line in a class or a type, or in no
+  declaration, may be in a member, and the answer says so. `the index holds no
+  parse of its declarations` means the line may be in any declaration. A file
+  changed since `variance index` parsed it is not answered from that parse, as
+  its lines may have moved; `variance index` updates it.
 - **`Declared at the top level`** lists each file's own declarations from the
   source index, by line: the kind, the name, and `exported` when an export
   binds it. A class's, an interface's or a type's members follow it, one row
@@ -214,6 +231,8 @@ by time alone.
 Then the test files and test cases that run spent longest in. A file's time is what running it cost: the larger of the duration its
 runner reported and its phases summed, so the environment, setup files and
 import before its first case count, as Vitest's own file duration does not.
+Where the runs named their machines, the files are ranked once per class of
+machine, each under the machine it names, and never compared across two.
 Nothing is timed here. A file or case
 with no reported duration is counted apart and never ranked as fast. `--from`
 keeps the tests declared under the paths you give. `--to` keeps the tests that,

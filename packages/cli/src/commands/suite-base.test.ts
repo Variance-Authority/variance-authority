@@ -94,7 +94,7 @@ describe('the record a worktree that has run nothing measures from', () => {
     expect(base.file).toBe(join(cache, 'share', 'read', 'unit', first, 'coverage.bin'));
     expect(await readFile(base.file)).toEqual(ci.record);
     expect(ci.record).not.toEqual(record);
-    const said = `record of "unit": read from mainline main, published at ${first}, at the merge base with this checkout; kept at ${base.file}`;
+    const said = `record of "unit": read from mainline main, published at ${first}, at the merge base with this checkout`;
     if (base.from === 'mainline') expect(mainlineRead(base.mainline)).toBe(said);
     // The runs record the publishing run carried lies beside it, and the worktree's own layer is left empty.
     expect(await readCommitRuns(base.file)).toMatchObject({ commit: first, standing: [] });

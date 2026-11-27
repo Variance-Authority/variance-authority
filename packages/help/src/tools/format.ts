@@ -91,6 +91,10 @@ export const RECORDING = 'Reads the recording a test run with test selection pub
 /** `count` and the noun, singular at one. */
 export const plural = (count: number, one: string, many = `${one}s`): string => `${count} ${count === 1 ? one : many}`;
 
+/** The lines a block or a declaration spans, as `line 4` or `lines 3–9`. */
+export const linesOf = (span: { readonly line: number; readonly end: number }): string =>
+  span.line === span.end ? `line ${span.line}` : `lines ${span.line}–${span.end}`;
+
 /** The default number of names on the one line that stands for a list the repository's own answer outranks. */
 export const NAMED = 5;
 

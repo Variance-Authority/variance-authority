@@ -10,6 +10,7 @@ import type { Config } from '../config.js';
 import type { Env } from '../share-lines.js';
 import { ask, type AskRequest } from './ask.js';
 import { reportsFor } from './report-read.js';
+import { sharedReport } from './report-source.js';
 import { publishRun } from './share.js';
 
 /**
@@ -35,7 +36,6 @@ afterEach(async () => {
 
 const PUSH: Env = { GITHUB_ACTIONS: 'true', GITHUB_EVENT_NAME: 'push', GITHUB_REF_TYPE: 'branch', GITHUB_REF_NAME: 'main' };
 const LOCAL: Env = {};
-const KEPT = /kept at (.+)\.\n/;
 
 describe('a report read from a line', () => {
   it('is kept at its path in the repository, so an image directory beside the report\'s directory opens', async () => {
@@ -50,7 +50,7 @@ describe('a report read from a line', () => {
 
     const answer = await asked(config, repository.dir, LOCAL, { question: 'describe', subject: 'page/footer' });
     expect(answer).not.toContain('image ../artifacts/footer.png');
-    const kept = KEPT.exec(answer)![1]!;
+    const kept = await keptAt(config, repository.dir);
     expect(kept).toMatch(/\/report\/[0-9a-f]{64}\/\.variance\/report\.json$/);
     expect(await readFile(join(kept, '..', '..', 'artifacts', 'footer.png'), 'utf8')).toBe('pixels');
   });
@@ -61,9 +61,11 @@ describe('a report read from a line', () => {
     const config = configOf(repository, { kind: 'directory', root, mainlines: ['main'] });
     await publishRun(config, await reportAt(repository.commit), { env: PUSH, cwd: repository.dir });
 
-    const kept = KEPT.exec(await asked(config, repository.dir))![1]!;
+    await asked(config, repository.dir);
+    const kept = await keptAt(config, repository.dir);
     await rm(join(root, 'mainline', 'main', 'entries'), { recursive: true });
-    expect(KEPT.exec(await asked(config, repository.dir))![1]).toBe(kept);
+    expect(await asked(config, repository.dir)).toMatch(/^report: read from mainline main, /);
+    expect(await keptAt(config, repository.dir)).toBe(kept);
   });
 
   it('is kept at one path whichever directory you ask from', async () => {
@@ -73,11 +75,11 @@ describe('a report read from a line', () => {
     const nested = join(repository.dir, 'packages', 'app');
     await mkdir(nested, { recursive: true });
 
-    const kept = KEPT.exec(await asked(config, repository.dir))![1]!;
+    const kept = await keptAt(config, repository.dir);
 
     expect(kept).toMatch(/\/report\/[0-9a-f]{64}\/\.variance\/report\.json$/);
-    expect(KEPT.exec(await asked(config, nested))![1]).toBe(kept);
-    expect(KEPT.exec(await asked(config, home))![1]).toBe(kept);
+    expect(await keptAt(config, nested)).toBe(kept);
+    expect(await keptAt(config, home)).toBe(kept);
   });
 
   it('is the mainline\'s for a pull request from a fork, even when a branch of the same name is published', async () => {
@@ -123,7 +125,7 @@ describe('a share that refuses the reader', () => {
 
       const answer = await asked(config, repository.dir);
       expect(answer.split('\n').slice(0, 3)).toEqual([
-        expect.stringMatching(new RegExp(`^report: read from mainline main, evaluated at ${repository.commit}, .*; kept at .+\\.$`)),
+        `report: read from mainline main, evaluated at ${repository.commit}, at the merge base with this checkout.`,
         `branch feat/x: ${endpoint}/branch/feat/x/manifest.json: HTTP 403.`,
         '',
       ]);
@@ -145,6 +147,11 @@ describe('a share that refuses the reader', () => {
 /** A question asked the way `dispatch` asks it: the configured report, read through `reportsFor`. */
 async function asked(config: Config, cwd: string, env: Env = LOCAL, rest: Partial<AskRequest> = {}): Promise<string> {
   return ask({ question: 'summary', report: config.report, read: () => reportsFor([], config), here: { env, cwd }, ...rest });
+}
+
+/** Where the record a line holds is kept: a program's to read, since the answer names the line and the commit, not the file. */
+async function keptAt(config: Config, cwd: string, env: Env = LOCAL): Promise<string> {
+  return (await sharedReport(config, { env, cwd })).path;
 }
 
 /** The configured report where a checkout keeps it, `.variance/report.json`, and a cache of the test's own. */

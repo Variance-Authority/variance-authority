@@ -110,6 +110,12 @@ export interface SelectionRun {
    * not, set once the runner has said so. See `prepareRecord`.
    */
   alone: boolean;
+  /**
+   * The workers the runner ran test files in, set once it has said so: the
+   * machine its landing names carries them (`readMachine`).
+   * TODO: Rstest, `node --test`, cargo and a wrapped runner do not say them yet.
+   */
+  workers: number | undefined;
 }
 
 const RUNS = Symbol.for('variance-authority.test-selection.runs');
@@ -158,6 +164,7 @@ export function newRun(coverageFile: string, root: string, mode: InstrumentMode)
     settled: false,
     watching: false,
     alone: false,
+    workers: undefined,
   };
 }
 

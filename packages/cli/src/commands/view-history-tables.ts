@@ -29,6 +29,12 @@ export interface RecordSummary {
   readonly reached: number;
   /** The cases its per-case index holds; absent where it holds none. */
   readonly cases?: number;
+  /** The highest load any line of its cases ended at; absent where none was read. */
+  readonly peakLoad?: number;
+  /** The highest RSS, in MiB, any line of its cases ended at; absent where none was read. */
+  readonly peakRss?: number;
+  /** Each machine the runs record kept beside it names, with how many test files it ran, most first; absent where it names none. */
+  readonly machines?: readonly (readonly [string, number])[];
   /** The cases retried; absent where the record kept no attempts. */
   readonly retried?: readonly RetriedCase[];
 }
@@ -51,6 +57,9 @@ export interface HistoryPoint {
   readonly testFiles: number;
   readonly reached: number;
   readonly cases?: number;
+  readonly peakLoad?: number;
+  readonly peakRss?: number;
+  readonly machines?: readonly (readonly [string, number])[];
   readonly retried?: readonly RetriedCase[];
   readonly moved?: Moved;
 }
@@ -114,10 +123,10 @@ export function historyTab(history: History): Tab {
 function commitsTable(points: readonly HistoryPoint[]): Table {
   const table = listed(
     { id: 'history-commits', label: 'Commits', hint: 'each kept commit and suite, newest first' },
-    ['commit', 'suite', 'ran', 'took', 'test files', 'files reached', 'cases', 'retried', 'lost'],
+    ['commit', 'suite', 'ran', 'took', 'test files', 'files reached', 'cases', 'peak load', 'peak RSS MiB', 'machines', 'retried', 'lost'],
     [...points]
       .sort((a, b) => b.written - a.written || codeUnitOrder(a.suite, b.suite))
-      .map((point) => [point.commit, point.suite, point.written, point.total, point.testFiles, point.reached, point.cases, point.retried?.length, point.retried === undefined ? undefined : known(point.retried.map((one) => one.lost))]),
+      .map((point) => [point.commit, point.suite, point.written, point.total, point.testFiles, point.reached, point.cases, point.peakLoad, point.peakRss, point.machines?.map(([machine, files]) => `${files} on ${machine}`).join('; '), point.retried?.length, point.retried === undefined ? undefined : known(point.retried.map((one) => one.lost))]),
   );
   return typed(table, { ran: 'time', took: 'ms', lost: 'ms' });
 }

@@ -8,10 +8,12 @@
  * which regions a test file or a case entered.
  */
 
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import { columnBytes, NO_BLOB, NO_DURATION, NO_OWNER, openTestCoverage, PHASE_NAMES, RecordWithoutCoverage, sectionsOf, type OpenedSections, type TestCoverageView } from '@variance-authority/sense/record';
 import { kindName, openCases, type Cases } from './view-cases.js';
+import type { MachinesBeside } from '@variance-authority/sense';
 import { openParts, type Parts } from './view-parts.js';
-import { address, each, entered, enteredCounts, gathered, once, ownerOf, rowsOf, span, unless, yes, type Detail, type Sets, type Table } from './view-rows.js';
+import { address, each, entered, enteredCounts, gathered, listed, once, ownerOf, rowsOf, span, unless, yes, type Detail, type Sets, type Table } from './view-rows.js';
 
 /** The coverage half of a record. */
 export interface CoverageTables {
@@ -22,6 +24,10 @@ export interface CoverageTables {
   readonly modules: Table;
   readonly regions: Table;
   readonly preconditions: Table;
+  /** The machines the runs beside the record name, with the test files each ran; absent where none are read at its commit. */
+  readonly machines?: Table;
+  /** Why no machine is named, where runs were read and none could be. */
+  readonly machinesUnread?: string;
   testDetail(path: string): Detail | undefined;
   moduleDetail(path: string): Detail | undefined;
   regionDetail(row: number): Detail | undefined;
@@ -36,10 +42,12 @@ export interface ViewRecord {
   readonly cases?: Cases;
   readonly before?: Cases;
   readonly parts: Parts;
+  /** Why the runs beside a record without coverage are counted against no test file. */
+  readonly machinesUnread?: string;
 }
 
-/** The record at `bytes`. */
-export function openRecord(bytes: Uint8Array): ViewRecord {
+/** The record at `bytes`, and the machines the runs beside it name. */
+export function openRecord(bytes: Uint8Array, ran?: MachinesBeside): ViewRecord {
   const sections = sectionsOf(bytes);
   const part = (name: string) => (sections.found.has(name) ? columnBytes(sections, name).slice() : undefined);
   const index = (name: string, prefix: string, label: string) => {
@@ -59,13 +67,14 @@ export function openRecord(bytes: Uint8Array): ViewRecord {
     bytes,
     sections,
     parts,
-    ...(view === undefined ? {} : { coverage: coverageTables(view, cases) }),
+    ...(view === undefined ? {} : { coverage: coverageTables(view, cases, ran) }),
+    ...(view !== undefined || ran === undefined ? {} : { machinesUnread: 'unread' in ran ? ran.unread : 'the record holds no test files to count the machines against' }),
     ...(cases === undefined ? {} : { cases }),
     ...(before === undefined ? {} : { before }),
   };
 }
 
-function coverageTables(view: TestCoverageView, cases: Cases | undefined): CoverageTables {
+function coverageTables(view: TestCoverageView, cases: Cases | undefined, ran: MachinesBeside | undefined): CoverageTables {
   const string = each((id) => view.string(id));
   const testCount = view.testPath.length;
   const testPath = (row: number) => string(view.testPath.at(row));
@@ -91,6 +100,7 @@ function coverageTables(view: TestCoverageView, cases: Cases | undefined): Cover
     const high = unless(starts()?.[row * 2 + 1], NO_DURATION);
     return high === undefined ? undefined : high * 2 ** 32 + starts()![row * 2]!;
   };
+  const { on, unread } = machinesAt(ran);
   const tests: Table = {
     id: 'tests',
     label: 'Test files',
@@ -102,6 +112,7 @@ function coverageTables(view: TestCoverageView, cases: Cases | undefined): Cover
       ...PHASE_NAMES.map((name, at) => ({ name, as: 'ms' as const, at: (row: number) => phase(row, at) })),
       ...(view.testStart === undefined ? [] : [{ name: 'started', as: 'time' as const, at: start }]),
       ...(view.testLane === undefined ? [] : [{ name: 'worker', at: lane }]),
+      ...(on === undefined ? [] : [{ name: 'machine', at: (row: number) => on[testPath(row)] }]),
       { name: 'cases held', at: (row) => cases?.ofFile(testPath(row)).length },
       { name: 'regions entered', at: (row) => perTest()[row] },
       { name: 'preconditions', at: (row) => preconditions()[row + 1]! - preconditions()[row]! },
@@ -189,6 +200,8 @@ function coverageTables(view: TestCoverageView, cases: Cases | undefined): Cover
     modules,
     regions,
     preconditions: preconditionTable,
+    ...(on === undefined ? {} : { machines: machinesTable(on, testCount, testPath) }),
+    ...(unread === undefined ? {} : { machinesUnread: unread }),
     testDetail: (path) => {
       const row = testRow().get(path)?.[0];
       if (row === undefined) return undefined;
@@ -287,4 +300,29 @@ function timeline(
     ...rowsOf({ id: 'timeline', label: 'Timeline', hint: '', count, columns }, order, { id: 'timeline', label: 'Timeline', hint: '' }),
     hint: order.length === count ? `${count} test files by worker` : `${order.length} of ${count} test files by worker; the record gives the others no start or no cost`,
   };
+}
+
+/** Each file's machine, where the runs named them; otherwise why none is named, where runs were read. */
+function machinesAt(ran: MachinesBeside | undefined): { readonly on?: Readonly<Record<string, string>>; readonly unread?: string } {
+  if (ran === undefined) return {};
+  return 'unread' in ran ? { unread: ran.unread } : { on: ran.files };
+}
+
+const NONE_NAMED = '(none named)';
+
+/** The machines `on` names, each with the test files of the record it ran, in code-unit order, the files no one machine is named for last. */
+export function machineCounts(on: Readonly<Record<string, string>>, count: number, testPath: (row: number) => string): readonly (readonly [string, number])[] {
+  const files = new Map<string, number>();
+  for (let row = 0; row < count; row += 1) {
+    const machine = on[testPath(row)] ?? NONE_NAMED;
+    files.set(machine, (files.get(machine) ?? 0) + 1);
+  }
+  const named = [...files.keys()].filter((machine) => machine !== NONE_NAMED).sort(codeUnitOrder);
+  return [...named, ...(files.has(NONE_NAMED) ? [NONE_NAMED] : [])].map((machine) => [machine, files.get(machine)!] as const);
+}
+
+/** The Overview's table of {@link machineCounts}. */
+function machinesTable(on: Readonly<Record<string, string>>, count: number, testPath: (row: number) => string): Table {
+  const rows = machineCounts(on, count, testPath);
+  return listed({ id: 'machines', label: 'Machines', hint: 'the machine each test file ran on, as the runs beside the record name it' }, ['machine', 'test files'], rows);
 }

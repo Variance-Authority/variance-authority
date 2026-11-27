@@ -478,7 +478,9 @@ reading and the skill's counterfactual verification loop are described in
 
 ## Arguments are per-question
 
-Bare `variance ask` lists the questions, and `variance ask --help` prints help.
+Bare `variance ask` lists the questions, each with its arguments and the first
+sentence of what it answers, and `variance ask --help` prints help. A question's
+whole description is the one its MCP tool carries at `tools/list`.
 Question arguments such as `--query` and `--to` require a question first:
 `variance ask <question> ...`. Without it, the command prints a short diagnostic
 and exits `2`.

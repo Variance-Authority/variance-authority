@@ -14,6 +14,15 @@
 //! the declarations and the member lines cut are each counted once for the
 //! file, so the counts add no line per container. A name the file only binds is
 //! no declaration: unless an export binds it, it takes no line and is counted.
+//!
+//! A file asked about at a line is answered with the declarations the line is
+//! in, read off the same parse by the lines each one spans: its top-level
+//! symbols, the members of its classes, interfaces and type literals, and the
+//! functions written inside its functions. The holders are those whose first
+//! and last lines enclose the line, outermost first, as a language server's
+//! document symbols nest; none is the module's own top level. Nothing is
+//! guessed from where the next declaration starts: a blank line between two
+//! functions is in neither.
 
 // compass: variance-authority.reach.relations
 
@@ -21,7 +30,7 @@ use std::collections::HashSet;
 
 use napi_derive::napi;
 
-use crate::chain_lookup::record;
+use crate::chain_lookup::{record, At};
 use crate::compact::Layer;
 use crate::harvest::is_bound;
 use crate::help_declared::exported_locals;
@@ -63,6 +72,164 @@ pub struct FileDeclarations {
     /// False when the parse kept no exports, or it was not read: whether a name
     /// is exported is unknown, the names counted as bound included.
     pub exports_kept: bool,
+}
+
+/// A line asked about in a file: 1-based, as an editor numbers it.
+#[napi(object)]
+pub struct AskedLine {
+    pub file: String,
+    pub line: u32,
+}
+
+/// A declaration whose first and last lines enclose an asked line.
+#[napi(object)]
+pub struct LineHolder {
+    pub name: String,
+    /// The word the parse stored for it: a top-level symbol's kind, a nested
+    /// function's, or what a member is to its container (`method`, `property`, …).
+    pub kind: String,
+    pub line: u32,
+    /// The line it ends on.
+    pub end: u32,
+    /// How many of the line's other holders it is within: 0 for one the module
+    /// holds. Holders as deep are side by side, as two functions on one line are.
+    pub depth: u32,
+}
+
+/// The declarations one asked line is in, or why they cannot be told.
+#[napi(object)]
+pub struct LineHeld {
+    pub file: String,
+    pub line: u32,
+    /// False when the index holds the file and no parse of its declarations:
+    /// the line may be in anything.
+    pub read: bool,
+    /// True when git's tree holds the file at other content than the index
+    /// parsed, or no longer holds it: its lines are not answered from that
+    /// parse, as they may have moved.
+    pub changed: bool,
+    /// The declarations whose lines enclose the line, by depth, then by line;
+    /// none when it is at the module's top level.
+    pub holders: Vec<LineHolder>,
+}
+
+/// The declarations each of `asked` is in, in the order asked; an ask of a file the chain
+/// does not hold is left out, as the list of files asked about already says it
+/// is outside the index. `current` says whether the record at a place is the
+/// file git's tree holds today.
+pub(crate) fn lines_held(layers: &[Layer], asked: &[AskedLine], current: impl Fn(&str, At) -> bool) -> Vec<LineHeld> {
+    let (asks, mut crossings): (Vec<&AskedLine>, Vec<Crossing>) = asked
+        .iter()
+        .filter_map(|ask| record(layers, &ask.file).map(|(file, at)| (ask, Crossing { file, owner: NO_OWNER, others: Vec::new(), at, parse: None })))
+        .unzip();
+    join_parses(layers, &mut crossings);
+    asks.into_iter()
+        .zip(&crossings)
+        .map(|(ask, crossing)| {
+            let parse = crossing.parse.filter(|(layer, row)| layers[*layer].parses.harvested[*row] == 1);
+            let changed = parse.is_some() && !current(crossing.file, crossing.at);
+            let holders = match parse {
+                Some((layer, row)) if !changed => holders(&spans(&layers[layer], row), ask.line),
+                _ => Vec::new(),
+            };
+            LineHeld { file: crossing.file.to_owned(), line: ask.line, read: parse.is_some(), changed, holders }
+        })
+        .collect()
+}
+
+/// Which table of the parse a declaration is from, in the order a tie of lines keeps.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum Table {
+    Symbol,
+    Member,
+    Nested,
+}
+
+/// One declaration of a parse row, with the relation the parse records to
+/// what holds it: the container a member is `on`, or the function a nested
+/// one is written in and the line that function starts on.
+struct Span<'a> {
+    table: Table,
+    kind: &'a str,
+    name: &'a str,
+    first: u32,
+    last: u32,
+    on: Option<(&'a str, u32)>,
+}
+
+impl Span<'_> {
+    fn encloses(&self, other: &Span) -> bool {
+        self.first <= other.first && other.last <= self.last
+    }
+
+    fn strictly_encloses(&self, other: &Span) -> bool {
+        self.encloses(other) && (self.first, self.last) != (other.first, other.last)
+    }
+
+    /// Whether the parse names `self` as what holds `inner`: a member's
+    /// container, a nested function's holder, or the item a tree-sitter
+    /// language qualifies a symbol's name with, as `tests` is of `tests::fixture`.
+    fn holds(&self, inner: &Span) -> bool {
+        match (inner.table, inner.on) {
+            (Table::Member, Some((on, _))) => self.table != Table::Member && self.name == on,
+            (Table::Nested, Some((holder, at))) => self.name == holder && self.first <= at && at <= self.last,
+            (Table::Symbol, _) => inner.name.strip_prefix(self.name).is_some_and(|rest| rest.starts_with("::") || rest.starts_with('.')),
+            _ => false,
+        }
+    }
+
+    /// Whether `self` may hold `inner` when the parse names nothing that does:
+    /// a declaration of an outer table, or one whose lines strictly enclose it.
+    /// Two of one table on the same lines are side by side.
+    fn may_hold(&self, inner: &Span) -> bool {
+        inner.table != Table::Symbol && self.table < inner.table || self.strictly_encloses(inner)
+    }
+}
+
+/// Every declaration one parse row records: its top-level symbols, then its
+/// members, then its nested functions. A last line the parse did not keep is
+/// read as the first, so the declaration spans the line it starts on.
+fn spans<'a>(layer: &'a Layer, row: usize) -> Vec<Span<'a>> {
+    let (stored, parses) = (&layer.stored, &layer.parses);
+    let span = |table, kind: u32, name: u32, first: u32, last: u32, on| Span { table, kind: stored.text(kind), name: stored.text(name), first, last: last.max(first), on };
+    let symbols = parses.symbols.range(row).map(|at| {
+        span(Table::Symbol, parses.symbol_kind.at(at), parses.symbol_name.at(at), parses.symbol_line.at(at), parses.symbol_end_line.at(at), None)
+    });
+    let members = parses.member_declarations.range(row).map(|at| {
+        let on = Some((stored.text(parses.member_declaration_on.at(at)), 0));
+        let (first, last) = (parses.member_declaration_line.at(at), parses.member_declaration_end_line.at(at));
+        span(Table::Member, parses.member_declaration_kind.at(at), parses.member_declaration_name.at(at), first, last, on)
+    });
+    let nested = parses.nested.range(row).map(|at| {
+        let on = stored.optional(parses.nested_holder.at(at)).map(|holder| (holder, parses.nested_holder_line.at(at)));
+        span(Table::Nested, parses.nested_kind.at(at), parses.nested_name.at(at), parses.nested_line.at(at), parses.nested_end_line.at(at), on)
+    });
+    symbols.chain(members).chain(nested).collect()
+}
+
+/// The declarations among `spans` whose lines enclose `line`, by depth, then
+/// by line. Each is within the one the parse names as holding it, and else
+/// within the narrowest that may hold it: nesting is the parse's relation, not
+/// lines alone, so two declarations that share a line are side by side, as a
+/// language server's document symbols nest by range rather than by line.
+fn holders(spans: &[Span], line: u32) -> Vec<LineHolder> {
+    let mut holding: Vec<&Span> = spans.iter().filter(|span| span.first <= line && line <= span.last).collect();
+    // Outer first: a holder comes before what it holds, so each looks back for its own.
+    holding.sort_by(|left, right| left.first.cmp(&right.first).then(right.last.cmp(&left.last)).then(left.table.cmp(&right.table)));
+    let mut depths: Vec<u32> = Vec::with_capacity(holding.len());
+    for (at, inner) in holding.iter().enumerate() {
+        let outer = (0..at).rev().filter(|&before| holding[before].encloses(inner));
+        let named = outer.clone().find(|&before| holding[before].holds(inner));
+        let within = named.or_else(|| outer.clone().find(|&before| holding[before].may_hold(inner)));
+        depths.push(within.map_or(0, |before| depths[before] + 1));
+    }
+    let mut chain: Vec<LineHolder> = holding
+        .iter()
+        .zip(&depths)
+        .map(|(span, &depth)| LineHolder { name: span.name.to_owned(), kind: span.kind.to_owned(), line: span.first, end: span.last, depth })
+        .collect();
+    chain.sort_by_key(|holder| holder.depth);
+    chain
 }
 
 /// The top level of each of `files` the chain holds, in the order asked, each

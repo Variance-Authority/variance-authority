@@ -75,6 +75,13 @@ impl Lines {
         self.0.partition_point(|start| *start <= offset as usize) as u32
     }
 
+    /// The line a span ends on: the line of its last byte, so a declaration
+    /// ending at a line break ends on the line it closes, and an empty span
+    /// on the line it starts.
+    pub(crate) fn last(&self, span: oxc_span::Span) -> u32 {
+        self.at(span.end.saturating_sub(1).max(span.start))
+    }
+
     /// The byte each line starts at, the first line first.
     pub(crate) fn starts(&self) -> &[usize] {
         &self.0

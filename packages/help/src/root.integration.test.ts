@@ -79,13 +79,13 @@ describe('variance-authority-help --root', () => {
     expect(answer).toContain('2.4 s  test/slow.test.ts');
   });
 
-  it('reaches `orient` too, so it reads the recorded cases of the root it was given', async () => {
+  it('reaches `orient` too, which answers from any working directory and names no cache file', async () => {
     const root = await recorded();
 
     const answer = execFileSync('node', [BIN, 'orient', '--root', root, '--files', 'src/a.ts'], { cwd: elsewhere, env: env(), encoding: 'utf8' });
 
-    expect(answer).toContain('Recorded cases');
-    expect(answer).toContain(cache);
+    expect(answer).toContain('Recorded cases: none read, no run kept its cases there.');
+    expect(answer).not.toContain(cache);
   });
 
   it('serves the root it was started on over MCP, from any working directory', async () => {

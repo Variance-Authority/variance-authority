@@ -203,6 +203,30 @@ describe('what changed one suite\'s count', () => {
     expect(sums(change)).toEqual({ run: is!.run - was!.run, regions: is!.regions - was!.regions });
   });
 
+  it('names each source file with the regions that started and stopped running in it, and they add up to the suite', () => {
+    const base = index(
+      module('src/total.ts', block('apply', [0]), block('round', []), block('gone', [1])),
+      module('src/old.ts', block('legacy', [0]), block('unused', [])),
+      module('src/still.ts', block('steady', [0])),
+    );
+    const now = index(
+      module('src/total.ts', block('apply', []), block('round', [1]), block('fresh', [0]), block('idle', [])),
+      module('src/new.ts', block('shiny', [1])),
+      module('src/still.ts', block('steady', [1])),
+    );
+
+    const change = coverageChange(base, now, UNCHANGED);
+
+    // `steady` changed the case that runs it, not whether it runs: no file row.
+    expect(change.files).toEqual([
+      { file: 'src/new.ts', started: 1, stopped: 0 },
+      { file: 'src/old.ts', started: 0, stopped: 1 },
+      { file: 'src/total.ts', started: 2, stopped: 2 },
+    ]);
+    const total = (side: 'started' | 'stopped') => change.files.reduce((sum, file) => sum + file[side], 0);
+    expect(total('started') - total('stopped')).toBe(sums(change).run);
+  });
+
   it('counts a region whose kind changed under one address as deleted and written, since the motion never paired it', () => {
     const base = index(module('src/total.ts', block('apply', [0])));
     const now = index(module('src/total.ts', block('apply', [0], { kind: 'method' })));

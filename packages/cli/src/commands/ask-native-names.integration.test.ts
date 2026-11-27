@@ -16,7 +16,8 @@ const repository = fileURLToPath(new URL('../../../../', import.meta.url)).repla
 /**
  * What each question is answered with: recorded from the TypeScript tools before the answers moved to Rust, but
  * for an import the index resolved to no file (`lost`, `Schedule`, `Cadence`), now listed apart rather than credited
- * by its package's name, and an export bound to no declaration (`unbound`), now refused saying so.
+ * by its package's name, an export bound to no declaration (`unbound`), now refused saying so, and the other
+ * declarations `uses` names beside the first (`shared`, `twinName`, `PutRequest`), now one line each with its import count.
  */
 const recorded = JSON.parse(readFileSync(new URL('./ask-native-names.expected.json', import.meta.url), 'utf8')) as Record<string, readonly [number, string, string]>;
 
@@ -113,6 +114,9 @@ it.each(([
   ['symbol', '--name', 'size'],
   ['symbol', '--name', 'wave'],
   ['symbol', '--name', 'lost'],
+  ['symbol', '--name', 'crowdedPath', '--limit', '2'],
+  ['uses', '--name', 'crowdedPath', '--file', 'packages/kit/src/crowd.ts'],
+  ['symbol', '--name', 'ghost', '--limit', '2'],
   ['symbol', '--name', 'Schedule'],
   ['symbol', '--name', 'Cadence'],
   ['symbol', '--name', 'keptOf'],

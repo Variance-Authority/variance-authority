@@ -98,6 +98,7 @@ export { keptDigests, keptTexts, type KeptTexts } from './kept-texts.js';
 // A landing of shards reads the install each shard's own landing kept, and
 // `select --ran-at` splits a side's change by the same files.
 export { readByInstall, shardsInstall, shardsTexts, type KeptInstall, type ShardRuns } from './kept-install.js';
+export { describeMachine, shardsMachines, type Machine } from './machine.js';
 // A text cut as a seam records it, so rows written by hand stand where a
 // landing that cuts the text again puts them.
 export { sourceCut } from './coverage-rows.js';
@@ -124,6 +125,8 @@ export {
 } from './cache-layers.js';
 export {
   FETCHED_MAINLINE,
+  fetchStores,
+  pinnedMainlines,
   lastFetchedMainline,
   layFetchedMainline,
   mainlineHanded, mainlineReadRoot,
@@ -240,6 +243,7 @@ export {
   textAsks,
   type CountedSuite,
   type CoverageCount,
+  type FileChange,
   type KindOverlap,
   type RegionRun,
   type RegionTally,

@@ -23,7 +23,14 @@ starts no browser. With no record yet, [make one first](#if-you-have-no-record-y
 ## What you see first
 
 The **Overview** opens first: the suite, the commit, how the run was recorded,
-and how many test files, cases, source files and regions the record holds. A row
+and how many test files, cases, source files and regions the record holds.
+Where the runs record beside it
+([`coverage.runs.json`](information.md#sense-runtime-information), written by
+the same run) names machines, a **Machines** table lists each
+machine with how many test files it ran, so a run sharded across machines says
+so; a file whose runs name no one machine is counted as `(none named)`. Where
+that runs record is there but names none, cannot be read or stands at another
+commit, the Overview says which instead. A row
 of tabs sits above it, one for each part of the record that is present, and
 **Record** last. A tab holds one or more tables. Each table has a filter box
 that keeps the rows with a cell containing what you type, and each column header
@@ -32,11 +39,16 @@ sorts it, the first click largest first.
 ## What each tab shows
 
 - **Test files**: every test file with its time, when it started and on which
-  worker where the runner gave them, how many cases and regions it reached, and
-  whether its recording finished.
+  worker where the runner gave them, the machine it ran on where the runs name
+  one, how many cases and regions it reached, and whether its recording
+  finished.
 - **Cases**: every case the runner reported, with its time, its limit, how it
-  ended and how many regions it entered. Present when the record has a case
-  index.
+  ended, how many regions it entered, and the highest load average and resident
+  memory its timed lines ended at. Present when the record has a case index.
+  Opening a case lists the time each of its lines took, with the machine's
+  1-minute load average, the test process's resident memory, the machine's free
+  memory and the page nodes the line added, each read as the line ended and blank where it was
+  not read.
 - **Timeline**: each test file by worker, placed on the run's clock. A file
   whose runner gave no start is counted and not placed. Only Playwright records
   a start today.
@@ -52,7 +64,10 @@ sorts it, the first click largest first.
 - **History**: every record the [share](sharing.md) keeps of the mainline in
   the last two weeks, one row per commit and suite: when it ran, how long it
   took, its test files, the source files its tests reached, its cases, the
-  cases it retried and the time their earlier attempts cost. It adds each test file's mean time over the window,
+  highest load and resident memory any line of its cases ended at, the
+  machines its runs record names with how many test files each ran, the
+  cases it retried and the time their earlier attempts cost. A figure the run
+  did not keep is blank. It adds each test file's mean time over the window,
   each retried case with the commits it was retried on, and the commits whose
   suite time moved most from the one kept before, over the test files both
   runs timed, with the files that moved it. A record it does not draw, such as

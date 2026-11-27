@@ -12,7 +12,7 @@ import { parseCoveringArgs } from '../covering-args.js';
 import { flagsFor, synopsisFor } from '../usage.js';
 import { covering } from './covering.js';
 import { formatCovering } from './covering-text.js';
-import { writeMissedMainline } from './mainline-base.js';
+import { writeMissedMainline } from './mainline-missed.js';
 
 // A suite recorded through the real Vitest seam, into a cache of its own, so
 // the snapshot beside the index holds the digest the frame is checked against.

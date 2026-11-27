@@ -1357,7 +1357,9 @@ finish and keeps it from ever justifying a skip. `commit` overrides where the
 recording stands, which otherwise reads the checkout's `HEAD`. `checks` holds
 which declared checks each case's attempts entered and the scope the run was
 asked for, as the Playwright reporter records them for `variance ask not-run`;
-it replaces what the record held, and absent, the record keeps none.
+it replaces what the record held, and absent, the record keeps none. `workers`
+is how many workers the run ran its subjects in; the runs record names it with
+the machine the run landed on, and absent, the machine names none.
 
 Recording refuses in one direction only. Each of these records **nothing** and
 prints why, costing the next run its full suite:

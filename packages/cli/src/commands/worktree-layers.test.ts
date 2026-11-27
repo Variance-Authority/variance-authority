@@ -17,6 +17,7 @@ import { recordedExecutionFile } from './execution-input.js';
 import { landJourneys } from './land.js';
 import { git, parseReview, published, selectedIn, wholeRecord } from './mainline-fixture.js';
 import { review } from './review.js';
+import { selectOutput } from './select-command.js';
 
 /**
  * A git worktree of a primary checkout that has recorded, before the worktree
@@ -55,7 +56,7 @@ async function worktreeOf(whole = false): Promise<{ primary: string; worktree: s
 }
 
 describe('a worktree that has not run', () => {
-  it('says `variance select` read the primary checkout\'s record as the offline fallback, where it is kept, and why the mainline\'s was not read', async () => {
+  it('says `variance select` read the primary checkout\'s record as the offline fallback, and why the mainline\'s was not read, leaving where it is kept to the JSON', async () => {
     const { primary, worktree } = await worktreeOf();
     await writeFile(join(worktree, 'src/total.ts'), 'export const changed = true;\n');
 
@@ -63,10 +64,13 @@ describe('a worktree that has not run', () => {
 
     const kept = testCoverageFile(primary, { suite: 'unit' });
     expect(err).toContain(
-      `record of "unit": read from the primary checkout's, at ${kept}, as the offline fallback: ` +
+      'record of "unit": read from the primary checkout\'s, as the offline fallback: ' +
         'this worktree has recorded none, and no mainline record of it was fetched on this machine; ' +
         'the share has none either; mainline main: nothing is published there.',
     );
+    expect(err.split('\n').filter((line) => line.startsWith('record of')).join('\n')).not.toContain(kept);
+    const json = JSON.parse((await selectOutput({ cwd: worktree, format: 'json' })).out) as { journal: { at: string } };
+    expect(json.journal.at).toBe(kept);
   });
 
   it('is refused by `variance review` with no base named, rather than starting where the primary checkout\'s runs did', async () => {

@@ -25,7 +25,7 @@ import { parseJobArgs, type ParsedJob } from './job-args.js';
 import { parseCargoArgs, type ParsedCargo } from './cargo-args.js';
 import { parseCollectArgs, type ParsedCollect } from './collect-args.js';
 import { parsePushArgs, type ParsedPush } from './push-args.js';
-import { parseAskArgs, type ParsedAsk } from './ask-args.js';
+import { PATTERNED, parseAskArgs, type ParsedAsk } from './ask-args.js';
 import { parseCommentArgs, type ParsedComment } from './comment-args.js';
 import { parseShard, type Shard } from './shard-args.js';
 import { parseJourneysArgs, type ParsedJourneys } from './journeys-args.js';
@@ -218,7 +218,7 @@ export function parseArgs(argv: readonly string[]): Parsed {
   // `ask` keeps an unknown flag and names it beside the answer: a question reads
   // and writes nothing, so refusing costs a round trip and buys nothing, where
   // `run --subject` would run the whole suite and report success.
-  const flags = readFlags(argv.slice(1), first, flagsFor(first), synopsisFor(first), first === 'ask' ? 'keep' : 'refuse');
+  const flags = readFlags(argv.slice(1), first, flagsFor(first), synopsisFor(first), first === 'ask' ? 'keep' : 'refuse', first === 'ask' ? PATTERNED : undefined);
   const config = resolve(flags.values.get('--config') ?? DEFAULT_CONFIG);
 
   switch (first) {

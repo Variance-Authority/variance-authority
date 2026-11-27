@@ -513,7 +513,7 @@ Every answer read from the share opens with a sentence starting `report:` that
 says which line it came from. From a branch line:
 
 ```text
-report: read from branch feat/cart, evaluated at 51ab09e… for pull request head 9c4e1d2…, 2 commit(s) before HEAD; kept at <cache>/report/<digest>/.variance/report.json.
+report: read from branch feat/cart, evaluated at 51ab09e… for pull request head 9c4e1d2…, 2 commit(s) before HEAD.
 ```
 
 The commit the run report was published at is compared with your `HEAD`, the
@@ -533,7 +533,7 @@ a lookup prints, and when your branch's line did not answer, the reason follows
 underneath:
 
 ```text
-report: read from mainline main, evaluated at 3f1c9a2…, 2 commit(s) behind the merge base with this checkout; kept at <cache>/report/<digest>/.variance/report.json.
+report: read from mainline main, evaluated at 3f1c9a2…, 2 commit(s) behind the merge base with this checkout.
 branch feat/cart: https://variance.example.com/share/branch/feat/cart/manifest.json: HTTP 403.
 ```
 
@@ -609,10 +609,20 @@ Records are read in this order:
    worktree's own, not the primary checkout's.
 2. **The mainline's record.** It is kept at
    `<cache>/share/read/<suite>/<commit>/coverage.bin`, apart from every record a
-   run writes, so it is never read as your checkout's own. The record read is
-   the one kept at your `HEAD`'s merge base with the mainline when the share
-   keeps one there. Until it does, because that commit's CI has not published
-   yet, it is the newest kept behind your merge base that holds your suite's
+   run writes, so it is never read as your checkout's own. In a worktree,
+   `<cache>` is the primary checkout's, so every checkout of the repository
+   reads the record any of them fetched, and removing a worktree keeps it. Each
+   checkout reads the nearest kept record its `HEAD` contains, so a sibling's
+   fetch of a newer commit does not change what an older checkout reads, and a
+   checkout that merges the mainline reads the newer record without fetching
+   again. A directory or HTTP share is the exception: it keeps only its newest
+   record, which every checkout reads, since that share has nothing nearer to
+   give. A worktree that cannot write there, as in a sandbox, keeps the record
+   in its own cache, and the answer says why.
+
+   The record fetched is the one at your `HEAD`'s merge base with the mainline
+   when the share keeps one there. Until it does, because that commit's CI has
+   not published yet, it is the newest kept behind your merge base that holds your suite's
    record, and the remote is asked again on each read, at most once a minute,
    until your merge base's record is there. With nothing kept at or behind
    your merge base, it is the mainline's newest. A record fetched at your merge
@@ -630,7 +640,7 @@ Records are read in this order:
 The answer prints which one it read:
 
 ```text
-record of "stories": read from mainline main, published at 3f1c9a2…, 2 commit(s) behind the merge base with this checkout; kept at <cache>/share/read/stories/3f1c9a2…/coverage.bin
+record of "stories": read from mainline main, published at 3f1c9a2…, 2 commit(s) behind the merge base with this checkout
 ```
 
 `variance share --suite <name>` queries the remote now, whenever the last fetch

@@ -1,7 +1,7 @@
 // compass: variance-authority.reach.crossings
 /** The record's case index as tables: each case, and each region a case entered. */
 
-import { BLOCK_KINDS, lineAt, linesOf, members, NO_OWNER, openSetColumns, shareOf, testAt, type SetColumns } from '@variance-authority/sense/record';
+import { BLOCK_KINDS, lineAt, linesOf, members, NO_OWNER, openSetColumns, shareOf, testAt, type CaseTime, type SetColumns } from '@variance-authority/sense/record';
 import { address, each, entered, enteredCounts, gathered, listed, once, ownerOf, rowsOf, unless, yes, type Detail, type Sets, type Table } from './view-rows.js';
 
 /** One case index, opened. */
@@ -14,6 +14,8 @@ export interface Cases {
   /** A module's regions. */
   ofModule(module: string): readonly number[];
   rowOf(id: string): number | undefined;
+  /** The highest `figure` any line of any case ended at; undefined where none was read. */
+  peak(figure: 'load' | 'rss'): number | undefined;
   idAt(row: number): string;
   nameAt(row: number): string;
   testDetail(row: number): Detail;
@@ -70,6 +72,8 @@ function casesOf(columns: SetColumns, prefix: string, label: string): Cases {
       { name: 'ended', at: (row) => [undefined, 'finished', 'stopped'][columns.testStopped?.[row] ?? 0] },
       { name: 'regions entered', at: (row) => perCase()[row] },
       { name: 'lines timed', at: (row) => test(row).times?.length },
+      { name: 'peak load', at: (row) => peak(test(row).times, 'load') },
+      { name: 'peak RSS MiB', at: (row) => peak(test(row).times, 'rss') },
       { name: 'said', at: heardCount('said') },
       { name: 'read', at: heardCount('read') },
       { name: 'misused', at: heardCount('misused') },
@@ -99,6 +103,14 @@ function casesOf(columns: SetColumns, prefix: string, label: string): Cases {
     count,
     tests,
     regions,
+    peak: (figure) => {
+      let highest: number | undefined;
+      for (let row = 0; row < count; row += 1) {
+        const value = peak(test(row).times, figure);
+        if (value !== undefined && (highest === undefined || value > highest)) highest = value;
+      }
+      return highest;
+    },
     ofFile: (path) => byFile().get(path) ?? [],
     ofModule: (path) => {
       const at = byModule().get(path);
@@ -131,8 +143,8 @@ function casesOf(columns: SetColumns, prefix: string, label: string): Cases {
           { ...reached, columns: [...reached.columns, { name: 'from test line', at: firstLine }] },
           listed(
             { id: `${prefix}times`, label: 'Time by line', hint: 'the time each line of the test took' },
-            ['line', 'µs', '% of the case'],
-            (held.times ?? []).map((line) => [line.line, line.time, shareOf(line.time, held.duration)]),
+            ['line', 'µs', '% of the case', 'load', 'RSS MiB', 'free MiB', 'nodes added'],
+            (held.times ?? []).map((line) => [line.line, line.time, shareOf(line.time, held.duration), line.load, line.rss, line.free, line.added]),
           ),
           ...Object.entries(heard(row)).map(([facet, items]) =>
             listed({ id: `${prefix}${facet}`, label: facet, hint: `what the case ${facet}` }, ['name', 'value', 'site', 'level'], items.map(([key, value, site, level]) => [key, value ?? undefined, site, level])),
@@ -158,6 +170,16 @@ function casesOf(columns: SetColumns, prefix: string, label: string): Cases {
       };
     },
   };
+}
+
+/** The highest `figure` any of `times` ended at; undefined where none was read. */
+function peak(times: readonly CaseTime[] | undefined, figure: 'load' | 'rss'): number | undefined {
+  let highest: number | undefined;
+  for (const time of times ?? []) {
+    const value = time[figure];
+    if (value !== undefined && (highest === undefined || value > highest)) highest = value;
+  }
+  return highest;
 }
 
 /** A region's kind by name. */

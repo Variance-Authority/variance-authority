@@ -8,7 +8,6 @@ use crate::help_page::Page;
 
 pub(super) fn text(
     request: &Request<'_>,
-    from: &str,
     unheld: bool,
     body: &Body<'_>,
     view: &View<'_>,
@@ -21,7 +20,7 @@ pub(super) fn text(
     match body {
         Body::File(ranges) => {
             if ranges.is_empty() {
-                lines.push(format!("No line of {file} is recorded in {from}."));
+                lines.push(format!("No line of {file} is recorded."));
             } else {
                 let named = witnesses.len();
                 let files = rows.len();

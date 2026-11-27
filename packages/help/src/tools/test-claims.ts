@@ -23,7 +23,7 @@ export const testClaimsTool: Tool<unknown> = {
     'One recorded test held against what it says: its name and, when the run kept an Eyes journal, ' +
     'its steps and assertions; the functions it ran; what only it covers beside the tests that ran ' +
     'the same code; and the branches of its functions it did not take, each with whether another test ' +
-    `takes it; and its pieces and wholes. docs_test_composition adds the code no piece ran. ${RECORDING}; reads no source.`,
+    `takes it; and its pieces and wholes. \`docs_test_composition\` adds the code no piece ran. ${RECORDING}; reads no source.`,
   inputSchema: ASKED_TEST_INPUT,
 
   run: (_subject, input, invocation) => {

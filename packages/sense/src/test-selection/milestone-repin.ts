@@ -20,7 +20,6 @@
 
 // compass: variance-authority.reach
 
-import { execFileSync } from 'node:child_process';
 import { readFile, rm } from 'node:fs/promises';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import { carriedSources } from './carried-sources.js';
@@ -40,7 +39,7 @@ import { withIndexLock } from './index-lock.js';
 import type { TestCoverage } from './index.js';
 import { partlyIn, partOf, whatLanded, type Landing } from './landings.js';
 import { landedOf, ranOn, standKey } from './standing-after.js';
-import { opensFetched, type LastFetched } from './mainline-layer.js';
+import { ancestor, opensFetched, type LastFetched } from './mainline-layer.js';
 import { pinOf, readOwnLayer, writeOwnLayer, type OwnLayer } from './own-layer.js';
 import { writeCoverageBytes } from './record-location.js';
 
@@ -379,14 +378,4 @@ function repinnedRuns(
     ...(known ? { standing } : {}),
     landings,
   };
-}
-
-/** Whether `older` is an ancestor of `newer` in `root`, or `undefined` when git cannot say. */
-function ancestor(root: string, older: string, newer: string): boolean | undefined {
-  try {
-    execFileSync('git', ['merge-base', '--is-ancestor', older, newer], { cwd: root, stdio: 'ignore' });
-    return true;
-  } catch (error) {
-    return (error as { status?: number }).status === 1 ? false : undefined;
-  }
 }

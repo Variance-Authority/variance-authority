@@ -1,6 +1,7 @@
 import { resolve } from 'node:path';
 import { countOf, offsetOf, type Flags, type Unknown } from './args.js';
 import { OperatorError } from './exit.js';
+import { PLACEHOLDER } from './placeholder.js';
 
 /**
  * `variance ask` on the command line: argv into the shape one question takes.
@@ -45,6 +46,12 @@ export const CROSSING = [
   'exceptDeclares',
   'exceptPath',
 ] as const;
+
+/** The `ask` flags whose value is one regular expression, read off how each is spelled in a synopsis. */
+export const PATTERNED: ReadonlySet<string> = new Set(
+  Object.entries(PLACEHOLDER).flatMap(([property, spelled]) =>
+    spelled === '<regex>' || spelled === '<pattern>' ? [flagOf(property)] : []),
+);
 
 /** `--imports`, `--declares`, `--path`, `--text` and their `--except-` twins, by property. */
 export type Crossing = { readonly [Property in (typeof CROSSING)[number]]?: string };

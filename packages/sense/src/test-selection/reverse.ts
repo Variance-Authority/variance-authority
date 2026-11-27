@@ -8,6 +8,7 @@ import { outside, sameCases, stoppedIn } from './stopped.js';
 import { sameUnentered, unenteredOn, type Unentered } from './unentered.js';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { Said } from './case-said.js';
+import type { CaseTime } from './case-times.js';
 import type { ReachRecord } from './range-state.js';
 
 /** One recorded case: who it is, where it is declared, and whether its journey ended. */
@@ -37,11 +38,10 @@ export interface ExecutionTest {
    */
   readonly limit?: number;
   /**
-   * Every statement of the case's body: its line in the test file and its
-   * whole microseconds, a loop's runs summed, in the order the case first
+   * Every statement of the case's body as {@link CaseTime} keeps it, in the order the case first
    * reached them. Absent where the file was not cut, which is not a time of zero.
    */
-  readonly times?: readonly { readonly line: number; readonly time: number }[];
+  readonly times?: readonly CaseTime[];
   /** Every item the case said it arranged, unresolved; `[]` is heard-nothing, absent is unheard. */
   readonly said?: Said;
 }

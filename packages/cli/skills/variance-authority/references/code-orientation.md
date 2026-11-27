@@ -75,6 +75,25 @@ Read the returned source to establish how it uses the value. An empty
 intersection does not rule out a runtime consumer: dependency injection can
 leave no corresponding import path.
 
+## Trace a behavior across files
+
+For “does this feature add this flag?”, identify the feature before requiring
+the flag to match. The property being checked may be absent from the correct
+owner. Use names and relationships from that owner for the next question.
+
+Read the value's producer, its transformations and its consumer through the
+actual argument, callback, prop or registration binding. A call that supplies
+no separate flag field may still pass a URL that already contains it. Check
+conditions that change the answer: configuration scope, defaults, omitted versus
+false values, or whether the target remains mounted until its consumer runs.
+
+Answer with the connected source explanation and name any unproved link. For a
+requested change, identify the implementation, registration or configuration
+surfaces the source shows it would need; finding a rule's implementation does
+not establish that the rule is enabled. Once the source answers the requested
+behavior, finish that answer. An unobserved runtime effect is a limit to state,
+with the observation that would distinguish the remaining explanations.
+
 ## Choose directory membership or import reach
 
 `grep --from src/pricing/` searches files under that path and files
