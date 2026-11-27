@@ -126,6 +126,7 @@ export {
   fileCases,
   fileTimes,
   machinesBeside,
+  machinesIn,
   recordedDurations,
   recordedPaths,
   recordedTimes,
