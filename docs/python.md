@@ -77,12 +77,13 @@ runs every test.
 - **A value read at import.** A test that ran none of a module's functions and
   only read a value its top level set, such as a constant, is not charged for
   that module. Name the module in `before`.
-- **A dependency or a pytest setting.** No test reads `pyproject.toml`,
-  `requirements.txt`, a lockfile or `pytest.ini`, so a change to one keeps no
-  test in the run. Name them in `before`:
+- **A dependency, a pytest setting or a hook.** No test reads `pyproject.toml`,
+  `requirements.txt`, a lockfile, `pytest.ini`, `setup.cfg` or `tox.ini`, and a
+  `conftest.py`'s top level and hooks run outside every test, so a change to one
+  keeps no test in the run. Name them in `before`:
 
   ```json
-  { "suites": { "unit": { "kind": "unit", "before": ["pyproject.toml", "requirements.txt"] } } }
+  { "suites": { "unit": { "kind": "unit", "before": ["pyproject.toml", "requirements.txt", "conftest.py"] } } }
   ```
 
 - **A narrowed recording.** A run narrowed with `-k` or `-m` records only the
@@ -95,8 +96,8 @@ A function, method or nested function is a region of its own, named by its
 scope, such as `Calc/twice/inner`. A class adds a scope and is not a region; a
 lambda and a decorator belong to the function they are written in. The code a
 module runs as it is imported belongs to the module's root, and a test that ran
-any function of a file is charged the root too: import-time code runs once, while
-pytest collects the test files, so an edit to it selects every test
+any function of a file is charged the root too: a module imported at a test file's
+top level runs once, while pytest collects the test files, so an edit to it selects every test
 that ran the file. A test that only read a value the
 file's top level set [is not charged](#when-a-test-that-should-run-is-left-out).
 

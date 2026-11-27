@@ -31,8 +31,9 @@ leave out.
 ## When you can rely on what was left out
 
 Every runner keeps one rule: a test file is left out only when its last whole
-run covered none of the code you changed, and a test file the record cannot
-answer for runs. [What a skipped test promises](selection-safety.md) states the
+run covered none of the code you changed. When the record cannot answer, CI runs
+every test file, and a local run keeps only the tests that import a changed
+file. [What a skipped test promises](selection-safety.md) states the
 rule and every case where it runs more.
 
 What differs between runners is what the recorder can see, and that depends on
@@ -43,34 +44,35 @@ for all of them is recorded under the first file that ran it. A later file that
 only uses the result has nothing recorded for it, so a change to that work can leave the
 later file out.
 
-A test file left out this way is not a silent pass forever. The whole-suite run
-on your main branch runs it, and [that run is where it
+A test file left out this way is not a silent pass forever. When your main
+branch runs and records the whole suite, that run includes it, and [that run is where it
 fails](selection-safety.md#the-whole-run-on-main-catches-what-a-skip-hid). Until
 then, a pull request can be green without it. When main fails that way, the
 failing test names the file, and the fix is on the page the table links for
 your runner. Many close with `before`: a list of files in a suite's entry in
 `variance.config.json`, and a change to any of them runs every test.
 
-Under every runner, a function that returns a result it cached in an earlier
-case can leave out a later one: [a result a cache
-returned](selecting.md#a-result-a-cache-returned) says what closes it. The
-table names what else each runner adds.
+A function that returns a result it cached in an earlier case can leave out a
+later case of the same file, under a runner that skips cases, or a later file,
+where files share one module graph or page: [a result a cache
+returned](selecting.md#a-result-a-cache-returned) says what closes it.
 
 | Your tests run under | Each test file runs in | Where a needed test file can be left out, and what closes it |
 |---|---|---|
 | Vitest, Rstest | its own module graph, unless `isolate` is `false` | [a record needs a module graph per test file](selecting.md#a-record-needs-a-module-graph-per-test-file) |
-| Jest 30 | its own module registry | only the cache case |
-| Playwright | a new page per test, unless you keep one | only the cache case |
-| Storybook | one preview for every story | only the cache case |
-| `node:test` | its own process | only the cache case |
+| Jest 30 | its own module registry | a later case of the same file: [a result a cache returned](selecting.md#a-result-a-cache-returned) |
+| Playwright | a new page per test, unless you keep one | a page you keep across tests: [a result a cache returned](selecting.md#a-result-a-cache-returned) |
+| Storybook | one preview for every story | a later story: [a result a cache returned](selecting.md#a-result-a-cache-returned) |
+| `node:test` | its own process | none known: [a kept file runs whole](node-test.md) |
 | [A JVM on the JUnit Platform](jvm.md) | one JVM for every test class it runs | [what a row holds](jvm.md#what-a-row-holds) |
-| [Cargo](rust.md) | its own process, one per test | [what a row holds](rust.md#what-a-row-holds) |
+| [Cargo](rust.md) | its own process, one per test | [record a Cargo suite](rust.md#record-a-cargo-suite) |
 | [pytest](python.md) | one process for the whole suite | [when a test that should run is left out](python.md#when-a-test-that-should-run-is-left-out) |
 | Any other runner | whatever your harness gives it | work of one case outside the body you hand to `observer.case`: [Sense](../packages/sense/README.md#record-a-runner-this-package-has-no-seam-for) |
 
 `bun test` and Swift's runners record nothing, so they leave nothing out: every
 test runs. For Swift, [`variance reach`](polyglot.md#one-reader-per-language-one-graph)
-lists what a diff can reach at target grain.
+lists what a diff can reach at target grain, and [an import graph is the safe
+half](polyglot.md#why-an-import-graph-is-the-safe-half) says how far to trust it.
 
 ## Record which tests ran each line
 
