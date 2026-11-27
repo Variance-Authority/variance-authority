@@ -106,11 +106,6 @@ repository's own script when it has one. To ask `covering` again once the edit
 is in the file, pass the edited text with `--text <file>` so the ranges follow
 it. [test selection](../variance-authority/references/test-selection.md)
 
-When a repository's local-wave policy defers a whole slice to CI, run its
-directly edited test files by path and print the deferral. That execution policy
-does not change selection: keep full tests and CI on the complete answer. A
-local deferral does not establish that the slice passed.
-
 ## A test fails: find where it went
 
 Take the failing test's file and name from the runner's output. When the stack

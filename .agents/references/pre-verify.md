@@ -137,10 +137,8 @@ machine says whether it was the change; a wave re-run says it again slower.
 **A slice the reading runs whole is not a wave.** Read `yarn variance select
 --suite <slice>` first: when it skips nothing, or the runner prints
 `declined:`, the near wave is the whole slice and the distance is never
-consulted. `verify:near` runs the directly edited collected test files by path and
-names the complete slice it leaves to CI. Run wave 2 and push — CI runs the
-whole suite on its own runners. This scheduling rule is local to the repository
-wave; full test runs and CI keep the complete selection.
+consulted. Run the test files you edited by
+path, wave 2, and push — CI runs the whole suite on its own runners.
 
 **The gate is CI's.** `verify` is `yarn lint && yarn check && yarn measure &&
 yarn test`, and the check workflow runs every part of it on the pull request:

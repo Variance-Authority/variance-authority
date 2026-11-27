@@ -261,9 +261,6 @@ yarn verify:near    # 1. lint, types, tests within two imports, 60 s across the 
 yarn verify:rules   # 2. the repository checks, once near is green
 ```
 
-A slice selected whole is left to CI; near runs only its directly edited test
-files locally and prints that deferral.
-
 The rest of the selection is `yarn verify:far`, and it is CI's: a local run costs
 many minutes and repeats what CI runs. A failure CI reports is reproduced per
 file, never by re-running the wave.
