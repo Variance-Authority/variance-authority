@@ -5,10 +5,14 @@
   "type": "module",
   "dependencies": {
     "@playwright/test": "^1.64.1",
-    "@variance-authority/event": "workspace:^",
-    "@variance-authority/playwright-test": "workspace:^"
+    "@variance-authority/page-broker": "workspace:^"
   },
   "devDependencies": {
+    "@headlessui/react": "2.2.10",
+    "@testing-library/dom": "^10.4.2",
+    "@testing-library/user-event": "14.6.8",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
     "vitest": "^5.1.0"
   }
 }

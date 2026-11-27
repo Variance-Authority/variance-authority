@@ -223,6 +223,7 @@
         "CaptureArtifact": "interface",
         "CaptureMaterial": "type",
         "LFS_POINTER_HEAD_BYTES": "const",
+        "awaitedRequest": "function",
         "didYouMean": "function",
         "isLfsPointer": "function",
         "nearest": "function"
@@ -1756,6 +1757,67 @@
       }
     }
   },
+  "@variance-authority/page-broker": {
+    "declared": {
+      "type": "module",
+      "main": "./dist/index.js",
+      "types": "./dist/index.d.ts",
+      "exports": {
+        ".": {
+          "types": "./dist/index.d.ts",
+          "default": "./dist/index.js"
+        },
+        "./dom": {
+          "types": "./dist/dom.d.ts",
+          "default": "./dist/dom.js"
+        },
+        "./playwright": {
+          "types": "./dist/playwright.d.ts",
+          "default": "./dist/playwright.js"
+        }
+      },
+      "files": [
+        "dist",
+        "!dist/**/*.d.ts.map",
+        "mark.svg"
+      ],
+      "engines": {
+        "node": ">=22"
+      }
+    },
+    "names": {
+      ".": {
+        "Act": "type",
+        "Bound": "type",
+        "Broker": "interface",
+        "Declared": "interface",
+        "Elsewhere": "interface",
+        "Leads": "interface",
+        "Left": "interface",
+        "Members": "type",
+        "Outcomes": "type",
+        "Query": "type",
+        "Quiet": "interface",
+        "Reached": "type",
+        "Reaching": "interface",
+        "Reason": "type",
+        "Surface": "interface",
+        "Target": "interface",
+        "Unreached": "class",
+        "broker": "function",
+        "leads": "const",
+        "stay": "const"
+      },
+      "./dom": {
+        "DocumentSurface": "type",
+        "surface": "function"
+      },
+      "./playwright": {
+        "PageSurface": "type",
+        "surface": "function"
+      }
+    }
+  },
   "@variance-authority/playwright": {
     "declared": {
       "type": "module",
@@ -1806,7 +1868,6 @@
         "UnansweredAssets": "class",
         "WidthPlanned": "interface",
         "acquireFromAgent": "function",
-        "awaitedRequest": "function",
         "blankKey": "function",
         "blankPng": "function",
         "blankRuleError": "function",

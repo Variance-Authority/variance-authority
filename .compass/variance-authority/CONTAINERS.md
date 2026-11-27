@@ -24,6 +24,11 @@ becomes one artifact owned by neither its writer nor any of its readers.
 serialized lane every reading goes through, first, second and clean; a second
 lane would be a second world.
 
+One block has none. [harness](./harness/README.md) is a piece of the adopter's
+harness offered beside the rest: it reads nothing a run left behind and hands
+nothing on, so no edge is drawn to it. Of the code beside it, it imports only
+the core's rule for which requests count as work.
+
 ## Blocks
 
 | Block | Responsibility |
@@ -39,6 +44,7 @@ lane would be a second world.
 | [review](./review/README.md) | Where a named person decides, and what that decision moves |
 | [presentation](./presentation/README.md) | How one interface reads, right now, with nothing to compare against |
 | [runtime](./runtime/README.md) | What running software says, and what a test addressed |
+| [harness](./harness/README.md) | Where an action a test performed ended, among its declared outcomes |
 
 ## Diagram
 
@@ -55,6 +61,7 @@ flowchart TB
   RUN[runtime]
   REP[report]
   REV[review]
+  HAR[harness]
 
   REACH -->|the narrowed subject list| ACQ
   ACQ -->|raw capture and render document| NORM

@@ -1,0 +1,76 @@
+{
+  "name": "@variance-authority/page-broker",
+  "version": "0.34.0",
+  "description": "One broker per complex part of an app: how a test finds it, what it can do there, and where each action can lead, over a document or a browser.",
+  "keywords": [
+    "variance-authority",
+    "page-object",
+    "model-based-testing",
+    "playwright",
+    "testing-library",
+    "jsdom",
+    "flaky-tests"
+  ],
+  "license": "MIT",
+  "author": "Machine Garden",
+  "homepage": "https://variance-authority.dev/reference/packages/page-broker",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Variance-Authority/variance-authority.git",
+    "directory": "packages/page-broker"
+  },
+  "bugs": "https://github.com/Variance-Authority/variance-authority/issues",
+  "engines": {
+    "node": ">=22"
+  },
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./dom": {
+      "types": "./dist/dom.d.ts",
+      "default": "./dist/dom.js"
+    },
+    "./playwright": {
+      "types": "./dist/playwright.d.ts",
+      "default": "./dist/playwright.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "!dist/**/*.d.ts.map",
+    "mark.svg"
+  ],
+  "scripts": {
+    "build": "tsc --build"
+  },
+  "dependencies": {
+    "@variance-authority/core": "workspace:^"
+  },
+  "peerDependencies": {
+    "@testing-library/dom": ">=10.4 <11",
+    "@testing-library/user-event": ">=14.6 <15",
+    "playwright-core": ">=1.55 <2"
+  },
+  "peerDependenciesMeta": {
+    "@testing-library/dom": {
+      "optional": true
+    },
+    "@testing-library/user-event": {
+      "optional": true
+    },
+    "playwright-core": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@testing-library/dom": "10.4.2",
+    "@testing-library/user-event": "14.6.8",
+    "jsdom": "^30.1.3",
+    "playwright-core": "1.64.1"
+  }
+}

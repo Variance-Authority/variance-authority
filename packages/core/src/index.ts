@@ -20,10 +20,11 @@
  * | `core/plan` | a composition as a value, and the identity derived from it |
  *
  * Every name lives in exactly one of them; nothing is reachable from two paths.
- * This entrypoint holds only what belongs to no group: the artifact a capture is
- * written to, the name offered for a mistyped one, and a git-LFS pointer's head.
+ * This entrypoint holds only what belongs to no group, each export saying what
+ * it is.
  */
 
 export * from './artifact.js';
+export { awaitedRequest } from './awaited.js';
 export { isLfsPointer, LFS_POINTER_HEAD_BYTES } from './lfs-pointer.js';
 export { didYouMean, nearest } from './nearest.js';
