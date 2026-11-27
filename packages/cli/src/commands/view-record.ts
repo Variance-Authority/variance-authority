@@ -11,7 +11,7 @@
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import { columnBytes, NO_BLOB, NO_DURATION, NO_OWNER, openTestCoverage, PHASE_NAMES, RecordWithoutCoverage, sectionsOf, type OpenedSections, type TestCoverageView } from '@variance-authority/sense/record';
 import { kindName, openCases, type Cases } from './view-cases.js';
-import type { RanOn } from './view-machines.js';
+import type { MachinesBeside } from '@variance-authority/sense';
 import { openParts, type Parts } from './view-parts.js';
 import { address, each, entered, enteredCounts, gathered, listed, once, ownerOf, rowsOf, span, unless, yes, type Detail, type Sets, type Table } from './view-rows.js';
 
@@ -45,7 +45,7 @@ export interface ViewRecord {
 }
 
 /** The record at `bytes`, and the machines the runs beside it name. */
-export function openRecord(bytes: Uint8Array, ran?: RanOn): ViewRecord {
+export function openRecord(bytes: Uint8Array, ran?: MachinesBeside): ViewRecord {
   const sections = sectionsOf(bytes);
   const part = (name: string) => (sections.found.has(name) ? columnBytes(sections, name).slice() : undefined);
   const index = (name: string, prefix: string, label: string) => {
@@ -71,7 +71,7 @@ export function openRecord(bytes: Uint8Array, ran?: RanOn): ViewRecord {
   };
 }
 
-function coverageTables(view: TestCoverageView, cases: Cases | undefined, ran: RanOn | undefined): CoverageTables {
+function coverageTables(view: TestCoverageView, cases: Cases | undefined, ran: MachinesBeside | undefined): CoverageTables {
   const string = each((id) => view.string(id));
   const testCount = view.testPath.length;
   const testPath = (row: number) => string(view.testPath.at(row));
@@ -97,7 +97,7 @@ function coverageTables(view: TestCoverageView, cases: Cases | undefined, ran: R
     const high = unless(starts()?.[row * 2 + 1], NO_DURATION);
     return high === undefined ? undefined : high * 2 ** 32 + starts()![row * 2]!;
   };
-  const { on, unread } = machinesAt(ran, view.commit);
+  const { on, unread } = machinesAt(ran);
   const tests: Table = {
     id: 'tests',
     label: 'Test files',
@@ -299,12 +299,10 @@ function timeline(
   };
 }
 
-/** Each file's machine, where the runs stand at `commit`; otherwise why none is named, where runs were read. */
-function machinesAt(ran: RanOn | undefined, commit: string | undefined): { readonly on?: Readonly<Record<string, string>>; readonly unread?: string } {
+/** Each file's machine, where the runs named them; otherwise why none is named, where runs were read. */
+function machinesAt(ran: MachinesBeside | undefined): { readonly on?: Readonly<Record<string, string>>; readonly unread?: string } {
   if (ran === undefined) return {};
-  if ('unread' in ran) return { unread: ran.unread };
-  if (ran.commit === undefined || ran.commit !== commit) return { unread: 'the runs record beside it stands at another commit' };
-  return { on: ran.files };
+  return 'unread' in ran ? { unread: ran.unread } : { on: ran.files };
 }
 
 const NONE_NAMED = '(none named)';

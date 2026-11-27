@@ -4,7 +4,7 @@ import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { fileCases, recordedDurations, recordedPaths, recordedTimes } from './recorded-durations.js';
+import { fileCases, machinesBeside, recordedDurations, recordedPaths, recordedTimes } from './recorded-durations.js';
 import { withCaseSections } from './test-selection/case-record.js';
 import { commitRunsFile } from './test-selection/commit-runs.js';
 import { commitRunsText } from './test-selection/commit-runs-text.js';
@@ -365,6 +365,37 @@ describe('the record an answer read', () => {
 
     expect(suite).toMatchObject({ commit, timed: 1 });
     expect(suite).not.toHaveProperty('landed');
+  });
+});
+
+describe('the machines the runs beside a record name', () => {
+  const commit = 'f'.repeat(40);
+  const LANDED = '2026-10-01T12:00:00.000Z';
+  const runner = { arch: 'x64', cores: 2 };
+
+  it('names each file\'s machine where the runs stand at the record\'s commit', () => {
+    const at = record({ ...coverage([['test/a.test.ts', 40], ['test/b.test.ts', 9]]), commit });
+    writeFileSync(commitRunsFile(at), commitRunsText({ commit, latest: LANDED, runs: 1, landings: [{ files: ['test/a.test.ts'], machine: runner }] }));
+
+    expect(machinesBeside(at, commit)).toEqual({ files: { 'test/a.test.ts': 'x64, 2 cores' } });
+  });
+
+  it('answers nothing where no runs record is beside it', () => {
+    expect(machinesBeside(record({ ...coverage([['test/a.test.ts', 40]]), commit }), commit)).toBeUndefined();
+  });
+
+  it('says why none is named where the runs cannot be read, stand elsewhere, carry no commit, or name none', () => {
+    const at = record({ ...coverage([['test/a.test.ts', 40]]), commit });
+    const landings = [{ files: ['test/a.test.ts'], machine: runner }];
+    for (const [text, why] of [
+      ['not json', /^the runs record at .* is not JSON/u],
+      [commitRunsText({ commit: 'e'.repeat(40), latest: LANDED, runs: 1, landings }), /^the runs record beside it stands at another commit$/u],
+      [commitRunsText({ latest: LANDED, runs: 1, landings }), /^the runs record beside it carries no commit to match the record's$/u],
+      [commitRunsText({ commit, latest: LANDED, runs: 1, landings: [{ files: ['test/a.test.ts'] }] }), /^the runs record beside it names no machine$/u],
+    ] as const) {
+      writeFileSync(commitRunsFile(at), text);
+      expect(machinesBeside(at, commit)).toEqual({ unread: expect.stringMatching(why) });
+    }
   });
 });
 

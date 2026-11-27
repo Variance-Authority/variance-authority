@@ -7,7 +7,7 @@
 import './view-buffer.js';
 import './view-no-node.js';
 import type { History } from './view-history-tables.js';
-import type { RanOn } from './view-machines.js';
+import type { MachinesBeside } from '@variance-authority/sense';
 import { openRecord } from './view-record.js';
 import { panesOf, type Panes, type Tab } from './view-panes.js';
 import { tableOf, written } from './view-table.js';
@@ -61,7 +61,7 @@ function draw(panes: Panes, main: HTMLElement): void {
 async function open(): Promise<void> {
   const main = document.querySelector('main')!;
   const suite = document.body.dataset['suite'] ?? '';
-  const panes = panesOf(openRecord(await carried(), carriedJson<RanOn>('ran')), suite, carriedJson<History>('history'));
+  const panes = panesOf(openRecord(await carried(), carriedJson<MachinesBeside>('ran')), suite, carriedJson<History>('history'));
   document.querySelector('.tabs')!.replaceChildren(
     ...panes.tabs.map(({ id, label }) => {
       const link = made('a', '', label) as HTMLAnchorElement;

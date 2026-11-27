@@ -91,24 +91,14 @@ describe('variance view', () => {
 
   it('carries the machine each test file ran on, as the runs beside the record name it, and nothing where none are there', async () => {
     record();
-    const commit = 'c'.repeat(40);
     const ran = (html: string) => /<script id="ran" type="application\/json">([^<]*)<\/script>/u.exec(html)?.[1];
 
     expect(ran(readFileSync((await viewOutput({ command: 'view' }, root)).out.trim(), 'utf8'))).toBeUndefined();
 
-    writeFileSync(commitRunsFile(testCoverageFile(root, {})), JSON.stringify({ commit, latest: '2026-11-27T05:13:00.000Z', runs: 1, landings: [{ files: ['a.test.ts'], machine: { arch: 'x64', cores: 2 } }] }));
+    writeFileSync(commitRunsFile(testCoverageFile(root, {})), JSON.stringify({ latest: '2026-11-27T05:13:00.000Z', runs: 1, landings: [{ files: ['a.test.ts'], machine: { arch: 'x64', cores: 2 } }] }));
     const html = readFileSync((await viewOutput({ command: 'view' }, root)).out.trim(), 'utf8');
 
-    expect(JSON.parse(ran(html)!)).toEqual({ commit, files: { 'a.test.ts': 'x64, 2 cores' } });
+    expect(JSON.parse(ran(html)!)).toEqual({ files: { 'a.test.ts': 'x64, 2 cores' } });
   });
 
-  it('carries why no machine is named where the runs beside the record cannot be read', async () => {
-    record();
-    writeFileSync(commitRunsFile(testCoverageFile(root, {})), 'not json');
-
-    const html = readFileSync((await viewOutput({ command: 'view' }, root)).out.trim(), 'utf8');
-
-    const ran = /<script id="ran" type="application\/json">([^<]*)<\/script>/u.exec(html)![1]!;
-    expect(JSON.parse(ran)).toEqual({ unread: expect.stringMatching(/^the runs record at .* is not JSON/u) });
-  });
 });

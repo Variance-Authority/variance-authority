@@ -10,7 +10,7 @@
 import { chip, text } from './report-html-elements.js';
 import { MARK, PAGE } from './report-html-style.js';
 import type { History } from './view-history-tables.js';
-import type { RanOn } from './view-machines.js';
+import type { MachinesBeside } from '@variance-authority/sense';
 
 /** The record a page carries, and what is known of it outside its own bytes. */
 export interface Carried {
@@ -24,7 +24,7 @@ export interface Carried {
   /** The mainline series the History tab draws; absent where none was read. */
   readonly history?: History;
   /** The machine each test file ran on, from the runs beside the record; absent where none is there. */
-  readonly ran?: RanOn;
+  readonly ran?: MachinesBeside;
   /** The page's own code. */
   readonly code: string;
 }

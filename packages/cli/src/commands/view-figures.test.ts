@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 // Sense publishes the case index's readers and not its writer, which only a
 // recording run calls, so this writes a record the way that run does.
 import { encodeAsSetExecutionIndex } from '../../../sense/src/test-selection/execution-set-format.js';
-import type { RanOn } from './view-machines.js';
+import type { MachinesBeside } from '@variance-authority/sense';
 import { panesOf } from './view-panes.js';
 import { openRecord } from './view-record.js';
 import type { Table } from './view-rows.js';
@@ -42,7 +42,7 @@ const CASES = {
   modules: [],
 };
 
-const panes = (ran?: RanOn) =>
+const panes = (ran?: MachinesBeside) =>
   panesOf(openRecord(rawRecord(withCaseSections(encodeTestCoverage(COVERAGE), { index: encodeAsSetExecutionIndex(CASES) })), ran), 'unit');
 const column = (table: Table, name: string): unknown[] | undefined => {
   const at = table.columns.find((held) => held.name === name);
@@ -70,7 +70,7 @@ describe('the figures around each line of a case', () => {
 });
 
 describe('the machine each test file ran on', () => {
-  const ran: RanOn = { commit, files: { 'src/a.test.ts': 'x64, 2 cores', 'src/b.test.ts': 'arm64, 12 cores' } };
+  const ran: MachinesBeside = { files: { 'src/a.test.ts': 'x64, 2 cores', 'src/b.test.ts': 'arm64, 12 cores' } };
 
   it('names each file\'s machine in Test files, blank where the runs name none', () => {
     const [files] = tab(panes(ran), 'files').tables();
@@ -85,9 +85,9 @@ describe('the machine each test file ran on', () => {
     expect(column(machines, 'test files')).toEqual([1, 1, 1]);
   });
 
-  it('names no machine where the runs stand at another commit, or none were read, and says why none were', () => {
+  it('names no machine where none were read, and says why where the runs gave a reason', () => {
     for (const [other, why] of [
-      [{ commit: 'd'.repeat(40), files: ran.files }, 'the runs record beside it stands at another commit'],
+      [{ unread: 'the runs record beside it stands at another commit' }, 'the runs record beside it stands at another commit'],
       [undefined, undefined],
     ] as const) {
       const shown = panes(other);
@@ -95,6 +95,5 @@ describe('the machine each test file ran on', () => {
       expect(tab(shown, 'overview').tables().find(({ id }) => id === 'machines')).toBeUndefined();
       expect(new Map(tab(shown, 'overview').facts()).get('machines')).toBe(why);
     }
-    expect(new Map(tab(panes({ unread: 'the runs record could not be read' }), 'overview').facts()).get('machines')).toBe('the runs record could not be read');
   });
 });

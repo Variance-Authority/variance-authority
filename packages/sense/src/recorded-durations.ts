@@ -20,7 +20,7 @@ import { askCoverageFile } from './test-selection/coverage-file.js';
 import type { TestCoverageView } from './test-selection/format-view.js';
 import { decodeExecutionIndex, decodeExecutionTests } from './test-selection/execution-format.js';
 import { costs } from './test-selection/file-cost.js';
-import { classKey, filesMachines, type Machine } from './test-selection/machine.js';
+import { classKey, describeMachine, filesMachines, type Machine } from './test-selection/machine.js';
 import { recordDigestAt } from './test-selection/record-base.js';
 import { nearestRecord, nearestTestCoverage, type RecordOrigin } from './test-selection/record-location.js';
 import { declaredSuites } from './test-selection/suites.js';
@@ -177,20 +177,47 @@ export function takenAt(recording: string, commit: string | undefined): { readon
 
 /** {@link takenAt}, with the runs record it read the landing from. */
 function runsTakenAt(recording: string, commit: string | undefined): { readonly commit?: string; readonly landed?: string; readonly runs?: CommitRuns } {
-  const runs = runsAt(commitRunsFile(recording), commit);
+  const runs = runsAt(recording, commit);
   return { ...(commit === undefined ? {} : { commit }), ...(runs === undefined ? {} : { landed: runs.latest, runs }) };
 }
 
-/** The runs record at `path`, where it stands at `commit`. */
-function runsAt(path: string, commit: string | undefined): CommitRuns | undefined {
+/** The runs record beside `recording`, where it stands at `commit`. */
+function runsAt(recording: string, commit: string | undefined): CommitRuns | undefined {
+  const beside = runsBeside(recording, commit);
+  // The durations stand without their age or machine, and the reader says the record does not hold them.
+  return beside !== undefined && 'runs' in beside ? beside.runs : undefined;
+}
+
+/** The runs record beside `recording` where it stands at `commit`, why not where one is there, undefined where none is. */
+function runsBeside(recording: string, commit: string | undefined): { readonly runs: CommitRuns } | { readonly unread: string } | undefined {
+  const path = commitRunsFile(recording);
+  if (!existsSync(path)) return undefined;
+  let held: CommitRuns;
   try {
-    const held = commitRunsIn(readFileSync(path, 'utf8'), `the runs record at ${path}`);
-    // A landing that died between its two writes leaves a snapshot beside the runs of the commit before it.
-    return held.commit === commit ? held : undefined;
-  } catch {
-    // The durations stand without their age or machine, and the reader says the record does not hold them.
-    return undefined;
+    held = commitRunsIn(readFileSync(path, 'utf8'), `the runs record at ${path}`);
+  } catch (error) {
+    return { unread: messageOf(error) };
   }
+  // A landing that died between its two writes leaves a snapshot beside the runs of the commit before it.
+  if (held.commit === commit) return { runs: held };
+  return { unread: held.commit === undefined || commit === undefined ? "the runs record beside it carries no commit to match the record's" : 'the runs record beside it stands at another commit' };
+}
+
+/** The machine each test file ran on, as a reader says it, or why none is named. */
+export type MachinesBeside = { readonly files: Readonly<Record<string, string>> } | { readonly unread: string };
+
+/**
+ * The machine each test file of the record at `recording` ran on, as the runs
+ * beside it name it where they stand at the record's `commit`; why none is
+ * named where a runs record is there; undefined where none is. A file the runs
+ * name no one machine for is absent.
+ */
+export function machinesBeside(recording: string, commit: string | undefined): MachinesBeside | undefined {
+  const beside = runsBeside(recording, commit);
+  if (beside === undefined || 'unread' in beside) return beside;
+  const files: Record<string, string> = {};
+  for (const [file, machine] of filesMachines(beside.runs)) if (machine !== undefined) files[file] = describeMachine(machine);
+  return Object.keys(files).length === 0 ? { unread: 'the runs record beside it names no machine' } : { files };
 }
 
 /** `timed`, slowest first, grouped by the class of machine `machines` names each on; absent where it names none. */
