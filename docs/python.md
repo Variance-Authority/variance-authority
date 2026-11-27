@@ -47,6 +47,21 @@ function:
 npx variance covering --file pkg/calc.py --function add
 ```
 
+```text
+1 named test covered function add of pkg/calc.py:
+  tests/test_calc.py — 1/2
+    tests/test_calc.py::test_add
+```
+
+After you change a function, name the tests to run:
+
+```bash
+npx variance select --suite unit --since origin/main
+```
+
+It names the test files whose tests ran a function you changed, and skips the
+rest.
+
 ## What a function is
 
 A function, method or nested function is a region of its own, named by its
