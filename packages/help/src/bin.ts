@@ -164,7 +164,7 @@ if (asking(verb) && verb !== undefined) {
         const read = await readSearchForAnswer(root, reading);
         const { index, help, unopened } = read;
         const importing = importingOf(help, root);
-        return { answer: () => (format === 'json' ? askSearchJson : askSearch)(index, ownArgs, () => tree, true, unopened, importing), at: index.generation?.generatedAt };
+        return { answer: () => (format === 'json' ? askSearchJson : askSearch)(index, ownArgs, () => tree, true, unopened, importing, root), at: index.generation?.generatedAt };
       }
       if (tool === discover) {
         const { at, ...named } = await readNamedTree(root);

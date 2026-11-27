@@ -95,7 +95,8 @@ export function candidateFileMap(root: string | undefined, membership: FileSet, 
   const base = { files: membership.files.size, selected: membership.files.size, selector, name: 'root', unread: membership.unread ?? [], evidence: evidence(candidates) };
   const layers = packageLayers(root);
   if (layers?.packages == null || !layers.current) return { ...base, unavailable: layers === undefined ? 'No code map is published.' : !layers.current ? 'The code map belongs to an earlier source index.' : layers.unmade ?? 'No packages were placed.' };
-  if (expectedIndexDigest !== undefined && layers.indexDigest !== expectedIndexDigest) return { ...base, unavailable: 'The search reading and code map describe a different source index.' };
+  if (expectedIndexDigest === undefined) return { ...base, unavailable: 'The search reading has no source-index identity to place on the code map.' };
+  if (layers.indexDigest !== expectedIndexDigest) return { ...base, unavailable: 'The search reading and code map describe a different source index.' };
   const own = packageOwner(layers.packages.map((one) => one.directory));
   const directories = new Map(layers.packages.map((one) => [one.directory, one]));
   const held: Held[] = candidates.map((file) => {

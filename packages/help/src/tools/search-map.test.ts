@@ -2,19 +2,22 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { readHelp } from '../walk.js';
+import { indexedCopy } from '../__fixtures__/indexed-copy.js';
+import { searchIndexOf } from '../snapshot.js';
 import { search } from './search.js';
-import { candidateFileMap } from './search-map.js';
+import { candidateFileMap as placedFileMap } from './search-map.js';
+const candidateFileMap: typeof placedFileMap = (root, membership, selector, expected = 'map-generation') => placedFileMap(root, membership, selector, expected);
 import type { CandidateMap } from './search-map.js';
 import { formatCandidateMap } from './search-map-format.js';
 
-const state = vi.hoisted(() => ({ current: true, present: true, pageCurrent: true }));
-beforeEach(() => Object.assign(state, { current: true, present: true, pageCurrent: true }));
+const state = vi.hoisted(() => ({ current: true, present: true, pageCurrent: true, digest: 'map-generation', joined: false }));
+beforeEach(() => Object.assign(state, { current: true, present: true, pageCurrent: true, digest: 'map-generation', joined: false }));
 
 vi.mock('@variance-authority/sense', async (original) => ({
   ...await original<typeof import('@variance-authority/sense')>(),
-  packageLayers: () => state.present ? ({ indexDigest: 'map-generation', current: state.current, packages: [
+  packageLayers: () => state.present ? ({ indexDigest: state.digest, current: state.current, packages: [
     { package: 'alpha', directory: 'packages/alpha', layer: 1, takes: [], area: { id: '1', name: 'Foundation' } },
-    { package: 'beta', directory: 'packages/beta', layer: 2, takes: ['alpha'], area: { id: '2', name: 'Application' } },
+    { package: 'beta', directory: 'packages/beta', layer: 2, takes: ['alpha'], area: state.joined ? { id: '1', name: 'Foundation' } : { id: '2', name: 'Application' } },
   ] }) : undefined,
   codeMapPage: (_root: string, area?: string) => ({ index: 'index', answer: { current: state.pageCurrent, layers: 2, page: area === undefined || area === '1' || area === '2' ? {
     id: area ?? '', name: 'fixture', packages: 2, files: 6, low: 1, high: 2, alone: 0,
@@ -26,20 +29,23 @@ vi.mock('@variance-authority/sense', async (original) => ({
 }));
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../__fixtures__/workspace');
-const HELP = readHelp(ROOT);
 
 describe('the complete search candidate-file map', () => {
-  it('maps every matching file before the detail cap, with explicit membership drills', () => {
-    const input = { query: 'e', limit: 1 };
-    const complete = search.files!(HELP, input, { root: ROOT });
-    expect(complete.files.size).toBeGreaterThan(1);
-    const text = search.run(HELP, { ...input, map: 'root' }, { root: ROOT });
-    expect(text).toContain('Candidate file map:');
-    expect(text).toContain(`${complete.files.size} candidate files`);
-    expect(text).toContain('Foundation');
-    expect(text).toContain('Application');
-    expect(text).toContain('map');
-    expect([...search.files!(HELP, { ...input, map: 'root' }, { root: ROOT }).files]).toEqual([...complete.files]);
+  it('maps every matching file before the detail cap, with explicit membership drills', async () => {
+    const indexed = await indexedCopy(ROOT);
+    try {
+      state.digest = searchIndexOf(indexed.help).generation!.indexDigest;
+      const input = { query: 'e', limit: 1 };
+      const complete = search.files!(indexed.help, input, { root: indexed.root });
+      expect(complete.files.size).toBeGreaterThan(1);
+      const text = search.run(indexed.help, { ...input, map: 'root' }, { root: indexed.root });
+      expect(text).toContain('Candidate file map:');
+      expect(text).toContain(`${complete.files.size} candidate files`);
+      expect(text).toContain('Foundation');
+      expect(text).toContain('Application');
+      expect(text).toContain('map');
+      expect([...search.files!(indexed.help, { ...input, map: 'root' }, { root: indexed.root }).files]).toEqual([...complete.files]);
+    } finally { await indexed.remove(); }
   });
 });
 
@@ -93,6 +99,7 @@ it('says missing and stale placement are unavailable, retaining the positive can
     expect(map.files).toBe(1);
     expect(map.groups).toBeUndefined();
     expect(map.unread).toEqual(set.unread);
+    expect(formatCandidateMap(map, (id) => id)).toContain(map.unavailable!);
     expect(map.evidence).toEqual([{ qualification: "near matches, not exact", files: 1 }]);
   }
   Object.assign(state, { present: true, current: true });
@@ -105,7 +112,7 @@ it('does not place an older search generation on the current map', () => {
 });
 
 it('keeps a refused start point a refused text answer rather than trying to map its missing membership', () => {
-  expect(search.run(HELP, { query: 'e', map: 'root', from: 'missing/' }, { root: ROOT })).toContain('no source tree was read');
+  expect(search.run(readHelp(ROOT), { query: 'e', map: 'root', from: 'missing/' }, { root: ROOT })).toContain('no source tree was read');
 });
 
 
@@ -131,4 +138,17 @@ it('renders whole evidence-line inventories or a count, and refuses an oversized
   expect(map.entries![0]!.lines).toHaveLength(300);
   const oversized = { ...map, entries: undefined, groups: [{ id: 'group', name: 'x'.repeat(10001), files: 1, layers: [], evidence: [] }] };
   expect(() => formatCandidateMap(oversized, (id) => id)).toThrow('No partial groups');
+});
+
+it('does not place a search reading without source-index identity', () => {
+  const map = placedFileMap(ROOT, membership(['packages/alpha/a.ts']), 'root');
+  expect(map.unavailable).toContain('identity');
+  expect(map.files).toBe(1);
+  expect(map.groups).toBeUndefined();
+});
+
+it('counts each dependency layer in descending order within an area', () => {
+  state.joined = true;
+  const map = candidateFileMap(ROOT, membership(['packages/alpha/a.ts', 'packages/beta/b.ts']), 'root');
+  expect(map.groups![0]!.layers).toEqual([{ layer: 2, files: 1 }, { layer: 1, files: 1 }]);
 });
