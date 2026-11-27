@@ -490,11 +490,6 @@
     "count": 1
   },
   {
-    "idiom": "code-unit-order",
-    "at": "packages/sense/src/test-selection/mainline-layer.ts",
-    "count": 1
-  },
-  {
     "idiom": "atomic-write",
     "at": "packages/sense/src/test-selection/mainline-layer.ts",
     "count": 1
