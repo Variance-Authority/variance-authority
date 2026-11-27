@@ -45,6 +45,8 @@ pub struct OrientPackageArea {
 
 #[napi(object)]
 pub struct OrientLayers {
+    /// The source-index manifest this map was folded from.
+    pub index_digest: String,
     /// Whether the map was folded from the index as it stands now.
     pub current: bool,
     /// Every package in code-unit order of name; `undefined` when there was
@@ -89,5 +91,5 @@ pub fn orient_layers(index: String) -> napi::Result<Option<OrientLayers>> {
             })
             .collect()
     });
-    Ok(Some(OrientLayers { current, packages, unmade: stored.unmade }))
+    Ok(Some(OrientLayers { index_digest: stored.index, current, packages, unmade: stored.unmade }))
 }

@@ -1,3 +1,4 @@
+import { candidateFileMap } from './search-map.js';
 import type { FileSet, Tree } from '@variance-authority/mcp/tools';
 import { describedWordsNative, wordStemsNative } from '@variance-authority/sense';
 import type { SearchIndex } from '../search-index.js';
@@ -221,8 +222,7 @@ export function preparedSearch(index: SearchIndex, question: SearchQuestion, tre
   let coverage: Searched = { answer: { query: question.query }, area: undefined };
   const render = searchedBy(index, question, tree, root, (visit) => visits.push(visit), (found) => { coverage = found; });
   let membership: FileSet | undefined;
-  return {
-    files: () => {
+  const files = (): FileSet => {
       if (membership !== undefined) return membership;
       const files = new Map<string, { lines: Set<number>; kinds: Set<MatchKind> }>();
       const file: MatchingFile = (at, line, kind = 'query') => {
@@ -233,8 +233,11 @@ export function preparedSearch(index: SearchIndex, question: SearchQuestion, tre
       };
       for (const visit of visits) visit(file);
       return membership = matchingFiles(files, coverage);
-    },
+  };
+  return {
+    files,
     read: (importingOf, declarations) => {
+      if (question.map !== undefined && coverage.answer.refused === undefined) return { answer: { query: question.query.toLowerCase(), candidateMap: candidateFileMap(root, files(), question.map, index.generation?.indexDigest) }, area: coverage.area };
       const count = importingOf === undefined ? undefined : counting(importingOf);
       const found = render(count?.of, declarations);
       if (count === undefined) return found;

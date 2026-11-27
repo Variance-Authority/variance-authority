@@ -228,6 +228,8 @@ export interface NativeDeclaredRoleCheck {
 
 /** Every package's layer from the map kept beside an index. */
 export interface NativeOrientLayers {
+  /** The source-index manifest this map was folded from; absent in an older addon. */
+  readonly indexDigest?: string;
   /** Whether the map was folded from the index as it stands now. */
   readonly current: boolean;
   /** Absent when there was nothing to fold, and `unmade` says why. */

@@ -35,6 +35,25 @@ const VERSIONS = {
 const rows = (out: string, prefix: string): readonly string[] => out.split('\n').filter((line) => new RegExp(`^(@acme/lib · )?${prefix}\\d\\d `).test(line));
 
 describe('variance ask search --limit', () => {
+  it('maps all candidate files through parsed CLI flags, independently of the name cap', async () => {
+    checkout(VERSIONS);
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+    const args = ['ask', 'search', '--query', 'version', '--limit', '1'];
+    const plain = await run(args);
+    const mapped = await run([...args, '--map', 'root', '--format', 'json']);
+    expect(mapped.code).toBe(EXIT_CLEAN);
+    expect(mapped.err).toBe('');
+    const { candidateMap } = JSON.parse(mapped.out) as { candidateMap: { files: number; selected: number; groups: { id: string; files: number }[]; unavailable?: string } };
+    expect(candidateMap.unavailable).toBeUndefined();
+    expect(candidateMap.files).toBe(31);
+    expect(candidateMap.selected).toBe(31);
+    expect(candidateMap.groups.reduce((n, group) => n + group.files, 0)).toBe(31);
+    const text = await run([...args, '--map', 'root']);
+    expect(text.out).toContain('Candidate file map: 31 candidate files');
+    expect(text.out).toContain('--map');
+    expect((await run(args)).out).toBe(plain.out);
+  });
+
   it('cuts each list at its own cap when no limit is said, and names the limit that shows the rest', async () => {
     checkout(VERSIONS);
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);

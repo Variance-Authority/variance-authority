@@ -49,7 +49,7 @@ export function searchReading(help: Help, question: SearchQuestion, invocation: 
     membership: prepared.files,
     read: () => {
       found ??= prepared.read(importingOf(help, invocation?.root), declarationLookupsOf(help, invocation?.root));
-      printed.set(help, { ...asked, files: footprint(found) });
+      printed.set(help, { ...asked, files: found.answer.candidateMap === undefined ? footprint(found) : new Set(prepared.files().files.keys()) });
       return found;
     },
   };

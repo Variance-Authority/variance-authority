@@ -1,3 +1,4 @@
+import type { CandidateMap } from './search-map.js';
 import type { LexiconMatches } from '../dependency-lexicon.js';
 import type { Area } from './area.js';
 import type { PublishedMatch } from './published-match.js';
@@ -22,6 +23,8 @@ import type { PublishedMatch } from './published-match.js';
 
 /** What a question to `search` says. */
 export interface SearchQuestion {
+  /** Explicit candidate-file map or one emitted drill id; absent keeps the name pages. */
+  readonly map?: string;
   /**
    * A substring of a name or its documentation, matched case-insensitively; or
    * several words, which also match a name whose own words — split where the
@@ -169,6 +172,8 @@ export interface SearchArea {
  * runs beside it. No section runs when `refused` is set.
  */
 export interface SearchAnswer {
+  /** Complete canonical candidate-file membership placed on the code map, when explicitly requested. */
+  readonly candidateMap?: CandidateMap;
   /** The query as it was matched: lowercase. */
   readonly query: string;
   /** Absent when no start point was said. */

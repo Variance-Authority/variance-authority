@@ -121,6 +121,8 @@ export interface ParsedAsk extends Crossing {
   readonly subpath?: string;
   /** `--query <words>`: a description, for the questions that search names. */
   readonly query?: string;
+  /** `--map <id>`: the candidate-file map page emitted by `search`. */
+  readonly map?: string;
   /**
    * `--under`, `--above`, `--inside`, `--beside`, `--left-of`, `--right-of`:
    * the words naming what the thing sits by.
@@ -202,6 +204,7 @@ export function parseAskArgs(flags: Flags, config: string): ParsedAsk {
   const pkg = flags.values.get('--package');
   const subpath = flags.values.get('--subpath');
   const query = flags.values.get('--query');
+  const map = flags.values.get('--map');
   const from = flags.values.get('--from');
   const over = flags.values.get('--over');
   const after = flags.values.get('--after');
@@ -243,6 +246,7 @@ export function parseAskArgs(flags: Flags, config: string): ParsedAsk {
     ...(pkg !== undefined ? { package: pkg } : {}),
     ...(subpath !== undefined ? { subpath } : {}),
     ...(query !== undefined ? { query } : {}),
+    ...(map !== undefined ? { map } : {}),
     ...carried(flags, PLACING),
     ...(from !== undefined ? { from } : {}),
     ...(over !== undefined ? { over } : {}),

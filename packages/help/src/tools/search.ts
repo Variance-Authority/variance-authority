@@ -1,3 +1,4 @@
+import { formatCandidateMap } from './search-map-format.js';
 import type { FileSet, Spelling, Tool, ToolInvocation, Tree } from '@variance-authority/mcp/tools';
 import { limitOf, notShownPast, START_POINT_SCHEMA, saysStartPoint, spellingOf, startPointArg, stringArg } from '@variance-authority/mcp/tools';
 import type { Help } from '@variance-authority/package/help';
@@ -123,7 +124,7 @@ import { searchReading, renderedFiles } from './search-reading.js';
  * `limit` that is no whole number of rows is refused as `spell` names it.
  */
 export function searchQuestionOf(input: Readonly<Record<string, unknown>>, spell: Spelling = spellingOf(undefined)): SearchQuestion {
-  const question = { query: stringArg(input, 'query'), from: startPointArg(input, 'from'), to: startPointArg(input, 'to') };
+  const question = { query: stringArg(input, 'query'), from: startPointArg(input, 'from'), to: startPointArg(input, 'to'), ...(input['map'] === undefined ? {} : { map: stringArg(input, 'map') }) };
   // Absent rather than a default, so a question that says none asks, caches and answers as it did before `limit`.
   return input['limit'] === undefined ? question : { ...question, limit: limitOf(input, 0, spell) };
 }
@@ -167,6 +168,7 @@ function inFull(asked: SearchQuestion, total: number, spell: Spelling): string {
 /** What a search says of what it found, to `asked`. */
 function spoken({ answer, area }: Searched, asked: SearchQuestion, root: string | undefined, spell: Spelling): string {
   const { query } = answer;
+  if (answer.candidateMap !== undefined) return formatCandidateMap(answer.candidateMap, (map) => spell.question(search, { query: asked.query, ...(asked.from === undefined ? {} : { from: asked.from }), ...(asked.to === undefined ? {} : { to: asked.to }), map }));
   if (area?.refused !== undefined) return areaLine(area);
 
   const found = answer.published ?? { total: 0, shown: [] };
@@ -364,6 +366,7 @@ export const search: Tool<Help> = {
         type: 'string',
         description: 'A substring, or a few words of what the name does. Ask each candidate word as its own query.',
       },
+      map: { type: 'string', description: 'Optional. `root` maps every candidate file by code-map area and dependency layer; an emitted drill id opens that exact group. Detailed name limits do not cap this map.' },
       from: START_POINT_SCHEMA.from,
       to: {
         ...START_POINT_SCHEMA.to,

@@ -166,6 +166,7 @@ export type {
   SearchQuestion,
 } from './tools/search-matches.js';
 export { searchNames } from './tools/search-answer.js';
+export type { CandidateMap, CandidateGroup, CandidateFile, CandidateEvidence } from './tools/search-map.js';
 export { importingOf, type ImportingOf, type ImportingOne, type InArea, type PublishedMatch } from './tools/published-match.js';
 export { declarationLookupsOf } from './tools/declaration-key.js';
 export type { DeclarationLookups } from './tools/exported-matches.js';

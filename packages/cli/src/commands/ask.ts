@@ -109,6 +109,7 @@ export interface AskRequest extends Crossing {
   readonly package?: string;
   readonly subpath?: string;
   readonly query?: string;
+  readonly map?: string;
   /** The relation flags: the words naming what the thing sits by. At most one. */
   readonly under?: string;
   readonly above?: string;
