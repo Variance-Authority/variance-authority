@@ -207,6 +207,19 @@ jobs:
           path: ${{ runner.temp }}/carry-contract
           if-no-files-found: ignore
 
+      # The pytest recorder: `variance python` over a small project, then
+      # `covering` per function. It needs CPython 3.12 and pytest, which the
+      # integration test skips without, so they are installed here and it runs.
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: python recorder
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        shell: bash
+        run: |
+          python -m pip install pytest
+          yarn vitest run --config vitest.integration.config.mts packages/cli/src/commands/python.integration.test.ts
+
       # The native crates' own unit tests, the `#[cfg(test)]` modules under
       # `packages/sense/native`, and one build of the instrumenter crate as a
       # project's Rust pipeline links it, from `node_modules`. `yarn test`

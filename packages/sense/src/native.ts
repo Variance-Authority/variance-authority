@@ -168,6 +168,13 @@ export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon
    * the whole of such a file no counted function lies in.
    */
   rustCoverage(binaries: string[], profiles: string[][], root: string, compiled: string[], launched: string[]): ({ id: string; ordinals: Uint32Array }[] | null)[];
+  /**
+   * For each test, the lines of each Python file under `root` it ran, charged to
+   * the functions around them: a module id and the ordinals of the Python
+   * reader's blocks. A test that ran any function of a file is charged the
+   * file's root too (`native/src/python_coverage.rs`).
+   */
+  pythonCoverage(cases: { file: string; lines: Uint32Array }[][], root: string): { id: string; ordinals: Uint32Array }[][];
   gitTree(root: string): NativeGitTree | null;
   gitTreeFor(root: string, dirs: string[]): NativeGitTree | null;
   /** The tree an update of the index at `index` is made against (`native/src/change_tree.rs`). */

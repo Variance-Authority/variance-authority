@@ -206,6 +206,10 @@ mod stored;
 mod style;
 mod text_cut;
 #[cfg(feature = "grammars")]
+mod python_coverage;
+#[cfg(feature = "grammars")]
+mod python_cut;
+#[cfg(feature = "grammars")]
 mod rust_cut;
 #[cfg(feature = "grammars")]
 mod rust_coverage;

@@ -39,6 +39,7 @@ up. It is one wrap in the configuration your runner already reads:
 | Storybook | `@variance-authority/storybook-collector` | [`tests: true`](../packages/storybook-collector/README.md#skipping-stories-nothing-touched) in `storybookCollector` |
 | A JVM on the JUnit Platform | the agent and listener jars | [the agent on the test JVM](jvm.md#record-a-jvm-suite) |
 | Cargo | `@variance-authority/cli` | none: [`variance cargo`](rust.md#record-a-cargo-suite) runs `cargo test` |
+| pytest | `@variance-authority/cli` | none: [`variance python`](python.md#record-a-pytest-suite) runs `pytest` |
 | `node:test` | `@variance-authority/sense` | [`runNodeTest`](node-test.md#record-the-suite) from `@variance-authority/sense/node-test`, in place of `node --test` |
 | Any other runner | `@variance-authority/sense` | [`observer.case`](../packages/sense/README.md#record-a-runner-this-package-has-no-seam-for) around the body of each case |
 

@@ -43,6 +43,11 @@ pub fn instrument_module(source: String, file: String, entries: bool, module: Op
     if file.ends_with(".rs") {
         return crate::rust_cut::cut(&source).map(columns);
     }
+    // CPython counts a Python file's lines (`sys.monitoring`), so its cut is the same under either mode too.
+    #[cfg(feature = "grammars")]
+    if file.ends_with(".py") {
+        return crate::python_cut::cut(&source).map(columns);
+    }
     let mut out = cut(&source, &file, entries)?;
     if let Some(module) = module {
         out.code.insert_str(out.header_byte, &header(&module, out.blocks.len()));
