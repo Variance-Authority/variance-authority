@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "variance-authority-help": {
+      "command": "./node_modules/.bin/variance-authority-help",
+      "args": ["."]
+    }
+  }
+}
