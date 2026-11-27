@@ -10,7 +10,7 @@ import { runPython } from './python.js';
 // `ci-info` decides CI once, when it loads, so the module is cut: these questions are asked outside CI.
 vi.mock('ci-info', () => ({ isCI: false }));
 
-const PYTHON = process.env['VARIANCE_PYTHON'] ?? 'python3';
+const PYTHON = 'python3';
 
 /** Whether this machine can record: CPython 3.12 or later with pytest, which the recorder needs. */
 function canRecord(): boolean {

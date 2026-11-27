@@ -17,9 +17,9 @@ use std::path::Path;
 
 use napi::bindgen_prelude::Uint32Array;
 use napi_derive::napi;
-use variance_sense_instrument::native::Cut;
+use variance_sense_instrument::native::{Cut, Utf16};
 
-use crate::python_cut::{cut, Lines};
+use crate::python_cut::cut;
 
 /// The lines one test executed in one file, 1-based.
 #[napi(object)]
@@ -67,6 +67,31 @@ pub fn python_coverage(cases: Vec<Vec<PythonLines>>, root: String) -> Vec<Vec<Py
                 .collect()
         })
         .collect()
+}
+
+/// Where each line of a file starts, to charge a 1-based line to a block.
+pub struct Lines {
+    source: String,
+    starts: Vec<usize>,
+    utf16: Option<Utf16>,
+}
+
+impl Lines {
+    pub fn new(source: String) -> Self {
+        let starts = std::iter::once(0).chain(source.match_indices('\n').map(|(at, _)| at + 1)).collect();
+        let utf16 = (!source.is_ascii()).then(|| Utf16::new(&source));
+        Lines { source, starts, utf16 }
+    }
+
+    /// The innermost block around the first statement of a 1-based line; none for a line the file has not.
+    pub fn charged(&self, cut: &Cut, line: usize) -> Option<u32> {
+        let start = *self.starts.get(line.checked_sub(1)?)?;
+        let indent = self.source[start..].bytes().take_while(|byte| *byte == b' ' || *byte == b'\t').count();
+        let byte = (start + indent) as u32;
+        let at = self.utf16.as_ref().map_or(byte, |table| table.at(byte));
+        // Blocks are in pre-order, so the last one around a point is the innermost.
+        cut.blocks.iter().rposition(|block| block.start <= at && at < block.end).map(|ordinal| ordinal as u32)
+    }
 }
 
 /// A Python file of the checkout, cut once for every test that entered it.

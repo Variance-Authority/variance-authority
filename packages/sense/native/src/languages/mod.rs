@@ -25,6 +25,8 @@ use tree_sitter::{Node, TreeCursor};
 use crate::grammar::{self, Grammar};
 use crate::harvest::{Offsets, SourceSymbol, TextSpan};
 use shape::Read;
+use variance_sense_instrument::digest;
+use variance_sense_instrument::native::{own_digests, Block, Cut, Kind, Utf16};
 
 /// The 1-based line a node starts on.
 pub fn line_of(node: Node) -> u32 {
@@ -42,6 +44,29 @@ pub fn end_line_of(node: Node) -> u32 {
 /// tree-sitter does not produce over valid UTF-8 and which must not panic if it does.
 pub fn text_of<'source>(node: Node, source: &'source str) -> &'source str {
     source.get(node.byte_range()).unwrap_or("")
+}
+
+/// The cut of a file whose counters are the runtime's, not probes: the module
+/// block, then the blocks `walk` adds, with the digests a carried record
+/// compares. Nothing when the file does not parse cleanly.
+pub fn cut_with(grammar: Grammar, source: &str, walk: fn(Node, &str, &mut Vec<Block>)) -> Option<Cut> {
+    let tree = grammar::parse(grammar, source)?;
+    let root = tree.root_node();
+    if root.has_error() {
+        return None;
+    }
+    let mut blocks =
+        vec![Block { kind: Kind::Module, owner: None, name: String::new(), path: "module".into(), start: 0, end: source.len() as u32 }];
+    walk(root, source, &mut blocks);
+    let digests = own_digests(source, &blocks);
+    if !source.is_ascii() {
+        let table = Utf16::new(source);
+        for block in &mut blocks {
+            block.start = table.at(block.start);
+            block.end = table.at(block.end);
+        }
+    }
+    Some(Cut { code: source.to_owned(), header_at: 0, header_byte: 0, source_digest: digest::of_string(source), blocks, digests, module: false })
 }
 
 /// One top-level declaration, `children[at]`, as the TypeScript reader

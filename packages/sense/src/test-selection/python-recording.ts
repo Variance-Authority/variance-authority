@@ -27,8 +27,6 @@ export interface PythonRun {
   readonly coverageFile?: string | undefined;
   /** What follows `pytest`: the paths, markers and options to run. */
   readonly args?: readonly string[];
-  /** The interpreter, `python3` unless given. */
-  readonly python?: string | undefined;
 }
 
 /** What the plugin writes for one test. */
@@ -55,7 +53,7 @@ export async function recordPython(run: PythonRun): Promise<number> {
   mkdirSync(written, { recursive: true });
   try {
     const plugin = fileURLToPath(new URL('../../python', import.meta.url));
-    const code = await exit(run.python ?? 'python3', ['-m', 'pytest', '-p', 'variance_pytest', ...(run.args ?? [])], run.cwd, {
+    const code = await exit('python3', ['-m', 'pytest', '-p', 'variance_pytest', ...(run.args ?? [])], run.cwd, {
       ...process.env,
       PYTHONPATH: [plugin, process.env['PYTHONPATH']].filter((path) => path !== undefined && path !== '').join(delimiter),
       VARIANCE_PYTHON_OUT: written,

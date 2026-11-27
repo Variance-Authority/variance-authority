@@ -1,5 +1,26 @@
 use super::*;
 
+const CALC: &str = "LIMIT = 3
+
+def add(a, b):
+    return a + b
+
+class Calc:
+    scale = 2
+
+    def twice(self, x):
+        def inner(y):
+            return y * 2
+        return inner(x)
+
+    @staticmethod
+    async def later():
+        return 1
+
+f = lambda x: add(x, x)
+";
+
+
 fn lines(file: &std::path::Path, numbers: &[u32]) -> PythonLines {
     PythonLines { file: file.to_string_lossy().into_owned(), lines: Uint32Array::new(numbers.to_vec()) }
 }
@@ -31,4 +52,18 @@ fn a_test_is_charged_the_functions_its_lines_ran() {
     assert_eq!(seen[2].len(), 1);
     assert_eq!(seen[2][0].1, vec![0]);
     assert!(seen[3].is_empty() || seen[3][0].1 == vec![0]);
+}
+
+// Lines are 1-based; the innermost function around one is charged, and the module body when none is.
+#[test]
+fn a_line_is_charged_to_the_innermost_function_around_it() {
+    let out = cut(CALC).expect("parses");
+    let lines = Lines::new(CALC.to_owned());
+    let at = |n: usize| lines.charged(&out, n);
+    assert_eq!(at(1), Some(0));
+    assert_eq!(at(4), Some(1));
+    assert_eq!(at(11), Some(3));
+    assert_eq!(at(12), Some(2));
+    assert_eq!(at(7), Some(0));
+    assert_eq!(at(99), None);
 }

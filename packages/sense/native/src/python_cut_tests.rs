@@ -68,17 +68,3 @@ fn offsets_are_utf16_code_units() {
 fn a_file_that_does_not_parse_has_no_cut() {
     assert!(cut("def a(:\n").is_none());
 }
-
-// Lines are 1-based; the innermost function around one is charged, and the module body when none is.
-#[test]
-fn a_line_is_charged_to_the_innermost_function_around_it() {
-    let out = cut(CALC).expect("parses");
-    let lines = Lines::new(CALC.to_owned());
-    let at = |n: usize| lines.charged(&out, n);
-    assert_eq!(at(1), Some(0));
-    assert_eq!(at(4), Some(1));
-    assert_eq!(at(11), Some(3));
-    assert_eq!(at(12), Some(2));
-    assert_eq!(at(7), Some(0));
-    assert_eq!(at(99), None);
-}
