@@ -101,18 +101,10 @@ export function readFetchedMainline(readRoot: string): FetchedMainline | undefin
 }
 
 /**
- * The newest mainline record of `suite` fetched on this machine, or undefined
- * when the suite is not given to the share or nothing has been fetched.
- *
- * This checkout's own pointer answers first: it names the record its last
- * fetch stood on, which a sibling's later fetch does not move. A checkout with
- * none, or whose record is gone, takes the newest any cache {@link fetchStores}
- * names, and the record is read from whichever of them keeps it. A pointer whose record is not on disk
- * or does not read in this build is passed over, and so is one for another
- * mainline than `selected`. `null` is a selection that could not be read, so
- * none answers; a caller with none to hand in takes the newest. Synchronous, as
- * {@link nearestTestCoverage} cannot wait, and it opens the record, so a reader
- * asks it only once the checkout's own layer has none.
+ * The mainline record of `suite` this checkout stands on: the one its own
+ * pointer names, else the newest any of {@link fetchStores} names, from
+ * whichever keeps it, and only one this build reads, of `selected` (`null`
+ * answers none). Synchronous, as {@link nearestTestCoverage} cannot wait.
  */
 export function lastFetchedMainline(root: string, suite: string | undefined, cacheRoot?: string, selected?: string | null): LastFetched | undefined {
   if (selected === null) return undefined;
