@@ -102,7 +102,7 @@ export function readFetchedMainline(readRoot: string): FetchedMainline | undefin
 
 /**
  * The mainline record of `suite` this checkout stands on: the one its own
- * pointer names, else the newest any of {@link fetchStores} names, from
+ * pointer names, else the one the shared cache {@link fetchStores} names, from
  * whichever keeps it, and only one this build reads, of `selected` (`null`
  * answers none). Synchronous, as {@link nearestTestCoverage} cannot wait.
  */
@@ -117,9 +117,8 @@ export function lastFetchedMainline(root: string, suite: string | undefined, cac
     const pointer = readFetchedMainline(readRoot);
     return pointer !== undefined && (selected === undefined || pointer.mainline === selected) ? [pointer] : [];
   };
-  // The checkout's own cache is the last a fetch tries.
-  const newest = readRoots.slice(0, -1).flatMap(pointerIn).sort((a, b) => (a.fetched < b.fetched ? 1 : a.fetched > b.fetched ? -1 : 0));
-  const order = [...pointerIn(readRoots.at(-1)!), ...newest];
+  // The checkout's own cache is the last a fetch tries, and its pointer is read first.
+  const order = [...readRoots].reverse().flatMap(pointerIn);
   for (const pointer of order) {
     for (const readRoot of readRoots) {
       const found = fetchedRecord(readRoot, pointer, name);
