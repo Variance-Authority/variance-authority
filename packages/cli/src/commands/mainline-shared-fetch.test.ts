@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { chmod, cp, mkdtemp, readdir, readFile, realpath, rm, stat, utimes, writeFile } from 'node:fs/promises';
+import { cp, mkdtemp, readdir, readFile, realpath, rm, stat, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -194,13 +194,10 @@ describe('a mainline record one worktree fetched', () => {
   it('keeps it in its own when it cannot write the primary checkout\'s', async () => {
     const { primary, first, next, one, base } = await laptop();
     const shared = mainlineReadRoot(cacheRootFor(primary), 'unit');
-    // A sandbox that lets the worktree write only inside itself.
-    await chmod(shared, 0o555);
-    try {
-      expect(await base(one)).toMatchObject({ commit: next });
-    } finally {
-      await chmod(shared, 0o755);
-    }
+    // A primary's cache the worktree cannot write the record into, whoever runs it: root ignores a mode.
+    await writeFile(join(shared, next), '');
+
+    expect(await base(one)).toMatchObject({ commit: next });
 
     expect(existsSync(join(mainlineReadRoot(cacheRootFor(one), 'unit'), next, 'coverage.bin'))).toBe(true);
     expect(lastFetchedMainline(one, 'unit')).toMatchObject({ commit: next });
