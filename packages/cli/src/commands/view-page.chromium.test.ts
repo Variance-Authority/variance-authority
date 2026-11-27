@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { chromium, type Browser, type Page } from '@playwright/test';
-import { encodeTestCoverage, testCoverageFile } from '@variance-authority/sense/test-selection';
+import { commitRunsFile, encodeTestCoverage, testCoverageFile } from '@variance-authority/sense/test-selection';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { viewOutput } from './view-command.js';
 
@@ -67,6 +67,7 @@ beforeAll(async () => {
   const at = testCoverageFile(root, {});
   mkdirSync(dirname(at), { recursive: true });
   writeFileSync(at, Buffer.from(encodeTestCoverage(COVERAGE)));
+  writeFileSync(commitRunsFile(at), JSON.stringify({ latest: '2026-11-27T05:13:00.000Z', runs: 1, landings: [{ files: ['src/slow.test.ts'], machine: { arch: 'x64', cores: 2 } }] }));
   const path = (await viewOutput({ command: 'view' }, root)).out.trim();
   browser = await chromium.launch();
   page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
@@ -86,6 +87,12 @@ describe.runIf(BROWSER_AVAILABLE)('the view page in a browser', () => {
     const facts = await page!.locator('dl.facts').textContent();
     expect(facts).toContain('test files3');
     expect(facts).toContain('modules1');
+  });
+
+  it('lists the machines the runs beside the record name, with how many test files each ran', async () => {
+    await go('#overview');
+    await page!.locator('nav.tabs a[href="#overview"][aria-current="page"]').waitFor();
+    expect(await firstCells()).toEqual(['x64, 2 cores', '(none named)']);
   });
 
   it('routes a tab by its address', async () => {

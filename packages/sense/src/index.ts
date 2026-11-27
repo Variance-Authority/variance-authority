@@ -125,10 +125,12 @@ export { recordedCaseNames, type RecordedCaseName, type RecordedCaseNames } from
 export {
   fileCases,
   fileTimes,
+  machinesBeside,
   recordedDurations,
   recordedPaths,
   recordedTimes,
   type MachineDurations,
+  type MachinesBeside,
   type RecordedCaseDurations,
   type RecordedDurations,
   type TimedTestCase,
