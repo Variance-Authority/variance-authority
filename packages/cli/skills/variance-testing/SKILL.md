@@ -106,10 +106,10 @@ repository's own script when it has one. To ask `covering` again once the edit
 is in the file, pass the edited text with `--text <file>` so the ranges follow
 it. [test selection](../variance-authority/references/test-selection.md)
 
-For a repository's local pre-push wave, a slice selected whole belongs to CI:
-run its directly edited test files by path and print that the complete slice
-remains for CI. Keep full test commands and CI on the original complete
-selection; deferring local work does not establish that it passed.
+When a repository's local-wave policy defers a whole slice to CI, run its
+directly edited test files by path and print the deferral. That execution policy
+does not change selection: keep full tests and CI on the complete answer. A
+local deferral does not establish that the slice passed.
 
 ## A test fails: find where it went
 

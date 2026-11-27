@@ -2,20 +2,17 @@
 import { execFileSync, spawnSync } from 'node:child_process';
 import { resolve } from 'node:path';
 import { selectSuite } from '@variance-authority/cli';
+import { distanceRange } from '@variance-authority/sense/test-selection';
 import { MARKERS } from './slices.mjs';
 import { localNearFiles } from './near-plan.mjs';
 
 const root = resolve(import.meta.dirname, '..');
 const since = process.env.VARIANCE_AUTHORITY_SINCE ?? '';
-const policy = { local: true, atDistance: { from: 0, to: 2, by: 'environment' }, budget: 20 };
-const env = {
-  ...process.env,
-  VARIANCE_AUTHORITY_SINCE: since,
-  VARIANCE_AUTHORITY_LOCAL: '1',
-  VARIANCE_AUTHORITY_GRAIN: 'file',
-  VARIANCE_AUTHORITY_AT_DISTANCE: `${policy.atDistance.from}-${policy.atDistance.to}`,
-  VARIANCE_AUTHORITY_BUDGET: String(policy.budget),
-};
+const env = process.env;
+const atDistance = distanceRange(env.VARIANCE_AUTHORITY_AT_DISTANCE ?? '');
+const budget = Number(env.VARIANCE_AUTHORITY_BUDGET);
+if (atDistance === undefined || !Number.isFinite(budget) || budget <= 0) throw new Error('Run yarn verify:near to provide the local wave distance and budget.');
+const policy = { local: env.VARIANCE_AUTHORITY_LOCAL === '1', atDistance: { ...atDistance, by: 'environment' }, budget };
 const listing = { ...env };
 for (const key of ['SINCE', 'LOCAL', 'GRAIN', 'AT_DISTANCE', 'BUDGET', 'RAN_AT', 'PLACE_AT_DISTANCE']) delete listing[`VARIANCE_AUTHORITY_${key}`];
 const output = (command, args, environment = env) => execFileSync(command, args, { cwd: root, env: environment, encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] });
