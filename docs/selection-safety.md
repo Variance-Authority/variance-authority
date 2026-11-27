@@ -158,8 +158,9 @@ reaches, never every test file:
 A diff that moves a file the suite declares in `before` still runs the whole
 suite: the declaration asks for it. Under `VARIANCE_AUTHORITY_BUDGET=<seconds>`,
 the ceiling of recorded test time an edit loop sets, that run is cut to the test
-files the diff edited, shortest first, as many as fit. The rest of the suite is
-left for CI, which runs it whole, and the first note says why.
+files the diff edited: those the record times, shortest first, as many as fit,
+and a new one it does not time yet, which runs outside the ceiling. The rest of
+the suite is left for CI, which runs it whole, and the first note says why.
 
 The change is the diff from `--since`, else from `HEAD`'s merge base with the
 mainline, else from `HEAD`. A `--since` git cannot read is refused, never

@@ -117,18 +117,6 @@ export function withinBudget(
   };
 }
 
-/** A test file's recorded milliseconds, or, untimed, the slowest of its package, so a ceiling stays a ceiling. */
-function pricing(times: ReadonlyMap<string, number>, home: (file: string) => string | undefined): (test: string) => number {
-  const slowest = new Map<string | undefined, number>();
-  let anywhere = 0;
-  for (const [test, ms] of times) {
-    const at = home(test);
-    slowest.set(at, Math.max(slowest.get(at) ?? 0, ms));
-    anywhere = Math.max(anywhere, ms);
-  }
-  return (test) => times.get(test) ?? slowest.get(home(test)) ?? anywhere;
-}
-
 /**
  * A suite run whole because a local change moved a `before` entry, cut to the
  * test files the change edited: those the record times, shortest first, as
@@ -193,7 +181,14 @@ function ranked(selection: SuiteReading, times: ReadonlyMap<string, number>, hom
   const named = new Set([...selection.whole, ...(selection.reading.incomplete ?? []), ...distances.keys()]);
   const runs = [...named].filter((test) => !selection.skip.has(test) && (selection.only === undefined || selection.only.has(test)));
 
-  const price = pricing(times, home);
+  const slowest = new Map<string | undefined, number>();
+  let anywhere = 0;
+  for (const [test, ms] of times) {
+    const at = home(test);
+    slowest.set(at, Math.max(slowest.get(at) ?? 0, ms));
+    anywhere = Math.max(anywhere, ms);
+  }
+  const price = (test: string) => times.get(test) ?? slowest.get(home(test)) ?? anywhere;
 
   return runs
     .map((test): Candidate => {

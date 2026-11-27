@@ -143,6 +143,14 @@ describe('the edit loop under a budget', () => {
       expect(cut.notes).toContain(`  ${UNTIMED}`);
     });
 
+    it('drops a shard placement, whose waves would run the suite whole again', () => {
+      const placed = { ...local([SETUP, OWN]), placing: { skip: new Set<string>(), only: new Set(WHOLE) } };
+      const cut = withinBudget(placed, TIMES, { seconds: 20, asked: true }, home);
+
+      expect(cut.placing).toBeUndefined();
+      expect(runs(cut)).toEqual([OWN]);
+    });
+
     it('runs no test when the change edited none', () => {
       const cut = withinBudget(local([SETUP]), TIMES, { seconds: 20, asked: true }, home);
 
