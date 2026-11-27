@@ -159,7 +159,7 @@ describe('`variance select` when the mainline\'s record is not read', () => {
 
     expect(said.out).toBe('test/other.test.ts\n');
     expect(said.err).toMatch(/record of "unit": read from mainline main, [^\n]*; its per-case index does not read \([^\n]+\), so it is not kept\.\n/);
-    expect(await readdir(join(readLayer(), 'unit', ci.first))).toEqual(['coverage.bin', 'coverage.runs.json']);
+    expect(await readdir(join(readLayer(), 'unit', ci.first))).toEqual(['coverage.bin', 'coverage.runs.json', 'fetched.json']);
   });
 
   it('says the share has none only when the share answered that, and otherwise what it did answer', () => {
