@@ -14,6 +14,7 @@ import {
   writeTestCoverage,
 } from '@variance-authority/sense/test-selection';
 import type { Env } from '../share-lines.js';
+import { handBase } from './carry-handed.js';
 import { mainlineBase, standOnHanded } from './mainline-base.js';
 import { DISCOUNTS, git, gitPublished, published, publishedAt, publishTo, PUSH, recordIn, totalCoverage, totalModule } from './mainline-fixture.js';
 import { checkoutOwners, planCachePrune } from './prune-cache.js';
@@ -287,6 +288,28 @@ describe('a mainline record a sibling fetches at the commit a run handed the pri
   });
 });
 
+describe('a read a run hands on from the primary checkout', () => {
+  it('leaves every record a sibling worktree reads where it was', async () => {
+    const { primary, first, next, one, base } = await laptop();
+    await base(one);
+
+    await handBase(primary, join(home, 'hand'), { env: LOCAL, now: Date.now() });
+
+    expect(lastFetchedMainline(primary, 'unit')).toMatchObject({ commit: first, handed: true });
+    expect(lastFetchedMainline(one, 'unit')).toMatchObject({ commit: next });
+  });
+
+  it('is not what a worktree hands on after it fetches another commit', async () => {
+    const { primary, next, one } = await laptop();
+    await handBase(primary, join(home, 'hand'), { env: LOCAL, now: Date.now() });
+
+    const handed = await handBase(one, join(home, 'hand-one'), { env: LOCAL, now: Date.now() });
+
+    expect(handed.commits).toEqual([next]);
+    expect(readFetchedMainline(join(home, 'hand-one', 'unit'))).toMatchObject({ commit: next });
+  });
+});
+
 describe('a mainline record a sibling worktree reads under a suite another checkout renamed', () => {
   it('is pinned by that checkout\'s prune', async () => {
     const { next, one, tree, base } = await laptop();
@@ -317,6 +340,29 @@ describe('a mainline record kept more than a walk behind HEAD', () => {
 
     expect(lastFetchedMainline(deep, 'unit')).toMatchObject({ commit: first });
     expect(lastFetchedMainline(one, 'unit')).toMatchObject({ commit: next });
+  });
+
+  it('is read nearest first among those past the walk, whichever was fetched last', async () => {
+    const { first, tree, base, one } = await laptop();
+    await base(one);
+    const deep = await tree('deep', first);
+    const after = Number(await git(deep, 'log', '-1', '--format=%ct', first)) + 1;
+    const stream = Array.from({ length: 1001 }, (_, at) =>
+      `commit refs/heads/deep\nmark :${at + 1}\ncommitter a <a@example.com> ${after + at} +0000\ndata 0\nfrom ${at === 0 ? first : `:${at}`}\n`).join('');
+    execFileSync('git', ['fast-import', '--quiet'], { cwd: deep, input: stream });
+    await git(deep, 'checkout', '--quiet', 'deep');
+    // `first`'s bytes kept again at the commit just past the walk, fetched before `first` was, in the cache listed after the shared one.
+    const nearer = await git(deep, 'rev-parse', 'HEAD~1000');
+    const shared = mainlineReadRoot(cacheRootFor(join(home, 'clone')), 'unit');
+    const own = mainlineReadRoot(cacheRootFor(deep), 'unit');
+    await cp(join(shared, first), join(own, nearer), { recursive: true });
+    await writeFile(join(own, nearer, 'fetched.json'), JSON.stringify({ ...readFetchedMainline(join(shared, first))!, commit: nearer, fetched: '2000-01-01T00:00:00.000Z' }));
+    // And a record within the walk that this build does not read: its pointer, without its bytes.
+    const near = await git(deep, 'rev-parse', 'HEAD~5');
+    await cp(join(shared, first, 'fetched.json'), join(shared, near, 'fetched.json'));
+    await writeFile(join(shared, near, 'fetched.json'), JSON.stringify({ ...readFetchedMainline(join(shared, first))!, commit: near }));
+
+    expect(lastFetchedMainline(deep, 'unit')).toMatchObject({ commit: nearer });
   });
 });
 

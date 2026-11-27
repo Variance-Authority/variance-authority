@@ -171,9 +171,9 @@ function keptMainlines(root: string, name: string, cacheRoot?: string, selected?
 /**
  * How many commits behind `HEAD` each of `commits` is, for those `HEAD`
  * contains: one walk of its last {@link WALK} commits, then one ask for those
- * it lacks among the rest. Those it holds past the walk stand at {@link WALK}
- * when the walk met any, a reader's next pick should those fail, and are each
- * counted when it met none. Absent for one git cannot place.
+ * it lacks among the rest. Those it holds past the walk follow it, newest
+ * commit first: one ask orders them, where a count would walk history for
+ * each. Absent for one git cannot place.
  */
 function behindHead(checkout: string, commits: ReadonlySet<string>): ReadonlyMap<string, number> {
   const found = new Map<string, number>();
@@ -188,17 +188,14 @@ function behindHead(checkout: string, commits: ReadonlySet<string>): ReadonlyMap
   }
   const rest = [...commits].filter((commit) => !found.has(commit));
   if (rest.length === 0) return found;
-  let lacked: ReadonlySet<string>;
   try {
-    lacked = new Set(execFileSync('git', ['rev-list', '--ignore-missing', '--stdin', '^HEAD'], { cwd: checkout, encoding: 'utf8', input: `${rest.join('\n')}\n`, stdio: ['pipe', 'pipe', 'ignore'] }).split('\n'));
+    const lacked = new Set(execFileSync('git', ['rev-list', '--ignore-missing', '--stdin', '^HEAD'], { cwd: checkout, encoding: 'utf8', input: `${rest.join('\n')}\n`, stdio: ['pipe', 'pipe', 'ignore'] }).split('\n'));
+    const held = rest.filter((commit) => !lacked.has(commit));
+    if (held.length === 0) return found;
+    const ordered = execFileSync('git', ['rev-list', '--no-walk', '--stdin'], { cwd: checkout, encoding: 'utf8', input: `${held.join('\n')}\n`, stdio: ['pipe', 'pipe', 'ignore'] }).split('\n').filter(Boolean);
+    ordered.forEach((commit, at) => found.set(commit, WALK + at));
   } catch {
     return found;
-  }
-  const walkedAny = found.size > 0;
-  for (const commit of rest) {
-    if (lacked.has(commit)) continue;
-    const far = walkedAny ? WALK : count(checkout, `${commit}..HEAD`);
-    if (far !== undefined) found.set(commit, far);
   }
   return found;
 }
@@ -219,15 +216,6 @@ export function ancestor(root: string, older: string, newer: string): boolean | 
     return true;
   } catch (error) {
     return (error as { status?: number }).status === 1 ? false : undefined;
-  }
-}
-
-/** How many commits `range` holds, or `undefined` when git cannot say. */
-function count(root: string, range: string): number | undefined {
-  try {
-    return Number(execFileSync('git', ['rev-list', '--count', range], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim());
-  } catch {
-    return undefined;
   }
 }
 
