@@ -134,7 +134,37 @@ describe('a mainline record one worktree fetched', () => {
 
     await git(behind, 'remote', 'set-url', 'origin', join(home, 'nowhere.git'));
 
-    expect(await base(behind)).toMatchObject({ commit: first, distance: 0, earlier: { reused: 'nearest' } });
+    expect(await base(behind)).toMatchObject({ commit: first, distance: 0 });
+    // The runner seams lay what the share reads.
+    expect(lastFetchedMainline(behind, 'unit')).toMatchObject({ commit: first });
+  });
+
+  it('is not taken from a fresh worktree by a later fetch at an older merge base', async () => {
+    const { primary, first, next, one, tree, base } = await laptop();
+    expect(await base(one)).toMatchObject({ commit: next });
+    // The record at `first` is no longer kept, so the worktree behind fetches it again.
+    await rm(join(mainlineReadRoot(cacheRootFor(primary), 'unit'), first), { recursive: true, force: true });
+    const behind = await tree('behind', `${next}~1`);
+
+    expect(await base(behind)).toMatchObject({ commit: first });
+
+    expect(lastFetchedMainline(behind, 'unit')).toMatchObject({ commit: first });
+    expect(lastFetchedMainline(await tree('fresh'), 'unit')).toMatchObject({ commit: next });
+  });
+
+  it('is never written over by another checkout\'s fetch of the same commit, which keeps its copy in its own cache', async () => {
+    const { primary, first, next, one, two, base } = await laptop();
+    expect(await base(one)).toMatchObject({ commit: next });
+    const reads = mainlineReadRoot(cacheRootFor(primary), 'unit');
+    const shared = join(reads, next, 'coverage.bin');
+    // Bytes another build kept: not the ones this build would write.
+    await cp(join(reads, first, 'coverage.bin'), shared);
+    const before = await readFile(shared);
+
+    expect(await base(two, { fetch: 'always' })).toMatchObject({ commit: next });
+
+    expect(await readFile(shared)).toEqual(before);
+    expect(existsSync(join(mainlineReadRoot(cacheRootFor(two), 'unit'), next, 'coverage.bin'))).toBe(true);
   });
 
   it('keeps it in its own when it cannot write the primary checkout\'s', async () => {

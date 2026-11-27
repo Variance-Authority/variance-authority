@@ -25,6 +25,7 @@ import {
 import { messageOf } from '../config-values.js';
 import { OperatorError } from '../exit.js';
 import { distanceFrom, keepsByCommit, type Env } from '../share-lines.js';
+import { succeeds } from './carry-bundle.js';
 import { executionIndexOf } from './execution-input.js';
 import { MISSED, missedAs, noteMissed, readMissedMainline } from './mainline-missed.js';
 import { selectMainline, type MainlineSelection } from './mainline-selected.js';
@@ -178,11 +179,11 @@ async function readMainline(root: string, suite: string, chosen: MainlineSelecti
     if (held !== undefined && named !== undefined) {
       const distance = await distanceFrom(place, held.mainline, held.commit, root, named?.base);
       const reused = reuseOf(distance, keepsByCommit(share), held.base === named?.base, held.partial === true);
-      if (reused !== undefined) return earlier(held, { reused }, distance);
+      if (reused !== undefined) {
+        await standOn(readRoot, cacheRoot, suite, held);
+        return earlier(held, { reused }, distance);
+      }
     }
-    // A sibling's fetch moves the pointer on; the record at this merge base is still here by its commit.
-    const atBase = named?.base === undefined || !keepsByCommit(share) ? undefined : selection.fetchedAtCommit(root, suite, named.base, here.cacheRoot, named.name);
-    if (atBase !== undefined && atBase.partial !== true && atBase.commit !== held?.commit) return earlier(atBase, { reused: 'nearest' }, 0);
     if (noted !== undefined && noted.mainline === mainline && now - Date.parse(noted.at) < MISS_STANDS_MS) {
       if (held !== undefined) return measured(place, root, held, { unanswered: noted.miss, asked: noted.at }, named?.base);
       return { suite, ...missedAs(noted), asked: noted.at };
@@ -225,15 +226,15 @@ async function readMainline(root: string, suite: string, chosen: MainlineSelecti
   const casesUnread = index === undefined ? undefined : decodes(index);
   const record = casesUnread === undefined ? selection.sharedRecord(found.coverage) : selection.withCaseSections(found.coverage, {});
   // Kept where every checkout of the repository reads it, or in this
-  // checkout's own cache where it may not write that one.
+  // checkout's own cache where it may not write that one. A record another
+  // checkout kept there is its build's, and is never written over: this
+  // build's copy goes to the checkout's own cache.
   let store = cacheRoot;
   let coverage = '';
   let kept: string | undefined;
-  // A record another checkout kept is theirs too: one this build refuses is left for them.
-  let ours = true;
   for (store of selection.fetchStores(root, suite, here.cacheRoot)) {
     coverage = join(selection.mainlineReadRoot(store, suite), found.commit, 'coverage.bin');
-    ours = store === cacheRoot || !existsSync(coverage);
+    if (store !== cacheRoot && existsSync(coverage)) continue;
     kept = await keep(selection.writeCoverageBytes, coverage, record);
     if (kept === undefined) break;
   }
@@ -245,7 +246,7 @@ async function readMainline(root: string, suite: string, chosen: MainlineSelecti
   // reader measures a diff from it: each says it holds no coverage.
   const refused = selection.withoutCoverage(coverage) ? undefined : refusal(selection.askCoverageFile, coverage, found.commit);
   if (refused !== undefined) {
-    if (ours) await rm(layer, { recursive: true, force: true });
+    await rm(layer, { recursive: true, force: true });
     return await unread(refused);
   }
 
@@ -263,7 +264,10 @@ async function readMainline(root: string, suite: string, chosen: MainlineSelecti
   // name finds them.
   const fetched = asked;
   const base = baseOf(found.mainline);
-  await selection.writeFetchedMainline(store, suite, { mainline: found.mainline, commit: found.commit, fetched, ...(base === undefined ? {} : { base }), ...(found.partial === true ? { partial: true } : {}) });
+  const pointer: FetchedMainline = { mainline: found.mainline, commit: found.commit, fetched, ...(base === undefined ? {} : { base }), ...(found.partial === true ? { partial: true as const } : {}) };
+  // This checkout's own pointer names what it stands on, which no sibling's fetch moves.
+  await selection.writeFetchedMainline(cacheRoot, suite, pointer);
+  await nameShared(root, suite, here.cacheRoot, cacheRoot, pointer);
   await rm(join(readRoot, MISSED), { force: true });
   // Each fetch of a new commit adds a directory here, and a fetch is where
   // they are made, so it is where they are taken back: once a day, by the rule
@@ -320,6 +324,31 @@ async function earlier(
     ...(last.partial === true ? { partial: true } : {}),
     earlier: why,
   };
+}
+
+/**
+ * Name `pointer` in the shared cache too, so a checkout that has fetched
+ * nothing reads it, unless that cache already names a record ahead of it on
+ * the line: a fetch at an older merge base never takes the newest answer away.
+ * Best effort: a cache it may not write keeps the answer it named.
+ */
+async function nameShared(root: string, suite: string, named: string | undefined, own: string, pointer: FetchedMainline): Promise<void> {
+  const selection = await import('@variance-authority/sense/test-selection');
+  for (const store of selection.fetchStores(root, suite, named)) {
+    if (store === own) continue;
+    const readRoot = selection.mainlineReadRoot(store, suite);
+    if (!existsSync(join(readRoot, pointer.commit, 'coverage.bin'))) continue;
+    const there = selection.readFetchedMainline(readRoot);
+    if (there !== undefined && there.commit !== pointer.commit && there.mainline === pointer.mainline && succeeds(root, 'merge-base', '--is-ancestor', pointer.commit, there.commit)) continue;
+    await selection.writeFetchedMainline(store, suite, pointer).catch(() => undefined);
+  }
+}
+
+/** Pin a record this checkout reused from another's cache as its own, so a sibling's later fetch does not move it. Best effort. */
+async function standOn(readRoot: string, own: string, suite: string, held: LastFetched): Promise<void> {
+  if (held.coverage.startsWith(`${readRoot}/`)) return;
+  const { suite: _suite, coverage: _coverage, runs: _runs, ...pointer } = held;
+  await writeFetchedMainline(own, suite, pointer).catch(() => undefined);
 }
 
 /** Write `bytes` at `path`, or the error that stopped them being kept there. */

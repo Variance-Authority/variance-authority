@@ -69,9 +69,8 @@ export function mainlineReadRoot(cacheRoot: string, suite: string): string {
 /**
  * Record that the mainline's record of `suite` was fetched into
  * `<readRoot>/<commit>/`. Called by the fetch once every file it keeps is in
- * place, so a seam that reads this finds them. A fetch also names it inside
- * that directory, so a checkout at that commit finds it by commit
- * ({@link fetchedAtCommit}) after a sibling's fetch has moved the pointer on.
+ * place, so a seam that reads this finds them. Replaced whole, so no reader
+ * meets a half-written one.
  */
 export async function writeFetchedMainline(
   cacheRoot: string,
@@ -79,9 +78,7 @@ export async function writeFetchedMainline(
   fetched: FetchedMainline,
 ): Promise<void> {
   const readRoot = mainlineReadRoot(cacheRoot, suite);
-  const pointer = Buffer.from(`${JSON.stringify(fetched)}\n`);
-  if (fetched.handed !== true) await place(join(readRoot, fetched.commit, FETCHED_MAINLINE), pointer);
-  await place(join(readRoot, FETCHED_MAINLINE), pointer);
+  await place(join(readRoot, FETCHED_MAINLINE), Buffer.from(`${JSON.stringify(fetched)}\n`));
 }
 
 /** The pointer in one read root, or in one commit's directory under it, or undefined when there is none or it does not read. */
@@ -107,7 +104,10 @@ export function readFetchedMainline(readRoot: string): FetchedMainline | undefin
  * The newest mainline record of `suite` fetched on this machine, or undefined
  * when the suite is not given to the share or nothing has been fetched.
  *
- * Every cache {@link fetchStores} names is asked, the newest winning. A pointer whose record is not on disk
+ * This checkout's own pointer answers first: it names the record its last
+ * fetch stood on, which a sibling's later fetch does not move. A checkout with
+ * none, or whose record is gone, takes the newest any cache {@link fetchStores}
+ * names, and the record is read from whichever of them keeps it. A pointer whose record is not on disk
  * or does not read in this build is passed over, and so is one for another
  * mainline than `selected`. `null` is a selection that could not be read, so
  * none answers; a caller with none to hand in takes the newest. Synchronous, as
@@ -119,31 +119,20 @@ export function lastFetchedMainline(root: string, suite: string | undefined, cac
   const declared = declaredSuites(root);
   const name = suite ?? onlySuite(declared);
   if (name === undefined || declared?.find((one) => one.name === name)?.carry !== 'share') return undefined;
-  let newest: LastFetched | undefined;
-  for (const cache of fetchStores(root, name, cacheRoot)) {
-    const readRoot = mainlineReadRoot(cache, name);
+  const readRoots = fetchStores(root, name, cacheRoot).map((cache) => mainlineReadRoot(cache, name));
+  // FIXME: a runner seam and a sense reader have no selection, so they take a record fetched for another mainline; moving the selection below the CLI closes it (#962).
+  const pointerIn = (readRoot: string) => {
     const pointer = readFetchedMainline(readRoot);
-    // FIXME: a runner seam and a sense reader have no selection, so they take a record fetched for another mainline; moving the selection below the CLI closes it (#962).
-    if (pointer === undefined || (selected !== undefined && pointer.mainline !== selected)) continue;
-    if (newest !== undefined && newest.fetched >= pointer.fetched) continue;
-    newest = fetchedRecord(readRoot, pointer, name) ?? newest;
-  }
-  return newest;
-}
-
-/**
- * The mainline record of `suite` published at `commit` and fetched on this
- * machine, whichever fetch named it last, or undefined when none holds it: a
- * fetch kept by commit finds the one at its merge base here without asking the
- * line. Asks the caches {@link lastFetchedMainline} asks, for `selected` alone.
- */
-export function fetchedAtCommit(root: string, suite: string, commit: string, cacheRoot: string | undefined, selected: string): LastFetched | undefined {
-  for (const cache of fetchStores(root, suite, cacheRoot)) {
-    const readRoot = mainlineReadRoot(cache, suite);
-    const pointer = readFetchedMainline(join(readRoot, commit));
-    if (pointer === undefined || pointer.mainline !== selected || pointer.commit !== commit) continue;
-    const found = fetchedRecord(readRoot, pointer, suite);
-    if (found !== undefined) return found;
+    return pointer !== undefined && (selected === undefined || pointer.mainline === selected) ? [pointer] : [];
+  };
+  // The checkout's own cache is the last a fetch tries.
+  const newest = readRoots.slice(0, -1).flatMap(pointerIn).sort((a, b) => (a.fetched < b.fetched ? 1 : a.fetched > b.fetched ? -1 : 0));
+  const order = [...pointerIn(readRoots.at(-1)!), ...newest];
+  for (const pointer of order) {
+    for (const readRoot of readRoots) {
+      const found = fetchedRecord(readRoot, pointer, name);
+      if (found !== undefined) return found;
+    }
   }
   return undefined;
 }

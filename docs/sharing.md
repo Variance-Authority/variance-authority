@@ -612,6 +612,8 @@ Records are read in this order:
    run writes, so it is never read as your checkout's own. In a worktree,
    `<cache>` is the primary checkout's, so every checkout of the repository
    reads the record any of them fetched, and removing a worktree keeps it. A
+   worktree that has fetched reads the record it fetched, whatever a sibling
+   fetches later; one that has not reads the newest any of them fetched. A
    worktree that cannot write there, as in a sandbox, keeps it in its own.
 
    The record read is the one kept at your `HEAD`'s merge base with the

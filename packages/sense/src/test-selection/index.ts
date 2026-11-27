@@ -125,7 +125,6 @@ export {
 } from './cache-layers.js';
 export {
   FETCHED_MAINLINE,
-  fetchedAtCommit,
   fetchStores,
   lastFetchedMainline,
   layFetchedMainline,
