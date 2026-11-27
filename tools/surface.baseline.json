@@ -3115,6 +3115,7 @@
         "linesThen": "function",
         "loadedUnprobed": "const",
         "machinesBeside": "function",
+        "machinesIn": "function",
         "matchesGlob": "function",
         "mayMock": "function",
         "memberDeclarationsOf": "function",
