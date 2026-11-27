@@ -26,9 +26,10 @@ reach still determines that set. Emitted questions preserve those start points.
 
 `--limit` applies to detailed names, not map groups. `--format json` exposes the
 same map as `candidateMap`, including complete file coordinates at leaves.
-Text prints a coordinate count when a file has many evidence lines. A complete
-group inventory over the text budget is refused rather than partly printed;
-use the structured answer to inspect it. MCP accepts `map` and prints the same
+Text prints a coordinate count when a file has many evidence lines. A group
+inventory over the text budget prints in pages: each page names the groups it
+leaves and the drill, `<id>@<n>`, that continues from them, so every group is
+reachable from text alone; JSON keeps every group in one answer. MCP accepts `map` and prints the same
 view with tool-shaped drills; its response remains text.
 
 The map must belong to the search reading's source index. A missing or stale map

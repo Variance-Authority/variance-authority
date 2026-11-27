@@ -16,8 +16,18 @@ export function formatCandidateMap(map: CandidateMap, drill: (id: string) => str
     const coordinates = lines.join(',');
     return `${file}${coordinates === '' ? '' : coordinates.length <= 128 ? `:${coordinates}` : ` (${lines.length} evidence lines; complete coordinates in JSON)`}${qualification === undefined ? '' : ` [${qualification}]`}`;
   });
-  const lines = [...start, ...groups, ...entries, ...map.unread.map((why) => `Coverage: ${why}`)];
-  if (map.selector !== 'root') lines.push(`Other candidates remain on ${drill('root')}.`);
-  if (lines.join('\n').length > 10000) throw new Error('The whole map group inventory exceeds the text budget; ask a narrower emitted group or the structured search API. No partial groups were printed.');
-  return lines.join('\n');
+  const tail = [...map.unread.map((why) => `Coverage: ${why}`), ...map.selector === 'root' ? [] : [`Other candidates remain on ${drill('root')}.`]];
+  const from = map.start ?? 0;
+  const fits = (lines: readonly string[]): boolean => lines.join('\n').length <= 10000;
+  const whole = [...start, ...groups.slice(from), ...entries, ...tail];
+  if (fits(whole)) return whole.join('\n');
+  // Over budget, groups go in pages: every group lands on exactly one, and the next page is an emitted drill.
+  const later = (next: number): string => {
+    const files = (map.groups ?? []).slice(next).reduce((sum, group) => sum + group.files, 0) + (map.entries?.length ?? 0);
+    return `Groups ${from + 1}–${next} of ${groups.length} are shown; the other ${groups.length - next} groups${entries.length === 0 ? '' : ` and ${entries.length} files at this prefix`}, holding ${files} candidate files, continue on ${drill(`${map.selector}@${next}`)}.`;
+  };
+  let next = from;
+  while (next < groups.length && fits([...start, ...groups.slice(from, next + 1), later(next + 1), ...tail])) next++;
+  if (next === from) throw new Error('One map group exceeds the text budget; ask a narrower emitted group or the structured search API. No partial groups were printed.');
+  return [...start, ...groups.slice(from, next), later(next), ...tail].join('\n');
 }

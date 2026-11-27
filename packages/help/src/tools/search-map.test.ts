@@ -140,6 +140,25 @@ it('renders whole evidence-line inventories or a count, and refuses an oversized
   expect(() => formatCandidateMap(oversized, (id) => id)).toThrow('No partial groups');
 });
 
+it('pages a group inventory over the text budget, every group on exactly one page and the next page an emitted drill', () => {
+  const many = Array.from({ length: 300 }, (_, i) => ({ id: `area:${i}`, name: `area ${String(i).padStart(3, '0')} ${'n'.repeat(60)}`, files: 1, layers: [], evidence: [] }));
+  const root: CandidateMap = { files: 300, selected: 300, selector: 'root', name: 'root', groups: many, unread: [], evidence: [] };
+  const seen: string[] = [];
+  let text = formatCandidateMap(root, (id) => `<${id}>`);
+  for (let pages = 0; pages < 20; pages++) {
+    expect(text.length).toBeLessThanOrEqual(10000);
+    seen.push(...many.filter((group) => text.includes(`<${group.id}>`)).map((group) => group.id));
+    const next = /continue on <(root@\d+)>/.exec(text)?.[1];
+    if (next === undefined) break;
+    text = formatCandidateMap({ ...root, start: Number(next.split('@')[1]) }, (id) => `<${id}>`);
+  }
+  expect(seen).toEqual(many.map((group) => group.id));
+  const set = membership(['packages/alpha/a.ts', 'packages/beta/b.ts']);
+  expect(candidateFileMap(ROOT, set, 'root@1')).toMatchObject({ selector: 'root', start: 1 });
+  expect(candidateFileMap(ROOT, set, 'root@1').groups).toHaveLength(2);
+  for (const bad of ['root@', 'root@x', 'root@-1', 'root@2', 'root@1@1']) expect(() => candidateFileMap(ROOT, set, bad)).toThrow('not valid');
+});
+
 it('does not place a search reading without source-index identity', () => {
   const map = placedFileMap(ROOT, membership(['packages/alpha/a.ts']), 'root');
   expect(map.unavailable).toContain('identity');

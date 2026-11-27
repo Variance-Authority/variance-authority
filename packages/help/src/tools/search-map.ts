@@ -21,6 +21,8 @@ export interface CandidateMap {
   readonly files: number;
   readonly selected: number;
   readonly selector: string;
+  /** The first group a text page shows, from a `<selector>@<n>` drill; JSON keeps every group. */
+  readonly start?: number;
   readonly name: string;
   readonly groups?: readonly CandidateGroup[];
   readonly entries?: readonly CandidateFile[];
@@ -85,8 +87,19 @@ function filePage(name: string, files: readonly Held[]): Pick<CandidateMap, 'gro
   return { groups: [...by].sort(([a], [b]) => codeUnitOrder(a, b)).map(([prefix, held]) => group(id('files', name, prefix), `${prefix}…`, held)), ...(terminal.length === 0 ? {} : { entries: terminal.map(({ placed: _placed, ...file }) => file) }) };
 }
 
-/** Place complete canonical membership on an already published code map, without reading source or changing matching. */
+/** Place complete canonical membership on an already published code map, without reading source or changing matching. A `@<n>` suffix opens a text page from group n. */
 export function candidateFileMap(root: string | undefined, membership: FileSet, selector: string, expectedIndexDigest?: string): CandidateMap {
+  const [scope, page, ...rest] = selector.split('@');
+  if (page === undefined) return placed(root, membership, selector, expectedIndexDigest);
+  const map = placed(root, membership, scope!, expectedIndexDigest);
+  const start = /^[1-9]\d*$/.test(page) && rest.length === 0 ? Number(page) : NaN;
+  const groups = map.groups?.length ?? 0;
+  if (map.unavailable !== undefined) return map;
+  if (!(start < groups || start === groups && (map.entries?.length ?? 0) > 0)) throw new Error('The search map drill id is not valid.');
+  return { ...map, start };
+}
+
+function placed(root: string | undefined, membership: FileSet, selector: string, expectedIndexDigest?: string): CandidateMap {
   if (root === undefined) throw new Error('The search map needs the checkout named by its host.');
   const candidates: CandidateFile[] = [...membership.files].map(([file, lines]) => {
     const qualification = membership.qualifications?.get(file);
