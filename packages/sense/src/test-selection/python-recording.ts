@@ -42,7 +42,7 @@ interface Written {
 
 /**
  * Run `run`'s pytest suite with the recorder loaded, and fold what each test
- * ran into the suite's record. Answers how many tests failed.
+ * ran into the suite's record. Answers how many tests failed, or pytest's own exit when it exited non-zero with none failed.
  */
 export async function recordPython(run: PythonRun): Promise<number> {
   const pythonCoverage = native()?.pythonCoverage;
@@ -71,12 +71,14 @@ export async function recordPython(run: PythonRun): Promise<number> {
       writeJournals(selection, testFile, ran.map((test) => ({ name: test.nodeid })), entered);
       finished.push({
         filepath: testFile,
-        complete: ran.every((test) => test.passed),
+        // A non-zero exit no failed test explains is pytest stopping early or a file that did not collect: a file that wrote is not known to have finished.
+        complete: code === 0 && ran.every((test) => test.passed),
         cases: ran.map((test) => finishedCase(test.nodeid, undefined, test.duration)),
       });
     }
     await fold(finished);
-    return tests.filter((test) => !test.passed).length;
+    const failed = tests.filter((test) => !test.passed).length;
+    return failed === 0 ? code : failed;
   } finally {
     rmSync(written, { recursive: true, force: true });
   }

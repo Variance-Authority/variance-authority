@@ -35,6 +35,17 @@ afterAll(() => {
   for (const dir of directories) rmSync(dir, { recursive: true, force: true });
 });
 
+/** A git checkout at `root` holding `files`, with its own record cache. */
+function seed(root: string, files: Record<string, string>): void {
+  directories.push(root);
+  for (const [path, text] of Object.entries(files)) {
+    mkdirSync(dirname(join(root, path)), { recursive: true });
+    writeFileSync(join(root, path), text);
+  }
+  execFileSync('git', ['init', '-q'], { cwd: root });
+  vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(root, '.cache'));
+}
+
 /** The tests `covering` names for one function of `pkg/calc.py` in `root`. */
 async function covering(root: string, name: string): Promise<string[]> {
   let out = '';
@@ -45,17 +56,19 @@ async function covering(root: string, name: string): Promise<string[]> {
 describe.skipIf(!canRecord())('recording a pytest suite', () => {
   it('names, for each function, the tests that ran it and no other', async () => {
     const root = realpathSync(mkdtempSync(join(tmpdir(), 'variance-python-')));
-    directories.push(root);
-    for (const [path, text] of Object.entries(FILES)) {
-      mkdirSync(dirname(join(root, path)), { recursive: true });
-      writeFileSync(join(root, path), text);
-    }
-    execFileSync('git', ['init', '-q'], { cwd: root });
-    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(root, '.cache'));
+    seed(root, FILES);
     const exit = await runPython({ command: 'python', args: ['-q'] }, root);
 
     expect(exit).toBe(0);
     expect([...new Set(await covering(root, 'add'))]).toEqual(['tests/test_calc.py::test_add']);
     expect([...new Set(await covering(root, 'mul'))]).toEqual(['tests/test_calc.py::test_mul']);
+  });
+
+  it('does not exit 0 when pytest stopped early, though every test that ran passed', async () => {
+    const root = realpathSync(mkdtempSync(join(tmpdir(), 'variance-python-')));
+    seed(root, { ...FILES, 'tests/test_broken.py': 'import nothing_here_exists\n' });
+    const exit = await runPython({ command: 'python', args: ['-q', '--continue-on-collection-errors'] }, root);
+
+    expect(exit).not.toBe(0);
   });
 });
