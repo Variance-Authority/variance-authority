@@ -41,7 +41,7 @@ export function panesOf(record: ViewRecord, suite: string, history?: History): P
       ['modules', coverage?.modules.count],
       ['regions', coverage?.regions.count],
       ['cases', cases?.count],
-      ['machines', coverage?.machinesUnread],
+      ['machines', coverage?.machinesUnread ?? record.machinesUnread],
       ['bytes', record.bytes.length],
       ...parts.parts.filter((part) => part.name !== 'cases.last').flatMap((part) => part.facts),
     ]),

@@ -42,6 +42,8 @@ export interface ViewRecord {
   readonly cases?: Cases;
   readonly before?: Cases;
   readonly parts: Parts;
+  /** Why the runs beside a record without coverage are counted against no test file. */
+  readonly machinesUnread?: string;
 }
 
 /** The record at `bytes`, and the machines the runs beside it name. */
@@ -66,6 +68,7 @@ export function openRecord(bytes: Uint8Array, ran?: MachinesBeside): ViewRecord 
     sections,
     parts,
     ...(view === undefined ? {} : { coverage: coverageTables(view, cases, ran) }),
+    ...(view !== undefined || ran === undefined ? {} : { machinesUnread: 'unread' in ran ? ran.unread : 'the record holds no test files to count the machines against' }),
     ...(cases === undefined ? {} : { cases }),
     ...(before === undefined ? {} : { before }),
   };

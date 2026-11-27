@@ -1,5 +1,5 @@
 // compass: variance-authority.reach.crossings
-import { encodeTestCoverage, rawRecord, withCaseSections } from '@variance-authority/sense/test-selection';
+import { encodeTestCoverage, rawRecord, recordOfCases, withCaseSections } from '@variance-authority/sense/test-selection';
 import { describe, expect, it } from 'vitest';
 // Sense publishes the case index's readers and not its writer, which only a
 // recording run calls, so this writes a record the way that run does.
@@ -95,5 +95,13 @@ describe('the machine each test file ran on', () => {
       expect(tab(shown, 'overview').tables().find(({ id }) => id === 'machines')).toBeUndefined();
       expect(new Map(tab(shown, 'overview').facts()).get('machines')).toBe(why);
     }
+  });
+
+  it('says why no machine is counted on a record that holds cases and no test files', () => {
+    const facts = (ran: MachinesBeside) =>
+      new Map(tab(panesOf(openRecord(recordOfCases({ index: encodeAsSetExecutionIndex(CASES) }), ran), 'unit'), 'overview').facts()).get('machines');
+
+    expect(facts(ran)).toBe('the record holds no test files to count the machines against');
+    expect(facts({ unread: 'the runs record beside it names no machine' })).toBe('the runs record beside it names no machine');
   });
 });
