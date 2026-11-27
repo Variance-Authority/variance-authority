@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { cp, mkdtemp, readFile, realpath, rm, stat, utimes, writeFile } from 'node:fs/promises';
+import { chmod, cp, mkdtemp, readFile, realpath, rm, stat, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -117,6 +117,22 @@ describe('a mainline record one worktree fetched', () => {
     expect((await stat(stamp)).mtimeMs).toBeGreaterThan(old * 1000);
     expect(readFetchedMainline(mainlineReadRoot(shared, 'unit'))).toMatchObject({ commit: next });
     expect(lastFetchedMainline(two, 'unit')).toMatchObject({ commit: next });
+  });
+
+  it('keeps it in its own when it cannot write the primary checkout\'s', async () => {
+    const { primary, first, next, one, base } = await laptop();
+    const shared = mainlineReadRoot(cacheRootFor(primary), 'unit');
+    // A sandbox that lets the worktree write only inside itself.
+    await chmod(shared, 0o555);
+    try {
+      expect(await base(one)).toMatchObject({ commit: next });
+    } finally {
+      await chmod(shared, 0o755);
+    }
+
+    expect(existsSync(join(mainlineReadRoot(cacheRootFor(one), 'unit'), next, 'coverage.bin'))).toBe(true);
+    expect(lastFetchedMainline(one, 'unit')).toMatchObject({ commit: next });
+    expect(readFetchedMainline(shared)).toMatchObject({ commit: first });
   });
 });
 

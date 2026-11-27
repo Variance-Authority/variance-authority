@@ -237,14 +237,13 @@ async function readMainline(root: string, suite: string, chosen: MainlineSelecti
   const record = casesUnread === undefined ? selection.sharedRecord(found.coverage) : selection.withCaseSections(found.coverage, {});
   // Kept where every checkout of the repository reads it, or in this
   // checkout's own cache where it may not write that one.
-  let store = cacheRoot;
-  let coverage = '';
-  let kept: string | undefined;
-  for (store of selection.fetchStores(root, suite, here.cacheRoot)) {
-    coverage = join(selection.mainlineReadRoot(store, suite), found.commit, 'coverage.bin');
-    kept = await keep(selection.writeCoverageBytes, coverage, record);
-    if (kept === undefined) break;
-  }
+  const stores = selection.fetchStores(root, suite, here.cacheRoot);
+  const keptAt = (cache: string) => join(selection.mainlineReadRoot(cache, suite), found.commit, 'coverage.bin');
+  let tried = 0;
+  let kept = await keep(selection.writeCoverageBytes, keptAt(stores[0]!), record);
+  while (kept !== undefined && tried + 1 < stores.length) kept = await keep(selection.writeCoverageBytes, keptAt(stores[++tried]!), record);
+  const store = stores[tried]!;
+  const coverage = keptAt(store);
   const layer = dirname(coverage);
   if (kept !== undefined) return await unread(`the record published at ${found.commit} could not be kept at ${coverage}: ${kept}`);
   // A record of cases alone was published by a run that instrumented no module.

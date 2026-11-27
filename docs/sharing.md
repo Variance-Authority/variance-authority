@@ -612,10 +612,10 @@ Records are read in this order:
    run writes, so it is never read as your checkout's own. In a worktree,
    `<cache>` is the primary checkout's, so every checkout of the repository
    reads the record any of them fetched, and removing a worktree keeps it. A
-   worktree that cannot write there, as in a sandbox, keeps it in its own. The
-   record read is
-   the one kept at your `HEAD`'s merge base with the mainline when the share
-   keeps one there. Until it does, because that commit's CI has not published
+   worktree that cannot write there, as in a sandbox, keeps it in its own.
+
+   The record read is the one kept at your `HEAD`'s merge base with the
+   mainline when the share keeps one there. Until it does, because that commit's CI has not published
    yet, it is the newest kept behind your merge base that holds your suite's
    record, and the remote is asked again on each read, at most once a minute,
    until your merge base's record is there. With nothing kept at or behind
