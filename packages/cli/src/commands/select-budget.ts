@@ -13,7 +13,6 @@
  */
 
 import { codeUnitOrder } from '@variance-authority/core/segment';
-import { isTestPath } from '@variance-authority/sense';
 import { durationText } from '@variance-authority/core/shard';
 import type { SuiteTimes, TestDistance } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
@@ -144,7 +143,8 @@ function editedOnly(
   const variable = `\`VARIANCE_AUTHORITY_BUDGET=${budget.seconds}\``;
   const price = pricing(times, home);
   const edited = [...new Set(selection.changed)]
-    .filter((file) => times.has(file) || isTestPath(file))
+    // The suite's own test files are the ones its record holds: an edited test of another suite is that suite's to run.
+    .filter((file) => selection.whole.has(file) || times.has(file))
     .map((test) => ({ test, price: price(test) }))
     .sort((a, b) => a.price - b.price || codeUnitOrder(a.test, b.test));
   const taken: string[] = [];

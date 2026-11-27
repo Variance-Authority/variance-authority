@@ -135,6 +135,13 @@ describe('the edit loop under a budget', () => {
       expect(cut.notes).toContain(`  ${OWN}, 4.0 s`);
     });
 
+    it('counts only the edited test files the suite holds, and leaves another suite\'s to that suite', () => {
+      const cut = withinBudget(local([SETUP, OWN, 'packages/b/src/elsewhere.test.ts']), TIMES, { seconds: 20, asked: true }, home);
+
+      expect(runs(cut)).toEqual([OWN]);
+      expect(cut.notes[0]).toMatch(/ ran 1 of the 1 test file the change edited, 4\.0 s recorded; /u);
+    });
+
     it('runs no test when the change edited none', () => {
       const cut = withinBudget(local([SETUP]), TIMES, { seconds: 20, asked: true }, home);
 
