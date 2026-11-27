@@ -7,7 +7,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { OperatorError } from '../exit.js';
 import type { Env } from '../share-lines.js';
 import { handBase, handedOutputs, moveBase, receiveBase } from './carry-handed.js';
-import { mainlineBase, mainlineMissed, readMissedMainline, type MainlineMissed } from './mainline-base.js';
+import { mainlineBase, mainlineMissed, type MainlineMissed } from './mainline-base.js';
+import { readMissedMainline } from './mainline-missed.js';
 import { forgetLineAnswers, git, gitPublished, publishedAt } from './mainline-fixture.js';
 import { suiteBase } from './suite-base.js';
 

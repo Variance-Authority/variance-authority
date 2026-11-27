@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, rm, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { afterEach, describe, expect, test } from 'vitest';
-import { applyPrune, writeFetchedMainline } from '@variance-authority/sense/test-selection';
+import { applyPrune, pinnedMainlines, writeFetchedMainline } from '@variance-authority/sense/test-selection';
 import '../bin.fixture.js';
 import { main } from '../bin.js';
 import {
@@ -91,6 +91,33 @@ describe('planCachePrune', () => {
     const plan = await planCachePrune({ cacheRoot }, owners({ [commit(1)]: false, [commit(2)]: false, [commit(3)]: 0 }));
 
     expect(plan.remove.map((entry) => [entry.path, entry.reason])).toEqual([[other, 'off-line']]);
+  });
+
+  test('in the shared cache, a mainline record another checkout stands on stays, and only the reads are judged', async () => {
+    const cacheRoot = await mkdtemp(resolve(tmpdir(), 'va-prune-cache-'));
+    const read = join(cacheRoot, 'share', 'read', 'unit');
+    const pinned = await put(join(read, commit(1), 'coverage.bin'), 15 * DAY).then(dirname);
+    await utimes(pinned, (NOW - 15 * DAY) / 1000, (NOW - 15 * DAY) / 1000);
+    const other = await put(join(read, commit(2), 'coverage.bin'), 15 * DAY).then(dirname);
+    await utimes(other, (NOW - 15 * DAY) / 1000, (NOW - 15 * DAY) / 1000);
+    await put(join(read, commit(3), 'coverage.bin'), 0);
+
+    const plan = await planCachePrune({ cacheRoot }, { ...owners({ [commit(1)]: false, [commit(2)]: false, [commit(3)]: 0 }), pinned: async () => [commit(1)] }, { reads: true });
+
+    expect(plan.remove.map((entry) => [entry.path, entry.reason])).toEqual([[other, 'off-line']]);
+  });
+
+  test('in the shared cache, no mainline record is judged when git cannot list the checkouts that stand on them', async () => {
+    const cacheRoot = await mkdtemp(resolve(tmpdir(), 'va-prune-cache-'));
+    const read = join(cacheRoot, 'share', 'read', 'unit');
+    const old = await put(join(read, commit(2), 'coverage.bin'), 15 * DAY).then(dirname);
+    await utimes(old, (NOW - 15 * DAY) / 1000, (NOW - 15 * DAY) / 1000);
+
+    // No repository here, so no worktree list.
+    expect(await pinnedMainlines(cacheRoot)).toBeUndefined();
+    const plan = await planCachePrune({ cacheRoot }, { ...owners({ [commit(2)]: false }), pinned: () => pinnedMainlines(cacheRoot) }, { reads: true });
+
+    expect(plan.remove).toEqual([]);
   });
 
   test('a commit git cannot answer for is kept, and said, until it is 30 days old', async () => {

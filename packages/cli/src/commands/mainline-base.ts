@@ -4,16 +4,15 @@
  * runner seam on this machine finds it, and reused until a nearer one can exist.
  *
  * The bytes go into a read layer of their own, `share/read/<suite>/<commit>/` in
- * the cache, beneath every layer a run writes, and `fetched.json` names the one
- * fetched last, which is how the runner seams in
- * `@variance-authority/sense/test-selection` lay it under a checkout's first run.
- * A record its run handed on stands without asking; when any other fetched last
- * stands is {@link reuseOf}'s to say.
+ * the cache, beneath every layer a run writes, and each commit's `fetched.json`
+ * names its fetch. The runner seams in `@variance-authority/sense/test-selection`
+ * lay the kept record a checkout's `HEAD` holds under its first run. A record its
+ * run handed on stands without asking; when any other stands is
+ * {@link reuseOf}'s to say.
  */
 
-import { readFileSync } from 'node:fs';
-import { mkdir, rm, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { rm } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
 import {
   cacheRootFor,
   lastFetchedMainline,
@@ -26,6 +25,7 @@ import { messageOf } from '../config-values.js';
 import { OperatorError } from '../exit.js';
 import { distanceFrom, keepsByCommit, type Env } from '../share-lines.js';
 import { executionIndexOf } from './execution-input.js';
+import { MISSED, missedAs, noteMissed, readMissedMainline } from './mainline-missed.js';
 import { selectMainline, type MainlineSelection } from './mainline-selected.js';
 import { CACHE_PRUNE_REASONS, checkoutOwners, pruneCacheWhenDue } from './prune-cache.js';
 import { describeDistance, describeMiss, mainlineSuite } from './share.js';
@@ -41,9 +41,6 @@ import type { MainlineMiss } from './mainline-entry.js';
  * sitting.
  */
 export const MISS_STANDS_MS = 10 * 60_000;
-
-/** Where a checkout notes that the line was asked and gave no record, beside `fetched.json`. */
-const MISSED = 'missed.json';
 
 /** The mainline's record of one suite, written where this checkout reads it. */
 export interface MainlineRecord {
@@ -77,6 +74,8 @@ export interface MainlineRecord {
   readonly earlier?: { readonly reused: 'nearest' | 'asked' | 'offline' | 'handed' } | { readonly unanswered: MainlineMiss; readonly asked?: string };
   /** What the fetch's daily prune of this cache took, when it took something. */
   readonly pruned?: string;
+  /** Why the fetch kept the record where only this checkout reads it, when the shared cache took no write. */
+  readonly unshared?: string;
 }
 
 /** Why the mainline gave no record: which mainline was asked, when one was known, and the share's answer. */
@@ -90,19 +89,7 @@ export interface MainlineMissed {
   readonly shareAsked?: false;
   /** When the line gave this answer, as an ISO time, when it was earlier within {@link MISS_STANDS_MS} and not now. */
   readonly asked?: string;
-  /** The answer another job of this run read and handed on, which no clock ends: {@link MissedMainline.handed}. */
-  readonly handed?: true;
-}
-
-/** The line's answer that it gave no record: which mainline, when, and why. */
-export interface MissedMainline {
-  /** Absent only from a handed answer, when the job that read it could name none. */
-  readonly mainline?: string;
-  /** When the line was asked, as an ISO time. */
-  readonly at: string;
-  readonly miss: MainlineMiss;
-  readonly holds?: readonly string[];
-  /** Laid by `carry receive`: the run's answer, which stands past {@link MISS_STANDS_MS} as a handed record stands past the merge base. */
+  /** The answer another job of this run read and handed on, which no clock ends: `MissedMainline.handed` in `mainline-missed.ts`. */
   readonly handed?: true;
 }
 
@@ -225,8 +212,6 @@ async function readMainline(root: string, suite: string, chosen: MainlineSelecti
     return { suite, mainline: found.mainline, miss };
   };
 
-  const layer = join(readRoot, found.commit);
-  const coverage = join(layer, 'coverage.bin');
   // The cases travel in the record. An index that does not read is dropped
   // from it, so no reader of the kept record meets it.
   let index: Uint8Array | undefined;
@@ -237,7 +222,25 @@ async function readMainline(root: string, suite: string, chosen: MainlineSelecti
   }
   const casesUnread = index === undefined ? undefined : decodes(index);
   const record = casesUnread === undefined ? selection.sharedRecord(found.coverage) : selection.withCaseSections(found.coverage, {});
-  const kept = await keep(selection.writeCoverageBytes, coverage, record);
+  // Kept where every checkout of the repository reads it, or in this
+  // checkout's own cache where it may not write that one.
+  let store = cacheRoot;
+  let coverage = '';
+  let kept: string | undefined;
+  let unshared: string | undefined;
+  for (store of selection.fetchStores(root, suite, here.cacheRoot)) {
+    const handed = store === cacheRoot ? undefined : selection.readFetchedMainline(selection.mainlineReadRoot(store, suite));
+    if (handed?.handed === true && handed.commit === found.commit) {
+      // Those bytes are the read a run handed the primary checkout, which it stands on as handed.
+      unshared ??= `kept in this checkout's own cache, as the shared one holds the record at ${found.commit} a run handed the primary checkout`;
+      continue;
+    }
+    coverage = join(selection.mainlineReadRoot(store, suite), found.commit, 'coverage.bin');
+    kept = await keep(selection.writeCoverageBytes, coverage, record);
+    if (kept === undefined) break;
+    unshared ??= `kept in this checkout's own cache, which no other checkout reads, as ${coverage} could not be written: ${kept}`;
+  }
+  const layer = dirname(coverage);
   if (kept !== undefined) return await unread(`the record published at ${found.commit} could not be kept at ${coverage}: ${kept}`);
   // A record of cases alone was published by a run that instrumented no module.
   // The share kept the run that names its commit off the line, and the publisher
@@ -245,7 +248,8 @@ async function readMainline(root: string, suite: string, chosen: MainlineSelecti
   // reader measures a diff from it: each says it holds no coverage.
   const refused = selection.withoutCoverage(coverage) ? undefined : refusal(selection.askCoverageFile, coverage, found.commit);
   if (refused !== undefined) {
-    await rm(layer, { recursive: true, force: true });
+    // In the shared cache these are the published bytes another build may read and name.
+    if (store === cacheRoot) await rm(layer, { recursive: true, force: true });
     return await unread(refused);
   }
 
@@ -263,12 +267,19 @@ async function readMainline(root: string, suite: string, chosen: MainlineSelecti
   // name finds them.
   const fetched = asked;
   const base = baseOf(found.mainline);
-  await selection.writeFetchedMainline(cacheRoot, suite, { mainline: found.mainline, commit: found.commit, fetched, ...(base === undefined ? {} : { base }), ...(found.partial === true ? { partial: true } : {}) });
+  const pointer: FetchedMainline = { mainline: found.mainline, commit: found.commit, fetched, ...(base === undefined ? {} : { base }), ...(found.partial === true ? { partial: true as const } : {}), ...(keepsByCommit(share) ? {} : { latest: true as const }) };
+  await selection.writeFetchedMainline(store, suite, pointer, store !== cacheRoot);
   await rm(join(readRoot, MISSED), { force: true });
   // Each fetch of a new commit adds a directory here, and a fetch is where
   // they are made, so it is where they are taken back: once a day, by the rule
   // `planCachePrune` states, never the one just named.
-  const pruned = selection.prunedLine(await pruneCacheWhenDue({ cacheRoot }, checkoutOwners(root, now)), CACHE_PRUNE_REASONS);
+  // In another checkout's cache, only the mainline records every checkout shares are this fetch's to judge.
+  const owners = checkoutOwners(root, now);
+  const sharedPrune = store === cacheRoot ? undefined : await pruneCacheWhenDue({ cacheRoot: store }, owners, { reads: true });
+  const pruned = [await pruneCacheWhenDue({ cacheRoot }, owners), sharedPrune]
+    .map((one) => selection.prunedLine(one, CACHE_PRUNE_REASONS))
+    .filter((line) => line !== '')
+    .join('\n');
   return {
     suite,
     mainline: found.mainline,
@@ -281,12 +292,8 @@ async function readMainline(root: string, suite: string, chosen: MainlineSelecti
     fetched,
     ...(found.partial === true ? { partial: true } : {}),
     ...(pruned === '' ? {} : { pruned }),
+    ...(unshared === undefined ? {} : { unshared }),
   };
-}
-
-/** What a kept answer says to a reader. */
-function missedAs(noted: MissedMainline): Pick<MainlineMissed, 'mainline' | 'miss' | 'holds'> {
-  return { ...(noted.mainline === undefined ? {} : { mainline: noted.mainline }), miss: noted.miss, ...(noted.holds === undefined ? {} : { holds: noted.holds }) };
 }
 
 /** The record fetched earlier, as a base, measured against this checkout now. */
@@ -319,45 +326,6 @@ async function earlier(
     ...(last.partial === true ? { partial: true } : {}),
     earlier: why,
   };
-}
-
-/**
- * The line's answer that it gave no record, as `readRoot` keeps it, or
- * `undefined` when it keeps none that reads.
- */
-export function readMissedMainline(readRoot: string): MissedMainline | undefined {
-  let value: Partial<MissedMainline>;
-  try {
-    value = JSON.parse(readFileSync(join(readRoot, MISSED), 'utf8')) as Partial<MissedMainline>;
-  } catch {
-    return undefined;
-  }
-  const miss = value.miss as { kind?: unknown; detail?: unknown } | undefined;
-  const reads = typeof miss?.kind === 'string' && (miss.detail === undefined || typeof miss.detail === 'string');
-  if ((value.mainline !== undefined && typeof value.mainline !== 'string') || typeof value.at !== 'string' || Number.isNaN(Date.parse(value.at)) || !reads) return undefined;
-  const holds = Array.isArray(value.holds) && value.holds.every((name) => typeof name === 'string') ? value.holds : undefined;
-  return {
-    ...(value.mainline === undefined ? {} : { mainline: value.mainline }),
-    at: value.at,
-    miss: value.miss as MainlineMiss,
-    ...(holds === undefined ? {} : { holds }),
-    ...(value.handed === true ? { handed: true } : {}),
-  };
-}
-
-/** Keep the line's answer that it gave no record under `readRoot`, where {@link readMissedMainline} reads it. */
-export async function writeMissedMainline(readRoot: string, missed: MissedMainline): Promise<void> {
-  await mkdir(readRoot, { recursive: true });
-  await writeFile(join(readRoot, MISSED), `${JSON.stringify(missed)}\n`);
-}
-
-/** Best effort: a cache that cannot hold the note costs the next reader one more ask, and nothing else. */
-async function noteMissed(readRoot: string, missed: MissedMainline): Promise<void> {
-  try {
-    await writeMissedMainline(readRoot, missed);
-  } catch {
-    // Nothing to do: see above.
-  }
 }
 
 /** Write `bytes` at `path`, or the error that stopped them being kept there. */
@@ -439,7 +407,8 @@ export function mainlineRead(read: MainlineRecord): string {
   return `record of "${read.suite}": read from mainline ${read.mainline}, published at ${read.commit}${when}, ` +
     describeDistance(read.distance) +
     (read.casesUnread === undefined ? '' : `; ${read.casesUnread}`) +
-    (read.pruned === undefined ? '' : `; ${read.pruned}`);
+    (read.pruned === undefined ? '' : `; ${read.pruned}`) +
+    (read.unshared === undefined ? '' : `; ${read.unshared}`);
 }
 
 /**

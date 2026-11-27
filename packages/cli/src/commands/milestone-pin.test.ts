@@ -6,7 +6,9 @@ import {
   caseSectionsAt,
   commitRunsFile,
   encodeAsSetExecutionIndex,
+  fetchStores,
   landRun,
+  mainlineReadRoot,
   readCommitRuns,
   readOwnLayer,
   readTestCoverage,
@@ -368,6 +370,8 @@ describe('the milestone under a checkout', () => {
     // Fetched, and not merged: the branch does not contain it.
     await git(worktree, 'fetch', '--quiet', 'origin');
     await refetch(home, worktree, next);
+    // Nor does this machine keep it, so no record behind HEAD is offered first.
+    for (const cache of fetchStores(worktree, 'unit')) await rm(join(mainlineReadRoot(cache, 'unit'), first), { recursive: true, force: true });
 
     const base = await suiteBase(worktree, { env: LOCAL });
 

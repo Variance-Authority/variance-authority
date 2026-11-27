@@ -29,6 +29,7 @@ import {
   applyPrune,
   bytesUnder,
   directoriesIn,
+  pinnedMainlines,
   prunedLine,
   readFetchedMainline,
   pruneSelection,
@@ -68,11 +69,18 @@ export interface CacheOwners {
   readonly now: number;
   /** How many commits `HEAD` is past `commit`: `false` when it does not contain it, absent when git cannot say. */
   past(commit: string): Promise<number | false | undefined>;
+  /**
+   * The mainline records some checkout of the repository reads, which no prune
+   * takes however far behind they fall; absent when git cannot say, and then
+   * no mainline record is taken. Asked only by a prune that runs.
+   */
+  pinned?(): Promise<readonly string[] | undefined>;
 }
 
 /** The owners as they answer for real, from the checkout at `cwd`. */
 export function checkoutOwners(cwd: string = process.cwd(), now: number = Date.now()): CacheOwners {
-  return { now, past: (commit) => headPast(commit, cwd) };
+  let pins: Promise<readonly string[] | undefined> | undefined;
+  return { now, past: (commit) => headPast(commit, cwd), pinned: () => (pins ??= pinnedMainlines(cwd)) };
 }
 
 /**
@@ -83,7 +91,7 @@ export function checkoutOwners(cwd: string = process.cwd(), now: number = Date.n
 export async function planCachePrune(
   config: Pick<Config, 'cacheRoot'>,
   owners: CacheOwners,
-  options: { readonly measure?: boolean } = {},
+  options: PruneScope & { readonly measure?: boolean } = {},
 ): Promise<PrunePlan<CachePruneReason>> {
   const root = cacheOf(config);
   const remove: PruneEntry<CachePruneReason>[] = [];
@@ -114,18 +122,16 @@ export async function planCachePrune(
   };
 
   const suites = suiteIndexRoot(config);
+  const read = join(shareRoot(config), 'read');
+  if (options.reads === true) {
+    await mainlineReads(read, commits, owners);
+    return { root, remove, kept };
+  }
   for (const project of await directoriesIn(suites)) {
     const directory = join(suites, project);
     await commits(await commitEntries(directory, (name) => /^([0-9a-f]{7,64})\.bin$/u.exec(name)?.[1]));
   }
-  const read = join(shareRoot(config), 'read');
-  for (const suite of await directoriesIn(read)) {
-    const directory = join(read, suite);
-    // The record `fetched.json` names is the base every checkout of this
-    // machine lays its first run on, however far behind it falls.
-    const named = readFetchedMainline(directory)?.commit;
-    await commits(await commitEntries(directory, (name) => (name === named ? undefined : /^[0-9a-f]{7,64}$/u.exec(name)?.[0])));
-  }
+  await mainlineReads(read, commits, owners);
 
   const reports = sharedReportRoot(config);
   for (const name of await namesIn(reports)) {
@@ -156,6 +162,31 @@ export async function planCachePrune(
 }
 
 /**
+ * Which of a cache's directories a prune judges. `reads` is the mainline
+ * records under `share/read/` alone: in another checkout's cache, the one
+ * part every checkout of the repository shares, so a worktree judges no
+ * record that checkout ran by its own `HEAD`.
+ */
+export interface PruneScope {
+  readonly reads?: boolean;
+}
+
+/** The mainline records under `read`, offered to `commits` one suite at a time. */
+async function mainlineReads(read: string, commits: (entries: readonly CommitEntry[]) => Promise<void>, owners: CacheOwners): Promise<void> {
+  const suites = await directoriesIn(read);
+  if (suites.length === 0) return;
+  const pinned = owners.pinned === undefined ? [] : await owners.pinned();
+  if (pinned === undefined) return;
+  for (const suite of suites) {
+    const directory = join(read, suite);
+    // The record `fetched.json` names, and each one a checkout picks, are bases
+    // a checkout of this machine lays its first run on, however far behind it falls.
+    const named = [readFetchedMainline(directory)?.commit, ...pinned];
+    await commits(await commitEntries(directory, (name) => (named.includes(name) ? undefined : /^[0-9a-f]{7,64}$/u.exec(name)?.[0])));
+  }
+}
+
+/**
  * Prune the CLI's cache directories, when the last prune was more than a day ago.
  *
  * Called at the end of a run, after its report is written. Never throws, for
@@ -165,16 +196,18 @@ export async function planCachePrune(
 export async function pruneCacheWhenDue(
   config: Pick<Config, 'cacheRoot'>,
   owners: CacheOwners = checkoutOwners(),
+  scope: PruneScope = {},
 ): Promise<Pruned<CachePruneReason> | undefined> {
   try {
     const root = cacheOf(config);
     if (!existsSync(root)) return undefined;
-    const stamp = join(root, '.pruned');
+    // A prune of the reads alone keeps its own day, so it holds back no whole prune of that cache.
+    const stamp = scope.reads === true ? join(shareRoot(config), 'read', '.pruned') : join(root, '.pruned');
     const last = await stat(stamp).then((found) => found.mtimeMs, () => undefined);
     if (last !== undefined && owners.now - last < PRUNE_EVERY_MS) return undefined;
     await writeFile(stamp, '');
     await utimes(stamp, owners.now / 1000, owners.now / 1000);
-    return await applyPrune(await planCachePrune(config, owners));
+    return await applyPrune(await planCachePrune(config, owners, scope));
   } catch {
     return undefined;
   }

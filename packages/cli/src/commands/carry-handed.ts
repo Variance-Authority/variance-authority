@@ -17,6 +17,7 @@
 
 // compass: variance-authority.retention
 
+import { existsSync } from 'node:fs';
 import { cp, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import {
@@ -30,7 +31,8 @@ import {
 import type { ParsedCarry } from '../carry-args.js';
 import { OperatorError, type ExitCode } from '../exit.js';
 import { printMoved } from './carry-pushed.js';
-import { mainlineBase, mainlineMissed, mainlineRead, readMissedMainline, standOnHanded, writeMissedMainline, type MainlineAsk } from './mainline-base.js';
+import { mainlineBase, mainlineMissed, mainlineRead, standOnHanded, type MainlineAsk } from './mainline-base.js';
+import { MISSED, readMissedMainline, writeMissedMainline } from './mainline-missed.js';
 
 /** What `hand` writes first, naming the suites it holds a read of. */
 const HANDED_MANIFEST = 'handed.json';
@@ -84,7 +86,9 @@ export async function handBase(root: string, dir: string, ask: MainlineAsk = {})
       // A worktree reads its primary checkout's fetch, so the record says where it lies.
       const from = dirname(dirname(base.coverage));
       await mkdir(to, { recursive: true });
-      await cp(join(from, FETCHED_MAINLINE), join(to, FETCHED_MAINLINE));
+      // The commit's own pointer: the one beside it names the last fetch into that cache, which may be another checkout's.
+      const own = join(from, base.commit, FETCHED_MAINLINE);
+      await cp(existsSync(own) ? own : join(from, FETCHED_MAINLINE), join(to, FETCHED_MAINLINE));
       await cp(join(from, base.commit), join(to, base.commit), { recursive: true });
       commits.add(base.commit);
     }
@@ -135,7 +139,8 @@ export async function receiveBase(root: string, dir: string): Promise<BaseReceiv
     }
     laid.push(suite);
     const readRoot = mainlineReadRoot(cacheRoot, suite);
-    await rm(readRoot, { recursive: true, force: true });
+    // Only what this read replaces: the primary checkout's cache holds the records its worktrees read.
+    await Promise.all([FETCHED_MAINLINE, MISSED, ...(pointer === undefined ? [] : [pointer.commit])].map((name) => rm(join(readRoot, name), { recursive: true, force: true })));
     await cp(from, readRoot, { recursive: true });
     if (pointer !== undefined) {
       await standOnHanded(

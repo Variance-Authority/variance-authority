@@ -125,6 +125,8 @@ export {
 } from './cache-layers.js';
 export {
   FETCHED_MAINLINE,
+  fetchStores,
+  pinnedMainlines,
   lastFetchedMainline,
   layFetchedMainline,
   mainlineHanded, mainlineReadRoot,
