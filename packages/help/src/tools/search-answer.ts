@@ -324,7 +324,7 @@ function searchedBy(
   const read = declaredMatches(root, question.query, area?.files, cap(ELSEWHERE_CAP), told, filesOf);
   const declared = read?.declared;
   const aliases = aliasMatches(root, question.query, area?.files);
-  const tests = root === undefined ? undefined : recordedTests(suiteCaseNames(root), question.query, area?.files, cap(ELSEWHERE_CAP), (visit) => filesOf((file) => visit((at, line, kind) => file(at, line, kind, true))));
+  const tests = root === undefined ? undefined : recordedTests(suiteCaseNames(root), question.query, area?.files, cap(ELSEWHERE_CAP), (visit) => filesOf((file) => visit((at, line) => file(at, line, 'query', true))));
   const membersUnread = root === undefined ? [] : membersUnreadOf(root, question.query, area?.files);
   const others = hits.length > 0 || rest.total > 0 || (declared?.total ?? 0) > 0 || (thirdParty?.total ?? 0) > 0;
   // A row that holds the words adds nothing to an answer; the row that is the question does.

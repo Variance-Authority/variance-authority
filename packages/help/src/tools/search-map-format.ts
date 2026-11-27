@@ -1,13 +1,18 @@
 // compass: variance-authority.report.agent-surface
+import { nextPage, pageAt, paged, spellingOf, type Page, type Spelling } from '@variance-authority/mcp/tools';
 import type { CandidateMap } from './search-map.js';
 
-/** The candidate-file map, with whole-group drills; detailed name limits do not enter it. */
-export function formatCandidateMap(map: CandidateMap, drill: (id: string) => string): string {
+/** Groups one text page shows when no `limit` is said; every group is counted, and the next page is a question. */
+export const MAP_GROUPS = 50;
+
+/** The candidate-file map, with whole-group drills, its groups paged by `limit` and `offset`. */
+export function formatCandidateMap(map: CandidateMap, drill: (id: string, offset?: number) => string, page: Page = { offset: 0, limit: MAP_GROUPS }, spell: Spelling = spellingOf(undefined)): string {
   const start = [`Candidate file map: ${map.files} candidate files; ${map.selected} in ${map.name}.`, 'Counts are files, not names. Layers are dependency layers; layer 1 takes nothing.'];
   const evidence = map.evidence.map(({ qualification, files }) => `${files} ${qualification ?? 'without an additional qualification'}`).join('; ');
   if (evidence !== '') start.push(`Source evidence across all candidates: ${evidence}.`);
   if (map.unavailable !== undefined) return [...start, map.unavailable, ...map.unread].join('\n');
-  const groups = (map.groups ?? []).map((group) => {
+  const all = map.groups ?? [];
+  const groups = paged(all, page).map((group) => {
     const layers = group.layers.map(({ layer, files }) => `${layer}: ${files}`).join(', ');
     const evidence = group.evidence.flatMap(({ qualification, files }) => qualification === undefined ? [] : [`${files} ${qualification}`]).join('; ');
     return `${group.name}: ${group.files} files${group.role === undefined ? '' : `; ${group.role}`}${layers === '' ? '' : `; files by layer (top first) ${layers}`}${evidence === '' ? '' : `; ${evidence}`}\n  ${drill(group.id)}`;
@@ -16,18 +21,8 @@ export function formatCandidateMap(map: CandidateMap, drill: (id: string) => str
     const coordinates = lines.join(',');
     return `${file}${coordinates === '' ? '' : coordinates.length <= 128 ? `:${coordinates}` : ` (${lines.length} evidence lines; complete coordinates in JSON)`}${qualification === undefined ? '' : ` [${qualification}]`}`;
   });
-  const tail = [...map.unread.map((why) => `Coverage: ${why}`), ...map.selector === 'root' ? [] : [`Other candidates remain on ${drill('root')}.`]];
-  const from = map.start ?? 0;
-  const fits = (lines: readonly string[]): boolean => lines.join('\n').length <= 10000;
-  const whole = [...start, ...groups.slice(from), ...entries, ...tail];
-  if (fits(whole)) return whole.join('\n');
-  // Over budget, groups go in pages: every group lands on exactly one, and the next page is an emitted drill.
-  const later = (next: number): string => {
-    const files = (map.groups ?? []).slice(next).reduce((sum, group) => sum + group.files, 0) + (map.entries?.length ?? 0);
-    return `Groups ${from + 1}–${next} of ${groups.length} are shown; the other ${groups.length - next} groups${entries.length === 0 ? '' : ` and ${entries.length} files at this prefix`}, holding ${files} candidate files, continue on ${drill(`${map.selector}@${next}`)}.`;
-  };
-  let next = from;
-  while (next < groups.length && fits([...start, ...groups.slice(from, next + 1), later(next + 1), ...tail])) next++;
-  if (next === from) throw new Error('One map group exceeds the text budget; ask a narrower emitted group or the structured search API. No partial groups were printed.');
-  return [...start, ...groups.slice(from, next), later(next), ...tail].join('\n');
+  const lines = [...start, ...pageAt(page, all.length, spell), ...groups, ...nextPage(page, all.length, spell, (offset) => drill(map.selector, offset)), ...entries, ...map.unread.map((why) => `Coverage: ${why}`)];
+  if (map.selector !== 'root') lines.push(`Other candidates remain on ${drill('root')}.`);
+  if (lines.join('\n').length > 10000) throw new Error(`This page of map groups exceeds the text budget; ask a lower \`${spell.input('limit')}\` or a narrower emitted group. No partial groups were printed.`);
+  return lines.join('\n');
 }

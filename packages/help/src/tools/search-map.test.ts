@@ -10,14 +10,15 @@ const candidateFileMap: typeof placedFileMap = (root, membership, selector, expe
 import type { CandidateMap } from './search-map.js';
 import { formatCandidateMap } from './search-map-format.js';
 
-const state = vi.hoisted(() => ({ current: true, present: true, pageCurrent: true, digest: 'map-generation', joined: false }));
-beforeEach(() => Object.assign(state, { current: true, present: true, pageCurrent: true, digest: 'map-generation', joined: false }));
+const state = vi.hoisted(() => ({ current: true, present: true, pageCurrent: true, digest: 'map-generation', joined: false, rooted: false }));
+beforeEach(() => Object.assign(state, { current: true, present: true, pageCurrent: true, digest: 'map-generation', joined: false, rooted: false }));
 
 vi.mock('@variance-authority/sense', async (original) => ({
   ...await original<typeof import('@variance-authority/sense')>(),
   packageLayers: () => state.present ? ({ indexDigest: state.digest, current: state.current, packages: [
     { package: 'alpha', directory: 'packages/alpha', layer: 1, takes: [], area: { id: '1', name: 'Foundation' } },
     { package: 'beta', directory: 'packages/beta', layer: 2, takes: ['alpha'], area: state.joined ? { id: '1', name: 'Foundation' } : { id: '2', name: 'Application' } },
+    ...state.rooted ? [{ package: 'workspace', directory: '', layer: 3, takes: ['beta'], area: { id: '2', name: 'Application' } }] : [],
   ] }) : undefined,
   codeMapPage: (_root: string, area?: string) => ({ index: 'index', answer: { current: state.pageCurrent, layers: 2, page: area === undefined || area === '1' || area === '2' ? {
     id: area ?? '', name: 'fixture', packages: 2, files: 6, low: 1, high: 2, alone: 0,
@@ -38,7 +39,8 @@ describe('the complete search candidate-file map', () => {
       const input = { query: 'e', limit: 1 };
       const complete = search.files!(indexed.help, input, { root: indexed.root });
       expect(complete.files.size).toBeGreaterThan(1);
-      const text = search.run(indexed.help, { ...input, map: 'root' }, { root: indexed.root });
+      const text = search.run(indexed.help, { query: 'e', map: 'root' }, { root: indexed.root });
+      expect(search.run(indexed.help, { ...input, map: 'root' }, { root: indexed.root })).toContain('the next 1: `docs_search` with `query` `e` and `map` `root` and `limit` `1` and `offset` `1`');
       expect(text).toContain('Candidate file map:');
       expect(text).toContain(`${complete.files.size} candidate files`);
       expect(text).toContain('Foundation');
@@ -140,23 +142,20 @@ it('renders whole evidence-line inventories or a count, and refuses an oversized
   expect(() => formatCandidateMap(oversized, (id) => id)).toThrow('No partial groups');
 });
 
-it('pages a group inventory over the text budget, every group on exactly one page and the next page an emitted drill', () => {
-  const many = Array.from({ length: 300 }, (_, i) => ({ id: `area:${i}`, name: `area ${String(i).padStart(3, '0')} ${'n'.repeat(60)}`, files: 1, layers: [], evidence: [] }));
-  const root: CandidateMap = { files: 300, selected: 300, selector: 'root', name: 'root', groups: many, unread: [], evidence: [] };
+it('pages map groups by limit and offset, every group on exactly one page and the next page an emitted question', () => {
+  const many = Array.from({ length: 120 }, (_, i) => ({ id: `area:${i}`, name: `area ${i}`, files: 1, layers: [], evidence: [] }));
+  const root: CandidateMap = { files: 120, selected: 120, selector: 'root', name: 'root', groups: many, unread: [], evidence: [] };
   const seen: string[] = [];
-  let text = formatCandidateMap(root, (id) => `<${id}>`);
-  for (let pages = 0; pages < 20; pages++) {
-    expect(text.length).toBeLessThanOrEqual(10000);
+  let page = { offset: 0, limit: 50 };
+  for (let pages = 0; pages < 5; pages++) {
+    const text = formatCandidateMap(root, (id, offset) => `<${id}${offset === undefined ? '' : ` offset ${offset}`}>`, page);
     seen.push(...many.filter((group) => text.includes(`<${group.id}>`)).map((group) => group.id));
-    const next = /continue on <(root@\d+)>/.exec(text)?.[1];
+    const next = /the next \d+: <root offset (\d+)>/.exec(text)?.[1];
     if (next === undefined) break;
-    text = formatCandidateMap({ ...root, start: Number(next.split('@')[1]) }, (id) => `<${id}>`);
+    page = { ...page, offset: Number(next) };
   }
   expect(seen).toEqual(many.map((group) => group.id));
-  const set = membership(['packages/alpha/a.ts', 'packages/beta/b.ts']);
-  expect(candidateFileMap(ROOT, set, 'root@1')).toMatchObject({ selector: 'root', start: 1 });
-  expect(candidateFileMap(ROOT, set, 'root@1').groups).toHaveLength(2);
-  for (const bad of ['root@', 'root@x', 'root@-1', 'root@2', 'root@1@1']) expect(() => candidateFileMap(ROOT, set, bad)).toThrow('not valid');
+  expect(() => candidateFileMap(ROOT, membership(['packages/alpha/a.ts']), 'root@1')).toThrow('drill id');
 });
 
 it('does not place a search reading without source-index identity', () => {
@@ -170,4 +169,11 @@ it('counts each dependency layer in descending order within an area', () => {
   state.joined = true;
   const map = candidateFileMap(ROOT, membership(['packages/alpha/a.ts', 'packages/beta/b.ts']), 'root');
   expect(map.groups![0]!.layers).toEqual([{ layer: 2, files: 1 }, { layer: 1, files: 1 }]);
+});
+
+it('places a file no nested package holds in the root package, which the map spells with an empty directory', () => {
+  state.rooted = true;
+  const set = membership(['tools/owners.mjs', 'packages/alpha/a.ts']);
+  expect(candidateFileMap(ROOT, set, 'package:workspace')).toMatchObject({ selected: 1, entries: [{ file: 'tools/owners.mjs' }] });
+  expect(candidateFileMap(ROOT, set, 'root').groups!.map(({ name, files }) => [name, files])).toEqual([['Foundation', 1], ['Application', 1]]);
 });

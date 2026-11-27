@@ -35,8 +35,10 @@ export interface SearchQuestion {
   readonly from?: string | readonly string[] | undefined;
   /** Paths whose importers the answer is confined to. */
   readonly to?: string | readonly string[] | undefined;
-  /** The rows each list shows; each list's own cap when absent. */
+  /** The rows each list shows; each list's own cap when absent. With `map`, the groups one page shows. */
   readonly limit?: number;
+  /** With `map`, the groups a page skips. */
+  readonly offset?: number;
 }
 
 /** A line of a file. */

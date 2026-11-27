@@ -24,13 +24,13 @@ prefix. Every group remains represented. A drill selects membership within the
 original candidate set; it does not change `--from` or `--to`, whose import
 reach still determines that set. Emitted questions preserve those start points.
 
-`--limit` applies to detailed names, not map groups. `--format json` exposes the
-same map as `candidateMap`, including complete file coordinates at leaves.
-Text prints a coordinate count when a file has many evidence lines. A group
-inventory over the text budget prints in pages: each page names the groups it
-leaves and the drill, `<id>@<n>`, that continues from them, so every group is
-reachable from text alone; JSON keeps every group in one answer. MCP accepts `map` and prints the same
-view with tool-shaped drills; its response remains text.
+With `--map`, `--limit` is the map groups one page shows, 50 when not said,
+and `--offset` the groups to skip; a page names the question for the next one.
+`--format json` exposes the same map as `candidateMap`, every group in one
+answer, including complete file coordinates at leaves. Text prints a coordinate
+count when a file has many evidence lines. MCP accepts `map`, `limit` and
+`offset` and prints the same view with tool-shaped drills; its response remains
+text.
 
 The map must belong to the search reading's source index. A missing or stale map
 prints its reason with the positive candidate count and unread frontiers,
