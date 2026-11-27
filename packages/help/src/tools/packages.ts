@@ -36,7 +36,7 @@ export const packages: Tool<Help> = {
     type: 'object',
     properties: {
       limit: { type: 'integer', description: `Rows per list, the rest counted; ${SHOWN} when not said.` },
-      offset: { type: 'integer', minimum: 0, description: 'Rows to skip per list, 0 when not said; a list with more names the next.' },
+      offset: { type: 'integer', minimum: 0, description: 'Rows to skip per list; 0 when not said.' },
     },
     additionalProperties: false,
   },
