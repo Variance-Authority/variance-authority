@@ -95,7 +95,7 @@ export interface RunnerContext extends RunnerProject {
    * runs again, `testNamePattern` is the `-t` it started with, and `shard` is
    * set under `--shard`.
    */
-  readonly config?: { readonly watch?: boolean; readonly testNamePattern?: unknown; readonly shard?: unknown };
+  readonly config?: { readonly watch?: boolean; readonly testNamePattern?: unknown; readonly shard?: unknown; readonly maxWorkers?: unknown };
   /** What the run changed since it started: watch mode's `t` sets the pattern here. */
   readonly configOverride?: { readonly testNamePattern?: unknown };
   /** Vitest 2: a cancel — `--bail`, an interrupted watch run — is under way or ended the run. */

@@ -381,8 +381,11 @@ publish, restore, or share the artifact. The runs record beside it,
 `coverage.runs.json` for `coverage.bin`, says where the runs at the snapshot's
 commit started and, for each of them whose evidence the snapshot holds, the
 test files it finished, the ones it ran only in part with the cases it ran,
-when it landed, the install it ran on, and the digest of each uncommitted text
-it ran over; publish and restore the two together. A snapshot restored without its runs record is read with whatever
+when it landed, the install it ran on, the digest of each uncommitted text
+it ran over, and the class of machine it ran on: the CPU, the OS, the cores and
+memory with any cgroup limit on them, Node, the CI image where the environment
+names one, and the runner's workers, each absent where unknown and none of
+them a host's name. Nothing selects by the machine; it is read for figures. Publish and restore the two together. A snapshot restored without its runs record is read with whatever
 record already lies beside it. Temporary journals are removed after
 consolidation.
 

@@ -10,6 +10,7 @@ import type { CommitRuns } from './commit-runs.js';
 import { keptInstallOf } from './kept-install.js';
 import { keptTextsOf } from './kept-texts.js';
 import { whatLanded, type Landing } from './landings.js';
+import { machineOf } from './machine.js';
 
 type Fields = { readonly [field: string]: unknown };
 
@@ -64,14 +65,20 @@ export function commitRunsIn(text: string, named: string): CommitRuns {
       ...(parsed.installed === undefined ? {} : { installed: parsed.installed }),
     }];
   }
-  // An install or texts that are not one are left out, where they stand and on
-  // a landing: an install not known compares from the record's commit, which
-  // runs more and skips nothing, and texts not known say so.
+  // An install, texts or a machine that are not one are left out, where they
+  // stand and on a landing: an install not known compares from the record's
+  // commit, which runs more and skips nothing, and texts not known say so.
   const known = (of: Fields): Fields => {
-    const { installed, texts, ...rest } = of;
+    const { installed, texts, machine, ...rest } = of;
     const install = keptInstallOf(installed);
     const ranOver = keptTextsOf(texts);
-    return { ...rest, ...(install === undefined ? {} : { installed: install }), ...(ranOver === undefined ? {} : { texts: ranOver }) };
+    const ranOn = machineOf(machine);
+    return {
+      ...rest,
+      ...(install === undefined ? {} : { installed: install }),
+      ...(ranOver === undefined ? {} : { texts: ranOver }),
+      ...(ranOn === undefined ? {} : { machine: ranOn }),
+    };
   };
   return {
     ...(parsed.commit === undefined ? {} : { commit: parsed.commit }),

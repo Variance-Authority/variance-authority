@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { commitRunsIn } from './commit-runs-text.js';
+import { commitRunsIn, commitRunsText } from './commit-runs-text.js';
 import { commitRunsAfter, type CommitRuns, type RecordedTests } from './commit-runs.js';
 import { whatLanded, type Landing } from './landings.js';
+import type { Machine } from './machine.js';
 import { lastRunsOf, testPlaces } from './test-places.js';
 
 const DAY1 = '2026-01-01T00:00:00.000Z';
@@ -242,5 +243,44 @@ describe('the runs record stores its landings', () => {
     ])).toEqual({ files: ['a.test.ts', 'b.test.ts'], installed: {} });
     expect(whatLanded([{ files: ['b.test.ts'], installed: {} }, { files: ['a.test.ts'] }])).toEqual({ files: ['a.test.ts', 'b.test.ts'] });
     expect(whatLanded([])).toEqual({ files: [] });
+  });
+});
+
+describe('each landing names the machine it ran on', () => {
+  const laptop: Machine = { arch: 'arm64', cores: 12, node: 'v24.1.0' };
+  const runner: Machine = { arch: 'x64', cores: 4, node: 'v24.1.0', image: 'ubuntu24 20251117.1.0' };
+  const on = (machines: Readonly<Record<string, Machine>>) => (file: string) => machines[file];
+
+  it('keeps the machine on the run\'s landing, and reads it back from the record\'s text', () => {
+    const one = landAt(DAY1, snapshot('O', 'a.test.ts'), undefined, { ...ran('P', ['a.test.ts']), machines: () => laptop }, {}, {});
+
+    expect(one.landings).toEqual([{ files: ['a.test.ts'], first: DAY1, latest: DAY1, runs: 1, installed: {}, texts: {}, machine: laptop }]);
+    expect(commitRunsIn(commitRunsText(one), 'the runs record').landings[0]?.machine).toEqual(laptop);
+  });
+
+  it('lands one landing per class of machine when the files of one run ran on two', () => {
+    const one = landAt(DAY1, snapshot('O', 'a.test.ts', 'b.test.ts', 'c.test.ts'), undefined, {
+      ...ran('P', ['a.test.ts', 'b.test.ts', 'c.test.ts']),
+      machines: on({ 'a.test.ts': runner, 'c.test.ts': runner, 'b.test.ts': laptop }),
+    }, {}, {});
+
+    expect(one.landings.map((landing) => [landing.files, landing.machine])).toEqual([[['a.test.ts', 'c.test.ts'], runner], [['b.test.ts'], laptop]]);
+    expect(whatLanded(one.landings).files).toEqual(['a.test.ts', 'b.test.ts', 'c.test.ts']);
+  });
+
+  it('leaves out a machine the record holds that is not one, and the fields of one that are not what they say', () => {
+    const text = JSON.stringify({ commit: 'P', latest: DAY1, runs: 1, landings: [
+      { files: ['a.test.ts'], machine: 'laptop' },
+      { files: ['b.test.ts'], machine: { arch: 'x64', cores: 'four' } },
+    ] });
+
+    expect(commitRunsIn(text, 'the runs record').landings).toEqual([{ files: ['a.test.ts'] }, { files: ['b.test.ts'], machine: { arch: 'x64' } }]);
+  });
+
+  it('carries the machine into the stand of a file a later run at another commit did not run', () => {
+    const one = landAt(DAY1, snapshot('O', 'a.test.ts', 'b.test.ts'), undefined, { ...ran('P', ['a.test.ts', 'b.test.ts']), machines: on({ 'a.test.ts': laptop, 'b.test.ts': runner }) }, {}, {});
+    const two = landAt(DAY2, snapshot('P', 'a.test.ts', 'b.test.ts'), one, ran('R', ['a.test.ts']), {}, {});
+
+    expect(two.standing).toEqual([{ commit: 'P', files: ['b.test.ts'], first: DAY1, latest: DAY1, runs: 1, installed: {}, texts: {}, machine: runner }]);
   });
 });

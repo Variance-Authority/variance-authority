@@ -108,6 +108,19 @@ describe('a landing records its fold as one run at the shards\' commit', () => {
     expect(await landedFiles()).toEqual(['other.test.ts']);
   });
 
+  it('lands the fold once for each class of machine its shards ran on, as each shard\'s own landing named it', async () => {
+    const runner = { arch: 'x64', cores: 4, workers: 3 };
+    const laptop = { arch: 'arm64', cores: 12, workers: 3 };
+    const shards = [join(home, 'shard-a.bin'), join(home, 'shard-b.bin')];
+    await landRun(shards[0]!, { ...run('C', ['far.test.ts', 'near.test.ts']), machine: runner }, home);
+    await landRun(shards[1]!, { ...run('C', ['other.test.ts']), machine: laptop }, home);
+
+    await landJourneys(home, shards, into);
+
+    const { landings } = (await readCommitRuns(into))!;
+    expect(landings.map((landing) => [landing.files, landing.machine])).toEqual([[['far.test.ts', 'near.test.ts'], runner], [['other.test.ts'], laptop]]);
+  });
+
   it('at the commit the record already names, is one more run there: the files join and the base is kept', async () => {
     await partial();
     const before = await readCommitRuns(into);

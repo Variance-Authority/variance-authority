@@ -706,6 +706,10 @@ was read, and a story the run did not time is recorded without one.
 how old, then lists the cases closest to their limit and the slowest recorded
 files and cases, anywhere or under the paths you name. `--over` lists cases alone.
 A listed case that timed its statements carries the slowest on one more line.
+Where the runs record names the machine each file last ran on, the files are
+ranked once per class of machine, under a line that names it: a file that took
+4 s on a two-core runner and one that took 1 s on a laptop are two readings,
+never one ranking.
 
 **Runs.** A section over sixty-four kilobytes is cut into runs — four thousand
 and ninety-six rows of a column, five hundred and twelve strings of the blob —

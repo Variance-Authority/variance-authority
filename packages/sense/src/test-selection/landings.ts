@@ -19,9 +19,10 @@ import type { RecordedTests, StandingEntry } from './commit-runs.js';
 import type { CoverageTest, TestCoverage } from './index.js';
 import { sameInstall, type KeptInstall } from './kept-install.js';
 import type { KeptTexts } from './kept-texts.js';
+import { classKey, type Machine } from './machine.js';
 
 /** One run at the record's commit, while a test file it finished has not been finished again there. */
-export interface Landing extends Pick<StandingEntry, 'installed' | 'texts' | 'partly' | 'cases'> {
+export interface Landing extends Pick<StandingEntry, 'installed' | 'texts' | 'partly' | 'cases' | 'machine'> {
   /** The test files it finished, in code-unit order. */
   readonly files: readonly string[];
   /**
@@ -49,10 +50,12 @@ export type RanTests = Pick<TestCoverage, 'instrumentation' | 'commit'> & {
    * any file's.
    */
   readonly laid: ReadonlyMap<string, readonly string[]> | 'none';
+  /** The machine each test file ran on, where the run names one: a fold of shards can name two. */
+  readonly machines?: (file: string) => Machine | undefined;
 };
 
 /** What a run observed: the files it finished, and the ones it ran in part with the cases it laid of them. */
-export interface Observed extends Pick<Landing, 'cases'> {
+export interface Observed extends Pick<Landing, 'cases'>, Pick<RanTests, 'machines'> {
   readonly observed: string[];
   readonly partly: string[];
 }
@@ -80,6 +83,7 @@ export function observedBy(prior: RecordedTests | undefined, current: RanTests):
   return {
     observed: [...observed].sort(codeUnitOrder),
     partly: part,
+    ...(current.machines === undefined ? {} : { machines: current.machines }),
     ...(part.length === 0 ? {} : { cases: Object.fromEntries(part.map((file) => [file, laid === 'none' ? [] : (laid.get(file) ?? [])])) }),
   };
 }
@@ -110,11 +114,12 @@ export function partlyIn(of: Pick<Landing, 'partly' | 'cases'>, keep: (file: str
 /**
  * The landings once a run at `at` lands over `earlier`, the ones at its
  * commit: what it observed leaves every earlier landing, and one with nothing
- * left to answer for is gone.
+ * left to answer for is gone. The run lands once for each class of machine its
+ * files ran on, so a file's figures name the machine that took them.
  */
 export function landingsAfter(
   earlier: readonly Landing[],
-  { observed, ...ranPart }: Observed,
+  { observed, machines, ...ranPart }: Observed,
   at: string,
   installed: KeptInstall | undefined,
   texts: KeptTexts | undefined,
@@ -130,15 +135,26 @@ export function landingsAfter(
   });
   const part = partlyIn(ranPart, () => true);
   if (observed.length === 0 && part.partly === undefined) return kept;
-  return [...kept, {
-    files: observed,
-    ...part,
+  const pieces = new Map<string, { readonly machine: Machine | undefined; readonly files: string[]; readonly partly: Set<string> }>();
+  const pieceOf = (file: string) => {
+    const machine = machines?.(file);
+    const key = classKey(machine);
+    const piece = pieces.get(key) ?? { machine, files: [], partly: new Set<string>() };
+    pieces.set(key, piece);
+    return piece;
+  };
+  for (const file of observed) pieceOf(file).files.push(file);
+  for (const file of part.partly ?? []) pieceOf(file).partly.add(file);
+  return [...kept, ...[...pieces.values()].map(({ machine, files, partly }) => ({
+    files,
+    ...partlyIn(part, (file) => partly.has(file)),
     first: at,
     latest: at,
     runs: 1,
     ...(installed === undefined ? {} : { installed }),
     ...(texts === undefined ? {} : { texts }),
-  }];
+    ...(machine === undefined ? {} : { machine }),
+  }))];
 }
 
 /**

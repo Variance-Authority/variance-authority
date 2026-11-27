@@ -3,7 +3,8 @@
  * record this is, whose and how old, then the cases closest to their limit,
  * the slowest files, and the slowest cases, each under a first line that names
  * the scope it applied. Asked for cases over a time, the question is about
- * cases, so the files stand aside.
+ * cases, so the files stand aside. Files whose runs named their machines are
+ * ranked once per class of machine, since a figure compares only within one.
  */
 
 // compass: variance-authority.report.agent-surface
@@ -16,7 +17,7 @@ import type {
   ScopeCounts,
   TimedTestCase,
 } from '@variance-authority/sense';
-import { ago, aroundText, shareOf } from '@variance-authority/sense/test-selection';
+import { ago, aroundText, describeMachine, shareOf } from '@variance-authority/sense/test-selection';
 
 /** A duration as a reader compares them: milliseconds under a second, seconds to a tenth above. */
 export function spent(milliseconds: number): string {
@@ -49,17 +50,36 @@ export function formatSlowest(
   const atLeast = over === undefined ? '' : `, at least ${asked(over)}`;
   for (const suite of suites) {
     const of = suite.suite === undefined ? '' : `, suite ${suite.suite}`;
+    // Cases are not yet ranked per machine: where the files ran on more than one, their headers say so.
+    const mixed = 'machines' in suite && (suite.machines?.length ?? 0) > 1 ? `, on ${suite.machines!.length} classes of machine together` : '';
     if (lines.length > 0) lines.push('');
     const told = [
       recordLine(suite, now),
-      closestSection(suite.cases, `Closest to their limit${of}${where}${atLeast}`),
-      over === undefined ? section(suite, `Slowest recorded test files${of}${where}`, 'file', scope, (row) => row.file) : [],
-      section(suite.cases, `Slowest recorded test cases${of}${where}${atLeast}`, 'case', scope, (row) =>
+      closestSection(suite.cases, `Closest to their limit${of}${where}${atLeast}${mixed}`),
+      ...(over === undefined ? fileSections(suite, `Slowest recorded test files${of}${where}`, scope) : []),
+      section(suite.cases, `Slowest recorded test cases${of}${where}${atLeast}${mixed}`, 'case', scope, (row) =>
         `${row.file}  ${'name' in row ? row.name : ''}`, over),
     ];
     lines.push(...told.filter((part) => part.length > 0).flatMap((part, at) => (at === 0 ? part : ['', ...part])));
   }
   return lines.join('\n');
+}
+
+/**
+ * The slowest files, once for each class of machine they ran on where the runs
+ * named one. What no class holds alone — the untimed files, the unrecorded
+ * paths — is counted once, under the last.
+ */
+function fileSections(suite: RecordedDurations, named: string, scope: DurationScope): string[][] {
+  const file = (row: Row): string => row.file;
+  if ('unread' in suite || suite.machines === undefined) return [section(suite, named, 'file', scope, file)];
+  const { machines } = suite;
+  return machines.map(({ machine, slowest, timed }, at) => {
+    const last = at === machines.length - 1;
+    const on = machine === undefined ? 'a machine its run did not name' : describeMachine(machine);
+    const read = { ...suite, slowest, timed, untimed: last ? suite.untimed : 0, scope: last ? suite.scope : { ...suite.scope, unrecorded: [] } };
+    return section(read, `${named}, on ${on}`, 'file', scope, file);
+  });
 }
 
 /** What an answer holds of the record it read, or why it read none. */
