@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { gunzipSync } from 'node:zlib';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cacheRootFor, decodeTestCoverage, encodeTestCoverage, testCoverageFile } from '@variance-authority/sense/test-selection';
+import { cacheRootFor, commitRunsFile, decodeTestCoverage, encodeTestCoverage, testCoverageFile } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
 import { viewOutput } from './view-command.js';
 
@@ -87,5 +87,18 @@ describe('variance view', () => {
     const html = readFileSync(out.trim(), 'utf8');
     const history = /<script id="history" type="application\/json">([^<]*)<\/script>/u.exec(html)![1]!;
     expect(JSON.parse(history)).toEqual({ unread: expect.stringMatching(why) });
+  });
+
+  it('carries the machine each test file ran on, as the runs beside the record name it, and nothing where none are there', async () => {
+    record();
+    const commit = 'c'.repeat(40);
+    const ran = (html: string) => /<script id="ran" type="application\/json">([^<]*)<\/script>/u.exec(html)?.[1];
+
+    expect(ran(readFileSync((await viewOutput({ command: 'view' }, root)).out.trim(), 'utf8'))).toBeUndefined();
+
+    writeFileSync(commitRunsFile(testCoverageFile(root, {})), JSON.stringify({ commit, latest: '2026-11-27T05:13:00.000Z', runs: 1, landings: [{ files: ['a.test.ts'], machine: { arch: 'x64', cores: 2 } }] }));
+    const html = readFileSync((await viewOutput({ command: 'view' }, root)).out.trim(), 'utf8');
+
+    expect(JSON.parse(ran(html)!)).toEqual({ commit, files: { 'a.test.ts': 'x64, 2 cores' } });
   });
 });

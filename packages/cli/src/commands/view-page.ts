@@ -10,6 +10,7 @@
 import { chip, text } from './report-html-elements.js';
 import { MARK, PAGE } from './report-html-style.js';
 import type { History } from './view-history-tables.js';
+import type { RanOn } from './view-machines.js';
 
 /** The record a page carries, and what is known of it outside its own bytes. */
 export interface Carried {
@@ -22,6 +23,8 @@ export interface Carried {
   readonly packed: Buffer;
   /** The mainline series the History tab draws; absent where none was read. */
   readonly history?: History;
+  /** The machine each test file ran on, from the runs beside the record; absent where none is there. */
+  readonly ran?: RanOn;
   /** The page's own code. */
   readonly code: string;
 }
@@ -46,6 +49,7 @@ export function viewPage(carried: Carried): string {
     '<main><p class="empty">Opening the record…</p></main>',
     `<script id="recording" type="application/octet-stream">${carried.packed.toString('base64')}</script>`,
     ...(carried.history === undefined ? [] : [`<script id="history" type="application/json">${json(carried.history)}</script>`]),
+    ...(carried.ran === undefined ? [] : [`<script id="ran" type="application/json">${json(carried.ran)}</script>`]),
     `<script>${carried.code.replaceAll('</script', '<\\/script')}</script>`,
     '</body></html>',
   ].join('\n');

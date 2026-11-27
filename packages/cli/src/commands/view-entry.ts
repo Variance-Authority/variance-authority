@@ -7,6 +7,7 @@
 import './view-buffer.js';
 import './view-no-node.js';
 import type { History } from './view-history-tables.js';
+import type { RanOn } from './view-machines.js';
 import { openRecord } from './view-record.js';
 import { panesOf, type Panes, type Tab } from './view-panes.js';
 import { tableOf, written } from './view-table.js';
@@ -26,10 +27,10 @@ async function carried(): Promise<Uint8Array> {
   return new Uint8Array(await new Response(plain).arrayBuffer());
 }
 
-/** The mainline series the page carries, where `variance view` read one. */
-function history(): History | undefined {
-  const held = document.getElementById('history')?.textContent;
-  return held === undefined || held === null ? undefined : (JSON.parse(held) as History);
+/** The JSON the page carries at `id`, where `variance view` read it. */
+function carriedJson<T>(id: string): T | undefined {
+  const held = document.getElementById(id)?.textContent;
+  return held === undefined || held === null ? undefined : (JSON.parse(held) as T);
 }
 
 function factList(facts: readonly (readonly [string, Cell, Column['as']?])[]): HTMLElement {
@@ -60,7 +61,7 @@ function draw(panes: Panes, main: HTMLElement): void {
 async function open(): Promise<void> {
   const main = document.querySelector('main')!;
   const suite = document.body.dataset['suite'] ?? '';
-  const panes = panesOf(openRecord(await carried()), suite, history());
+  const panes = panesOf(openRecord(await carried(), carriedJson<RanOn>('ran')), suite, carriedJson<History>('history'));
   document.querySelector('.tabs')!.replaceChildren(
     ...panes.tabs.map(({ id, label }) => {
       const link = made('a', '', label) as HTMLAnchorElement;

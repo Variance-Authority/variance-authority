@@ -33,7 +33,7 @@ export function panesOf(record: ViewRecord, suite: string, history?: History): P
     if (table !== undefined) tabs.push(tab(id, label, () => [table, ...more()]));
   };
   tabs.push(
-    tab('overview', 'Overview', () => parts.parts.flatMap((part) => (part.name === 'cases.last' ? part.tables : [])), () => [
+    tab('overview', 'Overview', () => [...(coverage?.machines === undefined ? [] : [coverage.machines]), ...parts.parts.flatMap((part) => (part.name === 'cases.last' ? part.tables : []))], () => [
       ['suite', suite],
       ['commit', coverage?.commit],
       ['instrumentation', coverage?.instrumentation],
@@ -41,6 +41,7 @@ export function panesOf(record: ViewRecord, suite: string, history?: History): P
       ['modules', coverage?.modules.count],
       ['regions', coverage?.regions.count],
       ['cases', cases?.count],
+      ['machines', coverage?.machinesUnread],
       ['bytes', record.bytes.length],
       ...parts.parts.filter((part) => part.name !== 'cases.last').flatMap((part) => part.facts),
     ]),
