@@ -62,26 +62,32 @@ npx variance select --suite unit --since origin/main
 It names the test files whose tests ran a function you changed, and skips the
 rest.
 
-Record the whole suite. A run narrowed with `-k` or `-m` records only the tests
-it ran, yet takes their files as finished, so the tests it left out stop being
-selected.
+## When a test that should run is left out
 
-All tests share one pytest process, so what pytest runs once for many tests is
-charged to the first test that ran it. A fixture with `session` or `package`
-scope, and a function cached across test files, such as one under
-`functools.cache`, run under the first test that needs them, and only that test
-is charged: an edit to one can leave out the other test files that use it. Name the file that
-holds one in the suite's `before`, below, so an edit to it runs every test.
+All tests share one pytest process, so work pytest does once for many tests is
+recorded under one of them. Each case below can leave out a test file that
+would have failed. The whole run on main still runs it, and a suite's
+[`before`](changes-before-and-beyond.md#how-a-change-before-reach-is-declared) closes each one until the recorder does: a change to a file it names
+runs every test.
 
-No test reads `pyproject.toml`, `requirements.txt`, a lockfile or `pytest.ini`,
-and the record holds none of them, so a change to one keeps no test in the run.
-Name them in the suite's
-[`before`](changes-before-and-beyond.md#how-a-change-before-reach-is-declared)
-to run every test when one changes:
+- **A shared fixture or a cached function.** A fixture with `session` or
+  `package` scope, and a function cached across test files, such as one under
+  `functools.cache`, run under the first test that needs them, and only that
+  test is charged. Name the file that holds one in `before`.
+- **A value read at import.** A test that ran none of a module's functions and
+  only read a value its top level set, such as a constant, is not charged for
+  that module. Name the module in `before`.
+- **A dependency or a pytest setting.** No test reads `pyproject.toml`,
+  `requirements.txt`, a lockfile or `pytest.ini`, so a change to one keeps no
+  test in the run. Name them in `before`:
 
-```json
-{ "suites": { "unit": { "kind": "unit", "before": ["pyproject.toml", "requirements.txt"] } } }
-```
+  ```json
+  { "suites": { "unit": { "kind": "unit", "before": ["pyproject.toml", "requirements.txt"] } } }
+  ```
+
+- **A narrowed recording.** A run narrowed with `-k` or `-m` records only the
+  tests it ran, yet takes their files as finished, so the tests it left out
+  stop being selected. Record the whole suite.
 
 ## What a function is
 
@@ -91,10 +97,8 @@ lambda and a decorator belong to the function they are written in. The code a
 module runs as it is imported belongs to the module's root, and a test that ran
 any function of a file is charged the root too: import-time code runs once, while
 pytest collects the test files, so an edit to it selects every test
-that ran the file. A test that ran none of the file's functions and only read a
-value its top level set, such as a constant, is not charged, and an edit to that
-value can leave it out. Name a module that tests read that way in the suite's
-`before`.
+that ran the file. A test that only read a value the
+file's top level set [is not charged](#when-a-test-that-should-run-is-left-out).
 
 A file pytest imports from outside the repository root, or from `site-packages`,
 is not recorded.

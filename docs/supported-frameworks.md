@@ -47,32 +47,30 @@ A test file left out this way is not a silent pass forever. The whole-suite run
 on your main branch runs it, and [that run is where it
 fails](selection-safety.md#the-whole-run-on-main-catches-what-a-skip-hid). Until
 then, a pull request can be green without it. When main fails that way, the
-failing test names the file, and the fix is the row below that matches it. The
-table names, for each runner, when that can happen and what closes it. Several rows
-close with `before`: a list of files in a suite's entry in
+failing test names the file, and the fix is on the page the table links for
+your runner. Many close with `before`: a list of files in a suite's entry in
 `variance.config.json`, and a change to any of them runs every test.
 
-| Your tests run under | Each test file runs in | A test file that should run can be left out when | What closes it |
-|---|---|---|---|
-| Vitest, Rstest | its own module graph, unless `isolate` is `false` | the suite sets `isolate: false` and records `entries` or `presence`, and a file only reads a value another file evaluated | `isolate: true`, or `symbol` precision: [a record needs a module graph per test file](selecting.md#a-record-needs-a-module-graph-per-test-file) |
-| Vitest, Jest, Rstest, Playwright, Storybook, `node:test` | | a function returned a result cached from an earlier case, story or test | [a result a cache returned](selecting.md#a-result-a-cache-returned) |
-| [A JVM on the JUnit Platform](jvm.md) | one JVM for every test class it runs | JUnit runs classes in parallel inside one JVM | record with JUnit's parallel execution off: [what a row holds](jvm.md#what-a-row-holds) |
-| A JVM | | a thread a class started, or the common pool, is still working when the next class starts, so that work is recorded under the next class; `events.tsv` logs it as `survivor` or `pool-busy` at that boundary | have the class wait for its threads and the pool before it ends, and record again |
-| [Cargo](rust.md) | its own process, one per test | a test starts a process with a cleared environment; or a Cargo configuration file, or a file in a directory a build script watches, is added after the recording | record again after adding one: [what a row holds](rust.md#what-a-row-holds) |
-| [pytest](python.md) | one process for the whole suite | a fixture with `session` or `package` scope, or a function cached across test files, does its work once, and that work is recorded under the first test that used it alone | name the file that holds that work in the suite's [`before`](changes-before-and-beyond.md#how-a-change-before-reach-is-declared), so an edit to it runs every test |
-| pytest | | a test only reads a value a module sets as pytest imports it, such as a constant, and calls none of the module's functions | name that module in [`before`](changes-before-and-beyond.md#how-a-change-before-reach-is-declared) |
-| pytest | | a dependency or a pytest setting changes: no test reads `pyproject.toml`, `requirements.txt`, a lockfile or `pytest.ini` | name those files in [`before`](changes-before-and-beyond.md#how-a-change-before-reach-is-declared) |
-| pytest | | the record came from a run narrowed with `-k` or `-m` | record the whole suite: [what a function is](python.md#what-a-function-is) |
-| Any other runner | whatever your harness gives it | work of one case runs outside the body you hand to `observer.case` | bracket the whole case: [Sense](../packages/sense/README.md#record-a-runner-this-package-has-no-seam-for) |
+Under every runner, a function that returns a result it cached in an earlier
+case can leave out a later one: [a result a cache
+returned](selecting.md#a-result-a-cache-returned) says what closes it. The
+table names what else each runner adds.
 
-Two notes the table does not fit:
+| Your tests run under | Each test file runs in | Where a needed test file can be left out, and what closes it |
+|---|---|---|
+| Vitest, Rstest | its own module graph, unless `isolate` is `false` | [a record needs a module graph per test file](selecting.md#a-record-needs-a-module-graph-per-test-file) |
+| Jest 30 | its own module registry | only the cache case |
+| Playwright | a new page per test, unless you keep one | only the cache case |
+| Storybook | one preview for every story | only the cache case |
+| `node:test` | its own process | only the cache case |
+| [A JVM on the JUnit Platform](jvm.md) | one JVM for every test class it runs | [what a row holds](jvm.md#what-a-row-holds) |
+| [Cargo](rust.md) | its own process, one per test | [what a row holds](rust.md#what-a-row-holds) |
+| [pytest](python.md) | one process for the whole suite | [when a test that should run is left out](python.md#when-a-test-that-should-run-is-left-out) |
+| Any other runner | whatever your harness gives it | work of one case outside the body you hand to `observer.case`: [Sense](../packages/sense/README.md#record-a-runner-this-package-has-no-seam-for) |
 
-- **Cargo runs no doctests.** `variance cargo` records test binaries, so a
-  doctest is in no record and in no list `variance select` prints. Run `cargo
-  test --doc` beside it.
-- **`bun test` and Swift's runners record nothing, so they leave nothing out.**
-  Every test runs. For Swift, [`variance reach`](polyglot.md#one-reader-per-language-one-graph)
-  lists what a diff can reach at target grain.
+`bun test` and Swift's runners record nothing, so they leave nothing out: every
+test runs. For Swift, [`variance reach`](polyglot.md#one-reader-per-language-one-graph)
+lists what a diff can reach at target grain.
 
 ## Record which tests ran each line
 
