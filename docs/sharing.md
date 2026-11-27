@@ -609,7 +609,11 @@ Records are read in this order:
    worktree's own, not the primary checkout's.
 2. **The mainline's record.** It is kept at
    `<cache>/share/read/<suite>/<commit>/coverage.bin`, apart from every record a
-   run writes, so it is never read as your checkout's own. The record read is
+   run writes, so it is never read as your checkout's own. In a worktree,
+   `<cache>` is the primary checkout's, so every checkout of the repository
+   reads the record any of them fetched, and removing a worktree keeps it. A
+   worktree that cannot write there, as in a sandbox, keeps it in its own. The
+   record read is
    the one kept at your `HEAD`'s merge base with the mainline when the share
    keeps one there. Until it does, because that commit's CI has not published
    yet, it is the newest kept behind your merge base that holds your suite's

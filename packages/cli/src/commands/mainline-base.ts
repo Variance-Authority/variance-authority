@@ -13,7 +13,7 @@
 
 import { readFileSync } from 'node:fs';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import {
   cacheRootFor,
   lastFetchedMainline,
@@ -225,8 +225,6 @@ async function readMainline(root: string, suite: string, chosen: MainlineSelecti
     return { suite, mainline: found.mainline, miss };
   };
 
-  const layer = join(readRoot, found.commit);
-  const coverage = join(layer, 'coverage.bin');
   // The cases travel in the record. An index that does not read is dropped
   // from it, so no reader of the kept record meets it.
   let index: Uint8Array | undefined;
@@ -237,7 +235,17 @@ async function readMainline(root: string, suite: string, chosen: MainlineSelecti
   }
   const casesUnread = index === undefined ? undefined : decodes(index);
   const record = casesUnread === undefined ? selection.sharedRecord(found.coverage) : selection.withCaseSections(found.coverage, {});
-  const kept = await keep(selection.writeCoverageBytes, coverage, record);
+  // Kept where every checkout of the repository reads it, or in this
+  // checkout's own cache where it may not write that one.
+  let store = cacheRoot;
+  let coverage = '';
+  let kept: string | undefined;
+  for (store of selection.fetchStores(root, suite, here.cacheRoot)) {
+    coverage = join(selection.mainlineReadRoot(store, suite), found.commit, 'coverage.bin');
+    kept = await keep(selection.writeCoverageBytes, coverage, record);
+    if (kept === undefined) break;
+  }
+  const layer = dirname(coverage);
   if (kept !== undefined) return await unread(`the record published at ${found.commit} could not be kept at ${coverage}: ${kept}`);
   // A record of cases alone was published by a run that instrumented no module.
   // The share kept the run that names its commit off the line, and the publisher
@@ -263,12 +271,12 @@ async function readMainline(root: string, suite: string, chosen: MainlineSelecti
   // name finds them.
   const fetched = asked;
   const base = baseOf(found.mainline);
-  await selection.writeFetchedMainline(cacheRoot, suite, { mainline: found.mainline, commit: found.commit, fetched, ...(base === undefined ? {} : { base }), ...(found.partial === true ? { partial: true } : {}) });
+  await selection.writeFetchedMainline(store, suite, { mainline: found.mainline, commit: found.commit, fetched, ...(base === undefined ? {} : { base }), ...(found.partial === true ? { partial: true } : {}) });
   await rm(join(readRoot, MISSED), { force: true });
   // Each fetch of a new commit adds a directory here, and a fetch is where
   // they are made, so it is where they are taken back: once a day, by the rule
   // `planCachePrune` states, never the one just named.
-  const pruned = selection.prunedLine(await pruneCacheWhenDue({ cacheRoot }, checkoutOwners(root, now)), CACHE_PRUNE_REASONS);
+  const pruned = selection.prunedLine(await pruneCacheWhenDue({ cacheRoot: store }, checkoutOwners(root, now)), CACHE_PRUNE_REASONS);
   return {
     suite,
     mainline: found.mainline,

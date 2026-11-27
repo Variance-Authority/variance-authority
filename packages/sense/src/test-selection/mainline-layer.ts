@@ -106,9 +106,7 @@ export function readFetchedMainline(readRoot: string): FetchedMainline | undefin
  * The newest mainline record of `suite` fetched on this machine, or undefined
  * when the suite is not given to the share or nothing has been fetched.
  *
- * Two caches are asked, this checkout's and a worktree's primary's, or
- * `cacheRoot` alone, the newest winning, unless this checkout's read was handed
- * on, and then it alone is asked. A pointer whose record is not on disk
+ * Every cache {@link fetchStores} names is asked, the newest winning. A pointer whose record is not on disk
  * or does not read in this build is passed over, and so is one for another
  * mainline than `selected`. `null` is a selection that could not be read, so
  * none answers; a caller with none to hand in takes the newest. Synchronous, as
@@ -121,7 +119,7 @@ export function lastFetchedMainline(root: string, suite: string | undefined, cac
   const name = suite ?? onlySuite(declared);
   if (name === undefined || declared?.find((one) => one.name === name)?.carry !== 'share') return undefined;
   let newest: LastFetched | undefined;
-  for (const cache of fetchCaches(root, cacheRoot, name)) {
+  for (const cache of fetchStores(root, name, cacheRoot)) {
     const readRoot = mainlineReadRoot(cache, name);
     const pointer = readFetchedMainline(readRoot);
     // FIXME: a runner seam and a sense reader have no selection, so they take a record fetched for another mainline; moving the selection below the CLI closes it (#962).
@@ -143,14 +141,22 @@ export function lastFetchedMainline(root: string, suite: string | undefined, cac
   return newest;
 }
 
-function fetchCaches(root: string, cacheRoot: string | undefined, suite: string): readonly string[] {
+/**
+ * The caches that hold `suite`'s fetched mainline records for `root`, in the
+ * order a fetch tries to keep one: the one the caller named; this checkout's
+ * own when a run handed it its read, which is that job's alone; else the
+ * primary checkout's, so every checkout of the repository reads what one
+ * fetched, then this checkout's own, for a worktree that may not write its
+ * primary's. A record is keyed by the commit it was published at and never
+ * written again, so two checkouts keeping one write the same bytes.
+ */
+export function fetchStores(root: string, suite: string, cacheRoot?: string): readonly string[] {
   if (cacheRoot !== undefined) return [cacheRoot];
   const here = repositoryRoot(root);
   const own = cacheRootFor(here);
-  // A read handed here is this job's, whatever newer record a worktree's primary checkout fetched.
   if (mainlineHanded(root, suite)) return [own];
   const primary = primaryCacheRoot(here);
-  return primary === own ? [own] : [own, primary];
+  return primary === own ? [own] : [primary, own];
 }
 
 /**
