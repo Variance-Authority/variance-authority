@@ -66,9 +66,11 @@ describe('the figures around each kept run', () => {
     expect(summaryOf(record(false))).not.toHaveProperty('peakRss');
   });
 
-  it('names the machines the runs record beside the run names, with how many test files each ran, and none without one', () => {
+  it('names the machines the runs record beside the run names, with how many test files each ran, and none without one or from another commit', () => {
     expect(summaryOf(record(true), RUNS).machines).toEqual([['arm64, 12 cores', 1], ['x64, 4 cores', 1]]);
     expect(summaryOf(record(true))).not.toHaveProperty('machines');
+    const elsewhere = new TextEncoder().encode(commitRunsText({ commit: 'd'.repeat(40), latest: '2026-11-27T05:13:00.000Z', runs: 1, landings: [{ files: ['test/a.test.ts'], machine: { arch: 'x64', cores: 4 } }] }));
+    expect(summaryOf(record(true), elsewhere)).not.toHaveProperty('machines');
   });
 
   it('reads the machines from the runs record the share kept with each record', async () => {
