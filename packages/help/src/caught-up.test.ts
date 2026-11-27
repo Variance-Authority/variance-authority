@@ -132,7 +132,10 @@ describe('outlived', () => {
     const help = await readWorkspace(root);
 
     if (!('map' in view)) expect(search.run(help, { query: 'deepOf' }, { root })).toContain(`deepOf reads [test] — ${file}`);
-    else expect(search.run(help, { query: 'deepOf', ...view }, { root })).toContain('Candidate file map');
+    else {
+      expect(search.run(help, { query: 'deepOf', ...view }, { root })).toContain('Candidate file map');
+      expect(search.files!(help, { query: 'deepOf', ...view }, { root }).qualifications?.get(file)).toBe('a recorded test case, as of the last run');
+    }
     expect(await outlived('docs_search', help, { query: 'deepOf', ...view }, { root }, after(help))).toBe(false);
   });
 

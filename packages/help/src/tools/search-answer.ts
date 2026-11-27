@@ -236,7 +236,7 @@ export function preparedSearch(index: SearchIndex, question: SearchQuestion, tre
         files.set(at, one);
       };
       for (const visit of visits) visit(file);
-      return membership = matchingFiles(files, coverage);
+      return membership = matchingFiles(files, coverage, generation);
   };
   return {
     files,
@@ -252,10 +252,12 @@ export function preparedSearch(index: SearchIndex, question: SearchQuestion, tre
   };
 }
 
-function matchingFiles(files: ReadonlyMap<string, { lines: Set<number>; kinds: Set<MatchKind> }>, found: Searched): FileSet {
+function matchingFiles(files: ReadonlyMap<string, { lines: Set<number>; kinds: Set<MatchKind> }>, found: Searched, generation: ReadonlySet<string>): FileSet {
   if (found.answer.refused !== undefined) throw new Error(`\`search\` searched nothing: ${found.answer.refused}.`);
   const qualifications = new Map<string, string>();
   for (const [at, { kinds }] of files) {
+    // A file only a recorded case named rests on the last run, which may name a test since renamed or gone.
+    if (!generation.has(at)) { qualifications.set(at, 'a recorded test case, as of the last run'); continue; }
     if (kinds.size === 1 && kinds.has('query')) continue;
     const labels = (['query', 'near', 'loose'] as const).filter((kind) => kinds.has(kind)).map((kind) => `${kind} matches`);
     qualifications.set(at, `${labels.join(' and ')}${kinds.has('query') ? '' : ', not exact'}`);
