@@ -73,6 +73,18 @@ describe('the figures around each kept run', () => {
     expect(summaryOf(record(true), elsewhere)).not.toHaveProperty('machines');
   });
 
+  it('counts the machines over the test files the record holds, as the Overview does, not every file the runs record names', () => {
+    const wider = new TextEncoder().encode(
+      commitRunsText({
+        commit,
+        latest: '2026-11-27T05:13:00.000Z',
+        runs: 1,
+        landings: [{ files: ['test/a.test.ts', 'test/gone.test.ts'], machine: { arch: 'x64', cores: 4 } }],
+      }),
+    );
+    expect(summaryOf(record(true), wider).machines).toEqual([['x64, 4 cores', 1], ['(none named)', 1]]);
+  });
+
   it('reads the machines from the runs record the share kept with each record', async () => {
     const cell = memoryLineCell(() => NOW - DAY);
     await publishLine(cell, { kind: 'mainline', name: 'main' }, [{ name: 'suite-v1/unit', commit, bytes: frame([['coverage.bin', record(true)], ['coverage.runs.json', RUNS]]) }], {

@@ -311,13 +311,18 @@ function machinesAt(ran: MachinesBeside | undefined): { readonly on?: Readonly<R
 const NONE_NAMED = '(none named)';
 
 /** The machines `on` names, each with the test files of the record it ran, in code-unit order, the files no one machine is named for last. */
-function machinesTable(on: Readonly<Record<string, string>>, count: number, testPath: (row: number) => string): Table {
+export function machineCounts(on: Readonly<Record<string, string>>, count: number, testPath: (row: number) => string): readonly (readonly [string, number])[] {
   const files = new Map<string, number>();
   for (let row = 0; row < count; row += 1) {
     const machine = on[testPath(row)] ?? NONE_NAMED;
     files.set(machine, (files.get(machine) ?? 0) + 1);
   }
   const named = [...files.keys()].filter((machine) => machine !== NONE_NAMED).sort(codeUnitOrder);
-  const rows = [...named, ...(files.has(NONE_NAMED) ? [NONE_NAMED] : [])].map((machine) => [machine, files.get(machine)!] as const);
+  return [...named, ...(files.has(NONE_NAMED) ? [NONE_NAMED] : [])].map((machine) => [machine, files.get(machine)!] as const);
+}
+
+/** The Overview's table of {@link machineCounts}. */
+function machinesTable(on: Readonly<Record<string, string>>, count: number, testPath: (row: number) => string): Table {
+  const rows = machineCounts(on, count, testPath);
   return listed({ id: 'machines', label: 'Machines', hint: 'the machine each test file ran on, as the runs beside the record name it' }, ['machine', 'test files'], rows);
 }

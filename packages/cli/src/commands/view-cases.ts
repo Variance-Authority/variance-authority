@@ -14,6 +14,8 @@ export interface Cases {
   /** A module's regions. */
   ofModule(module: string): readonly number[];
   rowOf(id: string): number | undefined;
+  /** The highest `figure` any line of any case ended at; undefined where none was read. */
+  peak(figure: 'load' | 'rss'): number | undefined;
   idAt(row: number): string;
   nameAt(row: number): string;
   testDetail(row: number): Detail;
@@ -101,6 +103,14 @@ function casesOf(columns: SetColumns, prefix: string, label: string): Cases {
     count,
     tests,
     regions,
+    peak: (figure) => {
+      let highest: number | undefined;
+      for (let row = 0; row < count; row += 1) {
+        const value = peak(test(row).times, figure);
+        if (value !== undefined && (highest === undefined || value > highest)) highest = value;
+      }
+      return highest;
+    },
     ofFile: (path) => byFile().get(path) ?? [],
     ofModule: (path) => {
       const at = byModule().get(path);

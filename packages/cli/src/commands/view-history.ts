@@ -18,7 +18,7 @@ import { settle } from '../settle.js';
 import { readSuiteEntry, suiteOfEntry } from '../share-entries.js';
 import { describeMiss } from './share.js';
 import { openCases } from './view-cases.js';
-import type { Table } from './view-rows.js';
+import { machineCounts } from './view-record.js';
 import type { FileRuns, History, HistoryPoint, Moved, RecordSummary, RetriedCase, Skipped } from './view-history-tables.js';
 
 const DAY = 86_400_000;
@@ -49,9 +49,9 @@ export function summaryOf(bytes: Uint8Array, runs?: Uint8Array): RecordSummary {
   }
   // A sum over the files the runner timed is not the suite's time where it left any untimed.
   const untimed = files.length === 0 || files.some(([, took]) => took === null);
-  const peakLoad = index === undefined ? undefined : highest(index.tests, 'peak load');
-  const peakRss = index === undefined ? undefined : highest(index.tests, 'peak RSS MiB');
-  const machines = runs === undefined ? undefined : machinesCounted(machinesIn(new TextDecoder().decode(runs), 'the runs record the share kept beside it', view.commit));
+  const peakLoad = index === undefined ? undefined : index.peak('load');
+  const peakRss = index === undefined ? undefined : index.peak('rss');
+  const machines = runs === undefined ? undefined : machinesCounted(machinesIn(new TextDecoder().decode(runs), 'the runs record the share kept beside it', view.commit), view);
   return {
     files,
     ...(untimed ? {} : { total: files.reduce((sum, [, took]) => sum + took!, 0) }),
@@ -64,23 +64,10 @@ export function summaryOf(bytes: Uint8Array, runs?: Uint8Array): RecordSummary {
   };
 }
 
-/** The highest of a column of the case table, as the Cases tab shows it; undefined where no case has one. */
-function highest(tests: Table, name: string): number | undefined {
-  const column = tests.columns.find((held) => held.name === name);
-  let top: number | undefined;
-  for (let row = 0; column !== undefined && row < tests.count; row += 1) {
-    const value = column.at(row);
-    if (typeof value === 'number' && (top === undefined || value > top)) top = value;
-  }
-  return top;
-}
-
-/** Each machine the runs name, with how many test files it ran, most first; undefined where they name none. */
-function machinesCounted(ran: MachinesBeside): RecordSummary['machines'] {
+/** The machines the runs name over the record's own test files, counted as the Overview counts them; undefined where the runs were not read. */
+function machinesCounted(ran: MachinesBeside, view: ReturnType<typeof openTestCoverage>): RecordSummary['machines'] {
   if ('unread' in ran) return undefined;
-  const counts = new Map<string, number>();
-  for (const machine of Object.values(ran.files)) counts.set(machine, (counts.get(machine) ?? 0) + 1);
-  return [...counts].sort((a, b) => b[1] - a[1] || codeUnitOrder(a[0], b[0]));
+  return machineCounts(ran.files, view.testPath.length, (row) => view.string(view.testPath.at(row)!));
 }
 
 /** A retried case and the summed time of every attempt before its last, the one its runner reported. */
