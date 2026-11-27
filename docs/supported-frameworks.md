@@ -46,8 +46,11 @@ later file out.
 A test file left out this way is not a silent pass forever. The whole-suite run
 on your main branch runs it, and [that run is where it
 fails](selection-safety.md#the-whole-run-on-main-catches-what-a-skip-hid). Until
-then, a pull request can be green without it. The table names, for each runner,
-when that can happen and what closes it.
+then, a pull request can be green without it. When main fails that way, the
+failing test names the file, and the fix is the row below that matches it. The
+table names, for each runner, when that can happen and what closes it. Most rows
+close with `before`: a list of files in a suite's entry in
+`variance.config.json`, and a change to any of them runs every test.
 
 | Your tests run under | Each test file runs in | A test file that should run can be left out when | What closes it |
 |---|---|---|---|
