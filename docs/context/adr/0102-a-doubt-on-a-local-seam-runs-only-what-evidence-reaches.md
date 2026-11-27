@@ -36,7 +36,10 @@ index. A changed file the index does not hold selects none and is named; a file
 a test reads without importing it is declared with `/// <depends>`. With no
 diff from the record, the mainline's merge base or `HEAD`, there is nothing to
 select by, and the command exits non-zero. A diff that moves a `before` file
-runs the whole suite, because that run is declared, not guessed.
+runs the whole suite, because that run is declared, not guessed. Under a
+budget (`VARIANCE_AUTHORITY_BUDGET`), that whole run is cut to the test files
+the diff edited, and the rest of the suite is left for CI, which runs it whole
+(#1909): the declaration widens the selection, and the budget bounds the local run.
 
 The package and root rungs are deleted. A local seam is `--local` or
 `VARIANCE_AUTHORITY_LOCAL=1`; `test:loop` and `verify:near` set it.

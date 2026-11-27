@@ -112,6 +112,44 @@ describe('the edit loop under a budget', () => {
     expect(cut.notes[0]).toMatch(/^`VARIANCE_AUTHORITY_BUDGET=15` cuts nothing: /u);
   });
 
+  describe('a suite a local change runs whole, because it moved a `before` entry', () => {
+    const SETUP = 'packages/a/vitest.setup.ts';
+    const before: SelectInput = { at: '/cache/coverage.bin', ground: { kind: 'before', whole: `the suite rests on ${SETUP}`, rests: [SETUP] } };
+    const local = (changed: readonly string[]) => ({ ...suiteOf(before, leg(0, 2)), changed });
+
+    it('runs the test files the change edited, and leaves every other test file of the suite to CI', () => {
+      const cut = withinBudget(local([SETUP, OWN, EDITED]), TIMES, { seconds: 20, asked: true }, home);
+
+      expect(runs(cut)).toEqual([EDITED, OWN]);
+      expect(cut.declined).toBeUndefined();
+      expect(cut.notes[0]).toBe(
+        `\`VARIANCE_AUTHORITY_BUDGET=20\` ran 2 of the 2 test files the change edited, 7.0 s recorded; ` +
+          `every other test file of the suite is left for CI, which runs it whole: the suite rests on ${SETUP}`,
+      );
+    });
+
+    it('takes the edited test files shortest first, as many as fit', () => {
+      const cut = withinBudget(local([SETUP, OWN, EDITED]), TIMES, { seconds: 5, asked: false }, home);
+
+      expect(runs(cut)).toEqual([EDITED]);
+      expect(cut.notes).toContain(`  ${OWN}, 4.0 s`);
+    });
+
+    it('runs no test when the change edited none', () => {
+      const cut = withinBudget(local([SETUP]), TIMES, { seconds: 20, asked: true }, home);
+
+      expect(runs(cut)).toEqual([]);
+    });
+
+    it('cuts nothing from the same reading off a local seam, which carries no change', () => {
+      const whole = suiteOf(before, leg(0, 2));
+      const cut = withinBudget(whole, TIMES, { seconds: 20, asked: true }, home);
+
+      expect(runs(cut)).toEqual(WHOLE);
+      expect(cut.notes[0]).toMatch(/^`VARIANCE_AUTHORITY_BUDGET=20` cuts nothing: /u);
+    });
+  });
+
   it('cuts nothing from a selection `--local` fell to, which holds no hops, and says why', () => {
     const whole = suiteOf(input(), undefined);
     const fell = { ...whole, reading: { ...whole.reading, fell: { rung: 'importers' as const, from: 'no journal', left: [] } } };

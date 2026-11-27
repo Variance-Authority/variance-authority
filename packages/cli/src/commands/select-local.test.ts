@@ -225,6 +225,9 @@ describe('a selection that cannot narrow, asked `--local`', () => {
     expect(local.reading.ground).toBe('before');
     expect([...local.skip]).toEqual([]);
     expect(local.reading.fell).toBeUndefined();
+    // The change goes with the whole reading, so a budget can take the test files it edited; the gate's carries none.
+    expect(local.changed).toEqual(['packages/a/setup.ts']);
+    expect(gate.changed).toBeUndefined();
   });
 
   it('runs the whole suite for a change to a file the suite rests on when there is no journal', async () => {
@@ -235,6 +238,7 @@ describe('a selection that cannot narrow, asked `--local`', () => {
     expect(local.reading.widened).toContain('packages/a/setup.ts');
     expect([...local.skip]).toEqual([]);
     expect(local.reading.fell).toBeUndefined();
+    expect(local.changed).toEqual(['packages/a/setup.ts']);
   });
 
   it('runs no whole suite for a file the suite rests on that its `ignore` matches, as the gate does not', async () => {

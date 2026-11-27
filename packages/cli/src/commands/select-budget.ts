@@ -7,10 +7,13 @@
  * those in its package that enter it — shortest first, then its importers in
  * its package, then those in other packages, nearest first.
  * It only adds to `skip`, and a selection that declined to narrow skips
- * nothing (ADR-0062), so it cuts nothing there either.
+ * nothing (ADR-0062), so it cuts nothing there either, with one exception: a
+ * local seam's suite run whole because the change moved a `before` entry is
+ * cut to the test files the change edited, and the rest of the suite is CI's.
  */
 
 import { codeUnitOrder } from '@variance-authority/core/segment';
+import { isTestPath } from '@variance-authority/sense';
 import { durationText } from '@variance-authority/core/shard';
 import type { SuiteTimes, TestDistance } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
@@ -55,7 +58,15 @@ export function withinBudget(
     notes: [`${variable} cuts nothing: ${why}`, ...selection.notes],
     reading: { ...selection.reading, notes: [`${variable} cuts nothing: ${why}`, ...selection.reading.notes] },
   });
-  if (selection.declined !== undefined) return unchanged('the selection did not narrow, and a selection that does not narrow skips nothing');
+  if (selection.declined !== undefined) {
+    // Only a local seam hands the change on, and only with a `before` reading: its suite runs whole by declaration, not by doubt.
+    if (selection.reading.ground !== 'before' || selection.changed === undefined) {
+      return unchanged('the selection did not narrow, and a selection that does not narrow skips nothing');
+    }
+    if ('unread' in times) return unchanged(times.unread);
+    if (times.times.size === 0) return unchanged(`${times.recording} holds no test durations to price by`);
+    return editedOnly({ ...selection, declined: selection.declined, changed: selection.changed }, times.times, budget, home);
+  }
   // A selection `--local` fell to holds no hops to rank by, and its rung already chose by containment.
   if (selection.reading.fell !== undefined) return unchanged(`the selection fell to the ${selection.reading.fell.rung} \`--local\` chose, which holds no hops to rank by`);
   // The leg leaves a selection on a stale, widened or unread graph uncut and measures no hops; the budget would rank all of it last.
@@ -106,6 +117,64 @@ export function withinBudget(
   };
 }
 
+/** A test file's recorded milliseconds, or, untimed, the slowest of its package, so a ceiling stays a ceiling. */
+function pricing(times: ReadonlyMap<string, number>, home: (file: string) => string | undefined): (test: string) => number {
+  const slowest = new Map<string | undefined, number>();
+  let anywhere = 0;
+  for (const [test, ms] of times) {
+    const at = home(test);
+    slowest.set(at, Math.max(slowest.get(at) ?? 0, ms));
+    anywhere = Math.max(anywhere, ms);
+  }
+  return (test) => times.get(test) ?? slowest.get(home(test)) ?? anywhere;
+}
+
+/**
+ * A suite run whole because a local change moved a `before` entry, cut to the
+ * test files the change edited — a test by the record or by its name, as the
+ * local ladder decides one — shortest first, as many as fit. Every other test
+ * file of the suite is left for CI, which runs it whole (ADR-0102).
+ */
+function editedOnly(
+  selection: SuiteReading & { readonly declined: string; readonly changed: readonly string[] },
+  times: ReadonlyMap<string, number>,
+  budget: Budget,
+  home: (file: string) => string | undefined,
+): SuiteReading {
+  const variable = `\`VARIANCE_AUTHORITY_BUDGET=${budget.seconds}\``;
+  const price = pricing(times, home);
+  const edited = [...new Set(selection.changed)]
+    .filter((file) => times.has(file) || isTestPath(file))
+    .map((test) => ({ test, price: price(test) }))
+    .sort((a, b) => a.price - b.price || codeUnitOrder(a.test, b.test));
+  const taken: string[] = [];
+  let spent = 0;
+  // A prefix, as the own tier is taken: the first that would pass the ceiling ends it.
+  for (const { test, price: ms } of edited) {
+    if (spent + ms > budget.seconds * 1000) break;
+    taken.push(test);
+    spent += ms;
+  }
+  const cut = edited.slice(taken.length);
+  const ran =
+    `${variable} ran ${taken.length} of the ${edited.length} test file${edited.length === 1 ? '' : 's'} the change edited, ${durationText(spent)} recorded; ` +
+    `every other test file of the suite is left for CI, which runs it whole: ${selection.declined}`;
+  const notes = [
+    ran,
+    ...(cut.length === 0 ? [] : [`${cut.length} edited ${cut.length === 1 ? 'is' : 'are'} left for CI too:`]),
+    ...cut.slice(0, NAMED).map((candidate) => `  ${candidate.test}, ${durationText(candidate.price)}`),
+    ...(cut.length > NAMED ? [`  and ${cut.length - NAMED} more`] : []),
+  ];
+  const { declined: _declined, ...narrowed } = selection;
+  const only = new Set(taken);
+  return {
+    ...narrowed,
+    only,
+    notes: [...notes, ...selection.notes],
+    reading: { ...selection.reading, only: [...only].sort(), notes: [...notes, ...selection.reading.notes] },
+  };
+}
+
 /**
  * The files the selection runs, as far as the record names them, in the order
  * a budget takes them. Not the shard placement in `core/shard`, which balances
@@ -117,14 +186,7 @@ function ranked(selection: SuiteReading, times: ReadonlyMap<string, number>, hom
   const named = new Set([...selection.whole, ...(selection.reading.incomplete ?? []), ...distances.keys()]);
   const runs = [...named].filter((test) => !selection.skip.has(test) && (selection.only === undefined || selection.only.has(test)));
 
-  const slowest = new Map<string | undefined, number>();
-  let anywhere = 0;
-  for (const [test, ms] of times) {
-    const at = home(test);
-    slowest.set(at, Math.max(slowest.get(at) ?? 0, ms));
-    anywhere = Math.max(anywhere, ms);
-  }
-  const price = (test: string) => times.get(test) ?? slowest.get(home(test)) ?? anywhere;
+  const price = pricing(times, home);
 
   return runs
     .map((test): Candidate => {

@@ -83,7 +83,7 @@ export interface Held {
 
 /**
  * The ladder's answer for a reading declined on `ground` for the reason `declined`, or the changed files
- * the suite rests on, which run the whole suite. A change not yet read is the
+ * the suite rests on, which run the whole suite, with the change they were read from. A change not yet read is the
  * patch handed in, or the diff from `--since`, else from `HEAD`'s merge base
  * with the mainline, so committed work counts, else from `HEAD`. A `--since`
  * that cannot be read is refused, never read from another base, and so is a
@@ -96,7 +96,7 @@ export async function localAnswer(
   declined: string,
   held?: Held,
   record?: string,
-): Promise<LocalAnswer | Required<Pick<Resting, 'whole'>>> {
+): Promise<LocalAnswer | (Required<Pick<Resting, 'whole'>> & { readonly changed: readonly string[] })> {
   const root = (await topLevel(request.root)) ?? request.root;
   const diff = held !== undefined ? undefined : isHanded(request) ? await handedChange(request) : await changeSince(root, request.since);
   const changed = held?.changed ?? (diff === undefined ? undefined : [...changedLines(diff).keys()]);
@@ -113,7 +113,7 @@ export async function localAnswer(
   }
   // A reading that declined before it looked at what the suite rests on has not said, so the ladder asks, as the gate does.
   const { whole } = await restingOf(root, request.suite, relations, changed, await suiteIgnore(root, request.suite));
-  if (whole !== undefined) return { whole };
+  if (whole !== undefined) return { whole, changed };
   return localLadder({
     relations,
     changed,
