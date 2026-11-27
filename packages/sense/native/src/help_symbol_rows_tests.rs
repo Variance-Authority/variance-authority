@@ -76,7 +76,13 @@ fn an_invalid_export_file_refuses_even_an_absent_file_lookup() {
 #[test]
 #[ignore = "manual scale replay; run with --ignored --nocapture"]
 fn export_file_lookup_scale() {
-    for (files, each, asked) in [(32, 8, 16), (256, 8, 128), (2048, 8, 512)] {
+    for (control, files, each, asked) in [
+        ("growth", 32, 8, 16), ("growth", 256, 8, 128), ("growth", 2048, 8, 512),
+        // Same 128 selected rows and 16 lookups, with more unrelated exports.
+        ("fixed-selected", 32, 8, 16), ("fixed-selected", 256, 8, 16), ("fixed-selected", 2048, 8, 16),
+        // Same 2,048 exports and 128 selected rows, with more candidate files.
+        ("fixed-exports", 32, 64, 2), ("fixed-exports", 256, 8, 16), ("fixed-exports", 2048, 1, 128),
+    ] {
         let setup = std::time::Instant::now();
         let rows = exports(files, each);
         let setup = setup.elapsed();
@@ -86,7 +92,9 @@ fn export_file_lookup_scale() {
             count += std::hint::black_box(rows.exports_in(&format!("src/{file:06}.ts")).unwrap()).len();
         }
         assert_eq!(count, asked * each);
-        println!("files={files} exports={} lookups={asked} selected={count} setup_us={} lookup_us={}", files * each, setup.as_micros(), began.elapsed().as_micros());
+        if control != "growth" { assert_eq!(count, 128); }
+        if control == "fixed-exports" { assert_eq!(files * each, 2048); }
+        println!("control={control} files={files} exports={} lookups={asked} selected={count} setup_us={} lookup_us={}", files * each, setup.as_micros(), began.elapsed().as_micros());
     }
 }
 
