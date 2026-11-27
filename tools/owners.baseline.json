@@ -492,7 +492,7 @@
   {
     "idiom": "atomic-write",
     "at": "packages/sense/src/test-selection/mainline-layer.ts",
-    "count": 2
+    "count": 1
   },
   {
     "idiom": "timer",
