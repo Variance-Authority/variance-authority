@@ -8,6 +8,7 @@
  * which regions a test file or a case entered.
  */
 
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import { columnBytes, NO_BLOB, NO_DURATION, NO_OWNER, openTestCoverage, PHASE_NAMES, RecordWithoutCoverage, sectionsOf, type OpenedSections, type TestCoverageView } from '@variance-authority/sense/record';
 import { kindName, openCases, type Cases } from './view-cases.js';
 import type { RanOn } from './view-machines.js';
@@ -315,7 +316,7 @@ function machinesTable(on: Readonly<Record<string, string>>, count: number, test
     const machine = on[testPath(row)] ?? NONE_NAMED;
     files.set(machine, (files.get(machine) ?? 0) + 1);
   }
-  const named = [...files.keys()].filter((machine) => machine !== NONE_NAMED).sort((left, right) => (left < right ? -1 : left > right ? 1 : 0));
+  const named = [...files.keys()].filter((machine) => machine !== NONE_NAMED).sort(codeUnitOrder);
   const rows = [...named, ...(files.has(NONE_NAMED) ? [NONE_NAMED] : [])].map((machine) => [machine, files.get(machine)!] as const);
   return listed({ id: 'machines', label: 'Machines', hint: 'the machine each test file ran on, as the runs beside the record name it' }, ['machine', 'test files'], rows);
 }

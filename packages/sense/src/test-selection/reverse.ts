@@ -38,10 +38,8 @@ export interface ExecutionTest {
    */
   readonly limit?: number;
   /**
-   * Every statement of the case's body: its line in the test file and its
-   * whole microseconds, a loop's runs summed, in the order the case first
-   * reached them, each with what surrounded it as it ended. Absent where the
-   * file was not cut, which is not a time of zero.
+   * Every statement of the case's body as {@link CaseTime} keeps it, in the order the case first
+   * reached them. Absent where the file was not cut, which is not a time of zero.
    */
   readonly times?: readonly CaseTime[];
   /** Every item the case said it arranged, unresolved; `[]` is heard-nothing, absent is unheard. */

@@ -3567,6 +3567,7 @@
         "encodeExecutionIndex": "function",
         "encodeTestCoverage": "function",
         "fetchStores": "function",
+        "filesMachines": "function",
         "finalizeJestJourneys": "function",
         "findModules": "function",
         "followRows": "function",
