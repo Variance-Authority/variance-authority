@@ -69,21 +69,22 @@ export function mainlineReadRoot(cacheRoot: string, suite: string): string {
 /**
  * Record that the mainline's record of `suite` was fetched into
  * `<readRoot>/<commit>/`. Called by the fetch once every file it keeps is in
- * place, so a seam that reads this finds them.
+ * place, so a seam that reads this finds them. A fetch also names it inside
+ * that directory, so a checkout at that commit finds it by commit
+ * ({@link fetchedAtCommit}) after a sibling's fetch has moved the pointer on.
  */
 export async function writeFetchedMainline(
   cacheRoot: string,
   suite: string,
   fetched: FetchedMainline,
 ): Promise<void> {
-  const file = join(mainlineReadRoot(cacheRoot, suite), FETCHED_MAINLINE);
-  await mkdir(dirname(file), { recursive: true });
-  const temporary = `${file}.${process.pid}-${randomUUID()}.tmp`;
-  await writeFile(temporary, `${JSON.stringify(fetched)}\n`);
-  await rename(temporary, file);
+  const readRoot = mainlineReadRoot(cacheRoot, suite);
+  const pointer = Buffer.from(`${JSON.stringify(fetched)}\n`);
+  if (fetched.handed !== true) await place(join(readRoot, fetched.commit, FETCHED_MAINLINE), pointer);
+  await place(join(readRoot, FETCHED_MAINLINE), pointer);
 }
 
-/** The pointer in one read root, or undefined when there is none or it does not read. */
+/** The pointer in one read root, or in one commit's directory under it, or undefined when there is none or it does not read. */
 export function readFetchedMainline(readRoot: string): FetchedMainline | undefined {
   try {
     const value = JSON.parse(readFileSync(join(readRoot, FETCHED_MAINLINE), 'utf8')) as Partial<FetchedMainline>;
@@ -125,20 +126,37 @@ export function lastFetchedMainline(root: string, suite: string | undefined, cac
     // FIXME: a runner seam and a sense reader have no selection, so they take a record fetched for another mainline; moving the selection below the CLI closes it (#962).
     if (pointer === undefined || (selected !== undefined && pointer.mainline !== selected)) continue;
     if (newest !== undefined && newest.fetched >= pointer.fetched) continue;
-    const coverage = join(readRoot, pointer.commit, 'coverage.bin');
-    if (!existsSync(coverage)) continue;
-    const runs = commitRunsFile(coverage);
-    const found: LastFetched = {
-      ...pointer,
-      suite: name,
-      coverage,
-      ...(existsSync(runs) ? { runs } : {}),
-    };
-    // One this build does not read, fetched by another version of it, is no
-    // base: every reader passes it over here, rather than each checking again.
-    if (fetchedMainlineReads(found)) newest = found;
+    newest = fetchedRecord(readRoot, pointer, name) ?? newest;
   }
   return newest;
+}
+
+/**
+ * The mainline record of `suite` published at `commit` and fetched on this
+ * machine, whichever fetch named it last, or undefined when none holds it: a
+ * fetch kept by commit finds the one at its merge base here without asking the
+ * line. Asks the caches {@link lastFetchedMainline} asks, for `selected` alone.
+ */
+export function fetchedAtCommit(root: string, suite: string, commit: string, cacheRoot: string | undefined, selected: string): LastFetched | undefined {
+  for (const cache of fetchStores(root, suite, cacheRoot)) {
+    const readRoot = mainlineReadRoot(cache, suite);
+    const pointer = readFetchedMainline(join(readRoot, commit));
+    if (pointer === undefined || pointer.mainline !== selected || pointer.commit !== commit) continue;
+    const found = fetchedRecord(readRoot, pointer, suite);
+    if (found !== undefined) return found;
+  }
+  return undefined;
+}
+
+/** The record `pointer` names under `readRoot`, when it is there and reads in this build. */
+function fetchedRecord(readRoot: string, pointer: FetchedMainline, suite: string): LastFetched | undefined {
+  const coverage = join(readRoot, pointer.commit, 'coverage.bin');
+  if (!existsSync(coverage)) return undefined;
+  const runs = commitRunsFile(coverage);
+  const found: LastFetched = { ...pointer, suite, coverage, ...(existsSync(runs) ? { runs } : {}) };
+  // One this build does not read, fetched by another version of it, is no
+  // base: every reader passes it over here, rather than each checking again.
+  return fetchedMainlineReads(found) ? found : undefined;
 }
 
 /**
@@ -274,6 +292,7 @@ function seeded(held: CommitRuns): Uint8Array {
   return Buffer.from(commitRunsText({ ...held, runs: 0 }));
 }
 
+/** `bytes` at `file`, replaced whole so no reader meets a half-written one, or `file` gone when there are none. */
 async function place(file: string, bytes: Uint8Array | undefined): Promise<void> {
   if (bytes === undefined) {
     await rm(file, { force: true });

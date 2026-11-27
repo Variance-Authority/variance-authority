@@ -33,7 +33,8 @@ import type { ParsedCarry } from '../carry-args.js';
 import { EXIT_CLEAN, OperatorError, type ExitCode } from '../exit.js';
 import type { Env } from '../share-lines.js';
 import { BUNDLE, git, holds, keepCommits, succeeds, takeCommits, type KeptCommits } from './carry-bundle.js';
-import { readMissedMainline, standOnHanded } from './mainline-base.js';
+import { standOnHanded } from './mainline-base.js';
+import { readMissedMainline } from './mainline-missed.js';
 import { suiteBase } from './suite-base.js';
 
 /** Where `carry` keeps and takes the pushed records, under the checkout. */

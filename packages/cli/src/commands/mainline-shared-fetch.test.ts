@@ -60,12 +60,12 @@ async function laptop() {
   await publishedAt(home, ci.ci, next);
   ownCaches();
   await git(primary, 'fetch', '--quiet', 'origin');
-  const tree = async (name: string) => {
+  const tree = async (name: string, at = 'origin/main') => {
     const dir = join(home, name);
-    await git(primary, 'worktree', 'add', '--quiet', '--detach', dir, 'origin/main');
+    await git(primary, 'worktree', 'add', '--quiet', '--detach', dir, at);
     return dir;
   };
-  return { primary, first: ci.first, next, one: await tree('one'), two: await tree('two'), base };
+  return { primary, first: ci.first, next, one: await tree('one'), two: await tree('two'), tree, base };
 }
 
 describe('a mainline record one worktree fetched', () => {
@@ -103,20 +103,38 @@ describe('a mainline record one worktree fetched', () => {
     expect(await readFile(read!.coverage)).toEqual(await readFile(both[0]!.coverage!));
   });
 
-  it('is never taken by the prune its fetch runs on the shared cache', async () => {
+  it('prunes the mainline records of the shared cache, and nothing else the primary checkout keeps', async () => {
     const { primary, next, one, two, base } = await laptop();
     const shared = cacheRootFor(primary);
-    // The shared cache was last pruned two days ago, so the fetch prunes it.
-    const stamp = join(shared, '.pruned');
-    await writeFile(stamp, '');
+    const reads = mainlineReadRoot(shared, 'unit');
+    const month = (Date.now() - 30 * 24 * 60 * 60_000) / 1000;
+    // A record of a commit no checkout holds, a month old, which the prune takes.
+    const gone = join(reads, 'f'.repeat(40));
+    await cp(join(reads, readFetchedMainline(reads)!.commit), gone, { recursive: true });
+    await utimes(gone, month, month);
+    // The primary's own whole prune ran two days ago, and is its own to run again.
+    const whole = join(shared, '.pruned');
+    await writeFile(whole, '');
     const old = (Date.now() - 2 * 24 * 60 * 60_000) / 1000;
-    await utimes(stamp, old, old);
+    await utimes(whole, old, old);
 
     await base(one);
 
-    expect((await stat(stamp)).mtimeMs).toBeGreaterThan(old * 1000);
-    expect(readFetchedMainline(mainlineReadRoot(shared, 'unit'))).toMatchObject({ commit: next });
+    expect(existsSync(gone)).toBe(false);
+    expect((await stat(whole)).mtimeMs).toBe(old * 1000);
+    expect(readFetchedMainline(reads)).toMatchObject({ commit: next });
     expect(lastFetchedMainline(two, 'unit')).toMatchObject({ commit: next });
+  });
+
+  it('is read at a worktree\'s merge base after a sibling at another merge base fetched, without asking the line', async () => {
+    const { first, next, one, tree, base } = await laptop();
+    const behind = await tree('behind', `${next}~1`);
+    expect(await base(behind)).toMatchObject({ commit: first });
+    expect(await base(one)).toMatchObject({ commit: next });
+
+    await git(behind, 'remote', 'set-url', 'origin', join(home, 'nowhere.git'));
+
+    expect(await base(behind)).toMatchObject({ commit: first, distance: 0, earlier: { reused: 'nearest' } });
   });
 
   it('keeps it in its own when it cannot write the primary checkout\'s', async () => {

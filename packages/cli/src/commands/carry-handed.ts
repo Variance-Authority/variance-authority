@@ -30,7 +30,8 @@ import {
 import type { ParsedCarry } from '../carry-args.js';
 import { OperatorError, type ExitCode } from '../exit.js';
 import { printMoved } from './carry-pushed.js';
-import { mainlineBase, mainlineMissed, mainlineRead, readMissedMainline, standOnHanded, writeMissedMainline, type MainlineAsk } from './mainline-base.js';
+import { mainlineBase, mainlineMissed, mainlineRead, standOnHanded, type MainlineAsk } from './mainline-base.js';
+import { readMissedMainline, writeMissedMainline } from './mainline-missed.js';
 
 /** What `hand` writes first, naming the suites it holds a read of. */
 const HANDED_MANIFEST = 'handed.json';
