@@ -158,6 +158,15 @@ describe('the edit loop under a budget', () => {
       expect(cut.notes[0]).toMatch(/ runs none of the 2 test files the change edited, which are the wave from 0 hops'; /u);
     });
 
+    it('cuts nothing when the record\'s times could not be read, or hold none', () => {
+      for (const times of [{ unread: 'nothing is recorded there' }, { recording: '/cache/coverage.bin', times: new Map<string, number>() }] satisfies SuiteTimes[]) {
+        const cut = withinBudget(local([SETUP, OWN]), times, { seconds: 20, asked: true }, home);
+
+        expect(runs(cut)).toEqual(WHOLE);
+        expect(cut.notes[0]).toMatch(/^`VARIANCE_AUTHORITY_BUDGET=20` cuts nothing: /u);
+      }
+    });
+
     it('runs no test when the change edited none', () => {
       const cut = withinBudget(local([SETUP]), TIMES, { seconds: 20, asked: true }, home);
 
