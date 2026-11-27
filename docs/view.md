@@ -64,7 +64,10 @@ sorts it, the first click largest first.
 - **History**: every record the [share](sharing.md) keeps of the mainline in
   the last two weeks, one row per commit and suite: when it ran, how long it
   took, its test files, the source files its tests reached, its cases, the
-  cases it retried and the time their earlier attempts cost. It adds each test file's mean time over the window,
+  highest load and resident memory any line of its cases ended at, the
+  machines its runs record names with how many test files each ran, the
+  cases it retried and the time their earlier attempts cost. A figure the run
+  did not keep is blank. It adds each test file's mean time over the window,
   each retried case with the commits it was retried on, and the commits whose
   suite time moved most from the one kept before, over the test files both
   runs timed, with the files that moved it. A record it does not draw, such as

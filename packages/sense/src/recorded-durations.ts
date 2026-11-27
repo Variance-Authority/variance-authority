@@ -192,9 +192,20 @@ function runsAt(recording: string, commit: string | undefined): CommitRuns | und
 function runsBeside(recording: string, commit: string | undefined): { readonly runs: CommitRuns } | { readonly unread: string } | undefined {
   const path = commitRunsFile(recording);
   if (!existsSync(path)) return undefined;
+  let text: string;
+  try {
+    text = readFileSync(path, 'utf8');
+  } catch (error) {
+    return { unread: messageOf(error) };
+  }
+  return runsIn(text, `the runs record at ${path}`, commit);
+}
+
+/** The runs record `text`, read as `where`, where it stands at `commit`; why not where it does not. */
+function runsIn(text: string, where: string, commit: string | undefined): { readonly runs: CommitRuns } | { readonly unread: string } {
   let held: CommitRuns;
   try {
-    held = commitRunsIn(readFileSync(path, 'utf8'), `the runs record at ${path}`);
+    held = commitRunsIn(text, where);
   } catch (error) {
     return { unread: messageOf(error) };
   }
@@ -214,7 +225,19 @@ export type MachinesBeside = { readonly files: Readonly<Record<string, string>> 
  */
 export function machinesBeside(recording: string, commit: string | undefined): MachinesBeside | undefined {
   const beside = runsBeside(recording, commit);
-  if (beside === undefined || 'unread' in beside) return beside;
+  return beside === undefined ? undefined : machinesOf(beside);
+}
+
+/**
+ * {@link machinesBeside} of the runs record `text` a share kept beside a
+ * record at `commit`, read as `where`.
+ */
+export function machinesIn(text: string, where: string, commit: string | undefined): MachinesBeside {
+  return machinesOf(runsIn(text, where, commit));
+}
+
+function machinesOf(beside: { readonly runs: CommitRuns } | { readonly unread: string }): MachinesBeside {
+  if ('unread' in beside) return beside;
   const files: Record<string, string> = {};
   for (const [file, machine] of filesMachines(beside.runs)) if (machine !== undefined) files[file] = describeMachine(machine);
   return Object.keys(files).length === 0 ? { unread: 'the runs record beside it names no machine' } : { files };

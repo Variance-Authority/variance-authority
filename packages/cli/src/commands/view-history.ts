@@ -12,24 +12,25 @@ import { readFile, utimes } from 'node:fs/promises';
 import { join } from 'node:path';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import { atCommit, readLine, type KeptAt, type LineCell, type ShareMiss } from '@variance-authority/core/share';
-import { fileTimes, retriedIn } from '@variance-authority/sense';
+import { fileTimes, machinesIn, retriedIn, type MachinesBeside } from '@variance-authority/sense';
 import { caseSectionsOf, openTestCoverage, pool, rawRecord } from '@variance-authority/sense/test-selection';
 import { settle } from '../settle.js';
 import { readSuiteEntry, suiteOfEntry } from '../share-entries.js';
 import { describeMiss } from './share.js';
 import { openCases } from './view-cases.js';
+import { machineCounts } from './view-record.js';
 import type { FileRuns, History, HistoryPoint, Moved, RecordSummary, RetriedCase, Skipped } from './view-history-tables.js';
 
 const DAY = 86_400_000;
 /** Bumped when a summary's shape changes, so an older one is read again. */
-const SUMMARY_VERSION = 6;
+const SUMMARY_VERSION = 7;
 /** Records read at once: a share answers each over the network. */
 const READING = 8;
 const MOVERS = 3;
 const PARTIAL = 'a partial run: it holds only the tests it ran';
 
-/** What one record, `coverage.bin` as a suite entry carries it, says of its run. */
-export function summaryOf(bytes: Uint8Array): RecordSummary {
+/** What one record, `coverage.bin` as a suite entry carries it, says of its run, with the machines the `runs` record kept beside it names. */
+export function summaryOf(bytes: Uint8Array, runs?: Uint8Array): RecordSummary {
   const view = openTestCoverage(rawRecord(bytes));
   const files = fileTimes(view).map(([file, took]): [string, number | null] => [file, took ?? null]);
   const sections = caseSectionsOf(bytes);
@@ -48,13 +49,25 @@ export function summaryOf(bytes: Uint8Array): RecordSummary {
   }
   // A sum over the files the runner timed is not the suite's time where it left any untimed.
   const untimed = files.length === 0 || files.some(([, took]) => took === null);
+  const peakLoad = index === undefined ? undefined : index.peak('load');
+  const peakRss = index === undefined ? undefined : index.peak('rss');
+  const machines = runs === undefined ? undefined : machinesCounted(machinesIn(new TextDecoder().decode(runs), 'the runs record the share kept beside it', view.commit), view);
   return {
     files,
     ...(untimed ? {} : { total: files.reduce((sum, [, took]) => sum + took!, 0) }),
     reached,
     ...(index === undefined ? {} : { cases: index.count }),
+    ...(peakLoad === undefined ? {} : { peakLoad }),
+    ...(peakRss === undefined ? {} : { peakRss }),
+    ...(machines === undefined ? {} : { machines }),
     ...(retried === undefined ? {} : { retried: retried.map(lostTo).sort((a, b) => (b.lost ?? -1) - (a.lost ?? -1) || codeUnitOrder(a.file, b.file) || codeUnitOrder(a.name, b.name)) }),
   };
+}
+
+/** The machines the runs name over the record's own test files, counted as the Overview counts them; undefined where the runs were not read. */
+function machinesCounted(ran: MachinesBeside, view: ReturnType<typeof openTestCoverage>): RecordSummary['machines'] {
+  if ('unread' in ran) return undefined;
+  return machineCounts(ran.files, view.testPath.length, (row) => view.string(view.testPath.at(row)!));
 }
 
 /** A retried case and the summed time of every attempt before its last, the one its runner reported. */
@@ -125,6 +138,9 @@ export function seriesOf(
       testFiles: one.files.length,
       reached: one.reached,
       ...(one.cases === undefined ? {} : { cases: one.cases }),
+      ...(one.peakLoad === undefined ? {} : { peakLoad: one.peakLoad }),
+      ...(one.peakRss === undefined ? {} : { peakRss: one.peakRss }),
+      ...(one.machines === undefined ? {} : { machines: one.machines }),
       ...(one.retried === undefined ? {} : { retried: one.retried }),
       ...(moved === undefined ? {} : { moved }),
     };
@@ -249,7 +265,7 @@ async function summarise(read: () => Promise<Uint8Array | ShareMiss>): Promise<R
     const bytes = await read();
     if (!(bytes instanceof Uint8Array)) return describeMiss(bytes);
     const entry = readSuiteEntry(bytes);
-    return typeof entry === 'string' ? entry : summaryOf(entry.coverage);
+    return typeof entry === 'string' ? entry : summaryOf(entry.coverage, entry.runs);
   } catch (error) {
     return error instanceof Error ? error.message : String(error);
   }
