@@ -62,6 +62,11 @@ npx variance select --suite unit --since origin/main
 It names the test files whose tests ran a function you changed, and skips the
 rest.
 
+Record the whole suite. A run narrowed with `-k` or `-m` records only the tests
+it ran, yet takes their files as finished, so the tests it left out stop being
+selected. Code that runs at import time, and a fixture shared across files, is
+charged to the test that first runs it.
+
 ## What a function is
 
 A function, method or nested function is a region of its own, named by its
