@@ -351,14 +351,10 @@ function spoken({ answer, area }: Searched, asked: SearchQuestion, root: string 
 export const search: Tool<Help> = {
   name: 'docs_search',
   description:
-    'Find candidate names by words, when you do not know the exact name. A name matches when its name ' +
-    'or documentation contains your text, case-insensitive, or its words share the stem of every word ' +
-    'you typed: published names, with the specifier for docs_symbol, then unpublished and file-local ' +
-    'names, recorded test cases, installed names and packages, and near matches. Words only, no synonyms: `auth` does ' +
-    'not find `CredentialGate`, so when nothing matches, ask another candidate word, not a longer ' +
-    'phrase. A word under three letters has no stem but still counts as written: `node id` finds ' +
-    '`NodeId`. On a large repository give `from` or `to`; an empty answer there is a fact about that ' +
-    'area. A list holds candidates, not every match: `git grep -i <word>` prints every line.',
+    'Find candidate names by words in names or docs: case-insensitive substring or stems. Use docs_symbol ' +
+    'for an exact name. Matching is lexical: after a miss try another candidate word, not a longer ' +
+    'phrase. Give from/to for import reach. Detailed lists are capped; map=root groups complete ' +
+    'candidate files by existing area and dependency layer, with emitted drills.',
   inputSchema: {
     type: 'object',
     properties: {
