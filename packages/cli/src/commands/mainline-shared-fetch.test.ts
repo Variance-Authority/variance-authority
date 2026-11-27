@@ -288,6 +288,17 @@ describe('a mainline record a sibling fetches at the commit a run handed the pri
   });
 });
 
+describe('a mainline record kept for a worktree whose HEAD has no commit yet', () => {
+  it('is read newest fetch first, as git places none behind it', async () => {
+    const { next, tree, base, one } = await laptop();
+    await base(one);
+    const orphan = await tree('orphan');
+    await git(orphan, 'checkout', '--quiet', '--orphan', 'orphan');
+
+    expect(lastFetchedMainline(orphan, 'unit')).toMatchObject({ commit: next });
+  });
+});
+
 describe('a read a run hands on from the primary checkout', () => {
   it('leaves every record a sibling worktree reads where it was', async () => {
     const { primary, first, next, one, base } = await laptop();
