@@ -16,13 +16,13 @@ const MAP_TEXT = 10000;
 export function formatCandidateMap(map: CandidateMap, drill: (id: string, offset?: number) => string, page: Page | { readonly offset: number } = { offset: 0 }, spell: Spelling = spellingOf(undefined)): string {
   const said = 'limit' in page;
   for (let limit = said ? page.limit : MAP_GROUPS; ; limit -= 1) {
-    const text = mapLines(map, drill, { offset: page.offset, limit }, spell).join('\n');
+    const text = mapLines(map, drill, { offset: page.offset, limit }, spell, !said).join('\n');
     if (text.length <= MAP_TEXT) return text;
-    if (said || limit === 1) throw new Error(`This page of map groups exceeds the text budget; ask a lower \`${spell.input('limit')}\` or a narrower emitted group. No partial groups were printed.`);
+    if (said || limit === 1) throw new Error(`This page of map groups exceeds the text budget; ask ${said ? `a lower \`${spell.input('limit')}\` or ` : ''}a narrower emitted group. No partial groups were printed.`);
   }
 }
 
-function mapLines(map: CandidateMap, drill: (id: string, offset?: number) => string, page: Page, spell: Spelling): string[] {
+function mapLines(map: CandidateMap, drill: (id: string, offset?: number) => string, page: Page, spell: Spelling, fitted: boolean): string[] {
   const start = [`Candidate file map: ${map.files} candidate files; ${map.selected} in ${map.name}.`, 'Counts are files, not names. Layers are dependency layers; layer 1 takes nothing.'];
   const evidence = map.evidence.map(({ qualification, files }) => `${files} ${qualification ?? 'without an additional qualification'}`).join('; ');
   if (evidence !== '') start.push(`Source evidence across all candidates: ${evidence}.`);
@@ -37,7 +37,7 @@ function mapLines(map: CandidateMap, drill: (id: string, offset?: number) => str
     const coordinates = lines.join(',');
     return `${file}${coordinates === '' ? '' : coordinates.length <= 128 ? `:${coordinates}` : ` (${lines.length} evidence lines; complete coordinates in JSON)`}${qualification === undefined ? '' : ` [${qualification}]`}`;
   });
-  const lines = [...start, ...pageAt(page, all.length, spell), ...groups, ...nextPage(page, all.length, spell, (offset) => drill(map.selector, offset)), ...entries, ...map.unread.map((why) => `Coverage: ${why}`)];
+  const lines = [...start, ...pageAt(page, all.length, spell), ...groups, ...nextPage(page, all.length, spell, (offset) => drill(map.selector, offset), fitted), ...entries, ...map.unread.map((why) => `Coverage: ${why}`)];
   if (map.selector !== 'root') lines.push(`Other candidates remain on ${drill('root')}.`);
   return lines;
 }

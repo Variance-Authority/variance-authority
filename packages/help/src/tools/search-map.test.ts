@@ -124,6 +124,20 @@ it('fits a page of many sibling directories to the text budget when no limit is 
   expect(() => formatCandidateMap(page, drill, { offset: 0, limit: 120 })).toThrow('text budget');
 });
 
+it('promises no count for the next fitted page that the next page does not show', () => {
+  const long = 'a'.repeat(300);
+  const set = membership(Array.from({ length: 120 }, (_, i) => [0, 1].map((n) => `packages/alpha/src/${i < 20 ? long : 'c'}-${String(i).padStart(3, '0')}/part-${n}.tsx`)).flat());
+  const page = candidateFileMap(ROOT, set, 'package:alpha');
+  const drill = (id: string, offset?: number) => `variance ask search --query x --map ${id}${offset === undefined ? '' : ` --offset ${offset}`}`;
+  const count = (text: string) => text.split('\n').filter((line) => line.startsWith('packages/alpha/src/')).length;
+  const first = formatCandidateMap(page, drill, { offset: 0 });
+  const shown = count(first);
+  const promised = /the next (\d+)/.exec(first)?.[1];
+  const next = count(formatCandidateMap(page, drill, { offset: shown }));
+  expect(promised === undefined || Number(promised) === next).toBe(true);
+  expect(first).toContain(`--offset ${shown}`);
+});
+
 it('keeps terminal paths and complete Unicode code points when splitting prefixes', () => {
   const set = membership(['packages/alpha/😀.ts', 'packages/alpha/😁.ts', 'packages/alpha/a.ts', 'packages/alpha/a.tsx']);
   for (const [file] of set.files) set.files.set(file, Array.from({ length: 1200 }, (_, i) => i + 1));

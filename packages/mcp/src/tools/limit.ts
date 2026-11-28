@@ -88,12 +88,13 @@ export function pageAt(page: Page, total: number, spell: Spelling): readonly str
  * caller that can spell the whole question it was asked passes `question`,
  * which writes that question at a given offset, already in backticks: the
  * reader then copies the next page rather than editing a flag into the last.
+ * A `fitted` page, whose next page fits its own count of rows, names no count.
  */
-export function nextPage(page: Page, total: number, spell: Spelling, question?: (offset: number) => string): readonly string[] {
+export function nextPage(page: Page, total: number, spell: Spelling, question?: (offset: number) => string, fitted = false): readonly string[] {
   const next = page.offset + page.limit;
   if (next >= total) return [];
   const rest = total - next;
-  const shown = Math.min(rest, page.limit);
+  const shown = fitted ? 'page' : String(Math.min(rest, page.limit));
   return [question === undefined
     ? `${rest} more not shown; \`${spell.input('offset')}\` ${next} shows the next ${shown}.`
     : `${rest} more not shown; the next ${shown}: ${question(next)}.`];
