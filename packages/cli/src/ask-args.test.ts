@@ -82,3 +82,9 @@ describe('a pattern flag of discover given twice', () => {
     expect(read(['discover', '--from', 'a.ts', '--from', 'b.ts'])).toThrow(/^`--from` was given more than once$/u);
   });
 });
+
+it('carries an explicit search map drill through the CLI parser', () => {
+  expect(parseArgs(['ask', 'search', '--query', 'select tests', '--map', 'root'])).toMatchObject({
+    command: 'ask', question: 'search', query: 'select tests', map: 'root',
+  });
+});

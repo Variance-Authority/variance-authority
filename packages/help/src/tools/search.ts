@@ -1,5 +1,6 @@
+import { formatCandidateMap, MAP_GROUPS } from './search-map-format.js';
 import type { FileSet, Spelling, Tool, ToolInvocation, Tree } from '@variance-authority/mcp/tools';
-import { limitOf, notShownPast, START_POINT_SCHEMA, saysStartPoint, spellingOf, startPointArg, stringArg } from '@variance-authority/mcp/tools';
+import { limitOf, notShownPast, pageOf, START_POINT_SCHEMA, saysStartPoint, spellingOf, startPointArg, stringArg } from '@variance-authority/mcp/tools';
 import type { Help } from '@variance-authority/package/help';
 import type { SearchIndex } from '../search-index.js';
 import { areaLine } from './area.js';
@@ -123,9 +124,10 @@ import { searchReading, renderedFiles } from './search-reading.js';
  * `limit` that is no whole number of rows is refused as `spell` names it.
  */
 export function searchQuestionOf(input: Readonly<Record<string, unknown>>, spell: Spelling = spellingOf(undefined)): SearchQuestion {
-  const question = { query: stringArg(input, 'query'), from: startPointArg(input, 'from'), to: startPointArg(input, 'to') };
+  const question = { query: stringArg(input, 'query'), from: startPointArg(input, 'from'), to: startPointArg(input, 'to'), ...(input['map'] === undefined ? {} : { map: stringArg(input, 'map') }) };
   // Absent rather than a default, so a question that says none asks, caches and answers as it did before `limit`.
-  return input['limit'] === undefined ? question : { ...question, limit: limitOf(input, 0, spell) };
+  const paging = input['map'] === undefined || input['offset'] === undefined ? question : { ...question, offset: pageOf(input, 1, spell).offset };
+  return input['limit'] === undefined ? paging : { ...paging, limit: limitOf(input, 0, spell) };
 }
 
 /** The search over an opened index — what `docs_search` answers, without the Help value; `spell` names `limit` in its cuts. */
@@ -167,6 +169,11 @@ function inFull(asked: SearchQuestion, total: number, spell: Spelling): string {
 /** What a search says of what it found, to `asked`. */
 function spoken({ answer, area }: Searched, asked: SearchQuestion, root: string | undefined, spell: Spelling): string {
   const { query } = answer;
+  if (answer.candidateMap !== undefined) {
+    const where = { query: asked.query, ...(asked.from === undefined ? {} : { from: asked.from }), ...(asked.to === undefined ? {} : { to: asked.to }) };
+    const page = { offset: asked.offset ?? 0, limit: asked.limit ?? MAP_GROUPS };
+    return formatCandidateMap(answer.candidateMap, (map, offset) => spell.question(search, { ...where, map, ...(asked.limit === undefined ? {} : { limit: asked.limit }), ...(offset === undefined ? {} : { offset }) }), page, spell);
+  }
   if (area?.refused !== undefined) return areaLine(area);
 
   const found = answer.published ?? { total: 0, shown: [] };
@@ -349,10 +356,9 @@ function spoken({ answer, area }: Searched, asked: SearchQuestion, root: string 
 export const search: Tool<Help> = {
   name: 'docs_search',
   description:
-    'Find candidate names by words, when you do not know the exact name. A name matches when its name ' +
+    'Find candidate names by words, for a name you do not know. A name matches when its name ' +
     'or documentation contains your text, case-insensitive, or its words share the stem of every word ' +
-    'you typed: published names, with the specifier for docs_symbol, then unpublished and file-local ' +
-    'names, recorded test cases, installed names and packages, and near matches. Words only, no synonyms: `auth` does ' +
+    'you typed. Words only, no synonyms: `auth` does ' +
     'not find `CredentialGate`, so when nothing matches, ask another candidate word, not a longer ' +
     'phrase. A word under three letters has no stem but still counts as written: `node id` finds ' +
     '`NodeId`. On a large repository give `from` or `to`; an empty answer there is a fact about that ' +
@@ -364,6 +370,8 @@ export const search: Tool<Help> = {
         type: 'string',
         description: 'A substring, or a few words of what the name does. Ask each candidate word as its own query.',
       },
+      map: { type: 'string', description: '`root` or a printed drill: files by area and layer; `limit` groups a page.' },
+      offset: { type: 'integer', description: 'Groups to skip.' },
       from: START_POINT_SCHEMA.from,
       to: {
         ...START_POINT_SCHEMA.to,

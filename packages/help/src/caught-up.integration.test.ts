@@ -62,3 +62,11 @@ describe('variance-authority-help about a name written after the published gener
     expect(JSON.parse(out)).toMatchObject({ compared: false });
   });
 });
+
+it.each(['text', 'json'])('passes the selected checkout to search candidate maps in %s', async (format) => {
+  const { code, out, err } = await bin(await fixture.published(), ['search', '--query', 'tax', '--map', 'root', '--format', format]);
+  expect(err).toBe('');
+  expect(code).toBe(0);
+  if (format === 'text') expect(out).toContain('Candidate file map: 1 candidate files');
+  else expect(JSON.parse(out)).toMatchObject({ candidateMap: { files: 1, selector: 'root' } });
+});

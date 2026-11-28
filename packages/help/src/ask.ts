@@ -156,19 +156,19 @@ export function ask(
 }
 
 /** The same answer as data: the generation is a field, and absent when unknown. */
-export function askSearchJson(index: SearchIndex, args: readonly string[], walk?: () => Tree | undefined, unseen = false, unopened?: readonly Unopened[], importing?: ImportingOf): string {
+export function askSearchJson(index: SearchIndex, args: readonly string[], walk?: () => Tree | undefined, unseen = false, unopened?: readonly Unopened[], importing?: ImportingOf, root?: string): string {
   const input = inputFrom(search, args);
   const tree = search.wants?.(input) === true ? walk?.() : undefined;
-  const answer = asOneQuestion(() => searchNames(index, searchQuestionOf(input, spellingOf(invocationOf({}))), tree, undefined, importing));
+  const answer = asOneQuestion(() => searchNames(index, searchQuestionOf(input, spellingOf(invocationOf({}))), tree, input['map'] === undefined ? undefined : root, importing));
   const at = index.generation?.generatedAt;
   return JSON.stringify({ ...answer, ...(at === undefined ? {} : { generatedAt: at, ...(unseen ? { compared: false } : {}) }), ...(unopened === undefined ? {} : { unopened }) }, undefined, 2);
 }
 
 /** `search`, answered from its published index rather than the whole value. */
-export function askSearch(index: SearchIndex, args: readonly string[], walk?: () => Tree | undefined, unseen = false, unopened?: readonly Unopened[], importing?: ImportingOf): string {
+export function askSearch(index: SearchIndex, args: readonly string[], walk?: () => Tree | undefined, unseen = false, unopened?: readonly Unopened[], importing?: ImportingOf, root?: string): string {
   const input = inputFrom(search, args);
   const tree = search.wants?.(input) === true ? walk?.() : undefined;
-  const answer = asOneQuestion(() => answerSearch(index, input, tree, undefined, importing, spellingOf(invocationOf({}))));
+  const answer = asOneQuestion(() => answerSearch(index, input, tree, input['map'] === undefined ? undefined : root, importing, spellingOf(invocationOf({}))));
   const at = index.generation?.generatedAt;
   const dated = at === undefined ? answer : `${answer}\n${snapshotLine(at, unseen)}`;
   const said = unopenedLine(unopened, !unseen);

@@ -9,6 +9,36 @@ a count. `git grep -i <word>` prints every tracked line that writes the word, an
 `discover --declares <regex> --limit <n>` lists every top-level name past a cap,
 exported or not, by its name alone.
 
+## Map candidate files before opening names
+
+Use `variance ask search --query "retry payment" --map root` when you need
+an overview of the files your words reach. It groups the complete candidate-file
+set by the existing code-map areas, with file counts by dependency layer. Counts
+include candidates beyond the detailed name caps. Near and loose matches keep
+their qualifications; unread source frontiers remain explicit. This is a map of
+lexical candidates, not a judgement that those files implement your task.
+
+Follow the exact `--map` drill printed beside a group. Areas lead to smaller
+areas or packages; packages lead to files, splitting large inventories by path
+prefix. Every group remains represented. A drill selects membership within the
+original candidate set; it does not change `--from` or `--to`, whose import
+reach still determines that set. Emitted questions preserve those start points.
+
+With `--map`, `--limit` is the map groups one page shows, 50 when not said,
+and `--offset` the groups to skip; a page names the question for the next one.
+`--format json` exposes the same map as `candidateMap`, every group in one
+answer, including complete file coordinates at leaves. Text prints a coordinate
+count when a file has many evidence lines. MCP accepts `map`, `limit` and
+`offset` and prints the same view with tool-shaped drills; its response remains
+text.
+
+The map must belong to the search reading's source index. A missing or stale map
+prints its reason with the positive candidate count and unread frontiers,
+without claiming that placement was empty. Run `variance index` to publish a
+current map. Search without `--map` keeps the detailed name view.
+
+## Read matching names
+
 **A published line is `<specifier> · <name> [kind] …`, and the two halves go to
 different arguments.** `symbol` takes the **name**, the word after the `·`. The
 specifier before it is the import line you will write, and it goes to

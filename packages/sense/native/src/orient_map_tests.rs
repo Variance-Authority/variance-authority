@@ -187,6 +187,7 @@ fn every_package_reads_back_with_its_layer_and_what_it_takes() {
     prepare_orient_map(&root, &index, Some(true), false, crate::resolve::Tsconfig::Auto).unwrap().expect("an index");
     let answer = crate::orient_map_layers::orient_layers(index.clone()).unwrap().expect("a kept map");
     assert!(answer.current && answer.unmade.is_none());
+    assert_eq!(answer.index_digest, super::manifest_digest(&index).unwrap());
     let packages = answer.packages.expect("a folded map");
     let layer = |name: &str| packages.iter().find(|package| package.package == name).unwrap();
     // A package that takes nothing is layer 1; each member takes every member before it.

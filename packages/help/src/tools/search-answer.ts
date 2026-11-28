@@ -1,3 +1,4 @@
+import { candidateFileMap } from './search-map.js';
 import type { FileSet, Tree } from '@variance-authority/mcp/tools';
 import { describedWordsNative, wordStemsNative } from '@variance-authority/sense';
 import type { SearchIndex } from '../search-index.js';
@@ -212,6 +213,8 @@ function matched(index: SearchIndex, question: SearchQuestion, tree: Tree | unde
 /** Matching facts shared by the uncapped file set and the enriched text view. */
 export interface PreparedSearch {
   readonly files: () => FileSet;
+  /** The files of `files` the source generation holds a match in; a recorded case rests on the last run, not the generation. */
+  readonly generationFiles: () => ReadonlySet<string>;
   readonly read: (importingOf?: ImportingOf, declarations?: DeclarationLookups) => Searched;
 }
 
@@ -221,20 +224,25 @@ export function preparedSearch(index: SearchIndex, question: SearchQuestion, tre
   let coverage: Searched = { answer: { query: question.query }, area: undefined };
   const render = searchedBy(index, question, tree, root, (visit) => visits.push(visit), (found) => { coverage = found; });
   let membership: FileSet | undefined;
-  return {
-    files: () => {
+  const generation = new Set<string>();
+  const files = (): FileSet => {
       if (membership !== undefined) return membership;
       const files = new Map<string, { lines: Set<number>; kinds: Set<MatchKind> }>();
-      const file: MatchingFile = (at, line, kind = 'query') => {
+      const file: MatchingFile = (at, line, kind = 'query', recorded = false) => {
+        if (!recorded) generation.add(at);
         const one = files.get(at) ?? { lines: new Set<number>(), kinds: new Set<MatchKind>() };
         if (line !== undefined) one.lines.add(line);
         one.kinds.add(kind);
         files.set(at, one);
       };
       for (const visit of visits) visit(file);
-      return membership = matchingFiles(files, coverage);
-    },
+      return membership = matchingFiles(files, coverage, generation);
+  };
+  return {
+    files,
+    generationFiles: () => { files(); return generation; },
     read: (importingOf, declarations) => {
+      if (question.map !== undefined && coverage.answer.refused === undefined) return { answer: { query: question.query.toLowerCase(), candidateMap: candidateFileMap(root, files(), question.map, index.generation?.indexDigest) }, area: coverage.area };
       const count = importingOf === undefined ? undefined : counting(importingOf);
       const found = render(count?.of, declarations);
       if (count === undefined) return found;
@@ -244,10 +252,12 @@ export function preparedSearch(index: SearchIndex, question: SearchQuestion, tre
   };
 }
 
-function matchingFiles(files: ReadonlyMap<string, { lines: Set<number>; kinds: Set<MatchKind> }>, found: Searched): FileSet {
+function matchingFiles(files: ReadonlyMap<string, { lines: Set<number>; kinds: Set<MatchKind> }>, found: Searched, generation: ReadonlySet<string>): FileSet {
   if (found.answer.refused !== undefined) throw new Error(`\`search\` searched nothing: ${found.answer.refused}.`);
   const qualifications = new Map<string, string>();
   for (const [at, { kinds }] of files) {
+    // A file only a recorded case named rests on the last run, which may name a test since renamed or gone.
+    if (!generation.has(at)) { qualifications.set(at, 'a recorded test case, as of the last run'); continue; }
     if (kinds.size === 1 && kinds.has('query')) continue;
     const labels = (['query', 'near', 'loose'] as const).filter((kind) => kinds.has(kind)).map((kind) => `${kind} matches`);
     qualifications.set(at, `${labels.join(' and ')}${kinds.has('query') ? '' : ', not exact'}`);
@@ -268,7 +278,7 @@ function matchingFiles(files: ReadonlyMap<string, { lines: Set<number>; kinds: S
 }
 
 type MatchKind = 'query' | 'near' | 'loose';
-type MatchingFile = (at: string, line?: number, kind?: MatchKind) => void;
+type MatchingFile = (at: string, line?: number, kind?: MatchKind, recorded?: boolean) => void;
 
 /** Matched index rows as file coordinates, without decoding hidden signatures or docs. */
 function indexedFiles(index: SearchIndex, published: Iterable<number>, exported: Iterable<number>, file: MatchingFile): void {
@@ -316,7 +326,7 @@ function searchedBy(
   const read = declaredMatches(root, question.query, area?.files, cap(ELSEWHERE_CAP), told, filesOf);
   const declared = read?.declared;
   const aliases = aliasMatches(root, question.query, area?.files);
-  const tests = root === undefined ? undefined : recordedTests(suiteCaseNames(root), question.query, area?.files, cap(ELSEWHERE_CAP), filesOf);
+  const tests = root === undefined ? undefined : recordedTests(suiteCaseNames(root), question.query, area?.files, cap(ELSEWHERE_CAP), (visit) => filesOf((file) => visit((at, line) => file(at, line, 'query', true))));
   const membersUnread = root === undefined ? [] : membersUnreadOf(root, question.query, area?.files);
   const others = hits.length > 0 || rest.total > 0 || (declared?.total ?? 0) > 0 || (thirdParty?.total ?? 0) > 0;
   // A row that holds the words adds nothing to an answer; the row that is the question does.

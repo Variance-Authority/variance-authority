@@ -49,7 +49,8 @@ export function searchReading(help: Help, question: SearchQuestion, invocation: 
     membership: prepared.files,
     read: () => {
       found ??= prepared.read(importingOf(help, invocation?.root), declarationLookupsOf(help, invocation?.root));
-      printed.set(help, { ...asked, files: footprint(found) });
+      // bound: this question's materialized candidate files the generation matched, not a native index listing.
+      printed.set(help, { ...asked, files: found.answer.candidateMap === undefined ? footprint(found) : prepared.generationFiles() });
       return found;
     },
   };

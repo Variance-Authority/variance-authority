@@ -1111,6 +1111,10 @@
         "writePages": "function"
       },
       "./tools": {
+        "CandidateEvidence": "interface",
+        "CandidateFile": "interface",
+        "CandidateGroup": "interface",
+        "CandidateMap": "interface",
         "Containment": "interface",
         "DeclarationLookups": "interface",
         "ExportedMatch": "interface",
