@@ -1,5 +1,11 @@
 # @variance-authority/observe
 
+## 0.36.0
+
+### Patch Changes
+
+- c1c21d7: A subject that holds a `<canvas>` or `<video>` is no longer compared from a replay of its markup, which draws it blank and reads `unchanged` whatever the drawing does. The deferred capture, in the Playwright fixture and in `observe`, refuses it and names the fix: `materialization: { kind: 'in-place', browser }`, which photographs the live page.
+
 ## 0.35.0
 
 Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.

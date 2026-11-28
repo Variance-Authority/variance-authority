@@ -1,5 +1,255 @@
 # @variance-authority/cli
 
+## 0.36.0
+
+### Minor Changes
+
+- 3c62463: With `badge: 'true'`, the review action's `coverage-page: 'true'` also keeps the
+  page on a push to the default branch: `coverage.html`, the one file of a commit
+  with no parent at `refs/coverage/<branch>`, pushed with the badge and replaced
+  on each push the way the badge is, so the default branch's page has an address
+  that stays the same. With `comment: 'false'` the page is handed on with the
+  review to the job with `from`.
+- a5e7385: Add `variance coverage --format html`: the coverage answer as one
+  self-contained page to open in a browser. It shows each suite's regions run,
+  run only at load and loaded, with what changed them since the base. It shows
+  what each kind of test runs alone and what several share, and every directory
+  no suite loads; with `--packages` every package with its files, and with
+  `--fan-in` the test files that cover each. The review action's new
+  `coverage-page: 'true'` input uploads the page unzipped and links it from the
+  comment and the step summary.
+- e8ef5cb: `variance view`'s History tab shows what surrounded each kept run: the highest load and resident memory any line of its cases ended at, and the machines the runs record the share kept with it names, with how many test files each ran. A run that kept none of them shows blanks. `machinesIn` is exported from `@variance-authority/sense`: `machinesBeside` of a runs record's text, as a share keeps it beside a record.
+- e03b29b: `ask orient --files <path>:<line>` and `docs_orient` name the declarations the line is in, from the source index, whether or not a recorded case ran it. A new part, `Lines asked about`, comes after the files asked about, with one row per line: `src/cart.ts:13  in class Basket > method total (lines 12–14)`, outermost first, with the lines of the innermost declaration. Declarations that share the line are side by side, `in function a, function b (line 2)`, and one is within another only as the parse records it. A line in no declaration is `at the top level of the module`. In a language whose members the index does not read, such as Python or Rust, a line in a class, a type or no declaration says it may be in a member. A file the index holds no parse of says so, and a file changed since `variance index` parsed it is not answered from that parse. Before, only the recording answered a line, so a line in an interface, a type or a function no case ran was not named. The list of files asked about keeps the `:<line>` as asked, and the journeys head names the kind of the function it narrows to: `in function total (lines 4–9), which 3 cases ran`.
+
+  `variance index` rebuilds the source index once: its format version is 54, which stores the last line of each top-level declaration, member and nested function, and the kind of each member: `property`, `method`, `getter`, `setter` or `accessor`. `MemberDeclaration`, `NestedDeclaration` and `SourceSymbol` carry `endLine`, and `MemberDeclaration` carries `kind`. `orientAround` takes the lines asked about and returns `lines`, each holder with its `depth` and each line with whether its file `changed`.
+- 1687111: `variance python` runs a pytest suite with a recorder built on CPython's
+  `sys.monitoring` and records which functions each test ran, so `select` and
+  `covering` answer a Python change as they answer a Node or Rust one. It needs
+  CPython 3.12 or newer.
+- f4fc9dd: `share --publish --from-queue` publishes the pull request's run when the merge queue's run kept no record
+
+  A merge queue's run that ran no shard, or failed and was retried, kept no record, and the push that landed its commit published nothing until the whole run finished. The push now reads the latest green `pull_request` run of the same workflow at the landed merge's second parent, the pull request's head. That run tested the head merged with the record's commit, as `carry merge` makes it. Its records are published at the landed commit, marked partial as the queue's are, only when the head merged with the landed merge's first parent is the landed commit's own tree, and when the records name the merge `carry merge` makes of those two commits. A different tree, another merge, no green run or no record publishes nothing, and the line says which. The line `read from pull request run <id>, …` opens a publish that read it.
+
+  `restateRecord` in `@variance-authority/sense/test-selection` states a record made at one commit at another commit of the same tree.
+- f61e34b: Use the CLI's question spelling in composed source answers
+
+  The CLI library exports `invocationOf` so callers of registered tools use the
+  same command and flag spelling as `variance ask` in their suggested follow-ups.
+- 49657d3: Each timed statement records what surrounded it as it ended
+
+  Beside a statement's time, a cut case under Vitest, Jest or Rstest now keeps
+  the machine's 1-minute load average and free memory, the test process's
+  resident memory, and the nodes the statement added to a jsdom or happy-dom
+  page. A figure the realm cannot read is absent, never 0: Windows reports no
+  load average, and a realm without a page adds no nodes. `variance story`
+  prints them under each statement it explains from the record, and `variance
+  ask slowest-tests` beside the slowest statement of each case, as `as it ended:
+  load 16.25, RSS 300 MiB, 0 MiB free, 31 nodes added`. Each is one reading, and
+  nothing selects, caches or judges a test by it.
+- d2f9caa: `variance ask ran --story` says when each step of a live execution ran
+
+  A head started with `VARIANCE_AUTHORITY_STORY=1` stamps each step with its
+  machine's clock. The execution's first row says when it began and how long it
+  took, or how far it was recorded where the end of any head listed was not seen. Each step says how
+  far into it the step ran, the time to the next recorded step and that time's
+  share. Every head of an execution, and every later telling of it, is placed
+  from the same beginning, and `told again` says how long after the list above
+  ended it began, or after the last recorded of it where its end was not seen. The
+  time includes code the build put no probe in and waiting; it is not the
+  function's own time. Two executions whose steps differ only in time still
+  compare equal. A test's story has no times.
+- 19dd7f4: `variance ask test-claims` (`docs_test_claims`) holds one test against what it
+  says. It lists its claims, which are its name and, when the run kept an Eyes
+  journal, the steps and assertions it made in order. It then lists the
+  functions it ran, with structure counted apart, and what it adds: the tests
+  that ran the same regions, structure aside, its pieces and wholes, and the
+  regions only it enters. Last come the regions of the functions it entered that
+  it did not take — a branch, a case, a loop body, a handler — each with whether
+  another test takes it. It runs nothing and reads no source.
+
+  The `variance-testing` skill gains the step that uses it: judge each claim in a
+  test's name against what it ran, then choose one of five actions, from `keep` to
+  `delete`.
+
+  `recordedSteps` from the new `@variance-authority/mcp/recorded-steps` entry
+  reads one recorded case's steps and assertions from a record, by the case's id,
+  in the same form `variance_test_attention` prints them. Each suite `testsRan`
+  returns now names the `recording` it was read from. Each case a journey answer
+  names carries its `id`, and each region `testsRan` returns says whether it is
+  `structure` and whether the test entered the function it is written in
+  (`functionEntered`). `@variance-authority/eyes/archive` exports
+  `parseJournalRow`, which validates one journal a record keeps, named by its
+  case and attempt.
+- bcfcd3a: The Timeline groups test files by worker lane
+
+  The Playwright recorder keeps, per test file, the worker lane
+  (`parallelIndex`) of its earliest attempt, in a new `tests.lane` column
+  (record format 14). `variance view` draws one row group per lane; a record
+  with no lane is drawn as before.
+- d781755: `variance trace` prints a recorded run as OTLP spans
+
+  A recorded Playwright run now carries the epoch millisecond each file started
+  at, and `variance trace --format otlp` renders the run as OpenTelemetry spans —
+  run, file, phase, case — that any trace viewer opens on the runner's own clock.
+  A file whose runner gave no start has no span. Records written before this open
+  with every file unstarted.
+- a30f5ee: `variance view` gains a History tab: every record the share keeps of the
+  mainline in the window, one row per commit and suite with its time, test
+  files, the source files its tests reached, cases, retried cases and the time their earlier attempts cost; each test
+  file's mean over the window; every retried case; and the commits whose suite
+  time moved most, over the test files both runs timed, with the files that
+  moved it, each commit measured from the one before it on the mainline's
+  first-parent history, and none measured across a record it could not read; a
+  suite time is drawn only where every file was timed; a record it does not draw is named with why, and a
+  commit the clone's fetched mainline does not reach is drawn and said to move
+  nothing. `--since <n>d` or `<n>w`
+  sets the window, 14 days by default. Each record is read whole once and its
+  summary kept in the cache, so a second open of the same commits fetches
+  nothing but the share's listing; a cold read reports its progress on stderr,
+  and `prune-cache` clears a summary not opened for 14 days.
+
+  `@variance-authority/sense` publishes `retriedIn`, a record's retried cases
+  with every attempt, and `fileTimes`, each test file's recorded time, the one
+  `recordedTimes` reads; `@variance-authority/sense/test-selection` publishes
+  `pool`, the bounded worker pool the tab reads the share through.
+- e1b94e1: `variance view` writes the whole execution record as one page to open from disk
+
+  The page carries the record compressed and reads it in the browser, with
+  nothing cut: every test file, case, source file, region and precondition, the
+  run before where the record kept it, and every other section as it is stored.
+  Each table filters and sorts, and every name opens what it holds. The file is
+  self-contained, asks no network, and the command prints its path and starts no
+  browser.
+- bf3106d: `variance view` shows what surrounded a run. A case's Time by line lists each line's load average, resident memory, free memory and nodes added; the Cases table adds the highest load and resident memory each case's lines ended at; and where the runs record beside the record names machines, the Test files table names the machine each file ran on and the Overview lists the machines with how many test files each ran. Where a runs record is there and names none at the record's commit, the Overview says why. `machinesBeside` is exported from `@variance-authority/sense`: the machine each test file ran on, as the runs beside a record name it at its commit, or why none is named.
+
+### Patch Changes
+
+- e40695e: Bare `variance ask` prints each question in two lines: what it takes, and the
+  first sentence of what it answers. The listing is about half its former size.
+  A question's whole description is the one its MCP tool carries at `tools/list`,
+  which the listing's footer names.
+- 151f428: `variance ask packages` and `docs_packages` take `--limit` and `--offset` (`limit` and `offset` over `serve` and MCP), and show 20 rows of each list when neither is said. A list cut short ends with how many rows it left and the offset of the next page, `1168 more not shown; --offset 20 shows the next 20.`; one offset skips the same number of rows at the top of every list. On a workspace of over a thousand packages the first answer was every row of every list. In every paged answer, `discover` and `covering` included, an offset past a list of one row says ``past the last of 1 row.``, not `1 rows`.
+- c1c21d7: A subject that holds a `<canvas>` or `<video>` is no longer compared from a replay of its markup, which draws it blank and reads `unchanged` whatever the drawing does. The deferred capture, in the Playwright fixture and in `observe`, refuses it and names the fix: `materialization: { kind: 'in-place', browser }`, which photographs the live page.
+- 6c262c1: A name a file only binds is no longer reported as declared there. `symbol` and `uses` said "declared, not exported" of a name a file destructures out of a value, such as `const { A } = require('./a')`, and of one set to a whole module, `const a = require('./a')`. They now say "bound, not declared", after the files that declare the name and without counting among them, and when nothing else answers the name, the answer says that no file declares it and lists the files that bind it. A file that both binds a name and declares it, such as a type beside a destructured value, is answered at the declaration. The file set `symbol` gives to `intersection` no longer holds a file that only binds the name. `classify` names no such file as the one that declares it, whether or not the file exports the name. `symbol` and `uses` answer an exported name as exported, as before; one set to a whole required module has kind `binding`, where it had `const`.
+
+  `variance index` rebuilds the source index once: its format version is 51, in which a top-level name set to a `require` of a constant specifier has kind `binding`.
+- e9b069b: `ask classify` and `docs_classify` look up the files a request spells: a path
+  from the workspace's root, and a file's name with its extension, each listed
+  with what the file declares. A path that names nothing is read as the words in
+  it, as before.
+- eccc809: Make `ask classify` read the published source snapshot for file-name matches,
+  declarations and area ranking. Classification no longer lists live Git paths
+  or rereads manifests for discarded metadata, and never refreshes the index.
+  Run `variance index` explicitly when a new snapshot is needed.
+
+  Mark identifiers whose snapshot lookup was unavailable as not looked up, rather
+  than claiming they name nothing.
+- 7dd301a: The coverage page (`variance coverage --format html`) opens on what the change
+  did since the base: the whole ratio before and after, each suite's ratio before
+  and after with the regions that started and stopped running, the test files
+  whose reach moved and the source files where regions started and stopped
+  running. `coverageChange` in `@variance-authority/sense/test-selection` names
+  that per file, in `files`, so each side sums what the suite's parts sum. What no suite loads
+  is one line under it. Packages are ordered by regions not run, and the Kinds
+  tables are folded. On a phone the page no longer scrolls sideways: tables become
+  stacked rows, the header scrolls away, and no text is under 12 px.
+- e134acb: `ask discover` still refuses a pattern flag given twice — `--path`, `--declares`,
+  `--text`, `--except-path` or `--except-declares` — and the refusal now gives the
+  one value that matches either, ready to run:
+  `` `--path` was given more than once. It takes one regular expression; to match either, give `--path '(?:^packages/cli/)|(?:^packages/help/)'` ``.
+- 25aa00a: A `grep` start point that answers nothing is answered from the folder around it that does
+
+  `variance ask grep` and `docs_grep` asked with one start point that is not
+  found, or that reaches no match, say so in the first line and list the lines that
+  match from the nearest folder around that path with one. The folder always holds
+  the path and is never the root, and the exit code is as it was. An answer asked with several start points, with
+  `limit` or with `offset`, around which no folder has a match, or whose path has
+  a `.` or `..` folder in it or a `*` other than a last `/*`, is unchanged.
+- 06e9880: A `grep` answer past 20 lines says where they are
+
+  `variance ask grep` and `docs_grep` asked with a start point answer more than
+  20 matching lines with the nearest 10 of them, then the folders and files that
+  hold them all: at most 10 rows, most lines first, whose counts add up to the
+  total. Where one folder holds most of the lines in more parts than there are
+  rows, the widest parts have a row each and the others share one. The answer
+  names the `limit` that lists every line and, with one start point, the
+  `discover` question that lists the files of the first folder or file, where
+  `discover` lists the same files. An answer of 20 lines or fewer, or one asked
+  with `limit`, is unchanged. Asked with `offset` and no `limit`, or with `test`,
+  it shows 20 lines in place of 200 and counts the rest.
+
+  `Tree.scopedGrep` is required, takes `limit` and `offset` only where the caller
+  said them, and takes the caller's `shell` in place of `offsetFlag`.
+
+  Where an answer spells a question from its inputs, a flag is joined to a value
+  that starts with `-` with `=`, so the printed command runs as it is. The
+  commands `search`, `packages` and the dependency answers print are quoted as
+  the others are: `,`, `%` and `#` stand plain, and an empty value, one that
+  starts with `#` or `=`, or one that holds `^`, which zsh's `extendedglob`
+  expands, is quoted.
+
+  `@variance-authority/mcp/tools` exports `shellWord`, the quoting these commands
+  share.
+- 63a6b97: A question about names (`ask symbol`, `ask uses`, `ask search`) no longer loads the reader of the last run's report, with the image library behind it, nor the claim and watcher readers; on Kibana each call is about 15–25 ms faster.
+- 0bdfc04: `ask symbol` and `ask search` read only the installed packages that can answer the question. The dependency catalogue now carries lookup tables for names, the words in names and docs, and purpose stems, so a question decodes the entries that hold what it asks rather than every entry. A package that ships no declarations is returned for a name only when it has a README to answer from, or when the question names the package. On Kibana, `ask symbol --name Button` went from 470 ms to 353 ms and `ask search --query recalculation` from 415 ms to 372 ms, with the same answers to the questions measured. The native lexicon question no longer returns a package that ships no declarations and has no readable README for a name it was not asked about; the CLI already left those out, so its output does not change. The catalogue format moves to version 4, and the next index rewrites it.
+- 0254b81: A fetched mainline record is named only in its own commit's directory. The
+  name beside those directories now means only a read a run handed this checkout.
+  One walk in the native addon finds the kept records behind a commit, nearest
+  first, and stops at the last of them, for the pick, the fetch, the history view
+  and `ask symbol --line` alike, where two walks and two orders did before. A
+  leftover name beside the directories no longer keeps its record from the prune.
+- d4f610e: The MCP tool definitions are shorter. Each says what the tool answers, what it takes and when to pick it over its neighbours; the layout of each answer is left to the answer and the skill references. `tools/list` on `variance-authority-help .` sends 19,929 bytes for its 19 `docs_*` tools, down from 34,766, and `variance serve` sends 32,577 bytes for its 34 tools, down from 48,186.
+- 822e144: Reuse export-file row grouping during native symbol and uses questions, avoiding repeated scans of unrelated exports when a name has many declarations.
+- cb233df: The `variance` executable answers `ask symbol --name` and `ask uses --name` itself for a name files export and no entry publishes, where it started Node before: one export or several, an export passed on from another file, a renamed import, a type-only export, the members of a class, an export nothing imports, and a file imported by path that exports more than the name asked. Over 600 questions asked of a large monorepo (300 names, each asked of `symbol` and `uses`), it answers all 600 itself, where it answered 322. `ask uses --name Button` there takes 0.12 s, where handing it to Node took 0.34 s.
+
+  Its answer is the one Node gave, but for an import by path that reaches no one declaration: one whose file exports no declaration of the name, and one the source index resolved to no file, as in a checkout whose packages are not installed. Both are listed apart, credited to no declaration, where Node credited the first to the first declaration it read and the second to the declaration its package name led to. `ask uses --file` on a file whose export the source index binds to no declaration says so and exits 2.
+
+  `docs_symbol` and `docs_uses`, asked through `variance ask` or over MCP, answer from the same Rust code as the executable. They read the source index of the checkout they are asked about: a host that names no checkout, holds no snapshot, or has no source index is refused, where it got an answer read from the TypeScript the host held; on such a host, start the MCP server with a root and run `variance index` there. An answer the index cannot give says why, in the same words through either entry, and the executable never hands `symbol` or `uses` to Node for it: a store published for another checkout or that does not read, `GIT_DIR` or `GIT_WORK_TREE` set, a configuration that does not parse, and a checkout path that is not UTF-8 are refused with exit 2.
+- 0133d43: Run source queries and index publication from the Rust `variance` executable. The npm install selects the executable for macOS arm64, Linux glibc arm64 or x64, and Windows x64.
+- e0b8f25: `ask intersection` refuses an `intersection` inside another by saying so, and asks for its questions in the outer one, instead of claiming `intersection` answers no set of files.
+- 97f6a31: A text answer that says which record or report it read no longer prints the
+  absolute path of the cache file. That covers the `record of "<suite>":` line of
+  `covering` and `select`, the `report:` line of `ask`, the `--since` heading of
+  `covering` in `text` and `refs`, the empty whole-file `covering` answer, the
+  `covering --cases last` line that says no run came before to compare, and
+  what `ask orient --files` says of its recorded cases and the source index. The
+  text names the record by its line, its commit and whose it is. The path stays
+  in the structured answers: `from` under `covering --format json`, and
+  `journal.at` under `select --format json`.
+- 0bf3d1e: `ask orient --files` lists what a file declares, however many names it binds and does not export before them. A name a file only binds, such as `const { A } = require('./a')` or `const a = require('./a')`, took one of the 40 rows, so a file that opens with more than 40 of them showed none of its functions and classes. Such a name now takes no row unless the file exports it, and one line counts the names bound and not declared. A file that only binds names says that it declares nothing at the top level, with that count. `FileDeclarations` carries the count as `bound`, and `exportsKept` says whether the index kept the file's exports. `ask classify --query <path>` reads the same outline, so it lists more of the functions of a file with more than 400 top-level names.
+- 3987bbd: Guide CLI and CI orientation through package scripts, binaries and command registration before tracing the selected source.
+- ab7660c: Clarify directory-local text discovery versus import reach, and show how to select consumers within an observed area. Keep lexical suggestions, import relationships and runtime loading distinct.
+- 8538dff: Guide behavior traces through the value's producer, transformations, consumer and decisive conditions, with source-backed conclusions and explicit unknowns.
+- 9b1c890: Each landing in the runs record names the class of machine its run ran on: the CPU and architecture, the OS, the cores (with a Linux cgroup CPU quota beside them), the memory (with the cgroup limit), Node, the CI image where the environment names one, and the workers Vitest, Jest or Playwright ran in. Each field is absent where unknown, and none names a host. A fold of shards keeps each shard's machine, and `variance ask slowest-tests` ranks files once per class of machine rather than across them. Selection never reads it, and it enters no cache key. `recordExecution` takes `workers`.
+- 382f150: `VARIANCE_AUTHORITY_BUDGET` now bounds a local seam's run of a suite a change runs whole because it moved a `before` entry: only the test files the change edited run, the timed ones shortest first and as many as fit, a new one besides, and the first note says the rest of the suite is left for CI, which runs it whole.
+- 4767959: Expose complete intersection file membership to callers composing questions, preserving evidence and unread notes alongside the existing text answer.
+- fb3af6e: Keep the ranked area's directory and the caller's import scope in `ask classify`'s next lexical question. The printed intersection uses existing search and directory-membership questions, preserving every supplied start point.
+- baa6fbf: `ask search` shows an exported name where it is declared and where it is published from. A name a barrel passes on was shown at the barrel with `(+2 more files)`, which hid the declaring file; on Kibana, `ChatCompleteAPIResponse` read `inference-common/index.ts:8 (+2 more files)`. The row now names the declaration's file and line, then `· exported from` the file other packages import it through, `export *` included.
+- 785d38e: A worktree's fetch of the mainline's record keeps it in the primary checkout's
+  cache, so every other checkout of the repository reads it, and removing the
+  worktree keeps it. Each checkout reads the nearest kept record its `HEAD`
+  contains, not the newest one on the machine, so a newer fetch elsewhere never
+  hands it a record of commits it lacks; a directory or HTTP share keeps only
+  the newest, and every checkout reads that. A worktree that cannot write there keeps
+  it in its own and says why, and a record a run handed on stays in the checkout that
+  received it.
+- c92692b: The last line of a `variance ask` or `docs_` answer that was read without looking at the files now says what that means for the answer. It was "Snapshot <time>, not compared with the checkout: run `variance index` if files changed since." and is "Snapshot <time> may miss later changes: run `variance index`.", with the reason in parentheses where the files were to be looked at and could not be.
+- 2305369: Map search candidate files before opening names
+
+  Use `variance ask search --query "retry payment" --map root` to group every
+  candidate file by code-map area and dependency layer. Follow emitted group
+  drills through areas and packages to files, retaining near-match qualifications
+  and unread frontiers. `--format json` includes the map as `candidateMap`.
+  The optional view leaves default detailed search unchanged.
+- 2b1f275: `ask symbol --name` lists at most `--limit` imports by path, 5 when not said, under each file they name and under each kind that reaches no declaration, where it listed every one. The rest are counted on one line that names the `ask uses --name <name>` question listing them, nearest to a file you name first, with `--file` and the declaring file where there is one. On a large monorepo, `ask symbol --name useKibana` answers in about 25 kB, where it took about 197 kB.
+- e456cf2: `uses` and `discover --imports` follow a variable the file writes again. `let m = await import('./a')`, then `m = createStub()`, then `m.foo()` listed `foo` as read off `./a`, though `m` no longer held it, and `if (offline) m = await import('./b')` before `m.foo()` listed `foo` off `./b` alone, though `m` may still hold `./a`. A read off such a variable is now listed for each module a write that may reach the read put there, and for none after a write of something else on every path. A write in a branch, on the right of `&&`, `||` or `??`, in a `??=` or on its right, in an optional call's arguments, or inside a loop, a `switch`, a label or a `try`, which a jump or a throw may leave from anywhere, adds its module beside the one held before; a write inside a function may run at any time, so its module stays held from that write on; and a read inside a function, or a type query, reads each module the variable was given above it. The same holds for a variable a `require` loads.
+
+  `variance index` rebuilds the source index once: its format version is 53, in which a read off a variable the file writes again carries the modules the writes that may reach it put there.
+- 08b2485: `ask uses --name` answers one declaration of a name in full, the one most places import, among the published ones when any is, and names each other declaration a file exports on one line, with how many places import it, where it answered every one with its own imports. `--file` with the file one is declared in answers that one alone, as before. Declarations a file keeps to itself and members are still answered after the imports. On a large monorepo, `ask uses --name useKibana`, with 60 other declarations, answers in about 18 kB, where it took about 111 kB.
+- 5919be7: `uses` and `discover --imports` list a name read off a module that CommonJS code loads with `require`. `const { A } = require('./a')`, renamed or not, `require('./a').A`, and `const a = require('./a')` with `a.A` read after it were no use of `A`, at the top level or in a function, so `uses` said that nothing imports a name whose only readers are such files. Each is now listed on the line that reads the name, as a read off an awaited `import()` is. A `typeof import()` cast written on a `require` no longer decides which module it reads: the `require` does. A `require` whose module goes on whole, held or in place, as in `module.exports = require('./a')`, is listed as passing the module on whole. A `require` of a computed specifier, and another object's `require`, still record no name.
+
+  `variance index` rebuilds the source index once: its format version is 52, in which a request made with `require` carries the names read off it.
+
 ## 0.35.0
 
 ### Minor Changes
