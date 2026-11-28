@@ -197,10 +197,8 @@ export function keptBehind(checkout: string, from: string, kept: ReadonlySet<str
     if (held.size === 0) return found;
     // The line is walked on past the window, only for a commit `from` holds there: a merged branch's commit is not on it.
     if (along.firstParent === true) {
-      // No further back than the oldest of them, so the walk costs what ordering them needs and not the line's age.
-      const oldest = Math.min(...ask(['log', '--no-walk', '--ignore-missing', '--format=%ct', '--stdin'], [...held]).map(Number));
-      const since = Math.max(oldest, along.landedAfter === undefined ? 0 : Math.floor(along.landedAfter / 1000));
-      for (const commit of ask(['rev-list', '--first-parent', `--skip=${WALK}`, `--max-age=${since}`, from])) if (held.has(commit)) found.push(commit);
+      // Bounded by nothing a date says: dates need not rise along the line, and git stops at the first commit older than a bound.
+      for (const commit of ask(['rev-list', '--first-parent', `--skip=${WALK}`, ...bound, from])) if (held.has(commit)) found.push(commit);
     } else found.push(...ask(['rev-list', '--no-walk', '--ignore-missing', ...bound, '--stdin'], [...held]));
   } catch {
     return found;

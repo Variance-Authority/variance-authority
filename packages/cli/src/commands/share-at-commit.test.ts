@@ -96,6 +96,26 @@ describe('a mainline record kept at its commit', () => {
     expect(keptBehind(dir, 'main', new Set([first, side]))).toEqual([side, first]);
   });
 
+  it('walks past the window to a kept commit behind one dated before it, as commit dates need not rise along the line', async () => {
+    const dir = await mkdtemp(join(home, 'skewed-'));
+    await git(dir, 'init', '--quiet', '-b', 'main');
+    const stream = Array.from({ length: 1100 }, (_, index) => [
+      'commit refs/heads/main',
+      `mark :${String(index + 1)}`,
+      `committer Test <test@example.com> ${String(index === 1 ? 1_000_000 : 2_000_000 + index)} +0000`,
+      'data 0',
+      ...(index === 0 ? [] : [`from :${String(index)}`]),
+      '',
+    ].join('\n')).join('');
+    await new Promise<void>((done, failed) => {
+      const child = execFile('git', ['fast-import', '--quiet'], { cwd: dir }, (error) => (error ? failed(error) : done()));
+      child.stdin!.end(stream);
+    });
+    const first = await git(dir, 'rev-list', '--max-parents=0', 'main');
+
+    expect(keptBehind(dir, 'main', new Set([first]), { firstParent: true })).toEqual([first]);
+  });
+
   it('walks to a record kept behind the merge base past one kept ahead of it', async () => {
     const dir = await mkdtemp(join(home, 'ahead-'));
     await git(dir, 'init', '--quiet', '-b', 'main');
