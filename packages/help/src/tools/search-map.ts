@@ -1,7 +1,7 @@
 // compass: variance-authority.report.agent-surface
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { FileSet } from '@variance-authority/mcp/tools';
-import { codeMapPage, packageLayers, sourceIndexPath } from '@variance-authority/sense';
+import { codeMapPage, commonDirectory, packageLayers, sourceIndexPath } from '@variance-authority/sense';
 import { ownerOf } from './classify-words.js';
 import { noCodeMap, STALE_MAP, unfoldedCodeMap } from './code-map-format.js';
 
@@ -81,7 +81,7 @@ const bare = ({ placed: _placed, ...file }: Held): CandidateFile => file;
  */
 function filePage(name: string, files: readonly Held[]): Pick<CandidateMap, 'groups' | 'entries'> {
   if (files.length < 2 || JSON.stringify(files.map(bare)).length <= 4000) return { entries: files.map(bare) };
-  const directory = commonDirectory(files);
+  const directory = commonDirectory(files.map(({ file }) => file));
   const by = new Map<string, Held[]>();
   const direct: Held[] = [];
   for (const file of files) {
@@ -92,16 +92,8 @@ function filePage(name: string, files: readonly Held[]): Pick<CandidateMap, 'gro
     by.get(next)!.push(file);
   }
   if (by.size === 0 || direct.length > 1 && JSON.stringify(direct.map(bare)).length > 4000) return namePage(name, files);
-  const named = new Map([...by.values()].map((held) => [commonDirectory(held), held]));
+  const named = new Map([...by.values()].map((held) => [commonDirectory(held.map(({ file }) => file)), held]));
   return { groups: groups(name, named, ''), ...(direct.length === 0 ? {} : { entries: direct.map(bare) }) };
-}
-
-/** The deepest directory, ending in `/`, that holds every file; `''` at the checkout's root. */
-function commonDirectory(files: readonly Held[]): string {
-  const first = files[0]!.file;
-  let directory = first.slice(0, first.lastIndexOf('/') + 1);
-  for (const { file } of files) while (!file.startsWith(directory)) directory = directory.slice(0, directory.lastIndexOf('/', directory.length - 2) + 1);
-  return directory;
 }
 
 function groups(name: string, by: ReadonlyMap<string, readonly Held[]>, mark: string): CandidateGroup[] {

@@ -6,6 +6,7 @@
  */
 
 import { posix } from 'node:path';
+import { commonDirectory } from '../checkout-path.js';
 
 /** The longest pattern this plugin adds: picomatch refuses one past 65 536 characters. */
 const PATTERN_LIMIT = 60_000;
@@ -30,10 +31,7 @@ export function excluded(root: string, paths: readonly string[]): string[] {
 
 function grouped(paths: readonly string[]): string[] {
   if (paths.length < 2) return paths.map(escaped);
-  const common = paths.reduce((prefix, path) => {
-    while (!path.startsWith(prefix)) prefix = prefix.slice(0, prefix.lastIndexOf('/', prefix.length - 2) + 1);
-    return prefix;
-  }, paths[0]!.slice(0, paths[0]!.lastIndexOf('/') + 1));
+  const common = commonDirectory(paths);
   const patterns: string[] = [];
   let group: string[] = [];
   let length = 0;
