@@ -44,9 +44,10 @@ fn lacked(checkout: &Path, from: &str, wanted: &HashSet<&str>) -> Option<HashSet
 
 /// The commits of `kept` that `from` contains, nearest first. `first_parent`
 /// counts only that line, where a mainline publishes; `landed_after`, in
-/// seconds, leaves out what was committed before it. A walk git refuses
-/// answers what it read before the refusal.
-pub(crate) fn kept_behind(checkout: &Path, from: &str, kept: &[String], first_parent: bool, landed_after: Option<i64>) -> Vec<String> {
+/// seconds, leaves out what was committed before it; `first` stops at that
+/// many found, so a caller reading them one by one walks no further than it
+/// reads. A walk git refuses answers what it read before the refusal.
+pub(crate) fn kept_behind(checkout: &Path, from: &str, kept: &[String], first_parent: bool, landed_after: Option<i64>, first: Option<u32>) -> Vec<String> {
     let mut wanted: HashSet<&str> = kept.iter().map(String::as_str).collect();
     let mut found = Vec::new();
     if wanted.is_empty() {
@@ -65,6 +66,9 @@ pub(crate) fn kept_behind(checkout: &Path, from: &str, kept: &[String], first_pa
         for (walked, line) in BufReader::new(out).lines().map_while(Result::ok).enumerate() {
             if let Some(commit) = wanted.take(line.as_str()) {
                 found.push(commit.to_owned());
+                if first.is_some_and(|first| found.len() >= first as usize) {
+                    break;
+                }
             }
             if walked + 1 == WALK && !wanted.is_empty() {
                 // Past the window only a commit `from` holds is waited for: a kept commit ahead of it never comes.
@@ -135,7 +139,7 @@ pub(crate) fn kept_mainlines(checkout: &Path, read_roots: &[String], selected: O
         }
     }
     let behind: Vec<String> = kept.iter().filter(|(_, one)| !one.latest).map(|(_, one)| one.commit.clone()).collect();
-    let behind: HashMap<String, usize> = kept_behind(checkout, "HEAD", &behind, false, None).into_iter().zip(1..).collect();
+    let behind: HashMap<String, usize> = kept_behind(checkout, "HEAD", &behind, false, None, None).into_iter().zip(1..).collect();
     let rank = |one: &Pointer| if one.latest { Some(0) } else { behind.get(&one.commit).copied() };
     kept.sort_by(|(_, a), (_, b)| {
         let (at, bt) = (rank(a), rank(b));
@@ -160,6 +164,6 @@ pub fn kept_mainlines_napi(checkout: String, read_roots: Vec<String>, selected: 
 /// The commits of `kept` that `from` contains, nearest first.
 /// bound: the kept commits the caller names
 #[napi(js_name = "keptBehind", catch_unwind)]
-pub fn kept_behind_napi(checkout: String, from: String, kept: Vec<String>, first_parent: bool, landed_after: Option<i64>) -> Vec<String> {
-    kept_behind(Path::new(&checkout), &from, &kept, first_parent, landed_after)
+pub fn kept_behind_napi(checkout: String, from: String, kept: Vec<String>, first_parent: bool, landed_after: Option<i64>, first: Option<u32>) -> Vec<String> {
+    kept_behind(Path::new(&checkout), &from, &kept, first_parent, landed_after, first)
 }

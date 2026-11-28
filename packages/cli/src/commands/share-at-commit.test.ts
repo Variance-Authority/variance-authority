@@ -126,6 +126,20 @@ describe('a mainline record kept at its commit', () => {
 
     expect(keptBehind(dir, base!, new Set([tip!, behind!]), { firstParent: true })).toEqual([behind]);
   });
+
+  it('stops at the first kept commits it was asked for, and goes on from the parent of the last', async () => {
+    const dir = await mkdtemp(join(home, 'first-'));
+    await git(dir, 'init', '--quiet', '-b', 'main');
+    for (let index = 0; index < 4; index += 1) {
+      await git(dir, '-c', 'user.name=Test', '-c', 'user.email=test@example.com', 'commit', '--quiet', '--allow-empty', '-m', String(index));
+    }
+    const [tip, near, , far] = (await git(dir, 'rev-list', 'main')).split('\n');
+    const kept = new Set([near!, far!]);
+
+    expect(keptBehind(dir, tip!, kept, { firstParent: true, first: 1 })).toEqual([near]);
+    expect(keptBehind(dir, `${near!}^`, kept, { firstParent: true, first: 1 })).toEqual([far]);
+    expect(keptBehind(dir, `${far!}^`, kept, { firstParent: true, first: 1 })).toEqual([]);
+  });
 });
 
 describe('the nearest record holding an entry', () => {

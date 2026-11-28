@@ -154,13 +154,15 @@ function keptMainlines(root: string, name: string, cacheRoot?: string, selected?
  * The commits of `kept` that `from` contains, nearest first, from the addon's
  * one walk, which stops at the last of them. `landedAfter` leaves out what was
  * committed before it; `firstParent` counts only that line, where a mainline
- * publishes. Synchronous, as {@link lastFetchedMainline} cannot wait.
+ * publishes; `first` stops at that many, so a caller reading them one by one
+ * goes on from the parent of the last and walks no further than it reads.
+ * Synchronous, as {@link lastFetchedMainline} cannot wait.
  */
-export function keptBehind(checkout: string, from: string, kept: ReadonlySet<string>, along: { readonly firstParent?: boolean; readonly landedAfter?: number } = {}): readonly string[] {
+export function keptBehind(checkout: string, from: string, kept: ReadonlySet<string>, along: { readonly firstParent?: boolean; readonly landedAfter?: number; readonly first?: number } = {}): readonly string[] {
   if (kept.size === 0) return [];
   const walk = native()?.keptBehind;
   if (walk === undefined) throw new Error(`the walk behind a commit requires the Sense native addon: ${whyAbsent('keptBehind')}`);
-  return walk(checkout, from, [...kept], along.firstParent === true, along.landedAfter === undefined ? null : Math.floor(along.landedAfter / 1000));
+  return walk(checkout, from, [...kept], along.firstParent === true, along.landedAfter === undefined ? null : Math.floor(along.landedAfter / 1000), along.first ?? null);
 }
 
 /** The record `pointer` names under `readRoot`, when it is there and reads in this build. */

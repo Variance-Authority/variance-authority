@@ -14,6 +14,6 @@ export interface NativeKeptMainline {
 export interface NativeMainlineKept {
   /** The records named in `readRoots`' commit directories, of `selected` when named, in the order every reader takes them. */
   keptMainlines?(checkout: string, readRoots: string[], selected: string | null): NativeKeptMainline[];
-  /** The commits of `kept` that `from` contains, nearest first; `landedAfter` in seconds. */
-  keptBehind?(checkout: string, from: string, kept: string[], firstParent: boolean, landedAfter: number | null): string[];
+  /** The commits of `kept` that `from` contains, nearest first, at most `first`; `landedAfter` in seconds. */
+  keptBehind?(checkout: string, from: string, kept: string[], firstParent: boolean, landedAfter: number | null, first: number | null): string[];
 }
