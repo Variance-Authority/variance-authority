@@ -13,6 +13,14 @@
 import { execFileSync } from 'node:child_process';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
 
+/** The deepest directory, ending in `/`, that holds every one of `paths`, spelled with `/`; `''` when only the root holds them all. */
+export function commonDirectory(paths: readonly string[]): string {
+  const first = paths[0] ?? '';
+  let directory = first.slice(0, first.lastIndexOf('/') + 1);
+  for (const path of paths) while (!path.startsWith(directory)) directory = directory.slice(0, directory.lastIndexOf('/', directory.length - 2) + 1);
+  return directory;
+}
+
 /** The repository-relative spelling of `asked`, or why it has none. */
 export type CheckoutPath = { readonly path: string } | { readonly outside: string };
 

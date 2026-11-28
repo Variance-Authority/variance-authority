@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { checkoutPath, existedAt, existingAt, filesNamed } from './checkout-path.js';
+import { checkoutPath, commonDirectory, existedAt, existingAt, filesNamed } from './checkout-path.js';
 
 /** What a commit held, asked of a real repository: of one path, and of many in one listing. */
 
@@ -97,4 +97,11 @@ describe('filesNamed', () => {
       await rm(outside, { recursive: true, force: true });
     }
   });
+});
+
+it('names the deepest directory, ending in `/`, that holds every repository-relative path, and the root as empty', () => {
+  expect(commonDirectory(['packages/alpha/src/a.ts', 'packages/alpha/src/b/c.ts'])).toBe('packages/alpha/src/');
+  expect(commonDirectory(['packages/alpha/src/a.ts', 'packages/alphabet/b.ts'])).toBe('packages/');
+  expect(commonDirectory(['a.ts', 'packages/b.ts'])).toBe('');
+  expect(commonDirectory(['packages/alpha/a.ts'])).toBe('packages/alpha/');
 });
