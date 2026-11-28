@@ -13,8 +13,10 @@ const MAP_TEXT = 10000;
  * and `offset`. With no `limit` said, the page holds as many groups as fit the
  * text budget, at most `MAP_GROUPS`, and the next page's question starts after them.
  * Files listed beside the groups print on the first page alone, so each is read once.
+ * An unavailable map has no groups to page, and is said whole.
  */
 export function formatCandidateMap(map: CandidateMap, drill: (id: string, offset?: number) => string, page: Page | { readonly offset: number } = { offset: 0 }, spell: Spelling = spellingOf(undefined)): string {
+  if (map.unavailable !== undefined) return mapLines(map, drill, { offset: page.offset, limit: MAP_GROUPS }, spell, false).join('\n');
   const said = 'limit' in page;
   for (let limit = said ? page.limit : MAP_GROUPS; ; limit -= 1) {
     const text = mapLines(map, drill, { offset: page.offset, limit }, spell, !said).join('\n');

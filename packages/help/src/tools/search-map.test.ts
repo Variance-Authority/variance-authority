@@ -147,6 +147,15 @@ it('prints the files directly in the common directory on the first page of its g
   expect(formatCandidateMap(page, drill, { offset: 10, limit: 10 })).not.toContain('packages/alpha/src/index.ts');
 });
 
+it('says an unavailable map whole, however long its unread frontier, since no page of groups can shorten it', () => {
+  state.present = false;
+  const set = { ...membership(['packages/alpha/a.ts']), unread: Array.from({ length: 150 }, (_, i) => `Unresolved source frontier ${i}: ${'x'.repeat(80)}.`) };
+  const map = candidateFileMap(ROOT, set, 'root');
+  const drill = (id: string, offset?: number) => `variance ask search --query x --map ${id}${offset === undefined ? '' : ` --offset ${offset}`}`;
+  expect(formatCandidateMap(map, drill)).toContain(map.unavailable);
+  expect(formatCandidateMap(map, drill, { offset: 0, limit: 5 })).toContain('Unresolved source frontier 149');
+});
+
 it('keeps terminal paths and complete Unicode code points when splitting prefixes', () => {
   const set = membership(['packages/alpha/😀.ts', 'packages/alpha/😁.ts', 'packages/alpha/a.ts', 'packages/alpha/a.tsx']);
   for (const [file] of set.files) set.files.set(file, Array.from({ length: 1200 }, (_, i) => i + 1));
