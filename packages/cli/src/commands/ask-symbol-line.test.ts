@@ -175,6 +175,27 @@ describe('variance ask symbol --line', () => {
     ]);
   });
 
+  it('reads no kept mainline record for a suite whose run handed on a miss, as the other readers do', async () => {
+    const root = await recorded();
+    const head = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim();
+    const cache = process.env['VARIANCE_AUTHORITY_CACHE']!;
+    const kept = join(mainlineReadRoot(cache, 'unit'), head);
+    mkdirSync(kept, { recursive: true });
+    copyFileSync(testCoverageFile(root), join(kept, 'coverage.bin'));
+    rmSync(testCoverageFile(root));
+    await writeFetchedMainline(cache, 'unit', { mainline: 'main', commit: head, fetched: new Date().toISOString() });
+    // The mark `carry hand` leaves for a run that read no record: it names none.
+    writeFileSync(join(mainlineReadRoot(cache, 'unit'), 'fetched.json'), `${JSON.stringify({ handed: true })}\n`);
+    writeFileSync(join(root, 'variance.config.json'), JSON.stringify({ suites: { unit: { kind: 'unit', carry: 'share' } } }));
+    execFileSync('git', ['add', '.'], { cwd: root });
+    execFileSync('git', ['-c', 'user.name=fixture', '-c', 'user.email=fixture@example.com', 'commit', '--quiet', '-m', 'shared'], { cwd: root });
+    expect(await main(['index'], { out: () => {}, err: () => {} })).toBe(EXIT_CLEAN);
+
+    const answered = await run(['ask', 'symbol', '--name', 'useSessionId', '--line', 'src/page.ts:3']);
+
+    expect(`${answered.out}${answered.err}`).not.toContain('recorded test that ran the line');
+  });
+
   it('refuses a line spelled without its number', async () => {
     await recorded();
 

@@ -91,22 +91,23 @@ pub(crate) fn recordings(layers: &Layers, config: Option<&Value>) -> Option<Vec<
         .collect()
 }
 
-/// Whether `read` names a read a run handed this checkout, beside its commit directories.
-fn handed(read: &Path) -> Option<String> {
+/// The read a run handed this checkout, beside its commit directories: the
+/// commit it names, or none for a handed miss, which names no record.
+fn handed(read: &Path) -> Option<Option<String>> {
     let value: Value = serde_json::from_slice(&std::fs::read(read.join("fetched.json")).ok()?).ok()?;
-    value.get("mainline")?.as_str()?;
-    (value.get("handed").and_then(Value::as_bool) == Some(true)).then(|| value.get("commit")?.as_str().map(str::to_owned))?
+    (value.get("handed").and_then(Value::as_bool) == Some(true)).then(|| value.get("commit").and_then(Value::as_str).map(str::to_owned))
 }
 
 /// The mainline record of `suite` kept on this machine that this build opens,
 /// asked of this checkout's cache and its primary's in the order
 /// [`kept_mainlines`] gives every reader, `lastFetchedMainline`'s for one with
-/// no selection, as every `ask` is. A read handed on here is taken alone.
-fn fetched(layers: &Layers, suite: &str, handed_at: Option<String>) -> Option<PathBuf> {
+/// no selection, as every `ask` is. A read handed on here is taken alone, and
+/// a handed miss reads none.
+fn fetched(layers: &Layers, suite: &str, handed_at: Option<Option<String>>) -> Option<PathBuf> {
     let opens = |coverage: &PathBuf| matches!(FileFrame::open(coverage), Ok(Some(_)));
     let read = layers.cache.join("share/read").join(suite);
     if let Some(commit) = handed_at {
-        return Some(read.join(commit).join("coverage.bin")).filter(opens);
+        return Some(read.join(commit?).join("coverage.bin")).filter(opens);
     }
     let mut roots = vec![read];
     if layers.primary_cache != layers.cache {
