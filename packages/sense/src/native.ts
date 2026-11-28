@@ -29,6 +29,7 @@ import type {
 import type { AskedLine, FileDeclarations, LineHeld } from './orient.js';
 import type { NativeCasesEntered, NativeDependencyLexicon, NativeExternalOrientation, NativeOrientation, NativeOrientMapListing, NativeOrientMaps } from './native-orient.js';
 import type { NativeCommitTexts } from './native-commit-text.js';
+import type { NativeMainlineKept } from './native-mainline-kept.js';
 import type { NativePaths } from './package-owner.js';
 import type { NativeSourceIndexes } from './native-source-index.js';
 import type { NativeDistill } from './native-distill.js';
@@ -140,7 +141,7 @@ export interface NativeScanBatch extends Omit<NativeReadBatch, 'guessed'> {
   readonly records?: string;
 }
 
-export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon, NativeJourneys, NativeRecords, NativeDistill, NativeSaid, NativeRunCrossingsFold, NativeCommitTexts, NativeSourceIndexes, NativePaths {
+export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon, NativeJourneys, NativeRecords, NativeDistill, NativeSaid, NativeRunCrossingsFold, NativeCommitTexts, NativeMainlineKept, NativeSourceIndexes, NativePaths {
   /**
    * `instrument()`'s walk and splice, or `null` for a source that does not
    * parse. With a `module`, the header reporting under it is in the text.

@@ -181,7 +181,8 @@ async function mainlineReads(read: string, commits: (entries: readonly CommitEnt
     const directory = join(read, suite);
     // The read a run handed this checkout, and each record a checkout picks, are bases
     // a checkout of this machine lays its first run on, however far behind it falls.
-    const named = [readFetchedMainline(directory)?.commit, ...pinned];
+    const beside = readFetchedMainline(directory);
+    const named = [beside?.handed === true ? beside.commit : undefined, ...pinned];
     await commits(await commitEntries(directory, (name) => (named.includes(name) ? undefined : /^[0-9a-f]{7,64}$/u.exec(name)?.[0])));
   }
 }

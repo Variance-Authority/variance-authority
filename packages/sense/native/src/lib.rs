@@ -127,6 +127,7 @@ mod listing;
 mod loads;
 mod log;
 mod louvain;
+mod mainline_kept;
 mod members;
 mod mocks;
 mod module_moved;

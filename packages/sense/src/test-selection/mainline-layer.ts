@@ -17,12 +17,11 @@
 
 // compass: variance-authority.reach
 
-import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import { codeUnitOrder } from '@variance-authority/core/segment';
+import { native } from '../addon.js';
 import { cacheRootFor, listWorktrees, primaryCacheRoot, primaryCheckout } from './cache-layers.js';
 import { commitRunsIn, commitRunsText } from './commit-runs-text.js';
 import { commitRunsFile, type CommitRuns } from './commit-runs.js';
@@ -34,6 +33,7 @@ import { openTestCoverage } from './format-view.js';
 import type { IndexLock } from './index-lock.js';
 import { pinOf, writeOwnLayer } from './own-layer.js';
 import { repositoryRoot } from './repository-root.js';
+import { whyAbsent } from './native-modules.js';
 import { declaredSuites, onlySuite } from './suites.js';
 
 /** The file that names the mainline's record: in its commit's directory for a fetch, beside the directories for a read handed to this checkout. */
@@ -134,85 +134,33 @@ export function lastFetchedMainline(root: string, suite: string | undefined, cac
   return undefined;
 }
 
-/** How far back one walk looks for a kept commit before the rest are asked past it. */
-const WALK = 1000;
-
 /**
  * The mainline records of `suite` kept for `root`, of `selected` when it is
  * named, across the shared cache and this checkout's own ({@link fetchStores}),
- * in the order a reader takes them. From a share that keeps only its latest,
- * the newest fetch first: that record runs ahead of every merge base. Then the
- * kept commits `HEAD` contains, nearest first, which are at or behind its
- * merge base with any mainline, so no selection is needed to find them, a
- * whole record before a partial one at the same commit. Then the rest, newest
- * fetch first. A handed read is no other checkout's, and is passed over.
+ * in the order a reader takes them: the addon's `keptMainlines`, which the
+ * executable's `symbol --line` takes too.
  */
 function keptMainlines(root: string, name: string, cacheRoot?: string, selected?: string): readonly { readonly readRoot: string; readonly pointer: FetchedMainline }[] {
-  const kept: { readonly readRoot: string; readonly pointer: FetchedMainline }[] = [];
-  const usable = (pointer: FetchedMainline | undefined): pointer is FetchedMainline => pointer !== undefined && pointer.handed !== true && (selected === undefined || pointer.mainline === selected);
-  for (const cache of fetchStores(root, name, cacheRoot)) {
-    const readRoot = mainlineReadRoot(cache, name);
-    for (const commit of commitDirectories(readRoot)) {
-      const pointer = readFetchedMainline(join(readRoot, commit));
-      if (usable(pointer)) kept.push({ readRoot, pointer });
-    }
-  }
-  const behind = new Map(keptBehind(repositoryRoot(root), 'HEAD', new Set(kept.filter((one) => one.pointer.latest !== true).map((one) => one.pointer.commit))).map((commit, at) => [commit, at]));
-  const rank = (one: (typeof kept)[number]) => (one.pointer.latest === true ? -1 : behind.get(one.pointer.commit) ?? Infinity);
-  const newest = (a: (typeof kept)[number], b: (typeof kept)[number]) => codeUnitOrder(b.pointer.fetched, a.pointer.fetched);
-  return kept.sort((a, b) => {
-    const [at, bt] = [rank(a), rank(b)];
-    if (at !== bt) return at - bt;
-    if (Number.isFinite(at) && at >= 0) return (a.pointer.partial === true ? 1 : 0) - (b.pointer.partial === true ? 1 : 0);
-    return newest(a, b);
+  const order = native()?.keptMainlines;
+  if (order === undefined) throw new Error(`the mainline pick requires the Sense native addon: ${whyAbsent('keptMainlines')}`);
+  const readRoots = fetchStores(root, name, cacheRoot).map((cache) => mainlineReadRoot(cache, name));
+  return order(repositoryRoot(root), readRoots, selected ?? null).flatMap(({ readRoot, commit }) => {
+    const pointer = readFetchedMainline(join(readRoot, commit));
+    return pointer === undefined ? [] : [{ readRoot, pointer }];
   });
 }
 
 /**
- * The commits of `kept` that `from` contains, nearest first: one walk of its
- * last {@link WALK} commits, then one more ask past them. `landedAfter` leaves
- * out what was committed before it; `firstParent` counts only that line, where
- * a mainline publishes. Synchronous, as {@link lastFetchedMainline} cannot wait.
+ * The commits of `kept` that `from` contains, nearest first, from the addon's
+ * one walk, which stops at the last of them. `landedAfter` leaves out what was
+ * committed before it; `firstParent` counts only that line, where a mainline
+ * publishes. Synchronous, as {@link lastFetchedMainline} cannot wait.
  */
 export function keptBehind(checkout: string, from: string, kept: ReadonlySet<string>, along: { readonly firstParent?: boolean; readonly landedAfter?: number } = {}): readonly string[] {
   if (kept.size === 0) return [];
-  const bound = along.landedAfter === undefined ? [] : [`--max-age=${Math.floor(along.landedAfter / 1000)}`];
-  const line = along.firstParent === true ? ['--first-parent'] : [];
-  const ask = (args: readonly string[], input?: readonly string[]) =>
-    execFileSync('git', [...args], { cwd: checkout, encoding: 'utf8', maxBuffer: Infinity, env: { ...process.env, GIT_TERMINAL_PROMPT: '0' }, ...(input === undefined ? { stdio: ['ignore', 'pipe', 'ignore'] } : { input: `${input.join('\n')}\n`, stdio: ['pipe', 'pipe', 'ignore'] }) }).split('\n').filter(Boolean);
-  const found: string[] = [];
-  let walked: readonly string[];
-  try {
-    walked = ask(['rev-list', `--max-count=${WALK}`, ...line, ...bound, from]);
-  } catch {
-    return found;
-  }
-  for (const commit of walked) if (kept.has(commit)) found.push(commit);
-  const rest = [...kept].filter((commit) => !found.includes(commit));
-  // A walk short of the window reached the root or the bound, so nothing lies past it.
-  if (rest.length === 0 || walked.length < WALK) return found;
-  try {
-    const lacked = new Set(ask(['rev-list', '--ignore-missing', '--stdin', `^${from}`], rest));
-    const held = new Set(rest.filter((commit) => !lacked.has(commit)));
-    if (held.size === 0) return found;
-    // The line is walked on past the window, only for a commit `from` holds there: a merged branch's commit is not on it.
-    if (along.firstParent === true) {
-      // Bounded by nothing a date says: dates need not rise along the line, and git stops at the first commit older than a bound.
-      for (const commit of ask(['rev-list', '--first-parent', `--skip=${WALK}`, ...bound, from])) if (held.has(commit)) found.push(commit);
-    } else found.push(...ask(['rev-list', '--no-walk', '--ignore-missing', ...bound, '--stdin'], [...held]));
-  } catch {
-    return found;
-  }
-  return found;
-}
-
-/** The commit directories under `readRoot`, or none when it cannot be read. */
-function commitDirectories(readRoot: string): readonly string[] {
-  try {
-    return readdirSync(readRoot, { withFileTypes: true }).filter((entry) => entry.isDirectory() && /^[0-9a-f]{7,64}$/u.test(entry.name)).map((entry) => entry.name);
-  } catch {
-    return [];
-  }
+  const walk = native()?.keptBehind;
+  if (walk === undefined) throw new Error(`the walk behind a commit requires the Sense native addon: ${whyAbsent('keptBehind')}`);
+  return walk(checkout, from, [...kept], along.firstParent === true, along.landedAfter === undefined ? null : Math.floor(along.landedAfter / 1000));
 }
 
 /** The record `pointer` names under `readRoot`, when it is there and reads in this build. */

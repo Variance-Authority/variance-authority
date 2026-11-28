@@ -128,6 +128,8 @@ describe('a mainline record one worktree fetched', () => {
     await writeFile(whole, '');
     const old = (Date.now() - 2 * 24 * 60 * 60_000) / 1000;
     await utimes(whole, old, old);
+    // A pointer an older fetch left beside the directories names no handed read, so it pins nothing.
+    await writeFile(join(reads, FETCHED_MAINLINE), JSON.stringify({ mainline: 'main', commit: 'f'.repeat(40), fetched: new Date(month * 1000).toISOString() }));
 
     await base(one);
 
