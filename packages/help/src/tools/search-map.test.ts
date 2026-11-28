@@ -93,6 +93,19 @@ it('splits an overflowing package by the next directory, listing files directly 
   expect(apple.selected).toBe(70);
 });
 
+it('keeps loose files reachable when they alone overflow beside a subdirectory, each file reached once', () => {
+  const set = membership([...Array.from({ length: 300 }, (_, i) => `packages/alpha/src/component-${String(i).padStart(3, '0')}.ts`), 'packages/alpha/src/__tests__/x.test.ts']);
+  const found: string[] = [];
+  const visit = (selector: string) => {
+    const page = candidateFileMap(ROOT, set, selector);
+    expect(() => formatCandidateMap(page, (id) => id)).not.toThrow();
+    found.push(...(page.entries ?? []).map(({ file }) => file));
+    for (const group of page.groups ?? []) visit(group.id);
+  };
+  visit('package:alpha');
+  expect(found.toSorted()).toEqual([...set.files.keys()].toSorted());
+});
+
 it('keeps terminal paths and complete Unicode code points when splitting prefixes', () => {
   const set = membership(['packages/alpha/😀.ts', 'packages/alpha/😁.ts', 'packages/alpha/a.ts', 'packages/alpha/a.tsx']);
   for (const [file] of set.files) set.files.set(file, Array.from({ length: 1200 }, (_, i) => i + 1));

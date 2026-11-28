@@ -74,9 +74,9 @@ const bare = ({ placed: _placed, ...file }: Held): CandidateFile => file;
 
 /**
  * Split a large whole inventory by the next directory below the files' common
- * directory, listing the files directly in it. Files that all sit in one
- * directory have no directory left to split on, so they split by the next
- * character of their names instead.
+ * directory, listing the files directly in it. When no directory is left to
+ * split on, or the files directly in it overflow alone, the files split by the
+ * next character of their paths instead, and each drill below that splits again.
  */
 function filePage(name: string, files: readonly Held[]): Pick<CandidateMap, 'groups' | 'entries'> {
   if (files.length < 2 || JSON.stringify(files.map(bare)).length <= 4000) return { entries: files.map(bare) };
@@ -92,7 +92,7 @@ function filePage(name: string, files: readonly Held[]): Pick<CandidateMap, 'gro
     if (!by.has(next)) by.set(next, []);
     by.get(next)!.push(file);
   }
-  if (by.size === 0) return namePage(name, files);
+  if (by.size === 0 || direct.length > 1 && JSON.stringify(direct.map(bare)).length > 4000) return namePage(name, files);
   return { groups: groups(name, by, ''), ...(direct.length === 0 ? {} : { entries: direct.map(bare) }) };
 }
 
