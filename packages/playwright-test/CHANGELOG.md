@@ -1,5 +1,29 @@
 # @variance-authority/playwright-test
 
+## 0.36.0
+
+### Minor Changes
+
+- bcfcd3a: The Timeline groups test files by worker lane
+
+  The Playwright recorder keeps, per test file, the worker lane
+  (`parallelIndex`) of its earliest attempt, in a new `tests.lane` column
+  (record format 14). `variance view` draws one row group per lane; a record
+  with no lane is drawn as before.
+- d781755: `variance trace` prints a recorded run as OTLP spans
+
+  A recorded Playwright run now carries the epoch millisecond each file started
+  at, and `variance trace --format otlp` renders the run as OpenTelemetry spans —
+  run, file, phase, case — that any trace viewer opens on the runner's own clock.
+  A file whose runner gave no start has no span. Records written before this open
+  with every file unstarted.
+
+### Patch Changes
+
+- c1c21d7: A subject that holds a `<canvas>` or `<video>` is no longer compared from a replay of its markup, which draws it blank and reads `unchanged` whatever the drawing does. The deferred capture, in the Playwright fixture and in `observe`, refuses it and names the fix: `materialization: { kind: 'in-place', browser }`, which photographs the live page.
+- 7b6e13d: A spec only a head reported on is now recorded with the time the runner measured for it, where its row used to carry no duration and no start.
+- 9b1c890: Each landing in the runs record names the class of machine its run ran on: the CPU and architecture, the OS, the cores (with a Linux cgroup CPU quota beside them), the memory (with the cgroup limit), Node, the CI image where the environment names one, and the workers Vitest, Jest or Playwright ran in. Each field is absent where unknown, and none names a host. A fold of shards keeps each shard's machine, and `variance ask slowest-tests` ranks files once per class of machine rather than across them. Selection never reads it, and it enters no cache key. `recordExecution` takes `workers`.
+
 ## 0.35.0
 
 ### Minor Changes

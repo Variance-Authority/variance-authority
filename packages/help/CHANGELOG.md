@@ -1,5 +1,162 @@
 # @variance-authority/help
 
+## 0.36.0
+
+### Minor Changes
+
+- 151f428: `variance ask packages` and `docs_packages` take `--limit` and `--offset` (`limit` and `offset` over `serve` and MCP), and show 20 rows of each list when neither is said. A list cut short ends with how many rows it left and the offset of the next page, `1168 more not shown; --offset 20 shows the next 20.`; one offset skips the same number of rows at the top of every list. On a workspace of over a thousand packages the first answer was every row of every list. In every paged answer, `discover` and `covering` included, an offset past a list of one row says ``past the last of 1 row.``, not `1 rows`.
+- e03b29b: `ask orient --files <path>:<line>` and `docs_orient` name the declarations the line is in, from the source index, whether or not a recorded case ran it. A new part, `Lines asked about`, comes after the files asked about, with one row per line: `src/cart.ts:13  in class Basket > method total (lines 12–14)`, outermost first, with the lines of the innermost declaration. Declarations that share the line are side by side, `in function a, function b (line 2)`, and one is within another only as the parse records it. A line in no declaration is `at the top level of the module`. In a language whose members the index does not read, such as Python or Rust, a line in a class, a type or no declaration says it may be in a member. A file the index holds no parse of says so, and a file changed since `variance index` parsed it is not answered from that parse. Before, only the recording answered a line, so a line in an interface, a type or a function no case ran was not named. The list of files asked about keeps the `:<line>` as asked, and the journeys head names the kind of the function it narrows to: `in function total (lines 4–9), which 3 cases ran`.
+
+  `variance index` rebuilds the source index once: its format version is 54, which stores the last line of each top-level declaration, member and nested function, and the kind of each member: `property`, `method`, `getter`, `setter` or `accessor`. `MemberDeclaration`, `NestedDeclaration` and `SourceSymbol` carry `endLine`, and `MemberDeclaration` carries `kind`. `orientAround` takes the lines asked about and returns `lines`, each holder with its `depth` and each line with whether its file `changed`.
+- 49657d3: Each timed statement records what surrounded it as it ended
+
+  Beside a statement's time, a cut case under Vitest, Jest or Rstest now keeps
+  the machine's 1-minute load average and free memory, the test process's
+  resident memory, and the nodes the statement added to a jsdom or happy-dom
+  page. A figure the realm cannot read is absent, never 0: Windows reports no
+  load average, and a realm without a page adds no nodes. `variance story`
+  prints them under each statement it explains from the record, and `variance
+  ask slowest-tests` beside the slowest statement of each case, as `as it ended:
+  load 16.25, RSS 300 MiB, 0 MiB free, 31 nodes added`. Each is one reading, and
+  nothing selects, caches or judges a test by it.
+- 2305369: Map search candidate files before opening names
+
+  Use `variance ask search --query "retry payment" --map root` to group every
+  candidate file by code-map area and dependency layer. Follow emitted group
+  drills through areas and packages to files, retaining near-match qualifications
+  and unread frontiers. `--format json` includes the map as `candidateMap`.
+  The optional view leaves default detailed search unchanged.
+- 19dd7f4: `variance ask test-claims` (`docs_test_claims`) holds one test against what it
+  says. It lists its claims, which are its name and, when the run kept an Eyes
+  journal, the steps and assertions it made in order. It then lists the
+  functions it ran, with structure counted apart, and what it adds: the tests
+  that ran the same regions, structure aside, its pieces and wholes, and the
+  regions only it enters. Last come the regions of the functions it entered that
+  it did not take — a branch, a case, a loop body, a handler — each with whether
+  another test takes it. It runs nothing and reads no source.
+
+  The `variance-testing` skill gains the step that uses it: judge each claim in a
+  test's name against what it ran, then choose one of five actions, from `keep` to
+  `delete`.
+
+  `recordedSteps` from the new `@variance-authority/mcp/recorded-steps` entry
+  reads one recorded case's steps and assertions from a record, by the case's id,
+  in the same form `variance_test_attention` prints them. Each suite `testsRan`
+  returns now names the `recording` it was read from. Each case a journey answer
+  names carries its `id`, and each region `testsRan` returns says whether it is
+  `structure` and whether the test entered the function it is written in
+  (`functionEntered`). `@variance-authority/eyes/archive` exports
+  `parseJournalRow`, which validates one journal a record keeps, named by its
+  case and attempt.
+
+### Patch Changes
+
+- e40695e: Bare `variance ask` prints each question in two lines: what it takes, and the
+  first sentence of what it answers. The listing is about half its former size.
+  A question's whole description is the one its MCP tool carries at `tools/list`,
+  which the listing's footer names.
+- 6c262c1: A name a file only binds is no longer reported as declared there. `symbol` and `uses` said "declared, not exported" of a name a file destructures out of a value, such as `const { A } = require('./a')`, and of one set to a whole module, `const a = require('./a')`. They now say "bound, not declared", after the files that declare the name and without counting among them, and when nothing else answers the name, the answer says that no file declares it and lists the files that bind it. A file that both binds a name and declares it, such as a type beside a destructured value, is answered at the declaration. The file set `symbol` gives to `intersection` no longer holds a file that only binds the name. `classify` names no such file as the one that declares it, whether or not the file exports the name. `symbol` and `uses` answer an exported name as exported, as before; one set to a whole required module has kind `binding`, where it had `const`.
+
+  `variance index` rebuilds the source index once: its format version is 51, in which a top-level name set to a `require` of a constant specifier has kind `binding`.
+- e9b069b: `ask classify` and `docs_classify` look up the files a request spells: a path
+  from the workspace's root, and a file's name with its extension, each listed
+  with what the file declares. A path that names nothing is read as the words in
+  it, as before.
+- eccc809: Make `ask classify` read the published source snapshot for file-name matches,
+  declarations and area ranking. Classification no longer lists live Git paths
+  or rereads manifests for discarded metadata, and never refreshes the index.
+  Run `variance index` explicitly when a new snapshot is needed.
+
+  Mark identifiers whose snapshot lookup was unavailable as not looked up, rather
+  than claiming they name nothing.
+- 7823f2b: `testCompositions` names the tests alike instead of counting them: `alike` is
+  now each other test that ran the same regions, structure aside, as a
+  `JourneyCase`, in recording order; a test that ran only structure is alike
+  every other test that ran only structure. `docs_test_composition` lists them under
+  "Alike". Each region
+  `testsRan` returns now says how many other tests entered it (`others`) and the
+  smallest of those journeys (`smallest`). A region the test entered that no
+  other test entered is its alone, and a region it passed by that no other test
+  entered is one no test takes.
+- 25aa00a: A `grep` start point that answers nothing is answered from the folder around it that does
+
+  `variance ask grep` and `docs_grep` asked with one start point that is not
+  found, or that reaches no match, say so in the first line and list the lines that
+  match from the nearest folder around that path with one. The folder always holds
+  the path and is never the root, and the exit code is as it was. An answer asked with several start points, with
+  `limit` or with `offset`, around which no folder has a match, or whose path has
+  a `.` or `..` folder in it or a `*` other than a last `/*`, is unchanged.
+- 06e9880: A `grep` answer past 20 lines says where they are
+
+  `variance ask grep` and `docs_grep` asked with a start point answer more than
+  20 matching lines with the nearest 10 of them, then the folders and files that
+  hold them all: at most 10 rows, most lines first, whose counts add up to the
+  total. Where one folder holds most of the lines in more parts than there are
+  rows, the widest parts have a row each and the others share one. The answer
+  names the `limit` that lists every line and, with one start point, the
+  `discover` question that lists the files of the first folder or file, where
+  `discover` lists the same files. An answer of 20 lines or fewer, or one asked
+  with `limit`, is unchanged. Asked with `offset` and no `limit`, or with `test`,
+  it shows 20 lines in place of 200 and counts the rest.
+
+  `Tree.scopedGrep` is required, takes `limit` and `offset` only where the caller
+  said them, and takes the caller's `shell` in place of `offsetFlag`.
+
+  Where an answer spells a question from its inputs, a flag is joined to a value
+  that starts with `-` with `=`, so the printed command runs as it is. The
+  commands `search`, `packages` and the dependency answers print are quoted as
+  the others are: `,`, `%` and `#` stand plain, and an empty value, one that
+  starts with `#` or `=`, or one that holds `^`, which zsh's `extendedglob`
+  expands, is quoted.
+
+  `@variance-authority/mcp/tools` exports `shellWord`, the quoting these commands
+  share.
+- d4f610e: The MCP tool definitions are shorter. Each says what the tool answers, what it takes and when to pick it over its neighbours; the layout of each answer is left to the answer and the skill references. `tools/list` on `variance-authority-help .` sends 19,929 bytes for its 19 `docs_*` tools, down from 34,766, and `variance serve` sends 32,577 bytes for its 34 tools, down from 48,186.
+- cb233df: The `variance` executable answers `ask symbol --name` and `ask uses --name` itself for a name files export and no entry publishes, where it started Node before: one export or several, an export passed on from another file, a renamed import, a type-only export, the members of a class, an export nothing imports, and a file imported by path that exports more than the name asked. Over 600 questions asked of a large monorepo (300 names, each asked of `symbol` and `uses`), it answers all 600 itself, where it answered 322. `ask uses --name Button` there takes 0.12 s, where handing it to Node took 0.34 s.
+
+  Its answer is the one Node gave, but for an import by path that reaches no one declaration: one whose file exports no declaration of the name, and one the source index resolved to no file, as in a checkout whose packages are not installed. Both are listed apart, credited to no declaration, where Node credited the first to the first declaration it read and the second to the declaration its package name led to. `ask uses --file` on a file whose export the source index binds to no declaration says so and exits 2.
+
+  `docs_symbol` and `docs_uses`, asked through `variance ask` or over MCP, answer from the same Rust code as the executable. They read the source index of the checkout they are asked about: a host that names no checkout, holds no snapshot, or has no source index is refused, where it got an answer read from the TypeScript the host held; on such a host, start the MCP server with a root and run `variance index` there. An answer the index cannot give says why, in the same words through either entry, and the executable never hands `symbol` or `uses` to Node for it: a store published for another checkout or that does not read, `GIT_DIR` or `GIT_WORK_TREE` set, a configuration that does not parse, and a checkout path that is not UTF-8 are refused with exit 2.
+- e0b8f25: `ask intersection` refuses an `intersection` inside another by saying so, and asks for its questions in the outer one, instead of claiming `intersection` answers no set of files.
+- 97f6a31: A text answer that says which record or report it read no longer prints the
+  absolute path of the cache file. That covers the `record of "<suite>":` line of
+  `covering` and `select`, the `report:` line of `ask`, the `--since` heading of
+  `covering` in `text` and `refs`, the empty whole-file `covering` answer, the
+  `covering --cases last` line that says no run came before to compare, and
+  what `ask orient --files` says of its recorded cases and the source index. The
+  text names the record by its line, its commit and whose it is. The path stays
+  in the structured answers: `from` under `covering --format json`, and
+  `journal.at` under `select --format json`.
+- 0bf3d1e: `ask orient --files` lists what a file declares, however many names it binds and does not export before them. A name a file only binds, such as `const { A } = require('./a')` or `const a = require('./a')`, took one of the 40 rows, so a file that opens with more than 40 of them showed none of its functions and classes. Such a name now takes no row unless the file exports it, and one line counts the names bound and not declared. A file that only binds names says that it declares nothing at the top level, with that count. `FileDeclarations` carries the count as `bound`, and `exportsKept` says whether the index kept the file's exports. `ask classify --query <path>` reads the same outline, so it lists more of the functions of a file with more than 400 top-level names.
+- 9b1c890: Each landing in the runs record names the class of machine its run ran on: the CPU and architecture, the OS, the cores (with a Linux cgroup CPU quota beside them), the memory (with the cgroup limit), Node, the CI image where the environment names one, and the workers Vitest, Jest or Playwright ran in. Each field is absent where unknown, and none names a host. A fold of shards keeps each shard's machine, and `variance ask slowest-tests` ranks files once per class of machine rather than across them. Selection never reads it, and it enters no cache key. `recordExecution` takes `workers`.
+- e183e4e: Reuse search matching for the file set and text within one synchronous question.
+  Later questions read current recorded test cases. Files-only searches defer
+  import counts and declaration-location lookups until text is requested.
+- 4767959: Expose complete intersection file membership to callers composing questions, preserving evidence and unread notes alongside the existing text answer.
+- ad0f05d: Preserve unread declaration and member coverage in canonical symbol and uses file sets, including batched symbol questions and intersections. A partial reading now keeps its qualification beside the files it found.
+- fb3af6e: Keep the ranked area's directory and the caller's import scope in `ask classify`'s next lexical question. The printed intersection uses existing search and directory-membership questions, preserving every supplied start point.
+- baa6fbf: `ask search` shows an exported name where it is declared and where it is published from. A name a barrel passes on was shown at the barrel with `(+2 more files)`, which hid the declaring file; on Kibana, `ChatCompleteAPIResponse` read `inference-common/index.ts:8 (+2 more files)`. The row now names the declaration's file and line, then `· exported from` the file other packages import it through, `export *` included.
+- 38bed6e: When a package's candidate files overflow one page of `ask search --map`, the page groups them by the next directory and lists the files sitting directly in it. Before, it split them by one more character per drill. Files that all sit in one directory still split by name.
+
+  With no `--limit`, a map page now holds as many groups as fit its text, up to 50. Before, a page of 50 long groups was refused as over the text budget.
+- 6aab121: `ask search --map` now explains a missing, unfolded or stale code map the same way `ask orient` does: it names the source index and says that `variance index` folds the map.
+- 921f70f: Preserve unread source coverage in canonical search file sets and composed answers. Skipped or unavailable declarations, unsupported members and unresolved import scope remain explicit beside known matches and empty results.
+- c792538: `search`'s file set says when a suite's recorded cases could not be read. A suite whose record is there and does not read, and a root config that cannot name its suites, now put `No recorded case … was read: <why>.` in the file set's `unread`, beside any matches as well as beside none, and `intersection` carries it. A suite with no record, or a record that kept no cases, leaves the set complete, as before. The text prints that line where it did, under an answer that found nothing.
+
+  A record whose header does not read is named unread with the reader's own reason, in `search` and in `orient`'s recorded cases, where it was reported as `no run kept its cases there`, the words for a suite that never recorded. A header reads when a record reader would open it, so one that parses but lays out sections the reader refuses does not. `keepsCases` now answers `undefined` for that file, and `false` where no record is there or its header lists no case index: a caller that stored its answer as a `boolean` takes `boolean | undefined`, and a caller that only branches on it takes the branch `false` took. `keepsEyes` and `withoutCoverage` answer `false` for that file, as the reader refuses it. Such a suite is marked `unreadable: true` in `recordedCaseNames` and `recordedCases`, and in `search --format json`'s `tests.unread`.
+- 484e8c0: Read published declarations without decoding unrelated entries
+
+  Exact-name symbol and uses questions select published entries from the store's
+  existing rows. Signatures, documentation and import sites are decoded only for
+  the declarations and import aliases the answer needs.
+- c92692b: The last line of a `variance ask` or `docs_` answer that was read without looking at the files now says what that means for the answer. It was "Snapshot <time>, not compared with the checkout: run `variance index` if files changed since." and is "Snapshot <time> may miss later changes: run `variance index`.", with the reason in parentheses where the files were to be looked at and could not be.
+- e456cf2: `uses` and `discover --imports` follow a variable the file writes again. `let m = await import('./a')`, then `m = createStub()`, then `m.foo()` listed `foo` as read off `./a`, though `m` no longer held it, and `if (offline) m = await import('./b')` before `m.foo()` listed `foo` off `./b` alone, though `m` may still hold `./a`. A read off such a variable is now listed for each module a write that may reach the read put there, and for none after a write of something else on every path. A write in a branch, on the right of `&&`, `||` or `??`, in a `??=` or on its right, in an optional call's arguments, or inside a loop, a `switch`, a label or a `try`, which a jump or a throw may leave from anywhere, adds its module beside the one held before; a write inside a function may run at any time, so its module stays held from that write on; and a read inside a function, or a type query, reads each module the variable was given above it. The same holds for a variable a `require` loads.
+
+  `variance index` rebuilds the source index once: its format version is 53, in which a read off a variable the file writes again carries the modules the writes that may reach it put there.
+- 5919be7: `uses` and `discover --imports` list a name read off a module that CommonJS code loads with `require`. `const { A } = require('./a')`, renamed or not, `require('./a').A`, and `const a = require('./a')` with `a.A` read after it were no use of `A`, at the top level or in a function, so `uses` said that nothing imports a name whose only readers are such files. Each is now listed on the line that reads the name, as a read off an awaited `import()` is. A `typeof import()` cast written on a `require` no longer decides which module it reads: the `require` does. A `require` whose module goes on whole, held or in place, as in `module.exports = require('./a')`, is listed as passing the module on whole. A `require` of a computed specifier, and another object's `require`, still record no name.
+
+  `variance index` rebuilds the source index once: its format version is 52, in which a request made with `require` carries the names read off it.
+
 ## 0.35.0
 
 ### Minor Changes

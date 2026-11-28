@@ -1,5 +1,88 @@
 # @variance-authority/mcp
 
+## 0.36.0
+
+### Minor Changes
+
+- d2f9caa: `variance ask ran --story` says when each step of a live execution ran
+
+  A head started with `VARIANCE_AUTHORITY_STORY=1` stamps each step with its
+  machine's clock. The execution's first row says when it began and how long it
+  took, or how far it was recorded where the end of any head listed was not seen. Each step says how
+  far into it the step ran, the time to the next recorded step and that time's
+  share. Every head of an execution, and every later telling of it, is placed
+  from the same beginning, and `told again` says how long after the list above
+  ended it began, or after the last recorded of it where its end was not seen. The
+  time includes code the build put no probe in and waiting; it is not the
+  function's own time. Two executions whose steps differ only in time still
+  compare equal. A test's story has no times.
+- 19dd7f4: `variance ask test-claims` (`docs_test_claims`) holds one test against what it
+  says. It lists its claims, which are its name and, when the run kept an Eyes
+  journal, the steps and assertions it made in order. It then lists the
+  functions it ran, with structure counted apart, and what it adds: the tests
+  that ran the same regions, structure aside, its pieces and wholes, and the
+  regions only it enters. Last come the regions of the functions it entered that
+  it did not take — a branch, a case, a loop body, a handler — each with whether
+  another test takes it. It runs nothing and reads no source.
+
+  The `variance-testing` skill gains the step that uses it: judge each claim in a
+  test's name against what it ran, then choose one of five actions, from `keep` to
+  `delete`.
+
+  `recordedSteps` from the new `@variance-authority/mcp/recorded-steps` entry
+  reads one recorded case's steps and assertions from a record, by the case's id,
+  in the same form `variance_test_attention` prints them. Each suite `testsRan`
+  returns now names the `recording` it was read from. Each case a journey answer
+  names carries its `id`, and each region `testsRan` returns says whether it is
+  `structure` and whether the test entered the function it is written in
+  (`functionEntered`). `@variance-authority/eyes/archive` exports
+  `parseJournalRow`, which validates one journal a record keeps, named by its
+  case and attempt.
+
+### Patch Changes
+
+- 151f428: `variance ask packages` and `docs_packages` take `--limit` and `--offset` (`limit` and `offset` over `serve` and MCP), and show 20 rows of each list when neither is said. A list cut short ends with how many rows it left and the offset of the next page, `1168 more not shown; --offset 20 shows the next 20.`; one offset skips the same number of rows at the top of every list. On a workspace of over a thousand packages the first answer was every row of every list. In every paged answer, `discover` and `covering` included, an offset past a list of one row says ``past the last of 1 row.``, not `1 rows`.
+- 6908574: Record a Playwright assertion made through `.not` as `negated: true`. Before,
+  `expect(locator).not.toBeEmpty()` was journaled as `to.be.empty`, the opposite
+  of what the test asserted. The archive accepts `negated: true` and refuses any
+  other value, and both the story note and `variance_test_attention` print the
+  matcher as `not.to.be.empty`.
+- 25aa00a: A `grep` start point that answers nothing is answered from the folder around it that does
+
+  `variance ask grep` and `docs_grep` asked with one start point that is not
+  found, or that reaches no match, say so in the first line and list the lines that
+  match from the nearest folder around that path with one. The folder always holds
+  the path and is never the root, and the exit code is as it was. An answer asked with several start points, with
+  `limit` or with `offset`, around which no folder has a match, or whose path has
+  a `.` or `..` folder in it or a `*` other than a last `/*`, is unchanged.
+- 06e9880: A `grep` answer past 20 lines says where they are
+
+  `variance ask grep` and `docs_grep` asked with a start point answer more than
+  20 matching lines with the nearest 10 of them, then the folders and files that
+  hold them all: at most 10 rows, most lines first, whose counts add up to the
+  total. Where one folder holds most of the lines in more parts than there are
+  rows, the widest parts have a row each and the others share one. The answer
+  names the `limit` that lists every line and, with one start point, the
+  `discover` question that lists the files of the first folder or file, where
+  `discover` lists the same files. An answer of 20 lines or fewer, or one asked
+  with `limit`, is unchanged. Asked with `offset` and no `limit`, or with `test`,
+  it shows 20 lines in place of 200 and counts the rest.
+
+  `Tree.scopedGrep` is required, takes `limit` and `offset` only where the caller
+  said them, and takes the caller's `shell` in place of `offsetFlag`.
+
+  Where an answer spells a question from its inputs, a flag is joined to a value
+  that starts with `-` with `=`, so the printed command runs as it is. The
+  commands `search`, `packages` and the dependency answers print are quoted as
+  the others are: `,`, `%` and `#` stand plain, and an empty value, one that
+  starts with `#` or `=`, or one that holds `^`, which zsh's `extendedglob`
+  expands, is quoted.
+
+  `@variance-authority/mcp/tools` exports `shellWord`, the quoting these commands
+  share.
+- d4f610e: The MCP tool definitions are shorter. Each says what the tool answers, what it takes and when to pick it over its neighbours; the layout of each answer is left to the answer and the skill references. `tools/list` on `variance-authority-help .` sends 19,929 bytes for its 19 `docs_*` tools, down from 34,766, and `variance serve` sends 32,577 bytes for its 34 tools, down from 48,186.
+- 79c91a2: A page fitted to its text no longer promises how many rows the next page shows: the next page fits its own count.
+
 ## 0.35.0
 
 ### Minor Changes

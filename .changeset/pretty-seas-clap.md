@@ -1,5 +1,0 @@
----
-'@variance-authority/cli': patch
----
-
-`VARIANCE_AUTHORITY_BUDGET` now bounds a local seam's run of a suite a change runs whole because it moved a `before` entry: only the test files the change edited run, the timed ones shortest first and as many as fit, a new one besides, and the first note says the rest of the suite is left for CI, which runs it whole.
