@@ -180,6 +180,18 @@ describe('the nearest record holding an entry', () => {
 
     expect(found).toMatchObject({ entry: { commit: commits[0] } });
   });
+
+  it('walks on past a nearer kept record that lacks the entry to the one that holds it', async () => {
+    const { dir, commits } = await repositoryOf(4);
+    const cell = memoryLineCell();
+    await publishLine(cell, MAIN, [entry('report-v1', commits[0]!)], options);
+    await publishLine(cell, MAIN, [entry('other-v1', commits[1]!)], options);
+    await publishLine(cell, MAIN, [entry('report-v2', commits[3]!)], options);
+
+    const found = await nearestHolding(cell, 'main', commits[2]!, 'report-v1', dir);
+
+    expect(found).toMatchObject({ entry: { commit: commits[0] } });
+  });
 });
 
 describe('`variance share --purge-older-than`', () => {

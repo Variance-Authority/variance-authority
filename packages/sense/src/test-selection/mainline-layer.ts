@@ -159,7 +159,6 @@ function keptMainlines(root: string, name: string, cacheRoot?: string, selected?
  * Synchronous, as {@link lastFetchedMainline} cannot wait.
  */
 export function keptBehind(checkout: string, from: string, kept: ReadonlySet<string>, along: { readonly firstParent?: boolean; readonly landedAfter?: number; readonly first?: number } = {}): readonly string[] {
-  if (kept.size === 0) return [];
   const walk = native()?.keptBehind;
   if (walk === undefined) throw new Error(`the walk behind a commit requires the Sense native addon: ${whyAbsent('keptBehind')}`);
   return walk(checkout, from, [...kept], along.firstParent === true, along.landedAfter === undefined ? null : Math.floor(along.landedAfter / 1000), along.first ?? null);
