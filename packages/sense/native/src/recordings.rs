@@ -11,6 +11,7 @@ use crate::checkout_layers::{config_read, Layers};
 use crate::help_symbol_line::Recorded;
 use crate::help_unread::node_said;
 use crate::journey_columns::FileFrame;
+use crate::mainline_kept::kept_mainlines;
 use crate::record_layout::LAYOUT;
 
 /// One recording a reader reads: the suite it belongs to, none for a checkout that declares no suites.
@@ -30,8 +31,9 @@ pub(crate) fn recordings(layers: &Layers, config: Option<&Value>) -> Option<Vec<
         if own.try_exists().ok()? {
             return Some(own);
         }
-        let handed = suite.is_some_and(|name| pointer(&layers.cache, name).is_some_and(|pointer| pointer.handed));
-        if let Some(fetched) = suite.filter(|_| shared).and_then(|name| fetched(layers, name, handed)) {
+        let handed_at = suite.and_then(|name| handed(&layers.cache.join("share/read").join(name)));
+        let handed = handed_at.is_some();
+        if let Some(fetched) = suite.filter(|_| shared).and_then(|name| fetched(layers, name, handed_at.clone())) {
             return Some(fetched);
         }
         let base = layers.base.join(inside);
@@ -89,48 +91,30 @@ pub(crate) fn recordings(layers: &Layers, config: Option<&Value>) -> Option<Vec<
         .collect()
 }
 
-/// What a fetch's `fetched.json` names: the commit the record is kept under,
-/// when it was fetched, and whether another job's read was handed on here.
-struct Pointer {
-    commit: String,
-    fetched: String,
-    handed: bool,
+/// The read a run handed this checkout, beside its commit directories: the
+/// commit it names, or none for a handed miss, which names no record.
+fn handed(read: &Path) -> Option<Option<String>> {
+    let value: Value = serde_json::from_slice(&std::fs::read(read.join("fetched.json")).ok()?).ok()?;
+    (value.get("handed").and_then(Value::as_bool) == Some(true)).then(|| value.get("commit").and_then(Value::as_str).map(str::to_owned))
 }
 
-/// The pointer a fetch left for `suite` in `cache`, or none when there is none or it does not read.
-fn pointer(cache: &Path, suite: &str) -> Option<Pointer> {
-    let text = std::fs::read(cache.join("share/read").join(suite).join("fetched.json")).ok()?;
-    let value: Value = serde_json::from_slice(&text).ok()?;
-    value.get("mainline")?.as_str()?;
-    Some(Pointer {
-        commit: value.get("commit")?.as_str()?.to_owned(),
-        fetched: value.get("fetched")?.as_str()?.to_owned(),
-        handed: value.get("handed").and_then(Value::as_bool) == Some(true),
-    })
-}
-
-/// The newest mainline record of `suite` fetched on this machine that this
-/// build opens, asked of this checkout's cache and its primary's, or of this
-/// one alone when its read was handed on: `lastFetchedMainline`'s answer for
-/// a reader with no selection, as every `ask` is.
-fn fetched(layers: &Layers, suite: &str, handed: bool) -> Option<PathBuf> {
-    let caches: &[&PathBuf] = if handed || layers.primary_cache == layers.cache {
-        &[&layers.cache]
-    } else {
-        &[&layers.cache, &layers.primary_cache]
-    };
-    let mut newest: Option<(String, PathBuf)> = None;
-    for cache in caches {
-        let Some(pointer) = pointer(cache, suite) else { continue };
-        if newest.as_ref().is_some_and(|(fetched, _)| *fetched >= pointer.fetched) {
-            continue;
-        }
-        let coverage = cache.join("share/read").join(suite).join(&pointer.commit).join("coverage.bin");
-        if matches!(FileFrame::open(&coverage), Ok(Some(_))) {
-            newest = Some((pointer.fetched, coverage));
-        }
+/// The mainline record of `suite` kept on this machine that this build opens,
+/// asked of this checkout's cache and its primary's in the order
+/// [`kept_mainlines`] gives every reader, `lastFetchedMainline`'s for one with
+/// no selection, as every `ask` is. A read handed on here is taken alone, and
+/// a handed miss reads none.
+fn fetched(layers: &Layers, suite: &str, handed_at: Option<Option<String>>) -> Option<PathBuf> {
+    let opens = |coverage: &PathBuf| matches!(FileFrame::open(coverage), Ok(Some(_)));
+    let read = layers.cache.join("share/read").join(suite);
+    if let Some(commit) = handed_at {
+        return Some(read.join(commit?).join("coverage.bin")).filter(opens);
     }
-    newest.map(|(_, coverage)| coverage)
+    let mut roots = vec![read];
+    if layers.primary_cache != layers.cache {
+        roots.push(layers.primary_cache.join("share/read").join(suite));
+    }
+    let roots: Vec<String> = roots.iter().filter_map(|root| root.to_str().map(str::to_owned)).collect();
+    kept_mainlines(&layers.top, &roots, None).into_iter().map(|one| Path::new(&one.read_root).join(one.commit).join("coverage.bin")).find(opens)
 }
 
 pub(crate) fn commit(file: &mut FileFrame) -> Result<Option<String>, String> {

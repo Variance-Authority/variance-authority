@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  FETCHED_MAINLINE,
   cacheRootFor,
   declaredSuites,
   lastFetchedMainline,
@@ -111,13 +112,13 @@ describe('a mainline record one worktree fetched', () => {
   });
 
   it('prunes the mainline records of the shared cache, and nothing else the primary checkout keeps', async () => {
-    const { primary, next, one, two, base } = await laptop();
+    const { primary, first, next, one, two, base } = await laptop();
     const shared = cacheRootFor(primary);
     const reads = mainlineReadRoot(shared, 'unit');
     const month = (Date.now() - 30 * 24 * 60 * 60_000) / 1000;
     // A record of a commit no checkout holds, a month old, which the prune takes.
     const gone = join(reads, 'f'.repeat(40));
-    await cp(join(reads, readFetchedMainline(reads)!.commit), gone, { recursive: true });
+    await cp(join(reads, first), gone, { recursive: true });
     await utimes(gone, month, month);
     // A newer one, which the prune keeps as the newest no checkout reads.
     const newest = join(reads, 'e'.repeat(40));
@@ -127,6 +128,8 @@ describe('a mainline record one worktree fetched', () => {
     await writeFile(whole, '');
     const old = (Date.now() - 2 * 24 * 60 * 60_000) / 1000;
     await utimes(whole, old, old);
+    // A pointer an older fetch left beside the directories names no handed read, so it pins nothing.
+    await writeFile(join(reads, FETCHED_MAINLINE), JSON.stringify({ mainline: 'main', commit: 'f'.repeat(40), fetched: new Date(month * 1000).toISOString() }));
 
     await base(one);
 
@@ -222,7 +225,9 @@ describe('a mainline record one worktree fetched', () => {
 
     expect(existsSync(join(mainlineReadRoot(cacheRootFor(one), 'unit'), next, 'coverage.bin'))).toBe(true);
     expect(lastFetchedMainline(one, 'unit')).toMatchObject({ commit: next });
-    expect(readFetchedMainline(shared)).toMatchObject({ commit: first });
+    expect(readFetchedMainline(join(shared, first))).toMatchObject({ commit: first });
+    // A fetched record is named in its own directory alone: the name beside them is a handed read's.
+    expect(existsSync(join(shared, FETCHED_MAINLINE))).toBe(false);
   });
 });
 
@@ -258,7 +263,7 @@ describe('a partial mainline record the primary checkout fetched', () => {
 describe('a mainline record a run handed on to the primary checkout', () => {
   it('is no sibling worktree\'s read, and stays the primary\'s after a sibling fetches', async () => {
     const { primary, first, next, one, tree, base } = await laptop();
-    const pointer = readFetchedMainline(mainlineReadRoot(cacheRootFor(primary), 'unit'))!;
+    const pointer = readFetchedMainline(join(mainlineReadRoot(cacheRootFor(primary), 'unit'), first))!;
     const behind = await tree('behind', first);
 
     await standOnHanded(primary, 'unit', { ...pointer, fetched: new Date().toISOString() }, 'not handed');
@@ -275,7 +280,7 @@ describe('a mainline record a sibling fetches at the commit a run handed the pri
   it('is kept in the sibling\'s own cache, and the bytes the primary checkout stands on stay', async () => {
     const { primary, first, tree, base } = await laptop();
     const shared = mainlineReadRoot(cacheRootFor(primary), 'unit');
-    const pointer = readFetchedMainline(shared)!;
+    const pointer = readFetchedMainline(join(shared, first))!;
     await standOnHanded(primary, 'unit', { ...pointer, fetched: new Date().toISOString() }, 'not handed');
     const handed = (await stat(join(shared, first, 'coverage.bin'))).mtimeMs;
     const behind = await tree('behind', first);
@@ -318,6 +323,22 @@ describe('a read a run hands on from the primary checkout', () => {
 
     expect(handed.commits).toEqual([next]);
     expect(readFetchedMainline(join(home, 'hand-one', 'unit'))).toMatchObject({ commit: next });
+  });
+});
+
+describe('a read a run handed a checkout, laid from a push whose directory names nothing', () => {
+  it('is what that checkout hands on when the line misses', async () => {
+    const { primary, first } = await laptop();
+    const shared = mainlineReadRoot(cacheRootFor(primary), 'unit');
+    const pointer = readFetchedMainline(join(shared, first))!;
+    await standOnHanded(primary, 'unit', { ...pointer, fetched: new Date().toISOString() }, 'not handed');
+    await rm(join(shared, first, FETCHED_MAINLINE));
+    await git(primary, 'remote', 'set-url', 'origin', join(home, 'gone'));
+
+    const handed = await handBase(primary, join(home, 'hand'), { env: LOCAL, now: Date.now() });
+
+    expect(handed.commits).toEqual([first]);
+    expect(readFetchedMainline(join(home, 'hand', 'unit'))).toMatchObject({ commit: first });
   });
 });
 
@@ -412,7 +433,7 @@ describe('a mainline record a share that keeps only its latest gave', () => {
 describe('a mainline record a run handed on to a worktree', () => {
   it('is that worktree\'s alone, and a fetch there stays in its own cache', async () => {
     const { first, next, one, two, base } = await laptop();
-    const primaryPointer = readFetchedMainline(mainlineReadRoot(cacheRootFor(join(home, 'clone')), 'unit'))!;
+    const primaryPointer = readFetchedMainline(join(mainlineReadRoot(cacheRootFor(join(home, 'clone')), 'unit'), first))!;
     // The record at `first`, laid in `one`'s own read root and marked handed, as `carry receive` leaves it.
     const own = mainlineReadRoot(cacheRootFor(one), 'unit');
     const shared = mainlineReadRoot(cacheRootFor(join(home, 'clone')), 'unit');
@@ -423,7 +444,8 @@ describe('a mainline record a run handed on to a worktree', () => {
     expect(await base(one, { fetch: 'always' })).toMatchObject({ commit: next });
 
     expect(existsSync(join(own, next))).toBe(true);
-    expect(readFetchedMainline(shared)).toEqual(primaryPointer);
+    expect(existsSync(join(own, FETCHED_MAINLINE))).toBe(false);
+    expect(readFetchedMainline(join(shared, first))).toEqual(primaryPointer);
     expect(lastFetchedMainline(two, 'unit')).toMatchObject({ commit: first, fetched: primaryPointer.fetched });
   });
 });

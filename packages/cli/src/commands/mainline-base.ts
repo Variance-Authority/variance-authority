@@ -76,6 +76,8 @@ export interface MainlineRecord {
   readonly pruned?: string;
   /** Why the fetch kept the record where only this checkout reads it, when the shared cache took no write. */
   readonly unshared?: string;
+  /** The record is a read a run handed this checkout, named beside the read root's commit directories. */
+  readonly handed?: true;
 }
 
 /** Why the mainline gave no record: which mainline was asked, when one was known, and the share's answer. */
@@ -324,6 +326,7 @@ async function earlier(
     ...(last.runs === undefined ? {} : { runs: last.runs }),
     fetched: last.fetched,
     ...(last.partial === true ? { partial: true } : {}),
+    ...(last.handed === true ? { handed: true } : {}),
     earlier: why,
   };
 }

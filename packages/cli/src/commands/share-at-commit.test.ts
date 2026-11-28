@@ -5,10 +5,11 @@ import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { memoryLineCell, publishLine, type ShareEntry } from '@variance-authority/core/share';
+import { keptBehind } from '@variance-authority/sense/test-selection';
 import type { Config } from '../config.js';
 import { EXIT_CLEAN, OperatorError } from '../exit.js';
 import { parseArgs } from '../parse.js';
-import { keptBehind, type Env } from '../share-lines.js';
+import type { Env } from '../share-lines.js';
 import { nearestHolding } from './mainline-entry.js';
 import { purgeLines, runSharePurge } from './share-purge.js';
 import { describePublish, mainlineIndex, publishRun, shareLines } from './share.js';
@@ -76,10 +77,43 @@ describe('a mainline record kept at its commit', () => {
     });
     const oldest = await git(dir, 'rev-list', '--max-parents=0', 'main');
 
-    const walked: string[] = [];
-    for await (const commit of keptBehind('main', new Set([oldest]), dir)) walked.push(commit);
+    expect(keptBehind(dir, 'main', new Set([oldest]), { firstParent: true })).toEqual([oldest]);
+  });
 
-    expect(walked).toEqual([oldest]);
+  it('leaves out a merged branch\'s commit past the walk, as only the first-parent history counts', async () => {
+    const dir = await mkdtemp(join(home, 'merged-'));
+    await git(dir, 'init', '--quiet', '-b', 'main');
+    const at = (mark: number) => `committer Test <test@example.com> ${String(1_000_000 + mark)} +0000`;
+    const head = ['commit refs/heads/main', 'mark :1', at(1), 'data 0', '', 'commit refs/heads/side', 'mark :2', at(2), 'data 0', 'from :1', '', 'commit refs/heads/main', 'mark :3', at(3), 'data 0', 'from :1', 'merge :2', ''];
+    const after = Array.from({ length: 1100 }, (_, index) => ['commit refs/heads/main', `mark :${String(index + 4)}`, at(index + 4), 'data 0', `from :${String(index + 3)}`, ''].join('\n'));
+    await new Promise<void>((done, failed) => {
+      const child = execFile('git', ['fast-import', '--quiet'], { cwd: dir }, (error) => (error ? failed(error) : done()));
+      child.stdin!.end(`${[...head, ''].join('\n')}${after.join('\n')}\n`);
+    });
+    const [first, side] = await Promise.all([git(dir, 'rev-list', '--max-parents=0', 'main'), git(dir, 'rev-parse', 'side')]);
+
+    expect(keptBehind(dir, 'main', new Set([first, side]), { firstParent: true })).toEqual([first]);
+    expect(keptBehind(dir, 'main', new Set([first, side]))).toEqual([side, first]);
+  });
+
+  it('walks past the window to a kept commit behind one dated before it, as commit dates need not rise along the line', async () => {
+    const dir = await mkdtemp(join(home, 'skewed-'));
+    await git(dir, 'init', '--quiet', '-b', 'main');
+    const stream = Array.from({ length: 1100 }, (_, index) => [
+      'commit refs/heads/main',
+      `mark :${String(index + 1)}`,
+      `committer Test <test@example.com> ${String(index === 1 ? 1_000_000 : 2_000_000 + index)} +0000`,
+      'data 0',
+      ...(index === 0 ? [] : [`from :${String(index)}`]),
+      '',
+    ].join('\n')).join('');
+    await new Promise<void>((done, failed) => {
+      const child = execFile('git', ['fast-import', '--quiet'], { cwd: dir }, (error) => (error ? failed(error) : done()));
+      child.stdin!.end(stream);
+    });
+    const first = await git(dir, 'rev-list', '--max-parents=0', 'main');
+
+    expect(keptBehind(dir, 'main', new Set([first]), { firstParent: true })).toEqual([first]);
   });
 
   it('walks to a record kept behind the merge base past one kept ahead of it', async () => {
@@ -90,10 +124,21 @@ describe('a mainline record kept at its commit', () => {
     }
     const [tip, base, , behind] = (await git(dir, 'rev-list', 'main')).split('\n');
 
-    const walked: string[] = [];
-    for await (const commit of keptBehind(base!, new Set([tip!, behind!]), dir)) walked.push(commit);
+    expect(keptBehind(dir, base!, new Set([tip!, behind!]), { firstParent: true })).toEqual([behind]);
+  });
 
-    expect(walked).toEqual([behind]);
+  it('stops at the first kept commits it was asked for, and goes on from the parent of the last', async () => {
+    const dir = await mkdtemp(join(home, 'first-'));
+    await git(dir, 'init', '--quiet', '-b', 'main');
+    for (let index = 0; index < 4; index += 1) {
+      await git(dir, '-c', 'user.name=Test', '-c', 'user.email=test@example.com', 'commit', '--quiet', '--allow-empty', '-m', String(index));
+    }
+    const [tip, near, , far] = (await git(dir, 'rev-list', 'main')).split('\n');
+    const kept = new Set([near!, far!]);
+
+    expect(keptBehind(dir, tip!, kept, { firstParent: true, first: 1 })).toEqual([near]);
+    expect(keptBehind(dir, `${near!}^`, kept, { firstParent: true, first: 1 })).toEqual([far]);
+    expect(keptBehind(dir, `${far!}^`, kept, { firstParent: true, first: 1 })).toEqual([]);
   });
 });
 
@@ -132,6 +177,18 @@ describe('the nearest record holding an entry', () => {
     await publishLine(cell, MAIN, [entry('report-v2', commits[2]!)], options);
 
     const found = await nearestHolding(cell, 'main', commits[1]!, 'report-v1', dir);
+
+    expect(found).toMatchObject({ entry: { commit: commits[0] } });
+  });
+
+  it('walks on past a nearer kept record that lacks the entry to the one that holds it', async () => {
+    const { dir, commits } = await repositoryOf(4);
+    const cell = memoryLineCell();
+    await publishLine(cell, MAIN, [entry('report-v1', commits[0]!)], options);
+    await publishLine(cell, MAIN, [entry('other-v1', commits[1]!)], options);
+    await publishLine(cell, MAIN, [entry('report-v2', commits[3]!)], options);
+
+    const found = await nearestHolding(cell, 'main', commits[2]!, 'report-v1', dir);
 
     expect(found).toMatchObject({ entry: { commit: commits[0] } });
   });

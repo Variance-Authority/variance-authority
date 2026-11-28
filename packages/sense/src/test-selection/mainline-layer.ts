@@ -17,12 +17,11 @@
 
 // compass: variance-authority.reach
 
-import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import { codeUnitOrder } from '@variance-authority/core/segment';
+import { native } from '../addon.js';
 import { cacheRootFor, listWorktrees, primaryCacheRoot, primaryCheckout } from './cache-layers.js';
 import { commitRunsIn, commitRunsText } from './commit-runs-text.js';
 import { commitRunsFile, type CommitRuns } from './commit-runs.js';
@@ -34,9 +33,10 @@ import { openTestCoverage } from './format-view.js';
 import type { IndexLock } from './index-lock.js';
 import { pinOf, writeOwnLayer } from './own-layer.js';
 import { repositoryRoot } from './repository-root.js';
+import { whyAbsent } from './native-modules.js';
 import { declaredSuites, onlySuite } from './suites.js';
 
-/** The file a fetch names the mainline's record in, beside the commit directories it keeps, and in each of them. */
+/** The file that names the mainline's record: in its commit's directory for a fetch, beside the directories for a read handed to this checkout. */
 export const FETCHED_MAINLINE = 'fetched.json';
 
 /** What {@link FETCHED_MAINLINE} holds. */
@@ -73,19 +73,21 @@ export function mainlineReadRoot(cacheRoot: string, suite: string): string {
 
 /**
  * Record that the mainline's record of `suite` was fetched into
- * `<readRoot>/<commit>/`: in that directory, which says what it holds to every
- * reader that picks it, and beside it, as the last fetch into this cache.
- * A fetch into another checkout's cache, `shared`, leaves a read handed to that
- * checkout standing there. A handed read is named beside them alone: it is that checkout's, and the
- * directory may be one every checkout picks from. Called by the fetch once
- * every file it keeps is in place, so a seam that reads this finds them.
- * Replaced whole, so no reader meets a half-written one.
+ * `<readRoot>/<commit>/`. A fetched record is named in its own directory, which
+ * says what it holds to every reader that picks it; a read a run handed this
+ * checkout is named beside the directories alone, as it is this checkout's,
+ * and the directory may be one every checkout picks from. A fetch into this
+ * checkout's own cache ends a read handed to it; one into another checkout's,
+ * `shared`, leaves that checkout's standing. Called by the fetch once every
+ * file it keeps is in place, so a seam that reads this finds them. Replaced
+ * whole, so no reader meets a half-written one.
  */
 export async function writeFetchedMainline(cacheRoot: string, suite: string, fetched: FetchedMainline, shared = false): Promise<void> {
   const readRoot = mainlineReadRoot(cacheRoot, suite);
   const text = Buffer.from(`${JSON.stringify(fetched)}\n`);
-  if (fetched.handed !== true) await place(join(readRoot, fetched.commit, FETCHED_MAINLINE), text);
-  if (!shared || readFetchedMainline(readRoot)?.handed !== true) await place(join(readRoot, FETCHED_MAINLINE), text);
+  if (fetched.handed === true) return place(join(readRoot, FETCHED_MAINLINE), text);
+  await place(join(readRoot, fetched.commit, FETCHED_MAINLINE), text);
+  if (!shared) await rm(join(readRoot, FETCHED_MAINLINE), { force: true });
 }
 
 /** The pointer in one read root, or in one commit's directory under it, or undefined when there is none or it does not read. */
@@ -132,91 +134,34 @@ export function lastFetchedMainline(root: string, suite: string | undefined, cac
   return undefined;
 }
 
-/** How far back from `HEAD` one walk looks for a kept commit before each is asked alone. */
-const WALK = 1000;
-
 /**
  * The mainline records of `suite` kept for `root`, of `selected` when it is
  * named, across the shared cache and this checkout's own ({@link fetchStores}),
- * in the order a reader takes them. From a share that keeps only its latest,
- * the newest fetch first: that record runs ahead of every merge base. Then the
- * kept commits `HEAD` contains, nearest first, which are at or behind its
- * merge base with any mainline, so no selection is needed to find them, a
- * whole record before a partial one at the same commit. Then the rest, newest
- * fetch first. A handed read is no other checkout's, and is passed over.
+ * in the order a reader takes them: the addon's `keptMainlines`, which the
+ * executable's `symbol --line` takes too.
  */
 function keptMainlines(root: string, name: string, cacheRoot?: string, selected?: string): readonly { readonly readRoot: string; readonly pointer: FetchedMainline }[] {
-  const kept: { readonly readRoot: string; readonly pointer: FetchedMainline }[] = [];
-  const usable = (pointer: FetchedMainline | undefined): pointer is FetchedMainline => pointer !== undefined && pointer.handed !== true && (selected === undefined || pointer.mainline === selected);
-  for (const cache of fetchStores(root, name, cacheRoot)) {
-    const readRoot = mainlineReadRoot(cache, name);
-    // A record kept before each directory named itself is named only beside them.
-    const last = readFetchedMainline(readRoot);
-    for (const commit of commitDirectories(readRoot)) {
-      const pointer = readFetchedMainline(join(readRoot, commit)) ?? (last?.commit === commit ? last : undefined);
-      if (usable(pointer)) kept.push({ readRoot, pointer });
-    }
-  }
-  const behind = behindHead(repositoryRoot(root), new Set(kept.filter((one) => one.pointer.latest !== true).map((one) => one.pointer.commit)));
-  const rank = (one: (typeof kept)[number]) => (one.pointer.latest === true ? -1 : behind.get(one.pointer.commit) ?? Infinity);
-  const newest = (a: (typeof kept)[number], b: (typeof kept)[number]) => codeUnitOrder(b.pointer.fetched, a.pointer.fetched);
-  return kept.sort((a, b) => {
-    const [at, bt] = [rank(a), rank(b)];
-    if (at !== bt) return at - bt;
-    if (Number.isFinite(at) && at >= 0) return (a.pointer.partial === true ? 1 : 0) - (b.pointer.partial === true ? 1 : 0);
-    return newest(a, b);
+  const order = native()?.keptMainlines;
+  if (order === undefined) throw new Error(`the mainline pick requires the Sense native addon: ${whyAbsent('keptMainlines')}`);
+  const readRoots = fetchStores(root, name, cacheRoot).map((cache) => mainlineReadRoot(cache, name));
+  return order(repositoryRoot(root), readRoots, selected ?? null).flatMap(({ readRoot, commit }) => {
+    const pointer = readFetchedMainline(join(readRoot, commit));
+    return pointer === undefined ? [] : [{ readRoot, pointer }];
   });
 }
 
 /**
- * How many commits behind `HEAD` each of `commits` is, for those `HEAD`
- * contains: one walk of its last {@link WALK} commits, then one ask for those
- * it lacks among the rest. Those it holds past the walk follow it, newest
- * commit first: one ask orders them, where a count would walk history for
- * each. Absent for one git cannot place.
+ * The commits of `kept` that `from` contains, nearest first, from the addon's
+ * one walk, which stops at the last of them. `landedAfter` leaves out what was
+ * committed before it; `firstParent` counts only that line, where a mainline
+ * publishes; `first` stops at that many, so a caller reading them one by one
+ * goes on from the parent of the last and walks no further than it reads.
+ * Synchronous, as {@link lastFetchedMainline} cannot wait.
  */
-function behindHead(checkout: string, commits: ReadonlySet<string>): ReadonlyMap<string, number> {
-  const found = new Map<string, number>();
-  if (commits.size === 0) return found;
-  try {
-    const walked = execFileSync('git', ['rev-list', `--max-count=${WALK}`, 'HEAD'], { cwd: checkout, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).split('\n');
-    walked.forEach((commit, at) => {
-      if (commits.has(commit)) found.set(commit, at);
-    });
-  } catch {
-    return found;
-  }
-  const rest = [...commits].filter((commit) => !found.has(commit));
-  if (rest.length === 0) return found;
-  try {
-    const lacked = new Set(execFileSync('git', ['rev-list', '--ignore-missing', '--stdin', '^HEAD'], { cwd: checkout, encoding: 'utf8', input: `${rest.join('\n')}\n`, stdio: ['pipe', 'pipe', 'ignore'] }).split('\n'));
-    const held = rest.filter((commit) => !lacked.has(commit));
-    if (held.length === 0) return found;
-    const ordered = execFileSync('git', ['rev-list', '--no-walk', '--stdin'], { cwd: checkout, encoding: 'utf8', input: `${held.join('\n')}\n`, stdio: ['pipe', 'pipe', 'ignore'] }).split('\n').filter(Boolean);
-    ordered.forEach((commit, at) => found.set(commit, WALK + at));
-  } catch {
-    return found;
-  }
-  return found;
-}
-
-/** The commit directories under `readRoot`, or none when it cannot be read. */
-function commitDirectories(readRoot: string): readonly string[] {
-  try {
-    return readdirSync(readRoot, { withFileTypes: true }).filter((entry) => entry.isDirectory() && /^[0-9a-f]{7,64}$/u.test(entry.name)).map((entry) => entry.name);
-  } catch {
-    return [];
-  }
-}
-
-/** Whether `older` is an ancestor of `newer` in `root`, or `undefined` when git cannot say. */
-export function ancestor(root: string, older: string, newer: string): boolean | undefined {
-  try {
-    execFileSync('git', ['merge-base', '--is-ancestor', older, newer], { cwd: root, stdio: 'ignore' });
-    return true;
-  } catch (error) {
-    return (error as { status?: number }).status === 1 ? false : undefined;
-  }
+export function keptBehind(checkout: string, from: string, kept: ReadonlySet<string>, along: { readonly firstParent?: boolean; readonly landedAfter?: number; readonly first?: number } = {}): readonly string[] {
+  const walk = native()?.keptBehind;
+  if (walk === undefined) throw new Error(`the walk behind a commit requires the Sense native addon: ${whyAbsent('keptBehind')}`);
+  return walk(checkout, from, [...kept], along.firstParent === true, along.landedAfter === undefined ? null : Math.floor(along.landedAfter / 1000), along.first ?? null);
 }
 
 /** The record `pointer` names under `readRoot`, when it is there and reads in this build. */

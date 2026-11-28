@@ -126,6 +126,7 @@ export {
 export {
   FETCHED_MAINLINE,
   fetchStores,
+  keptBehind,
   pinnedMainlines,
   lastFetchedMainline,
   layFetchedMainline,

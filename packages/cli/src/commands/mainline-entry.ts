@@ -1,6 +1,6 @@
 import { atCommit, findEntry, readLine, type HeldEntry, type KeptAt, type LineCell, type ShareLine, type ShareMiss } from '@variance-authority/core/share';
 import type { Config } from '../config.js';
-import { distanceFrom, keepsByCommit, keptBehind, lineCellOf, mergeBase, readerMainline, READ_REUSE_MS, type Unconfigured } from '../share-lines.js';
+import { distanceFrom, keepsByCommit, lineCellOf, mergeBase, readerMainline, READ_REUSE_MS, type Unconfigured } from '../share-lines.js';
 import type { Here } from './share.js';
 
 /**
@@ -128,10 +128,18 @@ export async function nearestHolding(
   if ('miss' in latest ? latest.miss.kind !== 'newer' : latest.entry.commit === base) return latest;
   const held = await cell.commits!(line);
   if (!Array.isArray(held)) return { miss: held as ShareMiss };
-  for await (const commit of keptBehind(base, new Set((held as readonly KeptAt[]).map((one) => one.commit)), cwd)) {
-    if (commit === base) continue;
+  const { keptBehind } = await import('@variance-authority/sense/test-selection');
+  const kept = new Set((held as readonly KeptAt[]).map((one) => one.commit));
+  kept.delete(base);
+  // One at a time, each walk going on from the parent of the last: the nearest record answers before an old one is walked to.
+  let from = base;
+  for (;;) {
+    const [commit] = keptBehind(cwd, from, kept, { firstParent: true, first: 1 });
+    if (commit === undefined) break;
     const found = await entryIn(cell, atCommit(line, commit), name);
     if (!('miss' in found) || found.miss.kind !== 'absent') return found;
+    kept.delete(commit);
+    from = `${commit}^`;
   }
   return latest;
 }
