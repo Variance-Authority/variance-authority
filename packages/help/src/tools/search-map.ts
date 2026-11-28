@@ -1,8 +1,9 @@
 // compass: variance-authority.report.agent-surface
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { FileSet } from '@variance-authority/mcp/tools';
-import { codeMapPage, packageLayers } from '@variance-authority/sense';
+import { codeMapPage, packageLayers, sourceIndexPath } from '@variance-authority/sense';
 import { ownerOf } from './classify-words.js';
+import { noCodeMap, STALE_MAP, unfoldedCodeMap } from './code-map-format.js';
 
 /** A complete partition's evidence classes, as the search producer qualified them. */
 export interface CandidateEvidence { readonly qualification?: string; readonly files: number }
@@ -95,7 +96,9 @@ export function candidateFileMap(root: string | undefined, membership: FileSet, 
   });
   const base = { files: membership.files.size, selected: membership.files.size, selector, name: 'root', unread: membership.unread ?? [], evidence: evidence(candidates) };
   const layers = packageLayers(root);
-  if (layers?.packages == null || !layers.current) return { ...base, unavailable: layers === undefined ? 'No code map is published.' : !layers.current ? 'The code map belongs to an earlier source index.' : layers.unmade ?? 'No packages were placed.' };
+  if (layers === undefined) return { ...base, unavailable: noCodeMap(sourceIndexPath(root)) };
+  if (layers.packages == null) return { ...base, unavailable: unfoldedCodeMap(sourceIndexPath(root), layers.unmade ?? undefined) };
+  if (!layers.current) return { ...base, unavailable: STALE_MAP };
   if (expectedIndexDigest === undefined) return { ...base, unavailable: 'The search reading has no source-index identity to place on the code map.' };
   if (layers.indexDigest !== expectedIndexDigest) return { ...base, unavailable: 'The search reading and code map describe a different source index.' };
   const named = new Map(layers.packages.map((one) => [one.package, one]));
@@ -113,7 +116,7 @@ export function candidateFileMap(root: string | undefined, membership: FileSet, 
     if (area === 'none') return { ...base, selected: files.length, name: 'No code-map area', groups: packages(files) };
     const answer = codeMapPage(root, area).answer;
     if (answer?.page == null) throw new Error(`The code map has no area ${JSON.stringify(area)}.`);
-    if (!answer.current) return { ...base, unavailable: 'The code map belongs to an earlier source index.' };
+    if (!answer.current) return { ...base, unavailable: STALE_MAP };
     return { ...base, selected: files.length, name: answer.page.name, groups: areas(answer.page, files) };
   }
   if (parts[0] !== 'package' && parts[0] !== 'files' || parts.length !== (parts[0] === 'package' ? 2 : 3)) throw new Error('Use root or a drill id printed by the search map.');

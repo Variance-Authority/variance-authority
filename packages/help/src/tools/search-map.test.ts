@@ -9,17 +9,19 @@ import { candidateFileMap as placedFileMap } from './search-map.js';
 const candidateFileMap: typeof placedFileMap = (root, membership, selector, expected = 'map-generation') => placedFileMap(root, membership, selector, expected);
 import type { CandidateMap } from './search-map.js';
 import { formatCandidateMap } from './search-map-format.js';
+import { noCodeMap, STALE_MAP, unfoldedCodeMap } from './code-map-format.js';
+import { sourceIndexPath } from '@variance-authority/sense';
 
-const state = vi.hoisted(() => ({ current: true, present: true, pageCurrent: true, digest: 'map-generation', joined: false, rooted: false }));
-beforeEach(() => Object.assign(state, { current: true, present: true, pageCurrent: true, digest: 'map-generation', joined: false, rooted: false }));
+const state = vi.hoisted(() => ({ current: true, present: true, pageCurrent: true, digest: 'map-generation', joined: false, rooted: false, unfolded: false }));
+beforeEach(() => Object.assign(state, { current: true, present: true, pageCurrent: true, digest: 'map-generation', joined: false, rooted: false, unfolded: false }));
 
 vi.mock('@variance-authority/sense', async (original) => ({
   ...await original<typeof import('@variance-authority/sense')>(),
-  packageLayers: () => state.present ? ({ indexDigest: state.digest, current: state.current, packages: [
+  packageLayers: () => !state.present ? undefined : state.unfolded ? { indexDigest: state.digest, current: state.current, unmade: 'no manifest names a package' } : ({ indexDigest: state.digest, current: state.current, packages: [
     { package: 'alpha', directory: 'packages/alpha', layer: 1, takes: [], area: { id: '1', name: 'Foundation' } },
     { package: 'beta', directory: 'packages/beta', layer: 2, takes: ['alpha'], area: state.joined ? { id: '1', name: 'Foundation' } : { id: '2', name: 'Application' } },
     ...state.rooted ? [{ package: 'workspace', directory: '', layer: 3, takes: ['beta'], area: { id: '2', name: 'Application' } }] : [],
-  ] }) : undefined,
+  ] }),
   codeMapPage: (_root: string, area?: string) => ({ index: 'index', answer: { current: state.pageCurrent, layers: 2, page: area === undefined || area === '1' || area === '2' ? {
     id: area ?? '', name: 'fixture', packages: 2, files: 6, low: 1, high: 2, alone: 0,
     list: area === '1' ? ['alpha'] : area === '2' ? ['beta'] : [],
@@ -92,19 +94,24 @@ it('keeps terminal paths and complete Unicode code points when splitting prefixe
   expect(found.length).toBe(set.files.size);
 });
 
-it('says missing and stale placement are unavailable, retaining the positive candidate count and source frontier', () => {
+it('says missing, unfolded and stale placement are unavailable as `ask orient` does, retaining the positive candidate count and source frontier', () => {
   const set = membership(['packages/alpha/a.ts']);
-  for (const change of [{ present: false, current: true }, { present: true, current: false }]) {
+  const index = sourceIndexPath(ROOT);
+  for (const [change, sentence] of [
+    [{ present: false }, noCodeMap(index)],
+    [{ unfolded: true }, unfoldedCodeMap(index, 'no manifest names a package')],
+    [{ current: false }, STALE_MAP],
+  ] as const) {
     Object.assign(state, change);
     const map = candidateFileMap(ROOT, set, 'root');
-    expect(map.unavailable).toBeDefined();
+    expect(map.unavailable).toBe(sentence);
     expect(map.files).toBe(1);
     expect(map.groups).toBeUndefined();
     expect(map.unread).toEqual(set.unread);
-    expect(formatCandidateMap(map, (id) => id)).toContain(map.unavailable!);
+    expect(formatCandidateMap(map, (id) => id)).toContain(sentence);
     expect(map.evidence).toEqual([{ qualification: "near matches, not exact", files: 1 }]);
+    Object.assign(state, { present: true, current: true, unfolded: false });
   }
-  Object.assign(state, { present: true, current: true });
 });
 
 it('does not place an older search generation on the current map', () => {
@@ -127,7 +134,7 @@ it('refuses fabricated and malformed drills instead of expanding a different sco
   expect(() => candidateFileMap(ROOT, set, 'package:invented')).toThrow('no package');
   expect(() => candidateFileMap(ROOT, set, 'files:alpha:missing')).toThrow('no candidate file');
   state.pageCurrent = false;
-  expect(candidateFileMap(ROOT, set, 'root').unavailable).toContain('earlier source index');
+  expect(candidateFileMap(ROOT, set, 'root').unavailable).toBe(STALE_MAP);
 });
 
 it('renders whole evidence-line inventories or a count, and refuses an oversized whole group listing', () => {
