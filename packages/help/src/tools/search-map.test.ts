@@ -111,6 +111,19 @@ it('keeps loose files reachable when they alone overflow beside a subdirectory, 
   expect(found.toSorted()).toEqual([...set.files.keys()].toSorted());
 });
 
+it('fits a page of many sibling directories to the text budget when no limit is said, the rest on the next page', () => {
+  const set = membership(Array.from({ length: 120 }, (_, i) => [0, 1, 2].map((n) => `packages/alpha/src/components/component-${String(i).padStart(3, '0')}/part-${n}.tsx`)).flat());
+  const page = candidateFileMap(ROOT, set, 'package:alpha');
+  expect(page.groups).toHaveLength(120);
+  const drill = (id: string, offset?: number) => `variance ask search --query x --map ${id}${offset === undefined ? '' : ` --offset ${offset}`}`;
+  const text = formatCandidateMap(page, drill, { offset: 0 });
+  const shown = text.split('\n').filter((line) => line.startsWith('packages/alpha/src/components/component-')).length;
+  expect(shown).toBeGreaterThan(0);
+  expect(shown).toBeLessThan(120);
+  expect(text).toContain(`--offset ${shown}`);
+  expect(() => formatCandidateMap(page, drill, { offset: 0, limit: 120 })).toThrow('text budget');
+});
+
 it('keeps terminal paths and complete Unicode code points when splitting prefixes', () => {
   const set = membership(['packages/alpha/😀.ts', 'packages/alpha/😁.ts', 'packages/alpha/a.ts', 'packages/alpha/a.tsx']);
   for (const [file] of set.files) set.files.set(file, Array.from({ length: 1200 }, (_, i) => i + 1));

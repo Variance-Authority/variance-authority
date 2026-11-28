@@ -21,11 +21,14 @@ lexical candidates, not a judgement that those files implement your task.
 Follow the exact `--map` drill printed beside a group. Areas lead to smaller
 areas or packages; packages lead to files, splitting large inventories by
 directory, and by path where one directory's own files overflow a page. Every
-group remains represented. A drill selects membership within the original candidate set; it does not change `--from` or `--to`, whose import
-reach still determines that set. Emitted questions preserve those start points.
+group remains represented. A drill selects
+membership within the original candidate set; it does not change `--from` or
+`--to`, whose import reach still determines that set. Emitted questions
+preserve those start points.
 
-With `--map`, `--limit` is the map groups one page shows, 50 when not said,
-and `--offset` the groups to skip; a page names the question for the next one.
+With `--map`, `--limit` is the map groups one page shows, and `--offset` the
+groups to skip; a page names the question for the next one. Unsaid, a page
+holds as many groups as fit its text, at most 50.
 `--format json` exposes the same map as `candidateMap`, every group in one
 answer, including complete file coordinates at leaves. Text prints a coordinate
 count when a file has many evidence lines. MCP accepts `map`, `limit` and

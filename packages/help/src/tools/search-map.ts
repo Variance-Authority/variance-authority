@@ -108,7 +108,7 @@ function groups(name: string, by: ReadonlyMap<string, readonly Held[]>, mark: st
   return [...by].sort(([a], [b]) => codeUnitOrder(a, b)).map(([prefix, held]) => group(id('files', name, prefix), `${prefix}${mark}`, held));
 }
 
-/** Split files of one directory by the next code point after their common name prefix. */
+/** Split files by the next code point after their common path prefix: for one flat directory, or loose files that overflow beside subdirectories. */
 function namePage(name: string, files: readonly Held[]): Pick<CandidateMap, 'groups' | 'entries'> {
   let prefix = files[0]!.file;
   for (const file of files) while (!file.file.startsWith(prefix)) prefix = Array.from(prefix).slice(0, -1).join('');
