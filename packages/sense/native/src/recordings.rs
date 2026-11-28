@@ -30,7 +30,7 @@ pub(crate) fn recordings(layers: &Layers, config: Option<&Value>) -> Option<Vec<
         if own.try_exists().ok()? {
             return Some(own);
         }
-        let handed = suite.is_some_and(|name| pointer(&layers.cache, name).is_some_and(|pointer| pointer.handed));
+        let handed = suite.is_some_and(|name| pointer(&layers.cache.join("share/read").join(name)).is_some_and(|pointer| pointer.handed));
         if let Some(fetched) = suite.filter(|_| shared).and_then(|name| fetched(layers, name, handed)) {
             return Some(fetched);
         }
@@ -89,48 +89,59 @@ pub(crate) fn recordings(layers: &Layers, config: Option<&Value>) -> Option<Vec<
         .collect()
 }
 
-/// What a fetch's `fetched.json` names: the commit the record is kept under,
-/// when it was fetched, and whether another job's read was handed on here.
+/// What a `fetched.json` names: the commit the record is kept under, when it
+/// was fetched, whether another job's read was handed on here, and whether the
+/// share keeps only its latest.
 struct Pointer {
     commit: String,
     fetched: String,
     handed: bool,
+    latest: bool,
 }
 
-/// The pointer a fetch left for `suite` in `cache`, or none when there is none or it does not read.
-fn pointer(cache: &Path, suite: &str) -> Option<Pointer> {
-    let text = std::fs::read(cache.join("share/read").join(suite).join("fetched.json")).ok()?;
+/// The pointer in `dir`, or none when there is none or it does not read: a
+/// fetch's in its commit's directory, a handed read's beside the directories.
+fn pointer(dir: &Path) -> Option<Pointer> {
+    let text = std::fs::read(dir.join("fetched.json")).ok()?;
     let value: Value = serde_json::from_slice(&text).ok()?;
     value.get("mainline")?.as_str()?;
+    let flag = |key: &str| value.get(key).and_then(Value::as_bool) == Some(true);
     Some(Pointer {
         commit: value.get("commit")?.as_str()?.to_owned(),
         fetched: value.get("fetched")?.as_str()?.to_owned(),
-        handed: value.get("handed").and_then(Value::as_bool) == Some(true),
+        handed: flag("handed"),
+        latest: flag("latest"),
     })
 }
 
-/// The newest mainline record of `suite` fetched on this machine that this
-/// build opens, asked of this checkout's cache and its primary's, or of this
-/// one alone when its read was handed on: `lastFetchedMainline`'s answer for
-/// a reader with no selection, as every `ask` is.
+/// The mainline record of `suite` fetched on this machine that this build
+/// opens, asked of this checkout's cache and its primary's: a share's latest
+/// first, then the newest fetch. A read handed on here is taken alone.
+/// `lastFetchedMainline` orders the rest by what `HEAD` contains, which this
+/// lookup does not walk.
 fn fetched(layers: &Layers, suite: &str, handed: bool) -> Option<PathBuf> {
-    let caches: &[&PathBuf] = if handed || layers.primary_cache == layers.cache {
-        &[&layers.cache]
-    } else {
-        &[&layers.cache, &layers.primary_cache]
-    };
-    let mut newest: Option<(String, PathBuf)> = None;
+    let opens = |coverage: &PathBuf| matches!(FileFrame::open(coverage), Ok(Some(_)));
+    if handed {
+        let read = layers.cache.join("share/read").join(suite);
+        return pointer(&read).map(|pointer| read.join(pointer.commit).join("coverage.bin")).filter(opens);
+    }
+    let caches: &[&PathBuf] = if layers.primary_cache == layers.cache { &[&layers.cache] } else { &[&layers.cache, &layers.primary_cache] };
+    let mut best: Option<((bool, String), PathBuf)> = None;
     for cache in caches {
-        let Some(pointer) = pointer(cache, suite) else { continue };
-        if newest.as_ref().is_some_and(|(fetched, _)| *fetched >= pointer.fetched) {
-            continue;
-        }
-        let coverage = cache.join("share/read").join(suite).join(&pointer.commit).join("coverage.bin");
-        if matches!(FileFrame::open(&coverage), Ok(Some(_))) {
-            newest = Some((pointer.fetched, coverage));
+        let Ok(entries) = std::fs::read_dir(cache.join("share/read").join(suite)) else { continue };
+        for entry in entries.flatten() {
+            let Some(pointer) = pointer(&entry.path()).filter(|pointer| !pointer.handed) else { continue };
+            let rank = (pointer.latest, pointer.fetched);
+            if best.as_ref().is_some_and(|(held, _)| *held >= rank) {
+                continue;
+            }
+            let coverage = entry.path().join("coverage.bin");
+            if opens(&coverage) {
+                best = Some((rank, coverage));
+            }
         }
     }
-    newest.map(|(_, coverage)| coverage)
+    best.map(|(_, coverage)| coverage)
 }
 
 pub(crate) fn commit(file: &mut FileFrame) -> Result<Option<String>, String> {
