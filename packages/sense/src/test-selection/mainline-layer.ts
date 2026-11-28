@@ -176,7 +176,8 @@ function keptMainlines(root: string, name: string, cacheRoot?: string, selected?
  * commit committed before it is left out, so the walk costs a window and not
  * the repository's age. With `firstParent`, only `from`'s first-parent
  * history counts, as a mainline's publishes lie on it and a merged branch's
- * commits do not; past the walk that is one ask for each commit it holds. A commit git cannot place is left out. Synchronous, as
+ * commits do not; past the walk that is one more walk of that line, nearest
+ * first. A commit git cannot place is left out. Synchronous, as
  * {@link lastFetchedMainline} cannot wait; the CLI's fetch and history view
  * walk with it too.
  */
@@ -195,9 +196,14 @@ export function keptBehind(checkout: string, from: string, kept: ReadonlySet<str
   const rest = [...kept].filter((commit) => !found.includes(commit));
   if (rest.length === 0) return found;
   try {
+    // The first-parent line is one walk past the window too; a merged branch's commit is not on it.
+    if (along.firstParent === true) {
+      const left = new Set(rest);
+      for (const commit of ask(['rev-list', '--first-parent', ...bound, from]).slice(WALK)) if (left.has(commit)) found.push(commit);
+      return found;
+    }
     const lacked = new Set(ask(['rev-list', '--ignore-missing', '--stdin', `^${from}`], rest));
-    // Asked one commit at a time: given an ancestor of it too, git's first-parent exclusion passes a merged branch's commit over.
-    const held = rest.filter((commit) => !lacked.has(commit) && (along.firstParent !== true || ask(['rev-list', '--exclude-first-parent-only', commit, `^${from}`]).length === 0));
+    const held = rest.filter((commit) => !lacked.has(commit));
     if (held.length > 0) found.push(...ask(['rev-list', '--no-walk', ...bound, '--stdin'], held));
   } catch {
     return found;
