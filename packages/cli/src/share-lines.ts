@@ -14,11 +14,10 @@
  * own repository under the cache.
  */
 
-import { execFile, spawn } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { createInterface } from 'node:readline';
 import {
   httpLineCell,
   type Descends,
@@ -348,24 +347,6 @@ async function sinceMergeBase(
   return since === undefined ? { base } : { base, since };
 }
 
-/**
- * The commits of `kept` on `base`'s first-parent history, `base` included,
- * nearest first: the mainline commits at or behind it that published a
- * record. A reader stops at the first that answers, which ends the walk.
- */
-export async function* keptBehind(base: string, kept: ReadonlySet<string>, cwd: string, landedAfter?: number): AsyncGenerator<string> {
-  if (kept.size === 0) return;
-  const bound = landedAfter === undefined ? [] : [`--since=@${Math.floor(landedAfter / 1000)}`];
-  const child = spawn('git', ['rev-list', '--first-parent', ...bound, base], { cwd, env: { ...process.env, GIT_TERMINAL_PROMPT: '0' }, stdio: ['ignore', 'pipe', 'ignore'] });
-  try {
-    for await (const commit of createInterface({ input: child.stdout })) {
-      if (kept.has(commit)) yield commit;
-    }
-  } finally {
-    child.kill();
-  }
-}
-
 /** How long before a window opens a commit may have landed and still publish its record inside it. */
 const LANDED_BEFORE_PUBLISHED = 86_400_000;
 
@@ -377,12 +358,8 @@ const LANDED_BEFORE_PUBLISHED = 86_400_000;
  * what came before it.
  */
 export async function keptInOrder(config: Pick<Config, 'share'>, mainline: string, kept: ReadonlySet<string>, opens: number, cwd: string): Promise<readonly string[]> {
-  const found: string[] = [];
-  for await (const commit of keptBehind(`refs/remotes/${remoteOf(config)}/${mainline}`, kept, cwd, opens - LANDED_BEFORE_PUBLISHED)) {
-    found.push(commit);
-    if (found.length === kept.size) break;
-  }
-  return found.reverse();
+  const { keptBehind } = await import('@variance-authority/sense/test-selection');
+  return [...keptBehind(cwd, `refs/remotes/${remoteOf(config)}/${mainline}`, kept, { firstParent: true, landedAfter: opens - LANDED_BEFORE_PUBLISHED })].reverse();
 }
 
 /** `HEAD`'s merge base with `mainline` as this clone last fetched it. */

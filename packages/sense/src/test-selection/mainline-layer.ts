@@ -73,19 +73,21 @@ export function mainlineReadRoot(cacheRoot: string, suite: string): string {
 
 /**
  * Record that the mainline's record of `suite` was fetched into
- * `<readRoot>/<commit>/`: in that directory, which says what it holds to every
- * reader that picks it, and beside it, as the last fetch into this cache.
- * A fetch into another checkout's cache, `shared`, leaves a read handed to that
- * checkout standing there. A handed read is named beside them alone: it is that checkout's, and the
- * directory may be one every checkout picks from. Called by the fetch once
- * every file it keeps is in place, so a seam that reads this finds them.
- * Replaced whole, so no reader meets a half-written one.
+ * `<readRoot>/<commit>/`. A fetched record is named in its own directory, which
+ * says what it holds to every reader that picks it; a read a run handed this
+ * checkout is named beside the directories alone, as it is this checkout's,
+ * and the directory may be one every checkout picks from. A fetch into this
+ * checkout's own cache ends a read handed to it; one into another checkout's,
+ * `shared`, leaves that checkout's standing. Called by the fetch once every
+ * file it keeps is in place, so a seam that reads this finds them. Replaced
+ * whole, so no reader meets a half-written one.
  */
 export async function writeFetchedMainline(cacheRoot: string, suite: string, fetched: FetchedMainline, shared = false): Promise<void> {
   const readRoot = mainlineReadRoot(cacheRoot, suite);
   const text = Buffer.from(`${JSON.stringify(fetched)}\n`);
-  if (fetched.handed !== true) await place(join(readRoot, fetched.commit, FETCHED_MAINLINE), text);
-  if (!shared || readFetchedMainline(readRoot)?.handed !== true) await place(join(readRoot, FETCHED_MAINLINE), text);
+  if (fetched.handed === true) return place(join(readRoot, FETCHED_MAINLINE), text);
+  await place(join(readRoot, fetched.commit, FETCHED_MAINLINE), text);
+  if (!shared) await rm(join(readRoot, FETCHED_MAINLINE), { force: true });
 }
 
 /** The pointer in one read root, or in one commit's directory under it, or undefined when there is none or it does not read. */
@@ -150,14 +152,12 @@ function keptMainlines(root: string, name: string, cacheRoot?: string, selected?
   const usable = (pointer: FetchedMainline | undefined): pointer is FetchedMainline => pointer !== undefined && pointer.handed !== true && (selected === undefined || pointer.mainline === selected);
   for (const cache of fetchStores(root, name, cacheRoot)) {
     const readRoot = mainlineReadRoot(cache, name);
-    // A record kept before each directory named itself is named only beside them.
-    const last = readFetchedMainline(readRoot);
     for (const commit of commitDirectories(readRoot)) {
-      const pointer = readFetchedMainline(join(readRoot, commit)) ?? (last?.commit === commit ? last : undefined);
+      const pointer = readFetchedMainline(join(readRoot, commit));
       if (usable(pointer)) kept.push({ readRoot, pointer });
     }
   }
-  const behind = behindHead(repositoryRoot(root), new Set(kept.filter((one) => one.pointer.latest !== true).map((one) => one.pointer.commit)));
+  const behind = new Map(keptBehind(repositoryRoot(root), 'HEAD', new Set(kept.filter((one) => one.pointer.latest !== true).map((one) => one.pointer.commit))).map((commit, at) => [commit, at]));
   const rank = (one: (typeof kept)[number]) => (one.pointer.latest === true ? -1 : behind.get(one.pointer.commit) ?? Infinity);
   const newest = (a: (typeof kept)[number], b: (typeof kept)[number]) => codeUnitOrder(b.pointer.fetched, a.pointer.fetched);
   return kept.sort((a, b) => {
@@ -169,31 +169,36 @@ function keptMainlines(root: string, name: string, cacheRoot?: string, selected?
 }
 
 /**
- * How many commits behind `HEAD` each of `commits` is, for those `HEAD`
- * contains: one walk of its last {@link WALK} commits, then one ask for those
- * it lacks among the rest. Those it holds past the walk follow it, newest
- * commit first: one ask orders them, where a count would walk history for
- * each. Absent for one git cannot place.
+ * The commits of `kept` that `from` contains, nearest first: one walk of its
+ * last {@link WALK} commits, then one ask for those it lacks among the rest.
+ * Those it holds past the walk follow, newest commit first: one ask orders
+ * them, where a count would walk history for each. With `landedAfter`, a
+ * commit committed before it is left out, so the walk costs a window and not
+ * the repository's age. With `firstParent`, only `from`'s first-parent
+ * history counts, as a mainline's publishes lie on it and a merged branch's
+ * commits do not; past the walk that is one ask for each commit it holds. A commit git cannot place is left out. Synchronous, as
+ * {@link lastFetchedMainline} cannot wait; the CLI's fetch and history view
+ * walk with it too.
  */
-function behindHead(checkout: string, commits: ReadonlySet<string>): ReadonlyMap<string, number> {
-  const found = new Map<string, number>();
-  if (commits.size === 0) return found;
+export function keptBehind(checkout: string, from: string, kept: ReadonlySet<string>, along: { readonly firstParent?: boolean; readonly landedAfter?: number } = {}): readonly string[] {
+  if (kept.size === 0) return [];
+  const bound = along.landedAfter === undefined ? [] : [`--since=@${Math.floor(along.landedAfter / 1000)}`];
+  const line = along.firstParent === true ? ['--first-parent'] : [];
+  const ask = (args: readonly string[], input?: readonly string[]) =>
+    execFileSync('git', [...args], { cwd: checkout, encoding: 'utf8', env: { ...process.env, GIT_TERMINAL_PROMPT: '0' }, ...(input === undefined ? { stdio: ['ignore', 'pipe', 'ignore'] } : { input: `${input.join('\n')}\n`, stdio: ['pipe', 'pipe', 'ignore'] }) }).split('\n').filter(Boolean);
+  const found: string[] = [];
   try {
-    const walked = execFileSync('git', ['rev-list', `--max-count=${WALK}`, 'HEAD'], { cwd: checkout, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).split('\n');
-    walked.forEach((commit, at) => {
-      if (commits.has(commit)) found.set(commit, at);
-    });
+    for (const commit of ask(['rev-list', `--max-count=${WALK}`, ...line, ...bound, from])) if (kept.has(commit)) found.push(commit);
   } catch {
     return found;
   }
-  const rest = [...commits].filter((commit) => !found.has(commit));
+  const rest = [...kept].filter((commit) => !found.includes(commit));
   if (rest.length === 0) return found;
   try {
-    const lacked = new Set(execFileSync('git', ['rev-list', '--ignore-missing', '--stdin', '^HEAD'], { cwd: checkout, encoding: 'utf8', input: `${rest.join('\n')}\n`, stdio: ['pipe', 'pipe', 'ignore'] }).split('\n'));
-    const held = rest.filter((commit) => !lacked.has(commit));
-    if (held.length === 0) return found;
-    const ordered = execFileSync('git', ['rev-list', '--no-walk', '--stdin'], { cwd: checkout, encoding: 'utf8', input: `${held.join('\n')}\n`, stdio: ['pipe', 'pipe', 'ignore'] }).split('\n').filter(Boolean);
-    ordered.forEach((commit, at) => found.set(commit, WALK + at));
+    const lacked = new Set(ask(['rev-list', '--ignore-missing', '--stdin', `^${from}`], rest));
+    // Asked one commit at a time: given an ancestor of it too, git's first-parent exclusion passes a merged branch's commit over.
+    const held = rest.filter((commit) => !lacked.has(commit) && (along.firstParent !== true || ask(['rev-list', '--exclude-first-parent-only', commit, `^${from}`]).length === 0));
+    if (held.length > 0) found.push(...ask(['rev-list', '--no-walk', ...bound, '--stdin'], held));
   } catch {
     return found;
   }
@@ -206,16 +211,6 @@ function commitDirectories(readRoot: string): readonly string[] {
     return readdirSync(readRoot, { withFileTypes: true }).filter((entry) => entry.isDirectory() && /^[0-9a-f]{7,64}$/u.test(entry.name)).map((entry) => entry.name);
   } catch {
     return [];
-  }
-}
-
-/** Whether `older` is an ancestor of `newer` in `root`, or `undefined` when git cannot say. */
-export function ancestor(root: string, older: string, newer: string): boolean | undefined {
-  try {
-    execFileSync('git', ['merge-base', '--is-ancestor', older, newer], { cwd: root, stdio: 'ignore' });
-    return true;
-  } catch (error) {
-    return (error as { status?: number }).status === 1 ? false : undefined;
   }
 }
 

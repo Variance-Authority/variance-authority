@@ -8,6 +8,7 @@ import {
   cacheRootFor,
   commitRunsFile,
   declaredSuites,
+  lastFetchedMainline,
   mainlineReadRoot,
   readFetchedMainline,
   testCoverageFile,
@@ -61,7 +62,8 @@ async function laptop(origin: string, ...clone: string[]) {
 
 /** What `dir` last fetched, marked as another job of its run handed it on, as `carry receive` lays it. */
 async function handed(dir: string, readRoot: string): Promise<void> {
-  await writeFetchedMainline(cacheRootFor(dir), 'unit', { ...readFetchedMainline(readRoot)!, handed: true });
+  const { commit } = lastFetchedMainline(dir, 'unit')!;
+  await writeFetchedMainline(cacheRootFor(dir), 'unit', { ...readFetchedMainline(join(readRoot, commit))!, handed: true });
 }
 
 /** A commit pushed to `ci`'s `main`, and none of its records published. */
