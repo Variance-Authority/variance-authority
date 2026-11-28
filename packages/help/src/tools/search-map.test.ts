@@ -80,6 +80,19 @@ it('keeps large whole inventories drillable without selecting a first page of fi
   expect(leaves.map(({ file, lines }) => [file, lines])).toEqual([...set.files]);
 });
 
+it('splits an overflowing package by the next directory, listing files directly in the common directory', () => {
+  const set = membership([
+    ...Array.from({ length: 70 }, (_, i) => `packages/alpha/src/apple/entry-${String(i).padStart(3, '0')}.ts`),
+    ...Array.from({ length: 70 }, (_, i) => `packages/alpha/src/apricot/entry-${String(i).padStart(3, '0')}.ts`),
+    'packages/alpha/src/index.ts',
+  ]);
+  const page = candidateFileMap(ROOT, set, 'package:alpha');
+  expect(page.groups?.map(({ name, files }) => [name, files])).toEqual([['packages/alpha/src/apple/', 70], ['packages/alpha/src/apricot/', 70]]);
+  expect(page.entries?.map(({ file }) => file)).toEqual(['packages/alpha/src/index.ts']);
+  const apple = candidateFileMap(ROOT, set, page.groups![0]!.id);
+  expect(apple.selected).toBe(70);
+});
+
 it('keeps terminal paths and complete Unicode code points when splitting prefixes', () => {
   const set = membership(['packages/alpha/😀.ts', 'packages/alpha/😁.ts', 'packages/alpha/a.ts', 'packages/alpha/a.tsx']);
   for (const [file] of set.files) set.files.set(file, Array.from({ length: 1200 }, (_, i) => i + 1));

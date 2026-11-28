@@ -70,11 +70,38 @@ function areas(page: Page, files: readonly Held[]): CandidateGroup[] {
     : [...grouped, ...packages(outside)];
 }
 
-/** Split a large whole inventory by path prefixes, preserving the selected package. */
+const bare = ({ placed: _placed, ...file }: Held): CandidateFile => file;
+
+/**
+ * Split a large whole inventory by the next directory below the files' common
+ * directory, listing the files directly in it. Files that all sit in one
+ * directory have no directory left to split on, so they split by the next
+ * character of their names instead.
+ */
 function filePage(name: string, files: readonly Held[]): Pick<CandidateMap, 'groups' | 'entries'> {
-  if (files.length < 2 || JSON.stringify(files.map(({ placed: _placed, ...file }) => file)).length <= 4000) {
-    return { entries: files.map(({ placed: _placed, ...file }) => file) };
+  if (files.length < 2 || JSON.stringify(files.map(bare)).length <= 4000) return { entries: files.map(bare) };
+  const first = files[0]!.file;
+  let directory = first.slice(0, first.lastIndexOf('/') + 1);
+  for (const { file } of files) while (!file.startsWith(directory)) directory = directory.slice(0, directory.lastIndexOf('/', directory.length - 2) + 1);
+  const by = new Map<string, Held[]>();
+  const direct: Held[] = [];
+  for (const file of files) {
+    const slash = file.file.indexOf('/', directory.length);
+    if (slash < 0) { direct.push(file); continue; }
+    const next = file.file.slice(0, slash + 1);
+    if (!by.has(next)) by.set(next, []);
+    by.get(next)!.push(file);
   }
+  if (by.size === 0) return namePage(name, files);
+  return { groups: groups(name, by, ''), ...(direct.length === 0 ? {} : { entries: direct.map(bare) }) };
+}
+
+function groups(name: string, by: ReadonlyMap<string, readonly Held[]>, mark: string): CandidateGroup[] {
+  return [...by].sort(([a], [b]) => codeUnitOrder(a, b)).map(([prefix, held]) => group(id('files', name, prefix), `${prefix}${mark}`, held));
+}
+
+/** Split files of one directory by the next code point after their common name prefix. */
+function namePage(name: string, files: readonly Held[]): Pick<CandidateMap, 'groups' | 'entries'> {
   let prefix = files[0]!.file;
   for (const file of files) while (!file.file.startsWith(prefix)) prefix = Array.from(prefix).slice(0, -1).join('');
   const by = new Map<string, Held[]>();
@@ -84,7 +111,7 @@ function filePage(name: string, files: readonly Held[]): Pick<CandidateMap, 'gro
     if (!by.has(next)) by.set(next, []);
     by.get(next)!.push(file);
   }
-  return { groups: [...by].sort(([a], [b]) => codeUnitOrder(a, b)).map(([prefix, held]) => group(id('files', name, prefix), `${prefix}…`, held)), ...(terminal.length === 0 ? {} : { entries: terminal.map(({ placed: _placed, ...file }) => file) }) };
+  return { groups: groups(name, by, '…'), ...(terminal.length === 0 ? {} : { entries: terminal.map(bare) }) };
 }
 
 /** Place complete canonical membership on an already published code map, without reading source or changing matching. */
