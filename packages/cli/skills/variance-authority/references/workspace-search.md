@@ -19,9 +19,9 @@ their qualifications; unread source frontiers remain explicit. This is a map of
 lexical candidates, not a judgement that those files implement your task.
 
 Follow the exact `--map` drill printed beside a group. Areas lead to smaller
-areas or packages; packages lead to files, splitting large inventories by path
-prefix. Every group remains represented. A drill selects membership within the
-original candidate set; it does not change `--from` or `--to`, whose import
+areas or packages; packages lead to files, splitting large inventories by
+directory, and by path where one directory's own files overflow a page. Every
+group remains represented. A drill selects membership within the original candidate set; it does not change `--from` or `--to`, whose import
 reach still determines that set. Emitted questions preserve those start points.
 
 With `--map`, `--limit` is the map groups one page shows, 50 when not said,

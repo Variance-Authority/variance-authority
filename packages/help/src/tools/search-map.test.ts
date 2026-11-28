@@ -93,6 +93,11 @@ it('splits an overflowing package by the next directory, listing files directly 
   expect(apple.selected).toBe(70);
 });
 
+it('names a directory group for the deepest folder its files share, so no drill only descends', () => {
+  const set = membership([...Array.from({ length: 140 }, (_, i) => `packages/alpha/src/a/b/c/entry-${String(i).padStart(3, '0')}.ts`), 'packages/alpha/src/z.ts']);
+  expect(candidateFileMap(ROOT, set, 'package:alpha').groups?.map(({ name, files }) => [name, files])).toEqual([['packages/alpha/src/a/b/c/', 140]]);
+});
+
 it('keeps loose files reachable when they alone overflow beside a subdirectory, each file reached once', () => {
   const set = membership([...Array.from({ length: 300 }, (_, i) => `packages/alpha/src/component-${String(i).padStart(3, '0')}.ts`), 'packages/alpha/src/__tests__/x.test.ts']);
   const found: string[] = [];

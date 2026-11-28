@@ -74,15 +74,14 @@ const bare = ({ placed: _placed, ...file }: Held): CandidateFile => file;
 
 /**
  * Split a large whole inventory by the next directory below the files' common
- * directory, listing the files directly in it. When no directory is left to
+ * directory, each group named for the deepest folder its files share, listing
+ * the files directly in it. When no directory is left to
  * split on, or the files directly in it overflow alone, the files split by the
  * next character of their paths instead, and each drill below that splits again.
  */
 function filePage(name: string, files: readonly Held[]): Pick<CandidateMap, 'groups' | 'entries'> {
   if (files.length < 2 || JSON.stringify(files.map(bare)).length <= 4000) return { entries: files.map(bare) };
-  const first = files[0]!.file;
-  let directory = first.slice(0, first.lastIndexOf('/') + 1);
-  for (const { file } of files) while (!file.startsWith(directory)) directory = directory.slice(0, directory.lastIndexOf('/', directory.length - 2) + 1);
+  const directory = commonDirectory(files);
   const by = new Map<string, Held[]>();
   const direct: Held[] = [];
   for (const file of files) {
@@ -93,7 +92,16 @@ function filePage(name: string, files: readonly Held[]): Pick<CandidateMap, 'gro
     by.get(next)!.push(file);
   }
   if (by.size === 0 || direct.length > 1 && JSON.stringify(direct.map(bare)).length > 4000) return namePage(name, files);
-  return { groups: groups(name, by, ''), ...(direct.length === 0 ? {} : { entries: direct.map(bare) }) };
+  const named = new Map([...by.values()].map((held) => [commonDirectory(held), held]));
+  return { groups: groups(name, named, ''), ...(direct.length === 0 ? {} : { entries: direct.map(bare) }) };
+}
+
+/** The deepest directory, ending in `/`, that holds every file; `''` at the checkout's root. */
+function commonDirectory(files: readonly Held[]): string {
+  const first = files[0]!.file;
+  let directory = first.slice(0, first.lastIndexOf('/') + 1);
+  for (const { file } of files) while (!file.startsWith(directory)) directory = directory.slice(0, directory.lastIndexOf('/', directory.length - 2) + 1);
+  return directory;
 }
 
 function groups(name: string, by: ReadonlyMap<string, readonly Held[]>, mark: string): CandidateGroup[] {
