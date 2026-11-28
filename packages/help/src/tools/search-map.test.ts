@@ -138,6 +138,15 @@ it('promises no count for the next fitted page that the next page does not show'
   expect(first).toContain(`--offset ${shown}`);
 });
 
+it('prints the files directly in the common directory on the first page of its groups alone', () => {
+  const set = membership(['packages/alpha/src/index.ts', ...Array.from({ length: 120 }, (_, i) => [0, 1, 2].map((n) => `packages/alpha/src/components/component-${String(i).padStart(3, '0')}/part-${n}.tsx`)).flat()]);
+  const page = candidateFileMap(ROOT, set, 'package:alpha');
+  expect(page.entries?.map(({ file }) => file)).toEqual(['packages/alpha/src/index.ts']);
+  const drill = (id: string, offset?: number) => `variance ask search --query x --map ${id}${offset === undefined ? '' : ` --offset ${offset}`}`;
+  expect(formatCandidateMap(page, drill, { offset: 0, limit: 10 })).toContain('packages/alpha/src/index.ts');
+  expect(formatCandidateMap(page, drill, { offset: 10, limit: 10 })).not.toContain('packages/alpha/src/index.ts');
+});
+
 it('keeps terminal paths and complete Unicode code points when splitting prefixes', () => {
   const set = membership(['packages/alpha/😀.ts', 'packages/alpha/😁.ts', 'packages/alpha/a.ts', 'packages/alpha/a.tsx']);
   for (const [file] of set.files) set.files.set(file, Array.from({ length: 1200 }, (_, i) => i + 1));
