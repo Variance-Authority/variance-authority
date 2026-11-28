@@ -25,14 +25,9 @@ fn git(checkout: &Path) -> Command {
     command
 }
 
-/// Of `wanted`, the commits `from` does not contain; none when git does not answer.
-fn lacked(checkout: &Path, from: &str, wanted: &HashSet<&str>) -> Option<HashSet<String>> {
-    let mut child = git(checkout)
-        .args(["rev-list", "--ignore-missing", "--stdin", &format!("^{from}")])
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .spawn()
-        .ok()?;
+/// What git prints for `args` given `wanted` on its input, one line each; none when it does not answer.
+fn piped(checkout: &Path, args: &[&str], wanted: &HashSet<&str>) -> Option<Vec<String>> {
+    let mut child = git(checkout).args(args).stdin(Stdio::piped()).stdout(Stdio::piped()).spawn().ok()?;
     let input: String = wanted.iter().map(|commit| format!("{commit}\n")).collect();
     let mut pipe = child.stdin.take()?;
     // On its own thread: git may write before it has read all of its input.
@@ -40,6 +35,18 @@ fn lacked(checkout: &Path, from: &str, wanted: &HashSet<&str>) -> Option<HashSet
     let output = child.wait_with_output().ok()?;
     writer.join().ok()?.ok()?;
     output.status.success().then(|| String::from_utf8_lossy(&output.stdout).lines().map(str::to_owned).collect())
+}
+
+/// Of `wanted`, the commits `from` does not contain, a commit this clone does
+/// not have among them: a shallow clone lacks the old ones, and a walk would
+/// wait for them to its boundary. None when git does not answer.
+fn lacked(checkout: &Path, from: &str, wanted: &HashSet<&str>) -> Option<HashSet<String>> {
+    let mut lacked: HashSet<String> = piped(checkout, &["cat-file", "--batch-check=%(objectname)"], wanted)?
+        .into_iter()
+        .filter_map(|line| line.strip_suffix(" missing").map(str::to_owned))
+        .collect();
+    lacked.extend(piped(checkout, &["rev-list", "--ignore-missing", "--stdin", &format!("^{from}")], wanted)?);
+    Some(lacked)
 }
 
 /// The commits of `kept` that `from` contains, nearest first. `first_parent`
