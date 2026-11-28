@@ -3078,6 +3078,7 @@
         "classifiedAreas": "function",
         "classifyNames": "function",
         "codeMapPage": "function",
+        "commonDirectory": "function",
         "decidesResolution": "function",
         "declarationExported": "function",
         "declarationsOf": "function",
@@ -3206,6 +3207,7 @@
         "CheckoutPath": "type",
         "checkoutListing": "function",
         "checkoutPath": "function",
+        "commonDirectory": "function",
         "existedAt": "function",
         "existingAt": "function",
         "filesNamed": "function"

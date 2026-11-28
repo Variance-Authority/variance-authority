@@ -80,6 +80,85 @@ it('keeps large whole inventories drillable without selecting a first page of fi
   expect(leaves.map(({ file, lines }) => [file, lines])).toEqual([...set.files]);
 });
 
+it('splits an overflowing package by the next directory, listing files directly in the common directory', () => {
+  const set = membership([
+    ...Array.from({ length: 70 }, (_, i) => `packages/alpha/src/apple/entry-${String(i).padStart(3, '0')}.ts`),
+    ...Array.from({ length: 70 }, (_, i) => `packages/alpha/src/apricot/entry-${String(i).padStart(3, '0')}.ts`),
+    'packages/alpha/src/index.ts',
+  ]);
+  const page = candidateFileMap(ROOT, set, 'package:alpha');
+  expect(page.groups?.map(({ name, files }) => [name, files])).toEqual([['packages/alpha/src/apple/', 70], ['packages/alpha/src/apricot/', 70]]);
+  expect(page.entries?.map(({ file }) => file)).toEqual(['packages/alpha/src/index.ts']);
+  const apple = candidateFileMap(ROOT, set, page.groups![0]!.id);
+  expect(apple.selected).toBe(70);
+});
+
+it('names a directory group for the deepest folder its files share, so no drill only descends', () => {
+  const set = membership([...Array.from({ length: 140 }, (_, i) => `packages/alpha/src/a/b/c/entry-${String(i).padStart(3, '0')}.ts`), 'packages/alpha/src/z.ts']);
+  expect(candidateFileMap(ROOT, set, 'package:alpha').groups?.map(({ name, files }) => [name, files])).toEqual([['packages/alpha/src/a/b/c/', 140]]);
+});
+
+it('keeps loose files reachable when they alone overflow beside subdirectories, which stay directory groups, each file reached once', () => {
+  const set = membership([...Array.from({ length: 300 }, (_, i) => `packages/alpha/src/component-${String(i).padStart(3, '0')}.ts`), 'packages/alpha/src/__tests__/x.test.ts', 'packages/alpha/src/components/a.ts', 'packages/alpha/src/components/b.ts']);
+  const top = candidateFileMap(ROOT, set, 'package:alpha');
+  expect(top.groups?.filter(({ name }) => name.endsWith('/')).map(({ name, files }) => [name, files])).toEqual([['packages/alpha/src/__tests__/', 1], ['packages/alpha/src/components/', 2]]);
+  const found: string[] = [];
+  const visit = (selector: string) => {
+    const page = candidateFileMap(ROOT, set, selector);
+    expect(() => formatCandidateMap(page, (id) => id)).not.toThrow();
+    found.push(...(page.entries ?? []).map(({ file }) => file));
+    for (const group of page.groups ?? []) visit(group.id);
+  };
+  visit('package:alpha');
+  expect(found.toSorted()).toEqual([...set.files.keys()].toSorted());
+  expect(found).toHaveLength(set.files.size);
+});
+
+it('fits a page of many sibling directories to the text budget when no limit is said, the rest on the next page', () => {
+  const set = membership(Array.from({ length: 120 }, (_, i) => [0, 1, 2].map((n) => `packages/alpha/src/components/component-${String(i).padStart(3, '0')}/part-${n}.tsx`)).flat());
+  const page = candidateFileMap(ROOT, set, 'package:alpha');
+  expect(page.groups).toHaveLength(120);
+  const drill = (id: string, offset?: number) => `variance ask search --query x --map ${id}${offset === undefined ? '' : ` --offset ${offset}`}`;
+  const text = formatCandidateMap(page, drill, { offset: 0 });
+  const shown = text.split('\n').filter((line) => line.startsWith('packages/alpha/src/components/component-')).length;
+  expect(shown).toBeGreaterThan(0);
+  expect(shown).toBeLessThan(120);
+  expect(text).toContain(`--offset ${shown}`);
+  expect(() => formatCandidateMap(page, drill, { offset: 0, limit: 120 })).toThrow('text budget');
+});
+
+it('promises no count for the next fitted page that the next page does not show', () => {
+  const long = 'a'.repeat(300);
+  const set = membership(Array.from({ length: 120 }, (_, i) => [0, 1].map((n) => `packages/alpha/src/${i < 20 ? long : 'c'}-${String(i).padStart(3, '0')}/part-${n}.tsx`)).flat());
+  const page = candidateFileMap(ROOT, set, 'package:alpha');
+  const drill = (id: string, offset?: number) => `variance ask search --query x --map ${id}${offset === undefined ? '' : ` --offset ${offset}`}`;
+  const count = (text: string) => text.split('\n').filter((line) => line.startsWith('packages/alpha/src/')).length;
+  const first = formatCandidateMap(page, drill, { offset: 0 });
+  const shown = count(first);
+  const promised = /the next (\d+)/.exec(first)?.[1];
+  const next = count(formatCandidateMap(page, drill, { offset: shown }));
+  expect(promised === undefined || Number(promised) === next).toBe(true);
+  expect(first).toContain(`--offset ${shown}`);
+});
+
+it('prints the files directly in the common directory on the first page of its groups alone', () => {
+  const set = membership(['packages/alpha/src/index.ts', ...Array.from({ length: 120 }, (_, i) => [0, 1, 2].map((n) => `packages/alpha/src/components/component-${String(i).padStart(3, '0')}/part-${n}.tsx`)).flat()]);
+  const page = candidateFileMap(ROOT, set, 'package:alpha');
+  expect(page.entries?.map(({ file }) => file)).toEqual(['packages/alpha/src/index.ts']);
+  const drill = (id: string, offset?: number) => `variance ask search --query x --map ${id}${offset === undefined ? '' : ` --offset ${offset}`}`;
+  expect(formatCandidateMap(page, drill, { offset: 0, limit: 10 })).toContain('packages/alpha/src/index.ts');
+  expect(formatCandidateMap(page, drill, { offset: 10, limit: 10 })).not.toContain('packages/alpha/src/index.ts');
+});
+
+it('says an unavailable map whole, however long its unread frontier, since no page of groups can shorten it', () => {
+  state.present = false;
+  const set = { ...membership(['packages/alpha/a.ts']), unread: Array.from({ length: 150 }, (_, i) => `Unresolved source frontier ${i}: ${'x'.repeat(80)}.`) };
+  const map = candidateFileMap(ROOT, set, 'root');
+  const drill = (id: string, offset?: number) => `variance ask search --query x --map ${id}${offset === undefined ? '' : ` --offset ${offset}`}`;
+  expect(formatCandidateMap(map, drill)).toContain(map.unavailable);
+  expect(formatCandidateMap(map, drill, { offset: 0, limit: 5 })).toContain('Unresolved source frontier 149');
+});
+
 it('keeps terminal paths and complete Unicode code points when splitting prefixes', () => {
   const set = membership(['packages/alpha/😀.ts', 'packages/alpha/😁.ts', 'packages/alpha/a.ts', 'packages/alpha/a.tsx']);
   for (const [file] of set.files) set.files.set(file, Array.from({ length: 1200 }, (_, i) => i + 1));

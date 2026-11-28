@@ -1,4 +1,4 @@
-import { formatCandidateMap, MAP_GROUPS } from './search-map-format.js';
+import { formatCandidateMap } from './search-map-format.js';
 import type { FileSet, Spelling, Tool, ToolInvocation, Tree } from '@variance-authority/mcp/tools';
 import { limitOf, notShownPast, pageOf, START_POINT_SCHEMA, saysStartPoint, spellingOf, startPointArg, stringArg } from '@variance-authority/mcp/tools';
 import type { Help } from '@variance-authority/package/help';
@@ -171,7 +171,7 @@ function spoken({ answer, area }: Searched, asked: SearchQuestion, root: string 
   const { query } = answer;
   if (answer.candidateMap !== undefined) {
     const where = { query: asked.query, ...(asked.from === undefined ? {} : { from: asked.from }), ...(asked.to === undefined ? {} : { to: asked.to }) };
-    const page = { offset: asked.offset ?? 0, limit: asked.limit ?? MAP_GROUPS };
+    const page = asked.limit === undefined ? { offset: asked.offset ?? 0 } : { offset: asked.offset ?? 0, limit: asked.limit };
     return formatCandidateMap(answer.candidateMap, (map, offset) => spell.question(search, { ...where, map, ...(asked.limit === undefined ? {} : { limit: asked.limit }), ...(offset === undefined ? {} : { offset }) }), page, spell);
   }
   if (area?.refused !== undefined) return areaLine(area);
