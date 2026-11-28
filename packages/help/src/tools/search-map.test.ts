@@ -98,8 +98,10 @@ it('names a directory group for the deepest folder its files share, so no drill 
   expect(candidateFileMap(ROOT, set, 'package:alpha').groups?.map(({ name, files }) => [name, files])).toEqual([['packages/alpha/src/a/b/c/', 140]]);
 });
 
-it('keeps loose files reachable when they alone overflow beside a subdirectory, each file reached once', () => {
-  const set = membership([...Array.from({ length: 300 }, (_, i) => `packages/alpha/src/component-${String(i).padStart(3, '0')}.ts`), 'packages/alpha/src/__tests__/x.test.ts']);
+it('keeps loose files reachable when they alone overflow beside subdirectories, which stay directory groups, each file reached once', () => {
+  const set = membership([...Array.from({ length: 300 }, (_, i) => `packages/alpha/src/component-${String(i).padStart(3, '0')}.ts`), 'packages/alpha/src/__tests__/x.test.ts', 'packages/alpha/src/components/a.ts', 'packages/alpha/src/components/b.ts']);
+  const top = candidateFileMap(ROOT, set, 'package:alpha');
+  expect(top.groups?.filter(({ name }) => name.endsWith('/')).map(({ name, files }) => [name, files])).toEqual([['packages/alpha/src/__tests__/', 1], ['packages/alpha/src/components/', 2]]);
   const found: string[] = [];
   const visit = (selector: string) => {
     const page = candidateFileMap(ROOT, set, selector);
@@ -109,6 +111,7 @@ it('keeps loose files reachable when they alone overflow beside a subdirectory, 
   };
   visit('package:alpha');
   expect(found.toSorted()).toEqual([...set.files.keys()].toSorted());
+  expect(found).toHaveLength(set.files.size);
 });
 
 it('fits a page of many sibling directories to the text budget when no limit is said, the rest on the next page', () => {

@@ -76,8 +76,9 @@ const bare = ({ placed: _placed, ...file }: Held): CandidateFile => file;
  * Split a large whole inventory by the next directory below the files' common
  * directory, each group named for the deepest folder its files share, listing
  * the files directly in it. When no directory is left to
- * split on, or the files directly in it overflow alone, the files split by the
- * next character of their paths instead, and each drill below that splits again.
+ * split on, the files split by the next character of their paths instead. Files
+ * directly in it that overflow alone split by the shortest prefix no
+ * subdirectory shares, beside the directory groups, and each drill splits again.
  */
 function filePage(name: string, files: readonly Held[]): Pick<CandidateMap, 'groups' | 'entries'> {
   if (files.length < 2 || JSON.stringify(files.map(bare)).length <= 4000) return { entries: files.map(bare) };
@@ -91,16 +92,38 @@ function filePage(name: string, files: readonly Held[]): Pick<CandidateMap, 'gro
     if (!by.has(next)) by.set(next, []);
     by.get(next)!.push(file);
   }
-  if (by.size === 0 || direct.length > 1 && JSON.stringify(direct.map(bare)).length > 4000) return namePage(name, files);
+  if (by.size === 0) return namePage(name, files);
   const named = new Map([...by.values()].map((held) => [commonDirectory(held.map(({ file }) => file)), held]));
-  return { groups: groups(name, named, ''), ...(direct.length === 0 ? {} : { entries: direct.map(bare) }) };
+  if (direct.length < 2 || JSON.stringify(direct.map(bare)).length <= 4000) return { groups: groups(name, named, ''), ...(direct.length === 0 ? {} : { entries: direct.map(bare) }) };
+  return { groups: [...groups(name, named, ''), ...groups(name, loose(directory, direct, [...by.keys()]), '…')].sort((a, b) => codeUnitOrder(a.name, b.name)) };
+}
+
+/**
+ * Files directly in `directory`, grouped by the shortest prefix past it that
+ * no subdirectory starts with, so a drill selecting by that prefix reaches
+ * these files and none below them. A file is never a prefix of a directory
+ * beside it, so every file has one; no two such prefixes nest.
+ */
+function loose(directory: string, files: readonly Held[], subdirectories: readonly string[]): Map<string, Held[]> {
+  const by = new Map<string, Held[]>();
+  for (const file of files) {
+    const points = Array.from(file.file.slice(directory.length));
+    let prefix = directory;
+    for (const point of points) {
+      prefix += point;
+      if (!subdirectories.some((subdirectory) => subdirectory.startsWith(prefix))) break;
+    }
+    if (!by.has(prefix)) by.set(prefix, []);
+    by.get(prefix)!.push(file);
+  }
+  return by;
 }
 
 function groups(name: string, by: ReadonlyMap<string, readonly Held[]>, mark: string): CandidateGroup[] {
   return [...by].sort(([a], [b]) => codeUnitOrder(a, b)).map(([prefix, held]) => group(id('files', name, prefix), `${prefix}${mark}`, held));
 }
 
-/** Split files by the next code point after their common path prefix: for one flat directory, or loose files that overflow beside subdirectories. */
+/** Split files by the next code point after their common path prefix, for one flat directory. */
 function namePage(name: string, files: readonly Held[]): Pick<CandidateMap, 'groups' | 'entries'> {
   let prefix = files[0]!.file;
   for (const file of files) while (!file.file.startsWith(prefix)) prefix = Array.from(prefix).slice(0, -1).join('');
