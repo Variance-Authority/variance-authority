@@ -150,11 +150,15 @@ pub(crate) fn kept_mainlines(checkout: &Path, read_roots: &[String], selected: O
     kept.into_iter().map(|(read_root, one)| KeptMainline { read_root, commit: one.commit }).collect()
 }
 
+/// The kept mainline records, in the order a reader takes them.
+/// bound: the commit directories the read roots keep
 #[napi(js_name = "keptMainlines", catch_unwind)]
 pub fn kept_mainlines_napi(checkout: String, read_roots: Vec<String>, selected: Option<String>) -> Vec<KeptMainline> {
     kept_mainlines(Path::new(&checkout), &read_roots, selected.as_deref())
 }
 
+/// The commits of `kept` that `from` contains, nearest first.
+/// bound: the kept commits the caller names
 #[napi(js_name = "keptBehind", catch_unwind)]
 pub fn kept_behind_napi(checkout: String, from: String, kept: Vec<String>, first_parent: bool, landed_after: Option<i64>) -> Vec<String> {
     kept_behind(Path::new(&checkout), &from, &kept, first_parent, landed_after)
