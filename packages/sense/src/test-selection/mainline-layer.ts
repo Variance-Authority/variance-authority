@@ -36,7 +36,7 @@ import { pinOf, writeOwnLayer } from './own-layer.js';
 import { repositoryRoot } from './repository-root.js';
 import { declaredSuites, onlySuite } from './suites.js';
 
-/** The file a fetch names the mainline's record in, beside the commit directories it keeps, and in each of them. */
+/** The file that names the mainline's record: in its commit's directory for a fetch, beside the directories for a read handed to this checkout. */
 export const FETCHED_MAINLINE = 'fetched.json';
 
 /** What {@link FETCHED_MAINLINE} holds. */
@@ -170,36 +170,32 @@ function keptMainlines(root: string, name: string, cacheRoot?: string, selected?
 
 /**
  * The commits of `kept` that `from` contains, nearest first: one walk of its
- * last {@link WALK} commits, then one ask for those it lacks among the rest.
- * Those it holds past the walk follow, newest commit first: one ask orders
- * them, where a count would walk history for each. With `landedAfter`, a
- * commit committed before it is left out, so the walk costs a window and not
- * the repository's age. With `firstParent`, only `from`'s first-parent
- * history counts, as a mainline's publishes lie on it and a merged branch's
- * commits do not; past the walk that is one more walk of that line, nearest
- * first. A commit git cannot place is left out. Synchronous, as
- * {@link lastFetchedMainline} cannot wait; the CLI's fetch and history view
- * walk with it too.
+ * last {@link WALK} commits, then one more ask past them. `landedAfter` leaves
+ * out what was committed before it; `firstParent` counts only that line, where
+ * a mainline publishes. Synchronous, as {@link lastFetchedMainline} cannot wait.
  */
 export function keptBehind(checkout: string, from: string, kept: ReadonlySet<string>, along: { readonly firstParent?: boolean; readonly landedAfter?: number } = {}): readonly string[] {
   if (kept.size === 0) return [];
   const bound = along.landedAfter === undefined ? [] : [`--since=@${Math.floor(along.landedAfter / 1000)}`];
   const line = along.firstParent === true ? ['--first-parent'] : [];
   const ask = (args: readonly string[], input?: readonly string[]) =>
-    execFileSync('git', [...args], { cwd: checkout, encoding: 'utf8', env: { ...process.env, GIT_TERMINAL_PROMPT: '0' }, ...(input === undefined ? { stdio: ['ignore', 'pipe', 'ignore'] } : { input: `${input.join('\n')}\n`, stdio: ['pipe', 'pipe', 'ignore'] }) }).split('\n').filter(Boolean);
+    execFileSync('git', [...args], { cwd: checkout, encoding: 'utf8', maxBuffer: Infinity, env: { ...process.env, GIT_TERMINAL_PROMPT: '0' }, ...(input === undefined ? { stdio: ['ignore', 'pipe', 'ignore'] } : { input: `${input.join('\n')}\n`, stdio: ['pipe', 'pipe', 'ignore'] }) }).split('\n').filter(Boolean);
   const found: string[] = [];
+  let walked: readonly string[];
   try {
-    for (const commit of ask(['rev-list', `--max-count=${WALK}`, ...line, ...bound, from])) if (kept.has(commit)) found.push(commit);
+    walked = ask(['rev-list', `--max-count=${WALK}`, ...line, ...bound, from]);
   } catch {
     return found;
   }
+  for (const commit of walked) if (kept.has(commit)) found.push(commit);
   const rest = [...kept].filter((commit) => !found.includes(commit));
-  if (rest.length === 0) return found;
+  // A walk short of the window reached the root or the bound, so nothing lies past it.
+  if (rest.length === 0 || walked.length < WALK) return found;
   try {
-    // The first-parent line is one walk past the window too; a merged branch's commit is not on it.
+    // Past the window the line is walked on rather than asked per commit: a merged branch's commit is not on it.
     if (along.firstParent === true) {
       const left = new Set(rest);
-      for (const commit of ask(['rev-list', '--first-parent', ...bound, from]).slice(WALK)) if (left.has(commit)) found.push(commit);
+      for (const commit of ask(['rev-list', '--first-parent', `--skip=${WALK}`, ...bound, from])) if (left.has(commit)) found.push(commit);
       return found;
     }
     const lacked = new Set(ask(['rev-list', '--ignore-missing', '--stdin', `^${from}`], rest));

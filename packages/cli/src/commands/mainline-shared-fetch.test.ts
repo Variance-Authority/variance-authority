@@ -324,6 +324,22 @@ describe('a read a run hands on from the primary checkout', () => {
   });
 });
 
+describe('a read a run handed a checkout, laid from a push whose directory names nothing', () => {
+  it('is what that checkout hands on when the line misses', async () => {
+    const { primary, first } = await laptop();
+    const shared = mainlineReadRoot(cacheRootFor(primary), 'unit');
+    const pointer = readFetchedMainline(join(shared, first))!;
+    await standOnHanded(primary, 'unit', { ...pointer, fetched: new Date().toISOString() }, 'not handed');
+    await rm(join(shared, first, FETCHED_MAINLINE));
+    await git(primary, 'remote', 'set-url', 'origin', join(home, 'gone'));
+
+    const handed = await handBase(primary, join(home, 'hand'), { env: LOCAL, now: Date.now() });
+
+    expect(handed.commits).toEqual([first]);
+    expect(readFetchedMainline(join(home, 'hand', 'unit'))).toMatchObject({ commit: first });
+  });
+});
+
 describe('a mainline record a sibling worktree reads under a suite another checkout renamed', () => {
   it('is pinned by that checkout\'s prune', async () => {
     const { next, one, tree, base } = await laptop();
