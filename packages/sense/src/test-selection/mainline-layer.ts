@@ -134,7 +134,7 @@ export function lastFetchedMainline(root: string, suite: string | undefined, cac
   return undefined;
 }
 
-/** How far back from `HEAD` one walk looks for a kept commit before each is asked alone. */
+/** How far back one walk looks for a kept commit before the rest are asked past it. */
 const WALK = 1000;
 
 /**
@@ -176,7 +176,7 @@ function keptMainlines(root: string, name: string, cacheRoot?: string, selected?
  */
 export function keptBehind(checkout: string, from: string, kept: ReadonlySet<string>, along: { readonly firstParent?: boolean; readonly landedAfter?: number } = {}): readonly string[] {
   if (kept.size === 0) return [];
-  const bound = along.landedAfter === undefined ? [] : [`--since=@${Math.floor(along.landedAfter / 1000)}`];
+  const bound = along.landedAfter === undefined ? [] : [`--max-age=${Math.floor(along.landedAfter / 1000)}`];
   const line = along.firstParent === true ? ['--first-parent'] : [];
   const ask = (args: readonly string[], input?: readonly string[]) =>
     execFileSync('git', [...args], { cwd: checkout, encoding: 'utf8', maxBuffer: Infinity, env: { ...process.env, GIT_TERMINAL_PROMPT: '0' }, ...(input === undefined ? { stdio: ['ignore', 'pipe', 'ignore'] } : { input: `${input.join('\n')}\n`, stdio: ['pipe', 'pipe', 'ignore'] }) }).split('\n').filter(Boolean);
@@ -192,15 +192,16 @@ export function keptBehind(checkout: string, from: string, kept: ReadonlySet<str
   // A walk short of the window reached the root or the bound, so nothing lies past it.
   if (rest.length === 0 || walked.length < WALK) return found;
   try {
-    // Past the window the line is walked on rather than asked per commit: a merged branch's commit is not on it.
-    if (along.firstParent === true) {
-      const left = new Set(rest);
-      for (const commit of ask(['rev-list', '--first-parent', `--skip=${WALK}`, ...bound, from])) if (left.has(commit)) found.push(commit);
-      return found;
-    }
     const lacked = new Set(ask(['rev-list', '--ignore-missing', '--stdin', `^${from}`], rest));
-    const held = rest.filter((commit) => !lacked.has(commit));
-    if (held.length > 0) found.push(...ask(['rev-list', '--no-walk', ...bound, '--stdin'], held));
+    const held = new Set(rest.filter((commit) => !lacked.has(commit)));
+    if (held.size === 0) return found;
+    // The line is walked on past the window, only for a commit `from` holds there: a merged branch's commit is not on it.
+    if (along.firstParent === true) {
+      // No further back than the oldest of them, so the walk costs what ordering them needs and not the line's age.
+      const oldest = Math.min(...ask(['log', '--no-walk', '--ignore-missing', '--format=%ct', '--stdin'], [...held]).map(Number));
+      const since = Math.max(oldest, along.landedAfter === undefined ? 0 : Math.floor(along.landedAfter / 1000));
+      for (const commit of ask(['rev-list', '--first-parent', `--skip=${WALK}`, `--max-age=${since}`, from])) if (held.has(commit)) found.push(commit);
+    } else found.push(...ask(['rev-list', '--no-walk', '--ignore-missing', ...bound, '--stdin'], [...held]));
   } catch {
     return found;
   }

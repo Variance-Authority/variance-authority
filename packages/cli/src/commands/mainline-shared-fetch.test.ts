@@ -442,6 +442,7 @@ describe('a mainline record a run handed on to a worktree', () => {
     expect(await base(one, { fetch: 'always' })).toMatchObject({ commit: next });
 
     expect(existsSync(join(own, next))).toBe(true);
+    expect(existsSync(join(own, FETCHED_MAINLINE))).toBe(false);
     expect(readFetchedMainline(join(shared, first))).toEqual(primaryPointer);
     expect(lastFetchedMainline(two, 'unit')).toMatchObject({ commit: first, fetched: primaryPointer.fetched });
   });

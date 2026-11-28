@@ -86,8 +86,7 @@ export async function handBase(root: string, dir: string, ask: MainlineAsk = {})
       const from = dirname(dirname(base.coverage));
       await mkdir(to, { recursive: true });
       // A fetch names its record in the record's directory, and a read handed this checkout beside the directories.
-      const handed = readFetchedMainline(from);
-      await cp(handed?.handed === true && handed.commit === base.commit ? join(from, FETCHED_MAINLINE) : join(from, base.commit, FETCHED_MAINLINE), join(to, FETCHED_MAINLINE));
+      await cp(base.handed === true ? join(from, FETCHED_MAINLINE) : join(from, base.commit, FETCHED_MAINLINE), join(to, FETCHED_MAINLINE));
       await cp(join(from, base.commit), join(to, base.commit), { recursive: true });
       commits.add(base.commit);
     }
